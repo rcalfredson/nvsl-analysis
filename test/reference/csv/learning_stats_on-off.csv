@@ -1,0 +1,11 @@
+# command: analyze.py -v '/media/Synology3/Yang Chen/2019-03-20/c1_*' -f 15-19  [r1932]
+
+"training 1: 2.0h, choice (post: 30 min)"
+
+positional preference for LED side:
+video,fly,training 1 exp fly  pre,exp fly  on,exp fly  off
+c1__2019-03-20__11-25-57.avi,15,-0.104,0.429,-0.117
+c1__2019-03-20__11-25-57.avi,16,-0.214,0.567,0.364
+c1__2019-03-20__11-25-57.avi,17,-0.097,0.583,0.108
+c1__2019-03-20__11-25-57.avi,18,-0.052,0.614,0.111
+c1__2019-03-20__11-25-57.avi,19,-0.083,0.271,0.208

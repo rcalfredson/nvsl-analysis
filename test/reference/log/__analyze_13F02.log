@@ -1,0 +1,1340 @@
+# command: analyze.py -v '/media/Synology3/KJ/rt-trx/2017-02-16_33C/c2[1-4]_*|/media/Synology3/KJ/rt-trx/2017-02-16_33C/c[1-4]_*' --gl '13F02>shi; 0273>CsC at 33C|lexA-shi; 0273>CsC at 33C'  [r2355]
+
+=== analyzing c1__2017-02-16__10-07-20.avi ===
+
+  video length: 5.0h, frame rate: 7.5 fps, chamber type: regular
+  (pre: 30.1 min)
+  training 1: 1.0h, bottom (post: 30 min) (circle x=93,y=174,r=22)
+  training 2: 1.0h, top (post: 30.1 min) (circle x=93,y=89,r=22)
+  training 3: 1.0h, center (post: 30 min) (circle x=112,y=131,r=22)
+
+processing trajectories...
+exp fly
+  lost: number frames: 116 (0.09%), sequence length: avg: 1.4, max: 5
+    during "on" (4335 frames, 2 per "on" cmd): 6 (0.14%)
+    interpolating...
+  long (>30) jumps: 95, suspicious: 0 (0.0%)
+  total calculated rewards during training: 1202
+    for zero-width border: 1714 (+42.6%)
+      compared with actual ones: only actual: 433
+  total control rewards during trainings 1, 2, and 3: 91
+yok fly
+  lost: number frames: 86 (0.06%), sequence length: avg: 1.1, max: 3
+    during "on" (4335 frames, 2 per "on" cmd): 1 (0.02%)
+    interpolating...
+  long (>30) jumps: 915, suspicious: 9 (1.0%)
+  total calculated rewards during training: 618
+  total control rewards during trainings 1, 2, and 3: 833
+
+total rewards training: 2296, non-training: 3
+
+number rewards by sync bucket (10 min):
+training 1
+  actual: 111, 224, 198, 185, 219
+  calc. exp: 58, 95, 84, 94, 94
+  ctrl. exp: 6, 0, 0, 0, 0
+    PI: 0.81, 1.00, 1.00, 1.00, 1.00
+  calc. yok: 33, 58, 50, 35, 21
+  ctrl. yok: 40, 24, 32, 4, 11
+    PI: -0.10, 0.41, 0.22, 0.79, 0.31
+training 2
+  actual: 137, 123, 131, 111, 138
+  calc. exp: 53, 56, 61, 70, 72
+  ctrl. exp: 10, 8, 2, 3, 5
+    PI: 0.68, 0.75, 0.94, 0.92, 0.87
+  calc. yok: 25, 31, 46, 30, 36
+  ctrl. yok: 26, 34, 33, 35, 45
+    PI: -0.02, -0.05, 0.16, -0.08, -0.11
+training 3
+  actual: 83, 64, 90, 89, 61
+  calc. exp: 55, 52, 60, 57, 52
+  ctrl. exp: 8, 7, 10, 6, 11
+    PI: 0.75, 0.76, 0.71, 0.81, 0.65
+  calc. yok: 21, 29, 33, 32, 33
+  ctrl. yok: 79, 70, 83, 73, 93
+    PI: -0.58, -0.41, -0.43, -0.39, -0.48
+
+average distance traveled between actual rewards by sync bucket:
+training 1
+  exp: 76.2, 35.4, 44.6, 44.6, 46.0
+  yok: 185.1, 119.4, 132.6, 144.2, 115.4
+training 2
+  exp: 91.4, 93.8, 76.6, 97.1, 83.7
+  yok: 175.8, 241.7, 231.4, 245.7, 198.1
+training 3
+  exp: 148.1, 181.0, 139.6, 126.3, 188.5
+  yok: 288.0, 353.6, 239.2, 241.8, 415.2
+
+positional PI (r*1.3) by post bucket (2 min):
+training 1 (total post: 30 min)
+  1.00, 0.66, 0.60, nan, 0.50, 0.98, 0.22, 0.82, 1.00, 1.00, ...
+training 2 (total post: 30.1 min)
+  0.10, 0.42, -0.79, 0.44, -0.18, -0.95, -0.16, -0.10, 1.00, 0.76, ...
+
+number __calculated__ rewards by post bucket (3 min):
+training 1  (values in parentheses are still training)
+  calc. exp: (24), 13, 24, 5, 5, 7, 3, 1, 4, 3, ...
+  calc. yok: (12), 15, 8, 6, 4, 5, 5, 7, 1, 1, ...
+training 2
+  calc. exp: (17), 13, 4, 10, 0, 9, 0, 5, 0, 1, ...
+  calc. yok: (13), 13, 8, 14, 13, 10, 0, 7, 4, 7, ...
+training 3
+  calc. exp: (14), 13, 2, 2, 1, 2, 1, 1, 2, 1, ...
+  calc. yok: (8), 5, 2, 6, 0, 0, 1, 0, 3, 3, ...
+
+reward PI by post bucket (3 min)
+training 1
+  exp: nan, 0.73, nan, nan, 0.40, nan, nan, nan, nan, nan
+  yok: nan, -0.12, 0.20, nan, -0.23, -0.09, 0.27, nan, nan, nan
+training 2
+  exp: 0.44, -0.58, 0.05, nan, 0.06, nan, nan, nan, nan, nan
+  yok: 0.00, 0.07, 0.33, -0.07, -0.05, nan, 0.17, -0.27, 0.08, 0.33
+training 3
+  exp: 0.05, nan, nan, nan, nan, nan, nan, nan, nan, nan
+  yok: -0.64, nan, -0.33, -1.00, nan, -0.85, -1.00, -0.60, nan, nan
+
+by actual reward: (first 100 vs. next 100)
+training 1
+  avg. time between [s]: 2.9 vs. 4.9
+  avg. distance between (exp): 76.9 vs. 37.4
+  avg. distance between (yok): 100.5 vs. 356.5
+training 2
+  avg. time between [s]: 3.8 vs. 4.8
+  avg. distance between (exp): 77.8 vs. 94.4
+  avg. distance between (yok): 124.9 vs. 240.6
+training 3
+  avg. time between [s]: 7.8 vs. 7.3
+  avg. distance between (exp): 157.3 vs. 152.0
+  avg. distance between (yok): 312.3 vs. 266.8
+
+by __calculated__ reward: (first 100 vs. next 100)
+training 1
+  avg. time between [s] (exp): 9.0 vs. 6.1
+  avg. time between [s] (yok): 13.3 vs. 17.1
+  avg. distance between (exp): 127.2 vs. 91.5
+  avg. distance between (yok): 688.6 vs. 747.2
+training 2
+  avg. time between [s] (exp): 10.5 vs. 9.9
+  avg. time between [s] (yok): 17.8 vs. 17.0
+  avg. distance between (exp): 206.4 vs. 186.3
+  avg. distance between (yok): 838.0 vs. 818.5
+training 3
+  avg. time between [s] (exp): 10.5 vs. 10.1
+  avg. time between [s] (yok): 20.8 vs. nan
+  avg. distance between (exp): 207.3 vs. 202.6
+  avg. distance between (yok): 784.7 vs. nan
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 4.4, 1.6, stop fraction: 0.34, 0.74
+  yok: avg. speed bottom [mm/s]: 5.9, 4.6, stop fraction: 0.28, 0.47
+training 2
+  exp: avg. speed bottom [mm/s]: 0.6, 1.9, stop fraction: 0.90, 0.67
+  yok: avg. speed bottom [mm/s]: 1.7, 4.8, stop fraction: 0.72, 0.44
+training 3
+  exp: avg. speed bottom [mm/s]: 0.5, 2.2, stop fraction: 0.94, 0.65
+  yok: avg. speed bottom [mm/s]: 2.5, 4.1, stop fraction: 0.59, 0.49
+
+=== analyzing c2__2017-02-16__10-07-28.avi ===
+
+  video length: 5.0h, frame rate: 7.5 fps, chamber type: regular
+  (pre: 30.1 min)
+  training 1: 1.0h, bottom (post: 30 min) (circle x=98,y=154,r=22)
+  training 2: 1.0h, top (post: 30.1 min) (circle x=98,y=70,r=22)
+  training 3: 1.0h, center (post: 30 min) (circle x=116,y=112,r=22)
+
+processing trajectories...
+exp fly
+  lost: number frames: 61 (0.05%), sequence length: avg: 1.1, max: 3
+    during "on" (5546 frames, 2 per "on" cmd): 2 (0.04%)
+    interpolating...
+  long (>30) jumps: 122, suspicious: 1 (0.8%)
+  total calculated rewards during training: 1620
+    for zero-width border: 2266 (+39.9%)
+      compared with actual ones: only actual: 489
+  total control rewards during trainings 1, 2, and 3: 195
+yok fly
+  lost: number frames: 3648 (2.70%), sequence length: avg: 2.5, max: 81
+    during "on" (5546 frames, 2 per "on" cmd): 310 (5.59%)
+    interpolating...
+  long (>30) jumps: 282, suspicious: 0 (0.0%)
+  total calculated rewards during training: 494
+  total control rewards during trainings 1, 2, and 3: 926
+
+total rewards training: 2920, non-training: 3
+
+number rewards by sync bucket (10 min):
+training 1
+  actual: 260, 290, 285, 245, 245
+  calc. exp: 133, 170, 143, 144, 132
+  ctrl. exp: 7, 4, 12, 8, 4
+    PI: 0.90, 0.95, 0.85, 0.89, 0.94
+  calc. yok: 10, 21, 15, 43, 41
+  ctrl. yok: 19, 15, 23, 25, 21
+    PI: -0.31, 0.17, -0.21, 0.26, 0.32
+training 2
+  actual: 127, 174, 168, 149, 105
+  calc. exp: 57, 84, 95, 72, 70
+  ctrl. exp: 15, 4, 5, 23, 12
+    PI: 0.58, 0.91, 0.90, 0.52, 0.71
+  calc. yok: 17, 12, 23, 51, 27
+  ctrl. yok: 31, 19, 32, 37, 36
+    PI: -0.29, -0.23, -0.16, 0.16, -0.14
+training 3
+  actual: 156, 59, 61, 80, 77
+  calc. exp: 68, 50, 47, 59, 59
+  ctrl. exp: 12, 22, 8, 15, 11
+    PI: 0.70, 0.39, 0.71, 0.59, 0.69
+  calc. yok: 35, 19, 20, 27, 37
+  ctrl. yok: 95, 106, 92, 87, 104
+    PI: -0.46, -0.70, -0.64, -0.53, -0.48
+
+average distance traveled between actual rewards by sync bucket:
+training 1
+  exp: 70.0, 72.6, 67.3, 75.6, 66.9
+  yok: 84.7, 52.7, 65.9, 74.1, 98.3
+training 2
+  exp: 91.5, 66.5, 69.3, 96.3, 134.7
+  yok: 198.0, 137.8, 134.7, 197.0, 299.4
+training 3
+  exp: 88.1, 263.3, 157.0, 168.7, 181.8
+  yok: 187.0, 504.6, 431.1, 340.5, 363.3
+
+positional PI (r*1.3) by post bucket (2 min):
+training 1 (total post: 30 min)
+  0.33, 0.17, 0.15, 0.26, 0.26, -0.60, 0.59, 0.28, -0.20, 0.42, ...
+training 2 (total post: 30.1 min)
+  0.37, 0.64, 0.56, -0.15, -0.57, 0.58, 0.15, 0.23, -0.67, nan, ...
+
+number __calculated__ rewards by post bucket (3 min):
+training 1  (values in parentheses are still training)
+  calc. exp: (34), 35, 27, 12, 14, 7, 6, 10, 1, 3, ...
+  calc. yok: (6), 7, 5, 3, 5, 7, 2, 1, 1, 5, ...
+training 2
+  calc. exp: (21), 20, 5, 16, 10, 14, 2, 0, 0, 1, ...
+  calc. yok: (10), 18, 12, 5, 2, 3, 4, 7, 1, 0, ...
+training 3
+  calc. exp: (3), 8, 1, 1, 0, 2, 0, 0, 3, 0, ...
+  calc. yok: (6), 2, 2, 0, 0, 1, 0, 1, 0, 0, ...
+
+reward PI by post bucket (3 min)
+training 1
+  exp: 0.05, 0.02, 0.00, -0.07, 0.08, -0.20, 0.43, nan, -0.45, nan
+  yok: nan, nan, nan, -0.23, nan, nan, nan, nan, nan, nan
+training 2
+  exp: 0.25, 0.00, 0.19, 0.25, 0.33, nan, nan, nan, nan, nan
+  yok: 0.09, 0.14, -0.23, nan, nan, nan, 0.17, nan, nan, nan
+training 3
+  exp: nan, -0.80, nan, nan, nan, nan, nan, nan, nan, nan
+  yok: nan, -0.69, -1.00, nan, nan, nan, nan, nan, nan, nan
+
+by actual reward: (first 100 vs. next 100)
+training 1
+  avg. time between [s]: 3.3 vs. 1.6
+  avg. distance between (exp): 88.9 vs. 57.3
+  avg. distance between (yok): 168.2 vs. 32.2
+training 2
+  avg. time between [s]: 4.7 vs. 3.8
+  avg. distance between (exp): 95.2 vs. 69.3
+  avg. distance between (yok): 217.4 vs. 151.6
+training 3
+  avg. time between [s]: 2.4 vs. 8.0
+  avg. distance between (exp): 51.3 vs. 203.2
+  avg. distance between (yok): 116.1 vs. 384.3
+
+by __calculated__ reward: (first 100 vs. next 100)
+training 1
+  avg. time between [s] (exp): 4.4 vs. 3.3
+  avg. time between [s] (yok): 24.3 vs. nan
+  avg. distance between (exp): 126.0 vs. 116.8
+  avg. distance between (yok): 768.7 vs. nan
+training 2
+  avg. time between [s] (exp): 8.8 vs. 6.8
+  avg. time between [s] (yok): 22.9 vs. nan
+  avg. distance between (exp): 172.8 vs. 128.8
+  avg. distance between (yok): 965.5 vs. nan
+training 3
+  avg. time between [s] (exp): 9.7 vs. 11.5
+  avg. time between [s] (yok): 22.6 vs. nan
+  avg. distance between (exp): 234.9 vs. 232.9
+  avg. distance between (yok): 1085.5 vs. nan
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 6.7, 3.4, stop fraction: 0.11, 0.45
+  yok: avg. speed bottom [mm/s]: 5.5, 3.1, stop fraction: 0.14, 0.50
+training 2
+  exp: avg. speed bottom [mm/s]: 1.4, 2.2, stop fraction: 0.62, 0.66
+  yok: avg. speed bottom [mm/s]: 3.6, 4.3, stop fraction: 0.33, 0.42
+training 3
+  exp: avg. speed bottom [mm/s]: nan, 2.2, stop fraction: 0.97, 0.65
+  yok: avg. speed bottom [mm/s]: 0.9, 4.4, stop fraction: 0.86, 0.36
+
+=== analyzing c3__2017-02-16__10-07-35.avi ===
+
+  video length: 5.0h, frame rate: 7.5 fps, chamber type: regular
+  (pre: 30.1 min)
+  training 1: 1.0h, bottom (post: 30 min) (circle x=95,y=177,r=22)
+  training 2: 1.0h, top (post: 30.1 min) (circle x=95,y=92,r=22)
+  training 3: 1.0h, center (post: 30 min) (circle x=114,y=134,r=22)
+
+processing trajectories...
+exp fly
+  lost: number frames: 2945 (2.18%), sequence length: avg: 3.7, max: 125
+    during "on" (5014 frames, 2 per "on" cmd): 10 (0.20%)
+    interpolating...
+  long (>30) jumps: 170, suspicious: 0 (0.0%)
+  total calculated rewards during training: 1468
+    for zero-width border: 2042 (+39.1%)
+      compared with actual ones: only actual: 459
+  total control rewards during trainings 1, 2, and 3: 38
+yok fly
+  lost: number frames: 269 (0.20%), sequence length: avg: 1.6, max: 8
+    during "on" (5014 frames, 2 per "on" cmd): 1 (0.02%)
+    interpolating...
+  long (>30) jumps: 767, suspicious: 5 (0.7%)
+  total calculated rewards during training: 918
+  total control rewards during trainings 1, 2, and 3: 1416
+
+total rewards training: 2602, non-training: 3
+
+number rewards by sync bucket (10 min):
+training 1
+  actual: 220, 182, 183, 167, 130
+  calc. exp: 118, 114, 109, 90, 83
+  ctrl. exp: 5, 1, 1, 1, 1
+    PI: 0.92, 0.98, 0.98, 0.98, 0.98
+  calc. yok: 50, 38, 47, 35, 30
+  ctrl. yok: 24, 43, 50, 35, 44
+    PI: 0.35, -0.06, -0.03, 0.00, -0.19
+training 2
+  actual: 206, 143, 173, 129, 153
+  calc. exp: 76, 72, 87, 61, 72
+  ctrl. exp: 0, 1, 0, 15, 0
+    PI: 1.00, 0.97, 1.00, 0.61, 1.00
+  calc. yok: 51, 53, 56, 66, 42
+  ctrl. yok: 47, 44, 52, 39, 27
+    PI: 0.04, 0.09, 0.04, 0.26, 0.22
+training 3
+  actual: 87, 108, 101, 86, 101
+  calc. exp: 0, 4, 78, 68, 79
+  ctrl. exp: 0, 1, 0, 3, 1
+    PI: nan, nan, 1.00, 0.92, 0.97
+  calc. yok: 0, 1, 58, 66, 59
+  ctrl. yok: 0, 13, 163, 177, 159
+    PI: nan, -0.86, -0.48, -0.46, -0.46
+
+average distance traveled between actual rewards by sync bucket:
+training 1
+  exp: 77.6, 73.0, 76.9, 62.3, 72.8
+  yok: 151.5, 262.1, 257.7, 315.1, 401.2
+training 2
+  exp: 45.0, 68.0, 52.3, 73.0, 42.9
+  yok: 159.9, 323.6, 241.6, 339.4, 297.4
+training 3
+  exp: 118.4, 98.9, 111.1, 134.5, 114.6
+  yok: 384.2, 361.6, 402.1, 497.8, 408.3
+
+positional PI (r*1.3) by post bucket (2 min):
+training 1 (total post: 30 min)
+  0.87, 0.41, 0.03, 0.71, -0.02, -0.86, 0.36, 0.59, -0.88, -0.80, ...
+training 2 (total post: 30.1 min)
+  0.98, 0.56, 0.14, 0.24, 0.93, -0.92, -1.00, -1.00, -0.98, -0.08, ...
+
+number __calculated__ rewards by post bucket (3 min):
+training 1  (values in parentheses are still training)
+  calc. exp: (20), 14, 9, 7, 2, 5, 1, 3, 5, 1, ...
+  calc. yok: (12), 3, 2, 5, 2, 2, 1, 2, 3, 0, ...
+training 2
+  calc. exp: (20), 12, 6, 3, 1, 0, 0, 3, 2, 4, ...
+  calc. yok: (17), 8, 10, 2, 4, 8, 0, 6, 3, 1, ...
+training 3
+  calc. exp: (27), 11, 2, 1, 1, 0, 3, 0, 0, 0, ...
+  calc. yok: (16), 13, 9, 6, 3, 2, 1, 0, 0, 0, ...
+
+reward PI by post bucket (3 min)
+training 1
+  exp: 0.44, 0.12, 0.17, nan, 0.00, nan, nan, nan, nan, nan
+  yok: -0.60, nan, nan, nan, nan, nan, nan, nan, nan, nan
+training 2
+  exp: nan, nan, nan, nan, nan, nan, nan, nan, nan, nan
+  yok: nan, 0.67, nan, nan, 0.45, nan, nan, nan, nan, nan
+training 3
+  exp: nan, nan, nan, nan, nan, nan, nan, nan, nan, nan
+  yok: -0.67, -0.58, -0.60, -0.62, -0.79, nan, nan, nan, nan, nan
+
+by actual reward: (first 100 vs. next 100)
+training 1
+  avg. time between [s]: 2.3 vs. 3.1
+  avg. distance between (exp): 85.9 vs. 72.0
+  avg. distance between (yok): 102.3 vs. 196.0
+training 2
+  avg. time between [s]: 3.9 vs. 1.7
+  avg. distance between (exp): 66.2 vs. 20.7
+  avg. distance between (yok): 228.2 vs. 83.3
+training 3
+  avg. time between [s]: 6.9 vs. 5.4
+  avg. distance between (exp): 119.8 vs. 98.4
+  avg. distance between (yok): 402.3 vs. 355.5
+
+by __calculated__ reward: (first 100 vs. next 100)
+training 1
+  avg. time between [s] (exp): 5.0 vs. 5.4
+  avg. time between [s] (yok): 13.4 vs. 16.7
+  avg. distance between (exp): 148.8 vs. 120.8
+  avg. distance between (yok): 916.5 vs. 1440.2
+training 2
+  avg. time between [s] (exp): 7.8 vs. 8.0
+  avg. time between [s] (yok): 10.7 vs. 10.7
+  avg. distance between (exp): 125.4 vs. 123.3
+  avg. distance between (yok): 690.1 vs. 765.3
+training 3
+  avg. time between [s] (exp): 8.6 vs. 7.9
+  avg. time between [s] (yok): 8.9 vs. 10.6
+  avg. distance between (exp): 151.4 vs. 149.1
+  avg. distance between (yok): 508.4 vs. 747.7
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 4.7, 2.1, stop fraction: 0.30, 0.64
+  yok: avg. speed bottom [mm/s]: 5.2, 7.0, stop fraction: 0.38, 0.20
+training 2
+  exp: avg. speed bottom [mm/s]: 1.1, 1.6, stop fraction: 0.77, 0.74
+  yok: avg. speed bottom [mm/s]: 1.1, 7.2, stop fraction: 0.44, 0.22
+training 3
+  exp: avg. speed bottom [mm/s]: 0.9, 2.1, stop fraction: 0.86, 0.66
+  yok: avg. speed bottom [mm/s]: 3.0, 6.7, stop fraction: 0.68, 0.21
+
+=== analyzing c4__2017-02-16__10-07-42.avi ===
+
+  video length: 5.0h, frame rate: 7.5 fps, chamber type: regular
+  (pre: 30.1 min)
+  training 1: 1.0h, bottom (post: 30 min) (circle x=114,y=171,r=22)
+  training 2: 1.0h, top (post: 30.1 min) (circle x=114,y=88,r=22)
+  training 3: 1.0h, center (post: 30 min) (circle x=133,y=129,r=22)
+
+processing trajectories...
+exp fly
+  lost: number frames: 866 (0.64%), sequence length: avg: 3.1, max: 81
+    during "on" (3126 frames, 2 per "on" cmd): 0 (0.00%)
+    interpolating...
+  long (>30) jumps: 38, suspicious: 0 (0.0%)
+  total calculated rewards during training: 928
+    for zero-width border: 1278 (+37.7%)
+      compared with actual ones: only actual: 262
+  total control rewards during trainings 1, 2, and 3: 313
+yok fly
+  lost: number frames: 841 (0.62%), sequence length: avg: 2.5, max: 214
+    during "on" (3126 frames, 2 per "on" cmd): 27 (0.86%)
+    interpolating...
+  long (>30) jumps: 1233, suspicious: 1 (0.1%)
+  total calculated rewards during training: 633
+  total control rewards during trainings 1, 2, and 3: 1102
+
+total rewards training: 1641, non-training: 3
+
+number rewards by sync bucket (10 min):
+training 1
+  actual: 91, 106, 164, 206, 127
+  calc. exp: 50, 65, 81, 94, 69
+  ctrl. exp: 23, 23, 14, 8, 17
+    PI: 0.37, 0.48, 0.71, 0.84, 0.60
+  calc. yok: 35, 37, 44, 54, 49
+  ctrl. yok: 50, 40, 34, 44, 58
+    PI: -0.18, -0.04, 0.13, 0.10, -0.08
+training 2
+  actual: 75, 75, 127, 108, 99
+  calc. exp: 40, 43, 58, 62, 58
+  ctrl. exp: 23, 9, 4, 6, 10
+    PI: 0.27, 0.65, 0.87, 0.82, 0.71
+  calc. yok: 16, 35, 37, 37, 43
+  ctrl. yok: 30, 23, 39, 42, 44
+    PI: -0.30, 0.21, -0.03, -0.06, -0.01
+training 3
+  actual: 54, 58, 58, 36, 34
+  calc. exp: 29, 34, 41, 30, 30
+  ctrl. exp: 27, 14, 27, 19, 25
+    PI: 0.04, 0.42, 0.21, 0.22, 0.09
+  calc. yok: 41, 29, 17, 27, 33
+  ctrl. yok: 118, 112, 87, 107, 94
+    PI: -0.48, -0.59, -0.67, -0.60, -0.48
+
+average distance traveled between actual rewards by sync bucket:
+training 1
+  exp: 154.7, 116.1, 77.6, 56.0, 107.3
+  yok: 478.3, 380.1, 272.9, 201.4, 374.4
+training 2
+  exp: 152.8, 110.2, 69.5, 74.4, 109.3
+  yok: 382.3, 418.0, 276.8, 338.4, 403.4
+training 3
+  exp: 204.7, 169.8, 191.5, 287.6, 292.2
+  yok: 643.7, 548.0, 436.0, 835.8, 917.5
+
+positional PI (r*1.3) by post bucket (2 min):
+training 1 (total post: 30 min)
+  -0.04, -0.51, -0.98, -0.56, -0.82, nan, -1.00, 0.58, 0.56, 0.56, ...
+training 2 (total post: 30.1 min)
+  0.50, 0.54, 0.18, 0.51, -0.77, 0.59, nan, -0.99, 1.00, 0.09, ...
+
+number __calculated__ rewards by post bucket (3 min):
+training 1  (values in parentheses are still training)
+  calc. exp: (12), 12, 2, 3, 4, 2, 7, 3, 3, 1, ...
+  calc. yok: (5), 5, 5, 5, 6, 9, 5, 5, 5, 5, ...
+training 2
+  calc. exp: (22), 21, 6, 6, 1, 2, 4, 1, 1, 4, ...
+  calc. yok: (18), 4, 6, 5, 9, 3, 6, 4, 8, 8, ...
+training 3
+  calc. exp: (3), 6, 3, 1, 2, 1, 1, 0, 0, 2, ...
+  calc. yok: (5), 4, 7, 4, 2, 4, 5, 3, 1, 2, ...
+
+reward PI by post bucket (3 min)
+training 1
+  exp: 0.08, nan, nan, nan, nan, 0.40, nan, nan, nan, nan
+  yok: nan, nan, nan, nan, 0.64, nan, nan, nan, -0.17, nan
+training 2
+  exp: 0.36, 0.09, 0.09, nan, nan, nan, nan, nan, nan, nan
+  yok: nan, -0.33, -0.17, 0.06, nan, -0.08, -0.27, 0.23, -0.16, nan
+training 3
+  exp: -0.40, -0.67, nan, nan, nan, nan, nan, nan, nan, nan
+  yok: -0.62, -0.42, -0.60, -0.76, -0.27, -0.17, -0.40, -0.83, -0.75, -0.60
+
+by actual reward: (first 100 vs. next 100)
+training 1
+  avg. time between [s]: 7.3 vs. 5.0
+  avg. distance between (exp): 169.7 vs. 108.2
+  avg. distance between (yok): 531.8 vs. 342.2
+training 2
+  avg. time between [s]: 8.3 vs. 6.3
+  avg. distance between (exp): 144.7 vs. 88.3
+  avg. distance between (yok): 406.0 vs. 357.6
+training 3
+  avg. time between [s]: 11.2 vs. 11.3
+  avg. distance between (exp): 196.1 vs. 208.0
+  avg. distance between (yok): 656.8 vs. 499.4
+
+by __calculated__ reward: (first 100 vs. next 100)
+training 1
+  avg. time between [s] (exp): 10.3 vs. 7.6
+  avg. time between [s] (yok): 14.5 vs. 12.1
+  avg. distance between (exp): 229.0 vs. 166.1
+  avg. distance between (yok): 1049.0 vs. 904.5
+training 2
+  avg. time between [s] (exp): 13.7 vs. 9.8
+  avg. time between [s] (yok): 19.3 vs. 14.7
+  avg. distance between (exp): 220.3 vs. 143.1
+  avg. distance between (yok): 1055.3 vs. 1003.9
+training 3
+  avg. time between [s] (exp): 17.0 vs. nan
+  avg. time between [s] (yok): 20.8 vs. nan
+  avg. distance between (exp): 303.6 vs. nan
+  avg. distance between (yok): 1058.9 vs. nan
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 5.5, 2.1, stop fraction: 0.21, 0.63
+  yok: avg. speed bottom [mm/s]: 4.0, 7.0, stop fraction: 0.60, 0.23
+training 2
+  exp: avg. speed bottom [mm/s]: 0.7, 1.7, stop fraction: 0.82, 0.71
+  yok: avg. speed bottom [mm/s]: 4.3, 5.8, stop fraction: 0.50, 0.28
+training 3
+  exp: avg. speed bottom [mm/s]: 0.6, 1.8, stop fraction: 0.86, 0.71
+  yok: avg. speed bottom [mm/s]: 4.2, 4.9, stop fraction: 0.26, 0.33
+
+=== analyzing c21__2017-02-16__10-09-11.avi ===
+
+  video length: 5.0h, frame rate: 7.5 fps, chamber type: regular
+  (pre: 30.1 min)
+  training 1: 1.0h, bottom (post: 30 min) (circle x=83,y=165,r=22)
+  training 2: 1.0h, top (post: 30.1 min) (circle x=83,y=79,r=22)
+  training 3: 1.0h, center (post: 30 min) (circle x=103,y=122,r=22)
+
+processing trajectories...
+exp fly
+  lost: number frames: 812 (0.60%), sequence length: avg: 2.0, max: 53
+    during "on" (5338 frames, 2 per "on" cmd): 32 (0.60%)
+    interpolating...
+  long (>30) jumps: 192, suspicious: 1 (0.5%)
+  total calculated rewards during training: 1264
+    for zero-width border: 2041 (+61.5%)
+      compared with actual ones: only actual: 619
+  total control rewards during trainings 1, 2, and 3: 357
+yok fly
+  lost: number frames: 2191 (1.62%), sequence length: avg: 3.6, max: 103
+    during "on" (5338 frames, 2 per "on" cmd): 130 (2.44%)
+    interpolating...
+  long (>30) jumps: 84, suspicious: 0 (0.0%)
+  total calculated rewards during training: 358
+  total control rewards during trainings 1, 2, and 3: 442
+
+total rewards training: 2840, non-training: 3
+
+number rewards by sync bucket (10 min):
+training 1
+  actual: 102, 175, 102, 181, 173
+  calc. exp: 51, 73, 53, 64, 78
+  ctrl. exp: 21, 5, 16, 7, 9
+    PI: 0.42, 0.87, 0.54, 0.80, 0.79
+  calc. yok: 22, 17, 30, 4, 26
+  ctrl. yok: 23, 13, 23, 32, 15
+    PI: -0.02, 0.13, 0.13, -0.78, 0.27
+training 2
+  actual: 181, 241, 201, 185, 149
+  calc. exp: 74, 64, 69, 78, 75
+  ctrl. exp: 4, 7, 9, 4, 13
+    PI: 0.90, 0.80, 0.77, 0.90, 0.70
+  calc. yok: 26, 23, 13, 50, 10
+  ctrl. yok: 8, 9, 9, 7, 18
+    PI: 0.53, 0.44, 0.18, 0.75, -0.29
+training 3
+  actual: 92, 149, 130, 148, 153
+  calc. exp: 56, 81, 78, 80, 81
+  ctrl. exp: 66, 46, 43, 27, 18
+    PI: -0.08, 0.28, 0.29, 0.50, 0.64
+  calc. yok: 23, 19, 23, 14, 12
+  ctrl. yok: 35, 44, 33, 38, 34
+    PI: -0.21, -0.40, -0.18, -0.46, -0.48
+
+average distance traveled between actual rewards by sync bucket:
+training 1
+  exp: 215.5, 43.7, 176.8, 58.5, 67.0
+  yok: 220.4, 101.9, 202.8, 101.1, 94.3
+training 2
+  exp: 64.3, 41.2, 59.8, 57.7, 114.2
+  yok: 61.8, 39.3, 47.4, 58.7, 72.8
+training 3
+  exp: 210.6, 109.4, 139.6, 106.7, 83.1
+  yok: 104.0, 61.8, 66.9, 53.0, 56.2
+
+positional PI (r*1.3) by post bucket (2 min):
+training 1 (total post: 30 min)
+  0.42, -0.02, -0.17, 0.14, -0.35, nan, nan, -0.63, -0.54, -0.64, ...
+training 2 (total post: 30.1 min)
+  0.21, 0.29, 0.04, -0.39, 0.54, -0.13, nan, -0.80, -0.79, -0.08, ...
+
+number __calculated__ rewards by post bucket (3 min):
+training 1  (values in parentheses are still training)
+  calc. exp: (27), 7, 9, 7, 5, 3, 5, 3, 4, 5, ...
+  calc. yok: (2), 4, 2, 3, 1, 4, 6, 2, 0, 0, ...
+training 2
+  calc. exp: (19), 16, 9, 13, 2, 4, 0, 8, 3, 4, ...
+  calc. yok: (5), 1, 4, 0, 4, 1, 0, 2, 3, 0, ...
+training 3
+  calc. exp: (20), 11, 7, 7, 7, 5, 4, 4, 4, 0, ...
+  calc. yok: (7), 1, 1, 5, 1, 1, 2, 0, 3, 0, ...
+
+reward PI by post bucket (3 min)
+training 1
+  exp: nan, 0.00, 0.08, nan, nan, nan, -0.40, nan, nan, nan
+  yok: nan, nan, nan, nan, nan, 0.20, nan, nan, nan, nan
+training 2
+  exp: 0.03, -0.10, 0.08, nan, nan, nan, 0.23, nan, -0.27, nan
+  yok: nan, nan, nan, nan, nan, nan, nan, nan, nan, nan
+training 3
+  exp: -0.51, -0.60, -0.67, -0.60, -0.74, -0.70, -0.67, -0.70, -1.00, -0.57
+  yok: nan, nan, -0.55, nan, -0.82, -0.64, nan, nan, nan, -0.47
+
+by actual reward: (first 100 vs. next 100)
+training 1
+  avg. time between [s]: 5.9 vs. 3.8
+  avg. distance between (exp): 219.4 vs. 52.6
+  avg. distance between (yok): 223.2 vs. 124.2
+training 2
+  avg. time between [s]: 4.7 vs. 1.7
+  avg. distance between (exp): 103.4 vs. 17.1
+  avg. distance between (yok): 87.2 vs. 29.1
+training 3
+  avg. time between [s]: 6.6 vs. 4.0
+  avg. distance between (exp): 215.0 vs. 113.7
+  avg. distance between (yok): 106.1 vs. 61.9
+
+by __calculated__ reward: (first 100 vs. next 100)
+training 1
+  avg. time between [s] (exp): 9.8 vs. 10.0
+  avg. time between [s] (yok): 30.0 vs. nan
+  avg. distance between (exp): 274.2 vs. 288.9
+  avg. distance between (yok): 994.1 vs. nan
+training 2
+  avg. time between [s] (exp): 8.8 vs. 8.3
+  avg. time between [s] (yok): 22.1 vs. nan
+  avg. distance between (exp): 167.1 vs. 147.0
+  avg. distance between (yok): 383.7 vs. nan
+training 3
+  avg. time between [s] (exp): 9.4 vs. 7.4
+  avg. time between [s] (yok): 32.5 vs. nan
+  avg. distance between (exp): 297.8 vs. 208.7
+  avg. distance between (yok): 490.3 vs. nan
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 3.0, 1.6, stop fraction: 0.35, 0.65
+  yok: avg. speed bottom [mm/s]: 4.1, 3.2, stop fraction: 0.34, 0.49
+training 2
+  exp: avg. speed bottom [mm/s]: 3.5, 1.9, stop fraction: 0.35, 0.65
+  yok: avg. speed bottom [mm/s]: 1.5, 2.1, stop fraction: 0.62, 0.69
+training 3
+  exp: avg. speed bottom [mm/s]: 3.4, 2.6, stop fraction: 0.26, 0.57
+  yok: avg. speed bottom [mm/s]: 1.3, 1.8, stop fraction: 0.79, 0.72
+
+=== analyzing c22__2017-02-16__10-09-18.avi ===
+
+  video length: 5.0h, frame rate: 7.5 fps, chamber type: regular
+  (pre: 30.1 min)
+  training 1: 1.0h, bottom (post: 30 min) (circle x=88,y=165,r=22)
+  training 2: 1.0h, top (post: 30.1 min) (circle x=88,y=80,r=22)
+  training 3: 1.0h, center (post: 30 min) (circle x=107,y=122,r=22)
+
+processing trajectories...
+exp fly
+  lost: number frames: 273 (0.20%), sequence length: avg: 1.4, max: 12
+    during "on" (5811 frames, 2 per "on" cmd): 1 (0.02%)
+    interpolating...
+  long (>30) jumps: 322, suspicious: 0 (0.0%)
+  total calculated rewards during training: 1262
+    for zero-width border: 2134 (+69.1%)
+      compared with actual ones: only actual: 727
+  total control rewards during trainings 1, 2, and 3: 628
+yok fly
+  lost: number frames: 1107 (0.82%), sequence length: avg: 3.2, max: 105
+    during "on" (5811 frames, 2 per "on" cmd): 21 (0.36%)
+    interpolating...
+  long (>30) jumps: 219, suspicious: 0 (0.0%)
+  total calculated rewards during training: 417
+  total control rewards during trainings 1, 2, and 3: 662
+
+total rewards training: 3116, non-training: 3
+
+number rewards by sync bucket (10 min):
+training 1
+  actual: 86, 232, 105, 95, 121
+  calc. exp: 55, 81, 55, 54, 72
+  ctrl. exp: 20, 18, 19, 20, 20
+    PI: 0.47, 0.64, 0.49, 0.46, 0.57
+  calc. yok: 32, 34, 38, 29, 34
+  ctrl. yok: 12, 13, 38, 29, 14
+    PI: 0.45, 0.45, 0.00, 0.00, 0.42
+training 2
+  actual: 34, 326, 332, 233, 128
+  calc. exp: 18, 48, 77, 103, 68
+  ctrl. exp: 28, 7, 1, 8, 23
+    PI: -0.22, 0.75, 0.97, 0.86, 0.49
+  calc. yok: 13, 5, 13, 9, 7
+  ctrl. yok: 29, 28, 14, 15, 34
+    PI: -0.38, -0.70, -0.04, -0.25, -0.66
+training 3
+  actual: 116, 80, 127, 171, 256
+  calc. exp: 58, 50, 61, 88, 113
+  ctrl. exp: 65, 91, 80, 68, 57
+    PI: -0.06, -0.29, -0.13, 0.13, 0.33
+  calc. yok: 19, 29, 26, 24, 28
+  ctrl. yok: 74, 82, 83, 55, 36
+    PI: -0.59, -0.48, -0.52, -0.39, -0.12
+
+average distance traveled between actual rewards by sync bucket:
+training 1
+  exp: 314.9, 96.9, 258.2, 275.8, 195.6
+  yok: 312.6, 114.6, 259.1, 327.4, 238.9
+training 2
+  exp: 754.2, 36.9, 36.3, 69.2, 184.5
+  yok: 886.2, 33.0, 38.2, 54.5, 125.3
+training 3
+  exp: 179.8, 307.1, 193.0, 126.2, 76.2
+  yok: 165.4, 239.4, 155.7, 81.9, 44.5
+
+positional PI (r*1.3) by post bucket (2 min):
+training 1 (total post: 30 min)
+  0.91, -0.32, 0.25, 0.12, -0.60, -0.21, 0.14, 0.04, 0.13, 0.24, ...
+training 2 (total post: 30.1 min)
+  0.49, nan, 0.23, 0.47, -0.18, -0.50, 0.03, -0.25, 0.45, 0.71, ...
+
+number __calculated__ rewards by post bucket (3 min):
+training 1  (values in parentheses are still training)
+  calc. exp: (16), 8, 7, 5, 5, 6, 4, 5, 6, 8, ...
+  calc. yok: (0), 8, 6, 10, 9, 5, 4, 8, 8, 6, ...
+training 2
+  calc. exp: (30), 11, 10, 7, 4, 4, 9, 7, 2, 5, ...
+  calc. yok: (8), 1, 6, 7, 1, 7, 4, 4, 0, 1, ...
+training 3
+  calc. exp: (24), 8, 11, 9, 6, 10, 4, 9, 7, 8, ...
+  calc. yok: (10), 4, 8, 2, 6, 2, 1, 3, 1, 1, ...
+
+reward PI by post bucket (3 min)
+training 1
+  exp: nan, -0.12, -0.29, -0.09, -0.29, -0.27, nan, -0.08, 0.23, 0.40
+  yok: 0.33, 0.20, 0.54, 0.38, nan, nan, 0.60, 0.23, 0.09, nan
+training 2
+  exp: 0.47, 0.05, 0.08, -0.27, -0.38, 0.20, 0.08, nan, nan, nan
+  yok: -0.83, 0.09, 0.08, nan, 0.40, nan, nan, nan, nan, nan
+training 3
+  exp: -0.53, -0.45, -0.63, -0.48, -0.51, -0.70, -0.40, -0.46, -0.41, -0.47
+  yok: -0.47, -0.30, nan, -0.43, -0.60, -0.83, -0.70, nan, -0.88, -0.82
+
+by actual reward: (first 100 vs. next 100)
+training 1
+  avg. time between [s]: 7.4 vs. 2.6
+  avg. distance between (exp): 350.3 vs. 100.6
+  avg. distance between (yok): 355.1 vs. 118.6
+training 2
+  avg. time between [s]: 6.8 vs. 2.2
+  avg. distance between (exp): 266.5 vs. 38.1
+  avg. distance between (yok): 315.0 vs. 33.9
+training 3
+  avg. time between [s]: 5.2 vs. 7.2
+  avg. distance between (exp): 186.6 vs. 287.8
+  avg. distance between (yok): 171.6 vs. 234.7
+
+by __calculated__ reward: (first 100 vs. next 100)
+training 1
+  avg. time between [s] (exp): 10.0 vs. 9.1
+  avg. time between [s] (yok): 17.2 vs. nan
+  avg. distance between (exp): 450.9 vs. 378.6
+  avg. distance between (yok): 765.6 vs. nan
+training 2
+  avg. time between [s] (exp): 15.1 vs. 5.8
+  avg. time between [s] (yok): nan vs. nan
+  avg. distance between (exp): 448.8 vs. 126.0
+  avg. distance between (yok): nan vs. nan
+training 3
+  avg. time between [s] (exp): 9.7 vs. 10.6
+  avg. time between [s] (yok): 24.6 vs. nan
+  avg. distance between (exp): 366.8 vs. 436.2
+  avg. distance between (yok): 769.7 vs. nan
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 2.9, 2.6, stop fraction: 0.36, 0.41
+  yok: avg. speed bottom [mm/s]: 3.3, 3.8, stop fraction: 0.21, 0.36
+training 2
+  exp: avg. speed bottom [mm/s]: 4.3, 2.3, stop fraction: 0.26, 0.52
+  yok: avg. speed bottom [mm/s]: 4.5, 2.6, stop fraction: 0.33, 0.55
+training 3
+  exp: avg. speed bottom [mm/s]: 2.6, 3.8, stop fraction: 0.37, 0.39
+  yok: avg. speed bottom [mm/s]: 1.9, 2.9, stop fraction: 0.60, 0.53
+
+=== analyzing c23__2017-02-16__10-09-24.avi ===
+
+  video length: 5.0h, frame rate: 7.5 fps, chamber type: regular
+  (pre: 30.1 min)
+  training 1: 1.0h, bottom (post: 30 min) (circle x=100,y=157,r=22)
+  training 2: 1.0h, top (post: 30.1 min) (circle x=100,y=71,r=22)
+  training 3: 1.0h, center (post: 30 min) (circle x=119,y=114,r=22)
+
+processing trajectories...
+exp fly
+  lost: number frames: 672 (0.50%), sequence length: avg: 1.6, max: 34
+    during "on" (2663 frames, 2 per "on" cmd): 6 (0.23%)
+    interpolating...
+  long (>30) jumps: 188, suspicious: 0 (0.0%)
+  total calculated rewards during training: 930
+    for zero-width border: 1329 (+42.9%)
+      compared with actual ones: identical
+  total control rewards during trainings 1, 2, and 3: 266
+yok fly
+  lost: number frames: 158 (0.12%), sequence length: avg: 1.1, max: 6
+    during "on" (2663 frames, 2 per "on" cmd): 3 (0.11%)
+    interpolating...
+  long (>30) jumps: 191, suspicious: 0 (0.0%)
+  total calculated rewards during training: 443
+  total control rewards during trainings 1, 2, and 3: 551
+
+total rewards training: 1329, non-training: 3
+
+number rewards by sync bucket (10 min):
+training 1
+  actual: 89, 100, 42, 31, 48
+  calc. exp: 56, 54, 29, 24, 35
+  ctrl. exp: 13, 9, 15, 10, 16
+    PI: 0.62, 0.71, 0.32, 0.41, 0.37
+  calc. yok: 26, 18, 20, 24, 16
+  ctrl. yok: 24, 11, 17, 11, 18
+    PI: 0.04, 0.24, 0.08, 0.37, -0.06
+training 2
+  actual: 70, 84, 113, 79, 111
+  calc. exp: 49, 58, 64, 62, 71
+  ctrl. exp: 5, 7, 3, 9, 6
+    PI: 0.81, 0.78, 0.91, 0.75, 0.84
+  calc. yok: 16, 16, 21, 33, 25
+  ctrl. yok: 11, 15, 26, 15, 22
+    PI: 0.19, 0.03, -0.11, 0.38, 0.06
+training 3
+  actual: 63, 81, 91, 53, 106
+  calc. exp: 43, 67, 65, 47, 80
+  ctrl. exp: 29, 18, 22, 40, 25
+    PI: 0.19, 0.58, 0.49, 0.08, 0.52
+  calc. yok: 22, 33, 42, 28, 35
+  ctrl. yok: 69, 62, 55, 48, 46
+    PI: -0.52, -0.31, -0.13, -0.26, -0.14
+
+average distance traveled between actual rewards by sync bucket:
+training 1
+  exp: 188.6, 218.3, 691.8, 839.1, 553.7
+  yok: 272.2, 223.7, 576.0, 719.4, 492.9
+training 2
+  exp: 124.8, 164.4, 80.2, 134.5, 112.6
+  yok: 186.4, 256.4, 157.0, 243.8, 178.8
+training 3
+  exp: 201.2, 140.6, 131.7, 286.0, 141.1
+  yok: 288.4, 214.3, 177.9, 258.8, 144.9
+
+positional PI (r*1.3) by post bucket (2 min):
+training 1 (total post: 30 min)
+  0.01, -0.56, 0.86, -0.51, 0.10, nan, -0.07, 0.11, nan, -1.00, ...
+training 2 (total post: 30.1 min)
+  nan, 0.18, 0.87, -0.74, 0.54, 0.86, nan, 0.73, 0.63, 0.90, ...
+
+number __calculated__ rewards by post bucket (3 min):
+training 1  (values in parentheses are still training)
+  calc. exp: (21), 5, 3, 3, 3, 3, 3, 1, 2, 2, ...
+  calc. yok: (3), 5, 1, 2, 1, 1, 2, 2, 0, 4, ...
+training 2
+  calc. exp: (0), 0, 1, 2, 4, 1, 2, 3, 2, 1, ...
+  calc. yok: (8), 4, 3, 2, 2, 3, 3, 3, 0, 1, ...
+training 3
+  calc. exp: (28), 9, 7, 6, 4, 3, 3, 1, 2, 0, ...
+  calc. yok: (4), 6, 2, 3, 3, 0, 0, 1, 1, 2, ...
+
+reward PI by post bucket (3 min)
+training 1
+  exp: nan, nan, nan, nan, nan, nan, nan, nan, nan, nan
+  yok: nan, nan, nan, nan, nan, nan, nan, nan, nan, nan
+training 2
+  exp: nan, nan, nan, nan, nan, nan, nan, nan, nan, nan
+  yok: nan, nan, nan, nan, nan, nan, nan, nan, nan, nan
+training 3
+  exp: -0.52, -0.53, -0.54, -0.67, -0.50, -0.50, nan, nan, nan, nan
+  yok: -0.52, -0.75, -0.70, -0.67, nan, nan, -0.83, nan, nan, nan
+
+by actual reward: (first 100 vs. next 100)
+training 1
+  avg. time between [s]: 6.2 vs. 6.1
+  avg. distance between (exp): 171.0 vs. 220.7
+  avg. distance between (yok): 247.3 vs. 224.2
+training 2
+  avg. time between [s]: 8.5 vs. 5.4
+  avg. distance between (exp): 192.4 vs. 104.3
+  avg. distance between (yok): 290.8 vs. 198.2
+training 3
+  avg. time between [s]: 8.9 vs. 7.1
+  avg. distance between (exp): 180.1 vs. 149.1
+  avg. distance between (yok): 269.0 vs. 203.8
+
+by __calculated__ reward: (first 100 vs. next 100)
+training 1
+  avg. time between [s] (exp): 9.1 vs. 19.3
+  avg. time between [s] (yok): 28.3 vs. nan
+  avg. distance between (exp): 256.1 vs. 901.6
+  avg. distance between (yok): 1127.5 vs. nan
+training 2
+  avg. time between [s] (exp): 10.8 vs. 10.1
+  avg. time between [s] (yok): 25.9 vs. nan
+  avg. distance between (exp): 238.5 vs. 199.5
+  avg. distance between (yok): 911.3 vs. nan
+training 3
+  avg. time between [s] (exp): 11.6 vs. 8.7
+  avg. time between [s] (yok): 19.0 vs. nan
+  avg. distance between (exp): 232.2 vs. 180.9
+  avg. distance between (yok): 579.7 vs. nan
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 2.0, 2.4, stop fraction: 0.65, 0.40
+  yok: avg. speed bottom [mm/s]: 2.9, 4.4, stop fraction: 0.56, 0.35
+training 2
+  exp: avg. speed bottom [mm/s]: 1.1, 1.8, stop fraction: 0.55, 0.63
+  yok: avg. speed bottom [mm/s]: 0.8, 3.6, stop fraction: 0.71, 0.46
+training 3
+  exp: avg. speed bottom [mm/s]: 1.0, 2.2, stop fraction: 0.70, 0.57
+  yok: avg. speed bottom [mm/s]: 1.3, 2.9, stop fraction: 0.71, 0.53
+
+=== analyzing c24__2017-02-16__10-09-31.avi ===
+
+  video length: 5.0h, frame rate: 7.5 fps, chamber type: regular
+  (pre: 30.1 min)
+  training 1: 1.0h, bottom (post: 30 min) (circle x=88,y=145,r=22)
+  training 2: 1.0h, top (post: 30.1 min) (circle x=88,y=58,r=22)
+  training 3: 1.0h, center (post: 30 min) (circle x=107,y=102,r=22)
+
+processing trajectories...
+exp fly
+  lost: number frames: 477 (0.35%), sequence length: avg: 1.6, max: 22
+    during "on" (3223 frames, 2 per "on" cmd): 20 (0.62%)
+    interpolating...
+  long (>30) jumps: 195, suspicious: 0 (0.0%)
+  total calculated rewards during training: 798
+    for zero-width border: 1241 (+55.5%)
+      compared with actual ones: only actual: 361
+  total control rewards during trainings 1, 2, and 3: 611
+yok fly
+  lost: number frames: 1027 (0.76%), sequence length: avg: 3.5, max: 283
+    during "on" (3223 frames, 2 per "on" cmd): 8 (0.25%)
+    interpolating...
+  long (>30) jumps: 171, suspicious: 1 (0.6%)
+  total calculated rewards during training: 358
+  total control rewards during trainings 1, 2, and 3: 656
+
+total rewards training: 1692, non-training: 3
+
+number rewards by sync bucket (10 min):
+training 1
+  actual: 173, 218, 83, 151, 72
+  calc. exp: 78, 103, 38, 64, 35
+  ctrl. exp: 12, 10, 7, 15, 8
+    PI: 0.73, 0.82, 0.69, 0.62, 0.63
+  calc. yok: 17, 9, 24, 19, 13
+  ctrl. yok: 17, 19, 19, 15, 39
+    PI: 0.00, -0.36, 0.12, 0.12, -0.50
+training 2
+  actual: 45, 78, 84, 60, 181
+  calc. exp: 15, 39, 34, 23, 50
+  ctrl. exp: 26, 20, 20, 25, 18
+    PI: -0.27, 0.32, 0.26, -0.04, 0.47
+  calc. yok: 13, 14, 13, 20, 12
+  ctrl. yok: 23, 21, 17, 17, 1
+    PI: -0.28, -0.20, -0.13, 0.08, 0.85
+training 3
+  actual: 38, 47, 55, 58, 62
+  calc. exp: 24, 27, 33, 40, 40
+  ctrl. exp: 94, 76, 91, 60, 58
+    PI: -0.59, -0.48, -0.47, -0.20, -0.18
+  calc. yok: 31, 25, 29, 32, 15
+  ctrl. yok: 76, 73, 66, 82, 62
+    PI: -0.42, -0.49, -0.39, -0.44, -0.61
+
+average distance traveled between actual rewards by sync bucket:
+training 1
+  exp: 86.9, 56.6, 240.9, 99.5, 221.0
+  yok: 129.5, 56.8, 268.2, 128.3, 260.5
+training 2
+  exp: 389.6, 145.1, 213.7, 220.8, 40.5
+  yok: 436.8, 208.9, 223.2, 252.4, 37.6
+training 3
+  exp: 520.0, 353.9, 320.5, 312.4, 271.6
+  yok: 525.7, 388.7, 301.5, 349.3, 261.9
+
+positional PI (r*1.3) by post bucket (2 min):
+training 1 (total post: 30 min)
+  -0.06, 0.09, -0.28, -0.50, 0.71, nan, 0.78, 0.27, -0.14, nan, ...
+training 2 (total post: 30.1 min)
+  0.77, -0.65, 0.31, 0.04, -0.09, 0.63, -0.46, -0.25, -0.71, -0.47, ...
+
+number __calculated__ rewards by post bucket (3 min):
+training 1  (values in parentheses are still training)
+  calc. exp: (10), 7, 5, 3, 3, 8, 7, 3, 6, 3, ...
+  calc. yok: (8), 6, 7, 5, 8, 1, 2, 5, 6, 5, ...
+training 2
+  calc. exp: (19), 12, 10, 8, 6, 5, 5, 5, 4, 3, ...
+  calc. yok: (2), 11, 6, 9, 7, 8, 7, 5, 3, 9, ...
+training 3
+  calc. exp: (12), 7, 7, 10, 2, 2, 7, 1, 4, 3, ...
+  calc. yok: (10), 9, 11, 4, 2, 1, 4, 4, 2, 3, ...
+
+reward PI by post bucket (3 min)
+training 1
+  exp: nan, 0.00, nan, nan, 0.33, 0.40, nan, nan, nan, nan
+  yok: 0.00, 0.00, -0.17, 0.23, nan, nan, 0.00, nan, 0.00, 0.33
+training 2
+  exp: nan, 0.00, -0.06, nan, -0.29, -0.29, nan, nan, nan, -0.20
+  yok: 0.00, 0.00, 0.20, 0.08, 0.00, 0.17, -0.17, nan, 0.29, nan
+training 3
+  exp: -0.64, -0.53, -0.46, -0.78, -0.83, 0.08, -0.88, -0.50, -0.68, -0.74
+  yok: -0.50, -0.45, -0.62, -0.82, -0.88, -0.75, -0.67, -0.67, -0.68, -0.56
+
+by actual reward: (first 100 vs. next 100)
+training 1
+  avg. time between [s]: 4.3 vs. 2.3
+  avg. distance between (exp): 113.3 vs. 47.4
+  avg. distance between (yok): 173.6 vs. 62.1
+training 2
+  avg. time between [s]: 10.0 vs. 8.0
+  avg. distance between (exp): 260.5 vs. 231.0
+  avg. distance between (yok): 314.9 vs. 254.5
+training 3
+  avg. time between [s]: 13.3 vs. 10.8
+  avg. distance between (exp): 427.4 vs. 338.9
+  avg. distance between (yok): 437.5 vs. 353.2
+
+by __calculated__ reward: (first 100 vs. next 100)
+training 1
+  avg. time between [s] (exp): 6.7 vs. 6.5
+  avg. time between [s] (yok): 34.2 vs. nan
+  avg. distance between (exp): 163.3 vs. 141.2
+  avg. distance between (yok): 1119.3 vs. nan
+training 2
+  avg. time between [s] (exp): 22.1 vs. 10.6
+  avg. time between [s] (yok): nan vs. nan
+  avg. distance between (exp): 630.5 vs. 202.3
+  avg. distance between (yok): nan vs. nan
+training 3
+  avg. time between [s] (exp): 20.6 vs. nan
+  avg. time between [s] (yok): 19.5 vs. nan
+  avg. distance between (exp): 653.1 vs. nan
+  avg. distance between (yok): 651.8 vs. nan
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 2.1, 2.0, stop fraction: 0.45, 0.53
+  yok: avg. speed bottom [mm/s]: 3.0, 3.6, stop fraction: 0.40, 0.47
+training 2
+  exp: avg. speed bottom [mm/s]: 1.6, 2.0, stop fraction: 0.51, 0.57
+  yok: avg. speed bottom [mm/s]: 3.3, 2.6, stop fraction: 0.36, 0.55
+training 3
+  exp: avg. speed bottom [mm/s]: 1.9, 2.7, stop fraction: 0.50, 0.48
+  yok: avg. speed bottom [mm/s]: 3.8, 3.5, stop fraction: 0.38, 0.46
+
+
+=== all video analysis (8 videos) ===
+
+total rewards training: 18436
+writing imgs/trajectory_len_dist.png...
+
+average time between actual rewards:
+paired t-test -- training 1, first 100 vs. next 100:
+  n = 8, means: 4.96, 3.65; t-test: p = 0.12536, t = 1.740
+paired t-test -- first 100, training 1 vs. 2:
+  n = 8, means: 4.96, 6.34; t-test: p = 0.10307, t = -1.874
+
+average time between __calculated__ rewards:
+paired t-test -- training 1, exp fly first 100 vs. yok fly first 100:
+  n = 8, means: 8.05, 21.9; t-test: p = 0.00309, t = -4.417
+paired t-test -- training 2, exp fly first 100 vs. yok fly first 100:
+  n = 6, means: 10.1, 19.8; t-test: p = 0.00556, t = -4.654
+paired t-test -- training 3, exp fly first 100 vs. yok fly first 100:
+  n = 8, means: 12.1, 21.1; t-test: p = 0.01637, t = -3.140
+paired t-test -- training 1, yok fly first 100 vs. yok fly next 100:
+  n = 3, means: 13.7, 15.3; t-test: p = 0.50657, t = -0.802
+
+average distance traveled between actual rewards:
+paired t-test -- training 1, exp fly first 100 vs. yok fly first 100:
+  n = 8, means: 159, 238; t-test: p = 0.10440, t = -1.865
+paired t-test -- training 2, exp fly first 100 vs. yok fly first 100:
+  n = 8, means: 151, 248; t-test: p = 0.01484, t = -3.211
+paired t-test -- training 3, exp fly first 100 vs. yok fly first 100:
+  n = 8, means: 192, 309; t-test: p = 0.11018, t = -1.829
+paired t-test -- training 1, exp fly next 100 vs. yok fly next 100:
+  n = 8, means: 87, 182; t-test: p = 0.06545, t = -2.182
+paired t-test -- training 2, exp fly next 100 vs. yok fly next 100:
+  n = 8, means: 82.9, 169; t-test: p = 0.02957, t = -2.725
+paired t-test -- training 3, exp fly next 100 vs. yok fly next 100:
+  n = 8, means: 194, 295; t-test: p = 0.06880, t = -2.148
+paired t-test -- training 1, exp fly first 100 vs. exp fly next 100:
+  n = 8, means: 159, 87; t-test: p = 0.06531, t = 2.183
+paired t-test -- exp fly first 100, training 1 vs. 2:
+  n = 8, means: 159, 151; t-test: p = 0.76575, t = 0.310
+
+average distance traveled between __calculated__ rewards:
+paired t-test -- training 1, exp fly first 100 vs. yok fly first 100:
+  n = 8, means: 222, 929; t-test: p = 0.00002, t = -9.910
+paired t-test -- training 2, exp fly first 100 vs. yok fly first 100:
+  n = 6, means: 188, 807; t-test: p = 0.00101, t = -6.852
+paired t-test -- training 3, exp fly first 100 vs. yok fly first 100:
+  n = 8, means: 306, 741; t-test: p = 0.00334, t = -4.354
+paired t-test -- training 1, yok fly first 100 vs. yok fly next 100:
+  n = 3, means: 885, 1.03e+03; t-test: p = 0.53757, t = -0.738
+
+number actual rewards by sync bucket:
+paired t-test -- training 1, first 10 min vs. next 10 min:
+  n = 8, means: 142, 191; t-test: p = 0.05075, t = -2.355
+paired t-test -- first 10 min, training 1 vs. 2:
+  n = 8, means: 142, 109; t-test: p = 0.24715, t = 1.263
+
+number __calculated__ rewards by sync bucket:
+paired t-test -- training 1, exp fly first 10 min vs. yok fly first 10 min:
+  n = 8, means: 74.9, 28.1; t-test: p = 0.00801, t = 3.665
+paired t-test -- training 2, exp fly first 10 min vs. yok fly first 10 min:
+  n = 8, means: 47.8, 22.1; t-test: p = 0.00255, t = 4.579
+paired t-test -- training 3, exp fly first 10 min vs. yok fly first 10 min:
+  n = 8, means: 41.6, 24; t-test: p = 0.04702, t = 2.406
+paired t-test -- training 1, yok fly first 10 min vs. yok fly next 10 min:
+  n = 8, means: 28.1, 29; t-test: p = 0.84523, t = -0.203
+
+positional PI (r*1.3) by post bucket:
+one-sample t-test -- training 1 post 2 min:
+  n = 8, mean: 0.431, value: 0; t-test: p = 0.02937, t = 2.729
+one-sample t-test -- training 2 post 2 min:
+  n = 7, mean: 0.488, value: 0; t-test: p = 0.00550, t = 4.230
+
+__calculated__ reward PI by sync bucket:
+one-sample t-test -- training 1 exp fly 10 min #1:
+  n = 8, mean: 0.655, value: 0; t-test: p = 0.00006, t = 8.469
+one-sample t-test -- training 1 #2:
+  n = 8, mean: 0.807, value: 0; t-test: p = 0.00001, t = 12.318
+one-sample t-test -- training 1 #3:
+  n = 8, mean: 0.695, value: 0; t-test: p = 0.00008, t = 8.139
+one-sample t-test -- training 1 #4:
+  n = 8, mean: 0.751, value: 0; t-test: p = 0.00003, t = 9.337
+one-sample t-test -- training 1 #5:
+  n = 8, mean: 0.735, value: 0; t-test: p = 0.00004, t = 9.131
+one-sample t-test -- training 1 yok fly 10 min #1:
+  n = 8, mean: 0.0301, value: 0; t-test: p = 0.74976, t = 0.332
+one-sample t-test -- training 1 #2:
+  n = 8, mean: 0.118, value: 0; t-test: p = 0.24998, t = 1.254
+one-sample t-test -- training 1 #3:
+  n = 8, mean: 0.0545, value: 0; t-test: p = 0.28456, t = 1.159
+one-sample t-test -- training 1 #4:
+  n = 8, mean: 0.109, value: 0; t-test: p = 0.50849, t = 0.697
+one-sample t-test -- training 1 #5:
+  n = 8, mean: 0.061, value: 0; t-test: p = 0.60583, t = 0.540
+one-sample t-test -- training 2 exp fly 10 min #1:
+  n = 8, mean: 0.47, value: 0; t-test: p = 0.03061, t = 2.701
+one-sample t-test -- training 2 #2:
+  n = 8, mean: 0.743, value: 0; t-test: p = 0.00001, t = 10.678
+one-sample t-test -- training 2 #3:
+  n = 8, mean: 0.828, value: 0; t-test: p = 0.00003, t = 9.749
+one-sample t-test -- training 2 #4:
+  n = 8, mean: 0.666, value: 0; t-test: p = 0.00060, t = 5.897
+one-sample t-test -- training 2 #5:
+  n = 8, mean: 0.725, value: 0; t-test: p = 0.00001, t = 11.311
+one-sample t-test -- training 2 yok fly 10 min #1:
+  n = 8, mean: -0.0649, value: 0; t-test: p = 0.57539, t = -0.587
+one-sample t-test -- training 2 #2:
+  n = 8, mean: -0.0499, value: 0; t-test: p = 0.68912, t = -0.417
+one-sample t-test -- training 2 #3:
+  n = 8, mean: -0.0104, value: 0; t-test: p = 0.82746, t = -0.226
+one-sample t-test -- training 2 #4:
+  n = 8, mean: 0.155, value: 0; t-test: p = 0.20615, t = 1.393
+one-sample t-test -- training 2 #5:
+  n = 8, mean: -0.0103, value: 0; t-test: p = 0.94832, t = -0.067
+
+area under reward index curve or between curves by group:
+unpaired t-test -- training 1, AUC:
+  n = 4, 4; means: 2.42, 3.48; t-test: p = 0.04270, t = -2.642
+unpaired t-test -- training 1, ABC:
+  n = 4, 4; means: 2.22, 3.03; t-test: p = 0.28250, t = -1.199
+unpaired t-test -- training 2, AUC:
+  n = 4, 4; means: 2.48, 3.19; t-test: p = 0.34089, t = -1.103
+unpaired t-test -- training 1-2, total AUC:
+  n = 4, 4; means: 4.89, 6.67; t-test: p = 0.05122, t = -2.439
+unpaired t-test -- training 2, ABC:
+  n = 4, 4; means: 2.36, 3.19; t-test: p = 0.36284, t = -1.060
+unpaired t-test -- training 1-2, total ABC:
+  n = 4, 4; means: 4.58, 6.22; t-test: p = 0.02466, t = -2.981
+unpaired t-test -- training 3, ABC:
+  n = 4, 3; means: 1.79, 4.24; t-test: p = 0.02159, t = -3.306
+unpaired t-test -- training 1-3, total AUC + ABC:
+  n = 4, 3; means: 6.68, 10.6; t-test: p = 0.04796, t = -2.625
+writing imgs/reward_pi__10_min_buckets.png...
+paired t-test -- first sync bucket, training 1 vs. 2:
+  n = 8, means: 0.655, 0.47; t-test: p = 0.31032, t = 1.094
+paired t-test -- training 1, fly 1, bucket #1 vs. #5:
+  n = 8, means: 0.655, 0.735; t-test: p = 0.28673, t = -1.153
+paired t-test -- training 2, fly 1, bucket #1 vs. #5:
+  n = 8, means: 0.47, 0.725; t-test: p = 0.07281, t = -2.110
+paired t-test -- training 3, fly delta, bucket #1 vs. #5:
+  n = 7, means: 0.601, 0.788; t-test: p = 0.30058, t = -1.133
+
+writing imgs/reward_pi_post__3_min_buckets.png...
+
+number __calculated__ rewards by post bucket:
+paired t-test -- training 1, exp fly trn. last 3 min vs. exp fly post 1st 3 min:
+  n = 8, means: 20.5, 12.6; t-test: p = 0.02049, t = 2.981
+paired t-test -- training 1, yok fly trn. last 3 min vs. yok fly post 1st 3 min:
+  n = 8, means: 6, 6.62; t-test: p = 0.72563, t = -0.365
+paired t-test -- training 1, exp fly trn. last 3 min vs. yok fly trn. last 3 min:
+  n = 8, means: 20.5, 6; t-test: p = 0.00263, t = 4.553
+paired t-test -- training 1, exp fly post 1st 3 min vs. yok fly post 1st 3 min:
+  n = 8, means: 12.6, 6.62; t-test: p = 0.12877, t = 1.722
+paired t-test -- training 1, exp fly post 2nd 3 min vs. yok fly post 2nd 3 min:
+  n = 8, means: 10.8, 4.5; t-test: p = 0.08484, t = 2.006
+paired t-test -- training 1, exp fly post 3rd 3 min vs. yok fly post 3rd 3 min:
+  n = 8, means: 5.62, 4.88; t-test: p = 0.63950, t = 0.489
+paired t-test -- training 2, exp fly trn. last 3 min vs. exp fly post 1st 3 min:
+  n = 8, means: 18.5, 13.1; t-test: p = 0.04421, t = 2.448
+paired t-test -- training 2, yok fly trn. last 3 min vs. yok fly post 1st 3 min:
+  n = 8, means: 10.1, 7.5; t-test: p = 0.38419, t = 0.928
+paired t-test -- training 2, exp fly trn. last 3 min vs. yok fly trn. last 3 min:
+  n = 8, means: 18.5, 10.1; t-test: p = 0.04164, t = 2.489
+paired t-test -- training 2, exp fly post 1st 3 min vs. yok fly post 1st 3 min:
+  n = 8, means: 13.1, 7.5; t-test: p = 0.07276, t = 2.110
+paired t-test -- training 2, exp fly post 2nd 3 min vs. yok fly post 2nd 3 min:
+  n = 8, means: 6.38, 6.88; t-test: p = 0.76105, t = -0.316
+paired t-test -- training 2, exp fly post 3rd 3 min vs. yok fly post 3rd 3 min:
+  n = 8, means: 8.12, 5.5; t-test: p = 0.25742, t = 1.233
+paired t-test -- training 3, exp fly trn. last 3 min vs. exp fly post 1st 3 min:
+  n = 8, means: 16.4, 9.12; t-test: p = 0.06124, t = 2.227
+paired t-test -- training 3, yok fly trn. last 3 min vs. yok fly post 1st 3 min:
+  n = 8, means: 8.25, 5.5; t-test: p = 0.02407, t = 2.868
+paired t-test -- training 3, exp fly trn. last 3 min vs. yok fly trn. last 3 min:
+  n = 8, means: 16.4, 8.25; t-test: p = 0.04041, t = 2.510
+paired t-test -- training 3, exp fly post 1st 3 min vs. yok fly post 1st 3 min:
+  n = 8, means: 9.12, 5.5; t-test: p = 0.05018, t = 2.362
+paired t-test -- training 3, exp fly post 2nd 3 min vs. yok fly post 2nd 3 min:
+  n = 8, means: 5, 5.25; t-test: p = 0.88348, t = -0.152
+paired t-test -- training 3, exp fly post 3rd 3 min vs. yok fly post 3rd 3 min:
+  n = 8, means: 4.62, 3.75; t-test: p = 0.60085, t = 0.548
+
+writing imgs/rewards__3_min_buckets.png...
+
+average RDP line length (epsilon 0.0)
+skipped
+
+average distance traveled between actual rewards by sync bucket:
+paired t-test -- training 1, bucket #1 vs. #5:
+  n = 8, means: 148, 166; t-test: p = 0.76223, t = -0.315
+paired t-test -- training 2, bucket #1 vs. #5:
+  n = 8, means: 214, 103; t-test: p = 0.20370, t = 1.402
+paired t-test -- training 3, bucket #1 vs. #5:
+  n = 8, means: 209, 169; t-test: p = 0.36696, t = 0.964
+
+average speed bottom [mm/s]:
+means with 95% confidence intervals (pre, training):
+  n = 4, 4  (in "()" below if different)
+  t1, 13F02>shi; 0273>CsC at 33C: 2.52 ±0.87, 2.17 ±0.68
+      lexA-shi; 0273>CsC at 33C : 5.32 ±1.60, 2.31 ±1.26
+  t2, 13F02>shi; 0273>CsC at 33C: 2.64 ±2.40, 1.99 ±0.36
+      lexA-shi; 0273>CsC at 33C : 0.95 ±0.56, 1.85 ±0.40
+  t3, 13F02>shi; 0273>CsC at 33C: 2.19 ±1.61, 2.85 ±1.08
+      lexA-shi; 0273>CsC at 33C : 0.65 ±0.51 (3), 2.07 ±0.30
+
+average stop fraction:
+means with 95% confidence intervals (pre, training):
+  n = 4, 4  (in "()" below if different)
+  t1, 13F02>shi; 0273>CsC at 33C: 45.5% ±22.1%, 49.6% ±18.8%
+      lexA-shi; 0273>CsC at 33C : 23.9% ±16.4%, 61.3% ±19.4%
+  t2, 13F02>shi; 0273>CsC at 33C: 42.0% ±21.5%, 59.3% ±9.8%
+      lexA-shi; 0273>CsC at 33C : 77.5% ±18.6%, 69.8% ±5.6%
+  t3, 13F02>shi; 0273>CsC at 33C: 45.8% ±30.6%, 50.3% ±14.1%
+      lexA-shi; 0273>CsC at 33C : 90.8% ±9.0%, 66.8% ±3.9%
+
+rewards per minute:
+means with 95% confidence intervals:
+  n = 4, 4  (in "()" below if different)
+  t1, 13F02>shi; 0273>CsC at 33C: 5.8 ±2.0
+      lexA-shi; 0273>CsC at 33C : 9.9 ±5.0
+  t2, 13F02>shi; 0273>CsC at 33C: 6.0 ±2.5
+      lexA-shi; 0273>CsC at 33C : 6.7 ±1.7
+  t3, 13F02>shi; 0273>CsC at 33C: 6.1 ±3.2
+      lexA-shi; 0273>CsC at 33C : 5.3 ±2.7
+
+
+area under reward index curve or between curves by group:
+unpaired t-test -- training 1, AUC:
+  n = 2, 4; means: 2.36e+03, 523; t-test: p = 0.22373, t = 2.679
+unpaired t-test -- training 1, ABC:
+  n = 2, 4; means: -1.67e+03, -3.13e+03; t-test: p = 0.05679, t = 3.002
+unpaired t-test -- training 2, AUC:
+  n = 3, 4; means: 1.13e+03, 647; t-test: p = 0.38468, t = 1.096
+unpaired t-test -- training 2, ABC:
+  n = 3, 4; means: -2e+03, -3.07e+03; t-test: p = 0.15722, t = 1.828
+unpaired t-test -- training 3, ABC:
+  n = 4, 3; means: -986, -2.95e+03; t-test: p = 0.03028, t = 4.389
+writing imgs/dist_btwn_rewards__10_min_buckets.png...
+
+
+area under reward index curve or between curves by group:
+unpaired t-test -- training 1, AUC:
+  n = 4, 4; means: 2.22, 3.03; t-test: p = 0.28250, t = -1.199
+unpaired t-test -- training 2, AUC:
+  n = 4, 4; means: 2.36, 3.19; t-test: p = 0.36284, t = -1.060
+unpaired t-test -- training 1-2, total AUC:
+  n = 4, 4; means: 4.58, 6.22; t-test: p = 0.02466, t = -2.981
+writing imgs/reward_pi_diff__10_min_buckets.png...
+paired t-test -- first sync bucket, training 1 vs. 2 (exp - yok):
+  n = 8, means: 0.625, 0.535; t-test: p = 0.47644, t = 0.752
+
+writing imgs/reward_pi_post_diff__3_min_buckets.png...
+
+writing learning_stats.csv...
+writing imgs/analysis.png...
+writing imgs/post_rewards_fly_1.png...
+writing imgs/ctrl_rewards_fly_1.png...
+writing imgs/post_rewards_fly_2.png...
+writing imgs/ctrl_rewards_fly_2.png...

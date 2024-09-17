@@ -1,0 +1,308 @@
+# command: analyze.py -v '/media/Synology3-2/Ned/Rotation/201003/c6[12]_*' -f 0-3 --wall --agarose --turn agarose --turn-dir --rmCC 5  [r2377]
+
+"training 1: 1.0h, center (post: 15 min)"
+"training 2: 1.0h, center (post: 15.1 min)"
+"training 3: 1.0h, center (post: 15 min)"
+
+average time between actual rewards:
+video,fly,training 1 first 100,next 100,training 2 first 100,next 100,training 3 first 100,next 100
+c61__2022-10-03__17-46-45.avi,0,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,1,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,2,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,3,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,0,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,1,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,2,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,3,nan,nan,nan,nan,nan,nan
+
+average time between __calculated__ rewards:
+video,fly,training 1 exp fly first 100,exp fly next 100,training 2 exp fly first 100,exp fly next 100,training 3 exp fly first 100,exp fly next 100
+c61__2022-10-03__17-46-45.avi,0,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,1,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,2,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,3,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,0,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,1,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,2,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,3,nan,nan,nan,nan,nan,nan
+
+average distance traveled between actual rewards:
+video,fly,training 1 exp fly first 100,exp fly next 100,training 2 exp fly first 100,exp fly next 100,training 3 exp fly first 100,exp fly next 100
+c61__2022-10-03__17-46-45.avi,0,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,1,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,2,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,3,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,0,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,1,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,2,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,3,nan,nan,nan,nan,nan,nan
+
+average distance traveled between __calculated__ rewards:
+video,fly,pre last 10m (exp),training 1 exp fly first 100,exp fly next 100,exp bucket #1,training 2 exp fly first 100,exp fly next 100,exp bucket #5,training 3 exp fly first 100,exp fly next 100,exp bucket #5
+c61__2022-10-03__17-46-45.avi,0,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,1,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,2,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,3,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,0,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,1,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,2,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,3,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+
+number actual rewards by sync bucket:
+video,fly,training 1 first 10 min,next 10 min,training 2 first 10 min,next 10 min,training 3 first 10 min,next 10 min
+c61__2022-10-03__17-46-45.avi,0,0,nan,0,0,1,0
+c61__2022-10-03__17-46-45.avi,1,0,1,0,0,3,0
+c61__2022-10-03__17-46-45.avi,2,3,2,1,1,3,3
+c61__2022-10-03__17-46-45.avi,3,0,0,3,1,4,0
+c62__2022-10-03__17-47-00.avi,0,0,1,7,2,2,0
+c62__2022-10-03__17-47-00.avi,1,1,0,0,2,2,2
+c62__2022-10-03__17-47-00.avi,2,3,0,0,0,0,2
+c62__2022-10-03__17-47-00.avi,3,nan,nan,6,6,3,6
+
+number __calculated__ rewards by sync bucket:
+video,fly,training 1 exp fly first 10 min,exp fly next 10 min,training 2 exp fly first 10 min,exp fly next 10 min,training 3 exp fly first 10 min,exp fly next 10 min
+c61__2022-10-03__17-46-45.avi,0,0,nan,0,0,1,0
+c61__2022-10-03__17-46-45.avi,1,0,0,0,0,1,0
+c61__2022-10-03__17-46-45.avi,2,5,2,1,1,3,3
+c61__2022-10-03__17-46-45.avi,3,0,0,3,1,4,0
+c62__2022-10-03__17-47-00.avi,0,0,1,5,2,2,0
+c62__2022-10-03__17-47-00.avi,1,0,0,0,2,2,2
+c62__2022-10-03__17-47-00.avi,2,4,0,0,0,0,2
+c62__2022-10-03__17-47-00.avi,3,nan,nan,6,5,3,6
+
+number __control__ rewards by sync bucket:
+video,fly,training 1 exp fly first 10 min,exp fly next 10 min,training 2 exp fly first 10 min,exp fly next 10 min,training 3 exp fly first 10 min,exp fly next 10 min
+c61__2022-10-03__17-46-45.avi,0,59,nan,74,112,50,124
+c61__2022-10-03__17-46-45.avi,1,0,0,30,33,45,44
+c61__2022-10-03__17-46-45.avi,2,53,51,46,81,78,78
+c61__2022-10-03__17-46-45.avi,3,3,5,57,38,50,95
+c62__2022-10-03__17-47-00.avi,0,0,7,25,32,7,25
+c62__2022-10-03__17-47-00.avi,1,0,1,0,10,7,20
+c62__2022-10-03__17-47-00.avi,2,15,13,18,23,41,23
+c62__2022-10-03__17-47-00.avi,3,nan,nan,60,68,66,75
+
+positional PI (r*1.3) by post bucket:
+skipped
+
+number __calculated__ rewards by post bucket:
+video,fly,training 1 exp fly trn. last 3 min,exp fly post 1st 3 min,exp fly post 2nd 3 min,exp fly post 3rd 3 min,training 2 exp fly trn. last 3 min,exp fly post 1st 3 min,exp fly post 2nd 3 min,exp fly post 3rd 3 min,training 3 exp fly trn. last 3 min,exp fly post 1st 3 min,exp fly post 2nd 3 min,exp fly post 3rd 3 min
+c61__2022-10-03__17-46-45.avi,0,0,0,0,0,0,1,0,0,0,2,1,2
+c61__2022-10-03__17-46-45.avi,1,0,0,0,0,0,1,0,2,3,3,0,1
+c61__2022-10-03__17-46-45.avi,2,1,0,1,2,0,1,0,0,1,0,0,0
+c61__2022-10-03__17-46-45.avi,3,0,0,0,0,0,0,0,0,0,1,1,0
+c62__2022-10-03__17-47-00.avi,0,0,0,0,1,0,0,2,1,1,1,0,1
+c62__2022-10-03__17-47-00.avi,1,0,0,0,0,0,0,0,0,1,0,0,0
+c62__2022-10-03__17-47-00.avi,2,0,0,1,0,1,1,1,1,0,0,1,0
+c62__2022-10-03__17-47-00.avi,3,2,2,2,3,1,0,1,0,2,2,1,0
+
+average RDP line length (epsilon 0.0)
+skipped
+
+average distance traveled between actual rewards by sync bucket:
+video,fly,training 1 exp fly 10 min #1,#2,#3,#4,#5,training 2 exp fly 10 min #1,#2,#3,#4,#5,training 3 exp fly 10 min #1,#2,#3,#4,#5
+c61__2022-10-03__17-46-45.avi,0,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,1,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,2,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,884.589
+c61__2022-10-03__17-46-45.avi,3,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,2069.689,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,0,nan,nan,nan,nan,nan,835.028,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,1,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,396.007,nan
+c62__2022-10-03__17-47-00.avi,2,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,3,nan,nan,nan,nan,nan,1202.475,1186.185,2391.503,nan,1434.925,nan,1892.475,nan,nan,2158.123
+
+first reward in first sync bucket is control:
+video,fly,training 1 exp fly,training 2 exp fly,training 3 exp fly
+c61__2022-10-03__17-46-45.avi,0,1,1,1
+c61__2022-10-03__17-46-45.avi,1,0,1,0
+c61__2022-10-03__17-46-45.avi,2,1,1,1
+c61__2022-10-03__17-46-45.avi,3,0,1,1
+c62__2022-10-03__17-47-00.avi,0,1,0,1
+c62__2022-10-03__17-47-00.avi,1,1,1,1
+c62__2022-10-03__17-47-00.avi,2,1,1,1
+c62__2022-10-03__17-47-00.avi,3,None,0,0
+
+crossed midline before first reward in first sync bucket:
+video,fly,training 1 exp fly,training 2 exp fly,training 3 exp fly
+c61__2022-10-03__17-46-45.avi,0,None,None,None
+c61__2022-10-03__17-46-45.avi,1,None,None,None
+c61__2022-10-03__17-46-45.avi,2,None,None,None
+c61__2022-10-03__17-46-45.avi,3,None,None,None
+c62__2022-10-03__17-47-00.avi,0,None,None,None
+c62__2022-10-03__17-47-00.avi,1,None,None,None
+c62__2022-10-03__17-47-00.avi,2,None,None,None
+c62__2022-10-03__17-47-00.avi,3,None,None,None
+
+average speed bottom [mm/s]:
+video,fly,training 1 exp fly pre,exp fly training,training 2 exp fly pre,exp fly training,training 3 exp fly pre,exp fly training
+c61__2022-10-03__17-46-45.avi,0,0.651,1.398,3.915,3.637,4.363,2.627
+c61__2022-10-03__17-46-45.avi,1,0.405,0.523,0.729,1.146,1.834,1.473
+c61__2022-10-03__17-46-45.avi,2,0.513,1.131,2.147,2.463,2.776,2.620
+c61__2022-10-03__17-46-45.avi,3,0.530,0.636,1.418,2.173,3.396,2.052
+c62__2022-10-03__17-47-00.avi,0,0.487,0.634,0.750,1.084,1.200,1.050
+c62__2022-10-03__17-47-00.avi,1,0.354,0.413,0.458,0.511,0.668,0.723
+c62__2022-10-03__17-47-00.avi,2,0.395,0.546,0.868,1.046,1.356,1.089
+c62__2022-10-03__17-47-00.avi,3,0.408,0.867,1.865,2.280,2.858,2.423
+
+average speed bottom [mm/s] (by SB):
+video,fly,pre last 10 min,training 1 first SB,training 1 post 1st 3 min,post 2nd 3 min,training 2 last SB,training 2 post 1st 3 min,post 2nd 3 min,training 3 last SB,training 3 post 1st 3 min,post 2nd 3 min
+c61__2022-10-03__17-46-45.avi,0,0.706,2.078,2.824,3.892,nan,4.676,4.263,nan,1.995,2.382
+c61__2022-10-03__17-46-45.avi,1,nan,nan,nan,nan,1.198,nan,1.403,1.838,1.554,1.417
+c61__2022-10-03__17-46-45.avi,2,nan,1.731,1.858,1.878,2.466,2.411,2.283,2.650,3.373,3.167
+c61__2022-10-03__17-46-45.avi,3,nan,nan,nan,nan,2.810,3.692,3.466,1.800,2.220,2.351
+c62__2022-10-03__17-47-00.avi,0,0.490,nan,nan,nan,1.070,nan,nan,1.190,nan,nan
+c62__2022-10-03__17-47-00.avi,1,nan,nan,nan,nan,nan,0.788,nan,0.685,nan,nan
+c62__2022-10-03__17-47-00.avi,2,nan,0.624,nan,1.093,1.276,1.359,1.265,nan,1.774,1.548
+c62__2022-10-03__17-47-00.avi,3,nan,nan,0.966,2.341,2.657,3.246,2.921,2.635,2.455,2.433
+
+__calculated__ reward PI by bucket:
+video,fly,pre last 10 min,training 1 first SB,training 1 post 1st 3 min,post 2nd 3 min,training 2 last SB,training 2 post 1st 3 min,post 2nd 3 min,training 3 last SB,training 3 post 1st 3 min,training 3 post 1st 3 min(no ctrl sync),post 2nd 3 min
+c61__2022-10-03__17-46-45.avi,0,-1.000,-1.000,-1.000,-1.000,nan,-0.950,-1.000,nan,-0.778,-0.789,-0.909
+c61__2022-10-03__17-46-45.avi,1,nan,nan,nan,nan,-0.860,nan,-1.000,-0.969,-0.789,-0.714,-1.000
+c61__2022-10-03__17-46-45.avi,2,nan,-0.828,-1.000,-0.875,-0.943,-0.905,-1.000,-0.864,-1.000,-1.000,-1.000
+c61__2022-10-03__17-46-45.avi,3,nan,nan,nan,nan,-1.000,-1.000,-1.000,-0.941,-0.882,-0.889,-0.917
+c62__2022-10-03__17-47-00.avi,0,-1.000,nan,nan,nan,-0.882,nan,nan,-0.786,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,1,nan,nan,nan,nan,nan,-1.000,nan,-0.875,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,2,nan,-0.579,nan,-0.800,-1.000,-0.833,-0.818,nan,-1.000,-1.000,-0.882
+c62__2022-10-03__17-47-00.avi,3,nan,nan,nan,-0.840,-0.800,-1.000,-0.923,-0.894,-0.818,-0.826,-0.920
+
+% time in reward circle:
+video,fly,pre 1st 3 min,pre last 10 min,entire pre,training 1,training 1 post 1st 1 min,training 1 post 1st 2 min,training 1 post 1st 3 min,post 2nd 3 min,training 2,training 2 post 1st 1 min,training 2 post 1st 2 min,training 2 post 1st 3 min,post 2nd 3 min,training 3,training 3 post 1st 1 min,training 3 post 1st 2 min,training 3 post 1st 3 min,post 2nd 3 min,entire post-T3
+c61__2022-10-03__17-46-45.avi,0,0.122,0.000,0.025,0.000,0.000,0.000,0.000,0.000,0.016,0.005,0.002,0.002,0.000,0.019,0.000,0.000,0.051,0.006,0.013
+c61__2022-10-03__17-46-45.avi,1,0.000,0.005,0.003,0.089,0.000,0.000,0.000,0.000,0.015,0.000,0.013,0.009,0.000,0.016,0.009,0.013,0.009,0.000,0.003
+c61__2022-10-03__17-46-45.avi,2,0.000,0.001,0.001,0.008,0.000,0.000,0.000,0.013,0.011,0.000,0.001,0.001,0.000,0.008,0.000,0.000,0.000,0.000,0.000
+c61__2022-10-03__17-46-45.avi,3,0.004,0.000,0.001,0.007,0.000,0.000,0.000,0.000,0.001,0.000,0.000,0.000,0.000,0.025,0.000,0.009,0.006,0.001,0.008
+c62__2022-10-03__17-47-00.avi,0,0.000,0.000,0.000,0.055,0.000,0.000,0.000,0.000,0.097,0.000,0.000,0.000,0.127,0.025,0.007,0.003,0.002,0.000,0.001
+c62__2022-10-03__17-47-00.avi,1,0.000,0.014,0.009,0.017,0.000,0.000,0.000,0.000,0.002,0.000,0.000,0.000,0.000,0.020,0.000,0.000,0.000,0.000,0.102
+c62__2022-10-03__17-47-00.avi,2,0.000,0.070,0.049,0.018,0.000,0.000,0.000,0.018,0.038,0.000,0.006,0.004,0.002,0.049,0.000,0.000,0.000,0.098,0.029
+c62__2022-10-03__17-47-00.avi,3,0.000,0.024,0.046,0.001,0.347,0.300,0.200,0.031,0.034,0.000,0.000,0.000,0.004,0.037,0.007,0.003,0.006,0.010,0.004
+
+wall-contact events by training:
+video,fly,all-wall contact evts / rwd- pre last 10m (exp),all-wall contact evts / rwd- T1 start (exp),all-wall contact evts / rwd- T2 end (exp),all-wall contact evts / rwd- T3 end (exp),sidewall contact evts / rwd- pre last 10m (exp),sidewall contact evts / rwd- T1 start (exp),sidewall contact evts / rwd- T2 end (exp),sidewall contact evts / rwd- T3 end (exp),agarose-adjacent contact evts / rwd- pre last 10m (exp),agarose-adjacent contact evts / rwd- T1 start (exp),agarose-adjacent contact evts / rwd- T2 end (exp),agarose-adjacent contact evts / rwd- T3 end (exp)
+c61__2022-10-03__17-46-45.avi,0,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,1,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,2,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,3,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,0,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,1,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,2,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,3,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+
+distance between calculated rewards with no preceding wall contact
+video,fly,T3 end (exp)
+c61__2022-10-03__17-46-45.avi,0,nan
+c61__2022-10-03__17-46-45.avi,1,nan
+c61__2022-10-03__17-46-45.avi,2,nan
+c61__2022-10-03__17-46-45.avi,3,nan
+c62__2022-10-03__17-47-00.avi,0,nan
+c62__2022-10-03__17-47-00.avi,1,nan
+c62__2022-10-03__17-47-00.avi,2,nan
+c62__2022-10-03__17-47-00.avi,3,nan
+
+mean of max. dist. from center for each trajectory with no preceding wall contact
+video,fly,T3 end (exp)
+c61__2022-10-03__17-46-45.avi,0,nan
+c61__2022-10-03__17-46-45.avi,1,nan
+c61__2022-10-03__17-46-45.avi,2,nan
+c61__2022-10-03__17-46-45.avi,3,nan
+c62__2022-10-03__17-47-00.avi,0,nan
+c62__2022-10-03__17-47-00.avi,1,nan
+c62__2022-10-03__17-47-00.avi,2,nan
+c62__2022-10-03__17-47-00.avi,3,nan
+
+proportion contactless rewards, outer walls by training
+video,fly,pre last 10m (exp),T1 start (exp),T2 end (exp),T3 end (exp)
+c61__2022-10-03__17-46-45.avi,0,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,1,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,2,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,3,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,0,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,1,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,2,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,3,nan,nan,nan,nan
+
+proportion contactless rewards, agarose-adjacent walls by training
+video,fly,pre last 10m (exp),T1 start (exp),T2 end (exp),T3 end (exp)
+c61__2022-10-03__17-46-45.avi,0,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,1,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,2,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,3,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,0,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,1,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,2,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,3,nan,nan,nan,nan
+
+agarose-contact events by training:
+video,fly,agarose contact evts- pre last 10m (exp),agarose contact evts / rwd- pre last 10m (exp),agarose contact evts- T1 start (exp),agarose contact evts / rwd- T1 start (exp),agarose contact evts- T2 end (exp),agarose contact evts / rwd- T2 end (exp),agarose contact evts- T3 end (exp),agarose contact evts / rwd- T3 end (exp)
+c61__2022-10-03__17-46-45.avi,0,2.000,nan,8.000,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,1,nan,nan,nan,nan,7.000,nan,19.000,nan
+c61__2022-10-03__17-46-45.avi,2,nan,nan,12.000,nan,10.000,nan,14.000,nan
+c61__2022-10-03__17-46-45.avi,3,nan,nan,nan,nan,17.000,nan,7.000,nan
+c62__2022-10-03__17-47-00.avi,0,6.000,nan,nan,nan,13.000,nan,12.000,nan
+c62__2022-10-03__17-47-00.avi,1,nan,nan,nan,nan,nan,nan,13.000,nan
+c62__2022-10-03__17-47-00.avi,2,nan,nan,13.000,nan,9.000,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,3,nan,nan,nan,nan,25.000,nan,18.000,nan
+
+% time over agarose (contact events begin when edge of fitted ellipse crosses agarose border)
+video,fly,% time spent on agarose- pre last 10m (exp),% time spent on agarose- T1 start (exp),% time spent on agarose- T2 end (exp),% time spent on agarose- T3 end (exp)
+c61__2022-10-03__17-46-45.avi,0,28.733,1.222,nan,nan
+c61__2022-10-03__17-46-45.avi,1,nan,nan,20.156,5.911
+c61__2022-10-03__17-46-45.avi,2,nan,6.444,6.311,5.000
+c61__2022-10-03__17-46-45.avi,3,nan,nan,1.200,11.644
+c62__2022-10-03__17-47-00.avi,0,14.378,nan,10.222,13.133
+c62__2022-10-03__17-47-00.avi,1,nan,nan,nan,20.111
+c62__2022-10-03__17-47-00.avi,2,nan,24.178,7.644,nan
+c62__2022-10-03__17-47-00.avi,3,nan,nan,8.622,6.689
+
+% time over agarose (contact events begin when body center crosses agarose border)
+video,fly,% time spent on agarose- pre last 10m (exp),% time spent on agarose- T1 start (exp),% time spent on agarose- T2 end (exp),% time spent on agarose- T3 end (exp)
+c61__2022-10-03__17-46-45.avi,0,13.289,1.000,nan,nan
+c61__2022-10-03__17-46-45.avi,1,nan,nan,3.933,3.933
+c61__2022-10-03__17-46-45.avi,2,nan,3.822,3.489,1.978
+c61__2022-10-03__17-46-45.avi,3,nan,nan,0.911,11.333
+c62__2022-10-03__17-47-00.avi,0,10.889,nan,7.778,4.911
+c62__2022-10-03__17-47-00.avi,1,nan,nan,nan,13.356
+c62__2022-10-03__17-47-00.avi,2,nan,8.511,5.267,nan
+c62__2022-10-03__17-47-00.avi,3,nan,nan,5.511,5.178
+
+agarose turn events by training (border crossings based on ellipse edge)
+video,fly,agarose turns / contact evt- pre last 10m (exp),agarose turns / contact evt- T1 start (exp),agarose turns / contact evt- T2 end (exp),agarose turns / contact evt- T3 end (exp),inside-line agarose turns / contact evt- pre last 10m (exp),inside-line agarose turns / contact evt- T1 start (exp),inside-line agarose turns / contact evt- T2 end (exp),inside-line agarose turns / contact evt- T3 end (exp),outside-line agarose turns / contact evt- pre last 10m (exp),outside-line agarose turns / contact evt- T1 start (exp),outside-line agarose turns / contact evt- T2 end (exp),outside-line agarose turns / contact evt- T3 end (exp)
+c61__2022-10-03__17-46-45.avi,0,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,1,nan,nan,nan,0.000,nan,nan,nan,0.000,nan,nan,nan,0.000
+c61__2022-10-03__17-46-45.avi,2,nan,0.000,0.000,0.000,nan,0.000,0.000,0.000,nan,0.000,0.000,0.000
+c61__2022-10-03__17-46-45.avi,3,nan,nan,0.000,nan,nan,nan,0.000,nan,nan,nan,0.000,nan
+c62__2022-10-03__17-47-00.avi,0,nan,nan,0.000,0.000,nan,nan,0.000,0.000,nan,nan,0.000,0.000
+c62__2022-10-03__17-47-00.avi,1,nan,nan,nan,0.000,nan,nan,nan,0.000,nan,nan,nan,0.000
+c62__2022-10-03__17-47-00.avi,2,nan,0.000,nan,nan,nan,0.000,nan,nan,nan,0.000,nan,nan
+c62__2022-10-03__17-47-00.avi,3,nan,nan,0.000,0.000,nan,nan,0.000,0.000,nan,nan,0.000,0.000
+
+agarose turn directionality by training (border crossings based on ellipse edge)
+video,fly,toward-center agarose turns / contact evt- pre last 10m (exp),away-from-center agarose turns / contact evt- pre last 10m (exp),toward-center agarose turns / contact evt- T1 start (exp),away-from-center agarose turns / contact evt- T1 start (exp),toward-center agarose turns / contact evt- T2 end (exp),away-from-center agarose turns / contact evt- T2 end (exp),toward-center agarose turns / contact evt- T3 end (exp),away-from-center agarose turns / contact evt- T3 end (exp),toward-center inside-line agarose turns / contact evt- pre last 10m (exp),away-from-center inside-line agarose turns / contact evt- pre last 10m (exp),toward-center inside-line agarose turns / contact evt- T1 start (exp),away-from-center inside-line agarose turns / contact evt- T1 start (exp),toward-center inside-line agarose turns / contact evt- T2 end (exp),away-from-center inside-line agarose turns / contact evt- T2 end (exp),toward-center inside-line agarose turns / contact evt- T3 end (exp),away-from-center inside-line agarose turns / contact evt- T3 end (exp),toward-center outside-line agarose turns / contact evt- pre last 10m (exp),away-from-center outside-line agarose turns / contact evt- pre last 10m (exp),toward-center outside-line agarose turns / contact evt- T1 start (exp),away-from-center outside-line agarose turns / contact evt- T1 start (exp),toward-center outside-line agarose turns / contact evt- T2 end (exp),away-from-center outside-line agarose turns / contact evt- T2 end (exp),toward-center outside-line agarose turns / contact evt- T3 end (exp),away-from-center outside-line agarose turns / contact evt- T3 end (exp)
+c61__2022-10-03__17-46-45.avi,0,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,1,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,2,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,3,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,0,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,1,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,2,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,3,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan,nan
+
+agarose turn events by training (border crossings based on ellipse center)
+video,fly,agarose turns / contact evt- pre last 10m (exp),agarose turns / contact evt- T1 start (exp),agarose turns / contact evt- T2 end (exp),agarose turns / contact evt- T3 end (exp)
+c61__2022-10-03__17-46-45.avi,0,0.000,0.000,nan,nan
+c61__2022-10-03__17-46-45.avi,1,nan,nan,0.000,0.000
+c61__2022-10-03__17-46-45.avi,2,nan,0.000,0.043,0.000
+c61__2022-10-03__17-46-45.avi,3,nan,nan,0.000,0.000
+c62__2022-10-03__17-47-00.avi,0,nan,nan,0.000,0.000
+c62__2022-10-03__17-47-00.avi,1,nan,nan,nan,0.000
+c62__2022-10-03__17-47-00.avi,2,nan,0.000,0.000,nan
+c62__2022-10-03__17-47-00.avi,3,nan,nan,0.000,0.000
+
+agarose turn directionality by training (border crossings based on ellipse center)
+video,fly,toward-center agarose turns / contact evt- pre last 10m (exp),away-from-center agarose turns / contact evt- pre last 10m (exp),toward-center agarose turns / contact evt- T1 start (exp),away-from-center agarose turns / contact evt- T1 start (exp),toward-center agarose turns / contact evt- T2 end (exp),away-from-center agarose turns / contact evt- T2 end (exp),toward-center agarose turns / contact evt- T3 end (exp),away-from-center agarose turns / contact evt- T3 end (exp)
+c61__2022-10-03__17-46-45.avi,0,nan,nan,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,1,nan,nan,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,2,nan,nan,nan,nan,nan,nan,nan,nan
+c61__2022-10-03__17-46-45.avi,3,nan,nan,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,0,nan,nan,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,1,nan,nan,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,2,nan,nan,nan,nan,nan,nan,nan,nan
+c62__2022-10-03__17-47-00.avi,3,nan,nan,nan,nan,nan,nan,nan,nan

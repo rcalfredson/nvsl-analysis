@@ -1,0 +1,18 @@
+{
+    "python analyze.py -v \"/media/Synology4/Yang Chen/2024-03-04/c3[12]_*,/media/Synology4/Yang Chen/2024-03-04/c4[12]_*\" -f 0-9 --rmCC 5 --turn-prob-by-dist 1,2,3,4,5,6": [
+        {
+            "reference": "turn_probability_t1_vs_t3_toward_single_group_ctrl__4_mar.png",
+            "output": "turn_probability_t1_vs_t3_toward_single_group_ctrl.png"
+        },
+        {
+            "reference": "turn_probability_t1_vs_t3_toward_single_group_exp__4_mar.png",
+            "output": "turn_probability_t1_vs_t3_toward_single_group_exp.png"
+        }
+    ],
+    "python analyze.py -v \"/media/Synology4/Yang Chen/2024-03-04/c3[12]_*|/media/Synology4/Yang Chen/2024-03-04/c4[12]_*\" --gl \"Group 1|Group 2\" -f 0-9 --rmCC 5 --turn-prob-by-dist 1,2,3,4,5,6": [
+        {
+            "reference": "turn_probability_t3_end_away_exp_across_groups__4_mar.png",
+            "output": "turn_probability_t3_end_away_exp_across_groups.png"
+        }
+    ]
+}

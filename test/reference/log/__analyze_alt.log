@@ -1,0 +1,110 @@
+# command: analyze.py -v '/media/Synology3/Uli/2019-03-24/c5[1-4]_*'  [r1932]
+
+=== analyzing c51__2019-03-24__10-32-55.avi ===
+
+  video length: 3.0h, frame rate: 7.5 fps, chamber type: regular
+  (pre: 30 min)
+  training 1: 2.0h, choice (post: 30 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 5463 (6.74%), sequence length: avg: 12.4, max: 1249
+    during "on" (60 frames, 2 per "on" cmd): 1 (1.67%)
+    interpolating...
+  long (>30) jumps: 244, suspicious: 0 (0.0%)
+yok fly
+  lost: number frames: 5295 (6.54%), sequence length: avg: 7.9, max: 854
+    during "on" (60 frames, 2 per "on" cmd): 8 (13.33%)
+    interpolating...
+  long (>30) jumps: 51, suspicious: 0 (0.0%)
+
+total rewards training: 30, non-training: 0
+
+positional preference for LED side:
+training 1
+  exp: 0.06 (pre), 0.73
+  yok: 0.07 (pre), 0.67
+
+=== analyzing c52__2019-03-24__10-33-03.avi ===
+
+  video length: 3.0h, frame rate: 7.5 fps, chamber type: regular
+  (pre: 30 min)
+  training 1: 2.0h, choice (post: 30 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 7306 (9.02%), sequence length: avg: 14.7, max: 1033
+    during "on" (60 frames, 2 per "on" cmd): 7 (11.67%)
+    interpolating...
+  long (>30) jumps: 181, suspicious: 0 (0.0%)
+yok fly
+  lost: number frames: 8899 (10.99%), sequence length: avg: 20.4, max: 1524
+    during "on" (60 frames, 2 per "on" cmd): 8 (13.33%)
+    interpolating...
+  long (>30) jumps: 219, suspicious: 1 (0.5%)
+
+total rewards training: 30, non-training: 0
+
+positional preference for LED side:
+training 1
+  exp: 0.35 (pre), 0.68
+  yok: -0.09 (pre), 0.78
+
+=== analyzing c53__2019-03-24__10-33-10.avi ===
+
+  video length: 3.0h, frame rate: 7.5 fps, chamber type: regular
+  (pre: 30 min)
+  training 1: 2.0h, choice (post: 30 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 18560 (22.91%), sequence length: avg: 26.2, max: 1333
+    during "on" (60 frames, 2 per "on" cmd): 12 (20.00%)
+    interpolating...
+  long (>30) jumps: 94, suspicious: 0 (0.0%)
+yok fly
+  lost: number frames: 21772 (26.88%), sequence length: avg: 31.5, max: 1801
+    during "on" (60 frames, 2 per "on" cmd): 12 (20.00%)
+    interpolating...
+  long (>30) jumps: 89, suspicious: 0 (0.0%)
+
+total rewards training: 30, non-training: 0
+
+positional preference for LED side:
+training 1
+  exp: -0.12 (pre), 0.82
+  yok: -0.11 (pre), 0.74
+
+=== analyzing c54__2019-03-24__10-33-17.avi ===
+
+  video length: 3.0h, frame rate: 7.5 fps, chamber type: regular
+  (pre: 30 min)
+  training 1: 2.0h, choice (post: 30 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 16948 (20.92%), sequence length: avg: 22.8, max: 1519
+    during "on" (60 frames, 2 per "on" cmd): 9 (15.00%)
+    interpolating...
+  long (>30) jumps: 125, suspicious: 0 (0.0%)
+yok fly
+  lost: number frames: 30878 (38.12%), sequence length: avg: 29.3, max: 1413
+    during "on" (60 frames, 2 per "on" cmd): 15 (25.00%)
+    interpolating...
+  long (>30) jumps: 184, suspicious: 0 (0.0%)
+
+total rewards training: 30, non-training: 0
+
+positional preference for LED side:
+training 1
+  exp: -0.07 (pre), 0.66
+  yok: -0.07 (pre), 0.85
+
+
+=== all video analysis (4 videos) ===
+
+total rewards training: 120
+
+writing learning_stats.csv...
+writing imgs/analysis.png...
+writing imgs/open_loop.png...

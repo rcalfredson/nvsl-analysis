@@ -1,0 +1,10 @@
+# command: analyze.py -v '/media/Synology3/Uli/2019-03-24/c5[1-4]_*'  [r1932]
+
+"training 1: 2.0h, choice (post: 30 min)"
+
+positional preference for LED side:
+video,training 1 exp fly  pre,exp fly ,yok fly  pre,yok fly 
+c51__2019-03-24__10-32-55.avi,0.059,0.727,0.071,0.670
+c52__2019-03-24__10-33-03.avi,0.348,0.679,-0.088,0.783
+c53__2019-03-24__10-33-10.avi,-0.123,0.819,-0.113,0.738
+c54__2019-03-24__10-33-17.avi,-0.070,0.658,-0.075,0.848

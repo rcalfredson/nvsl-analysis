@@ -1,0 +1,16 @@
+Cython==3.0.0
+inflect==7.0.0
+matplotlib==3.7.2
+numba==0.59.0
+numpy==1.26.4
+opencv-python==4.5.5.64
+pandas==2.2.1
+Pillow==10.2.0
+pylru==1.2.1
+pyMSVC==0.5.3
+rdp==0.8
+scipy==1.12.0
+seaborn==0.13.2
+setuptools==68.2.2
+Shapely==2.0.3
+statsmodels==0.14.0
