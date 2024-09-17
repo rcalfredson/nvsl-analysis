@@ -77,10 +77,9 @@ python setup.py build_ext --inplace
 
 #### 7. Create drive mapping file (optional)
 
-By default, paths will be handled using their respective conventions by OS - `C:\Users\you\your_video.avi` for Windows and `/home/you/your_video.avi` for Unix. However, `analyze.py` can also be configured to use Unix paths universally- just save a file to this directory named `drive_mapping.json` that maps Unix-style paths to Windows-style ones.
+By default, paths will be handled using their respective conventions by OS - `C:\Users\you\your_video.avi` for Windows and `/home/you/your_video.avi` for Unix. However, `analyze.py` can also be configured to use Unix paths universally- just save a file to this directory named `drive_mapping.json` that maps Unix-style paths to Windows-style ones. For example:
 
 ```json
-// drive_mapping.json example
 {
     "/media/Synology4/": "Y:\\",
 }
@@ -128,3 +127,17 @@ The script will:
 - Print discrepancies if there are any mismatches between the generated files and the reference data.
 
 The test checks both textual output (logs, CSVs) and images (using binary comparison).
+
+For example, the script checks logs like:
+- `__analyze_13F02.log`
+- `__analyze_blind.log`
+- `__analyze_wall_full_bucket.log`
+
+And CSV files such as:
+- `learning_stats_alt.csv`
+- `learning_stats_blind.csv`
+- `learning_stats_heatmap.csv`
+
+It also compares images specified in `test-imgs/key.json` with output images.
+
+If there are any discrepancies or errors, they will be reported during the test run.
