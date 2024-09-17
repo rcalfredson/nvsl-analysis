@@ -3,7 +3,7 @@ Analysis code for paper "Parallel use of self-generated olfactory and motion cue
 
 ## Setup
 
-This document outlines the steps required to set up the data analysis environment for our lab's code base. These steps are designed to be OS-independent, with notes provided for specific instructions on Linux, Windows, and macOS.
+This document provides instructions for setting up the data analysis environment for the project. These steps are designed to be OS-independent, with notes provided for specific instructions on Linux, Windows, and macOS.
 
 ### Prerequisites
 
@@ -75,7 +75,7 @@ Finally, build the Cython extensions. This step assumes Cython is listed as a de
 python setup.py build_ext --inplace
 ```
 
-#### 7. Create drive mapping file (optional)
+#### 7. Create Drive Mapping File (Optional)
 
 By default, paths will be handled using their respective conventions by OS - `C:\Users\you\your_video.avi` for Windows and `/home/you/your_video.avi` for Unix. However, `analyze.py` can also be configured to use Unix paths universally- just save a file to this directory named `drive_mapping.json` that maps Unix-style paths to Windows-style ones. For example:
 
@@ -101,15 +101,38 @@ deactivate
 - If you encounter any issues during the setup, ensure that you have the correct version of Python installed and that your virtual environment is activated before installing dependencies.
 - For problems related to Cython compilation, verify that you have a C compiler installed and configured correctly for your operating system.
 
-## Running the first analysis
+## Running the First Analysis
 Once your environment is set up, you can run a standard analysis using the following command:
 ```bash
 python analyze.py -v "$path_to_video" -f "0-9"
 ```
-- `-v` specifies the path to the video file.
-- `-f` defines the range of fly numbers (depending on how many flies your chamber supports).
+- `-v` (required) specifies the path to the video file.
+- `-f` defines the range of fly numbers, and is required for any chamber that supports more than a single fly.
 
 This command will perform a standard analysis with no extra features. Be sure to replace "$path_to_video" with the path to your video file and adjust the fly number range as needed.
+
+## Usage Instructions
+To generate specific plots or conduct detailed analyses (such as those presented in the paper), additional flags can be used to modify the behavior of the analysis script. Below are key flags related to detecting turn events.
+### Turn Detection
+The `--turn` flag can be used with three options to detect turn events at different boundaries within the chamber:
+- `circle`: Detects large turns after the fly exits the reward circle. The distances of the fly from the reward circle at the start and end of these large turns are then plotted in histogram form.
+  **Example command:**
+  ```
+  python analyze.py -v "$path_to_video" -f "0-9" --turn circle
+  ```
+- `agarose`: Detects sharp turns after crossing over the interface between the flat plastic floor and the agarose-filled troughs.
+  **Example command:**
+  ```
+  python analyze.py -v "$path_to_video" -f "0-9" --turn agarose
+  ```
+- `boundary`: Detects sharp turns after crossing the boundary midway between the chamber center and the agarose interface (measured vertically).
+  **Example command:**
+  ```
+  python analyze.py -v "$path_to_video" -f "0-9" --turn boundary
+  ```
+These flags allow you to specify which boundary or area to use for detecting turn events. This can be useful for analyzing flies' movements in response to the different spatial features of the chamber.
+
+### 
 
 ## Testing
 The repository includes a regression testing script to verify that the current version of the code produces the same results as checked-in reference data. The script reads commands from earlier results and compares the outputs.
