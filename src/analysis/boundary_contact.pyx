@@ -11,6 +11,10 @@ import random
 
 from src.utils.common import writeImage
 from src.utils.constants import CONTACT_BUFFER_OFFSETS
+from src.utils.debug_util import (
+    ellipse_edge_points_within_boundaries,
+    visualize_ellipse_and_boundaries
+)
 from src.utils.util import closest_pts_to_lines, rotate_pts, trueRegions
 
 cnp.import_array()
@@ -896,34 +900,37 @@ cdef class EllipseToBoundaryDistCalculator:
         cnp.ndarray[double, ndim=1] semimin_ax,
         int wall_idx
     ):
-        # Calculates the angle to the best (closest) point on an ellipse relative to a specified wall.
-        #
-        # This method calculates the angle between the semi-major axis of the ellipse and the slope
-        # of the wall specified by `wall_idx`. The calculation uses the slope of the wall, derived 
-        # from the previously calculated slope and intercept values, and the semi-minor axis of the 
-        # ellipse. The result is the angle between the semi-major axis and the line representing the 
-        # wall, which is used to determine the best (closest) points on the ellipse relative to the 
-        # wall.
-        #
-        # Parameters:
-        # - semimaj_ax : cnp.ndarray[double, ndim=1]
-        #     A NumPy array containing the lengths of the semi-major axes of the ellipses. These 
-        #     values are used to calculate the angles relative to the wall.
-        # - semimin_ax : cnp.ndarray[double, ndim=1]
-        #     A NumPy array containing the lengths of the semi-minor axes of the ellipses. These 
-        #     values are used in conjunction with the slope of the wall to calculate the angles.
-        # - wall_idx : int
-        #     The index of the wall for which the angle is being calculated. This index corresponds 
-        #     to the walls as represented in the `slope_intercept_sets` array, with wall_idx=0 for 
-        #     the left wall, wall_idx=1 for the bottom wall, wall_idx=2 for the right wall, and 
-        #     wall_idx=3 for the top wall.
-        #
-        # Returns:
-        # - cnp.ndarray[double, ndim=1]
-        #     A NumPy array containing the calculated angles for each ellipse, representing the 
-        #     angle between the semi-major axis of the ellipse and the line representing the specified 
-        #     wall.
+        """
+        Calculates the angle to the best (closest) point on an ellipse relative to a specified wall.
+
+        This method calculates the angle between the semi-major axis of the ellipse and the slope
+        of the wall specified by `wall_idx`. The calculation uses the slope of the wall, derived 
+        from the previously calculated slope and intercept values, and the semi-minor axis of the 
+        ellipse. The result is the angle between the semi-major axis and the line representing the 
+        wall, which is used to determine the best (closest) points on the ellipse relative to the 
+        wall.
+
+        Parameters:
+        - semimaj_ax : cnp.ndarray[double, ndim=1]
+            A NumPy array containing the lengths of the semi-major axes of the ellipses. These 
+            values are used to calculate the angles relative to the wall.
+        - semimin_ax : cnp.ndarray[double, ndim=1]
+            A NumPy array containing the lengths of the semi-minor axes of the ellipses. These 
+            values are used in conjunction with the slope of the wall to calculate the angles.
+        - wall_idx : int
+            The index of the wall for which the angle is being calculated. This index corresponds 
+            to the walls as represented in the `slope_intercept_sets` array, with wall_idx=0 for 
+            the left wall, wall_idx=1 for the bottom wall, wall_idx=2 for the right wall, and 
+            wall_idx=3 for the top wall.
+
+        Returns:
+        - cnp.ndarray[double, ndim=1]
+            A NumPy array containing the calculated angles for each ellipse, representing the 
+            angle between the semi-major axis of the ellipse and the line representing the specified 
+            wall.
+        """
         return np.arctan2(-semimaj_ax, self.slope_intercept_sets[:, wall_idx, 0] * semimin_ax)
+
 
     cdef tuple calculate_ellipse_points(
         self,
@@ -931,31 +938,33 @@ cdef class EllipseToBoundaryDistCalculator:
         cnp.ndarray[double, ndim=1] semimin_ax,
         cnp.ndarray[double, ndim=1] semimaj_ax
     ):
-        # Calculates the baseline and alternate points on an ellipse relative to a specified wall.
-        #
-        # This method computes two sets of points on an ellipse: baseline points, which are the closest 
-        # points on the ellipse relative to the wall, and alternate points, which are calculated by 
-        # reflecting the baseline points across the ellipse's center. These points are used to evaluate 
-        # the proximity of the ellipse to the specified wall and to check for out-of-bound conditions.
-        #
-        # Parameters:
-        # - angle_to_best_ell_pt : array-like
-        #     The angles between the semi-major axes of the ellipses and the line representing the specified 
-        #     wall. These angles are used to determine the direction of the closest points on the ellipses.
-        # - semimin_ax : cnp.ndarray[double, ndim=1]
-        #     A NumPy array containing the lengths of the semi-minor axes of the ellipses. These values are 
-        #     used to calculate the x-coordinates of the baseline points.
-        # - semimaj_ax : cnp.ndarray[double, ndim=1]
-        #     A NumPy array containing the lengths of the semi-major axes of the ellipses. These values are 
-        #     used to calculate the y-coordinates of the baseline points.
-        #
-        # Returns:
-        # - tuple
-        #     A tuple containing two NumPy arrays:
-        #     1. Baseline points (array of shape [n, 2]): The closest points on the ellipses relative to 
-        #        the specified wall.
-        #     2. Alternate points (array of shape [n, 2]): Points calculated by reflecting the baseline 
-        #        points across the center of the ellipses.
+        """
+        Calculates the baseline and alternate points on an ellipse relative to a specified wall.
+
+        This method computes two sets of points on an ellipse: baseline points, which are the closest 
+        points on the ellipse relative to the wall, and alternate points, which are calculated by 
+        reflecting the baseline points across the ellipse's center. These points are used to evaluate 
+        the proximity of the ellipse to the specified wall and to check for out-of-bound conditions.
+
+        Parameters:
+        - angle_to_best_ell_pt : array-like
+            The angles between the semi-major axes of the ellipses and the line representing the specified 
+            wall. These angles are used to determine the direction of the closest points on the ellipses.
+        - semimin_ax : cnp.ndarray[double, ndim=1]
+            A NumPy array containing the lengths of the semi-minor axes of the ellipses. These values are 
+            used to calculate the x-coordinates of the baseline points.
+        - semimaj_ax : cnp.ndarray[double, ndim=1]
+            A NumPy array containing the lengths of the semi-major axes of the ellipses. These values are 
+            used to calculate the y-coordinates of the baseline points.
+
+        Returns:
+        - tuple
+            A tuple containing two NumPy arrays:
+            1. Baseline points (array of shape [n, 2]): The closest points on the ellipses relative to 
+               the specified wall.
+            2. Alternate points (array of shape [n, 2]): Points calculated by reflecting the baseline 
+               points across the center of the ellipses.
+        """
         # Initialize arrays for baseline and alternate points
         cdef cnp.ndarray[double, ndim=2] baseline_pts = np.empty((len(self.x), 2))
         cdef cnp.ndarray[double, ndim=2] alternate_pts
@@ -975,59 +984,59 @@ cdef class EllipseToBoundaryDistCalculator:
         return baseline_pts, alternate_pts
 
     cdef void _calc_distances_to_single_wall(self, str wall):
-        # Calculates distances from ellipses to a specified wall within a predefined boundary.
-        #
-        # This method calculates the distances between ellipses, representing entities within
-        # the space, and a specific wall (left, right, top, or bottom) of the chamber boundary.
-        # It considers various factors such as the boundary combination (e.g., top-bottom,
-        # left-right), the orientation and position of the ellipses, and out-of-bound conditions.
-        # The method ensures accurate distance measurements by dynamically calculating and using
-        # slope and intercept values, angles, and best points on the ellipses relative to the wall.
-        #
-        # Parameters:
-        # - wall : str
-        #     The wall to which distances are being calculated. Can be 'left', 'right', 'top',
-        #     or 'bottom'. The method also supports specifying walls flexibly by including 'bottom'
-        #     as part of a substring.
-        #
-        # Modifies:
-        # - `self.slope_intercept_sets` : 
-        #     Calculates and updates slope and intercept values for the line representing the specified wall.
-        # - `self.angle_to_best_ell_pt[wall]` : 
-        #     Determines and stores the angles to the points on the ellipses closest to the specified wall, 
-        #     based on the wall's orientation and the ellipses' geometry.
-        # - `self.ell_pts[wall]` : 
-        #     Updates with the points on ellipses that are closest to the specified wall, including both 
-        #     baseline and alternate points for handling out-of-bound conditions.
-        # - `self.distances[wall]` : 
-        #     Records calculated distances from ellipses to the closest points on the specified wall, 
-        #     which are essential for boundary analysis and contact detection.
-        # - `self.wall_pts[wall]` : 
-        #     Stores the coordinates of points on the specified wall that are closest to the ellipses, 
-        #     which are crucial for accurate distance measurement and boundary event processing.
-        # - `self.oob_test_pts[wall]` : 
-        #     Updates with points used to test whether an ellipse is out of bounds relative to the specified wall, 
-        #     aiding in boundary condition evaluation.
-        # - `self.best_wall_indices`, `self.min_distances` : 
-        #     Updates these arrays to indicate the closest wall and the minimum distances to the wall for each 
-        #     ellipse, based on the latest calculations.
-        # - `self.best_pts["ellipse"]`, `self.best_pts["boundary"]` : 
-        #     Updates with the best points of contact between ellipses and boundaries, reflecting the closest 
-        #     interactions with the specified wall.
-        # - `self.out_of_bounds` : 
-        #     Updates flags indicating whether any part of an ellipse is out of bounds, which is crucial for 
-        #     boundary crossing detection and handling.
-        # - `self.oob_on_ignored_wall` : 
-        #     Specifically updates for cases where the boundary combination excludes consideration of certain 
-        #     walls, indicating out-of-bound conditions on ignored boundaries.
-        #
-        # Notes:
-        # - The method dynamically calculates slope and intercept values for the line representing the walls, 
-        #   and uses these to determine the closest points on the ellipses to the walls.
-        # - It handles special cases based on the boundary combination (e.g., ignoring certain walls if the 
-        #   combination is top-bottom or left-right) and adjusts calculations accordingly.
-        # - The method also updates indicators for out-of-bound conditions, which are crucial for determining 
-        #   if an entity represented by an ellipse crosses the boundaries of the space.
+        """
+        Calculates distances from ellipses to a specified wall within a predefined boundary.
+
+        This method calculates the distances between ellipses, representing entities within
+        the space, and a specific wall (left, right, top, or bottom) of the chamber boundary.
+        It considers various factors such as the boundary combination (e.g., top-bottom,
+        left-right), the orientation and position of the ellipses, and out-of-bound conditions.
+        The method ensures accurate distance measurements by dynamically calculating and using
+        slope and intercept values, angles, and best points on the ellipses relative to the wall.
+
+        Parameters:
+        - wall : str
+            The wall to which distances are being calculated. Can be 'left', 'right', 'top',
+            or 'bottom'. The method also supports specifying walls flexibly by including 'bottom'
+            as part of a substring.
+
+        Modifies:
+        - `self.slope_intercept_sets`: Calculates and updates slope and intercept values for the 
+          line representing the specified wall.
+        - `self.angle_to_best_ell_pt[wall]`: Determines and stores the angles to the points on 
+          the ellipses closest to the specified wall, based on the wall's orientation and the 
+          ellipses' geometry.
+        - `self.ell_pts[wall]`: Updates with the points on ellipses that are closest to the 
+          specified wall, including both baseline and alternate points for handling out-of-bound 
+          conditions.
+        - `self.distances[wall]`: Records calculated distances from ellipses to the closest 
+          points on the specified wall, which are essential for boundary analysis and contact 
+          detection.
+        - `self.wall_pts[wall]`: Stores the coordinates of points on the specified wall that are 
+          closest to the ellipses, which are crucial for accurate distance measurement and boundary 
+          event processing.
+        - `self.oob_test_pts[wall]`: Updates with points used to test whether an ellipse is out 
+          of bounds relative to the specified wall, aiding in boundary condition evaluation.
+        - `self.best_wall_indices`, `self.min_distances`: Updates these arrays to indicate the 
+          closest wall and the minimum distances to the wall for each ellipse, based on the latest 
+          calculations.
+        - `self.best_pts["ellipse"]`, `self.best_pts["boundary"]`: Updates with the best points 
+          of contact between ellipses and boundaries, reflecting the closest interactions with the 
+          specified wall.
+        - `self.out_of_bounds`: Updates flags indicating whether any part of an ellipse is out 
+          of bounds, which is crucial for boundary crossing detection and handling.
+        - `self.oob_on_ignored_wall`: Specifically updates for cases where the boundary combination 
+          excludes consideration of certain walls, indicating out-of-bound conditions on ignored 
+          boundaries.
+
+        Notes:
+        - The method dynamically calculates slope and intercept values for the line representing 
+          the walls and uses these to determine the closest points on the ellipses to the walls.
+        - It handles special cases based on the boundary combination (e.g., ignoring certain walls 
+          if the combination is top-bottom or left-right) and adjusts calculations accordingly.
+        - The method also updates indicators for out-of-bound conditions, which are crucial for 
+          determining if an entity represented by an ellipse crosses the boundaries of the space.
+        """
 
         cdef int wall_idx, first_idx, upper_index, lower_index
         cdef double[:] angle_to_best_ell_pt
@@ -1140,46 +1149,48 @@ cdef class EllipseToBoundaryDistCalculator:
                 | (False if self.boundary_combo == "lr" else oob_ymax),
             )
     def _find_boundary_contact_events(self, near_contact):
-        # Detects boundary contact events by analyzing the ellipse's positions relative 
-        # to the specified boundaries.
-        #
-        # This method identifies when an ellipse crosses into or out of a boundary-
-        # defined region within the chamber. It calculates the relevant distances to 
-        # walls, checks for boundary crossings, and tracks the start and end of 
-        # boundary contact events. The method supports both close contact events (near 
-        # contact) and standard events, adjusting thresholds and distances as needed.
-        #
-        # Parameters:
-        # - near_contact : bool
-        #     A flag indicating whether to adjust thresholds for detecting near contact 
-        #     events. If True, the method increases sensitivity to boundary proximity 
-        #     by slightly adjusting the start and end thresholds.
-        #
-        # Modifies:
-        # - `self.dist_to_wall` : 
-        #     Calculates and stores the distances from ellipses to the closest walls, 
-        #     normalized by pixel-to-millimeter conversion and a scaling factor. If 
-        #     this attribute already exists, it reuses the stored distances.
-        # - `self.wall_is_vert` : 
-        #     Stores a boolean array indicating whether the closest wall for each 
-        #     ellipse is vertical (left or right).
-        # - `self.return_data` : 
-        #     Updates with information related to detected boundary contact events, 
-        #     including which frames involve contact and whether the events are near 
-        #     contact or standard.
-        #
-        # Notes:
-        # - The method first checks if the distance to the wall has already been 
-        #   calculated. If not, it computes and stores the distances, accounting for 
-        #   out-of-bound conditions by setting distances to zero where applicable.
-        # - The method then establishes start and end thresholds for each boundary 
-        #   based on the specified boundary combination (e.g., left-right or top-bottom 
-        #   boundaries).
-        # - The method iterates through each frame, checking whether the ellipse has 
-        #   crossed the boundary start or end points, and flags the frame as a boundary 
-        #   contact if the criteria are met.
-        # - The method differentiates between standard and near contact events, 
-        #   allowing for finer detection of close proximity to boundaries.
+        """
+        Detects boundary contact events by analyzing the ellipse's positions relative 
+        to the specified boundaries.
+
+        This method identifies when an ellipse crosses into or out of a boundary-
+        defined region within the chamber. It calculates the relevant distances to 
+        walls, checks for boundary crossings, and tracks the start and end of 
+        boundary contact events. The method supports both close contact events (near 
+        contact) and standard events, adjusting thresholds and distances as needed.
+
+        Parameters:
+        - near_contact : bool
+            A flag indicating whether to adjust thresholds for detecting near contact 
+            events. If True, the method increases sensitivity to boundary proximity 
+            by slightly adjusting the start and end thresholds.
+
+        Modifies:
+        - `self.dist_to_wall`: 
+            Calculates and stores the distances from ellipses to the closest walls, 
+            normalized by pixel-to-millimeter conversion and a scaling factor. If 
+            this attribute already exists, it reuses the stored distances.
+        - `self.wall_is_vert`: 
+            Stores a boolean array indicating whether the closest wall for each 
+            ellipse is vertical (left or right).
+        - `self.return_data`: 
+            Updates with information related to detected boundary contact events, 
+            including which frames involve contact and whether the events are near 
+            contact or standard.
+
+        Notes:
+        - The method first checks if the distance to the wall has already been 
+          calculated. If not, it computes and stores the distances, accounting for 
+          out-of-bound conditions by setting distances to zero where applicable.
+        - The method then establishes start and end thresholds for each boundary 
+          based on the specified boundary combination (e.g., left-right or top-bottom 
+          boundaries).
+        - The method iterates through each frame, checking whether the ellipse has 
+          crossed the boundary start or end points, and flags the frame as a boundary 
+          contact if the criteria are met.
+        - The method differentiates between standard and near contact events, 
+          allowing for finer detection of close proximity to boundaries.
+        """
 
         if not hasattr(self, "distToWall"):
             dist_to_wall = (
@@ -1250,94 +1261,6 @@ cdef class EllipseToBoundaryDistCalculator:
             end_boundaries[1] = boundaries['bottom_end']  # Bottom boundary
             end_boundaries[3] = boundaries['top_end']  # Top boundary
 
-        def visualize_ellipse_and_boundaries(center_x, center_y, theta, semimaj_ax, semimin_ax, boundaries, boundary_index, points_to_check):
-            fig, ax = plt.subplots()
-            
-            # Plot the boundaries
-            if boundary_index in [0, 2]:  # Left-Right boundary
-                ax.axvline(x=boundaries['left_start'], color='r', linestyle='--', label='Left Boundary Start')
-                ax.axvline(x=boundaries['right_start'], color='g', linestyle='--', label='Right Boundary Start')
-                ax.axvline(x=boundaries['left_end'], color='r', linestyle='-', label='Left Boundary End')
-                ax.axvline(x=boundaries['right_end'], color='g', linestyle='-', label='Right Boundary End')
-            elif boundary_index in [1, 3]:  # Top-Bottom boundary
-                ax.axhline(y=boundaries['top_start'], color='b', linestyle='--', label='Top Boundary Start')
-                ax.axhline(y=boundaries['bottom_start'], color='y', linestyle='--', label='Bottom Boundary Start')
-                ax.axhline(y=boundaries['top_end'], color='b', linestyle='-', label='Top Boundary End')
-                ax.axhline(y=boundaries['bottom_end'], color='y', linestyle='-', label='Bottom Boundary End')
-
-            # Plot the ellipse using the Ellipse patch
-            ellipse_patch = patches.Ellipse(
-                (center_x, center_y), width=2*semimin_ax, height=2*semimaj_ax, angle=theta, edgecolor='b', facecolor='none', label='Ellipse'
-            )
-            ax.add_patch(ellipse_patch)
-
-            # Plot the four points on the ellipse
-            for (x, y) in points_to_check:
-                ax.plot(x, y, 'ro')  # Red dots for the points on the ellipse
-
-            # Set plot limits for better visualization
-            ax.set_xlim([center_x - 2*semimaj_ax, center_x + 2*semimaj_ax])
-            ax.set_ylim([center_y - 2*semimaj_ax, center_y + 2*semimaj_ax])
-            
-            ax.set_aspect('equal', 'box')
-            plt.legend()
-            plt.title(f'Ellipse and Boundaries (Boundary Index: {boundary_index})')
-            plt.show()
-
-        def ellipse_edge_points_within_boundaries(center_x, center_y, theta, semimaj_ax, semimin_ax, boundary_index):
-            """Helper function to check if all points on the ellipse's edge are within the boundaries."""
-            # Convert theta to radians for calculation
-            if np.any(np.isnan([semimaj_ax, semimin_ax])):
-                return
-            theta_rad = radians(theta)
-    
-            # Rotation matrix for transforming the ellipse
-            R = np.array([[-np.sin(theta_rad), np.cos(theta_rad)], 
-                        [np.cos(theta_rad), np.sin(theta_rad)]])
-            
-            # Generate the four extreme points of the ellipse before rotation
-            edge_points = np.array([[0, semimin_ax],  # Point along the semi-minor axis
-                                    [0, -semimin_ax],
-                [semimaj_ax, 0],  # Point along the semi-major axis
-                                    [-semimaj_ax, 0],  # Opposite point on the semi-major axis
-                                    ])  # Opposite point on the semi-minor axis
-            
-            # Apply the rotation matrix to each point to get the correct coordinates
-            rotated_points = np.dot(edge_points, R.T)
-            
-            # Translate the points to the ellipse's center
-            points_to_check = [
-                (round(center_x + rotated_points[i, 0]), round(center_y + rotated_points[i, 1]))
-                for i in range(4)
-            ]
-
-
-            if self.boundary_combo == 'all' and self.ellipse_edge_pt == 'opposite':
-                boundaries_to_check = [
-                    round(self.x_bounds_orig[0]),
-                    round(self.y_bounds[1]),
-                    round(self.x_bounds_orig[1]),
-                    round(self.y_bounds[0]),
-                ]
-            else:
-                boundaries_to_check = start_boundaries
-            # Check if all these points are within the respective boundaries
-            for (ellipse_x, ellipse_y) in points_to_check:
-                if boundary_index in [0, 2]:  # Left or Right boundary
-                    if ellipse_x < boundaries_to_check[0] or ellipse_x > boundaries_to_check[2]:
-                        visualize_ellipse_and_boundaries(
-                            center_x, center_y, theta, semimaj_ax, semimin_ax, boundaries, boundary_index, points_to_check
-                        )
-                        return False
-                elif boundary_index in [1, 3]:  # Top or Bottom boundary
-                    if ellipse_y > boundaries_to_check[1] or ellipse_y < boundaries_to_check[3]:
-                        visualize_ellipse_and_boundaries(
-                            center_x, center_y, theta, semimaj_ax, semimin_ax, boundaries, boundary_index, points_to_check
-                        )
-                        return False
-
-            return True
-
         # Initialize event status
         in_event = False
         wall_contact = np.zeros_like(self.best_pts['ellipse'][:, 0], dtype=bool)
@@ -1382,7 +1305,12 @@ cdef class EllipseToBoundaryDistCalculator:
                         theta=self.trj.theta[i],
                         semimaj_ax=self.semimaj_ax[i],
                         semimin_ax=self.semimin_ax[i],
-                        boundary_index=boundary_index
+                        boundary_index=boundary_index,
+                        start_boundaries=start_boundaries,
+                        boundary_combo=self.boundary_combo,
+                        x_bounds_orig=self.x_bounds_orig,
+                        y_bounds=self.y_bounds,
+                        visualize=self.wall_debug
                     )
                     if within_bounds is not None and not within_bounds:
                         raise AssertionError(
