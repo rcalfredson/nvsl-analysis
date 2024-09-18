@@ -312,48 +312,49 @@ cpdef runBoundaryContactAnalyses(trj, va, offsets, thresholds, opts):
     return boundary_dist_calc.return_data
 
 cpdef findTurns(va, opts, boundary_dist_calc, bnd_tp, boundary_combo, ellipse_ref_pt):
-    # Identifies turning events within boundary contact events based on specified criteria.
-    # This function is integral to the boundary contact analysis, determining which boundary
-    # contacts involve significant turns that meet the criteria defined in the options.
-    #
-    # Parameters:
-    # - va : VideoAnalysis
-    #     An instance of the VideoAnalysis class that provides context and additional data
-    #     required for the analysis, such as frames per second (fps), which is crucial for
-    #     determining the duration in frames for turning events.
-    # - opts : argparse.Namespace
-    #     A Namespace object containing various options and flags that influence the analysis
-    #     process, including minimum velocity angle delta for turns, the duration threshold for
-    #     turning events, and the specific boundaries to consider for turning events.
-    # - boundary_dist_calc : EllipseToBoundaryDistCalculator
-    #     An instance of the EllipseToBoundaryDistCalculator class that calculates distances to
-    #     boundaries and is now used to identify turning events based on those calculations.
-    # - bnd_tp : str
-    #     The type of boundary being analyzed (e.g., "wall", "agarose"). This parameter is used
-    #     to filter and analyze turning events relevant to the specific boundary type.
-    # - boundary_combo : str
-    #     The specific combination of boundaries being considered in this part of the analysis.
-    #     This parameter refines which turning events are relevant based on the boundary
-    #     configuration (e.g., adjacent to agarose, left-right walls).
-    # - ellipse_ref_pt : str
-    #     Reference point on the ellipse used to determine boundary-crossing events, either "edge"
-    #     or "center."
-    #
-    # This function checks if turning analysis is enabled and relevant for the given boundary
-    # type and combination as specified in the options. If so, it calculates the duration in 
-    # frames for turning events based on the video's fps and the duration threshold in the opts, 
-    # and then calls the `find_subset_at_or_below_duration` method of the `boundary_dist_calc` 
-    # instance to identify and mark turning events within the boundary contact analysis.
-    #
-    # Note:
-    # - This function does not return any value but influences the results of the boundary contact
-    #   analysis by identifying and marking turning events, which are then reflected in the output
-    #   of the `runBoundaryContactAnalyses` function.
-    # - It relies on the `WALL_ORIENTATION_FOR_TURN` dictionary to match boundary types and
-    #   combinations with those specified for turn analysis in the opts, ensuring that only
-    #   relevant turning events are identified.
-    # - If boundary contact plots are enabled (`opts.bnd_ct_plots`), the function will also
-    #   trigger visualization of the turns.
+    """
+    Identifies turning events within boundary contact events based on specified criteria.
+    This function is integral to the boundary contact analysis, determining which boundary
+    contacts involve significant turns that meet the criteria defined in the options.
+
+    Parameters:
+    - va : VideoAnalysis
+        An instance of the VideoAnalysis class that provides context and additional data
+        required for the analysis, such as frames per second (fps), which is crucial for
+        determining the duration in frames for turning events.
+    - opts : argparse.Namespace
+        A Namespace object containing various options and flags that influence the analysis
+        process, including minimum velocity angle delta for turns, the duration threshold for
+        turning events, and the specific boundaries to consider for turning events.
+    - boundary_dist_calc : EllipseToBoundaryDistCalculator
+        An instance of the EllipseToBoundaryDistCalculator class that calculates distances to
+        boundaries and is now used to identify turning events based on those calculations.
+    - bnd_tp : str
+        The type of boundary being analyzed (e.g., "wall", "agarose"). This parameter is used
+        to filter and analyze turning events relevant to the specific boundary type.
+    - boundary_combo : str
+        The specific combination of boundaries being considered in this part of the analysis.
+        This parameter refines which turning events are relevant based on the boundary
+        configuration (e.g., adjacent to agarose, left-right walls).
+    - ellipse_ref_pt : str
+        Reference point on the ellipse used to determine boundary-crossing events, either "edge"
+        or "center."
+
+    Notes:
+    - This function checks if turning analysis is enabled and relevant for the given boundary
+      type and combination as specified in the options. If so, it calculates the duration in 
+      frames for turning events based on the video's fps and the duration threshold in the opts, 
+      and then calls the `find_subset_at_or_below_duration` method of the `boundary_dist_calc` 
+      instance to identify and mark turning events within the boundary contact analysis.
+    - This function does not return any value but influences the results of the boundary contact
+      analysis by identifying and marking turning events, which are then reflected in the output
+      of the `runBoundaryContactAnalyses` function.
+    - It relies on the `WALL_ORIENTATION_FOR_TURN` dictionary to match boundary types and
+      combinations with those specified for turn analysis in the opts, ensuring that only
+      relevant turning events are identified.
+    - If boundary contact plots are enabled (`opts.bnd_ct_plots`), the function will also
+      trigger visualization of the turns.
+    """
     if not va or not opts.turn or boundary_combo != WALL_ORIENTATION_FOR_TURN[bnd_tp]:
         return
     
@@ -371,6 +372,33 @@ cpdef findTurns(va, opts, boundary_dist_calc, bnd_tp, boundary_combo, ellipse_re
     boundary_dist_calc.visualize_turns(ellipse_ref_pt, opts, mode=mode)
 
 cdef class EllipseToBoundaryDistCalculator:
+    """
+    A class responsible for calculating distances from an ellipse (representing an entity like a fly)
+    to predefined boundaries, such as walls or agarose boundaries, during trajectory analysis.
+
+    This class is used in conjunction with trajectory and video analysis data to analyze the spatial
+    relationship between an entity's movement and boundary contact events, which can trigger additional
+    analyses, such as detecting turning events during boundary interactions.
+
+    Attributes:
+    - trj : Trajectory
+        An instance of the Trajectory class representing the trajectory of an entity across
+        frames in a video.
+    - va : VideoAnalysis
+        An instance of the VideoAnalysis class providing context and additional data from the
+        processed video.
+    - min_turn_speed : double
+        The minimum turning speed threshold, used to filter out certain movements based on velocity.
+    - return_data : dict
+        A dictionary containing the results of the boundary event analysis, including statistics on
+        boundary contact events.
+    - wall_debug : bool
+        A flag used to enable or disable debug mode for wall-related calculations.
+
+    Methods:
+    - __init__ : Initializes the EllipseToBoundaryDistCalculator with trajectory and video analysis instances.
+    - expected_dist_thresholds : Returns the expected distance thresholds for specific boundary combinations.
+    """
     cdef object trj
     cdef object va
     cdef double min_turn_speed
@@ -418,31 +446,34 @@ cdef class EllipseToBoundaryDistCalculator:
         min_turn_speed=0,
         wall_debug=False
     ):
-        # Initialize the EllipseToBoundaryDistCalculator with specific trajectory and video
-        # analysis instances, along with a threshold for minimum turning speed. This constructor
-        # sets up the calculator's initial state, enabling it to compute distances from ellipses
-        # (representing entities in the video) to predefined boundaries based on trajectory data
-        # and video analysis.
-        #
-        # Parameters:
-        # - trj : Trajectory
-        #     An instance of the Trajectory class representing the trajectory of an entity
-        #     (e.g., a fly) across frames in a video. This object contains positional data
-        #     (x, y), orientations (theta), dimensions (width and height), among other pieces of
-        #     information necessary for the distance calculations.
-        #
-        # - va : VideoAnalysis
-        #     An instance of the VideoAnalysis class that has processed the video from which the
-        #     trajectory data was obtained. It provides context and additional data required for
-        #     the analysis, such as pixel-per-millimeter ratios, which may be used to adjust the
-        #     minimum turning speed, and other metrics that might influence boundary distance
-        #     calculations.
-        #
-        # - min_turn_speed : double, optional
-        #     The minimum turning speed threshold, used to filter out certain movements based on
-        #     their velocity. This value may be adjusted based on pixel-per-millimeter ratios
-        #     from the video analysis to maintain consistency in units or measurement scales.
-        #     Defaults to 0, indicating that by default, no velocity-based filtering is applied.
+        """
+        Initialize the EllipseToBoundaryDistCalculator with specific trajectory and video
+        analysis instances, along with a threshold for minimum turning speed. This constructor
+        sets up the calculator's initial state, enabling it to compute distances from ellipses
+        (representing entities in the video) to predefined boundaries based on trajectory data
+        and video analysis.
+
+        Parameters:
+        - trj : Trajectory
+            An instance of the Trajectory class representing the trajectory of an entity
+            (e.g., a fly) across frames in a video. This object contains positional data
+            (x, y), orientations (theta), dimensions (width and height), among other pieces of
+            information necessary for the distance calculations.
+        - va : VideoAnalysis
+            An instance of the VideoAnalysis class that has processed the video from which the
+            trajectory data was obtained. It provides context and additional data required for
+            the analysis, such as pixel-per-millimeter ratios, which may be used to adjust the
+            minimum turning speed, and other metrics that might influence boundary distance
+            calculations.
+        - min_turn_speed : double, optional
+            The minimum turning speed threshold, used to filter out certain movements based on
+            their velocity. This value may be adjusted based on pixel-per-millimeter ratios
+            from the video analysis to maintain consistency in units or measurement scales.
+            Defaults to 0, indicating that by default, no velocity-based filtering is applied.
+        - wall_debug : bool, optional
+            A flag used to enable or disable debugging for wall-related calculations. If set to True,
+            additional debug information regarding wall boundaries may be produced. Defaults to False.
+        """
         self.trj = trj
         self.va = va
         self.min_turn_speed = min_turn_speed
@@ -455,35 +486,37 @@ cdef class EllipseToBoundaryDistCalculator:
 
     @staticmethod
     def expected_dist_thresholds(boundary_combo):
-        # Determines the expected distance thresholds based on the specified boundary
-        # combination.
-        #
-        # This method maps the boundary combination to the orientations (vertical or horizontal)
-        # that are relevant for calculating the distances to boundaries. This mapping helps in
-        # configuring event thresholds for distance calculations and boundary contact analysis.
-        #
-        # Parameters:
-        # - boundary_combo : str
-        #     A string identifier for the boundary combination. Possible values include:
-        #     - 'lr': indicating left-right boundaries,
-        #     - 'tb': indicating top-bottom boundaries,
-        #     - 'all': indicating all boundaries,
-        #     - 'agarose_adj': like "all", but with top-bottom boundaries offset to the inner
-        #                      border of the agarose.
-        #
-        # Returns:
-        # - tuple of str
-        #     A tuple containing the orientations ('vert', 'horiz') that are relevant for the
-        #     given boundary combination. This information is used to define the event
-        #     thresholds for boundary distance calculations.
-        #     
-        # Examples:
-        # - For 'lr' (left-right), the method returns ('vert',), indicating that vertical
-        #   boundaries are relevant.
-        # - For 'tb' (top-bottom), it returns ('horiz',), pointing to the relevance of
-        #   horizontal boundaries.
-        # - For 'all' or 'agarose_adj', it returns ('vert', 'horiz'), indicating that both
-        #   orientations are relevant.
+        """
+        Determines the expected distance thresholds based on the specified boundary
+        combination.
+
+        This method maps the boundary combination to the orientations (vertical or horizontal)
+        that are relevant for calculating the distances to boundaries. This mapping helps in
+        configuring event thresholds for distance calculations and boundary contact analysis.
+
+        Parameters:
+        - boundary_combo : str
+            A string identifier for the boundary combination. Possible values include:
+            - 'lr': indicating left-right boundaries,
+            - 'tb': indicating top-bottom boundaries,
+            - 'all': indicating all boundaries,
+            - 'agarose_adj': like "all", but with top-bottom boundaries offset to the inner
+                             border of the agarose.
+
+        Returns:
+        - tuple of str
+            A tuple containing the orientations ('vert', 'horiz') that are relevant for the
+            given boundary combination. This information is used to define the event
+            thresholds for boundary distance calculations.
+
+        Examples:
+        - For 'lr' (left-right), the method returns ('vert',), indicating that vertical
+          boundaries are relevant.
+        - For 'tb' (top-bottom), it returns ('horiz',), pointing to the relevance of
+          horizontal boundaries.
+        - For 'all' or 'agarose_adj', it returns ('vert', 'horiz'), indicating that both
+          orientations are relevant.
+        """
 
         if boundary_combo == "lr":
             return ("vert",)
@@ -493,33 +526,33 @@ cdef class EllipseToBoundaryDistCalculator:
             return ("vert", "horiz")
 
     def _set_event_thresholds(self, boundary_combo, event_thresholds, near_contact):
-        # Establishes the thresholds for detecting boundary contact events during distance
-        # calculations, tailored to the specified boundary combination and event thresholds.
-        # This method configures the thresholds needed to identify when an object is in
-        # proximity to or in contact with a boundary, making adjustments for scenarios where
-        # near contact is considered.
-        #
-        # Parameters:
-        # - boundary_combo : str
-        #     Identifies the set of boundaries (e.g., 'lr' for left-right, 'tb' for top-bottom,
-        #     'all', or 'agarose_adj') to be considered in the distance calculations.
-        #
-        # - event_thresholds : dict, list, or tuple
-        #     Specifies the thresholds for initiating and concluding boundary contact events.
-        #     Accepts a dictionary with 'vert' and 'horiz' keys defining start and end
-        #     thresholds for vertical and horizontal orientations, respectively, or a list/tuple
-        #     of two elements specifying universal start and end thresholds applicable to all
-        #     orientations unless overridden.
-        #
-        # - near_contact : bool
-        #     Indicates whether to adjust thresholds for near contact detection. When True,
-        #     increases the start threshold slightly to accommodate close proximity without
-        #     actual contact.
-        #
-        # Raises:
-        # - ValueError: If using a dictionary for `event_thresholds` and it lacks entries for
-        #               any orientation required by `boundary_combo`.
-        # - TypeError: If `event_thresholds` is neither a list, tuple, nor dict.
+        """
+        Establishes the thresholds for detecting boundary contact events during distance
+        calculations, tailored to the specified boundary combination and event thresholds.
+        This method configures the thresholds needed to identify when an object is in
+        proximity to or in contact with a boundary, making adjustments for scenarios where
+        near contact is considered.
+
+        Parameters:
+        - boundary_combo : str
+            Identifies the set of boundaries (e.g., 'lr' for left-right, 'tb' for top-bottom,
+            'all', or 'agarose_adj') to be considered in the distance calculations.
+        - event_thresholds : dict, list, or tuple
+            Specifies the thresholds for initiating and concluding boundary contact events.
+            Accepts a dictionary with 'vert' and 'horiz' keys defining start and end
+            thresholds for vertical and horizontal orientations, respectively, or a list/tuple
+            of two elements specifying universal start and end thresholds applicable to all
+            orientations unless overridden.
+        - near_contact : bool
+            Indicates whether to adjust thresholds for near contact detection. When True,
+            increases the start threshold slightly to accommodate close proximity without
+            actual contact.
+
+        Raises:
+        - ValueError: If using a dictionary for `event_thresholds` and it lacks entries for
+                      any orientation required by `boundary_combo`.
+        - TypeError: If `event_thresholds` is neither a list, tuple, nor dict.
+        """
         if type(event_thresholds) is list or type(event_thresholds) is tuple:
             self.event_thresholds = {
                 orientation: {"start": event_thresholds[0], "end": event_thresholds[1]}
@@ -542,48 +575,52 @@ cdef class EllipseToBoundaryDistCalculator:
             }
         else:
             raise TypeError("event_thresholds must be of type list, dict, or tuple")
+        
         if near_contact:
             for ori in self.event_thresholds:
                 self.event_thresholds[ori]["start"] += 0.1
 
+
     def _setup_boundary_dist_data(self):
-        # Prepares the data required for calculating distances from ellipses to boundaries. This
-        # method initializes arrays and performs initial calculations to set up the necessary
-        # data structures for distance calculations. Specifically, it computes semi-major and
-        # semi-minor axes of ellipses, prepares data structures for storing calculation results
-        # (like best points on the ellipse and boundary, minimum distances, out-of-bound
-        # statuses, and best wall indices), and initializes slope-intercept sets for boundary
-        # lines. This setup is crucial for subsequent distance and boundary interaction
-        # analyses.
-        #
-        # The method leverages trajectory data (`self.trj`) to determine the sizes of the
-        # ellipses represented by the trajectory's height (`h`) and width (`w`), treating them
-        # as semi-major and semi-minor axes respectively. It accounts for missing data by
-        # substituting NaNs with default values. The approach facilitates handling various
-        # boundary interaction scenarios, including calculations of closest points, minimum
-        # distances to boundaries, and out-of-bound conditions.
-        #
-        # Note:
-        # - This method is intended to be called internally during the initialization phase of
-        #   the class or before performing detailed boundary distance calculations.
-        # - It initializes multiple NumPy arrays and dictionaries that store information related
-        #   to the ellipses' positions relative to boundaries, including their best points on
-        #   both the ellipses and the boundaries, the minimum distances to the boundaries, and
-        #   indices of the closest walls.
-        # - Assumes that the trajectory data (`self.trj`) has been set and contains necessary
-        #   information about the entity's positions and dimensions (height and width) across
-        #   frames.
-        #
-        # Modifies:
-        # - Initializes and sets `self.semimaj_ax`, `self.semimin_ax`,
-        #   `self.slope_intercept_sets`, `self.best_pts`, `self.min_distances`,
-        #   `self.out_of_bounds`, and `self.best_wall_indices` with appropriate sizes and
-        #   default values based on the trajectory data.
-        #
-        # Raises:
-        # - No explicit exception raising is done in this method, but it depends on the
-        #   integrity of trajectory data (`self.trj`). Missing or malformed data may lead to
-        #   incorrect calculations or initialization.
+        """
+        Prepares the data required for calculating distances from ellipses to boundaries. This
+        method initializes arrays and performs initial calculations to set up the necessary
+        data structures for distance calculations. Specifically, it computes semi-major and
+        semi-minor axes of ellipses, prepares data structures for storing calculation results
+        (like best points on the ellipse and boundary, minimum distances, out-of-bound
+        statuses, and best wall indices), and initializes slope-intercept sets for boundary
+        lines. This setup is crucial for subsequent distance and boundary interaction
+        analyses.
+
+        The method leverages trajectory data (`self.trj`) to determine the sizes of the
+        ellipses represented by the trajectory's height (`h`) and width (`w`), treating them
+        as semi-major and semi-minor axes respectively. It accounts for missing data by
+        substituting NaNs with default values. The approach facilitates handling various
+        boundary interaction scenarios, including calculations of closest points, minimum
+        distances to boundaries, and out-of-bound conditions.
+
+        Notes:
+        - This method is intended to be called internally during the initialization phase of
+          the class or before performing detailed boundary distance calculations.
+        - It initializes multiple NumPy arrays and dictionaries that store information related
+          to the ellipses' positions relative to boundaries, including their best points on
+          both the ellipses and the boundaries, the minimum distances to the boundaries, and
+          indices of the closest walls.
+        - Assumes that the trajectory data (`self.trj`) has been set and contains necessary
+          information about the entity's positions and dimensions (height and width) across
+          frames.
+
+        Modifies:
+        - Initializes and sets `self.semimaj_ax`, `self.semimin_ax`,
+          `self.slope_intercept_sets`, `self.best_pts`, `self.min_distances`,
+          `self.out_of_bounds`, and `self.best_wall_indices` with appropriate sizes and
+          default values based on the trajectory data.
+
+        Raises:
+        - No explicit exception raising is done in this method, but it depends on the
+          integrity of trajectory data (`self.trj`). Missing or malformed data may lead to
+          incorrect calculations or initialization.
+        """
         if self.trj.h is None:
             return
 
@@ -596,28 +633,27 @@ cdef class EllipseToBoundaryDistCalculator:
         self.best_wall_indices = np.full(len(self.x), np.nan)
 
     def _reorient_ellipse_thetas(self):
-        # Adjusts the orientations (thetas) of ellipses from trajectory data to align correctly
-        # for distance calculations. This method normalizes theta values within a specific range
-        # and converts them to radians, ensuring the semi-major and semi-minor axes of ellipses
-        # are properly oriented relative to the calculation coordinate system. Minor adjustments
-        # are made to theta values to avoid computational issues when orientations align exactly
-        # with axes.
-        #
-        # This adjustment is crucial for accurate distance measurements from ellipses to
-        # boundaries, affecting how closest points on the ellipses are determined relative to
-        # those boundaries.
-        #
-        # The method modifies class attributes to store adjusted orientations and their
-        # trigonometric functions, supporting subsequent distance calculations.
-        #
-        # Note:
-        # - Assumes `self.trj.theta` contains valid orientation data.
-        # - If `self.trj.theta` is `None`, no adjustments are performed.
-        #
-        # Modifies:
-        # - Adjusts `self.rot_angles` to store theta values in radians.
-        # - Sets `self.sin_of_angles`, `self.neg_sin_of_angles`, and `self.cos_of_angles` for use in 
-        # distance calculations.
+        """
+        Adjusts the orientations (thetas) of ellipses from trajectory data to align correctly
+        for distance calculations. This method normalizes theta values within a specific range
+        and converts them to radians, ensuring the semi-major and semi-minor axes of ellipses
+        are properly oriented relative to the calculation coordinate system. Minor adjustments
+        are made to theta values to avoid computational issues when orientations align exactly
+        with axes.
+
+        This adjustment is crucial for accurate distance measurements from ellipses to
+        boundaries, affecting how closest points on the ellipses are determined relative to
+        those boundaries.
+
+        Modifies:
+        - Adjusts `self.rot_angles` to store theta values in radians.
+        - Sets `self.sin_of_angles`, `self.neg_sin_of_angles`, and `self.cos_of_angles` for use in 
+          distance calculations.
+
+        Notes:
+        - Assumes `self.trj.theta` contains valid orientation data.
+        - If `self.trj.theta` is `None`, no adjustments are performed.
+        """
         if self.trj.theta is None:
             return
         self.rot_angles = np.array(self.trj.theta)
@@ -635,39 +671,42 @@ cdef class EllipseToBoundaryDistCalculator:
         self.cos_of_angles = np.cos(-rot_angles_array)
         self.rot_angles = rot_angles_array
 
+
     cdef _set_trj_data(self):
-        # Sets up the trajectory data and initializes boundary conditions for the
-        # EllipseToBoundaryDistCalculator. This method processes video analysis data to
-        # establish initial conditions related to the chamber's geometry, aligns boundary origin
-        # points based on video analysis, calculates chamber center and maximum distances from
-        # the center, and adjusts boundary positions considering offsets. It also directly
-        # copies trajectory X and Y positions into class attributes for subsequent calculations.
-        #
-        # The process involves:
-        # - Extracting floor alignment coordinates to calculate the chamber's center.
-        # - Determining the maximum distances from the chamber center to its boundaries to help
-        #   adjust boundary positions.
-        # - Calculating offsets for original boundary positions based on predefined factors,
-        #   ensuring boundaries are dynamically adjusted relative to the chamber center and
-        #   maximum distances.
-        # - Copying trajectory X and Y data into class attributes for use in distance
-        #   calculations to boundaries.
-        #
-        # Modifies:
-        # - `self.x_align_fl`, `self.y_align_fls`: Stores alignment information for calculating
-        #                                          the chamber center.
-        # - `self.chamber_center`: The calculated center of the chamber based on alignment
-        #                          information.
-        # - `self.max_dists_from_ctr`: Maximum distances from the chamber center to its edges,
-        #                              used for boundary adjustment.
-        # - `self.bounds_orig` and `self.offsets`: Original boundary positions and their
-        #                                          adjustments.
-        # - `self.x`, `self.y`: Direct copying of trajectory data for use in distance
-        #                       calculations.
-        #
-        # Raises:
-        # - Does not explicitly raise exceptions but relies on the integrity and availability of
-        #   `self.va` attributes.
+        """
+        Sets up the trajectory data and initializes boundary conditions for the
+        EllipseToBoundaryDistCalculator. This method processes video analysis data to
+        establish initial conditions related to the chamber's geometry, aligns boundary origin
+        points based on video analysis, calculates chamber center and maximum distances from
+        the center, and adjusts boundary positions considering offsets. It also directly
+        copies trajectory X and Y positions into class attributes for subsequent calculations.
+
+        The process involves:
+        - Extracting floor alignment coordinates to calculate the chamber's center.
+        - Determining the maximum distances from the chamber center to its boundaries to help
+          adjust boundary positions.
+        - Calculating offsets for original boundary positions based on predefined factors,
+          ensuring boundaries are dynamically adjusted relative to the chamber center and
+          maximum distances.
+        - Copying trajectory X and Y data into class attributes for use in distance
+          calculations to boundaries.
+
+        Modifies:
+        - `self.x_align_fl`, `self.y_align_fls`: Stores alignment information for calculating
+                                                 the chamber center.
+        - `self.chamber_center`: The calculated center of the chamber based on alignment
+                                 information.
+        - `self.max_dists_from_ctr`: Maximum distances from the chamber center to its edges,
+                                     used for boundary adjustment.
+        - `self.bounds_orig` and `self.offsets`: Original boundary positions and their
+                                                 adjustments.
+        - `self.x`, `self.y`: Direct copying of trajectory data for use in distance
+                              calculations.
+
+        Raises:
+        - Does not explicitly raise exceptions but relies on the integrity and availability of
+          `self.va` attributes.
+        """
         if not hasattr(self.va, "ct"):
             return
         gen = self.va.ct.floor(self.va.xf, f=2)
@@ -708,49 +747,47 @@ cdef class EllipseToBoundaryDistCalculator:
         self.origins = np.vstack((self.x, self.y)).T
 
     def _rotate_chamber_bounds_about_ellipses(self, offset=0):
-        # Rotates the chamber boundaries to align with the orientation of ellipses, based on the
-        # specified boundary type and combination. This method adjusts the chamber's original
-        # boundaries to match the orientation of ellipses representing entities in a video,
-        # facilitating accurate distance calculations between these entities and the chamber
-        # walls. It supports different configurations for agarose and non-agarose (wall)
-        # boundaries, including adjustments for 'agarose_adj' boundary combinations.
-        #
-        # Depending on the `boundary_type` ('agarose' or 'wall') and `boundary_combo`
-        # ('agarose_adj'), this method selects the appropriate pre-cached boundary values or
-        # calculates new boundaries by rotating the original chamber bounds to align with the
-        # ellipses' orientations. It also applies an offset for the 'agarose_adj' type to
-        # account for the specific agarose area configuration.
-        #
-        # Parameters:
-        # - offset: float (default: 0)
-        #     Distance from the top/bottom walls of the chamber at which to define the boundaries.
-        #     Note: units are mm, and these offsets are scaled relative to the
-        #     (HTL) chamber height of 16mm.
-        #
-        # Note:
-        # - This method assumes that original boundary positions and ellipse orientations
-        #   (`rot_angles`, `sin_of_angles`, and `cos_of_angles`) have already been set during
-        #   the initialization or prior processing steps.
-        # - The rotation adjusts both the x and y bounds of the chamber to reflect the
-        #   orientation of ellipses, enhancing the precision of distance-to-boundary
-        #   calculations.
-        # - After rotation, boundaries are either stored for future use (`bounds_agarose` and
-        #   `y_bounds_agarose` for agarose-related calculations, `bounds_full` and
-        #   `y_bounds_full` for wall-related calculations) or applied immediately for the
-        #   current analysis.
-        #
-        # Modifies:
-        # - `self.bounds`: The rotated boundaries aligned with the ellipses' orientations,
-        #                   structured as a 4x2 numpy array representing the corner points of the chamber.
-        # - `self.y_bounds`: The y-axis boundaries after potential adjustment for the agarose
-        #                     area, reflecting the vertical span of the chamber after rotation.
-        # - Caches the calculated boundaries in `self.bounds_agarose`, `self.y_bounds_agarose`,
-        #   `self.bounds_full`, or `self.y_bounds_full` for efficiency in subsequent analyses.
-        #
-        # Raises:
-        # - No explicit exceptions are raised by this method, but it relies on the presence and
-        #   correctness of several class attributes (`self.bounds_orig`, `self.x_bounds_orig`,
-        #   `self.y_bounds_orig`, etc.) set by other methods in the class.
+        """
+        Rotates the chamber boundaries to align with the orientation of ellipses, based on the
+        specified boundary type and combination. This method adjusts the chamber's original
+        boundaries to match the orientation of ellipses representing entities in a video,
+        facilitating accurate distance calculations between these entities and the chamber
+        walls. It supports different configurations for agarose and non-agarose (wall)
+        boundaries, including adjustments for 'agarose_adj' boundary combinations.
+
+        Depending on the `boundary_type` ('agarose' or 'wall') and `boundary_combo`
+        ('agarose_adj'), this method selects the appropriate pre-cached boundary values or
+        calculates new boundaries by rotating the original chamber bounds to align with the
+        ellipses' orientations. It also applies an offset for the 'agarose_adj' type to
+        account for the specific agarose area configuration.
+
+        Parameters:
+        - offset : float, optional (default: 0)
+            Distance from the top/bottom walls of the chamber at which to define the boundaries.
+            Note: units are mm, and these offsets are scaled relative to the
+            (HTL) chamber height of 16mm.
+
+        Modifies:
+        - `self.bounds`: The rotated boundaries aligned with the ellipses' orientations,
+                         structured as a 4x2 numpy array representing the corner points of the chamber.
+        - `self.y_bounds`: The y-axis boundaries after potential adjustment for the agarose
+                           area, reflecting the vertical span of the chamber after rotation.
+        - Caches the calculated boundaries in `self.bounds_agarose`, `self.y_bounds_agarose`,
+          `self.bounds_full`, or `self.y_bounds_full` for efficiency in subsequent analyses.
+
+        Notes:
+        - This method assumes that original boundary positions and ellipse orientations
+          (`rot_angles`, `sin_of_angles`, and `cos_of_angles`) have already been set during
+          the initialization or prior processing steps.
+        - The rotation adjusts both the x and y bounds of the chamber to reflect the
+          orientation of ellipses, enhancing the precision of distance-to-boundary
+          calculations.
+        
+        Raises:
+        - No explicit exceptions are raised by this method, but it relies on the presence and
+          correctness of several class attributes (`self.bounds_orig`, `self.x_bounds_orig`,
+          `self.y_bounds_orig`, etc.) set by other methods in the class.
+        """
         if self.boundary_type == 'agarose' or (
             self.boundary_type == 'wall' and self.boundary_combo == 'agarose_adj'
         ):
@@ -806,42 +843,44 @@ cdef class EllipseToBoundaryDistCalculator:
         int upper_index,
         int lower_index,
     ):
-        # Calculates the slope and intercept for the line representing a specified wall of the chamber.
-        #
-        # This helper function computes the slope and intercept of the line that defines one of the
-        # four chamber walls. The wall is identified by `wall_idx`, with the slope and intercept
-        # calculated using the coordinates of two corner points, determined by `upper_index` and 
-        # `lower_index`, from the `bounds` array. The calculated slope and intercept are stored 
-        # in the `slope_intercept_sets` array for use in subsequent distance calculations and 
-        # boundary contact analyses.
-        #
-        # The `bounds` array defines the chamber corners in the following order:
-        # - [x_min, y_min] (upper left)
-        # - [x_min, y_max] (lower left)
-        # - [x_max, y_max] (lower right)
-        # - [x_max, y_min] (upper right)
-        #
-        # Wall indices (`wall_idx`) are mapped as follows:
-        # - 0: Left wall (from upper left to lower left)
-        # - 1: Bottom wall (from lower left to lower right)
-        # - 2: Right wall (from lower right to upper right)
-        # - 3: Top wall (from upper right to upper left)
-        #
-        # Parameters:
-        # - wall_idx : int
-        #     The index representing the wall for which the slope and intercept are being calculated.
-        #     This determines the entry in the `slope_intercept_sets` array that will be updated.
-        # - upper_index : int
-        #     The index representing the boundary point with the smaller Y value (upper) used in the 
-        #     slope calculation. This point is one of the chamber corners defined in the `bounds` array.
-        # - lower_index : int
-        #     The index representing the boundary point with the larger Y value (lower) used in the 
-        #     slope calculation. This point is one of the chamber corners defined in the `bounds` array.
-        #
-        # Modifies:
-        # - `self.slope_intercept_sets`: Updates the slope and intercept values for the line 
-        #   representing the wall specified by `wall_idx`. The slope is stored in the first 
-        #   position and the intercept in the second position of the respective slice for `wall_idx`.
+        """
+        Calculates the slope and intercept for the line representing a specified wall of the chamber.
+
+        This helper function computes the slope and intercept of the line that defines one of the
+        four chamber walls. The wall is identified by `wall_idx`, with the slope and intercept
+        calculated using the coordinates of two corner points, determined by `upper_index` and 
+        `lower_index`, from the `bounds` array. The calculated slope and intercept are stored 
+        in the `slope_intercept_sets` array for use in subsequent distance calculations and 
+        boundary contact analyses.
+
+        The `bounds` array defines the chamber corners in the following order:
+        - [x_min, y_min] (upper left)
+        - [x_min, y_max] (lower left)
+        - [x_max, y_max] (lower right)
+        - [x_max, y_min] (upper right)
+
+        Wall indices (`wall_idx`) are mapped as follows:
+        - 0: Left wall (from upper left to lower left)
+        - 1: Bottom wall (from lower left to lower right)
+        - 2: Right wall (from lower right to upper right)
+        - 3: Top wall (from upper right to upper left)
+
+        Parameters:
+        - wall_idx : int
+            The index representing the wall for which the slope and intercept are being calculated.
+            This determines the entry in the `slope_intercept_sets` array that will be updated.
+        - upper_index : int
+            The index representing the boundary point with the smaller Y value (upper) used in the 
+            slope calculation. This point is one of the chamber corners defined in the `bounds` array.
+        - lower_index : int
+            The index representing the boundary point with the larger Y value (lower) used in the 
+            slope calculation. This point is one of the chamber corners defined in the `bounds` array.
+
+        Modifies:
+        - `self.slope_intercept_sets`: Updates the slope and intercept values for the line 
+           representing the wall specified by `wall_idx`. The slope is stored in the first 
+           position and the intercept in the second position of the respective slice for `wall_idx`.
+        """
         self.slope_intercept_sets[:, wall_idx, 0] = (
             self.bounds[:, upper_index, 1] - self.bounds[:, lower_index, 1]
         ) / (self.bounds[:, upper_index, 0] - self.bounds[:, lower_index, 0])
