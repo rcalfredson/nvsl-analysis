@@ -17,11 +17,11 @@ import numpy as np
 import scipy.stats as st
 
 # custom modules and constants
-from constants import P
-from numba_loader import jit
+from src.utils.constants import P
+from src.utils.numba_loader import jit
 
-import util
-from util import error
+import src.utils.util as util
+from src.utils.util import error
 
 WELCH = True  # whether to use Welch's t-test
 

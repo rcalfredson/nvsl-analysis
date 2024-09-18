@@ -1,7 +1,7 @@
 import numpy as np
 
-from reward_range_calculator import RewardRangeCalculator
-from util import inRange
+from src.analysis.reward_range_calculator import RewardRangeCalculator
+from src.utils.util import inRange
 
 
 class ContactEventTrainingComparison:

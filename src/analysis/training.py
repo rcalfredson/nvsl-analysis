@@ -6,10 +6,10 @@ import cv2
 import numpy as np
 
 # custom modules and constants
-from common import CT, frame2hm, pch
-from constants import LEGACY_YC_CIRCLES
-import util
-from util import COL_W, error
+from src.utils.common import CT, frame2hm, pch
+from src.utils.constants import LEGACY_YC_CIRCLES
+import src.utils.util as util
+from src.utils.util import COL_W, error
 
 POST_TIME_MIN = False
 

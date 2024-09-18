@@ -47,7 +47,7 @@ import seaborn as sns
 from statsmodels.stats.multitest import multipletests
 
 # custom modules and functions
-from common import (
+from src.utils.common import (
     CT,
     cVsA_l,
     adjustLegend,
@@ -61,7 +61,7 @@ from common import (
     ttest_rel,
     writeImage,
 )
-from constants import (
+from src.utils.constants import (
     CONTACT_BUFFER_OFFSETS,
     MIDLINE_BOUNDARY_DIST,
     HEATMAP_DIV,
@@ -70,19 +70,19 @@ from constants import (
     SPEED_ON_BOTTOM,
     ST,
 )
-from motion import CircularMotionDetector
-from outside_circle_duration_plotter import OutsideCircleDurationPlotter
-from parsers import parse_distances
-from plot import plotAngularVelocity, plotTurnRadiusHist
-from plot_customizer import PlotCustomizer
-from training import Training
-from trajectory import Trajectory
-from turn_directionality_plotter import TurnDirectionalityPlotter
-from turn_prob_dist_plotter import TurnProbabilityByDistancePlotter
-import util
-from util import ArgumentError, Tee, VideoError, AVI_X, COL_B, COL_BK, COL_W, WINDOWS
-from util import error, warn
-from video_analysis import (
+from src.analysis.motion import CircularMotionDetector
+from src.plotting.outside_circle_duration_plotter import OutsideCircleDurationPlotter
+from src.utils.parsers import parse_distances
+from src.plotting.plot import plotAngularVelocity, plotTurnRadiusHist
+from src.plotting.plot_customizer import PlotCustomizer
+from src.analysis.training import Training
+from src.analysis.trajectory import Trajectory
+from src.plotting.turn_directionality_plotter import TurnDirectionalityPlotter
+from src.plotting.turn_prob_dist_plotter import TurnProbabilityByDistancePlotter
+import src.utils.util as util
+from src.utils.util import ArgumentError, Tee, VideoError, AVI_X, COL_B, COL_BK, COL_W, WINDOWS
+from src.utils.util import error, warn
+from src.analysis.video_analysis import (
     VideoAnalysis,
     per_va_processing_times,
     per_bnd_processing_times,

@@ -10,8 +10,8 @@
 import numpy as np
 import scipy.io as sio
 
-from common import *
-from util import *
+from src.utils.common import *
+from src.utils.util import *
 
 
 class CircularMotionDetector:

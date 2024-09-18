@@ -9,9 +9,9 @@ import numpy as np
 cimport numpy as cnp
 import random
 
-from common import writeImage
-from constants import CONTACT_BUFFER_OFFSETS
-from util import closest_pts_to_lines, rotate_pts, trueRegions
+from src.utils.common import writeImage
+from src.utils.constants import CONTACT_BUFFER_OFFSETS
+from src.utils.util import closest_pts_to_lines, rotate_pts, trueRegions
 
 cnp.import_array()
 
@@ -68,10 +68,10 @@ def draw_custom_arrowhead(ax, x_mid, y_mid, dx, dy, color, length=1.1, angle=30,
     y_mid_shifted = y_mid + dy * shift_factor * norm
 
     # Calculate the coordinates for the two arrowhead lines
-    left_dx = dx * np.cos(angle_rad) - dy * np.sin(angle_rad)
-    left_dy = dx * np.sin(angle_rad) + dy * np.cos(angle_rad)
-    right_dx = dx * np.cos(-angle_rad) - dy * np.sin(-angle_rad)
-    right_dy = dx * np.sin(-angle_rad) + dy * np.cos(-angle_rad)
+    left_dx = dx * cos(angle_rad) - dy * sin(angle_rad)
+    left_dy = dx * sin(angle_rad) + dy * cos(angle_rad)
+    right_dx = dx * cos(-angle_rad) - dy * sin(-angle_rad)
+    right_dy = dx * sin(-angle_rad) + dy * cos(-angle_rad)
 
     # Scale the direction vectors by the desired length of the arrowhead
     left_x = x_mid_shifted + left_dx * length

@@ -1,5 +1,5 @@
 import numpy as np
-from video_analysis_interface import VideoAnalysisInterface
+from src.analysis.video_analysis_interface import VideoAnalysisInterface
 
 
 class RewardRangeCalculator:

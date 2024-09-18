@@ -72,7 +72,7 @@ Finally, build the Cython extensions. This step assumes Cython is listed as a de
 
 ```bash
 
-python setup.py build_ext --inplace
+python scripts/setup.py build_ext --inplace
 ```
 
 #### 7. Create Drive Mapping File (Optional)
@@ -141,7 +141,7 @@ To run the test, execute the following:
 
 ```bash
 
-python regression_test.py
+python scripts/regression_test.py
 ```
 
 The script will:

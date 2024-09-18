@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from common import writeImage
-from util import slugify
+from src.utils.common import writeImage
+from src.utils.util import slugify
 
 
 class OutsideCircleDurationPlotter:

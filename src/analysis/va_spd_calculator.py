@@ -1,7 +1,7 @@
 import numpy as np
-from trajectory import Trajectory
-from video_analysis_interface import VideoAnalysisInterface
-from reward_range_calculator import RewardRangeCalculator
+from src.analysis.trajectory import Trajectory
+from src.analysis.video_analysis_interface import VideoAnalysisInterface
+from src.analysis.reward_range_calculator import RewardRangeCalculator
 
 
 class VASpeedCalculator:

@@ -9,8 +9,8 @@ from __future__ import division
 import numpy as np
 import matplotlib.pyplot as plt
 
-from common import *
-from util import *
+from src.utils.common import *
+from src.utils.util import *
 
 ANGULAR_VEL_IMG_FILE = "imgs/angular_vel_f%s_%s.png"
 ANGULAR_VEL_HIST_IMG_FILE = "imgs/angular_vel_hist%s.png"

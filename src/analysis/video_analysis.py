@@ -15,8 +15,8 @@ import pylru
 import scipy.io as sio
 
 # custom modules and functions
-from boundary_contact import runBoundaryContactAnalyses
-from common import (
+from src.analysis.boundary_contact import runBoundaryContactAnalyses
+from src.utils.common import (
     CT,
     Xformer,
     cVsA,
@@ -26,7 +26,7 @@ from common import (
     frame2hm,
     skipMsg,
 )
-from constants import (
+from src.utils.constants import (
     CONTACT_BUFFER_OFFSETS,
     MIDLINE_BOUNDARY_DIST,
     AGAROSE_BOUNDARY_DIST,
@@ -38,19 +38,19 @@ from constants import (
     SPEED_ON_BOTTOM,
     ST,
 )
-from contact_event_training_comparison import ContactEventTrainingComparison
-from ellipse_to_boundary_dist import (
+from src.analysis.contact_event_training_comparison import ContactEventTrainingComparison
+from src.analysis.ellipse_to_boundary_dist import (
     TrjDataContainer,
     VaDataContainer,
     WALL_ORIENTATION_FOR_TURN,
 )
-from large_turns import RewardCircleAnchoredTurnFinder
-from motion import CircularMotionDetector, DataCombiner
-from trajectory import Trajectory
-from training import Training
-from trx_plotter import TrxPlotter
-import util
-from util import (
+from src.analysis.large_turns import RewardCircleAnchoredTurnFinder
+from src.analysis.motion import CircularMotionDetector, DataCombiner
+from src.analysis.trajectory import Trajectory
+from src.analysis.training import Training
+from src.plotting.trx_plotter import TrxPlotter
+import src.utils.util as util
+from src.utils.util import (
     ArgumentError,
     VideoError,
     AVI_X,
@@ -61,10 +61,10 @@ from util import (
     DIGITS_ONLY,
     SPACES_AFTER_TAB,
 )
-from util import error
-from va_spd_calculator import VASpeedCalculator
-from va_turn_directionality_collator import VATurnDirectionalityCollator
-from va_turn_prob_dist_collator import VATurnProbabilityDistanceCollator
+from src.utils.util import error
+from src.analysis.va_spd_calculator import VASpeedCalculator
+from src.analysis.va_turn_directionality_collator import VATurnDirectionalityCollator
+from src.analysis.va_turn_prob_dist_collator import VATurnProbabilityDistanceCollator
 
 BACKGROUND_CHANNEL = 0  # blue (default for tracking)
 SYNC_CTRL = False  # whether to start sync buckets after control reward

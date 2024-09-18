@@ -11,12 +11,12 @@ import shapely.affinity as sa
 import shapely.geometry as sg
 
 # custom modules and constants
-from common import draw_text_with_bg
-from constants import _RDP_PKG
-from video_analysis_interface import VideoAnalysisInterface
+from src.utils.common import draw_text_with_bg
+from src.utils.constants import _RDP_PKG
+from src.analysis.video_analysis_interface import VideoAnalysisInterface
 
-import util
-from util import VideoError, COL_BK, COL_O, COL_Y, COL_W
+import src.utils.util as util
+from src.utils.util import VideoError, COL_BK, COL_O, COL_Y, COL_W
 
 N_TRX_DEFAULT = 24
 TRX_IMG_FILE2 = "imgs/%s__t%d_b%d%s.png"

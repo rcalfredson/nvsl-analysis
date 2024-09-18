@@ -39,7 +39,7 @@ from pkg_resources import parse_version
 import pickle as pkl
 
 # custom modules
-from numba_loader import jit
+from src.utils.numba_loader import jit
 
 # - - -
 

@@ -2,9 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 
-from common import adjustLegend, writeImage
-from plot_customizer import PlotCustomizer
-from util import meanConfInt, slugify
+from src.utils.common import adjustLegend, writeImage
+from src.plotting.plot_customizer import PlotCustomizer
+from src.utils.util import meanConfInt, slugify
 
 
 class TurnProbabilityByDistancePlotter:

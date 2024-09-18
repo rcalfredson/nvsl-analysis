@@ -7,7 +7,7 @@ from libcpp.pair cimport pair
 from libcpp.vector cimport vector
 from libc.math cimport (fabs, nan)
 
-from common_cython cimport (
+from src.utils.common_cython cimport (
     angleDiff,
     compute_distance_or_nan,
     euclidean_norm,

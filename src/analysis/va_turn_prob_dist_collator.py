@@ -1,9 +1,9 @@
 import numpy as np
 
-from boundary_contact import runBndContactAnalysisForCtrReferencePt
-from common import CT
-from reward_range_calculator import RewardRangeCalculator
-from video_analysis_interface import VideoAnalysisInterface
+from src.analysis.boundary_contact import runBndContactAnalysisForCtrReferencePt
+from src.utils.common import CT
+from src.analysis.reward_range_calculator import RewardRangeCalculator
+from src.analysis.video_analysis_interface import VideoAnalysisInterface
 
 
 class VATurnProbabilityDistanceCollator:

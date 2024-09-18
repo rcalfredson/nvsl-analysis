@@ -7,16 +7,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # custom modules and constants
-from boundary_contact import EllipseToBoundaryDistCalculator
-from common import CT, Xformer, cVsA, flyDesc, writeImage
-from common_cython import resolveAngles180To360
-from constants import BORDER_WIDTH, _RDP_PKG
-from training import Training
-from video_analysis_interface import VideoAnalysisInterface
+from src.analysis.boundary_contact import EllipseToBoundaryDistCalculator
+from src.utils.common import CT, Xformer, cVsA, flyDesc, writeImage
+from src.utils.common_cython import resolveAngles180To360
+from src.utils.constants import BORDER_WIDTH, _RDP_PKG
+from src.analysis.training import Training
+from src.analysis.video_analysis_interface import VideoAnalysisInterface
 
-import util
-from util import COL_B, COL_BK, COL_G, COL_O, COL_R, COL_W, COL_Y, COL_Y_D
-from util import error
+import src.utils.util as util
+from src.utils.util import COL_B, COL_BK, COL_G, COL_O, COL_R, COL_W, COL_Y, COL_Y_D
+from src.utils.util import error
 
 CALC_REWARDS_IMG_FILE = "imgs/%s_rewards_fly_%d.png"
 
