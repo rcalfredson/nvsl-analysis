@@ -1,3 +1,17 @@
+"""
+This script verifies the output of analyses by comparing logs, CSVs, and images
+to reference files. It parses and runs commands from the input files, then checks 
+whether the outputs match the expected results, reporting any discrepancies.
+
+The script processes three types of files:
+- Log files: commands are extracted, executed, and their logs are compared.
+- CSV files: their contents are compared with reference CSVs.
+- Image files: byte-by-byte comparison is performed between reference and output images.
+
+The script organizes this process using functions to parse commands, run them, and compare outputs.
+The `main` function coordinates the file associations, command execution, and discrepancy reporting.
+"""
+
 import os
 import subprocess
 import json
@@ -76,6 +90,12 @@ def compare_images(img1, img2):
 
 
 def main():
+    """
+    Main function that associates commands with their respective log, CSV, or image files. 
+    It parses commands from these files, runs the commands, and compares the outputs to 
+    reference files (logs, CSVs, and images). Discrepancies between outputs and reference 
+    files are reported.
+    """
     command_to_files = defaultdict(list)
 
     # Collect commands and associated files from logs
