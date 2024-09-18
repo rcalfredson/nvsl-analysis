@@ -18,25 +18,34 @@ cnp.import_array()
 WALL_ORIENTATION_FOR_TURN = {"wall": "all", "agarose": "tb", "boundary": "tb"}
 
 def flip_sign(double[:] mv):
-    # Inverts the sign of each element in a given array in-place.
-    #
-    # This function iterates over each element of the input array `mv` and multiplies it by -1,
-    # effectively flipping its sign. This operation is performed in-place, meaning the input
-    # array is directly modified.
-    #
-    # Parameters:
-    # - mv : memoryview of double
-    #     A 1D array (memoryview) of double precision floating-point numbers. Each element's
-    #     sign in this array will be flipped.
-    #
-    # Returns:
-    # - None
-    #     The function modifies the input array in-place and does not return any value.
+    """
+    Inverts the sign of each element in a given array in-place.
+
+    This function iterates over each element of the input array `mv` and multiplies it by -1,
+    effectively flipping its sign. This operation is performed in-place, meaning the input
+    array is directly modified.
+
+    Parameters:
+    - mv : memoryview of double
+        A 1D array (memoryview) of double precision floating-point numbers. Each element's
+        sign in this array will be flipped.
+
+    Returns:
+    - None
+        The function modifies the input array in-place and does not return any value.
+    """
     cdef int i
     for i in range(mv.shape[0]):
         mv[i] = -mv[i]
 
 def recursive_defaultdict():
+    """
+    Creates a recursive defaultdict, where each missing key initializes
+    another defaultdict of the same type.
+
+    Returns:
+    - defaultdict: A recursive defaultdict structure.
+    """
     return defaultdict(recursive_defaultdict)
 
 def draw_custom_arrowhead(ax, x_mid, y_mid, dx, dy, color, length=1.1, angle=30, shift_factor=-0.08):
@@ -47,11 +56,16 @@ def draw_custom_arrowhead(ax, x_mid, y_mid, dx, dy, color, length=1.1, angle=30,
     - ax: Matplotlib axis object
     - x_mid, y_mid: Midpoint coordinates of the trajectory segment
     - dx, dy: Direction vector of the trajectory segment
-    - length: Length of the arrowhead lines
-    - angle: Angle at which the arrowhead lines deviate from the trajectory
-    - shift_factor: Fraction of the segment length to move the arrowhead towards the end
-    """
+    - color: Color of the arrowhead lines
+    - length: Length of the arrowhead lines (default: 1.1)
+    - angle: Angle at which the arrowhead lines deviate from the trajectory (default: 30)
+    - shift_factor: Fraction of the segment length to move the arrowhead towards the end 
+      (default: -0.08)
 
+    Returns:
+    - None
+    """
+    
     # Convert the angle to radians
     angle_rad = np.radians(angle)
     dx = -dx
@@ -84,46 +98,47 @@ def draw_custom_arrowhead(ax, x_mid, y_mid, dx, dy, color, length=1.1, angle=30,
     ax.add_line(plt.Line2D([x_mid_shifted, right_x], [y_mid_shifted, right_y], color=color, lw=1, zorder=5))
 
 cpdef runBndContactAnalysisForCtrReferencePt(trj, va, offset, opts, find_turns=True):
-    # Conducts a boundary contact analysis centered around the centroid (center) of the ellipse.
-    # This analysis identifies interactions between the trajectory and the boundary and calculates
-    # the distances from the centroid to the boundary.
-    #
-    # Parameters:
-    # - trj : Trajectory
-    #     An instance of the Trajectory class representing the trajectory of an entity across
-    #     frames in a video.
-    # - va : VideoAnalysis
-    #     An instance of the VideoAnalysis class that has processed the video from which the
-    #     trajectory data was obtained. It provides context and additional data required for the
-    #     analysis.
-    # - offset : float
-    #     A distance offset for defining the boundary relative to the chamber's top/bottom walls.
-    # - opts : argparse.Namespace
-    #     A Namespace object containing various options and flags that influence the analysis 
-    #     process. These options may include, but are not limited to, minimum turn speed, the 
-    #     inclusion of specific types of boundaries in the analysis, and parameters defining what 
-    #     constitutes a turn or boundary contact event.
-    # - find_turns : bool, optional
-    #     A flag indicating whether to identify turning events based on boundary interactions. 
-    #     Default is True.
-    #
-    # Returns:
-    # - dict
-    #     A dictionary containing the results of the boundary contact analysis. This includes
-    #     calculated distances from the ellipse centroid to the boundary, identified turns, and
-    #     other relevant information extracted during the analysis process.
-    #
-    # Raises:
-    # - AttributeError
-    #     If certain required attributes are missing from the opts parameter.
-    #
-    # This function initializes an EllipseToBoundaryDistCalculator object with the provided
-    # Trajectory and VideoAnalysis instances, along with other necessary parameters. It sets up
-    # the event thresholds using predefined constants and calculates distances from the ellipse 
-    # centroid to the specified boundary. If the `find_turns` flag is set to True, the function 
-    # also identifies turning events. The original options for turn detection are restored after 
-    # the analysis.
+    """
+    Conducts a boundary contact analysis centered around the centroid (center) of the ellipse.
+    This analysis identifies interactions between the trajectory and the boundary and calculates
+    the distances from the centroid to the boundary.
 
+    Parameters:
+    - trj : Trajectory
+        An instance of the Trajectory class representing the trajectory of an entity across
+        frames in a video.
+    - va : VideoAnalysis
+        An instance of the VideoAnalysis class that has processed the video from which the
+        trajectory data was obtained. It provides context and additional data required for the
+        analysis.
+    - offset : float
+        A distance offset for defining the boundary relative to the chamber's top/bottom walls.
+    - opts : argparse.Namespace
+        A Namespace object containing various options and flags that influence the analysis 
+        process. These options may include, but are not limited to, minimum turn speed, the 
+        inclusion of specific types of boundaries in the analysis, and parameters defining what 
+        constitutes a turn or boundary contact event.
+    - find_turns : bool, optional
+        A flag indicating whether to identify turning events based on boundary interactions. 
+        Default is True.
+
+    Returns:
+    - dict
+        A dictionary containing the results of the boundary contact analysis. This includes
+        calculated distances from the ellipse centroid to the boundary, identified turns, and
+        other relevant information extracted during the analysis process.
+
+    Raises:
+    - AttributeError
+        If certain required attributes are missing from the opts parameter.
+
+    This function initializes an EllipseToBoundaryDistCalculator object with the provided
+    Trajectory and VideoAnalysis instances, along with other necessary parameters. It sets up
+    the event thresholds using predefined constants and calculates distances from the ellipse 
+    centroid to the specified boundary. If the `find_turns` flag is set to True, the function 
+    also identifies turning events. The original options for turn detection are restored after 
+    the analysis.
+    """
     # Initialize the distance calculator
     dist_calc = EllipseToBoundaryDistCalculator(trj, va, min_turn_speed=opts.min_turn_speed)
 
@@ -133,7 +148,7 @@ cpdef runBndContactAnalysisForCtrReferencePt(trj, va, offset, opts, find_turns=T
     dist_calc.boundary_type = 'boundary'
     dist_calc.boundary_combo = 'tb'
     
-    # Set up event thresholds using the  constant
+    # Set up event thresholds using the constant
     dist_calc.event_thresholds = {
         "vert": [
             CONTACT_BUFFER_OFFSETS["boundary"]["min"],
@@ -172,53 +187,55 @@ cpdef runBndContactAnalysisForCtrReferencePt(trj, va, offset, opts, find_turns=T
     return dist_calc.return_data
 
 cpdef runBoundaryContactAnalyses(trj, va, offsets, thresholds, opts):
-    # Conducts boundary contact analysis on a given trajectory to identify interactions with
-    # predefined boundary types (e.g., walls, agarose, boundaries) and calculates distances to
-    # these boundaries. This function iterates over different boundary types specified in the
-    # options, calculates distances to these boundaries using both the center and edge of the
-    # ellipse as reference points, and identifies turning events based on the calculated distances
-    # and the specified thresholds.
-    #
-    # Parameters:
-    # - trj : Trajectory
-    #     An instance of the Trajectory class representing the trajectory of an entity across
-    #     frames in a video.
-    # - va : VideoAnalysis
-    #     An instance of the VideoAnalysis class that has processed the video from which the
-    #     trajectory data was obtained. It provides context and additional data required for the
-    #     analysis.
-    # - offsets : dict
-    #     A dictionary containing distances from the top/bottom walls of the chamber at which to
-    #     define the boundaries. Note: units are mm, and these offsets are scaled relative to the
-    #     (HTL) chamber height of 16mm.
-    # - thresholds : dict
-    #     A dictionary containing threshold values for different boundary types. These
-    #     thresholds are used to determine proximity to boundaries and to identify significant
-    #     interactions.
-    # - opts : argparse.Namespace
-    #     A Namespace object resulting from parsing command-line arguments. This object contains
-    #     various options and flags that influence the analysis process. These options include,
-    #     but are not limited to, minimum turn speed, the inclusion of specific types of
-    #     boundaries in the analysis, and parameters defining what constitutes a turn or
-    #     boundary contact event.
-    #
-    # Returns:
-    # - dict
-    #     A dictionary containing the results of the boundary contact analysis. This includes
-    #     calculated distances to boundaries, identified turns, and other relevant information
-    #     extracted during the analysis process.
-    #
-    # Raises:
-    # - AttributeError: If certain required attributes are missing from the opts parameter.
-    #
-    # The function works by initializing an EllipseToBoundaryDistCalculator object with the
-    # provided Trajectory and VideoAnalysis instances, along with other necessary parameters. It
-    # iterates through specified boundary types (e.g., walls, agarose, boundaries), calculates
-    # distances to these boundaries using both the center and edge of the ellipse as reference
-    # points, and identifies turning events based on the analysis of these distances and the
-    # application of specified thresholds. Special handling is included for walls, with different
-    # combinations of boundary orientations and special thresholds for scenarios such as sidewall
-    # exclusion.
+    """
+    Conducts boundary contact analysis on a given trajectory to identify interactions with
+    predefined boundary types (e.g., walls, agarose, boundaries) and calculates distances to
+    these boundaries. This function iterates over different boundary types specified in the
+    options, calculates distances to these boundaries using both the center and edge of the
+    ellipse as reference points, and identifies turning events based on the calculated distances
+    and the specified thresholds.
+
+    Parameters:
+    - trj : Trajectory
+        An instance of the Trajectory class representing the trajectory of an entity across
+        frames in a video.
+    - va : VideoAnalysis
+        An instance of the VideoAnalysis class that has processed the video from which the
+        trajectory data was obtained. It provides context and additional data required for the
+        analysis.
+    - offsets : dict
+        A dictionary containing distances from the top/bottom walls of the chamber at which to
+        define the boundaries. Note: units are mm, and these offsets are scaled relative to the
+        (HTL) chamber height of 16mm.
+    - thresholds : dict
+        A dictionary containing threshold values for different boundary types. These
+        thresholds are used to determine proximity to boundaries and to identify significant
+        interactions.
+    - opts : argparse.Namespace
+        A Namespace object resulting from parsing command-line arguments. This object contains
+        various options and flags that influence the analysis process. These options include,
+        but are not limited to, minimum turn speed, the inclusion of specific types of
+        boundaries in the analysis, and parameters defining what constitutes a turn or
+        boundary contact event.
+
+    Returns:
+    - dict
+        A dictionary containing the results of the boundary contact analysis. This includes
+        calculated distances to boundaries, identified turns, and other relevant information
+        extracted during the analysis process.
+
+    Raises:
+    - AttributeError: If certain required attributes are missing from the opts parameter.
+
+    The function works by initializing an EllipseToBoundaryDistCalculator object with the
+    provided Trajectory and VideoAnalysis instances, along with other necessary parameters. It
+    iterates through specified boundary types (e.g., walls, agarose, boundaries), calculates
+    distances to these boundaries using both the center and edge of the ellipse as reference
+    points, and identifies turning events based on the analysis of these distances and the
+    application of specified thresholds. Special handling is included for walls, with different
+    combinations of boundary orientations and special thresholds for scenarios such as sidewall
+    exclusion.
+    """
     boundary_dist_calc = EllipseToBoundaryDistCalculator(
         trj,
         va,
@@ -226,7 +243,6 @@ cpdef runBoundaryContactAnalyses(trj, va, offsets, thresholds, opts):
         wall_debug=opts.wall_debug
     )
     ellipse_ref_pts = ["ctr", "edge"]
-
 
     if (
         not any([getattr(opts, bnd_tp) for bnd_tp in ("wall", "agarose", "boundary")])
@@ -292,7 +308,6 @@ cpdef runBoundaryContactAnalyses(trj, va, offsets, thresholds, opts):
                 findTurns(
                     va, opts, boundary_dist_calc, bnd_tp, boundary_combos[0], ellipse_ref_pt=pt
                 )
-
 
     return boundary_dist_calc.return_data
 

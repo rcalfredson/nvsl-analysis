@@ -261,7 +261,7 @@ _GET_SVN_REV = re.compile(r"^Revision:\s+(\d+)$", re.M)
 _GET_SVN_CS = re.compile(r"^Checksum:\s+([0-9a-f]+)$", re.M)
 
 
-def svnRevision(fn=None):
+def getRevision(fn=None):
     if fn is None:
         for frm in inspect.stack()[1:]:  # determine caller
             mdl = inspect.getmodule(frm[0])
@@ -269,6 +269,18 @@ def svnRevision(fn=None):
                 fn = mdl.__file__
                 if fn != __file__:
                     break
+
+    # First check if it's a Subversion repository
+    rev, fn = svnRevision(fn)
+    if rev is not None:
+        return rev, fn
+
+    # If Subversion fails, check for a Git repository
+    rev, fn = gitRevision(fn)
+    return rev, fn
+
+
+def svnRevision(fn=None):
     try:
         out = executeOutput(["svn", "info", str(fn or "")]).decode("utf-8")
         if WINDOWS:
@@ -278,6 +290,26 @@ def svnRevision(fn=None):
     revs, css = [re.findall(r, out) for r in [_GET_SVN_REV, _GET_SVN_CS]]
     assert len(revs) == 1 and (revs[0] == "0" or len(css) == 1)
     return revs[0] + ("" if not css or css[0] in (md5(fn), sha1(fn)) else "-M"), fn
+
+
+def gitRevision(fn=None):
+    try:
+        out = (
+            executeOutput(["git", "rev-parse", "--verify", "HEAD"])
+            .decode("utf-8")
+            .strip()
+        )
+        modified = (
+            executeOutput(["git", "status", "--porcelain"]).decode("utf-8").strip()
+        )
+        is_modified = "-M" if modified else ""
+        return out + is_modified, fn
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None, fn
+
+
+def executeOutput(cmd):
+    return subprocess.check_output(cmd, stderr=subprocess.STDOUT)
 
 
 # write to both console and file
@@ -1290,7 +1322,7 @@ def writeCommand(lf, csvStyle=False, inclRev=True):
     cmd_parts = [shlex.quote(arg) for arg in sys.argv]
     cmd = "# command: %s" % " ".join(cmd_parts)
     if inclRev:
-        rev = svnRevision(sys.argv[0])[0]
+        rev = getRevision(sys.argv[0])[0]
         cmd += "  [%s]" % ("rev. unknown" if rev is None else "r%s" % rev)
     if csvStyle:
         csv.writer(lf, lineterminator="\n\n").writerow((cmd,))
