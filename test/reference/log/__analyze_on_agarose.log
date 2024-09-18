@@ -1,4 +1,4 @@
-# command: analyze.py -v '/media/Synology3-2/Yang Chen/2022-05-1[57]/c4[12]_*' -f 2-5 --agarose  [r2377]
+# command: analyze.py -v '/media/Synology3-2/Yang Chen/2022-05-1[57]/c4[12]_*' -f 2-5 --agarose  [r93ca9fde6696edaacae286ee942a2cbe53af9915]
 
 === analyzing c41__2022-05-15__12-56-53.avi, fly 2 ===
 
@@ -133,14 +133,14 @@ training 3
 
 agarose-contact events per reward:
 training 1
-  exp: nan, nan, 2.29, 2.17, 1.70
-  yok: nan, nan, 3.30, 2.88, 2.86
+  exp: nan, nan, 2.74, 2.53, 2.05
+  yok: nan, nan, 3.88, 3.67, 4.00
 training 2
-  exp: 1.61, 1.27, 1.45, 1.34, 0.91
-  yok: 1.53, 2.07, 1.47, 1.70, 1.73
+  exp: 1.63, 1.45, 1.57, 1.39, 0.89
+  yok: 1.70, 2.35, 2.04, 1.89, 2.05
 training 3
-  exp: 1.19, 0.93, 1.27, 1.31, 1.15
-  yok: 1.44, 1.83, 1.38, 1.67, 2.15
+  exp: 1.25, 0.92, 1.27, 1.40, 1.19
+  yok: 1.76, 2.41, 1.79, 2.06, 2.65
 
 relative change, agarose-contact events per reward, T1 first bucket to T2 last bucket:
   exp: nan
@@ -148,56 +148,56 @@ relative change, agarose-contact events per reward, T1 first bucket to T2 last b
 
 % frames with fly positioned past agarose border by training (ellipse edge):
 pre-training:
-  f1: 37.763
-  f2: 28.403
+  f1: 71.994
+  f2: 70.419
 training 1
-  f1: 28.071 (post: 39.142)
-  f2: 37.693 (post: 37.480)
+  f1: 38.862 (post: 53.216)
+  f2: 50.947 (post: 39.654)
 training 2
-  f1: 25.089 (post: 37.738)
-  f2: 33.560 (post: 15.695)
+  f1: 31.080 (post: 54.190)
+  f2: 44.582 (post: 17.633)
 training 3
-  f1: 20.724 (post: 25.803)
-  f2: 30.502 (post: 31.606)
+  f1: 23.658 (post: 41.065)
+  f2: 43.271 (post: 57.377)
 averages across all trainings:
-  f1: 24.628 ± 20.920
-  f2: 33.919 ± 25.818
+  f1: 31.200 ± 26.170
+  f2: 46.267 ± 37.136
 averages across all non-training periods:
-  f1: 35.111 ± 25.182
-  f2: 28.296 ± 13.652
+  f1: 55.116 ± 34.847
+  f2: 46.271 ± 9.865
 Number pre-training visits across agarose border:
-  f1: 62
-  f2: 71
+  f1: 95
+  f2: 156
 Avg duration (secs) of visits across agarose border:
-  f1: 5.518 ± 2.298
-  f2: 3.624 ± 1.015
+  f1: 6.866 ± 1.745
+  f2: 4.090 ± 0.520
 
 
 % frames with fly positioned past agarose border by training (body center):
 pre-training:
-  f1: 37.719
-  f2: 25.651
+  f1: 53.392
+  f2: 52.774
 training 1
-  f1: 15.124 (post: 29.816)
-  f2: 20.698 (post: 5.797)
+  f1: 14.831 (post: 33.181)
+  f2: 25.627 (post: 5.066)
 training 2
-  f1: 12.031 (post: 20.440)
-  f2: 25.076 (post: 4.496)
+  f1: 10.516 (post: 26.876)
+  f2: 26.373 (post: 4.579)
 training 3
-  f1: 7.258 (post: 17.968)
-  f2: 22.196 (post: 27.240)
+  f1: 5.373 (post: 20.520)
+  f2: 24.644 (post: 41.995)
 averages across all trainings:
-  f1: 11.471 ± 7.206
-  f2: 22.656 ± 17.472
+  f1: 10.240 ± 5.945
+  f2: 25.548 ± 19.317
 averages across all non-training periods:
-  f1: 26.486 ± 12.066
-  f2: 15.796 ± -3.816
+  f1: 33.492 ± 10.837
+  f2: 26.103 ± -13.621
 Number pre-training visits across agarose border:
-  f1: 54
-  f2: 66
+  f1: 174
+  f2: 160
 Avg duration (secs) of visits across agarose border:
-  f1: 6.328 ± 2.779
-  f2: 3.521 ± 1.008
+  f1: 2.780 ± 0.773
+  f2: 2.988 ± 0.301
 
 
 === analyzing c41__2022-05-15__12-56-53.avi, fly 3 ===
@@ -333,71 +333,71 @@ training 3
 
 agarose-contact events per reward:
 training 1
-  exp: 2.50, 3.40, 2.35, 3.38, 3.07
-  yok: 5.11, 2.97, 2.44, 2.67, 2.64
+  exp: 3.43, 3.81, 2.66, 3.77, 3.16
+  yok: 8.26, 4.59, 3.35, 4.02, 3.70
 training 2
-  exp: 2.99, 3.12, 1.50, 1.59, 1.30
-  yok: 2.14, 2.80, 1.90, 2.15, 1.57
+  exp: 3.07, 3.28, 1.48, 1.51, 1.26
+  yok: 2.94, 4.22, 2.19, 2.71, 2.15
 training 3
-  exp: 1.45, 2.11, 1.59, 1.34, 1.44
-  yok: 1.85, 2.10, 1.97, 1.60, 1.56
+  exp: 1.32, 1.94, 1.45, 1.24, 1.34
+  yok: 2.42, 2.98, 2.39, 2.23, 2.05
 
 relative change, agarose-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -46.95% (2.44 to 1.30)
-  yok: -69.29% (5.11 to 1.57)
+  exp: -62.51% (3.36 to 1.26)
+  yok: -74.00% (8.26 to 2.15)
 
 % frames with fly positioned past agarose border by training (ellipse edge):
 pre-training:
-  f1: 19.558
-  f2: 24.312
+  f1: 70.920
+  f2: 77.322
 training 1
-  f1: 40.769 (post: 34.947)
-  f2: 39.618 (post: 31.523)
+  f1: 55.862 (post: 55.465)
+  f2: 65.111 (post: 78.335)
 training 2
-  f1: 32.893 (post: 43.024)
-  f2: 35.698 (post: 32.149)
+  f1: 40.236 (post: 53.829)
+  f2: 54.836 (post: 75.447)
 training 3
-  f1: 27.809 (post: 46.684)
-  f2: 35.022 (post: 35.066)
+  f1: 29.751 (post: 63.223)
+  f2: 50.898 (post: 65.153)
 averages across all trainings:
-  f1: 33.824 ± 29.726
-  f2: 36.779 ± 35.117
+  f1: 41.950 ± 34.492
+  f2: 56.948 ± 52.940
 averages across all non-training periods:
-  f1: 36.053 ± 16.895
-  f2: 30.763 ± 23.492
+  f1: 60.859 ± 48.353
+  f2: 74.064 ± 64.422
 Number pre-training visits across agarose border:
-  f1: 40
-  f2: 51
+  f1: 122
+  f2: 167
 Avg duration (secs) of visits across agarose border:
-  f1: 4.430 ± 1.243
-  f2: 4.319 ± 0.871
+  f1: 5.267 ± 0.610
+  f2: 4.195 ± 0.345
 
 
 % frames with fly positioned past agarose border by training (body center):
 pre-training:
-  f1: 19.809
-  f2: 20.839
+  f1: 43.635
+  f2: 63.002
 training 1
-  f1: 28.280 (post: 28.468)
-  f2: 34.707 (post: 30.902)
+  f1: 29.058 (post: 33.736)
+  f2: 46.769 (post: 63.905)
 training 2
-  f1: 18.476 (post: 34.949)
-  f2: 29.387 (post: 34.147)
+  f1: 15.564 (post: 33.963)
+  f2: 35.551 (post: 60.487)
 training 3
-  f1: 11.533 (post: 37.813)
-  f2: 27.622 (post: 34.127)
+  f1: 8.333 (post: 32.680)
+  f2: 30.751 (post: 49.472)
 averages across all trainings:
-  f1: 19.430 ± 14.257
-  f2: 30.572 ± 28.325
+  f1: 17.652 ± 11.626
+  f2: 37.690 ± 33.194
 averages across all non-training periods:
-  f1: 30.260 ± 17.547
-  f2: 30.004 ± 19.983
+  f1: 36.004 ± 27.859
+  f2: 59.217 ± 48.627
 Number pre-training visits across agarose border:
-  f1: 35
-  f2: 47
+  f1: 241
+  f2: 186
 Avg duration (secs) of visits across agarose border:
-  f1: 5.128 ± 1.240
-  f2: 4.017 ± 0.793
+  f1: 1.640 ± 0.209
+  f2: 3.069 ± 0.283
 
 
 === analyzing c41__2022-05-15__12-56-53.avi, fly 4 ===
@@ -533,70 +533,70 @@ training 3
 
 agarose-contact events per reward:
 training 1
-  exp: 2.31, 2.26, 1.62, 1.67, 1.97
-  yok: 4.26, 3.22, 3.16, 1.66, 2.50
+  exp: 2.73, 2.52, 1.66, 1.75, 1.88
+  yok: 4.04, 2.90, 3.62, 2.07, 3.08
 training 2
-  exp: 1.97, 1.71, 1.86, 1.84, 1.95
-  yok: 2.80, 3.28, 1.95, 2.07, 3.86
+  exp: 2.09, 1.70, 1.89, 1.75, 1.78
+  yok: 3.50, 4.49, 2.52, 2.70, 4.90
 training 3
-  exp: 2.17, 1.80, 1.90, 1.69, 1.54
-  yok: 2.36, 3.54, 3.65, 2.64, 4.59
+  exp: 1.93, 1.57, 1.68, 1.44, 1.45
+  yok: 2.74, 4.90, 4.59, 3.79, 5.69
 
 relative change, agarose-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -15.72% (2.31 to 1.95)
-  yok: -9.36% (4.26 to 3.86)
+  exp: -34.83% (2.73 to 1.78)
+  yok: 21.10% (4.04 to 4.90)
 
 % frames with fly positioned past agarose border by training (ellipse edge):
 pre-training:
-  f1: 49.742
+  f1: 70.478
   f2: 0.000
 training 1
-  f1: 34.733 (post: 60.447)
-  f2: 44.276 (post: 50.397)
+  f1: 44.889 (post: 65.902)
+  f2: 55.400 (post: 73.587)
 training 2
-  f1: 30.707 (post: 39.308)
-  f2: 35.533 (post: 45.269)
+  f1: 38.387 (post: 58.581)
+  f2: 55.596 (post: 65.460)
 training 3
-  f1: 25.804 (post: 17.785)
-  f2: 39.044 (post: 43.587)
+  f1: 29.302 (post: 20.775)
+  f2: 59.382 (post: 79.028)
 averages across all trainings:
-  f1: 30.415 ± 27.109
-  f2: 39.618 ± 35.899
+  f1: 37.526 ± 32.415
+  f2: 56.793 ± 54.207
 averages across all non-training periods:
-  f1: 41.821 ± 12.861
-  f2: 34.813 ± -2.404
+  f1: 53.934 ± 17.905
+  f2: 54.519 ± -3.992
 Number pre-training visits across agarose border:
-  f1: 121
+  f1: 132
   f2: 0
 Avg duration (secs) of visits across agarose border:
-  f1: 3.725 ± 0.677
+  f1: 4.837 ± 0.748
   f2: nan ± nan
 
 
 % frames with fly positioned past agarose border by training (body center):
 pre-training:
-  f1: 45.401
+  f1: 30.537
   f2: 0.000
 training 1
-  f1: 24.120 (post: 8.290)
-  f2: 33.431 (post: 44.247)
+  f1: 21.809 (post: 8.576)
+  f2: 34.204 (post: 52.104)
 training 2
-  f1: 18.391 (post: 33.876)
-  f2: 29.902 (post: 40.442)
+  f1: 15.262 (post: 33.486)
+  f2: 35.556 (post: 44.650)
 training 3
-  f1: 10.609 (post: 12.770)
-  f2: 30.902 (post: 40.047)
+  f1: 7.960 (post: 7.490)
+  f2: 37.027 (post: 58.723)
 averages across all trainings:
-  f1: 17.707 ± 13.312
-  f2: 31.412 ± 28.827
+  f1: 15.010 ± 10.416
+  f2: 35.596 ± 33.344
 averages across all non-training periods:
-  f1: 25.084 ± -2.838
-  f2: 31.184 ± -2.033
+  f1: 20.022 ± -2.100
+  f2: 38.869 ± -3.366
 Number pre-training visits across agarose border:
-  f1: 91
+  f1: 254
   f2: 0
 Avg duration (secs) of visits across agarose border:
-  f1: 4.520 ± 0.932
+  f1: 1.089 ± 0.232
   f2: nan ± nan
 
 
@@ -733,71 +733,71 @@ training 3
 
 agarose-contact events per reward:
 training 1
-  exp: 2.53, 1.83, 2.46, 1.84
-  yok: 3.29, 2.09, 2.20, 2.11
+  exp: 2.93, 2.00, 2.45, 2.00
+  yok: 4.29, 3.36, 3.12, 3.05
 training 2
-  exp: 1.88, 2.46, 2.84, 3.29, 2.69
-  yok: 2.71, 2.21, 3.31, 3.06, 3.16
+  exp: 2.19, 2.96, 3.25, 3.93, 3.56
+  yok: 3.32, 3.16, 5.36, 5.81, 4.55
 training 3
-  exp: 2.26, 2.28, 2.26, 2.58, 2.40
-  yok: 2.12, 2.15, 1.82, 1.95, 3.21
+  exp: 2.81, 2.62, 2.78, 3.40, 3.19
+  yok: 2.71, 3.27, 3.05, 2.84, 4.86
 
 relative change, agarose-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: 6.55% (2.53 to 2.69)
-  yok: -3.96% (3.29 to 3.16)
+  exp: 21.53% (2.93 to 3.56)
+  yok: 5.97% (4.29 to 4.55)
 
 % frames with fly positioned past agarose border by training (ellipse edge):
 pre-training:
-  f1: 42.075
-  f2: 29.389
+  f1: 83.341
+  f2: 73.333
 training 1
-  f1: nan (post: 28.809)
-  f2: nan (post: 19.837)
+  f1: nan (post: 76.141)
+  f2: nan (post: 61.451)
 training 2
-  f1: 37.676 (post: 32.281)
-  f2: 32.920 (post: 20.759)
+  f1: 57.013 (post: 78.687)
+  f2: 57.289 (post: 66.435)
 training 3
-  f1: 37.680 (post: 25.343)
-  f2: 31.027 (post: 21.071)
+  f1: 56.831 (post: 72.061)
+  f2: 54.018 (post: 69.706)
 averages across all trainings:
-  f1: 38.989 ± 37.089
-  f2: 33.270 ± 31.171
+  f1: 56.143 ± 54.348
+  f2: 56.211 ± 54.004
 averages across all non-training periods:
-  f1: 32.127 ± 20.652
-  f2: 22.764 ± 15.686
+  f1: 77.558 ± 70.041
+  f2: 67.731 ± 59.701
 Number pre-training visits across agarose border:
-  f1: 73
-  f2: 57
+  f1: 133
+  f2: 141
 Avg duration (secs) of visits across agarose border:
-  f1: 5.222 ± 1.196
-  f2: 4.671 ± 1.510
+  f1: 5.677 ± 0.762
+  f2: 4.712 ± 0.740
 
 
 % frames with fly positioned past agarose border by training (body center):
 pre-training:
-  f1: 48.315
-  f2: 31.950
+  f1: 68.359
+  f2: 58.646
 training 1
-  f1: nan (post: 31.758)
-  f2: nan (post: 22.395)
+  f1: nan (post: 55.411)
+  f2: nan (post: 45.890)
 training 2
-  f1: 31.164 (post: 39.644)
-  f2: 28.662 (post: 20.308)
+  f1: 35.969 (post: 59.766)
+  f2: 38.116 (post: 49.933)
 training 3
-  f1: 31.289 (post: 33.592)
-  f2: 25.022 (post: 21.393)
+  f1: 35.058 (post: 55.818)
+  f2: 34.307 (post: 53.929)
 averages across all trainings:
-  f1: 31.643 ± 29.759
-  f2: 28.040 ± 26.332
+  f1: 34.694 ± 32.772
+  f2: 37.073 ± 34.618
 averages across all non-training periods:
-  f1: 38.327 ± 26.453
-  f2: 24.012 ± 15.482
+  f1: 59.839 ± 50.275
+  f2: 52.100 ± 43.411
 Number pre-training visits across agarose border:
-  f1: 89
-  f2: 58
+  f1: 166
+  f2: 145
 Avg duration (secs) of visits across agarose border:
-  f1: 4.918 ± 1.019
-  f2: 4.991 ± 1.547
+  f1: 3.731 ± 0.546
+  f2: 3.664 ± 0.627
 
 
 === analyzing c41__2022-05-17__12-56-32.avi, fly 2 ===
@@ -933,14 +933,14 @@ training 3
 
 agarose-contact events per reward:
 training 1
-  exp: nan, 1.79, 1.97, 3.11, 2.07
-  yok: nan, nan, 4.56, 3.28, 2.66
+  exp: nan, 1.57, 2.03, 2.94, 2.58
+  yok: nan, nan, 5.25, 4.31, 3.81
 training 2
-  exp: 1.99, 2.75, 2.40, 2.36, 2.09
-  yok: 2.18, 2.49, 1.84, 1.69, 1.93
+  exp: 2.19, 3.03, 2.93, 2.78, 2.33
+  yok: 2.91, 2.85, 2.24, 2.31, 2.33
 training 3
-  exp: 2.96, 2.09, 1.29, 1.62, 1.48
-  yok: 2.16, 1.97, 1.70, 1.29, 1.91
+  exp: 3.78, 2.20, 1.58, 1.88, 1.52
+  yok: 2.55, 2.51, 2.07, 1.44, 2.22
 
 relative change, agarose-contact events per reward, T1 first bucket to T2 last bucket:
   exp: nan
@@ -948,56 +948,56 @@ relative change, agarose-contact events per reward, T1 first bucket to T2 last b
 
 % frames with fly positioned past agarose border by training (ellipse edge):
 pre-training:
-  f1: 9.770
-  f2: 39.126
+  f1: 67.378
+  f2: 69.968
 training 1
-  f1: 41.249 (post: 37.791)
-  f2: 41.013 (post: 26.991)
+  f1: 47.493 (post: 57.691)
+  f2: 59.502 (post: 67.181)
 training 2
-  f1: 36.764 (post: 41.695)
-  f2: 38.218 (post: 45.929)
+  f1: 49.884 (post: 63.493)
+  f2: 53.498 (post: 65.861)
 training 3
-  f1: 32.356 (post: 52.324)
-  f2: 35.071 (post: 34.841)
+  f1: 44.387 (post: 65.536)
+  f2: 47.018 (post: 53.121)
 averages across all trainings:
-  f1: 36.790 ± 31.360
-  f2: 38.101 ± 33.628
+  f1: 47.255 ± 41.859
+  f2: 53.339 ± 49.036
 averages across all non-training periods:
-  f1: 35.395 ± 6.509
-  f2: 36.722 ± 24.099
+  f1: 63.524 ± 56.841
+  f2: 64.033 ± 52.141
 Number pre-training visits across agarose border:
-  f1: 6
-  f2: 66
+  f1: 8
+  f2: 99
 Avg duration (secs) of visits across agarose border:
-  f1: 14.756 ± 30.892
-  f2: 5.372 ± 1.713
+  f1: 76.317 ± 151.999
+  f2: 6.404 ± 1.107
 
 
 % frames with fly positioned past agarose border by training (body center):
 pre-training:
-  f1: 0.927
-  f2: 25.750
+  f1: 0.397
+  f2: 51.104
 training 1
-  f1: 30.218 (post: 34.647)
-  f2: 35.876 (post: 24.504)
+  f1: 30.182 (post: 38.479)
+  f2: 38.573 (post: 55.386)
 training 2
-  f1: 25.120 (post: 38.913)
-  f2: 30.169 (post: 40.391)
+  f1: 27.484 (post: 44.379)
+  f2: 35.480 (post: 44.377)
 training 3
-  f1: 20.227 (post: 37.647)
-  f2: 25.351 (post: 28.599)
+  f1: 22.498 (post: 40.462)
+  f2: 29.076 (post: 36.133)
 averages across all trainings:
-  f1: 25.188 ± 18.298
-  f2: 30.465 ± 27.325
+  f1: 26.721 ± 19.619
+  f2: 34.376 ± 30.919
 averages across all non-training periods:
-  f1: 28.033 ± -0.862
-  f2: 29.811 ± 18.261
+  f1: 30.929 ± -1.694
+  f2: 46.750 ± 33.377
 Number pre-training visits across agarose border:
-  f1: 3
-  f2: 49
+  f1: 1
+  f2: 104
 Avg duration (secs) of visits across agarose border:
-  f1: 2.800 ± 3.194
-  f2: 4.762 ± 0.826
+  f1: 3.600 ± nan
+  f2: 4.453 ± 0.602
 
 
 === analyzing c41__2022-05-17__12-56-32.avi, fly 3 ===
@@ -1133,71 +1133,71 @@ training 3
 
 agarose-contact events per reward:
 training 1
-  exp: 1.93, 2.27, 2.01, 2.32, 3.30
-  yok: 2.95, 3.56, 2.76, 4.06, 4.34
+  exp: 2.20, 2.61, 2.15, 2.41, 3.54
+  yok: 3.32, 3.83, 2.93, 4.62, 5.72
 training 2
-  exp: 2.45, 2.40, 2.03, 2.05, 2.13
-  yok: 3.79, 2.63, 3.11, 3.22, 2.90
+  exp: 2.55, 2.38, 1.95, 1.99, 2.15
+  yok: 4.12, 3.27, 3.67, 3.98, 3.90
 training 3
-  exp: 2.02, 2.08, 1.91, 2.15, 2.07
-  yok: 1.78, 2.68, 2.40, 1.74, 2.58
+  exp: 2.05, 2.11, 1.96, 2.18, 2.08
+  yok: 2.18, 3.60, 3.06, 2.24, 3.27
 
 relative change, agarose-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: 10.49% (1.93 to 2.13)
-  yok: -1.61% (2.95 to 2.90)
+  exp: -2.10% (2.20 to 2.15)
+  yok: 17.62% (3.32 to 3.90)
 
 % frames with fly positioned past agarose border by training (ellipse edge):
 pre-training:
-  f1: 28.296
-  f2: 88.434
+  f1: 74.647
+  f2: 100.000
 training 1
-  f1: 38.924 (post: 35.346)
-  f2: 41.276 (post: 47.285)
+  f1: 47.231 (post: 58.546)
+  f2: 54.440 (post: 63.802)
 training 2
-  f1: 33.631 (post: 46.314)
-  f2: 40.947 (post: 36.067)
+  f1: 39.267 (post: 60.086)
+  f2: 56.262 (post: 65.024)
 training 3
-  f1: 33.658 (post: 37.738)
-  f2: 33.529 (post: 41.005)
+  f1: 38.369 (post: 51.789)
+  f2: 49.280 (post: 66.795)
 averages across all trainings:
-  f1: 35.404 ± 33.409
-  f2: 38.584 ± 35.768
+  f1: 41.622 ± 38.856
+  f2: 53.327 ± 49.627
 averages across all non-training periods:
-  f1: 36.924 ± 25.095
-  f2: 53.198 ± 15.111
+  f1: 61.267 ± 45.959
+  f2: 73.905 ± 46.154
 Number pre-training visits across agarose border:
-  f1: 63
-  f2: 6
+  f1: 133
+  f2: 1
 Avg duration (secs) of visits across agarose border:
-  f1: 4.070 ± 1.283
-  f2: 133.556 ± 286.415
+  f1: 5.086 ± 0.770
+  f2: 906.133 ± nan
 
 
 % frames with fly positioned past agarose border by training (body center):
 pre-training:
-  f1: 24.676
-  f2: 87.610
+  f1: 47.469
+  f2: 64.759
 training 1
-  f1: 26.160 (post: 27.979)
-  f2: 32.640 (post: 28.858)
+  f1: 22.920 (post: 34.056)
+  f2: 33.511 (post: 47.840)
 training 2
-  f1: 18.609 (post: 34.167)
-  f2: 31.280 (post: 33.946)
+  f1: 14.898 (post: 34.557)
+  f2: 36.476 (post: 50.769)
 training 3
-  f1: 17.458 (post: 28.520)
-  f2: 26.769 (post: 33.420)
+  f1: 14.031 (post: 30.761)
+  f2: 31.636 (post: 47.544)
 averages across all trainings:
-  f1: 20.742 ± 18.319
-  f2: 30.230 ± 27.417
+  f1: 17.283 ± 14.684
+  f2: 33.874 ± 30.532
 averages across all non-training periods:
-  f1: 28.836 ± 22.567
-  f2: 45.959 ± 1.625
+  f1: 36.711 ± 24.988
+  f2: 52.728 ± 39.757
 Number pre-training visits across agarose border:
-  f1: 51
-  f2: 5
+  f1: 278
+  f2: 19
 Avg duration (secs) of visits across agarose border:
-  f1: 4.384 ± 1.105
-  f2: 158.773 ± 435.559
+  f1: 1.547 ± 0.165
+  f2: 30.884 ± 60.581
 
 
 === analyzing c41__2022-05-17__12-56-32.avi, fly 4 ===
@@ -1333,71 +1333,71 @@ training 3
 
 agarose-contact events per reward:
 training 1
-  exp: 2.51, 2.46, 2.50, 2.35, 2.05
-  yok: 2.59, 2.15, 5.32, 3.58, 5.30
+  exp: 2.47, 2.35, 2.80, 2.19, 2.09
+  yok: 4.52, 2.90, 7.79, 4.88, 7.70
 training 2
-  exp: 2.02, 2.05, 1.20, 1.58, 1.82
-  yok: 2.68, 3.55, 2.43, 1.93, 2.80
+  exp: 2.02, 1.93, 1.21, 1.44, 1.78
+  yok: 3.66, 4.53, 3.26, 2.68, 3.98
 training 3
-  exp: 1.62, 1.70, 1.61, 1.31, 0.89
-  yok: 2.75, 3.33, 2.81, 2.77, 2.28
+  exp: 1.57, 1.62, 1.57, 1.31, 0.90
+  yok: 4.44, 4.96, 3.81, 3.95, 3.59
 
 relative change, agarose-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -26.26% (2.47 to 1.82)
-  yok: 16.00% (2.41 to 2.80)
+  exp: -26.87% (2.43 to 1.78)
+  yok: -5.31% (4.21 to 3.98)
 
 % frames with fly positioned past agarose border by training (ellipse edge):
 pre-training:
-  f1: 20.909
-  f2: 28.296
+  f1: 26.280
+  f2: 70.100
 training 1
-  f1: 32.778 (post: 13.425)
-  f2: 37.653 (post: 48.185)
+  f1: 47.867 (post: 26.513)
+  f2: 62.178 (post: 65.531)
 training 2
-  f1: 25.662 (post: 39.137)
-  f2: 36.431 (post: 46.571)
+  f1: 32.849 (post: 62.308)
+  f2: 59.262 (post: 73.248)
 training 3
-  f1: 21.804 (post: 25.339)
-  f2: 33.418 (post: 41.628)
+  f1: 27.853 (post: 43.463)
+  f2: 57.058 (post: 67.049)
 averages across all trainings:
-  f1: 26.748 ± 23.313
-  f2: 35.834 ± 33.827
+  f1: 36.190 ± 30.627
+  f2: 59.499 ± 57.366
 averages across all non-training periods:
-  f1: 24.703 ± 7.508
-  f2: 41.170 ± 26.810
+  f1: 39.641 ± 12.400
+  f2: 68.982 ± 63.540
 Number pre-training visits across agarose border:
-  f1: 23
-  f2: 54
+  f1: 30
+  f2: 119
 Avg duration (secs) of visits across agarose border:
-  f1: 8.238 ± 8.024
-  f2: 4.748 ± 1.238
+  f1: 7.938 ± 6.032
+  f2: 5.338 ± 0.710
 
 
 % frames with fly positioned past agarose border by training (body center):
 pre-training:
-  f1: 8.682
-  f2: 29.768
+  f1: 6.121
+  f2: 57.637
 training 1
-  f1: 24.004 (post: 15.182)
-  f2: 32.116 (post: 39.049)
+  f1: 23.267 (post: 17.377)
+  f2: 41.058 (post: 47.385)
 training 2
-  f1: 13.267 (post: 36.283)
-  f2: 30.596 (post: 38.648)
+  f1: 10.916 (post: 39.013)
+  f2: 37.013 (post: 54.418)
 training 3
-  f1: 10.444 (post: 18.811)
-  f2: 26.956 (post: 40.752)
+  f1: 9.231 (post: 20.516)
+  f2: 36.053 (post: 51.755)
 averages across all trainings:
-  f1: 15.905 ± 11.975
-  f2: 29.889 ± 28.195
+  f1: 14.471 ± 10.501
+  f2: 38.041 ± 35.761
 averages across all non-training periods:
-  f1: 19.739 ± 0.966
-  f2: 37.054 ± 29.189
+  f1: 20.757 ± -0.963
+  f2: 52.799 ± 45.897
 Number pre-training visits across agarose border:
-  f1: 21
-  f2: 52
+  f1: 48
+  f2: 164
 Avg duration (secs) of visits across agarose border:
-  f1: 3.746 ± 1.353
-  f2: 5.187 ± 1.199
+  f1: 1.156 ± 0.295
+  f2: 3.185 ± 0.527
 
 
 === analyzing c41__2022-05-17__12-56-32.avi, fly 5 ===
@@ -1533,71 +1533,71 @@ training 3
 
 agarose-contact events per reward:
 training 1
-  exp: 1.62, 1.42, 2.87, 2.32, 1.38
-  yok: 4.71, 2.53, 2.73, 1.65, 2.93
+  exp: 1.92, 1.54, 3.16, 2.59, 1.56
+  yok: 6.33, 3.19, 3.52, 2.70, 4.67
 training 2
-  exp: 1.43, 1.25, 2.29, 1.35, 2.35
-  yok: 2.28, 2.70, 2.74, 2.86, 2.00
+  exp: 1.99, 1.78, 3.14, 1.60, 2.80
+  yok: 3.28, 3.62, 5.52, 4.61, 3.08
 training 3
-  exp: 1.94, 1.79, 1.59, 1.29, 1.59
-  yok: 3.17, 2.10, 2.47, 2.33, 2.88
+  exp: 2.27, 1.88, 2.07, 1.43, 1.74
+  yok: 5.04, 3.51, 3.91, 3.48, 4.51
 
 relative change, agarose-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: 47.45% (1.59 to 2.35)
-  yok: -57.52% (4.71 to 2.00)
+  exp: 48.10% (1.89 to 2.80)
+  yok: -51.42% (6.33 to 3.08)
 
 % frames with fly positioned past agarose border by training (ellipse edge):
 pre-training:
-  f1: 51.619
-  f2: 35.315
+  f1: 55.709
+  f2: 65.597
 training 1
-  f1: 39.969 (post: 56.090)
-  f2: 34.289 (post: 30.729)
+  f1: 52.440 (post: 71.908)
+  f2: 54.858 (post: 66.548)
 training 2
-  f1: 30.369 (post: 36.030)
-  f2: 31.196 (post: 21.113)
+  f1: 47.964 (post: 63.120)
+  f2: 58.111 (post: 65.691)
 training 3
-  f1: 31.502 (post: 40.649)
-  f2: 30.080 (post: 32.752)
+  f1: 44.031 (post: 53.646)
+  f2: 56.147 (post: 64.419)
 averages across all trainings:
-  f1: 33.947 ± 30.101
-  f2: 31.855 ± 29.429
+  f1: 48.145 ± 44.735
+  f2: 56.372 ± 53.749
 averages across all non-training periods:
-  f1: 46.097 ± 31.244
-  f2: 29.977 ± 20.111
+  f1: 61.096 ± 47.926
+  f2: 65.564 ± 64.171
 Number pre-training visits across agarose border:
-  f1: 70
-  f2: 77
+  f1: 41
+  f2: 149
 Avg duration (secs) of visits across agarose border:
-  f1: 6.682 ± 9.424
-  f2: 4.156 ± 0.805
+  f1: 12.312 ± 22.852
+  f2: 3.989 ± 0.564
 
 
 % frames with fly positioned past agarose border by training (body center):
 pre-training:
-  f1: 11.595
-  f2: 34.741
+  f1: 0.250
+  f2: 52.472
 training 1
-  f1: 33.013 (post: 55.652)
-  f2: 25.311 (post: 31.075)
+  f1: 31.004 (post: 50.568)
+  f2: 34.204 (post: 51.256)
 training 2
-  f1: 28.769 (post: 31.771)
-  f2: 26.596 (post: 19.686)
+  f1: 31.089 (post: 40.765)
+  f2: 40.827 (post: 49.217)
 training 3
-  f1: 27.342 (post: 28.842)
-  f2: 26.156 (post: 20.578)
+  f1: 26.182 (post: 42.892)
+  f2: 39.364 (post: 36.918)
 averages across all trainings:
-  f1: 29.708 ± 27.116
-  f2: 26.021 ± 24.407
+  f1: 29.425 ± 27.028
+  f2: 38.132 ± 34.900
 averages across all non-training periods:
-  f1: 31.965 ± 3.120
-  f2: 26.520 ± 14.530
+  f1: 33.619 ± -2.408
+  f2: 47.466 ± 36.074
 Number pre-training visits across agarose border:
-  f1: 7
-  f2: 80
+  f1: 2
+  f2: 146
 Avg duration (secs) of visits across agarose border:
-  f1: 15.010 ± 12.316
-  f2: 3.935 ± 0.690
+  f1: 1.133 ± 12.706
+  f2: 3.257 ± 0.531
 
 
 === analyzing c42__2022-05-15__12-56-57.avi, fly 2 ===
@@ -1736,71 +1736,71 @@ training 3
 
 agarose-contact events per reward:
 training 1
-  exp: 1.98, 1.82, 2.29, 1.88, 1.77
-  yok: 2.74, 1.82, 2.70, 2.09, 2.43
+  exp: 2.00, 1.83, 2.57, 1.91, 1.88
+  yok: 3.60, 2.93, 3.90, 3.07, 3.73
 training 2
-  exp: 1.41, 1.42, 1.44, 1.33, 1.23
-  yok: 2.29, 2.02, 1.15, 1.11, 1.31
+  exp: 1.63, 1.36, 1.37, 1.35, 1.27
+  yok: 3.29, 3.18, 1.50, 1.50, 1.62
 training 3
-  exp: 1.29, 1.29, 1.19, 1.32, 1.52
-  yok: 1.41, 1.68, 2.24, 1.27, 1.56
+  exp: 1.36, 1.34, 1.23, 1.34, 1.63
+  yok: 1.86, 2.04, 2.84, 1.67, 2.18
 
 relative change, agarose-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -37.76% (1.98 to 1.23)
-  yok: -52.25% (2.74 to 1.31)
+  exp: -36.74% (2.00 to 1.27)
+  yok: -55.01% (3.60 to 1.62)
 
 % frames with fly positioned past agarose border by training (ellipse edge):
 pre-training:
-  f1: 21.410
-  f2: 0.059
+  f1: 78.178
+  f2: 0.809
 training 1
-  f1: 31.809 (post: 40.133)
-  f2: 30.231 (post: 12.274)
+  f1: 42.267 (post: 43.724)
+  f2: 56.756 (post: 70.459)
 training 2
-  f1: 23.342 (post: 1.123)
-  f2: 28.947 (post: 30.415)
+  f1: 27.920 (post: 3.590)
+  f2: 46.920 (post: 53.029)
 training 3
-  f1: 20.329 (post: 80.375)
-  f2: 30.324 (post: 15.820)
+  f1: 23.671 (post: 81.004)
+  f2: 45.524 (post: 61.588)
 averages across all trainings:
-  f1: 25.160 ± 21.978
-  f2: 29.834 ± 27.434
+  f1: 31.286 ± 26.440
+  f2: 49.733 ± 45.429
 averages across all non-training periods:
-  f1: 35.760 ± -17.928
-  f2: 14.642 ± -5.242
+  f1: 51.624 ± -6.027
+  f2: 46.471 ± -3.274
 Number pre-training visits across agarose border:
-  f1: 65
-  f2: 1
+  f1: 118
+  f2: 2
 Avg duration (secs) of visits across agarose border:
-  f1: 2.985 ± 1.029
-  f2: 0.533 ± nan
+  f1: 6.003 ± 1.276
+  f2: 3.667 ± 39.813
 
 
 % frames with fly positioned past agarose border by training (body center):
 pre-training:
-  f1: 22.351
-  f2: 0.618
+  f1: 50.147
+  f2: 0.603
 training 1
-  f1: 19.360 (post: 7.573)
-  f2: 26.458 (post: 12.509)
+  f1: 18.191 (post: 8.015)
+  f2: 37.907 (post: 48.933)
 training 2
-  f1: 9.733 (post: 0.341)
-  f2: 22.204 (post: 21.351)
+  f1: 8.409 (post: 1.254)
+  f2: 27.840 (post: 30.989)
 training 3
-  f1: 6.844 (post: 5.832)
-  f2: 22.773 (post: 16.235)
+  f1: 5.453 (post: 5.972)
+  f2: 25.707 (post: 39.950)
 averages across all trainings:
-  f1: 11.979 ± 8.670
-  f2: 23.812 ± 21.030
+  f1: 10.684 ± 7.308
+  f2: 30.484 ± 26.200
 averages across all non-training periods:
-  f1: 9.024 ± -5.940
-  f2: 12.678 ± -1.355
+  f1: 16.347 ± -19.790
+  f2: 30.119 ± -3.291
 Number pre-training visits across agarose border:
-  f1: 41
+  f1: 202
   f2: 1
 Avg duration (secs) of visits across agarose border:
-  f1: 4.940 ± 1.361
-  f2: 5.600 ± nan
+  f1: 2.250 ± 0.399
+  f2: 5.467 ± nan
 
 
 === analyzing c42__2022-05-15__12-56-57.avi, fly 3 ===
@@ -1939,71 +1939,71 @@ training 3
 
 agarose-contact events per reward:
 training 1
-  exp: 3.72, 2.31, 1.94, 2.02, 2.04
-  yok: 3.56, 3.00, 2.89, 2.59, 2.05
+  exp: 4.42, 2.77, 2.39, 2.92, 2.73
+  yok: 4.56, 3.66, 3.15, 3.70, 2.51
 training 2
-  exp: 1.73, 2.01, 2.36, 1.88, 1.49
-  yok: 1.72, 2.04, 1.93, 1.61, 1.73
+  exp: 2.30, 2.57, 3.22, 2.52, 1.92
+  yok: 2.13, 2.70, 2.47, 2.15, 2.01
 training 3
-  exp: 2.08, 2.74, 1.80, 1.54, 2.01
-  yok: 1.72, 2.00, 2.55, 1.51, 2.10
+  exp: 2.49, 3.38, 2.11, 1.99, 2.45
+  yok: 1.89, 2.21, 2.95, 1.74, 2.54
 
 relative change, agarose-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -58.89% (3.64 to 1.49)
-  yok: -51.29% (3.56 to 1.73)
+  exp: -55.63% (4.32 to 1.92)
+  yok: -55.89% (4.56 to 2.01)
 
 % frames with fly positioned past agarose border by training (ellipse edge):
 pre-training:
-  f1: 28.767
-  f2: 34.859
+  f1: 78.752
+  f2: 68.967
 training 1
-  f1: 31.773 (post: 18.867)
-  f2: 37.320 (post: 32.496)
+  f1: 52.320 (post: 62.022)
+  f2: 54.178 (post: 59.418)
 training 2
-  f1: 28.036 (post: 76.017)
-  f2: 33.360 (post: 33.259)
+  f1: 47.556 (post: 77.620)
+  f2: 47.316 (post: 53.230)
 training 3
-  f1: 31.227 (post: 42.821)
-  f2: 34.151 (post: 25.167)
+  f1: 47.978 (post: 76.664)
+  f2: 43.489 (post: 45.699)
 averages across all trainings:
-  f1: 30.345 ± 27.750
-  f2: 34.944 ± 32.878
+  f1: 49.284 ± 46.273
+  f2: 48.327 ± 45.106
 averages across all non-training periods:
-  f1: 41.618 ± 1.917
-  f2: 31.445 ± 24.604
+  f1: 73.764 ± 61.234
+  f2: 56.828 ± 41.161
 Number pre-training visits across agarose border:
-  f1: 67
-  f2: 96
+  f1: 126
+  f2: 166
 Avg duration (secs) of visits across agarose border:
-  f1: 3.891 ± 1.066
-  f2: 3.290 ± 0.473
+  f1: 5.663 ± 0.927
+  f2: 3.765 ± 0.317
 
 
 % frames with fly positioned past agarose border by training (body center):
 pre-training:
-  f1: 30.341
-  f2: 32.137
+  f1: 58.520
+  f2: 51.280
 training 1
-  f1: 24.009 (post: 13.371)
-  f2: 30.751 (post: 28.213)
+  f1: 30.360 (post: 40.230)
+  f2: 34.511 (post: 42.164)
 training 2
-  f1: 19.707 (post: 4.565)
-  f2: 25.347 (post: 26.244)
+  f1: 26.551 (post: 4.589)
+  f2: 27.800 (post: 33.230)
 training 3
-  f1: 22.342 (post: 41.092)
-  f2: 24.662 (post: 20.161)
+  f1: 23.956 (post: 56.521)
+  f2: 23.453 (post: 27.005)
 averages across all trainings:
-  f1: 22.019 ± 20.058
-  f2: 26.920 ± 24.431
+  f1: 26.956 ± 24.125
+  f2: 28.588 ± 25.251
 averages across all non-training periods:
-  f1: 22.342 ± -3.837
-  f2: 26.689 ± 18.742
+  f1: 39.965 ± 0.238
+  f2: 38.420 ± 21.564
 Number pre-training visits across agarose border:
-  f1: 55
-  f2: 99
+  f1: 246
+  f2: 198
 Avg duration (secs) of visits across agarose border:
-  f1: 4.999 ± 1.534
-  f2: 2.941 ± 0.367
+  f1: 2.156 ± 0.359
+  f2: 2.347 ± 0.227
 
 
 === analyzing c42__2022-05-15__12-56-57.avi, fly 4 ===
@@ -2142,71 +2142,71 @@ training 3
 
 agarose-contact events per reward:
 training 1
-  exp: 1.77, 1.37, 1.36, 2.11, 1.85
-  yok: 2.41, 2.52, 2.67, 1.81, 2.45
+  exp: 1.88, 1.44, 1.47, 2.22, 1.95
+  yok: 2.98, 3.03, 3.18, 2.44, 3.23
 training 2
-  exp: 1.25, 1.34, 1.21, 1.40, 1.32
-  yok: 1.88, 1.70, 2.13, 1.66, 1.60
+  exp: 1.18, 1.32, 1.21, 1.33, 1.21
+  yok: 2.34, 2.10, 2.61, 2.00, 1.85
 training 3
-  exp: 1.48, 2.28, 1.91, 2.01, 2.40
-  yok: 2.22, 2.09, 2.18, 2.58, 1.68
+  exp: 1.45, 2.60, 2.23, 2.20, 2.72
+  yok: 3.13, 3.05, 3.07, 3.42, 2.30
 
 relative change, agarose-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -25.42% (1.77 to 1.32)
-  yok: -32.62% (2.37 to 1.60)
+  exp: -35.65% (1.88 to 1.21)
+  yok: -36.82% (2.93 to 1.85)
 
 % frames with fly positioned past agarose border by training (ellipse edge):
 pre-training:
-  f1: 38.022
-  f2: 21.998
+  f1: 66.657
+  f2: 63.302
 training 1
-  f1: 35.369 (post: 25.488)
-  f2: 36.493 (post: 20.396)
+  f1: 42.582 (post: 33.033)
+  f2: 52.733 (post: 46.274)
 training 2
-  f1: 26.933 (post: 28.896)
-  f2: 35.404 (post: 29.179)
+  f1: 30.107 (post: 36.725)
+  f2: 48.409 (post: 48.145)
 training 3
-  f1: 33.929 (post: 58.388)
-  f2: 31.640 (post: 29.404)
+  f1: 45.547 (post: 63.699)
+  f2: 54.471 (post: 47.024)
 averages across all trainings:
-  f1: 32.077 ± 29.383
-  f2: 34.513 ± 32.798
+  f1: 39.412 ± 34.884
+  f2: 51.871 ± 49.729
 averages across all non-training periods:
-  f1: 37.699 ± 14.191
-  f2: 25.244 ± 17.734
+  f1: 50.028 ± 22.024
+  f2: 51.186 ± 38.276
 Number pre-training visits across agarose border:
-  f1: 113
-  f2: 73
+  f1: 147
+  f2: 158
 Avg duration (secs) of visits across agarose border:
-  f1: 3.049 ± 0.596
-  f2: 2.731 ± 0.435
+  f1: 4.109 ± 0.542
+  f2: 3.630 ± 0.450
 
 
 % frames with fly positioned past agarose border by training (body center):
 pre-training:
-  f1: 33.579
-  f2: 25.074
+  f1: 48.440
+  f2: 50.000
 training 1
-  f1: 25.440 (post: 22.265)
-  f2: 27.116 (post: 18.248)
+  f1: 22.604 (post: 22.158)
+  f2: 32.533 (post: 33.973)
 training 2
-  f1: 14.627 (post: 21.803)
-  f2: 25.889 (post: 16.103)
+  f1: 11.218 (post: 20.782)
+  f2: 28.040 (post: 24.446)
 training 3
-  f1: 24.876 (post: 36.280)
-  f2: 26.582 (post: 23.706)
+  f1: 25.156 (post: 33.210)
+  f2: 34.089 (post: 31.134)
 averages across all trainings:
-  f1: 21.647 ± 18.278
-  f2: 26.529 ± 25.051
+  f1: 19.659 ± 15.463
+  f2: 31.554 ± 29.384
 averages across all non-training periods:
-  f1: 28.482 ± 16.502
-  f2: 20.783 ± 13.952
+  f1: 31.148 ± 10.780
+  f2: 34.888 ± 17.644
 Number pre-training visits across agarose border:
-  f1: 88
-  f2: 78
+  f1: 188
+  f2: 179
 Avg duration (secs) of visits across agarose border:
-  f1: 3.458 ± 0.634
-  f2: 2.913 ± 0.713
+  f1: 2.335 ± 0.401
+  f2: 2.531 ± 0.349
 
 
 === analyzing c42__2022-05-15__12-56-57.avi, fly 5 ===
@@ -2345,71 +2345,71 @@ training 3
 
 agarose-contact events per reward:
 training 1
-  exp: 2.09, 2.56, 3.47, 2.94, 3.08
-  yok: 3.55, 2.82, 3.21, 2.78, 3.88
+  exp: 2.58, 2.95, 3.82, 3.04, 3.30
+  yok: 5.09, 3.97, 4.58, 4.69, 6.62
 training 2
-  exp: 2.97, 5.74, 4.05, 5.37, 3.44
-  yok: 2.39, 3.83, 3.35, 3.95, 3.21
+  exp: 3.26, 6.85, 5.27, 6.40, 4.27
+  yok: 3.85, 6.83, 7.52, 8.30, 7.17
 training 3
-  exp: 4.03, 4.55, 5.29, 3.23, 3.92
-  yok: 2.66, 2.26, 4.00, 3.21, 3.53
+  exp: 5.14, 6.15, 7.07, 3.75, 4.51
+  yok: 5.62, 5.09, 7.04, 4.64, 5.74
 
 relative change, agarose-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: 64.40% (2.09 to 3.44)
-  yok: -9.51% (3.55 to 3.21)
+  exp: 65.42% (2.58 to 4.27)
+  yok: 40.77% (5.09 to 7.17)
 
 % frames with fly positioned past agarose border by training (ellipse edge):
 pre-training:
-  f1: 12.890
-  f2: 9.020
+  f1: 30.224
+  f2: 78.708
 training 1
-  f1: 40.227 (post: 38.061)
-  f2: 29.613 (post: 19.026)
+  f1: 54.076 (post: 68.146)
+  f2: 53.813 (post: 68.660)
 training 2
-  f1: 44.062 (post: 38.085)
-  f2: 23.871 (post: 13.575)
+  f1: 60.356 (post: 72.692)
+  f2: 59.991 (post: 73.342)
 training 3
-  f1: 38.529 (post: 47.504)
-  f2: 26.427 (post: 19.076)
+  f1: 56.396 (post: 70.216)
+  f2: 59.822 (post: 65.817)
 averages across all trainings:
-  f1: 40.939 ± 38.812
-  f2: 26.637 ± 23.843
+  f1: 56.942 ± 54.153
+  f2: 57.876 ± 55.108
 averages across all non-training periods:
-  f1: 34.135 ± 10.514
-  f2: 15.174 ± 7.461
+  f1: 60.320 ± 28.257
+  f2: 71.632 ± 62.648
 Number pre-training visits across agarose border:
-  f1: 29
-  f2: 22
+  f1: 65
+  f2: 147
 Avg duration (secs) of visits across agarose border:
-  f1: 4.028 ± 1.302
-  f2: 3.715 ± 1.806
+  f1: 4.213 ± 0.646
+  f2: 4.852 ± 0.509
 
 
 % frames with fly positioned past agarose border by training (body center):
 pre-training:
-  f1: 14.450
-  f2: 12.522
+  f1: 22.248
+  f2: 49.514
 training 1
-  f1: 31.053 (post: 36.622)
-  f2: 24.453 (post: 19.511)
+  f1: 30.276 (post: 43.611)
+  f2: 31.333 (post: 42.114)
 training 2
-  f1: 36.880 (post: 38.716)
-  f2: 23.653 (post: 20.012)
+  f1: 37.400 (post: 48.419)
+  f2: 34.893 (post: 39.558)
 training 3
-  f1: 32.671 (post: 43.784)
-  f2: 25.813 (post: 20.549)
+  f1: 33.902 (post: 47.375)
+  f2: 36.222 (post: 37.003)
 averages across all trainings:
-  f1: 33.535 ± 31.465
-  f2: 24.640 ± 22.851
+  f1: 33.859 ± 31.112
+  f2: 34.150 ± 32.175
 averages across all non-training periods:
-  f1: 33.393 ± 12.736
-  f2: 18.148 ± 12.142
+  f1: 40.413 ± 20.865
+  f2: 42.047 ± 33.458
 Number pre-training visits across agarose border:
-  f1: 36
-  f2: 26
+  f1: 66
+  f2: 341
 Avg duration (secs) of visits across agarose border:
-  f1: 3.637 ± 0.961
-  f2: 4.364 ± 1.627
+  f1: 2.883 ± 0.566
+  f2: 1.316 ± 0.162
 
 
 === analyzing c42__2022-05-17__12-56-34.avi, fly 2 ===
@@ -2548,71 +2548,71 @@ training 3
 
 agarose-contact events per reward:
 training 1
-  exp: 1.21, 0.70, 1.66, 1.12, 0.65
-  yok: 3.19, 2.44, 3.11, 2.80, 2.91
+  exp: 1.17, 0.62, 1.76, 1.14, 0.69
+  yok: 3.90, 3.02, 4.06, 3.41, 4.03
 training 2
-  exp: 1.13, 0.49, 0.55, 0.65, 0.85
-  yok: 2.13, 3.03, 2.76, 2.67, 2.18
+  exp: 1.16, 0.56, 0.56, 0.60, 0.89
+  yok: 2.46, 3.89, 3.92, 3.61, 2.82
 training 3
-  exp: 0.59, 0.86, 0.71, 0.63, 0.61
-  yok: 2.83, 2.36, 1.94, 2.74, 2.31
+  exp: 0.67, 0.85, 0.72, 0.65, 0.63
+  yok: 3.17, 2.98, 2.46, 3.88, 3.50
 
 relative change, agarose-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -29.99% (1.21 to 0.85)
-  yok: -31.81% (3.19 to 2.18)
+  exp: -23.49% (1.17 to 0.89)
+  yok: -27.70% (3.90 to 2.82)
 
 % frames with fly positioned past agarose border by training (ellipse edge):
 pre-training:
-  f1: 24.562
-  f2: 24.798
+  f1: 61.118
+  f2: 66.313
 training 1
-  f1: 16.973 (post: 4.700)
-  f2: 35.258 (post: 25.469)
+  f1: 21.956 (post: 5.574)
+  f2: 51.360 (post: 64.302)
 training 2
-  f1: 10.338 (post: 16.402)
-  f2: 36.382 (post: 52.453)
+  f1: 12.862 (post: 19.295)
+  f2: 55.471 (post: 65.287)
 training 3
-  f1: 9.413 (post: 24.910)
-  f2: 34.693 (post: 52.714)
+  f1: 11.222 (post: 30.027)
+  f2: 50.582 (post: 74.141)
 averages across all trainings:
-  f1: 12.241 ± 9.425
-  f2: 35.444 ± 33.363
+  f1: 15.347 ± 11.612
+  f2: 52.471 ± 49.780
 averages across all non-training periods:
-  f1: 17.644 ± 2.555
-  f2: 38.858 ± 13.636
+  f1: 29.004 ± -8.602
+  f2: 67.511 ± 60.357
 Number pre-training visits across agarose border:
-  f1: 42
-  f2: 74
+  f1: 72
+  f2: 157
 Avg duration (secs) of visits across agarose border:
-  f1: 5.298 ± 1.656
-  f2: 3.036 ± 0.550
+  f1: 7.691 ± 1.389
+  f2: 3.827 ± 0.364
 
 
 % frames with fly positioned past agarose border by training (body center):
 pre-training:
-  f1: 23.429
-  f2: 22.899
+  f1: 41.619
+  f2: 49.713
 training 1
-  f1: 7.173 (post: 2.078)
-  f2: 26.778 (post: 22.411)
+  f1: 6.840 (post: 2.114)
+  f2: 30.262 (post: 45.058)
 training 2
-  f1: 2.760 (post: 8.165)
-  f2: 30.044 (post: 46.602)
+  f1: 2.996 (post: 7.406)
+  f2: 34.831 (post: 42.261)
 training 3
-  f1: 2.338 (post: 14.657)
-  f2: 27.129 (post: 51.182)
+  f1: 1.662 (post: 11.366)
+  f2: 30.898 (post: 57.380)
 averages across all trainings:
-  f1: 4.090 ± 2.553
-  f2: 27.984 ± 26.124
+  f1: 3.833 ± 2.240
+  f2: 31.997 ± 29.385
 averages across all non-training periods:
-  f1: 12.082 ± -2.467
-  f2: 35.773 ± 11.485
+  f1: 15.626 ± -12.600
+  f2: 48.603 ± 38.085
 Number pre-training visits across agarose border:
-  f1: 33
-  f2: 67
+  f1: 115
+  f2: 212
 Avg duration (secs) of visits across agarose border:
-  f1: 6.432 ± 1.490
-  f2: 3.097 ± 0.503
+  f1: 3.279 ± 0.742
+  f2: 2.125 ± 0.230
 
 
 === analyzing c42__2022-05-17__12-56-34.avi, fly 3 ===
@@ -2783,71 +2783,71 @@ training 3
 
 agarose-contact events per reward:
 training 1
-  exp: 2.97, 3.02, 3.24, 3.00, 2.29
-  yok: 1.32, 2.98, 3.00, 2.16, 1.73
+  exp: 2.89, 3.02, 3.04, 3.05, 2.23
+  yok: 1.49, 3.00, 3.15, 2.36, 1.65
 training 2
-  exp: 1.81, 1.48, 1.60, 1.53, 2.19
-  yok: 2.00, 1.89, 0.69, 1.48, 1.13
+  exp: 1.89, 1.41, 1.61, 1.68, 2.22
+  yok: 2.04, 2.11, 0.73, 1.56, 1.22
 training 3
-  exp: 2.06, 1.64, 2.14, 1.02, 1.41
-  yok: 0.76, 0.84, 1.58, 1.36, 1.24
+  exp: 1.99, 1.57, 2.14, 1.01, 1.36
+  yok: 0.88, 0.93, 1.69, 1.23, 1.25
 
 relative change, agarose-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -24.42% (2.89 to 2.19)
-  yok: -14.25% (1.32 to 1.13)
+  exp: -21.14% (2.81 to 2.22)
+  yok: -17.76% (1.49 to 1.22)
 
 % frames with fly positioned past agarose border by training (ellipse edge):
 pre-training:
-  f1: 70.331
-  f2: 15.408
+  f1: 87.079
+  f2: 66.490
 training 1
-  f1: 43.898 (post: 43.951)
-  f2: 31.551 (post: 50.932)
+  f1: 55.409 (post: 64.765)
+  f2: 38.378 (post: 60.908)
 training 2
-  f1: 29.462 (post: 40.674)
-  f2: 31.356 (post: 26.679)
+  f1: 35.956 (post: 59.635)
+  f2: 38.898 (post: 37.965)
 training 3
-  f1: 26.462 (post: 41.676)
-  f2: 23.587 (post: 16.220)
+  f1: 30.400 (post: 50.873)
+  f2: 32.187 (post: 19.212)
 averages across all trainings:
-  f1: 33.274 ± 28.398
-  f2: 28.831 ± 24.885
+  f1: 40.588 ± 33.889
+  f2: 36.487 ± 31.696
 averages across all non-training periods:
-  f1: 49.158 ± 26.591
-  f2: 27.310 ± 0.954
+  f1: 65.588 ± 41.032
+  f2: 46.144 ± 11.474
 Number pre-training visits across agarose border:
-  f1: 59
-  f2: 35
+  f1: 68
+  f2: 104
 Avg duration (secs) of visits across agarose border:
-  f1: 10.800 ± 12.536
-  f2: 3.989 ± 1.024
+  f1: 11.602 ± 10.892
+  f2: 5.792 ± 1.333
 
 
 % frames with fly positioned past agarose border by training (body center):
 pre-training:
-  f1: 67.358
-  f2: 18.779
+  f1: 76.880
+  f2: 56.306
 training 1
-  f1: 32.062 (post: 35.322)
-  f2: 21.684 (post: 32.929)
+  f1: 32.098 (post: 45.137)
+  f2: 19.102 (post: 33.427)
 training 2
-  f1: 16.778 (post: 36.692)
-  f2: 22.551 (post: 15.472)
+  f1: 15.818 (post: 40.856)
+  f2: 20.364 (post: 18.075)
 training 3
-  f1: 13.124 (post: 33.829)
-  f2: 16.720 (post: 5.440)
+  f1: 10.600 (post: 33.168)
+  f2: 15.409 (post: 6.124)
 averages across all trainings:
-  f1: 20.655 ± 15.538
-  f2: 20.319 ± 16.722
+  f1: 19.505 ± 13.789
+  f2: 18.292 ± 14.962
 averages across all non-training periods:
-  f1: 43.300 ± 17.711
-  f2: 18.155 ± 0.070
+  f1: 49.010 ± 18.414
+  f2: 28.483 ± -5.974
 Number pre-training visits across agarose border:
-  f1: 45
-  f2: 36
+  f1: 106
+  f2: 118
 Avg duration (secs) of visits across agarose border:
-  f1: 13.561 ± 16.399
-  f2: 4.726 ± 0.888
+  f1: 6.571 ± 5.707
+  f2: 4.323 ± 1.107
 
 
 === analyzing c42__2022-05-17__12-56-34.avi, fly 5 ===
@@ -2986,71 +2986,71 @@ training 3
 
 agarose-contact events per reward:
 training 1
-  exp: 3.82, 2.05, 2.08, 2.98, 2.34
-  yok: 4.70, 3.25, 2.84, 4.12, 3.05
+  exp: 4.34, 2.77, 2.24, 3.08, 2.46
+  yok: 6.45, 4.50, 3.84, 6.27, 4.12
 training 2
-  exp: 2.44, 3.00, 2.75, 3.90, 3.07
-  yok: 2.90, 2.92, 3.19, 3.05, 4.03
+  exp: 2.62, 3.15, 2.68, 4.23, 3.27
+  yok: 3.73, 4.49, 4.62, 4.45, 5.94
 training 3
-  exp: 3.14, 2.24, 2.86, 2.84, 1.96
-  yok: 2.69, 3.07, 3.10, 3.50, 3.00
+  exp: 3.35, 2.32, 2.99, 2.81, 2.29
+  yok: 3.63, 4.11, 4.60, 4.74, 4.11
 
 relative change, agarose-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -19.51% (3.82 to 3.07)
-  yok: -14.25% (4.70 to 4.03)
+  exp: -24.66% (4.34 to 3.27)
+  yok: -7.92% (6.45 to 5.94)
 
 % frames with fly positioned past agarose border by training (ellipse edge):
 pre-training:
-  f1: 23.988
-  f2: 17.984
+  f1: 75.247
+  f2: 75.247
 training 1
-  f1: 38.053 (post: 37.696)
-  f2: 35.511 (post: 25.901)
+  f1: 52.160 (post: 56.053)
+  f2: 63.898 (post: 67.411)
 training 2
-  f1: 37.840 (post: 34.235)
-  f2: 37.831 (post: 33.555)
+  f1: 48.764 (post: 50.971)
+  f2: 63.969 (post: 70.547)
 training 3
-  f1: 38.884 (post: 39.625)
-  f2: 36.911 (post: 27.603)
+  f1: 48.173 (post: 59.016)
+  f2: 60.560 (post: 73.079)
 averages across all trainings:
-  f1: 38.259 ± 36.197
-  f2: 36.751 ± 34.702
+  f1: 49.699 ± 46.659
+  f2: 62.809 ± 61.140
 averages across all non-training periods:
-  f1: 33.886 ± 22.803
-  f2: 26.261 ± 16.045
+  f1: 60.321 ± 43.629
+  f2: 71.571 ± 66.204
 Number pre-training visits across agarose border:
-  f1: 62
-  f2: 54
+  f1: 124
+  f2: 158
 Avg duration (secs) of visits across agarose border:
-  f1: 3.505 ± 1.063
-  f2: 3.017 ± 0.687
+  f1: 5.498 ± 0.821
+  f2: 4.315 ± 0.461
 
 
 % frames with fly positioned past agarose border by training (body center):
 pre-training:
-  f1: 29.183
-  f2: 17.734
+  f1: 44.121
+  f2: 48.344
 training 1
-  f1: 28.200 (post: 32.479)
-  f2: 37.142 (post: 30.856)
+  f1: 28.613 (post: 36.571)
+  f2: 39.711 (post: 36.709)
 training 2
-  f1: 27.204 (post: 28.540)
-  f2: 37.187 (post: 40.949)
+  f1: 23.916 (post: 31.234)
+  f2: 42.036 (post: 44.862)
 training 3
-  f1: 27.680 (post: 37.239)
-  f2: 34.769 (post: 32.262)
+  f1: 24.209 (post: 40.232)
+  f2: 38.987 (post: 43.582)
 averages across all trainings:
-  f1: 27.695 ± 26.217
-  f2: 36.366 ± 35.014
+  f1: 25.579 ± 22.880
+  f2: 40.244 ± 38.431
 averages across all non-training periods:
-  f1: 31.860 ± 25.528
-  f2: 30.450 ± 15.205
+  f1: 38.039 ± 29.312
+  f2: 43.375 ± 35.613
 Number pre-training visits across agarose border:
-  f1: 56
-  f2: 50
+  f1: 116
+  f2: 280
 Avg duration (secs) of visits across agarose border:
-  f1: 4.721 ± 1.093
-  f2: 3.213 ± 0.611
+  f1: 3.446 ± 0.638
+  f2: 1.564 ± 0.198
 
 
 
@@ -3234,9 +3234,9 @@ writing imgs/ctr_agarose_contact__10_min_buckets.png...
 
 agarose-contact events, rel. change, T1 first bucket to T2 last bucket
 one-sample t-test -- exp:
-  n = 13, mean: -0.12, value: 0; t-test: p = 0.24797, t = -1.214
+  n = 13, mean: -0.145, value: 0; t-test: p = 0.19579, t = -1.370
 one-sample t-test -- yok:
-  n = 13, mean: -0.255, value: 0; t-test: p = 0.00381, t = -3.577
+  n = 13, mean: -0.19, value: 0; t-test: p = 0.07362, t = -1.960
 
 writing learning_stats.csv...
 writing imgs/analysis.png...
