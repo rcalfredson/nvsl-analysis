@@ -80,7 +80,16 @@ from src.analysis.trajectory import Trajectory
 from src.plotting.turn_directionality_plotter import TurnDirectionalityPlotter
 from src.plotting.turn_prob_dist_plotter import TurnProbabilityByDistancePlotter
 import src.utils.util as util
-from src.utils.util import ArgumentError, Tee, VideoError, AVI_X, COL_B, COL_BK, COL_W, WINDOWS
+from src.utils.util import (
+    ArgumentError,
+    Tee,
+    VideoError,
+    AVI_X,
+    COL_B,
+    COL_BK,
+    COL_W,
+    WINDOWS,
+)
 from src.utils.util import error, warn
 from src.analysis.video_analysis import (
     VideoAnalysis,
@@ -263,6 +272,13 @@ g.add_argument(
     action="store_true",
     help="[HTL chamber only] run assertions to confirm that fly is completely within floor bounds at"
     " the end of every wall-contact event.",
+)
+g.add_argument(
+    "--lg-turn-plots",
+    choices=("all_types", "turn_plus_1"),
+    help="Generate large turn trajectory plot. Two modes are supported: 'all_types' includes all"
+    " frames between two large turns, whereas 'turn_plus_1' shows a single sharp turn and a"
+    " subsequent non-turn event.",
 )
 g.add_argument(
     "--bnd-ct-plots",

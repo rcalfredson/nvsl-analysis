@@ -7,6 +7,7 @@ from libcpp.pair cimport pair
 from libcpp.vector cimport vector
 from libc.math cimport (fabs, nan)
 
+from src.plotting.event_chain_plotter import EventChainPlotter
 from src.utils.common_cython cimport (
     angleDiff,
     compute_distance_or_nan,
@@ -54,10 +55,12 @@ cdef class RewardCircleAnchoredTurnFinder:
     cdef double min_turn_speed_px
     cdef int num_hist_bins
     cdef bint end_turn_before_recontact
+    cdef str trj_plot_mode
     cdef vector[TurnData] lg_turn_dists
     cdef vector[HistData] large_turn_hist_counts_edges
     cdef vector[vector[double]] turn_to_exit_ratios
-    cdef vector[vector[pair[int, int]]] indices_of_turns
+    cdef list indices_of_turns
+    cdef list turn_circle_index_mapping
     cdef vector[pair[int, int]] trn_ranges
     cdef long[:] circle_ctr
     cdef double circle_rad
@@ -69,7 +72,8 @@ cdef class RewardCircleAnchoredTurnFinder:
         object va,
         double min_turn_speed,
         int num_hist_bins,
-        int end_turn_before_recontact
+        int end_turn_before_recontact,
+        str trj_plot_mode=None
     ):
         # Initializes the RewardCircleAnchoredTurnFinder with required parameters.
         #
@@ -80,14 +84,17 @@ cdef class RewardCircleAnchoredTurnFinder:
         # - num_hist_bins (int): The number of histogram bins to use for analyzing turn data.
         # - end_turn_before_recontact (int): A flag indicating whether to end turn tracking
         #   before recontact with a boundary.
+        # - trj_plot_mode (string): Mode for large turn trajectory plot: 'all_types' to include
+        #   all frames between two large turns or 'turn_plus_1' to show a single large turn
+        #   and a subsequent non-turn event. Defaults to None (no plotting)
         self.va = va
         self.min_turn_speed = min_turn_speed
         self.num_hist_bins = num_hist_bins
         self.lg_turn_dists = vector[TurnData]()
         self.large_turn_hist_counts_edges = vector[HistData]()
         self.turn_to_exit_ratios = vector[vector[double]]()
-        self.indices_of_turns = vector[vector[pair[int, int]]]()
         self.end_turn_before_recontact = end_turn_before_recontact
+        self.trj_plot_mode = trj_plot_mode
 
     def calcLargeTurnsAfterCircleExit(self):
         # Calculates large turns occurring after exiting a circle by analyzing the trajectory
@@ -142,8 +149,12 @@ cdef class RewardCircleAnchoredTurnFinder:
             self.walking_view = trj.walking.astype(np.int32)
             self.min_turn_speed_px = self.min_turn_speed * trj.pxPerMmFloor * self.va.xf.fctr
 
+        if not hasattr(self.va, 'lg_turn_rejection_reasons'):
+            self.va.lg_turn_rejection_reasons = []
+        if len(self.va.lg_turn_rejection_reasons) <= trj.f:
+            self.va.lg_turn_rejection_reasons.append([])
+
         self.turn_to_exit_ratios.push_back(vector[double]())
-        self.indices_of_turns.push_back(vector[pair[int, int]]())
         self.lg_turn_dists.push_back(
             TurnData(start=vector[vector[double]](), end=vector[vector[double]]())
         )
@@ -245,11 +256,44 @@ cdef class RewardCircleAnchoredTurnFinder:
         entries = in_range(trj.en[0], trn_range[0], trn_range[1])
         self.initialize_lg_turn_dists(trj.f, len(exits))
 
+        # Initialize rejection reasons for this timeframe
+        # Each trajectory (`trj.f`) will have its own sublist for each timeframe's exits
+        if len(self.va.lg_turn_rejection_reasons[trj.f]) <= i:
+            self.va.lg_turn_rejection_reasons[trj.f].append({})
+
+        self.turn_circle_index_mapping = []  # Reset for each training session
+        self.indices_of_turns = []
+
         for j, ex_fm in enumerate(exits):
             self.run_turn_search(trj, i, ex_fm, j, entries)
-        self.turn_to_exit_ratios[trj.f].push_back(self.calc_turn_to_exit_ratio(trj, i))
 
+        # Large turn-to-exit ratio calculation
+        self.turn_to_exit_ratios[trj.f].push_back(self.calc_turn_to_exit_ratio(trj, i))
         self.compute_histogram(trj, i)
+
+        # Check if plotting flag is enabled
+        if self.trj_plot_mode:
+            # Call to EventChainPlotter, passing large turn-specific variables
+            large_turn_plotter = EventChainPlotter(trj, self.va)
+            
+            # Define variables that map to large turn events
+            lg_turn_idxs = self.indices_of_turns
+            turn_circle_index_mapping = self.turn_circle_index_mapping
+            start_frame = trn_range[0]
+            stop_frame = trn_range[1]
+            if len(lg_turn_idxs) == 0:
+                return
+            large_turn_plotter._plot_large_turn_event_chain(
+                exits=exits,
+                trn_index=i - 1,
+                turning_idxs_filtered=lg_turn_idxs,
+                turn_circle_index_mapping=turn_circle_index_mapping,
+                rejection_reasons=self.va.lg_turn_rejection_reasons[trj.f][i],
+                plot_mode=self.trj_plot_mode,
+                start_frame=start_frame,
+                stop_frame=stop_frame,
+                image_format="png"
+            )
 
     cdef compute_histogram(self, trj, trn_idx):
         # Computes histograms for the start and end points of large turns within a trajectory
@@ -438,8 +482,8 @@ cdef class RewardCircleAnchoredTurnFinder:
         spf = 1 / self.va.fps
 
         # Single forward pass to find initial turn frames and determine turn start and end
-        debug_frame_range_low = 25600
-        debug_frame_range_high = 25700
+        debug_frame_range_low = 0
+        debug_frame_range_high = 1000000
         while True:
             fm_i += 1
 
@@ -465,8 +509,19 @@ cdef class RewardCircleAnchoredTurnFinder:
                 return
 
             if self.check_exit_condition(
-                upper_index, threshold_crossed, circle_exit_idx, entries, max(cw_ang_del_sum, ccw_ang_del_sum),
-                angle_deltas, debug, debug_frame_range_low, debug_frame_range_high
+                upper_index,
+                circle_exit_frame if turn_st_idx == -1 else turn_st_idx,
+                threshold_crossed,
+                circle_exit_idx,
+                trn_idx,
+                entries,
+                max(cw_ang_del_sum, ccw_ang_del_sum),
+                angle_deltas,
+                trj,
+                debug,
+                debug_frame_range_low,
+                debug_frame_range_high,
+                update_rejection_reasons=True
             ):
                 return
 
@@ -520,8 +575,19 @@ cdef class RewardCircleAnchoredTurnFinder:
                     print(f"Frame {fm_i}: Speed = {trj.sp[fm_i + 1]:.2f}, Angle Delta = {angle_delta_degrees:.2f}")
 
                 if self.check_exit_condition(
-                    upper_index, threshold_crossed, circle_exit_idx, entries, max(cw_ang_del_sum, ccw_ang_del_sum),
-                    angle_deltas, debug, debug_frame_range_low, debug_frame_range_high
+                    upper_index,
+                    turn_st_idx,
+                    threshold_crossed,
+                    circle_exit_idx,
+                    trn_idx,
+                    entries,
+                    max(cw_ang_del_sum, ccw_ang_del_sum),
+                    angle_deltas,
+                    trj,
+                    debug,
+                    debug_frame_range_low,
+                    debug_frame_range_high,
+                    update_rejection_reasons=True
                 ):
                     return
 
@@ -541,9 +607,15 @@ cdef class RewardCircleAnchoredTurnFinder:
         dist_trav = self.distTrav(turn_st_idx, turn_end_idx)
 
         if dist_trav < dist_threshold:
+            self.va.lg_turn_rejection_reasons[trj.f][trn_idx][circle_exit_idx] =(
+                "low_displacement", (turn_st_idx, turn_end_idx)
+            )
             return
 
         if self.too_little_walking(turn_st_idx, turn_end_idx):
+            self.va.lg_turn_rejection_reasons[trj.f][trn_idx][circle_exit_idx] = (
+                'too_little_walking', (turn_st_idx, turn_end_idx)
+            )
             return
 
         if debug and debug_frame_range_low <= fm_i <= debug_frame_range_high:
@@ -559,7 +631,8 @@ cdef class RewardCircleAnchoredTurnFinder:
             self.circle_ctr[0], self.circle_ctr[1], self.x_view[turn_end_idx], self.y_view[turn_end_idx]
         ) / (trj.pxPerMmFloor * self.va.xf.fctr)
 
-        self.indices_of_turns[trj.f].push_back(pair[int, int](turn_st_idx, turn_end_idx))
+        self.indices_of_turns.append((turn_st_idx, turn_end_idx))
+        self.turn_circle_index_mapping.append(circle_exit_idx)
 
     cdef bint too_little_walking(self, int turn_st_idx, int turn_end_idx):
         # Determines if the proportion of frames identified as 'walking' between the start and
@@ -650,29 +723,55 @@ cdef class RewardCircleAnchoredTurnFinder:
             return True
         return False
 
-    cdef check_exit_condition(self, int fm_i, bint threshold_crossed, int circle_exit_idx, 
-                          np.ndarray entries, double angle_delta_degrees, vector[double] angle_deltas,
-                          bint debug=False, int debug_frame_range_low=0, int debug_frame_range_high=0):
+    cdef check_exit_condition(
+        self,
+        int event_end_idx,
+        int event_start_idx,
+        bint threshold_crossed,
+        int circle_exit_idx,
+        int trn_idx,
+        np.ndarray entries,
+        double angle_delta_degrees,
+        vector[double] angle_deltas,
+        trj,
+        bint debug=False,
+        int debug_frame_range_low=0,
+        int debug_frame_range_high=0,
+        bint update_rejection_reasons=False
+    ):
         """
         Helper function to check for turn exit conditions
         """
         exit_result = self.check_turn_exit_conditions(
-            fm_i, threshold_crossed, circle_exit_idx, entries, angle_delta_degrees, angle_deltas
+            event_end_idx,
+            event_start_idx,
+            threshold_crossed,
+            circle_exit_idx,
+            trn_idx,
+            entries,
+            angle_delta_degrees,
+            angle_deltas,
+            trj,
+            update_rejection_reasons
         )
         if exit_result:
-            if debug and debug_frame_range_low <= fm_i <= debug_frame_range_high:
-                print(f'Event-ending condition detected at frame {fm_i}; no turn.')
+            if debug and debug_frame_range_low <= event_end_idx <= debug_frame_range_high:
+                print(f'Event-ending condition detected at frame {event_end_idx}; no turn.')
             return True
         return False
 
     def check_turn_exit_conditions(
         self,
-        int fm_i,
+        int event_end_idx,
+        int event_start_idx,
         bint threshold_crossed,
         int circle_exit_idx,
+        int trn_idx,
         np.ndarray entries,
         double angle_delta_sum,
         vector[double] angle_deltas,
+        trj,
+        bint update_rejection_reasons=False
     ):
         # Evaluates conditions to determine the end of a turn or to invalidate a turn based on
         # spatial criteria and interaction with environmental boundaries.
@@ -690,23 +789,38 @@ cdef class RewardCircleAnchoredTurnFinder:
         #     The cumulative sum of angle deltas for the current turn.
         # - angle_deltas : list of double
         #     The sequence of angle deltas for the current turn.
+        # - trj : Trajectory
+        #     The Trajectory instance for the fly associated with the event
+        # - update_rejection_reasons : bint
+        #     Whether to update the entry in the list of rejection reasons for this event
+        #     if an exit condition is detected.
+        # 
         #
         # Returns:
         # - tuple or None
         #     A tuple containing the updated frame index, angle_delta_sum, and angle_deltas if
         #     conditions are met; None otherwise.
 
-        cdef bint after_reentry_frame = circle_exit_idx + 1 < len(entries) and entries[circle_exit_idx + 1] <= fm_i
+        cdef bint after_reentry_frame = circle_exit_idx + 1 < len(entries) and entries[circle_exit_idx + 1] <= event_end_idx
         cdef bint inside_circle = euclidean_norm(
             self.circle_ctr[0], 
             self.circle_ctr[1],
-            self.x_view[fm_i],
-            self.y_view[fm_i]
+            self.x_view[event_end_idx],
+            self.y_view[event_end_idx]
         ) < self.circle_rad
         
-        if after_reentry_frame or inside_circle or self.wall_contact[fm_i]:
+        if after_reentry_frame or inside_circle or self.wall_contact[event_end_idx]:
+            if update_rejection_reasons:
+                if after_reentry_frame or inside_circle:
+                    self.va.lg_turn_rejection_reasons[trj.f][trn_idx][circle_exit_idx] = (
+                        'reward_circle_entry', (event_start_idx, event_end_idx)
+                    )
+                else:
+                    self.va.lg_turn_rejection_reasons[trj.f][trn_idx][circle_exit_idx] = (
+                        'wall_contact', (event_start_idx, event_end_idx)
+                    )
             if threshold_crossed:
-                return fm_i - self.end_turn_before_recontact, angle_delta_sum, angle_deltas
+                return event_end_idx - self.end_turn_before_recontact, angle_delta_sum, angle_deltas
             else:
                 return -1, -1, angle_deltas
         

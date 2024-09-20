@@ -9,11 +9,11 @@ import numpy as np
 cimport numpy as cnp
 import random
 
+from src.plotting.event_chain_plotter import EventChainPlotter
 from src.utils.common import writeImage
 from src.utils.constants import CONTACT_BUFFER_OFFSETS
 from src.utils.debug_util import (
     ellipse_edge_points_within_boundaries,
-    visualize_ellipse_and_boundaries
 )
 from src.utils.util import closest_pts_to_lines, rotate_pts, trueRegions
 
@@ -51,55 +51,6 @@ def recursive_defaultdict():
     - defaultdict: A recursive defaultdict structure.
     """
     return defaultdict(recursive_defaultdict)
-
-def draw_custom_arrowhead(ax, x_mid, y_mid, dx, dy, color, length=1.1, angle=30, shift_factor=-0.08):
-    """
-    Draws a custom arrowhead using two line segments that converge slightly past the midpoint.
-
-    Parameters:
-    - ax: Matplotlib axis object
-    - x_mid, y_mid: Midpoint coordinates of the trajectory segment
-    - dx, dy: Direction vector of the trajectory segment
-    - color: Color of the arrowhead lines
-    - length: Length of the arrowhead lines (default: 1.1)
-    - angle: Angle at which the arrowhead lines deviate from the trajectory (default: 30)
-    - shift_factor: Fraction of the segment length to move the arrowhead towards the end 
-      (default: -0.08)
-
-    Returns:
-    - None
-    """
-    
-    # Convert the angle to radians
-    angle_rad = np.radians(angle)
-    dx = -dx
-    dy = -dy
-
-    # Normalize the direction vector
-    norm = np.sqrt(dx**2 + dy**2)
-    if norm != 0:  # Avoid division by zero
-        dx /= norm
-        dy /= norm
-
-    # Move the midpoint slightly towards the second endpoint
-    x_mid_shifted = x_mid + dx * shift_factor * norm
-    y_mid_shifted = y_mid + dy * shift_factor * norm
-
-    # Calculate the coordinates for the two arrowhead lines
-    left_dx = dx * cos(angle_rad) - dy * sin(angle_rad)
-    left_dy = dx * sin(angle_rad) + dy * cos(angle_rad)
-    right_dx = dx * cos(-angle_rad) - dy * sin(-angle_rad)
-    right_dy = dx * sin(-angle_rad) + dy * cos(-angle_rad)
-
-    # Scale the direction vectors by the desired length of the arrowhead
-    left_x = x_mid_shifted + left_dx * length
-    left_y = y_mid_shifted + left_dy * length
-    right_x = x_mid_shifted + right_dx * length
-    right_y = y_mid_shifted + right_dy * length
-
-    # Draw the two line segments that form the arrowhead
-    ax.add_line(plt.Line2D([x_mid_shifted, left_x], [y_mid_shifted, left_y], color=color, lw=1, zorder=5))
-    ax.add_line(plt.Line2D([x_mid_shifted, right_x], [y_mid_shifted, right_y], color=color, lw=1, zorder=5))
 
 cpdef runBndContactAnalysisForCtrReferencePt(trj, va, offset, opts, find_turns=True):
     """
@@ -1721,325 +1672,24 @@ cdef class EllipseToBoundaryDistCalculator:
                 'all_types' - show two sharp turns along with all parts of the trajectory between them.
                 'turn_plus_1' - show a single sharp turn and one non-turn event following it, with distinct colors.
         """
-        cdef int i
-        speed_threshold_high = 18
-        speed_threshold_low = 6
-        # Number of sharp turns to chain together
-        if mode == 'all_types':
-            chain_length = 2
-        elif mode == 'turn_plus_1':
-            chain_length = 1
-
-        if start_frame is not None:
-            # Find the first sharp turn after the start_frame
-            start_idx = next((idx for idx, turn_idx in enumerate(turning_idxs_filtered) 
-                              if bcr[turn_idx].start >= start_frame), None)
-            
-            if start_idx is None or start_idx + chain_length > len(turning_idxs_filtered):
-                raise ValueError("No sufficient sharp turns found after the specified start_frame")
-            
-            selected_turns = turning_idxs_filtered[start_idx:start_idx + chain_length]
-        else:
-            # Ensure there are enough sharp turns to select from
-            if len(turning_idxs_filtered) < chain_length:
-                chain_length = len(turning_idxs_filtered)
-
-            # Randomly select a starting index
-            start_idx = random.randint(0, len(turning_idxs_filtered) - chain_length)
-
-            # Select the range of sharp turns
-            selected_turns = turning_idxs_filtered[start_idx:start_idx + chain_length]
-
-        # Define the start and end frames for the selected chain of turns
-        start_frame = bcr[selected_turns[0]].start
-        end_frame = bcr[selected_turns[-1]].stop
-
-        # Retrieve rejection reasons
-        rejection_reasons = self.return_data["boundary_event_stats"][self.boundary_type][
-            self.boundary_combo
-        ][ellipse_ref_pt].get('rejection_reasons', [])
-
-        if mode == 'all_types':
-            frames_range = range(max(0, start_frame - 5), min(len(self.x), end_frame + 5))
-        elif mode == 'turn_plus_1':
-            # Find the first event after the selected sharp turn that is not a sharp turn
-            next_event_idx = None
-            for i in range(selected_turns[-1] + 1, len(bcr)):
-                if i not in turning_idxs_filtered:
-                    next_event_idx = i
-                    break
-                else:
-                    return
-
-            # If a non-turn event is found, update end_frame to include it
-            if next_event_idx is not None:
-                end_frame = bcr[next_event_idx].stop
-
-                # Include all frames between the sharp turn and the following non-turn event
-                frames_range = range(max(0, start_frame - 5), min(len(self.x), end_frame + 5))
-            else:
-                # If no non-turn event is found, skip this segment
-                return
-
-        plt.figure(figsize=(12, 8))
-
-        arrow_interval = 3  # Interval between arrows
-
-        # Get the floor coordinates
-        floor_coords = list(self.va.ct.floor(self.va.xf, f=self.va.nef * (self.trj.f) + self.va.ef))
-        top_left, bottom_right = floor_coords[0], floor_coords[1]
-        
-        # Adjust for coordinate system where Y-axis points down
-        lower_left_x = top_left[0]
-        lower_left_y = top_left[1]
-
-        # Calculate sidewall contact region
-        contact_buffer_mm = CONTACT_BUFFER_OFFSETS["wall"]["max"]
-        contact_buffer_px = self.va.ct.pxPerMmFloor() * self.va.xf.fctr * contact_buffer_mm
-
-        # Draw the outer gray rectangle for sidewall contact region
-        plt.gca().add_patch(
-            patches.FancyBboxPatch(
-                (lower_left_x, lower_left_y),  # Lower-left corner
-                bottom_right[0] - top_left[0],  # Width
-                bottom_right[1] - top_left[1],  # Height
-                boxstyle="round,pad=0.05,rounding_size=2",
-                linewidth=1, edgecolor='none', facecolor='gray', alpha=0.3, zorder=1
-            )
-        )
-
-        # Draw the inner white rectangle to "cut out" the center, leaving a gray band
-        plt.gca().add_patch(
-            patches.FancyBboxPatch(
-                (lower_left_x + contact_buffer_px, lower_left_y + contact_buffer_px),  # Lower-left corner
-                (bottom_right[0] - top_left[0]) - 2 * contact_buffer_px,  # Width
-                (bottom_right[1] - top_left[1]) - 2 * contact_buffer_px,  # Height
-                boxstyle="round,pad=0.05,rounding_size=2",
-                linewidth=1, edgecolor='none', facecolor='white', zorder=2
-            )
-        )
-
-        # For the legend, we'll collect the labels and colors used
-        handles = []
-        labels = []
-
-        last_arrow_idx = None
-
-        # Initialize the count for successive slow frames
-        successive_slow_frames = 0
-        max_slow_frames = 15  # Adjust this value based on your preference
-        current_bcr_index = None
-
+        rejection_reasons = self.return_data['boundary_event_stats'][self.boundary_type][
+         self.boundary_combo
+        ][ellipse_ref_pt].get('rejection_reasons')
         frames_to_skip = self.return_data["boundary_event_stats"][self.boundary_type][
             self.boundary_combo
-        ][ellipse_ref_pt].get('frames_to_skip', set())
-        frames_to_mark = []
+        ][ellipse_ref_pt].get("frames_to_skip", set())
+        event_chain_plotter = EventChainPlotter(self.trj, self.va, self.y_bounds, self.x, self.y)
 
-        for i in frames_range:
-            if np.isnan(self.x[i]) or self.x[i] == 0 or np.isnan(self.y[i]) or self.y[i] == 0:
-                continue
-
-            # Determine if the current frame is part of a sharp turn
-            is_turn = any(bcr[j].start - 1 <= i < bcr[j].stop for j in selected_turns)
-
-            if i in frames_to_skip and color != 'black':
-                frames_to_mark.append((self.trj.x[i], self.trj.y[i]))
-
-            # Initialize default color and label
-            color = 'black'
-            label = None
-            rejection_reason = None
-
-            # Mode-specific logic for color and label
-            if mode == 'turn_plus_1':
-                if is_turn:
-                    color = 'red'
-                    label = 'Sharp turn'
-                else:
-                    is_event = any(
-                        (
-                            bcr[j].start - 1 <= i < bcr[j].stop
-                            and bcr[j].start - 1 >= frames_range.start
-                            and bcr[j].stop <= frames_range.stop
-                        )
-                        for j in range(len(bcr))
-                        if j not in selected_turns
-                    )
-                    if is_event:
-                        color = 'blue'
-                        label = 'Boundary crossing w/out sharp turn'
-
-            elif mode == 'all_types':
-                if is_turn:
-                    color = 'red'
-                    label = 'Sharp turn'
-                else:
-                    for j in range(len(bcr)):
-                        if (
-                            bcr[j].start - 1 <= i < bcr[j].stop
-                            and bcr[j].start - 1 >= frames_range.start
-                            and bcr[j].stop <= frames_range.stop
-                        ):
-                            rejection_reason = rejection_reasons[j]
-                            current_bcr_index = j
-                            color_label_map = {
-                                "too_long": ('blue', 'Duration > 0.75 s'),
-                                "too_little_velocity_angle_change": ('orange', 'Sum of vel. angle deltas < 90°'),
-                                "sidewall_contact": ('purple', 'Sidewall contact')
-                            }
-                            color, label = color_label_map.get(rejection_reason, ('black', None))
-                            break
-
-            # Add to the legend only if it hasn't been added yet
-            if label and label not in labels:
-                labels.append(label)
-                handles.append(plt.Line2D([0], [0], color=color, lw=2))
-
-            x = self.trj.x
-            y = self.trj.y
-
-            # Clamp the X coordinates to the camera limits
-            x_start = max(min(x[i], bottom_right[0]), top_left[0])
-            x_end = max(min(x[i + 1], bottom_right[0]), top_left[0])
-
-            turn_too_long = rejection_reason == 'too_long'
-
-            if not turn_too_long or (
-                turn_too_long and not (self.trj.nan[i] and self.trj.nan[i+1] and self.trj.nan[i + 2])
-            ):
-                plt.plot(
-                    [x_start, x_end],
-                    [y[i], y[i + 1]],
-                    color=color,
-                    zorder=3
-                )
-
-            if turn_too_long and current_bcr_index is not None and not (
-                    # i == bcr[current_bcr_index].start - 1 or
-                    i == bcr[current_bcr_index].stop - 1
-            ):
-                # Set the lighter color for the short segments
-                lighter_color = 'lightblue'  # You can use 'lightblue' or an RGBA tuple for a lighter shade
-
-                # Calculate the direction of the segment
-                dx = self.x[i + 1] - self.x[i]
-                dy = self.y[i + 1] - self.y[i]
-
-                # Normalize direction vector to create a unit vector
-                norm = np.sqrt(dx**2 + dy**2)
-                if norm != 0:
-                    dx /= norm
-                    dy /= norm
-
-                # Define a constant length for the short segments
-                fixed_segment_length = 0.125  # Fixed length for short segments (adjust as needed)
-                
-                # Calculate the start and end points of the short segment at the end of the main segment
-                x_start_short = x_end - dx * fixed_segment_length
-                y_start_short = y[i + 1] - dy * fixed_segment_length
-
-                # Draw the short segment at the end of the main segment
-                plt.plot(
-                    [x_end, x_start_short],
-                    [y[i + 1], y_start_short],
-                    color=lighter_color,
-                    linewidth=plt.gca().lines[-1].get_linewidth(),  # Match the width of the main line
-                    zorder=4
-                )
-
-            # Calculate the speed for this segment
-            dx = self.x[i + 1] - self.x[i]
-            dy = self.y[i + 1] - self.y[i]
-            speed = np.sqrt(dx**2 + dy**2)
-
-            # Set the arrow interval based on the speed
-            if speed > speed_threshold_high:
-                arrow_interval = 3  # Frequent arrows at high speeds
-                successive_slow_frames = 0  # Reset the slow frame counter
-            elif speed > speed_threshold_low:
-                arrow_interval = 6  # Moderate arrows at medium speeds
-                successive_slow_frames = 0  # Reset the slow frame counter
-            else:
-                arrow_interval = 20  # Less frequent arrows at low speeds
-                successive_slow_frames += 1  # Increment the slow frame counter
-
-            # Skip drawing arrows if there are too many successive slow frames
-            if successive_slow_frames >= max_slow_frames:
-                continue  # Skip the current frame for arrow placement
-
-            # Determine if it's time to draw an arrow
-            if last_arrow_idx is None or i >= last_arrow_idx + arrow_interval:
-                # Calculate the midpoint of the segment
-                x_mid = (x_start + x_end) / 2
-                y_mid = (y[i] + y[i + 1]) / 2
-
-                # Calculate the direction of the segment
-                dx = x_end - x_start
-                dy = y[i + 1] - y[i]
-
-                # Draw custom arrowhead at the midpoint
-                draw_custom_arrowhead(plt.gca(), x_mid, y_mid, dx, dy, color)
-
-                # Update the position of the last index where an arrow was drawn
-                last_arrow_idx = i
-
-
-        plt.axhline(y=self.y_bounds[0], color='k', linestyle='--', zorder=3)
-        plt.axhline(y=self.y_bounds[1], color='k', linestyle='--', zorder=3)
-
-        # Draw the rounded floor box
-        rect = patches.FancyBboxPatch(
-            (lower_left_x, lower_left_y),  # Lower-left corner
-            bottom_right[0] - top_left[0],  # Width
-            bottom_right[1] - top_left[1],  # Height
-            boxstyle="round,pad=0.05,rounding_size=2",
-            linewidth=1, edgecolor='black', facecolor='none', zorder=4
+        event_chain_plotter._plot_event_chain(
+            ellipse_ref_pt,
+            bcr,
+            turning_idxs_filtered,
+            rejection_reasons,
+            frames_to_skip,
+            start_frame,
+            mode,
+            image_format,
         )
-        plt.gca().add_patch(rect)
-        plt.gca().axis('off')
-
-        # Plot a horizontal line at the vertical midpoint
-        vertical_midpoint = (top_left[1] + bottom_right[1]) / 2
-        plt.axhline(y=vertical_midpoint, color='black', linestyle=':', linewidth=2, zorder=4)
-
-        # Set equal scaling for both axes
-        plt.gca().set_aspect('equal', adjustable='box')
-
-        # Set plot limits with padding
-        padding_x = (bottom_right[0] - top_left[0]) * 0.1
-        padding_y = (top_left[1] - bottom_right[1]) * 0.1
-
-        plt.xlim(top_left[0] - padding_x, bottom_right[0] + padding_x)
-        plt.ylim(bottom_right[1] - padding_y, top_left[1] + padding_y)
-
-        for (x, y) in frames_to_mark:
-                plt.plot(
-                    x,
-                    y,
-                    marker='o',
-                    color='green',
-                    markersize=6,
-                    zorder=5,
-                    label='Sidewall contact start'
-                )
-        if len(frames_to_mark) > 0:
-            labels.append('Sidewall contact start')
-            handles.append(plt.Line2D([0], [0], marker='o', color='green', lw=0, markersize=6))
-
-        # Add the legend outside the plot area
-        plt.legend(handles=handles, labels=labels, loc='upper center', bbox_to_anchor=(0.5, 0.05),
-                    fancybox=True, shadow=True, ncol=2)
-
-        plt.xlabel('')
-        plt.ylabel('')
-
-        plt.title(f'Boundary contact events and sharp turns, {start_frame} to {end_frame}')
-
-        output_path = f'display/{ellipse_ref_pt}_ref_pt/chained_turn_{start_idx}_f{self.trj.f}.png'
-        output_dir = os.path.dirname(output_path)
-        os.makedirs(output_dir, exist_ok=True)
-        writeImage(output_path, format=image_format)
-        plt.close()
 
     def detectWallContact(self, ellipse_edge_pt="closest"):
         # Map the `ellipse_edge_pt` to the corresponding nested key in the return_data

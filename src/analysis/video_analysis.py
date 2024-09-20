@@ -225,6 +225,7 @@ class VideoAnalysis:
                 opts.min_turn_speed,
                 opts.lg_turn_nbins,
                 int(opts.end_turn_before_recontact),
+                opts.lg_turn_plots
             )
             turn_finder.calcLargeTurnsAfterCircleExit()
             if opts.timeit:
