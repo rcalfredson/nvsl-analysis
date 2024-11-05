@@ -1162,7 +1162,6 @@ class Trajectory:
                     self.va.ct.floor(self.va.xf, f=self.va.nef * (self.f) + self.va.ef)
                 )
                 top_left, bottom_right = floor_coords[0], floor_coords[1]
-                cv2.drawMarker(img, (669, 58), COL_R, cv2.MARKER_TILTED_CROSS)
                 cv2.rectangle(img, top_left, bottom_right, COL_G)
                 cv2.ellipse(img, self.ellipse(i), col, 1)
             else:

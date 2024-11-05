@@ -340,12 +340,24 @@ class EventChainPlotter:
         first_turn_start = selected_events[0][0]
 
         # Ensure we don't go out of bounds when including the five frames before the first event
-        pre_turn_start = max(0, first_turn_start - 5)
+        pre_turn_start = max(0, first_turn_start - 6)
 
         # Plot the trajectory leading up to the first event in simple black, no arrows
         plt.plot(
             self.x[pre_turn_start : first_turn_start + 1],
             self.y[pre_turn_start : first_turn_start + 1],
+            color="black",
+            linewidth=0.75,
+            zorder=2,
+        )
+
+        last_turn_end = selected_events[-1][1]
+        post_turn_end = min(len(self.x), last_turn_end + 5)
+
+        # Plot the trajectory leading up to the first event in simple black, no arrows
+        plt.plot(
+            self.x[last_turn_end : post_turn_end + 1],
+            self.y[last_turn_end : post_turn_end + 1],
             color="black",
             linewidth=0.75,
             zorder=2,
@@ -482,7 +494,7 @@ class EventChainPlotter:
             handles=handles,
             labels=labels,
             loc="upper center",
-            bbox_to_anchor=(0.5, -0.1),
+            bbox_to_anchor=(0.5, 0.045),
             fancybox=True,
             shadow=True,
             ncol=2,
