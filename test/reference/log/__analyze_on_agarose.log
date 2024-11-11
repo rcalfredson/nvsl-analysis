@@ -1,4 +1,4 @@
-# command: analyze.py -v '/media/Synology3-2/Yang Chen/2022-05-1[57]/c4[12]_*' -f 2-5 --agarose  [r93ca9fde6696edaacae286ee942a2cbe53af9915]
+# command: analyze.py -v '/media/Synology3-2/Yang Chen/2022-05-1[57]/c4[12]_*' -f 2-5 --agarose  [r041d4f89ae8796c8e9543b7d7efd64aa1175457b]
 
 === analyzing c41__2022-05-15__12-56-53.avi, fly 2 ===
 
@@ -534,7 +534,7 @@ training 3
 agarose-contact events per reward:
 training 1
   exp: 2.73, 2.52, 1.66, 1.75, 1.88
-  yok: 4.04, 2.90, 3.62, 2.07, 3.08
+  yok: 4.09, 2.90, 3.62, 2.07, 3.08
 training 2
   exp: 2.09, 1.70, 1.89, 1.75, 1.78
   yok: 3.50, 4.49, 2.52, 2.70, 4.90
@@ -544,7 +544,7 @@ training 3
 
 relative change, agarose-contact events per reward, T1 first bucket to T2 last bucket:
   exp: -34.83% (2.73 to 1.78)
-  yok: 21.10% (4.04 to 4.90)
+  yok: 19.81% (4.09 to 4.90)
 
 % frames with fly positioned past agarose border by training (ellipse edge):
 pre-training:
@@ -3236,7 +3236,7 @@ agarose-contact events, rel. change, T1 first bucket to T2 last bucket
 one-sample t-test -- exp:
   n = 13, mean: -0.145, value: 0; t-test: p = 0.19579, t = -1.370
 one-sample t-test -- yok:
-  n = 13, mean: -0.19, value: 0; t-test: p = 0.07362, t = -1.960
+  n = 13, mean: -0.191, value: 0; t-test: p = 0.07145, t = -1.977
 
 writing learning_stats.csv...
 writing imgs/analysis.png...

@@ -1,4 +1,4 @@
-# command: analyze.py -v '/media/Synology3-2/Yang Chen/2022-05-1[57]/c4[12]_*' -f 2-5 --agarose  [r93ca9fde6696edaacae286ee942a2cbe53af9915]
+# command: analyze.py -v '/media/Synology3-2/Yang Chen/2022-05-1[57]/c4[12]_*' -f 2-5 --agarose  [r041d4f89ae8796c8e9543b7d7efd64aa1175457b]
 
 "training 1: 1.0h, center (post: 15 min)"
 "training 2: 1.0h, center (post: 15.1 min)"
@@ -299,7 +299,7 @@ agarose-contact events by training:
 video,fly,agarose contact evts- pre last 10m (exp),agarose contact evts / rwd- pre last 10m (exp),agarose contact evts- pre last 10m (yok),agarose contact evts / rwd- pre last 10m (yok),agarose contact evts- T1 start (exp),agarose contact evts / rwd- T1 start (exp),agarose contact evts- T1 start (yok),agarose contact evts / rwd- T1 start (yok),agarose contact evts- T2 end (exp),agarose contact evts / rwd- T2 end (exp),agarose contact evts- T2 end (yok),agarose contact evts / rwd- T2 end (yok),agarose contact evts- T3 end (exp),agarose contact evts / rwd- T3 end (exp),agarose contact evts- T3 end (yok),agarose contact evts / rwd- T3 end (yok)
 c41__2022-05-15__12-56-53.avi,2,56.000,nan,111.000,nan,25.000,nan,27.000,nan,157.000,0.892,164.000,2.050,179.000,1.193,164.000,2.645
 c41__2022-05-15__12-56-53.avi,3,84.000,nan,105.000,nan,151.000,3.356,157.000,8.263,195.000,1.258,174.000,2.148,203.000,1.344,176.000,2.047
-c41__2022-05-15__12-56-53.avi,4,nan,nan,nan,nan,123.000,2.733,93.000,4.043,171.000,1.781,142.000,4.897,159.000,1.445,165.000,5.690
+c41__2022-05-15__12-56-53.avi,4,nan,nan,nan,nan,123.000,2.733,94.000,4.087,171.000,1.781,142.000,4.897,159.000,1.445,165.000,5.690
 c41__2022-05-15__12-56-53.avi,5,84.000,7.636,88.000,8.800,173.000,2.932,163.000,4.289,196.000,3.564,200.000,4.545,198.000,3.194,209.000,4.860
 c41__2022-05-17__12-56-32.avi,2,nan,nan,nan,nan,nan,nan,nan,nan,200.000,2.326,135.000,2.328,191.000,1.516,151.000,2.221
 c41__2022-05-17__12-56-32.avi,3,nan,nan,nan,nan,156.000,2.197,126.000,3.316,228.000,2.151,156.000,3.900,221.000,2.085,170.000,3.269
