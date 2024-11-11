@@ -4403,7 +4403,7 @@ def writeStats(vas, sf):
 
     analysis_types = list(
         (
-            ("c_pi", "bysb2", "spd", "nr", "bot_top_cross")
+            ("c_pi", "bysb2")
             if va.choice
             else (
                 "atb",
@@ -4426,6 +4426,8 @@ def writeStats(vas, sf):
             )
         )
     )
+    if va.rectangle:
+        analysis_types += ("spd", "nr", "bot_top_cross")
     one_row_per_fly_stats = ("pic", "pic_custom", "nrtot", "nrcpp")
     analysis_types_with_training_number_columns = [
         f"{tp}_csv"

@@ -1,0 +1,519 @@
+# command: analyze.py -v '/media/Synology4/April/2024-07-21/c41*,/media/Synology4/April/2024-09-25/c22*' -f 0-9  [r905c450bc9a69b59414d1af37dbb5d94fb739700-M]
+
+=== analyzing c22__2024-09-25__19-26-11.avi, fly 0 ===
+
+  video length: 2.5h, frame rate: 7.5 fps, chamber type: HtL
+  (pre: 15.1 min)
+  training 1: 2.0h, choice (post: 15 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 2562 (3.79%), sequence length: avg: 11.4, max: 846
+    during "on" (1886 frames, 2 per "on" cmd): 118 (6.26%)
+    interpolating...
+  long (>30) jumps: 6, suspicious: 0 (0.0%)
+
+total rewards training: 942, non-training: 1
+
+positional preference (for top), including 10-min post buckets:
+training 1
+  exp: 0.23, post: -0.14
+
+# crossings from bottom to top, including 10-min post buckets:
+training 1
+  exp: 127, post: 47
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 1.0, 0.7, stop fraction: 0.85, 0.93
+
+=== analyzing c22__2024-09-25__19-26-11.avi, fly 1 ===
+
+  video length: 2.5h, frame rate: 7.5 fps, chamber type: HtL
+  (pre: 15.1 min)
+  training 1: 2.0h, choice (post: 15 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 203 (0.30%), sequence length: avg: 3.5, max: 59
+    during "on" (1586 frames, 2 per "on" cmd): 12 (0.76%)
+    interpolating...
+  long (>30) jumps: 60, suspicious: 1 (1.7%)
+
+total rewards training: 792, non-training: 1
+
+positional preference (for top), including 10-min post buckets:
+training 1
+  exp: 0.05, post: -0.70
+
+# crossings from bottom to top, including 10-min post buckets:
+training 1
+  exp: 72, post: 14
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 1.9, 0.6, stop fraction: 0.65, 0.95
+
+=== analyzing c22__2024-09-25__19-26-11.avi, fly 2 ===
+
+  video length: 2.5h, frame rate: 7.5 fps, chamber type: HtL
+  (pre: 15.1 min)
+  training 1: 2.0h, choice (post: 15 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 1942 (2.96%), sequence length: avg: 11.1, max: 1346
+    during "on" (1697 frames, 2 per "on" cmd): 2 (0.12%)
+    interpolating...
+  long (>30) jumps: 50, suspicious: 0 (0.0%)
+
+total rewards training: 848, non-training: 1
+
+positional preference (for top), including 10-min post buckets:
+training 1
+  exp: 0.14, post: -1.00
+
+# crossings from bottom to top, including 10-min post buckets:
+training 1
+  exp: 227, post: 0
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 0.4, 0.5, stop fraction: 1.00, 0.97
+
+=== analyzing c22__2024-09-25__19-26-11.avi, fly 3 ===
+
+  video length: 2.5h, frame rate: 7.5 fps, chamber type: HtL
+  (pre: 15.1 min)
+  training 1: 2.0h, choice (post: 15 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 4587 (6.84%), sequence length: avg: 21.5, max: 2582
+    during "on" (1080 frames, 2 per "on" cmd): 164 (15.19%)
+    interpolating...
+  long (>30) jumps: 1, suspicious: 0 (0.0%)
+
+total rewards training: 539, non-training: 1
+
+positional preference (for top), including 10-min post buckets:
+training 1
+  exp: -0.27, post: -0.91
+
+# crossings from bottom to top, including 10-min post buckets:
+training 1
+  exp: 27, post: 3
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 1.0, 0.5, stop fraction: 0.83, 0.97
+
+=== analyzing c22__2024-09-25__19-26-11.avi, fly 4 ===
+
+  video length: 2.5h, frame rate: 7.5 fps, chamber type: HtL
+  (pre: 15.1 min)
+  training 1: 2.0h, choice (post: 15 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 7292 (11.03%) *** bad ***
+
+*** skipping analysis ***
+
+=== analyzing c22__2024-09-25__19-26-11.avi, fly 5 ===
+
+  video length: 2.5h, frame rate: 7.5 fps, chamber type: HtL
+  (pre: 15.1 min)
+  training 1: 2.0h, choice (post: 15 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 47 (0.07%), sequence length: avg: 1.0, max: 2
+    during "on" (3128 frames, 2 per "on" cmd): 1 (0.03%)
+    interpolating...
+  long (>30) jumps: 181, suspicious: 0 (0.0%)
+
+total rewards training: 1565, non-training: 1
+
+positional preference (for top), including 10-min post buckets:
+training 1
+  exp: -0.05, post: -0.06
+
+# crossings from bottom to top, including 10-min post buckets:
+training 1
+  exp: 1338, post: 138
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 3.9, 6.6, stop fraction: 0.46, 0.25
+
+=== analyzing c22__2024-09-25__19-26-11.avi, fly 6 ===
+
+  video length: 2.5h, frame rate: 7.5 fps, chamber type: HtL
+  (pre: 15.1 min)
+  training 1: 2.0h, choice (post: 15 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 566 (0.84%), sequence length: avg: 1.6, max: 7
+    during "on" (1898 frames, 2 per "on" cmd): 2 (0.11%)
+    interpolating...
+  long (>30) jumps: 51, suspicious: 1 (2.0%)
+
+total rewards training: 948, non-training: 1
+
+positional preference (for top), including 10-min post buckets:
+training 1
+  exp: 0.30, post: -0.98
+
+# crossings from bottom to top, including 10-min post buckets:
+training 1
+  exp: 35, post: 1
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 1.3, 0.4, stop fraction: 0.77, 0.98
+
+=== analyzing c22__2024-09-25__19-26-11.avi, fly 7 ===
+
+  video length: 2.5h, frame rate: 7.5 fps, chamber type: HtL
+  (pre: 15.1 min)
+  training 1: 2.0h, choice (post: 15 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 5483 (8.13%), sequence length: avg: 11.7, max: 1683
+    during "on" (670 frames, 2 per "on" cmd): 15 (2.24%)
+    interpolating...
+  long (>30) jumps: 29, suspicious: 0 (0.0%)
+
+total rewards training: 335, non-training: 1
+
+positional preference (for top), including 10-min post buckets:
+training 1
+  exp: -0.56, post: 0.42
+
+# crossings from bottom to top, including 10-min post buckets:
+training 1
+  exp: 21, post: 1
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 0.9, 0.5, stop fraction: 0.88, 0.98
+
+=== analyzing c22__2024-09-25__19-26-11.avi, fly 8 ===
+
+  video length: 2.5h, frame rate: 7.5 fps, chamber type: HtL
+  (pre: 15.1 min)
+  training 1: 2.0h, choice (post: 15 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 163 (0.24%), sequence length: avg: 2.0, max: 8
+    during "on" (2052 frames, 2 per "on" cmd): 8 (0.39%)
+    interpolating...
+  long (>30) jumps: 31, suspicious: 0 (0.0%)
+
+total rewards training: 1025, non-training: 1
+
+positional preference (for top), including 10-min post buckets:
+training 1
+  exp: 0.29, post: 0.86
+
+# crossings from bottom to top, including 10-min post buckets:
+training 1
+  exp: 197, post: 8
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 1.1, 1.4, stop fraction: 0.83, 0.77
+
+=== analyzing c22__2024-09-25__19-26-11.avi, fly 9 ===
+
+  video length: 2.5h, frame rate: 7.5 fps, chamber type: HtL
+  (pre: 15.1 min)
+  training 1: 2.0h, choice (post: 15 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 25728 (38.09%) *** bad ***
+
+*** skipping analysis ***
+
+=== analyzing c41__2024-07-21__17-37-05.avi, fly 0 ===
+
+  video length: 2.5h, frame rate: 7.5 fps, chamber type: HtL
+  (pre: 15.1 min)
+  training 1: 2.0h, choice (post: 15 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 2034 (3.08%), sequence length: avg: 2.3, max: 58
+    during "on" (2783 frames, 2 per "on" cmd): 85 (3.05%)
+    interpolating...
+  long (>30) jumps: 77, suspicious: 0 (0.0%)
+
+total rewards training: 1402, non-training: 1
+
+positional preference (for top), including 10-min post buckets:
+training 1
+  exp: 0.15, post: 0.09
+
+# crossings from bottom to top, including 10-min post buckets:
+training 1
+  exp: 821, post: 67
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 2.1, 4.2, stop fraction: 0.63, 0.39
+
+=== analyzing c41__2024-07-21__17-37-05.avi, fly 1 ===
+
+  video length: 2.5h, frame rate: 7.5 fps, chamber type: HtL
+  (pre: 15.1 min)
+  training 1: 2.0h, choice (post: 15 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 170 (0.25%), sequence length: avg: 1.7, max: 6
+    during "on" (2578 frames, 2 per "on" cmd): 14 (0.54%)
+    interpolating...
+  long (>30) jumps: 7, suspicious: 0 (0.0%)
+
+total rewards training: 1292, non-training: 1
+
+positional preference (for top), including 10-min post buckets:
+training 1
+  exp: 0.27, post: 0.06
+
+# crossings from bottom to top, including 10-min post buckets:
+training 1
+  exp: 677, post: 101
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 1.6, 3.5, stop fraction: 0.72, 0.45
+
+=== analyzing c41__2024-07-21__17-37-05.avi, fly 2 ===
+
+  video length: 2.5h, frame rate: 7.5 fps, chamber type: HtL
+  (pre: 15.1 min)
+  training 1: 2.0h, choice (post: 15 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 1601 (2.37%), sequence length: avg: 3.9, max: 68
+    during "on" (3178 frames, 2 per "on" cmd): 65 (2.05%)
+    interpolating...
+  long (>30) jumps: 43, suspicious: 1 (2.3%)
+
+total rewards training: 1590, non-training: 1
+
+positional preference (for top), including 10-min post buckets:
+training 1
+  exp: 0.23, post: 0.13
+
+# crossings from bottom to top, including 10-min post buckets:
+training 1
+  exp: 1113, post: 89
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 3.3, 4.2, stop fraction: 0.37, 0.39
+
+=== analyzing c41__2024-07-21__17-37-05.avi, fly 3 ===
+
+  video length: 2.5h, frame rate: 7.5 fps, chamber type: HtL
+  (pre: 15.1 min)
+  training 1: 2.0h, choice (post: 15 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 289 (0.43%), sequence length: avg: 1.7, max: 6
+    during "on" (3141 frames, 2 per "on" cmd): 25 (0.80%)
+    interpolating...
+  long (>30) jumps: 21, suspicious: 0 (0.0%)
+
+total rewards training: 1575, non-training: 1
+
+positional preference (for top), including 10-min post buckets:
+training 1
+  exp: 0.35, post: -0.04
+
+# crossings from bottom to top, including 10-min post buckets:
+training 1
+  exp: 1004, post: 79
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 0.4, 4.8, stop fraction: 1.00, 0.38
+
+=== analyzing c41__2024-07-21__17-37-05.avi, fly 4 ===
+
+  video length: 2.5h, frame rate: 7.5 fps, chamber type: HtL
+  (pre: 15.1 min)
+  training 1: 2.0h, choice (post: 15 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 205 (0.30%), sequence length: avg: 1.6, max: 6
+    during "on" (3217 frames, 2 per "on" cmd): 25 (0.78%)
+    interpolating...
+  long (>30) jumps: 6, suspicious: 0 (0.0%)
+
+total rewards training: 1609, non-training: 2
+
+positional preference (for top), including 10-min post buckets:
+training 1
+  exp: 0.42, post: 0.65
+
+# crossings from bottom to top, including 10-min post buckets:
+training 1
+  exp: 1011, post: 23
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 0.7, 4.5, stop fraction: 0.92, 0.42
+
+=== analyzing c41__2024-07-21__17-37-05.avi, fly 5 ===
+
+  video length: 2.5h, frame rate: 7.5 fps, chamber type: HtL
+  (pre: 15.1 min)
+  training 1: 2.0h, choice (post: 15 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 24 (0.04%), sequence length: avg: 1.2, max: 2
+    during "on" (2704 frames, 2 per "on" cmd): 3 (0.11%)
+    interpolating...
+  long (>30) jumps: 40, suspicious: 0 (0.0%)
+
+total rewards training: 1364, non-training: 1
+
+positional preference (for top), including 10-min post buckets:
+training 1
+  exp: 0.00, post: -0.02
+
+# crossings from bottom to top, including 10-min post buckets:
+training 1
+  exp: 830, post: 70
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 2.2, 4.1, stop fraction: 0.60, 0.38
+
+=== analyzing c41__2024-07-21__17-37-05.avi, fly 6 ===
+
+  video length: 2.5h, frame rate: 7.5 fps, chamber type: HtL
+  (pre: 15.1 min)
+  training 1: 2.0h, choice (post: 15 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 7 (0.01%), sequence length: avg: 1.0, max: 1
+    during "on" (3134 frames, 2 per "on" cmd): 1 (0.03%)
+    interpolating...
+  long (>30) jumps: 19, suspicious: 0 (0.0%)
+
+total rewards training: 1571, non-training: 1
+
+positional preference (for top), including 10-min post buckets:
+training 1
+  exp: 0.39, post: 0.15
+
+# crossings from bottom to top, including 10-min post buckets:
+training 1
+  exp: 1023, post: 79
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 0.4, 5.4, stop fraction: 1.00, 0.31
+
+=== analyzing c41__2024-07-21__17-37-05.avi, fly 7 ===
+
+  video length: 2.5h, frame rate: 7.5 fps, chamber type: HtL
+  (pre: 15.1 min)
+  training 1: 2.0h, choice (post: 15 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 7 (0.01%), sequence length: avg: 1.0, max: 1
+    during "on" (2963 frames, 2 per "on" cmd): 4 (0.13%)
+    interpolating...
+  long (>30) jumps: 22, suspicious: 0 (0.0%)
+
+total rewards training: 1485, non-training: 1
+
+positional preference (for top), including 10-min post buckets:
+training 1
+  exp: 0.10, post: -0.13
+
+# crossings from bottom to top, including 10-min post buckets:
+training 1
+  exp: 1123, post: 102
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 0.5, 4.8, stop fraction: 0.99, 0.36
+
+=== analyzing c41__2024-07-21__17-37-05.avi, fly 8 ===
+
+  video length: 2.5h, frame rate: 7.5 fps, chamber type: HtL
+  (pre: 15.1 min)
+  training 1: 2.0h, choice (post: 15 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 14 (0.02%), sequence length: avg: 1.0, max: 1
+    during "on" (2793 frames, 2 per "on" cmd): 4 (0.14%)
+    interpolating...
+  long (>30) jumps: 98, suspicious: 0 (0.0%)
+
+total rewards training: 1407, non-training: 1
+
+positional preference (for top), including 10-min post buckets:
+training 1
+  exp: 0.15, post: 0.13
+
+# crossings from bottom to top, including 10-min post buckets:
+training 1
+  exp: 811, post: 110
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 4.0, 4.2, stop fraction: 0.29, 0.39
+
+=== analyzing c41__2024-07-21__17-37-05.avi, fly 9 ===
+
+  video length: 2.5h, frame rate: 7.5 fps, chamber type: HtL
+  (pre: 15.1 min)
+  training 1: 2.0h, choice (post: 15 min)
+
+processing trajectories...
+exp fly
+  lost: number frames: 5 (0.01%), sequence length: avg: 1.0, max: 1
+    during "on" (2883 frames, 2 per "on" cmd): 1 (0.03%)
+    interpolating...
+  long (>30) jumps: 29, suspicious: 0 (0.0%)
+
+total rewards training: 1447, non-training: 1
+
+positional preference (for top), including 10-min post buckets:
+training 1
+  exp: 0.22, post: 0.05
+
+# crossings from bottom to top, including 10-min post buckets:
+training 1
+  exp: 950, post: 106
+
+speed stats (with values for 10-min pre period first):
+training 1
+  exp: avg. speed bottom [mm/s]: 1.1, 4.0, stop fraction: 0.83, 0.43
+
+
+=== all video analysis (18 videos) ===
+
+total rewards training: 21736
+
+writing learning_stats.csv...
+writing imgs/analysis.png...

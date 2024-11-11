@@ -1312,7 +1312,7 @@ class VideoAnalysis:
 
     # number of rewards by bucket
     def byBucket(self):
-        if self.pt == "rectangle":
+        if self.rectangle:
             self.numRewards = [  # only tracking real rewards (not calc)
                 [[]]  # no control rewards
             ]
@@ -1332,7 +1332,7 @@ class VideoAnalysis:
             tnOn += snOn
             if self.opts.showByBucket:
                 print("  %s  (sum: %d)" % (", ".join(map(str, nOns)), snOn))
-            if self.pt == "rectangle":
+            if self.rectangle:
                 self.numRewards[0][0].append(nOns)
         print(
             "total rewards training: %d, non-training: %d" % (tnOn, len(self.on) - tnOn)
