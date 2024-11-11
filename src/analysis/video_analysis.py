@@ -38,7 +38,9 @@ from src.utils.constants import (
     SPEED_ON_BOTTOM,
     ST,
 )
-from src.analysis.contact_event_training_comparison import ContactEventTrainingComparison
+from src.analysis.contact_event_training_comparison import (
+    ContactEventTrainingComparison,
+)
 from src.analysis.ellipse_to_boundary_dist import (
     TrjDataContainer,
     VaDataContainer,
@@ -225,7 +227,7 @@ class VideoAnalysis:
                 opts.min_turn_speed,
                 opts.lg_turn_nbins,
                 int(opts.end_turn_before_recontact),
-                opts.lg_turn_plots
+                opts.lg_turn_plots,
             )
             turn_finder.calcLargeTurnsAfterCircleExit()
             if opts.timeit:
@@ -238,6 +240,8 @@ class VideoAnalysis:
                 self.posPrefOL()
             else:
                 self.posPref()
+            if self.rectangle:
+                self.speed()
             if opts.plotTrx:
                 if opts.ol:
                     self.plotTrx()
@@ -311,7 +315,7 @@ class VideoAnalysis:
             "near_turning_indices",
             "rejection_reasons",
             "total_vel_angle_deltas",
-            "frames_to_skip"
+            "frames_to_skip",
         )
         for trj in self.trx:
             if not hasattr(trj, "boundary_event_stats"):
@@ -462,6 +466,7 @@ class VideoAnalysis:
         self.xf = Xformer(proto.get("tm"), self.ct, self.frame, proto.get("fy", False))
         self.circle = area or self.pt == "circle"
         self.openLoop = self.pt == "openLoop"
+        self.rectangle = self.pt == "rectangle"
         self.trns = []
         tms = list(zip(self.fns["startTrain"], self.fns["startPost"] + [self.nf]))
         if len(self.fns["startTrain"]) == 0 or not "startPre" in self.fns:
@@ -640,7 +645,9 @@ class VideoAnalysis:
         out.release()
 
     def analyzeOutsideCirclePeriods(self):
-        print('\nmean duration of periods spent outside circle (concentric w/ reward circle)')
+        print(
+            "\nmean duration of periods spent outside circle (concentric w/ reward circle)"
+        )
         for trj in self.trx:
             trj._calcOutsideCirclePeriods()
 
@@ -891,15 +898,15 @@ class VideoAnalysis:
                     ][intvl]
 
                     if region_label != "agarose":
-                        wall_contact = trj.boundary_event_stats["wall"]["all"]["opp_edge"][
-                            "boundary_contact"
-                        ][intvl]
+                        wall_contact = trj.boundary_event_stats["wall"]["all"][
+                            "opp_edge"
+                        ]["boundary_contact"][intvl]
                         valid_contact = boundary_contact * (
                             ~wall_contact.astype(bool)
                         ).astype(int)
                     else:
                         valid_contact = boundary_contact
-                    
+
                     vals.append(
                         100
                         * np.count_nonzero(valid_contact)
@@ -1018,13 +1025,13 @@ class VideoAnalysis:
                     )
                 else:
                     fly_color = COL_Y if True else COL_R
-                    if hasattr(trx, 'walking'):
-                        print('frame:', i)
-                        print('position:', trx.x[i], trx.y[i])
-                        print('walking:', trx.walking[i])
-                        print('speed:', trx.sp[i])
-                        print('speed threshold for walking:', 2 * trx.pxPerMmFloor)
-                        print('theta:', trx.theta[i])
+                    if hasattr(trx, "walking"):
+                        print("frame:", i)
+                        print("position:", trx.x[i], trx.y[i])
+                        print("walking:", trx.walking[i])
+                        print("speed:", trx.sp[i])
+                        print("speed threshold for walking:", 2 * trx.pxPerMmFloor)
+                        print("theta:", trx.theta[i])
 
                 trx.annotate(frm, i, tlen, fly_color)
             if reg:
@@ -1305,6 +1312,10 @@ class VideoAnalysis:
 
     # number of rewards by bucket
     def byBucket(self):
+        if self.pt == "rectangle":
+            self.numRewards = [  # only tracking real rewards (not calc)
+                [[]]  # no control rewards
+            ]
         tnOn = 0
         for i, t in enumerate(self.trns):
             df = t.len() / self.opts.numBuckets
@@ -1321,7 +1332,8 @@ class VideoAnalysis:
             tnOn += snOn
             if self.opts.showByBucket:
                 print("  %s  (sum: %d)" % (", ".join(map(str, nOns)), snOn))
-
+            if self.pt == "rectangle":
+                self.numRewards[0][0].append(nOns)
         print(
             "total rewards training: %d, non-training: %d" % (tnOn, len(self.on) - tnOn)
         )
@@ -3340,11 +3352,15 @@ class VideoAnalysis:
         if self.opts.skip:
             print("  " + skipMsg(self.opts.skip))
         self.posPI, sf = [], self._min2f(self.opts.skip)
+        self.botToTopCrossings = []
+
         for t in self.trns:
             print(t.name())
+            self.botToTopCrossings.append([])
             for f in self.flies:
                 fi, la, df = t.start, t.postStop, t.len() / numB
                 pis, o = [], []
+                n_top_crossings = 0
                 while fi + df <= la:
                     fiI, skip = util.intR(fi), False
                     ivs = (
@@ -3354,6 +3370,10 @@ class VideoAnalysis:
                         y = self.trx[f].y[f1:f2]
                         inT, inB = y < t.yTop, y > t.yBottom
                         vt, vb = (len(util.trueRegions(a)) for a in (inT, inB))
+                        if len(o) < numB:
+                            n_top_crossings += vt
+                        elif len(o) == numB:
+                            n_top_crossings = vt
                         nt, nb = (np.count_nonzero(a) for a in (inT, inB))
                         if i == len(ivs) - 1:
                             skip |= vt < self.opts.minVis or vb < self.opts.minVis
@@ -3362,12 +3382,31 @@ class VideoAnalysis:
                     pi = util.prefIdx(nt, nb)
                     pis.append(np.nan if skip else pi)
                     o.append("%s%.2f" % ("post: " if len(o) == numB else "", pi))
+                    if len(o) >= numB:
+                        self.botToTopCrossings[-1].append(n_top_crossings)
                     fi += df
                     if len(o) == numB:
                         df = self._min2f(blm)
                         assert np.isclose(fi, t.stop)
                 self._append(self.posPI, pis, f, n=2)
                 print("  %s: %s" % (flyDesc(f), ", ".join(o)))
+                self.printBotToTopCrossings(blm)
+
+    def printBotToTopCrossings(self, blm):
+        print(
+            "\n# crossings from bottom to top, including "
+            + util.formatFloat(blm, 1)
+            + "-min post buckets:"
+        )
+        for t in self.trns:
+            print(t.name())
+            for f in self.flies:
+                ct_list = self.botToTopCrossings[t.n - 1]
+                out = [
+                    f"{'post: ' if i + 1 == len(ct_list) else ''}{item}"
+                    for i, item in enumerate(ct_list)
+                ]
+                print(f"  {flyDesc(f)}: {', '.join(out)}")
 
     # positional preference for open loop protocols (both on-off and alternating
     #  side)

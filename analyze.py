@@ -265,7 +265,7 @@ g.add_argument(
     f"{CONTACT_BUFFER_OFFSETS['boundary']['min']}mm and {CONTACT_BUFFER_OFFSETS['boundary']['max']}mm",
     default=None,
     const=f"{MIDLINE_BOUNDARY_DIST}|"
-    f"{CONTACT_BUFFER_OFFSETS['boundary']['min']}|{CONTACT_BUFFER_OFFSETS['boundary']['max']}mm",
+    f"{CONTACT_BUFFER_OFFSETS['boundary']['min']}|{CONTACT_BUFFER_OFFSETS['boundary']['max']}",
 )
 g.add_argument(
     "--wall-debug",
@@ -893,6 +893,8 @@ def headerForType(va, tp, calc):
                 ellipse_ref_pt,
             )
         return "\n%s-contact events by training:" % (tp.split("_")[0],)
+    elif tp == "bot_top_cross":
+        return "\n# bottom-to-top crossings:"
     elif tp == "lg_turn_rwd_csv":
         return "stats for turns >= 90 deg on exit from reward circle"
     if "max_ctr_d_no_contact" in tp:
@@ -1281,8 +1283,11 @@ def columnNamesForType(va, tp, calc, n):
             return pre_cols + cols
         return fiNe(nr, 0) + fiNe(nr, 1) if calc or tp == "adb" else fiNe(nr)
     elif tp in ("nr", "nrc"):
+        if opts.numBuckets == 1:
+            return [f"{flyDesc(f)} fly" for f in range(len(va.trx))]
         bl = " %s min" % bl
         return fiNe(bl, 0) + fiNe(bl, 1) if calc else fiNe(bl)
+
     elif tp == "ppi":
         return ("post %s min" % bl,)
     elif tp in ("rpi", "bysb2"):
@@ -1374,6 +1379,11 @@ def columnNamesForType(va, tp, calc, n):
         return "exp fly", "yok fly"
     elif tp in ("frc", "xmb", "rpm"):
         return ("exp fly",)
+    elif tp == "bot_top_cross":
+        cols = []
+        for timeframe in ("", "post"):
+            cols.extend([f"{flyDesc(f)} fly {timeframe}" for f in range(len(va.trx))])
+        return cols
     elif tp in ("spd", "stp"):
 
         def cols(f):
@@ -1696,6 +1706,8 @@ def vaVarForType(va, tp, calc):
         return va.boundary_events["%s_contact" % tp][
             :, va.wall_orientation_idx :: len(va.wall_orientations), :
         ]
+    elif tp == "bot_top_cross":
+        return va.botToTopCrossings
     elif "agarose_pct" in tp or "boundary_pct" in tp:
         tp_split = tp.split("_")
         region_tp = "_".join(tp_split[:-2])
@@ -4391,7 +4403,7 @@ def writeStats(vas, sf):
 
     analysis_types = list(
         (
-            ("c_pi", "bysb2")
+            ("c_pi", "bysb2", "spd", "nr", "bot_top_cross")
             if va.choice
             else (
                 "atb",

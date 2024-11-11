@@ -36,7 +36,19 @@ class TrjDataContainer(DataContainer):
     Inherits from DataContainer and pre-defines `keys` for trajectory-specific attributes.
     """
 
-    keys = ("pxPerMmFloor", "f", "flt", "h", "w", "nan", "theta", "sp", "x", "y", "velAngles")
+    keys = (
+        "pxPerMmFloor",
+        "f",
+        "flt",
+        "h",
+        "w",
+        "nan",
+        "theta",
+        "sp",
+        "x",
+        "y",
+        "velAngles",
+    )
 
 
 class TrainingProxy:
@@ -70,7 +82,7 @@ class VaDataContainer(DataContainer):
                        proxies based on `obj.trns`.
     """
 
-    keys = ("ct", "xf", "f", "ef", "noyc", "nef", "fps")
+    keys = ("ct", "xf", "f", "fn", "ef", "noyc", "nef", "fps")
 
     def __init__(self, obj):
         """
