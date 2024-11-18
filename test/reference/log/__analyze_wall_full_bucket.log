@@ -1,4 +1,4 @@
-# command: analyze.py -v '/media/Synology3/Yang Chen/2021-03-31/c41_*:0-9,/media/Synology3/Yang Chen/2021-03-31/c2_*:0-9' --wall --agarose  [r33a71baf913e29d9cf62683c0d1ad1bf93191760]
+# command: analyze.py -v '/media/Synology3/Yang Chen/2021-03-31/c41_*:0-9,/media/Synology3/Yang Chen/2021-03-31/c2_*:0-9' --wall --agarose  [re34655d6f2eec2bf6e53d477bcc2e3246e603a71]
 
 === analyzing c2__2021-03-31__12-27-26.avi, fly 0 ===
 
@@ -133,18 +133,18 @@ training 3
 
 wall-contact events per reward:
 training 1
-  exp: 3.47, 3.10, 3.72, 3.34, 4.08
-  yok: 4.44, 4.33, 4.39, 5.80, 3.53
+  exp: 2.45, 2.17, 2.72, 2.50, 2.89
+  yok: 4.08, 3.61, 4.14, 5.48, 2.84
 training 2
-  exp: 3.94, 3.98, 2.16, 2.98, 2.54
-  yok: 5.16, 5.00, 4.51, 3.75, 4.79
+  exp: 2.71, 3.06, 1.56, 1.97, 2.05
+  yok: 4.41, 4.17, 3.62, 3.21, 4.36
 training 3
-  exp: 3.57, 2.92, 2.64, 2.25, 2.61
-  yok: 4.70, 5.97, 6.12, 4.38, 4.10
+  exp: 2.61, 2.05, 1.79, 1.69, 1.96
+  yok: 3.83, 5.52, 5.36, 3.97, 3.56
 
 relative change, wall-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -25.80% (3.42 to 2.54)
-  yok: 7.88% (4.44 to 4.79)
+  exp: -15.14% (2.42 to 2.05)
+  yok: 6.75% (4.08 to 4.36)
 
 agarose-contact events per reward:
 training 1
@@ -348,18 +348,18 @@ training 3
 
 wall-contact events per reward:
 training 1
-  exp: 5.55, 6.17, 4.81, 4.00, 3.66
-  yok: 6.67, 6.50, 6.27, 6.84, 8.10
+  exp: 5.20, 4.90, 3.57, 3.24, 3.09
+  yok: 5.56, 6.00, 5.30, 6.35, 6.70
 training 2
-  exp: 4.31, 4.32, 2.87, 2.84, 6.71
-  yok: 6.65, 6.66, 6.54, 6.90, 8.48
+  exp: 3.80, 3.25, 2.34, 2.08, 5.57
+  yok: 6.40, 6.16, 6.17, 6.79, 8.03
 training 3
-  exp: 4.29, 4.60, 4.20, 3.38, 3.55
-  yok: 6.69, 7.63, 7.39, 7.39, 6.64
+  exp: 3.29, 3.91, 3.48, 2.84, 3.17
+  yok: 6.79, 7.26, 7.46, 6.98, 6.29
 
 relative change, wall-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: 21.08% (5.55 to 6.71)
-  yok: 27.26% (6.67 to 8.48)
+  exp: 7.05% (5.20 to 5.57)
+  yok: 44.58% (5.56 to 8.03)
 
 agarose-contact events per reward:
 training 1
@@ -563,17 +563,17 @@ training 3
 
 wall-contact events per reward:
 training 1
-  exp: 5.21, 4.45, 3.46, 3.65, 2.90
+  exp: 5.04, 4.50, 3.25, 3.48, 2.60
   yok: trajectory bad
 training 2
-  exp: 3.93, 2.30, 3.33, 3.82, 3.79
+  exp: 3.67, 2.02, 3.07, 3.47, 3.23
   yok: trajectory bad
 training 3
-  exp: 7.04, 3.49, 2.54, 2.78, 2.87
+  exp: 6.61, 3.12, 2.30, 2.64, 2.50
   yok: trajectory bad
 
 relative change, wall-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -24.75% (5.03 to 3.79)
+  exp: -33.55% (4.86 to 3.23)
   yok: nan
 
 agarose-contact events per reward:
@@ -779,13 +779,13 @@ training 3
 wall-contact events per reward:
 training 1
   exp: nan, nan, nan, nan, nan
-  yok: nan, 6.93, 9.00, 8.67, 9.09
+  yok: nan, 7.20, 9.92, 9.47, 9.82
 training 2
-  exp: nan, nan, 4.26, 3.45, 3.62
-  yok: 6.50, nan, 7.85, 6.31, 6.74
+  exp: nan, nan, 3.30, 3.24, 3.13
+  yok: 6.81, nan, 8.05, 6.66, 6.96
 training 3
-  exp: 3.19, 2.56, 2.72, 2.40, 2.00
-  yok: 5.91, 6.00, 3.98, 5.17, 5.32
+  exp: 2.79, 2.23, 2.17, 1.96, 1.83
+  yok: 5.47, 6.00, 3.92, 5.17, 5.18
 
 relative change, wall-contact events per reward, T1 first bucket to T2 last bucket:
   exp: nan
@@ -1014,18 +1014,18 @@ training 3
 
 wall-contact events per reward:
 training 1
-  exp: 3.59, 4.30, 3.02, 2.76, 2.52
-  yok: 4.38, 4.44, 5.64, 3.81, 5.53
+  exp: 3.00, 3.89, 2.87, 2.55, 2.03
+  yok: 3.52, 3.44, 4.45, 2.96, 4.50
 training 2
-  exp: 2.18, 1.87, 1.60, 1.76, 0.81
-  yok: 4.00, 2.97, 3.04, 4.07, 3.88
+  exp: 1.68, 1.39, 1.34, 1.53, 0.52
+  yok: 3.20, 2.57, 2.36, 3.14, 2.96
 training 3
-  exp: 1.62, 1.00, 1.36, 1.14, 1.60
-  yok: 4.36, 2.67, 4.10, 4.21, 4.20
+  exp: 1.23, 0.82, 1.09, 0.97, 1.31
+  yok: 3.17, 1.90, 3.02, 2.90, 3.30
 
 relative change, wall-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -77.51% (3.59 to 0.81)
-  yok: -11.21% (4.38 to 3.88)
+  exp: -82.69% (3.00 to 0.52)
+  yok: -15.98% (3.52 to 2.96)
 
 agarose-contact events per reward:
 training 1
@@ -1229,18 +1229,18 @@ training 3
 
 wall-contact events per reward:
 training 1
-  exp: 5.67, 4.06, 3.72, 5.17, 3.48
-  yok: 4.15, 6.52, 5.59, 6.81, 5.06
+  exp: 5.06, 3.71, 3.34, 4.72, 3.20
+  yok: 3.67, 6.00, 5.29, 5.19, 4.06
 training 2
-  exp: 3.78, 4.64, 5.09, 3.36, 5.05
-  yok: 4.31, 4.41, 6.60, 5.49, 5.09
+  exp: 3.53, 4.10, 4.65, 3.00, 4.46
+  yok: 4.17, 4.03, 6.12, 4.66, 4.47
 training 3
-  exp: 3.85, 4.22, 3.50, 2.11, 1.94
-  yok: 5.03, 5.47, 3.02, 4.81, 7.04
+  exp: 3.40, 3.85, 3.31, 1.77, 1.48
+  yok: 4.22, 4.28, 2.55, 4.39, 5.84
 
 relative change, wall-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -10.86% (5.67 to 5.05)
-  yok: 26.41% (4.03 to 5.09)
+  exp: -11.84% (5.06 to 4.46)
+  yok: 25.57% (3.56 to 4.47)
 
 agarose-contact events per reward:
 training 1
@@ -1444,18 +1444,18 @@ training 3
 
 wall-contact events per reward:
 training 1
-  exp: 3.49, 2.96, 4.07, 3.19, 3.24
-  yok: 3.90, 5.30, 3.56, 4.66, 3.89
+  exp: 3.37, 2.96, 4.15, 2.89, 3.00
+  yok: 3.26, 4.77, 3.05, 4.29, 3.41
 training 2
-  exp: 3.74, 3.10, 2.15, 2.96, 2.08
-  yok: 3.83, 3.95, 3.39, 4.54, 3.51
+  exp: 3.42, 2.89, 1.84, 2.65, 1.81
+  yok: 3.67, 3.47, 3.08, 4.21, 3.19
 training 3
-  exp: 2.15, 2.14, 2.27, 2.47, 2.04
-  yok: 5.00, 3.61, 4.10, 4.25, 4.83
+  exp: 1.78, 1.83, 1.98, 2.18, 1.77
+  yok: 4.07, 3.41, 3.42, 3.86, 4.34
 
 relative change, wall-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -40.38% (3.49 to 2.08)
-  yok: -10.09% (3.90 to 3.51)
+  exp: -46.24% (3.37 to 1.81)
+  yok: -2.16% (3.26 to 3.19)
 
 agarose-contact events per reward:
 training 1
@@ -1659,18 +1659,18 @@ training 3
 
 wall-contact events per reward:
 training 1
-  exp: 7.89, 7.19, 5.68, 5.29, 5.17
-  yok: 3.29, 5.54, 7.43, 7.11, 5.96
+  exp: 9.11, 7.27, 6.27, 5.40, 4.94
+  yok: 3.26, 5.12, 6.50, 6.89, 5.57
 training 2
-  exp: 4.15, 6.86, 4.68, 4.05, 4.32
-  yok: 3.86, 3.63, 9.79, 4.74, 4.96
+  exp: 3.93, 6.61, 4.66, 3.86, 4.20
+  yok: 3.26, 3.20, 9.29, 4.22, 4.71
 training 3
-  exp: 4.84, 6.14, 5.68, 3.70, 6.06
-  yok: 4.82, 4.39, 3.96, 3.88, 5.38
+  exp: 4.89, 5.66, 5.58, 3.55, 6.09
+  yok: 4.73, 3.75, 3.52, 3.33, 4.67
 
 relative change, wall-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -45.26% (7.89 to 4.32)
-  yok: 55.22% (3.19 to 4.96)
+  exp: -53.91% (9.11 to 4.20)
+  yok: 48.68% (3.17 to 4.71)
 
 agarose-contact events per reward:
 training 1
@@ -1874,18 +1874,18 @@ training 3
 
 wall-contact events per reward:
 training 1
-  exp: 6.31, nan, 6.21, 10.27, 4.09
-  yok: 4.50, 3.64, 3.64, 5.48, 3.59
+  exp: 5.69, nan, 5.67, 11.82, 3.59
+  yok: 4.25, 3.50, 3.50, 4.96, 3.50
 training 2
-  exp: 8.38, 4.66, 3.27, 2.89, 3.70
-  yok: 3.89, 2.33, 3.42, 2.49, 3.47
+  exp: 8.10, 4.12, 2.70, 2.38, 3.23
+  yok: 3.48, 1.95, 2.88, 2.29, 2.89
 training 3
-  exp: 4.59, 4.83, 1.39, 1.05, 0.84
-  yok: 3.51, 2.92, 3.34, 2.33, 2.92
+  exp: 3.98, 4.19, 0.98, 0.74, 0.59
+  yok: 3.09, 2.85, 2.66, 2.06, 2.64
 
 relative change, wall-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -41.39% (6.31 to 3.70)
-  yok: -22.96% (4.50 to 3.47)
+  exp: -43.23% (5.69 to 3.23)
+  yok: -32.03% (4.25 to 2.89)
 
 agarose-contact events per reward:
 training 1
@@ -2123,18 +2123,18 @@ training 3
 
 wall-contact events per reward:
 training 1
-  exp: 3.04, 3.20, 5.34, 3.10, 2.67
-  yok: 3.54, 3.11, 3.69, 4.68, 5.19
+  exp: 2.66, 2.75, 5.16, 3.02, 2.28
+  yok: 3.56, 3.11, 3.79, 4.89, 5.38
 training 2
-  exp: 3.19, 2.09, 1.43, 2.50, 2.23
-  yok: 3.85, 5.41, 4.60, 5.69, 4.04
+  exp: 2.71, 1.83, 1.07, 1.96, 1.54
+  yok: 3.82, 5.50, 4.45, 5.92, 4.08
 training 3
-  exp: 2.89, 2.58, 1.78, 2.08, 1.62
-  yok: 3.98, 4.59, 4.09, 4.29, 4.52
+  exp: 2.11, 2.11, 1.25, 1.52, 1.14
+  yok: 3.87, 4.50, 4.17, 4.45, 4.41
 
 relative change, wall-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -26.79% (3.04 to 2.23)
-  yok: 14.01% (3.54 to 4.04)
+  exp: -42.04% (2.66 to 1.54)
+  yok: 14.65% (3.56 to 4.08)
 
 agarose-contact events per reward:
 training 1
@@ -2341,18 +2341,18 @@ training 3
 
 wall-contact events per reward:
 training 1
-  exp: 2.12, 1.90, 1.48, 1.77, 1.53
-  yok: 2.50, 2.81, 1.81, 3.24, 1.17
+  exp: 2.07, 1.67, 1.49, 1.61, 1.40
+  yok: 2.55, 2.62, 1.31, 3.06, 1.25
 training 2
-  exp: 2.22, 2.02, 1.89, 2.27, 1.63
-  yok: 3.44, nan, 2.24, 2.30, 1.83
+  exp: 2.08, 1.98, 1.75, 2.14, 1.55
+  yok: 3.38, nan, 1.90, 2.07, 1.50
 training 3
-  exp: 1.70, 0.90, 0.89, 0.77, 1.21
-  yok: 1.97, 1.06, 2.83, 1.74, 1.42
+  exp: 1.54, 0.73, 0.79, 0.65, 1.14
+  yok: 1.62, 0.94, 2.39, 1.44, 1.17
 
 relative change, wall-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -23.16% (2.12 to 1.63)
-  yok: -26.67% (2.50 to 1.83)
+  exp: -25.03% (2.07 to 1.55)
+  yok: -41.18% (2.55 to 1.50)
 
 agarose-contact events per reward:
 training 1
@@ -2559,18 +2559,18 @@ training 3
 
 wall-contact events per reward:
 training 1
-  exp: 1.82, 0.95, 1.23, 0.63, 0.48
-  yok: 4.02, 2.64, 1.24, 2.55, 2.11
+  exp: 1.41, 0.59, 0.77, 0.36, 0.34
+  yok: 4.11, 2.55, 1.10, 2.12, 1.97
 training 2
-  exp: 1.09, 0.81, 1.78, 1.06, 1.49
-  yok: 1.57, 1.64, 1.81, 2.68, 1.57
+  exp: 0.85, 0.69, 1.19, 0.82, 1.14
+  yok: 1.31, 1.50, 1.57, 2.42, 1.35
 training 3
-  exp: 2.74, 2.45, 1.91, 1.22, 1.33
-  yok: 1.74, 2.42, 3.06, 1.84, 2.14
+  exp: 2.32, 2.02, 1.43, 1.06, 1.05
+  yok: 1.56, 2.23, 2.77, 1.64, 2.03
 
 relative change, wall-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -17.41% (1.80 to 1.49)
-  yok: -59.99% (3.93 to 1.57)
+  exp: -18.16% (1.40 to 1.14)
+  yok: -66.41% (4.02 to 1.35)
 
 agarose-contact events per reward:
 training 1
@@ -2777,18 +2777,18 @@ training 3
 
 wall-contact events per reward:
 training 1
-  exp: 3.87, 4.52, 4.46, 3.72, 3.41
-  yok: 5.16, 5.19, 6.93, 5.97, 5.35
+  exp: 2.36, 2.69, 2.64, 2.38, 2.03
+  yok: 4.95, 4.58, 5.46, 5.22, 4.40
 training 2
-  exp: 2.20, 3.08, 1.97, 1.80, 1.68
-  yok: 4.81, 5.58, 4.72, 3.96, 3.44
+  exp: 1.19, 1.97, 1.45, 1.18, 1.08
+  yok: 3.85, 4.47, 3.58, 3.04, 2.96
 training 3
-  exp: 2.48, 2.47, 2.76, 2.36, 2.76
-  yok: 3.52, 3.62, 4.69, 4.12, 4.00
+  exp: 1.97, 2.03, 1.94, 1.74, 1.97
+  yok: 3.00, 3.31, 4.05, 3.85, 3.52
 
 relative change, wall-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -56.61% (3.87 to 1.68)
-  yok: -31.47% (5.03 to 3.44)
+  exp: -54.17% (2.36 to 1.08)
+  yok: -38.63% (4.82 to 2.96)
 
 agarose-contact events per reward:
 training 1
@@ -2995,18 +2995,18 @@ training 3
 
 wall-contact events per reward:
 training 1
-  exp: 2.72, 3.72, 2.87, 2.58, 2.47
-  yok: 4.84, 4.48, 6.06, 5.00, 7.88
+  exp: 2.06, 3.11, 2.32, 2.26, 2.04
+  yok: 3.86, 3.67, 5.19, 4.22, 6.46
 training 2
-  exp: 2.62, 2.06, 1.93, 1.48, 1.18
-  yok: 4.93, 9.62, 6.00, 6.00, 6.74
+  exp: 2.33, 1.56, 1.53, 1.21, 0.93
+  yok: 4.32, 7.62, 5.22, 5.24, 5.85
 training 3
-  exp: 2.40, 1.09, 1.29, 1.32, 1.29
-  yok: 4.17, 4.72, 5.50, 4.00, 5.47
+  exp: 2.00, 0.94, 1.03, 1.12, 1.12
+  yok: 3.63, 4.08, 4.59, 3.62, 4.75
 
 relative change, wall-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -56.80% (2.72 to 1.18)
-  yok: 42.41% (4.73 to 6.74)
+  exp: -54.92% (2.06 to 0.93)
+  yok: 54.90% (3.78 to 5.85)
 
 agarose-contact events per reward:
 training 1
@@ -3213,18 +3213,18 @@ training 3
 
 wall-contact events per reward:
 training 1
-  exp: 2.80, 1.30, 1.60, 1.58, 1.63
-  yok: 4.49, 3.35, 4.88, 3.93, 4.05
+  exp: 2.53, 0.97, 1.32, 1.30, 1.50
+  yok: 3.93, 3.02, 4.06, 3.41, 3.44
 training 2
-  exp: 2.27, 1.35, 1.16, 1.90, 0.92
-  yok: 7.15, 4.90, 5.34, 7.31, 5.03
+  exp: 1.93, 0.95, 0.90, 1.42, 0.70
+  yok: 5.88, 4.21, 4.72, 6.66, 4.21
 training 3
-  exp: 1.28, 0.99, 0.96, 1.38, 1.21
-  yok: 4.16, 4.97, 3.14, 3.59, 2.77
+  exp: 0.94, 0.59, 0.70, 1.02, 0.89
+  yok: 3.62, 4.53, 2.86, 3.05, 2.17
 
 relative change, wall-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -67.11% (2.80 to 0.92)
-  yok: 12.09% (4.49 to 5.03)
+  exp: -72.41% (2.53 to 0.70)
+  yok: 7.27% (3.93 to 4.21)
 
 agarose-contact events per reward:
 training 1
@@ -3481,18 +3481,18 @@ training 3
 
 wall-contact events per reward:
 training 1
-  exp: 4.14, 2.77, 2.87, 1.84, 2.34
-  yok: 4.66, 4.47, 6.42, 5.14, 4.60
+  exp: 2.59, 1.58, 1.61, 1.04, 1.33
+  yok: 4.00, 3.44, 6.00, 3.94, 3.86
 training 2
-  exp: 2.52, 1.90, 1.72, 1.44, 2.11
-  yok: 4.95, 4.12, 5.26, 3.83, 4.27
+  exp: 1.52, 1.12, 0.98, 0.77, 1.21
+  yok: 3.73, 3.17, 3.79, 3.14, 3.19
 training 3
-  exp: 1.82, 1.86, 1.89, 1.87, 1.74
-  yok: 2.73, 2.05, 2.20, 2.88, 1.56
+  exp: 1.10, 1.31, 1.33, 1.33, 1.25
+  yok: 2.04, 1.56, 1.70, 2.21, 1.28
 
 relative change, wall-contact events per reward, T1 first bucket to T2 last bucket:
-  exp: -49.14% (4.14 to 2.11)
-  yok: -8.33% (4.66 to 4.27)
+  exp: -53.35% (2.59 to 1.21)
+  yok: -20.31% (4.00 to 3.19)
 
 agarose-contact events per reward:
 training 1
@@ -3756,9 +3756,9 @@ writing imgs/ctr_agarose_contact__10_min_buckets.png...
 
 wall-contact events, rel. change, T1 first bucket to T2 last bucket
 one-sample t-test -- exp:
-  n = 15, mean: -0.361, value: 0; t-test: p = 0.00006, t = -5.655
+  n = 15, mean: -0.4, value: 0; t-test: p = 0.00002, t = -6.441
 one-sample t-test -- yok:
-  n = 14, mean: 0.0104, value: 0; t-test: p = 0.90321, t = 0.124
+  n = 14, mean: -0.0102, value: 0; t-test: p = 0.91898, t = -0.104
 
 agarose-contact events, rel. change, T1 first bucket to T2 last bucket
 one-sample t-test -- exp:

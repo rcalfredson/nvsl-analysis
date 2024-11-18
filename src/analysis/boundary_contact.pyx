@@ -2,15 +2,11 @@
 #distutils: define_macros=NPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION
 from collections import defaultdict
 import os
-from math import radians, sin, cos
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 import numpy as np
 cimport numpy as cnp
-import random
 
 from src.plotting.event_chain_plotter import EventChainPlotter
-from src.utils.common import writeImage
 from src.utils.constants import CONTACT_BUFFER_OFFSETS
 from src.utils.debug_util import (
     ellipse_edge_points_within_boundaries,
@@ -1699,12 +1695,26 @@ cdef class EllipseToBoundaryDistCalculator:
         boundary_contact = self.return_data.get("boundary_event_stats", {}).get(
             "wall", {}).get("all", {}).get(edge_type_key, {}).get("boundary_contact", None)
         
-        if boundary_contact is None:
+        if boundary_contact is None or len(boundary_contact) == 0:
             # Run your logic since the key doesn't exist
-            wall_thresholds = [
-                CONTACT_BUFFER_OFFSETS["wall"]["min"],
-                CONTACT_BUFFER_OFFSETS["wall"]["max"]
-            ]
+            if ellipse_edge_pt == "closest":
+                # Wall contact thresholds
+                wall_thresholds = [
+                    CONTACT_BUFFER_OFFSETS["wall_contact"]["min"],
+                    CONTACT_BUFFER_OFFSETS["wall_contact"]["max"]
+                ]
+            elif ellipse_edge_pt == "opposite":
+                # Wall walking thresholds
+                wall_thresholds = [
+                    CONTACT_BUFFER_OFFSETS["wall_walking"]["min"],
+                    CONTACT_BUFFER_OFFSETS["wall_walking"]["max"]
+                ]
+            else:
+                # Default thresholds (if any)
+                wall_thresholds = [
+                    CONTACT_BUFFER_OFFSETS["wall"]["min"],
+                    CONTACT_BUFFER_OFFSETS["wall"]["max"]
+                ]
             self.calc_dist_boundary_to_ellipse(
                 boundary_type="wall",
                 boundary_combo="all",

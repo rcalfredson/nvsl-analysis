@@ -1,4 +1,4 @@
-# command: analyze.py -v '/media/Synology3-2/Yang Chen/2022-09-16/c1*' -f 0-5 --boundary-contact 4 --turn boundary agarose --rmCC 5  [r3a1052006eb13b85e49a9e5d7cb00fa4385c61bc]
+# command: analyze.py -v '/media/Synology3-2/Yang Chen/2022-09-16/c1*' -f 0-5 --boundary-contact 4 --turn boundary agarose --rmCC 5  [re34655d6f2eec2bf6e53d477bcc2e3246e603a71]
 
 "training 1: 1.0h, center (post: 15 min)"
 "training 2: 1.0h, center (post: 15.1 min)"
@@ -189,54 +189,54 @@ c1__2022-09-16__13-01-42.avi,5,86.000,3.909,97.000,4.409,201.000,2.956,158.000,4
 
 % time past border (contact events begin when edge of fitted ellipse crosses border)
 video,fly,% time spent past border- pre last 10m (exp),% time spent past border- pre last 10m (yok),% time spent past border- T1 start (exp),% time spent past border- T1 start (yok),% time spent past border- T2 end (exp),% time spent past border- T2 end (yok),% time spent past border- T3 end (exp),% time spent past border- T3 end (yok)
-c1__2022-09-16__13-01-42.avi,0,62.844,59.956,60.822,51.667,38.556,47.800,26.311,46.467
-c1__2022-09-16__13-01-42.avi,1,52.156,62.978,53.689,63.333,33.867,58.444,32.667,55.178
-c1__2022-09-16__13-01-42.avi,2,51.822,71.578,47.133,46.911,19.600,46.044,5.089,48.067
-c1__2022-09-16__13-01-42.avi,3,36.778,53.978,32.178,59.778,22.156,47.022,33.533,45.156
-c1__2022-09-16__13-01-42.avi,4,65.600,53.200,53.756,62.778,47.822,50.844,45.867,44.289
-c1__2022-09-16__13-01-42.avi,5,45.667,65.578,43.267,53.556,14.778,55.622,18.578,53.911
+c1__2022-09-16__13-01-42.avi,0,53.356,42.444,55.222,42.867,36.511,40.778,25.733,42.822
+c1__2022-09-16__13-01-42.avi,1,26.822,47.067,46.089,53.822,31.711,51.889,30.556,45.800
+c1__2022-09-16__13-01-42.avi,2,33.422,48.489,45.311,41.844,19.089,42.422,5.089,45.578
+c1__2022-09-16__13-01-42.avi,3,27.933,40.089,30.533,51.467,21.622,41.422,32.489,35.356
+c1__2022-09-16__13-01-42.avi,4,48.289,43.778,47.489,56.556,43.711,45.689,41.911,40.578
+c1__2022-09-16__13-01-42.avi,5,34.622,50.622,41.378,47.956,13.956,47.622,15.911,50.733
 
 % time past border (contact events begin when body center crosses border)
 video,fly,% time spent past border- pre last 10m (exp),% time spent past border- pre last 10m (yok),% time spent past border- T1 start (exp),% time spent past border- T1 start (yok),% time spent past border- T2 end (exp),% time spent past border- T2 end (yok),% time spent past border- T3 end (exp),% time spent past border- T3 end (yok)
-c1__2022-09-16__13-01-42.avi,0,35.556,53.378,47.067,42.622,26.067,39.711,15.689,35.711
-c1__2022-09-16__13-01-42.avi,1,47.711,57.200,43.289,52.022,23.400,50.044,23.422,48.444
-c1__2022-09-16__13-01-42.avi,2,46.267,65.556,31.778,36.089,9.178,37.889,2.533,37.178
-c1__2022-09-16__13-01-42.avi,3,32.556,43.311,19.067,50.533,15.289,37.911,25.822,37.378
-c1__2022-09-16__13-01-42.avi,4,60.222,45.600,43.933,52.489,34.556,40.444,34.356,32.556
-c1__2022-09-16__13-01-42.avi,5,40.956,54.711,32.556,44.533,9.667,45.422,12.311,41.222
+c1__2022-09-16__13-01-42.avi,0,27.089,37.733,42.378,34.867,24.533,33.311,15.222,32.844
+c1__2022-09-16__13-01-42.avi,1,24.889,43.244,36.644,43.800,22.000,44.667,21.800,40.200
+c1__2022-09-16__13-01-42.avi,2,28.533,44.400,30.333,32.400,8.933,34.556,2.533,35.311
+c1__2022-09-16__13-01-42.avi,3,25.133,30.889,17.689,43.156,15.022,33.333,25.422,29.156
+c1__2022-09-16__13-01-42.avi,4,43.156,36.644,38.533,46.800,31.111,35.844,30.911,30.022
+c1__2022-09-16__13-01-42.avi,5,30.622,40.844,31.289,40.000,8.933,38.644,10.689,38.356
 
 boundary turn events by training (border crossings based on ellipse edge)
 video,fly,boundary turns / contact evt- pre last 10m (exp),boundary turns / contact evt- pre last 10m (yok),boundary turns / contact evt- T1 start (exp),boundary turns / contact evt- T1 start (yok),boundary turns / contact evt- T2 end (exp),boundary turns / contact evt- T2 end (yok),boundary turns / contact evt- T3 end (exp),boundary turns / contact evt- T3 end (yok),inside-line boundary turns / contact evt- pre last 10m (exp),inside-line boundary turns / contact evt- pre last 10m (yok),inside-line boundary turns / contact evt- T1 start (exp),inside-line boundary turns / contact evt- T1 start (yok),inside-line boundary turns / contact evt- T2 end (exp),inside-line boundary turns / contact evt- T2 end (yok),inside-line boundary turns / contact evt- T3 end (exp),inside-line boundary turns / contact evt- T3 end (yok),outside-line boundary turns / contact evt- pre last 10m (exp),outside-line boundary turns / contact evt- pre last 10m (yok),outside-line boundary turns / contact evt- T1 start (exp),outside-line boundary turns / contact evt- T1 start (yok),outside-line boundary turns / contact evt- T2 end (exp),outside-line boundary turns / contact evt- T2 end (yok),outside-line boundary turns / contact evt- T3 end (exp),outside-line boundary turns / contact evt- T3 end (yok)
-c1__2022-09-16__13-01-42.avi,0,0.056,0.060,0.145,0.193,0.432,0.288,0.497,0.288,0.028,0.024,0.064,0.092,0.177,0.180,0.240,0.254,0.028,0.036,0.081,0.101,0.255,0.108,0.257,0.034
+c1__2022-09-16__13-01-42.avi,0,0.069,0.072,0.145,0.193,0.438,0.297,0.509,0.288,0.042,0.036,0.069,0.092,0.182,0.189,0.246,0.254,0.028,0.036,0.075,0.101,0.255,0.108,0.263,0.034
 c1__2022-09-16__13-01-42.avi,1,0.022,0.076,0.207,0.182,0.293,0.167,0.250,0.142,0.011,0.054,0.080,0.079,0.167,0.109,0.159,0.117,0.011,0.022,0.128,0.103,0.127,0.058,0.091,0.025
-c1__2022-09-16__13-01-42.avi,2,0.049,0.030,0.401,0.214,0.592,0.200,0.588,0.195,0.049,0.020,0.111,0.148,0.318,0.122,0.490,0.161,0.000,0.010,0.289,0.066,0.274,0.078,0.098,0.034
-c1__2022-09-16__13-01-42.avi,3,0.045,0.148,0.369,0.163,0.483,0.297,0.553,0.223,0.030,0.096,0.164,0.079,0.184,0.186,0.258,0.177,0.015,0.052,0.205,0.084,0.299,0.110,0.295,0.046
-c1__2022-09-16__13-01-42.avi,4,0.128,0.064,0.234,0.192,0.335,0.199,0.278,0.284,0.070,0.036,0.100,0.080,0.121,0.170,0.139,0.196,0.058,0.027,0.134,0.112,0.213,0.028,0.139,0.088
-c1__2022-09-16__13-01-42.avi,5,0.070,0.082,0.323,0.234,0.333,0.220,0.319,0.227,0.023,0.031,0.109,0.133,0.240,0.133,0.278,0.127,0.047,0.052,0.214,0.101,0.093,0.087,0.042,0.100
+c1__2022-09-16__13-01-42.avi,2,0.049,0.030,0.411,0.220,0.597,0.211,0.588,0.195,0.049,0.020,0.122,0.154,0.323,0.122,0.490,0.161,0.000,0.010,0.289,0.066,0.274,0.089,0.098,0.034
+c1__2022-09-16__13-01-42.avi,3,0.045,0.148,0.369,0.169,0.490,0.297,0.561,0.231,0.030,0.096,0.164,0.079,0.184,0.186,0.265,0.185,0.015,0.052,0.205,0.090,0.306,0.110,0.295,0.046
+c1__2022-09-16__13-01-42.avi,4,0.128,0.064,0.234,0.192,0.331,0.199,0.278,0.277,0.070,0.036,0.100,0.080,0.121,0.170,0.144,0.189,0.058,0.027,0.134,0.112,0.209,0.028,0.134,0.088
+c1__2022-09-16__13-01-42.avi,5,0.070,0.082,0.328,0.247,0.333,0.233,0.319,0.213,0.023,0.031,0.109,0.146,0.240,0.140,0.278,0.113,0.047,0.052,0.219,0.101,0.093,0.093,0.042,0.100
 
 boundary turn events by training (border crossings based on ellipse center)
 video,fly,boundary turns / contact evt- pre last 10m (exp),boundary turns / contact evt- pre last 10m (yok),boundary turns / contact evt- T1 start (exp),boundary turns / contact evt- T1 start (yok),boundary turns / contact evt- T2 end (exp),boundary turns / contact evt- T2 end (yok),boundary turns / contact evt- T3 end (exp),boundary turns / contact evt- T3 end (yok)
-c1__2022-09-16__13-01-42.avi,0,0.140,0.078,0.274,0.206,0.543,0.228,0.550,0.244
-c1__2022-09-16__13-01-42.avi,1,0.043,0.069,0.202,0.187,0.312,0.225,0.250,0.134
-c1__2022-09-16__13-01-42.avi,2,0.074,0.043,0.473,0.229,0.670,0.182,0.250,0.263
-c1__2022-09-16__13-01-42.avi,3,0.058,0.127,0.419,0.239,0.436,0.270,0.476,0.172
-c1__2022-09-16__13-01-42.avi,4,0.090,0.067,0.276,0.184,0.357,0.216,0.298,0.259
-c1__2022-09-16__13-01-42.avi,5,0.049,0.175,0.391,0.216,0.333,0.188,0.194,0.250
+c1__2022-09-16__13-01-42.avi,0,0.140,0.078,0.258,0.196,0.549,0.228,0.541,0.244
+c1__2022-09-16__13-01-42.avi,1,0.043,0.069,0.202,0.180,0.321,0.232,0.260,0.134
+c1__2022-09-16__13-01-42.avi,2,0.074,0.043,0.473,0.229,0.670,0.167,0.250,0.263
+c1__2022-09-16__13-01-42.avi,3,0.058,0.127,0.405,0.265,0.446,0.261,0.488,0.172
+c1__2022-09-16__13-01-42.avi,4,0.090,0.067,0.281,0.176,0.362,0.216,0.292,0.269
+c1__2022-09-16__13-01-42.avi,5,0.049,0.175,0.379,0.216,0.361,0.188,0.161,0.250
 
 agarose turn events by training (border crossings based on ellipse edge)
 video,fly,agarose turns / contact evt- pre last 10m (exp),agarose turns / contact evt- pre last 10m (yok),agarose turns / contact evt- T1 start (exp),agarose turns / contact evt- T1 start (yok),agarose turns / contact evt- T2 end (exp),agarose turns / contact evt- T2 end (yok),agarose turns / contact evt- T3 end (exp),agarose turns / contact evt- T3 end (yok),inside-line agarose turns / contact evt- pre last 10m (exp),inside-line agarose turns / contact evt- pre last 10m (yok),inside-line agarose turns / contact evt- T1 start (exp),inside-line agarose turns / contact evt- T1 start (yok),inside-line agarose turns / contact evt- T2 end (exp),inside-line agarose turns / contact evt- T2 end (yok),inside-line agarose turns / contact evt- T3 end (exp),inside-line agarose turns / contact evt- T3 end (yok),outside-line agarose turns / contact evt- pre last 10m (exp),outside-line agarose turns / contact evt- pre last 10m (yok),outside-line agarose turns / contact evt- T1 start (exp),outside-line agarose turns / contact evt- T1 start (yok),outside-line agarose turns / contact evt- T2 end (exp),outside-line agarose turns / contact evt- T2 end (yok),outside-line agarose turns / contact evt- T3 end (exp),outside-line agarose turns / contact evt- T3 end (yok)
-c1__2022-09-16__13-01-42.avi,0,0.085,0.083,0.202,0.232,0.470,0.255,0.544,0.245,0.070,0.083,0.147,0.179,0.345,0.235,0.483,0.225,0.014,0.000,0.055,0.054,0.125,0.020,0.060,0.020
-c1__2022-09-16__13-01-42.avi,1,0.032,0.098,0.215,0.199,0.370,0.230,0.271,0.153,0.022,0.098,0.166,0.181,0.299,0.187,0.246,0.136,0.011,0.000,0.050,0.018,0.071,0.043,0.025,0.017
-c1__2022-09-16__13-01-42.avi,2,0.071,0.032,0.477,0.227,0.594,0.184,0.500,0.296,0.060,0.021,0.258,0.180,0.519,0.161,0.458,0.272,0.012,0.011,0.219,0.047,0.075,0.023,0.042,0.025
-c1__2022-09-16__13-01-42.avi,3,0.065,0.131,0.371,0.197,0.462,0.312,0.509,0.202,0.048,0.123,0.289,0.150,0.286,0.268,0.380,0.202,0.016,0.008,0.082,0.046,0.176,0.043,0.130,0.000
-c1__2022-09-16__13-01-42.avi,4,0.093,0.083,0.264,0.177,0.347,0.221,0.281,0.266,0.058,0.074,0.152,0.162,0.243,0.191,0.200,0.216,0.035,0.009,0.113,0.015,0.104,0.029,0.081,0.050
-c1__2022-09-16__13-01-42.avi,5,0.049,0.095,0.412,0.208,0.259,0.221,0.240,0.229,0.049,0.084,0.330,0.143,0.222,0.191,0.220,0.191,0.000,0.011,0.082,0.065,0.037,0.029,0.020,0.038
+c1__2022-09-16__13-01-42.avi,0,0.070,0.083,0.196,0.232,0.470,0.255,0.544,0.245,0.056,0.083,0.141,0.179,0.345,0.235,0.483,0.225,0.014,0.000,0.055,0.054,0.125,0.020,0.060,0.020
+c1__2022-09-16__13-01-42.avi,1,0.022,0.098,0.221,0.199,0.370,0.230,0.288,0.153,0.011,0.098,0.166,0.181,0.299,0.187,0.254,0.136,0.011,0.000,0.055,0.018,0.071,0.043,0.034,0.017
+c1__2022-09-16__13-01-42.avi,2,0.071,0.032,0.477,0.233,0.594,0.184,0.500,0.296,0.060,0.021,0.254,0.187,0.519,0.161,0.458,0.272,0.012,0.011,0.223,0.047,0.075,0.023,0.042,0.025
+c1__2022-09-16__13-01-42.avi,3,0.065,0.123,0.381,0.214,0.471,0.304,0.509,0.202,0.048,0.115,0.299,0.168,0.294,0.261,0.380,0.202,0.016,0.008,0.082,0.046,0.176,0.043,0.130,0.000
+c1__2022-09-16__13-01-42.avi,4,0.081,0.083,0.268,0.177,0.347,0.228,0.281,0.266,0.047,0.074,0.156,0.162,0.243,0.199,0.200,0.216,0.035,0.009,0.113,0.015,0.104,0.029,0.081,0.050
+c1__2022-09-16__13-01-42.avi,5,0.049,0.105,0.407,0.208,0.259,0.221,0.220,0.229,0.049,0.095,0.330,0.143,0.222,0.191,0.200,0.191,0.000,0.011,0.077,0.065,0.037,0.029,0.020,0.038
 
 agarose turn events by training (border crossings based on ellipse center)
 video,fly,agarose turns / contact evt- pre last 10m (exp),agarose turns / contact evt- pre last 10m (yok),agarose turns / contact evt- T1 start (exp),agarose turns / contact evt- T1 start (yok),agarose turns / contact evt- T2 end (exp),agarose turns / contact evt- T2 end (yok),agarose turns / contact evt- T3 end (exp),agarose turns / contact evt- T3 end (yok)
-c1__2022-09-16__13-01-42.avi,0,0.136,0.080,0.310,0.275,0.520,0.229,0.438,0.200
-c1__2022-09-16__13-01-42.avi,1,0.202,0.128,0.307,0.275,0.409,0.254,0.247,0.237
-c1__2022-09-16__13-01-42.avi,2,0.176,0.068,0.541,0.333,0.615,0.135,nan,nan
-c1__2022-09-16__13-01-42.avi,3,0.144,0.244,0.491,0.294,0.562,0.319,0.638,0.266
-c1__2022-09-16__13-01-42.avi,4,0.146,0.141,0.404,0.235,0.487,0.255,0.374,0.355
-c1__2022-09-16__13-01-42.avi,5,0.107,0.188,0.431,0.339,0.333,0.291,0.190,0.434
+c1__2022-09-16__13-01-42.avi,0,0.136,0.080,0.316,0.255,0.520,0.241,0.438,0.200
+c1__2022-09-16__13-01-42.avi,1,0.202,0.128,0.313,0.267,0.409,0.254,0.247,0.254
+c1__2022-09-16__13-01-42.avi,2,0.172,0.068,0.553,0.315,0.615,0.135,nan,nan
+c1__2022-09-16__13-01-42.avi,3,0.144,0.236,0.491,0.273,0.562,0.309,0.638,0.266
+c1__2022-09-16__13-01-42.avi,4,0.146,0.148,0.404,0.244,0.487,0.255,0.374,0.366
+c1__2022-09-16__13-01-42.avi,5,0.107,0.188,0.431,0.346,0.333,0.300,0.143,0.462

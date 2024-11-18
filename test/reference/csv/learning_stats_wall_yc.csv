@@ -1,4 +1,4 @@
-# command: analyze.py -v '/media/Synology3-2/Yang Chen/2022-09-16/c1*' -f 0-5 --wall --agarose --turn agarose --turn-dir --rmCC 5  [rc8c93cbe37eed788ae0a84e53801dc0fd1cc818e]
+# command: analyze.py -v '/media/Synology3-2/Yang Chen/2022-09-16/c1*' -f 0-5 --wall --agarose --turn agarose --turn-dir --rmCC 5  [re34655d6f2eec2bf6e53d477bcc2e3246e603a71]
 
 "training 1: 1.0h, center (post: 15 min)"
 "training 2: 1.0h, center (post: 15.1 min)"
@@ -153,39 +153,39 @@ c1__2022-09-16__13-01-42.avi,15,0.002,0.015,0.012,0.021,0.035,0.025,0.021,0.011,
 
 wall-contact events by training:
 video,fly,all-wall contact evts / rwd- pre last 10m (exp),all-wall contact evts / rwd- pre last 10m (yok),all-wall contact evts / rwd- T1 start (exp),all-wall contact evts / rwd- T1 start (yok),all-wall contact evts / rwd- T2 end (exp),all-wall contact evts / rwd- T2 end (yok),all-wall contact evts / rwd- T3 end (exp),all-wall contact evts / rwd- T3 end (yok),sidewall contact evts / rwd- pre last 10m (exp),sidewall contact evts / rwd- pre last 10m (yok),sidewall contact evts / rwd- T1 start (exp),sidewall contact evts / rwd- T1 start (yok),sidewall contact evts / rwd- T2 end (exp),sidewall contact evts / rwd- T2 end (yok),sidewall contact evts / rwd- T3 end (exp),sidewall contact evts / rwd- T3 end (yok),agarose-adjacent contact evts / rwd- pre last 10m (exp),agarose-adjacent contact evts / rwd- pre last 10m (yok),agarose-adjacent contact evts / rwd- T1 start (exp),agarose-adjacent contact evts / rwd- T1 start (yok),agarose-adjacent contact evts / rwd- T2 end (exp),agarose-adjacent contact evts / rwd- T2 end (yok),agarose-adjacent contact evts / rwd- T3 end (exp),agarose-adjacent contact evts / rwd- T3 end (yok)
-c1__2022-09-16__13-01-42.avi,0,nan,nan,6.727,4.800,3.800,4.222,1.127,2.098,nan,nan,6.152,4.500,3.338,3.778,0.955,1.639,nan,nan,4.939,3.733,2.585,2.833,1.355,1.672
-c1__2022-09-16__13-01-42.avi,1,nan,nan,7.143,12.211,2.119,5.065,1.670,6.594,nan,nan,6.886,11.368,1.798,4.587,1.440,6.000,nan,nan,5.171,8.737,1.512,3.022,1.297,3.688
-c1__2022-09-16__13-01-42.avi,2,8.182,6.818,3.167,6.353,0.994,3.721,0.234,3.314,14.545,12.636,2.844,5.971,0.957,3.209,0.218,2.514,7.636,8.636,2.708,4.412,0.816,2.023,0.128,2.314
-c1__2022-09-16__13-01-42.avi,3,nan,nan,1.534,7.371,0.964,3.979,1.165,4.871,nan,nan,1.384,6.657,0.811,3.617,1.033,4.290,nan,nan,1.329,4.943,1.072,2.915,1.176,3.806
-c1__2022-09-16__13-01-42.avi,4,7.727,4.692,3.620,4.579,1.748,3.673,1.823,2.912,12.273,5.346,2.859,4.132,1.414,3.115,1.500,2.421,7.455,3.923,3.197,3.421,1.991,2.615,1.917,2.439
-c1__2022-09-16__13-01-42.avi,5,4.591,5.182,3.412,6.429,0.597,5.931,0.657,7.296,6.455,5.182,2.735,5.600,0.529,4.759,0.552,6.296,3.727,4.318,2.676,4.400,0.454,4.690,0.476,5.815
+c1__2022-09-16__13-01-42.avi,0,nan,nan,5.030,4.133,2.754,3.111,0.682,1.754,nan,nan,6.152,4.500,3.338,3.778,0.955,1.639,nan,nan,4.939,3.733,2.585,2.833,1.355,1.672
+c1__2022-09-16__13-01-42.avi,1,nan,nan,6.743,12.158,1.905,5.348,1.538,6.719,nan,nan,6.886,11.368,1.798,4.587,1.440,6.000,nan,nan,5.171,8.737,1.512,3.022,1.297,3.688
+c1__2022-09-16__13-01-42.avi,2,8.091,8.545,2.531,6.471,0.804,3.535,0.186,3.114,14.545,12.636,2.844,5.971,0.957,3.209,0.218,2.514,7.636,8.636,2.708,4.412,0.816,2.023,0.128,2.314
+c1__2022-09-16__13-01-42.avi,3,nan,nan,0.986,6.800,0.676,3.426,0.747,4.548,nan,nan,1.384,6.657,0.811,3.617,1.033,4.290,nan,nan,1.329,4.943,1.072,2.915,1.176,3.806
+c1__2022-09-16__13-01-42.avi,4,7.455,3.769,3.000,3.500,1.405,2.673,1.521,2.211,12.273,5.346,2.859,4.132,1.414,3.115,1.500,2.421,7.455,3.923,3.197,3.421,1.991,2.615,1.917,2.439
+c1__2022-09-16__13-01-42.avi,5,4.136,4.182,2.250,4.657,0.387,4.690,0.486,5.148,6.455,5.182,2.735,5.600,0.529,4.759,0.552,6.296,3.727,4.318,2.676,4.400,0.454,4.690,0.476,5.815
 
 distance between calculated rewards with no preceding wall contact
 video,fly,T3 end (exp),T3 end (yok)
-c1__2022-09-16__13-01-42.avi,0,125.272,85.984
-c1__2022-09-16__13-01-42.avi,1,65.711,16.310
-c1__2022-09-16__13-01-42.avi,2,74.601,74.167
-c1__2022-09-16__13-01-42.avi,3,87.335,50.395
-c1__2022-09-16__13-01-42.avi,4,114.872,52.944
-c1__2022-09-16__13-01-42.avi,5,69.488,48.677
+c1__2022-09-16__13-01-42.avi,0,141.636,99.080
+c1__2022-09-16__13-01-42.avi,1,79.820,16.310
+c1__2022-09-16__13-01-42.avi,2,75.399,76.310
+c1__2022-09-16__13-01-42.avi,3,103.199,50.395
+c1__2022-09-16__13-01-42.avi,4,156.158,62.869
+c1__2022-09-16__13-01-42.avi,5,78.934,155.013
 
 mean of max. dist. from center for each trajectory with no preceding wall contact
 video,fly,T3 end (exp),T3 end (yok)
-c1__2022-09-16__13-01-42.avi,0,29.196,29.025
-c1__2022-09-16__13-01-42.avi,1,23.099,11.951
-c1__2022-09-16__13-01-42.avi,2,21.664,26.006
-c1__2022-09-16__13-01-42.avi,3,25.012,17.295
-c1__2022-09-16__13-01-42.avi,4,36.954,22.194
-c1__2022-09-16__13-01-42.avi,5,19.532,19.603
+c1__2022-09-16__13-01-42.avi,0,30.511,30.008
+c1__2022-09-16__13-01-42.avi,1,25.996,11.951
+c1__2022-09-16__13-01-42.avi,2,21.981,26.955
+c1__2022-09-16__13-01-42.avi,3,27.719,17.295
+c1__2022-09-16__13-01-42.avi,4,41.940,23.195
+c1__2022-09-16__13-01-42.avi,5,20.754,30.783
 
 proportion contactless rewards, outer walls by training
 video,fly,pre last 10m (exp),pre last 10m (yok),T1 start (exp),T1 start (yok),T2 end (exp),T2 end (yok),T3 end (exp),T3 end (yok)
-c1__2022-09-16__13-01-42.avi,0,nan,nan,0.152,0.100,0.185,0.194,0.564,0.344
-c1__2022-09-16__13-01-42.avi,1,nan,nan,0.257,0.000,0.405,0.087,0.462,0.094
-c1__2022-09-16__13-01-42.avi,2,0.000,0.182,0.208,0.059,0.429,0.233,0.856,0.343
-c1__2022-09-16__13-01-42.avi,3,nan,nan,0.411,0.029,0.396,0.234,0.516,0.194
-c1__2022-09-16__13-01-42.avi,4,0.000,0.000,0.028,0.132,0.126,0.077,0.104,0.228
-c1__2022-09-16__13-01-42.avi,5,0.136,0.091,0.235,0.029,0.756,0.379,0.752,0.185
+c1__2022-09-16__13-01-42.avi,0,nan,nan,0.182,0.133,0.323,0.306,0.664,0.426
+c1__2022-09-16__13-01-42.avi,1,nan,nan,0.314,0.000,0.452,0.087,0.549,0.094
+c1__2022-09-16__13-01-42.avi,2,0.000,0.182,0.312,0.059,0.503,0.233,0.888,0.400
+c1__2022-09-16__13-01-42.avi,3,nan,nan,0.589,0.057,0.523,0.277,0.604,0.194
+c1__2022-09-16__13-01-42.avi,4,0.000,0.000,0.085,0.184,0.216,0.135,0.188,0.246
+c1__2022-09-16__13-01-42.avi,5,0.136,0.091,0.397,0.086,0.798,0.379,0.810,0.444
 
 proportion contactless rewards, agarose-adjacent walls by training
 video,fly,pre last 10m (exp),pre last 10m (yok),T1 start (exp),T1 start (yok),T2 end (exp),T2 end (yok),T3 end (exp),T3 end (yok)
@@ -225,36 +225,36 @@ c1__2022-09-16__13-01-42.avi,5,54.667,50.089,18.689,32.000,5.200,31.800,6.222,25
 
 agarose turn events by training (border crossings based on ellipse edge)
 video,fly,agarose turns / contact evt- pre last 10m (exp),agarose turns / contact evt- pre last 10m (yok),agarose turns / contact evt- T1 start (exp),agarose turns / contact evt- T1 start (yok),agarose turns / contact evt- T2 end (exp),agarose turns / contact evt- T2 end (yok),agarose turns / contact evt- T3 end (exp),agarose turns / contact evt- T3 end (yok),inside-line agarose turns / contact evt- pre last 10m (exp),inside-line agarose turns / contact evt- pre last 10m (yok),inside-line agarose turns / contact evt- T1 start (exp),inside-line agarose turns / contact evt- T1 start (yok),inside-line agarose turns / contact evt- T2 end (exp),inside-line agarose turns / contact evt- T2 end (yok),inside-line agarose turns / contact evt- T3 end (exp),inside-line agarose turns / contact evt- T3 end (yok),outside-line agarose turns / contact evt- pre last 10m (exp),outside-line agarose turns / contact evt- pre last 10m (yok),outside-line agarose turns / contact evt- T1 start (exp),outside-line agarose turns / contact evt- T1 start (yok),outside-line agarose turns / contact evt- T2 end (exp),outside-line agarose turns / contact evt- T2 end (yok),outside-line agarose turns / contact evt- T3 end (exp),outside-line agarose turns / contact evt- T3 end (yok)
-c1__2022-09-16__13-01-42.avi,0,0.085,0.083,0.202,0.232,0.470,0.255,0.544,0.245,0.070,0.083,0.147,0.179,0.345,0.235,0.483,0.225,0.014,0.000,0.055,0.054,0.125,0.020,0.060,0.020
-c1__2022-09-16__13-01-42.avi,1,0.032,0.098,0.215,0.199,0.370,0.230,0.271,0.153,0.022,0.098,0.166,0.181,0.299,0.187,0.246,0.136,0.011,0.000,0.050,0.018,0.071,0.043,0.025,0.017
-c1__2022-09-16__13-01-42.avi,2,0.071,0.032,0.477,0.227,0.594,0.184,0.500,0.296,0.060,0.021,0.258,0.180,0.519,0.161,0.458,0.272,0.012,0.011,0.219,0.047,0.075,0.023,0.042,0.025
-c1__2022-09-16__13-01-42.avi,3,0.065,0.131,0.371,0.197,0.462,0.312,0.509,0.202,0.048,0.123,0.289,0.150,0.286,0.268,0.380,0.202,0.016,0.008,0.082,0.046,0.176,0.043,0.130,0.000
-c1__2022-09-16__13-01-42.avi,4,0.093,0.083,0.264,0.177,0.347,0.221,0.281,0.266,0.058,0.074,0.152,0.162,0.243,0.191,0.200,0.216,0.035,0.009,0.113,0.015,0.104,0.029,0.081,0.050
-c1__2022-09-16__13-01-42.avi,5,0.049,0.095,0.412,0.208,0.259,0.221,0.240,0.229,0.049,0.084,0.330,0.143,0.222,0.191,0.220,0.191,0.000,0.011,0.082,0.065,0.037,0.029,0.020,0.038
+c1__2022-09-16__13-01-42.avi,0,0.070,0.083,0.196,0.232,0.470,0.255,0.544,0.245,0.056,0.083,0.141,0.179,0.345,0.235,0.483,0.225,0.014,0.000,0.055,0.054,0.125,0.020,0.060,0.020
+c1__2022-09-16__13-01-42.avi,1,0.022,0.098,0.221,0.199,0.370,0.230,0.288,0.153,0.011,0.098,0.166,0.181,0.299,0.187,0.254,0.136,0.011,0.000,0.055,0.018,0.071,0.043,0.034,0.017
+c1__2022-09-16__13-01-42.avi,2,0.071,0.032,0.477,0.233,0.594,0.184,0.500,0.296,0.060,0.021,0.254,0.187,0.519,0.161,0.458,0.272,0.012,0.011,0.223,0.047,0.075,0.023,0.042,0.025
+c1__2022-09-16__13-01-42.avi,3,0.065,0.123,0.381,0.214,0.471,0.304,0.509,0.202,0.048,0.115,0.299,0.168,0.294,0.261,0.380,0.202,0.016,0.008,0.082,0.046,0.176,0.043,0.130,0.000
+c1__2022-09-16__13-01-42.avi,4,0.081,0.083,0.268,0.177,0.347,0.228,0.281,0.266,0.047,0.074,0.156,0.162,0.243,0.199,0.200,0.216,0.035,0.009,0.113,0.015,0.104,0.029,0.081,0.050
+c1__2022-09-16__13-01-42.avi,5,0.049,0.105,0.407,0.208,0.259,0.221,0.220,0.229,0.049,0.095,0.330,0.143,0.222,0.191,0.200,0.191,0.000,0.011,0.077,0.065,0.037,0.029,0.020,0.038
 
 agarose turn directionality by training (border crossings based on ellipse edge)
 video,fly,toward-center agarose turns / contact evt- pre last 10m (exp),away-from-center agarose turns / contact evt- pre last 10m (exp),toward-center agarose turns / contact evt- pre last 10m (yok),away-from-center agarose turns / contact evt- pre last 10m (yok),toward-center agarose turns / contact evt- T1 start (exp),away-from-center agarose turns / contact evt- T1 start (exp),toward-center agarose turns / contact evt- T1 start (yok),away-from-center agarose turns / contact evt- T1 start (yok),toward-center agarose turns / contact evt- T2 end (exp),away-from-center agarose turns / contact evt- T2 end (exp),toward-center agarose turns / contact evt- T2 end (yok),away-from-center agarose turns / contact evt- T2 end (yok),toward-center agarose turns / contact evt- T3 end (exp),away-from-center agarose turns / contact evt- T3 end (exp),toward-center agarose turns / contact evt- T3 end (yok),away-from-center agarose turns / contact evt- T3 end (yok),toward-center inside-line agarose turns / contact evt- pre last 10m (exp),away-from-center inside-line agarose turns / contact evt- pre last 10m (exp),toward-center inside-line agarose turns / contact evt- pre last 10m (yok),away-from-center inside-line agarose turns / contact evt- pre last 10m (yok),toward-center inside-line agarose turns / contact evt- T1 start (exp),away-from-center inside-line agarose turns / contact evt- T1 start (exp),toward-center inside-line agarose turns / contact evt- T1 start (yok),away-from-center inside-line agarose turns / contact evt- T1 start (yok),toward-center inside-line agarose turns / contact evt- T2 end (exp),away-from-center inside-line agarose turns / contact evt- T2 end (exp),toward-center inside-line agarose turns / contact evt- T2 end (yok),away-from-center inside-line agarose turns / contact evt- T2 end (yok),toward-center inside-line agarose turns / contact evt- T3 end (exp),away-from-center inside-line agarose turns / contact evt- T3 end (exp),toward-center inside-line agarose turns / contact evt- T3 end (yok),away-from-center inside-line agarose turns / contact evt- T3 end (yok),toward-center outside-line agarose turns / contact evt- pre last 10m (exp),away-from-center outside-line agarose turns / contact evt- pre last 10m (exp),toward-center outside-line agarose turns / contact evt- pre last 10m (yok),away-from-center outside-line agarose turns / contact evt- pre last 10m (yok),toward-center outside-line agarose turns / contact evt- T1 start (exp),away-from-center outside-line agarose turns / contact evt- T1 start (exp),toward-center outside-line agarose turns / contact evt- T1 start (yok),away-from-center outside-line agarose turns / contact evt- T1 start (yok),toward-center outside-line agarose turns / contact evt- T2 end (exp),away-from-center outside-line agarose turns / contact evt- T2 end (exp),toward-center outside-line agarose turns / contact evt- T2 end (yok),away-from-center outside-line agarose turns / contact evt- T2 end (yok),toward-center outside-line agarose turns / contact evt- T3 end (exp),away-from-center outside-line agarose turns / contact evt- T3 end (exp),toward-center outside-line agarose turns / contact evt- T3 end (yok),away-from-center outside-line agarose turns / contact evt- T3 end (yok)
-c1__2022-09-16__13-01-42.avi,0,nan,nan,nan,nan,0.123,0.080,0.223,0.009,0.339,0.131,0.186,0.069,0.463,0.081,0.186,0.059,nan,nan,nan,nan,0.074,0.074,0.170,0.009,0.226,0.119,0.167,0.069,0.409,0.074,0.167,0.059,nan,nan,nan,nan,0.049,0.006,0.054,0.000,0.113,0.012,0.020,0.000,0.054,0.007,0.020,0.000
-c1__2022-09-16__13-01-42.avi,1,nan,nan,nan,nan,0.160,0.055,0.133,0.066,0.307,0.063,0.173,0.058,0.195,0.076,0.093,0.059,nan,nan,nan,nan,0.110,0.055,0.120,0.060,0.236,0.063,0.129,0.058,0.169,0.076,0.076,0.059,nan,nan,nan,nan,0.050,0.000,0.012,0.006,0.071,0.000,0.043,0.000,0.025,0.000,0.017,0.000
-c1__2022-09-16__13-01-42.avi,2,0.071,0.000,0.021,0.011,0.404,0.073,0.153,0.073,0.511,0.083,0.149,0.034,0.333,0.167,0.198,0.099,0.060,0.000,0.011,0.011,0.196,0.062,0.120,0.060,0.436,0.083,0.126,0.034,0.292,0.167,0.198,0.074,0.012,0.000,0.011,0.000,0.208,0.012,0.033,0.013,0.075,0.000,0.023,0.000,0.042,0.000,0.000,0.025
-c1__2022-09-16__13-01-42.avi,3,nan,nan,nan,nan,0.330,0.041,0.127,0.069,0.412,0.050,0.254,0.058,0.435,0.074,0.134,0.067,nan,nan,nan,nan,0.247,0.041,0.087,0.064,0.235,0.050,0.210,0.058,0.306,0.074,0.134,0.067,nan,nan,nan,nan,0.082,0.000,0.040,0.006,0.176,0.000,0.043,0.000,0.130,0.000,0.000,0.000
-c1__2022-09-16__13-01-42.avi,4,0.081,0.012,0.074,0.009,0.216,0.048,0.131,0.046,0.302,0.045,0.140,0.081,0.222,0.059,0.180,0.086,0.047,0.012,0.065,0.009,0.113,0.039,0.123,0.038,0.203,0.041,0.118,0.074,0.146,0.054,0.129,0.086,0.035,0.000,0.009,0.000,0.104,0.009,0.008,0.008,0.099,0.005,0.022,0.007,0.076,0.005,0.050,0.000
-c1__2022-09-16__13-01-42.avi,5,0.037,0.012,0.063,0.032,0.335,0.077,0.123,0.084,0.185,0.074,0.154,0.066,0.160,0.080,0.159,0.070,0.037,0.012,0.053,0.032,0.258,0.071,0.065,0.078,0.148,0.074,0.125,0.066,0.140,0.080,0.127,0.064,0.000,0.000,0.011,0.000,0.077,0.005,0.058,0.006,0.037,0.000,0.029,0.000,0.020,0.000,0.032,0.006
+c1__2022-09-16__13-01-42.avi,0,nan,nan,nan,nan,0.123,0.074,0.223,0.009,0.345,0.125,0.186,0.069,0.463,0.081,0.186,0.059,nan,nan,nan,nan,0.074,0.067,0.170,0.009,0.232,0.113,0.167,0.069,0.409,0.074,0.167,0.059,nan,nan,nan,nan,0.049,0.006,0.054,0.000,0.113,0.012,0.020,0.000,0.054,0.007,0.020,0.000
+c1__2022-09-16__13-01-42.avi,1,nan,nan,nan,nan,0.166,0.055,0.133,0.066,0.307,0.063,0.173,0.058,0.203,0.085,0.093,0.059,nan,nan,nan,nan,0.110,0.055,0.120,0.060,0.236,0.063,0.129,0.058,0.169,0.085,0.076,0.059,nan,nan,nan,nan,0.055,0.000,0.012,0.006,0.071,0.000,0.043,0.000,0.034,0.000,0.017,0.000
+c1__2022-09-16__13-01-42.avi,2,0.071,0.000,0.021,0.011,0.408,0.069,0.160,0.073,0.511,0.083,0.149,0.034,0.333,0.167,0.198,0.099,0.060,0.000,0.011,0.011,0.196,0.058,0.127,0.060,0.436,0.083,0.126,0.034,0.292,0.167,0.198,0.074,0.012,0.000,0.011,0.000,0.212,0.012,0.033,0.013,0.075,0.000,0.023,0.000,0.042,0.000,0.000,0.025
+c1__2022-09-16__13-01-42.avi,3,nan,nan,nan,nan,0.330,0.052,0.139,0.075,0.420,0.050,0.246,0.058,0.435,0.074,0.134,0.067,nan,nan,nan,nan,0.247,0.052,0.098,0.069,0.244,0.050,0.203,0.058,0.306,0.074,0.134,0.067,nan,nan,nan,nan,0.082,0.000,0.040,0.006,0.176,0.000,0.043,0.000,0.130,0.000,0.000,0.000
+c1__2022-09-16__13-01-42.avi,4,0.070,0.012,0.074,0.009,0.216,0.052,0.131,0.046,0.297,0.050,0.147,0.081,0.222,0.059,0.180,0.086,0.035,0.012,0.065,0.009,0.113,0.043,0.123,0.038,0.198,0.045,0.125,0.074,0.146,0.054,0.129,0.086,0.035,0.000,0.009,0.000,0.104,0.009,0.008,0.008,0.099,0.005,0.022,0.007,0.076,0.005,0.050,0.000
+c1__2022-09-16__13-01-42.avi,5,0.037,0.012,0.063,0.042,0.330,0.077,0.123,0.084,0.185,0.074,0.154,0.066,0.140,0.080,0.159,0.070,0.037,0.012,0.053,0.042,0.258,0.071,0.065,0.078,0.148,0.074,0.125,0.066,0.120,0.080,0.127,0.064,0.000,0.000,0.011,0.000,0.071,0.005,0.058,0.006,0.037,0.000,0.029,0.000,0.020,0.000,0.032,0.006
 
 agarose turn events by training (border crossings based on ellipse center)
 video,fly,agarose turns / contact evt- pre last 10m (exp),agarose turns / contact evt- pre last 10m (yok),agarose turns / contact evt- T1 start (exp),agarose turns / contact evt- T1 start (yok),agarose turns / contact evt- T2 end (exp),agarose turns / contact evt- T2 end (yok),agarose turns / contact evt- T3 end (exp),agarose turns / contact evt- T3 end (yok)
-c1__2022-09-16__13-01-42.avi,0,0.136,0.080,0.310,0.275,0.520,0.229,0.438,0.200
-c1__2022-09-16__13-01-42.avi,1,0.202,0.128,0.307,0.275,0.409,0.254,0.247,0.237
-c1__2022-09-16__13-01-42.avi,2,0.176,0.068,0.541,0.333,0.615,0.135,nan,nan
-c1__2022-09-16__13-01-42.avi,3,0.144,0.244,0.491,0.294,0.562,0.319,0.638,0.266
-c1__2022-09-16__13-01-42.avi,4,0.146,0.141,0.404,0.235,0.487,0.255,0.374,0.355
-c1__2022-09-16__13-01-42.avi,5,0.107,0.188,0.431,0.339,0.333,0.291,0.190,0.434
+c1__2022-09-16__13-01-42.avi,0,0.136,0.080,0.316,0.255,0.520,0.241,0.438,0.200
+c1__2022-09-16__13-01-42.avi,1,0.202,0.128,0.313,0.267,0.409,0.254,0.247,0.254
+c1__2022-09-16__13-01-42.avi,2,0.172,0.068,0.553,0.315,0.615,0.135,nan,nan
+c1__2022-09-16__13-01-42.avi,3,0.144,0.236,0.491,0.273,0.562,0.309,0.638,0.266
+c1__2022-09-16__13-01-42.avi,4,0.146,0.148,0.404,0.244,0.487,0.255,0.374,0.366
+c1__2022-09-16__13-01-42.avi,5,0.107,0.188,0.431,0.346,0.333,0.300,0.143,0.462
 
 agarose turn directionality by training (border crossings based on ellipse center)
 video,fly,toward-center agarose turns / contact evt- pre last 10m (exp),away-from-center agarose turns / contact evt- pre last 10m (exp),toward-center agarose turns / contact evt- pre last 10m (yok),away-from-center agarose turns / contact evt- pre last 10m (yok),toward-center agarose turns / contact evt- T1 start (exp),away-from-center agarose turns / contact evt- T1 start (exp),toward-center agarose turns / contact evt- T1 start (yok),away-from-center agarose turns / contact evt- T1 start (yok),toward-center agarose turns / contact evt- T2 end (exp),away-from-center agarose turns / contact evt- T2 end (exp),toward-center agarose turns / contact evt- T2 end (yok),away-from-center agarose turns / contact evt- T2 end (yok),toward-center agarose turns / contact evt- T3 end (exp),away-from-center agarose turns / contact evt- T3 end (exp),toward-center agarose turns / contact evt- T3 end (yok),away-from-center agarose turns / contact evt- T3 end (yok)
-c1__2022-09-16__13-01-42.avi,0,nan,nan,nan,nan,0.265,0.045,0.196,0.078,0.418,0.102,0.205,0.024,0.333,0.104,0.157,0.043
-c1__2022-09-16__13-01-42.avi,1,nan,nan,nan,nan,0.241,0.066,0.229,0.046,0.333,0.076,0.162,0.092,0.178,0.068,0.202,0.035
-c1__2022-09-16__13-01-42.avi,2,0.137,0.039,0.049,0.019,0.434,0.107,0.261,0.072,0.423,0.192,0.077,0.058,0.000,0.143,0.104,0.062
-c1__2022-09-16__13-01-42.avi,3,nan,nan,nan,nan,0.472,0.019,0.231,0.063,0.516,0.047,0.266,0.053,0.574,0.064,0.203,0.063
-c1__2022-09-16__13-01-42.avi,4,0.094,0.052,0.111,0.030,0.346,0.059,0.176,0.059,0.414,0.072,0.184,0.071,0.282,0.092,0.290,0.065
-c1__2022-09-16__13-01-42.avi,5,0.094,0.013,0.152,0.036,0.353,0.078,0.236,0.102,0.250,0.083,0.191,0.100,0.190,0.000,0.330,0.104
+c1__2022-09-16__13-01-42.avi,0,nan,nan,nan,nan,0.271,0.045,0.186,0.069,0.418,0.102,0.217,0.024,0.333,0.104,0.157,0.043
+c1__2022-09-16__13-01-42.avi,1,nan,nan,nan,nan,0.247,0.066,0.214,0.053,0.333,0.076,0.162,0.092,0.178,0.068,0.211,0.044
+c1__2022-09-16__13-01-42.avi,2,0.132,0.039,0.049,0.019,0.440,0.113,0.252,0.063,0.423,0.192,0.077,0.058,0.143,0.143,0.104,0.062
+c1__2022-09-16__13-01-42.avi,3,nan,nan,nan,nan,0.472,0.019,0.210,0.063,0.516,0.047,0.255,0.053,0.574,0.064,0.203,0.063
+c1__2022-09-16__13-01-42.avi,4,0.094,0.052,0.119,0.030,0.346,0.059,0.176,0.067,0.414,0.072,0.184,0.071,0.282,0.092,0.290,0.075
+c1__2022-09-16__13-01-42.avi,5,0.094,0.013,0.152,0.036,0.353,0.078,0.244,0.102,0.250,0.083,0.200,0.100,0.143,0.000,0.358,0.104
