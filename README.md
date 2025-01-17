@@ -1,33 +1,35 @@
 # nvsl-analysis
-Analysis code for "Parallel use of self-generated olfactory and motion cues for learning a spatial goal location in Drosophila melanogaster"
+Analysis code for "Spatial learning in feature-impoverished environments in Drosophila" (Yang Chen, Robert Alfredson, Dorsa Motevalli, Ulrich Stern, Chung-Hui Yang, bioRxiv 2024.09.28.615625; doi: https://doi.org/10.1101/2024.09.28.615625)
 
 ## Setup
 
-This document provides instructions for setting up the data analysis environment for the project. These steps are designed to be OS-independent, with notes provided for specific instructions on Linux, Windows, and macOS.
+This document provides instructions for setting up the data analysis environment for this project. The software has been tested on **Ubuntu 22.04** and **Windows 11**, but the instructions should be broadly applicable to other OS versions. No special hardware is required beyond a standard desktop or laptop computer.
 
 ### Prerequisites
 
-- Python 3.10
+- **Python 3.10**  
+- A C compiler (e.g., `gcc` on Linux, Xcode command line tools on macOS, or Visual Studio Build Tools on Windows)
+
+---
 
 ### Installation Steps
 
 #### 1. Install Python 3.10
+Make sure Python 3.10 is installed on your system. This can typically be done via:
+- **Linux/macOS**: Your OS package manager (e.g., `apt`, `brew`)  
+- **Windows**: The Microsoft Store or the [official Python website](https://www.python.org/downloads/)
 
-Ensure that Python 3.10 is installed on your system. This can typically be done through your operating system's package manager, the Windows Store, or by downloading from the [Python website](https://www.python.org/downloads/).
-
-**Note:** Installing Python 3.10 should also install `pip` (Python's package installer). However, it does **not** automatically install `virtualenv`.
+> **Note**: Installing Python 3.10 includes `pip`, but **not** `virtualenv`.  
 
 #### 2. Install `virtualenv` (if necessary)
-
-If `virtualenv` is not installed (it's not included with Python 3.10 by default), install it globally using pip:
-
+If `virtualenv` is not available on your system:
 ```bash
 pip install virtualenv
 ```
 
 #### 3. Create a Virtual Environment
 
-Navigate to your project directory and create a virtual environment. Replace myenv with your desired environment name.
+In your project directory, create a virtual environment (replace `myenv` with any environment name you like):
 
 - Linux/macOS
 
@@ -59,7 +61,7 @@ Navigate to your project directory and create a virtual environment. Replace mye
 
 #### 5. Install Dependencies
 
-With the virtual environment activated, install the required dependencies using:
+With the virtual environment **activated**, install required packages:
 
 ```bash
 
@@ -68,16 +70,17 @@ pip install -r requirements.txt
 
 #### 6. Build Cython Extensions
 
-Finally, build the Cython extensions. This step assumes Cython is listed as a dependency in your requirements.txt and thus has been installed in the previous step.
+If [Cython](https://cython.org/) is listed in requirements.txt, it will already be installed. Then build the Cython extensions:
 
 ```bash
 
 python scripts/setup.py build_ext --inplace
 ```
 
-#### 7. Create Drive Mapping File (Optional)
+#### 7. (Optional) Create Drive Mapping File
 
-By default, paths will be handled using their respective conventions by OS - `C:\Users\you\your_video.avi` for Windows and `/home/you/your_video.avi` for Unix. However, `analyze.py` can also be configured to use Unix paths universally- just save a file to this directory named `drive_mapping.json` that maps Unix-style paths to Windows-style ones. For example:
+By default, the script will use OS-specific path conventions (e.g., `/home/you/your_video.avi` vs. `C:\Users\you\your_video.avi`).
+If you want to use Unix-style paths universally on Windows, create a JSON file named `drive_mapping.json` in this directory:
 
 ```json
 {
@@ -85,11 +88,18 @@ By default, paths will be handled using their respective conventions by OS - `C:
 }
 ```
 
-If the program detects `drive_mapping.json`, then it attempts to map all inputted paths to their Windows equivalents, so that `/media/Synology4/you/your_video.avi`, for example, would be converted to `Y:\you\your_video.avi`.
+Any input path starting with /media/Synology4/ will be mapped to `Y:\`.
+
+---
+
+### Typical Installation Time
+If Python 3.10 is **already installed**, setting up the virtual environment and installing dependencies (including building Cython extensions) typically takes about **2 minutes** on a normal desktop computer. If you need to install Python from scratch, plan for an additional **3–5 minutes**, depending on your internet speed and operating system.
+
+---
 
 ### Deactivation
 
-To exit the virtual environment, simply run:
+When finished, you can leave the virtual environment by running:
 
 ```bash
 
@@ -98,69 +108,69 @@ deactivate
 
 ### Troubleshooting
 
-- If you encounter any issues during the setup, ensure that you have the correct version of Python installed and that your virtual environment is activated before installing dependencies.
-- For problems related to Cython compilation, verify that you have a C compiler installed and configured correctly for your operating system.
+- **Dependency errors**: Double-check you have Python 3.10 and your virtual environment is activated before installing.
+- **Cython compilation issues**: Confirm that you have a working C compiler (e.g., gcc, Xcode CLT, or VS Build Tools).
 
-## Running the First Analysis
-Once your environment is set up, you can run a standard analysis using the following command:
+---
+
+## Basic Usage
+Once your environment is ready, you can run a standard analysis with:
 ```bash
 python analyze.py -v "$path_to_video" -f "0-9"
 ```
-- `-v` (required) specifies the path to the video file.
-- `-f` defines the range of fly numbers, and is required for any chamber that supports more than a single fly.
+Where:
+- `-v` is **required** and specifies the path to your video file.
+- `-f` is **required** if analyzing a chamber that supports multiple flies; use a range like `0-9`.
 
-This command will perform a standard analysis with no extra features. Be sure to replace "$path_to_video" with the path to your video file and adjust the fly number range as needed.
+### Additional Flags: Turn Detection
 
-## Usage Instructions
-To generate specific plots or conduct detailed analyses (such as those presented in the paper), additional flags can be used to modify the behavior of the analysis script. Below are key flags related to detecting turn events.
-### Turn Detection
-The `--turn` flag can be used with three options to detect turn events at different boundaries within the chamber:
-- `circle`: Detects large turns after the fly exits the reward circle. The distances of the fly from the reward circle at the start and end of these large turns are then plotted in histogram form.
-  **Example command:**
-  ```
-  python analyze.py -v "$path_to_video" -f "0-9" --turn circle
-  ```
-- `agarose`: Detects sharp turns after crossing over the interface between the flat plastic floor and the agarose-filled troughs.
-  **Example command:**
-  ```
-  python analyze.py -v "$path_to_video" -f "0-9" --turn agarose
-  ```
-- `boundary`: Detects sharp turns after crossing the boundary midway between the chamber center and the agarose interface (measured vertically).
-  **Example command:**
-  ```
-  python analyze.py -v "$path_to_video" -f "0-9" --turn boundary
-  ```
-These flags allow you to specify which boundary or area to use for detecting turn events. This can be useful for analyzing flies' movements in response to the different spatial features of the chamber.
+You can detect turn events in different areas with the --turn flag:
+- `circle`
+- `agarose`
+- `boundary`
 
-### 
+For example:
+```bash
+python analyze.py -v "$path_to_video" -f "0-9" --turn circle
+```
+For more details on optional flags, see the top of `analyze.py` or run `python analyze.py --help`.
+
+---
+
+## Demo
+Below is a short demo to verify the pipeline with *real* data.
+1. **Download the sample data**
+   Grab the files from [this Figshare dataset](https://figshare.com/articles/dataset/NVSL_Analysis_Demo_Sample_Experiments/28228976).
+2. **Run an example command**
+   ```bash
+   python analyze.py \
+       -v /path/to/your/demo/files/c*.avi \
+       -f 0-9 \
+       --turn circle \
+       --turn-prob-by-dist 2,3,4,5,6
+   ```
+   - The analysis takes about **4 minutes** to complete on a typical desktop.
+   - This produces:
+       - `__analyze.log`: A log summarizing results per fly.
+       - `learning_stats.csv`: Metrics such as walking speed, number of rewards, etc.
+       - `imgs/`: A folder with around 48 plots covering various metrics.
+3. **Compare outputs to expected**
+    - Download the reference outputs from [this Figshare dataset](https://figshare.com/articles/dataset/NVSL_Analysis_Demo_Expected_Outputs/28229126).
+    - Compare each file (log, CSV, images) to confirm the results match.
+
+---
 
 ## Testing
-The repository includes a regression testing script to verify that the current version of the code produces the same results as checked-in reference data. The script reads commands from earlier results and compares the outputs.
-
-To run the test, execute the following:
-
+A regression test checks whether the latest code matches prior reference outputs:
 ```bash
-
 python scripts/regression_test.py
 ```
+It:
+  - Parses log/CSV commands from past runs
+  - Executes them on your current code
+  - Compares generated outputs (logs, CSVs, images) with the reference data
+  - Prints any discrepancies
 
-The script will:
-- Parse commands from log files and CSVs.
-- Compare the output of the current script with reference logs, CSV files, and images.
-- Print discrepancies if there are any mismatches between the generated files and the reference data.
+Logs like `__analyze_13F02.log` or `__analyze_blind.log` and CSVs like `learning_stats_alt.csv` or `learning_stats_blind.csv` are checked, and images in `test-imgs/key.json` are compared via binary checks.
 
-The test checks both textual output (logs, CSVs) and images (using binary comparison).
-
-For example, the script checks logs like:
-- `__analyze_13F02.log`
-- `__analyze_blind.log`
-- `__analyze_wall_full_bucket.log`
-
-And CSV files such as:
-- `learning_stats_alt.csv`
-- `learning_stats_blind.csv`
-- `learning_stats_heatmap.csv`
-
-It also compares images specified in `test-imgs/key.json` with output images.
-
-If there are any discrepancies or errors, they will be reported during the test run.
+*Thank you for using `nvsl-analysis`! If you have any feedback or questions, please open an issue on GitHub or email the authors.*
