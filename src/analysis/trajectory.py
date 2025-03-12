@@ -147,16 +147,20 @@ class Trajectory:
 
         # lost during "on"
         if self.va:
-            msk, nfon = np.zeros_like(self.x, bool), 2
-            for d in range(nfon):
-                on = self.va.on + 1 + d
-                msk[on[on < len(msk)]] = True
-            nf, nl = np.sum(msk), np.sum(msk & self.nan)
-            if nf:
-                print(
-                    '    during "on" (%d frames, %d per "on" cmd): %d (%s)'
-                    % (nf, nfon, nl, "{:.2%}".format(nl / nf))
-                )
+            if self.va.on.size > 0:
+                msk, nfon = np.zeros_like(self.x, bool), 2
+                for d in range(nfon):
+                    on = self.va.on + 1 + d
+                    if on.size > 0:
+                        msk[on[on < len(msk)]] = True
+                nf, nl = np.sum(msk), np.sum(msk & self.nan)
+                if nf:
+                    print(
+                        '    during "on" (%d frames, %d per "on" cmd): %d (%s)'
+                        % (nf, nfon, nl, "{:.2%}".format(nl / nf))
+                    )
+            else:
+                print('    No "on" frames detected.')
 
         self._p("    interpolating...")
         if self.theta is not None:
