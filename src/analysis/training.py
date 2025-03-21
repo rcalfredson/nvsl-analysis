@@ -97,6 +97,29 @@ class Training:
                 return t
         return None
 
+    @staticmethod
+    def _addCircle(t, cx, cy, r, xf, tmFct=None, tmX=None, isCntr=False):
+        t.cs.append((cx, cy, r))
+        if t.ct is CT.regular:
+            assert xf is not None and tmFct is not None and tmX is not None
+            ccx = 150.5 if isCntr else 192 - 22
+            ccx = util.intR(ccx * tmFct + tmX) if LEGACY_YC_CIRCLES else xf.t2fX(ccx)
+            t.v_cs.append((ccx, cy, r))
+        elif t.yc and t.ct is CT.large:
+            t.v_cs.append((cx, 2 * xf.t2fY(268) - cy, r))
+        elif t.yc and t.ct is CT.htl:
+            t.v_cs.append((cx, cy + xf.t2fY(-xf.y, f=t.va.nef), r))
+
+    @staticmethod
+    def _getCornerCoords(t, xf, fly_index):
+        floor_tl, floor_br = t.ct.floor(xf, f=fly_index)
+        return {
+            "top-left": (floor_tl[0] + t.r, floor_tl[1] + t.r),
+            "top-right": (floor_br[0] - t.r, floor_tl[1] + t.r),
+            "bottom-left": (floor_tl[0] + t.r, floor_br[1] - t.r),
+            "bottom-right": (floor_br[0] - t.r, floor_br[1] - t.r),
+        }
+
     # sets training, control, and virtual (yoked control) circles
     @staticmethod
     def _setCircles(trns, cyu, opts):
@@ -122,48 +145,44 @@ class Training:
             if t.isCircle():
                 isCntr = t.tp is t.TP.center
 
-                def addC(cx, cy, r):
-                    t.cs.append((cx, cy, r))
-                    if t.ct is CT.regular:  # for yoked control
-                        assert t.yc
-                        ccx = 150.5 if isCntr else 192 - 22
-                        ccx = (
-                            util.intR(ccx * tmFct + tmX)
-                            if LEGACY_YC_CIRCLES
-                            else xf.t2fX(ccx)
-                        )
-                        t.v_cs.append((ccx, cy, r))
-                    elif t.yc and t.ct is CT.large:
-                        t.v_cs.append((cx, 2 * xf.t2fY(268) - cy, r))
-                    elif t.yc and t.ct is CT.htl:
-                        t.v_cs.append((cx, cy + xf.t2fY(-xf.y, f=t.va.nef), r))
+                # Add primary experimental circle
+                Training._addCircle(t, t.cx, t.cy, t.r, xf, tmFct, tmX, isCntr)
 
-                addC(t.cx, t.cy, t.r)
-                # add control circle
-                if t.tp is t.TP.circle:
-                    if t.ct is CT.large:
-                        addC(t.cx, t.cy, 55)  # 22*3 scaled for large chamber
-                    elif t.ct is CT.htl:
-                        addC(t.cx, 2 * t.cntr[1] - t.cy, t.r)
-                        t.sym = True
-                    else:
-                        error(
-                            "TrainingType circle not implemented for %s chamber" % t.ct
+                # Determine and explicitly add the control circle
+                if opts.controlCircleInCorner:
+                    # Get floor coordinates for experimental fly
+                    corner_coords = Training._getCornerCoords(t, xf, t.va.ef)
+
+                    # Add control circle explicitly
+                    for corner, (ctrl_cx, ctrl_cy) in corner_coords.items():
+                        Training._addCircle(t, ctrl_cx, ctrl_cy, t.r, xf)
+                if not opts.controlCircleInCorner:
+                    if t.tp is t.TP.circle:
+                        if t.ct is CT.large:
+                            Training._addCircle(t, t.cx, t.cy, 55, xf)
+                        elif t.ct is CT.htl:
+                            Training._addCircle(t, t.cx, 2 * t.cntr[1] - t.cy, t.r, xf)
+                            t.sym = True
+                        else:
+                            error(
+                                "TrainingType circle not implemented for %s chamber"
+                                % t.ct
+                            )
+                    elif isCntr:
+                        rm = opts.radiusMultCC or (2.5 if t.ct is CT.htl else 3)
+                        Training._addCircle(
+                            t, t.cx, t.cy, util.intR(t.r * rm), xf, tmFct, tmX, isCntr
                         )
-                elif isCntr:
-                    assert len(cyu) != 3 or t.cy == cyu[1]
-                    rm = opts.radiusMultCC or (2.5 if t.ct is CT.htl else 3)
-                    addC(t.cx, t.cy, util.intR(t.r * rm))
-                else:
-                    if len(cyu) == 3:
-                        assert t.cy == cyu[0] or t.cy == cyu[2]
-                        ccy = cyu[2] if t.cy == cyu[0] else cyu[0]
-                    elif t.tp in (t.TP.bottom, t.TP.top):
-                        assert t.ct is CT.regular
-                        ccy = xf.t2fY(112.5 if t.tp is t.TP.top else 27.5)
                     else:
-                        error("not yet implemented")
-                    addC(t.cx, ccy, t.r)
+                        if len(cyu) == 3:
+                            assert t.cy == cyu[0] or t.cy == cyu[2]
+                            ccy = cyu[2] if t.cy == cyu[0] else cyu[0]
+                        elif t.tp in (t.TP.bottom, t.TP.top):
+                            assert t.ct is CT.regular
+                            ccy = xf.t2fY(112.5 if t.tp is t.TP.top else 27.5)
+                        else:
+                            error("not yet implemented")
+                        Training._addCircle(t, t.cx, ccy, t.r, xf, tmFct, tmX, isCntr)
 
     @staticmethod
     def _setYTopBottom(trns):

@@ -478,6 +478,18 @@ g.add_argument(
     help="multiplier for radius for positional PI (default: %(default)s)",
 )
 g.add_argument(
+    "--controlCircleInCorner",
+    action="store_true",
+    help="override control circle placement from saved training protocol,"
+    " placing it in the corner of the chamber instead."
+)
+g.add_argument(
+    "--disableCornerCircleScaling",
+    action="store_true",
+    help="(TEMPORARY) Disable the scaling by (1/4) when using four control"
+    " circles placed at the corners of the chamber."
+)
+g.add_argument(
     "--rmCC",
     dest="radiusMultCC",
     type=float,

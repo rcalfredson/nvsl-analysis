@@ -1123,7 +1123,15 @@ class VideoAnalysis:
         on = self._getOn(None, calc, ctrl, f)
         if len(on) == 0:
             on = np.array([])
-        return util.inRange(on, fi, la, count=True)
+        count = util.inRange(on, fi, la, count=True)
+
+        if (
+            ctrl
+            and self.opts.controlCircleInCorner
+            and not self.opts.disableCornerCircleScaling
+        ):
+            count /= 4
+        return count
 
     # returns number of rewards by bucket; fiCount can be used to make
     #  counting start later than fi
@@ -2753,7 +2761,7 @@ class VideoAnalysis:
         the provided rewards during the post-reward phase.
 
         Parameters:
-        - None
+          - None
 
         The method iterates over each training session and each fly, calculating the reward PI
         and the total number of reward crossings, adjusted for synchronization with experimental
@@ -2762,10 +2770,10 @@ class VideoAnalysis:
         with the reward areas.
 
         Notes:
-        - The reward PI provides a quantifiable measure of the flies' reward preferences, offering
-        valuable insights into the effectiveness of the training and their subsequent behavior.
-        - The method accounts for the possibility of continued training activity affecting the
-        reward PI calculations, especially in the initial training session.
+          - The reward PI provides a quantifiable measure of the flies' reward preferences, offering
+            valuable insights into the effectiveness of the training and their subsequent behavior.
+          - The method accounts for the possibility of continued training activity affecting the
+            reward PI calculations, especially in the initial training session.
         """
         calc, blm, nnpb = True, self.opts.rpiPostBucketLenMin, self.rpiNumNonPostBuckets
         print(

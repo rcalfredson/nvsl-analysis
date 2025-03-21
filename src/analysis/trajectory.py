@@ -63,6 +63,7 @@ class Trajectory:
         self.opts = opts
         if self._isEmpty():
             return
+        self._setLostFrameThreshold()
         self._interpolate()
         if self._bad:
             return
@@ -78,6 +79,24 @@ class Trajectory:
             self._plotIssues()
         if opts.chooseOrientations:
             self._chooseOrientations()
+
+    def _setLostFrameThreshold(self):
+        """
+        Sets the threshold for the maximum proportion of lost frames in the video,
+        beyond which the trajectory is marked as "bad".
+
+        By default, the threshold is 0.1. For large-chamber videos—where tracking is
+        more likely to lose flies—a higher threshold of 0.5 is used.
+
+        Side effects:
+            - Sets the `_max_proportion_lost_fms` attribute based on the chamber type.
+
+        Returns:
+            None
+        """
+        self._max_proportion_lost_fms = 0.1
+        if self.va and self.va.ct == CT.large:
+            self._max_proportion_lost_fms = 0.5
 
     def _p(self, s):
         """
@@ -124,7 +143,9 @@ class Trajectory:
             del nanrs[0]
         ls = [r.stop - r.start for r in nanrs]
         lf = sum(ls) / (len(self.x) - self.trxStartIdx)
-        self._bad = self.va and lf > 0.1 and not self.va.openLoop
+        self._bad = (
+            self.va and lf > self._max_proportion_lost_fms and not self.va.openLoop
+        )
         self._p(
             "  lost: number frames: %d (%s)%s"
             % (
@@ -691,12 +712,17 @@ class Trajectory:
 
         # Convert wall contact regions into a set of frames for quick lookup
         wall_contact_frames = set()
-        for region in self.boundary_event_stats['wall']['all']['edge']['boundary_contact_regions']:
+        for region in self.boundary_event_stats["wall"]["all"]["edge"][
+            "boundary_contact_regions"
+        ]:
             wall_contact_frames.update(range(region.start, region.stop))
         print(f"{flyDesc(self.f)}")
 
         if debug:
-            print(f"[INFO] Wall contact frames (total {len(wall_contact_frames)}):", sorted(wall_contact_frames))
+            print(
+                f"[INFO] Wall contact frames (total {len(wall_contact_frames)}):",
+                sorted(wall_contact_frames),
+            )
 
         radii_mm = self.opts.outside_circle_radii  # Radii in mm
         # Convert radii from mm to pixels
@@ -714,29 +740,51 @@ class Trajectory:
             i, j = 0, 0
 
             if debug:
-                print(f"[DEBUG] [Training Index: {trn_idx}, Fly Type: {self.f}] Start of calculate_durations.")
-                print(f"[DEBUG] [Training Index: {trn_idx}, Fly Type: {self.f}] Exit events:", ex_evts)
-                print(f"[DEBUG] [Training Index: {trn_idx}, Fly Type: {self.f}] Entry events:", en_evts)
+                print(
+                    f"[DEBUG] [Training Index: {trn_idx}, Fly Type: {self.f}] Start of calculate_durations."
+                )
+                print(
+                    f"[DEBUG] [Training Index: {trn_idx}, Fly Type: {self.f}] Exit events:",
+                    ex_evts,
+                )
+                print(
+                    f"[DEBUG] [Training Index: {trn_idx}, Fly Type: {self.f}] Entry events:",
+                    en_evts,
+                )
 
             while i < len(ex_evts) and j < len(en_evts):
                 if ex_evts[i] < en_evts[j]:
-                    if not any(frame in wall_contact_frames for frame in range(ex_evts[i], en_evts[j])):
+                    if not any(
+                        frame in wall_contact_frames
+                        for frame in range(ex_evts[i], en_evts[j])
+                    ):
                         valid_pairs.append((ex_evts[i], en_evts[j]))
                     elif debug:
-                        print(f"[DEBUG] [Training Index: {trn_idx}, Fly Type: {self.f}] Skipped due to wall contact between {ex_evts[i]} and {en_evts[j]}")
+                        print(
+                            f"[DEBUG] [Training Index: {trn_idx}, Fly Type: {self.f}] Skipped due to wall contact between {ex_evts[i]} and {en_evts[j]}"
+                        )
                     i += 1
                     j += 1
                 else:
                     j += 1
 
             if debug:
-                print(f"[DEBUG] [Training Index: {trn_idx}, Fly Type: {self.f}] Valid exit-entry pairs:", valid_pairs)
+                print(
+                    f"[DEBUG] [Training Index: {trn_idx}, Fly Type: {self.f}] Valid exit-entry pairs:",
+                    valid_pairs,
+                )
 
             durations = [en - ex for ex, en in valid_pairs if en - ex > 0]
 
             if debug:
-                print(f"[DEBUG] [Training Index: {trn_idx}, Fly Type: {self.f}] Durations:", durations)
-                print(f"[DEBUG] [Training Index: {trn_idx}, Fly Type: {self.f}] Mean duration:", np.mean(durations) if durations else "N/A")
+                print(
+                    f"[DEBUG] [Training Index: {trn_idx}, Fly Type: {self.f}] Durations:",
+                    durations,
+                )
+                print(
+                    f"[DEBUG] [Training Index: {trn_idx}, Fly Type: {self.f}] Mean duration:",
+                    np.mean(durations) if durations else "N/A",
+                )
 
             return durations
 
@@ -745,38 +793,62 @@ class Trajectory:
             cx, cy, r_smallest = list(t.circles(self.f))[0]
 
             if debug:
-                print(f"[INFO] Training session: {t.n}, Start frame: {start}, Circle center: ({cx}, {cy}), Smallest radius: {r_smallest}")
+                print(
+                    f"[INFO] Training session: {t.n}, Start frame: {start}, Circle center: ({cx}, {cy}), Smallest radius: {r_smallest}"
+                )
 
             if t.n == 1:
-                outside_durations.append({r_mm: [] for r_mm in radii_mm})  # For pre-training
-                outside_durations.append({r_mm: [] for r_mm in radii_mm})  # For training 1
+                outside_durations.append(
+                    {r_mm: [] for r_mm in radii_mm}
+                )  # For pre-training
+                outside_durations.append(
+                    {r_mm: [] for r_mm in radii_mm}
+                )  # For training 1
             else:
-                outside_durations.append({r_mm: [] for r_mm in radii_mm})  # For other training periods
+                outside_durations.append(
+                    {r_mm: [] for r_mm in radii_mm}
+                )  # For other training periods
 
             x, y = self.xy(start, t.postStop)
             for r_mm, r_px in zip(radii_mm, radii_px):
                 inC = self.calc_in_circle(x, y, cx, cy, r_px)
 
                 if debug:
-                    print(f"[INFO] [Training Index: {t_idx}, Radius: {r_mm} mm] Radius (mm): {r_mm}, Radius (px): {r_px}")
-                    print(f"[INFO] [Training Index: {t_idx}, Radius: {r_mm} mm] Calculated in-circle values (first 20): {inC[:20]}")
+                    print(
+                        f"[INFO] [Training Index: {t_idx}, Radius: {r_mm} mm] Radius (mm): {r_mm}, Radius (px): {r_px}"
+                    )
+                    print(
+                        f"[INFO] [Training Index: {t_idx}, Radius: {r_mm} mm] Calculated in-circle values (first 20): {inC[:20]}"
+                    )
 
                 if t.n == 1:
-                    inCPre = inC[0:t.start - self.va.startPre]
-                    inC = inC[t.start - self.va.startPre:]
+                    inCPre = inC[0 : t.start - self.va.startPre]
+                    inC = inC[t.start - self.va.startPre :]
 
                     # Pre-training durations (index 0)
                     ex_evts_pre = self._calcEnEx(inCPre, start, mode="ex")
                     en_evts_pre = self._calcEnEx(inCPre, start, mode="en")
 
                     if debug:
-                        print(f"[DEBUG] [Training Index: {t_idx}, Fly Type: {self.f}] Exit events: {ex_evts_pre}")
-                        print(f"[DEBUG] [Training Index: {t_idx}, Fly Type: {self.f}] Entry events: {en_evts_pre}")
-                        print(f"[DEBUG] [Training Index: {t_idx}, Fly Type: {self.f}] inC pre:", inCPre)
-                        print(f"[DEBUG] [Training Index: {t_idx}, Fly Type: {self.f}] Number of frames inside circle:", np.count_nonzero(inCPre))
+                        print(
+                            f"[DEBUG] [Training Index: {t_idx}, Fly Type: {self.f}] Exit events: {ex_evts_pre}"
+                        )
+                        print(
+                            f"[DEBUG] [Training Index: {t_idx}, Fly Type: {self.f}] Entry events: {en_evts_pre}"
+                        )
+                        print(
+                            f"[DEBUG] [Training Index: {t_idx}, Fly Type: {self.f}] inC pre:",
+                            inCPre,
+                        )
+                        print(
+                            f"[DEBUG] [Training Index: {t_idx}, Fly Type: {self.f}] Number of frames inside circle:",
+                            np.count_nonzero(inCPre),
+                        )
 
                     outside_durations[0][r_mm].extend(
-                        calculate_durations(ex_evts_pre, en_evts_pre, trn_idx=0, fly_type="Pre-training")
+                        calculate_durations(
+                            ex_evts_pre, en_evts_pre, trn_idx=0, fly_type="Pre-training"
+                        )
                     )
 
                     # Training 1 durations (index 1)
@@ -784,11 +856,17 @@ class Trajectory:
                     en_evts = self._calcEnEx(inC, t.start, mode="en")
 
                     if debug:
-                        print(f"[DEBUG] [Training Index: {t_idx}, Fly Type: {self.f}] Exit events: {ex_evts}")
-                        print(f"[DEBUG] [Training Index: {t_idx}, Fly Type: {self.f}] Entry events: {en_evts}")
+                        print(
+                            f"[DEBUG] [Training Index: {t_idx}, Fly Type: {self.f}] Exit events: {ex_evts}"
+                        )
+                        print(
+                            f"[DEBUG] [Training Index: {t_idx}, Fly Type: {self.f}] Entry events: {en_evts}"
+                        )
 
                     outside_durations[1][r_mm].extend(
-                        calculate_durations(ex_evts, en_evts, trn_idx=1, fly_type="Training 1")
+                        calculate_durations(
+                            ex_evts, en_evts, trn_idx=1, fly_type="Training 1"
+                        )
                     )
                 else:
                     # Other training periods
@@ -796,11 +874,17 @@ class Trajectory:
                     en_evts = self._calcEnEx(inC, t.start, mode="en")
 
                     if debug:
-                        print(f"[DEBUG] [Training Index: {t_idx}, Fly Type: {self.f}] Exit events: {ex_evts}")
-                        print(f"[DEBUG] [Training Index: {t_idx}, Fly Type: {self.f}] Entry events: {en_evts}")
+                        print(
+                            f"[DEBUG] [Training Index: {t_idx}, Fly Type: {self.f}] Exit events: {ex_evts}"
+                        )
+                        print(
+                            f"[DEBUG] [Training Index: {t_idx}, Fly Type: {self.f}] Entry events: {en_evts}"
+                        )
 
                     outside_durations[-1][r_mm].extend(
-                        calculate_durations(ex_evts, en_evts, trn_idx=t_idx, fly_type=f"{self.f}")
+                        calculate_durations(
+                            ex_evts, en_evts, trn_idx=t_idx, fly_type=f"{self.f}"
+                        )
                     )
 
         self.outside_durations = outside_durations
