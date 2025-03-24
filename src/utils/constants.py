@@ -16,6 +16,7 @@ AGAROSE_BOUNDARY_DIST = 3
 MIDLINE_BOUNDARY_DIST = 4
 HEATMAP_DIV = 2
 LEGACY_YC_CIRCLES = False  # whether to use calculated template match values
+LGC2 = True  # version 2 of large chamber (39x39 mm)
 #  for yoked control circles
 P = False  # whether to use paper style for plots
 POST_SYNC = ST.fixed  # when to start post buckets

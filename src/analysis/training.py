@@ -106,7 +106,9 @@ class Training:
             ccx = util.intR(ccx * tmFct + tmX) if LEGACY_YC_CIRCLES else xf.t2fX(ccx)
             t.v_cs.append((ccx, cy, r))
         elif t.yc and t.ct is CT.large:
-            t.v_cs.append((cx, cy + xf.t2fY(-xf.y, f=t.va.nef), r))
+            t.v_cs.append((cx, 2 * xf.t2fY(268) - cy, r))
+        elif t.yc and t.ct is CT.large2:
+            t.v_cs.append((cx, 2 * xf.t2fY(321) - cy, r))
         elif t.yc and t.ct is CT.htl:
             t.v_cs.append((cx, cy + xf.t2fY(-xf.y, f=t.va.nef), r))
 
@@ -158,16 +160,14 @@ class Training:
                         Training._addCircle(t, ctrl_cx, ctrl_cy, t.r, xf)
                 else:
                     if t.tp is t.TP.circle:
-                        if t.ct is CT.large:
-                            if opts.rotateControlCircle:
-                                circle_in_templ = xf.f2t(
-                                    t.cx, t.cy, f=t.va.ef, noMirr=False
-                                )
-                                new_cx = CT.large.width - circle_in_templ[0]
-                                new_cy = CT.large.height - circle_in_templ[1]
-                                rotated_circle = xf.t2f(new_cx, new_cy, f=t.va.ef)
+                        if t.ct in (CT.large, CT.large2):
+                            if t.ct is CT.large2 and opts.rotateControlCircle:
                                 Training._addCircle(
-                                    t, rotated_circle[0], rotated_circle[1], t.r, xf
+                                    t,
+                                    2 * t.cntr[0] - t.cx,
+                                    2 * t.cntr[1] - t.cy,
+                                    t.r,
+                                    xf,
                                 )
                             else:
                                 Training._addCircle(t, t.cx, t.cy, 55, xf)
@@ -271,7 +271,7 @@ class Training:
             else:
                 cir = t.tp = "circle x=%d,y=%d,r=%d" % (t.cx, t.cy, t.r)
             if t.isCircle():
-                if t.ct is CT.large:
+                if t.ct in (CT.large, CT.large2):
                     t.tp = t.TP.circle
                 elif len(cyu) == 3 and len(cxu) == 2:
                     if t.cy == cyu[2]:

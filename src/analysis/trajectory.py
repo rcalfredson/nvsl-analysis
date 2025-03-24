@@ -95,8 +95,8 @@ class Trajectory:
             None
         """
         self._max_proportion_lost_fms = 0.1
-        if self.va and self.va.ct == CT.large:
-            self._max_proportion_lost_fms = 0.5
+        if self.va and self.va.ct is CT.large2:
+            self._max_proportion_lost_fms = 0.6
 
     def _p(self, s):
         """
@@ -323,7 +323,7 @@ class Trajectory:
                     onB[s.start : s.stop] = False
         elif self.va.ct is CT.htl:
             onB = ~self.nan
-        elif self.va.ct is CT.large:
+        elif self.va.ct in (CT.large, CT.large2):
             onB = ~self.nan
         else:
             error("not yet implemented")
