@@ -31,6 +31,7 @@ from src.utils.constants import (
     MIDLINE_BOUNDARY_DIST,
     AGAROSE_BOUNDARY_DIST,
     HEATMAP_DIV,
+    LGC2,
     POST_SYNC,
     RDP_MIN_LINES,
     RI_START,
@@ -378,7 +379,7 @@ class VideoAnalysis:
     #  given border from the given frame
     def _createExtractChamber(self):
         (xm, ym), (xM, yM) = self.ct.floor(self.xf, f=self.ef)
-        bw = {CT.regular: 0, CT.htl: 15, CT.large: 35}[self.ct]
+        bw = {CT.regular: 0, CT.htl: 15, CT.large: 35, CT.large2: 39}[self.ct]
 
         def exCh(frame, borderw=bw):
             return util.subimage(
@@ -435,7 +436,7 @@ class VideoAnalysis:
         self.dt, self.trxRw = self.fileCache[fn]
         x, proto = self.trxRw["x"], self.dt["protocol"]
         nfls, self.nf = len(x), len(x[0])
-        self.ct = CT.get(nfls)
+        self.ct = CT.get(nfls, LGC2)
         self.fns, self.info = (proto[k] for k in ("frameNums", "info"))
         multEx = isinstance(self.fns, list)
         nef = self.nef = len(self.fns) if multEx else 1
@@ -524,8 +525,9 @@ class VideoAnalysis:
         )
         print("  (pre: %s)" % frame2hm(self.trns[0].start - self.startPre, self.fps))
         Training.processReport(self.trns, self.on, self.nf, self.opts)
-        self.choice = (
-            all(t.tp is t.TP.choice for t in self.trns) and not self.ct is CT.large
+        self.choice = all(t.tp is t.TP.choice for t in self.trns) and not self.ct in (
+            CT.large,
+            CT.large2,
         )
         # note: also used for "choice type" open-loop protocols
         self._createExtractChamber()
@@ -3287,10 +3289,11 @@ class VideoAnalysis:
     #   look like fly 0
     # TODO: replace with Xformer's built-in _mirror()?
     def mirror(self, xy):
-        if self.ct is CT.large:
+        if self.ct in (CT.large, CT.large2):
+            sep = 321 if self.ct is CT.large2 else 268
             return [
-                2 * 268 - xy[0] if self.ef % 2 else xy[0],
-                2 * 268 - xy[1] if self.noyc and self.ef > 1 else xy[1],
+                2 * sep - xy[0] if self.ef % 2 else xy[0],
+                2 * sep - xy[1] if self.noyc and self.ef > 1 else xy[1],
             ]
         else:
             return xy

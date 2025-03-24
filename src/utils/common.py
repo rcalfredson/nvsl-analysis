@@ -83,12 +83,13 @@ def deep_access(x, attr, keylist, new_val=None):
 class CT(enum.Enum):
     regular = dict(ppmm=8.4, center=(45, 70))
     htl = dict(ppmm=8.0, nc=5, name="HtL", floor=((0, 0), (80, 128)), center=(40, 64))
-    large = dict(ppmm=7.0, nc=2, floor=((0, 0), (244, 244)), center=(122, 122))
+    large = dict(ppmm=7.0, nc=2, floor=((0, 0), (296, 296)), center=(148, 148))
+    large2 = dict(ppmm=7.56, nc=2, floor=((0, 0), (295, 295)), center=(147.5, 147.5))
 
     # returns chamber type given the number of flies per camera
     @staticmethod
-    def get(numFlies):
-        return {2: CT.regular, 4: CT.large, 20: CT.htl}[numFlies]
+    def get(numFlies, lgc2):
+        return {2: CT.regular, 4: CT.large2 if lgc2 else CT.large, 20: CT.htl}[numFlies]
 
     def __str__(self):
         s = self.value.get("name")
@@ -152,7 +153,7 @@ class CT(enum.Enum):
     def _arenaWellsLarge(self, xf, f, tp="A", c=1):
         wellRadius = (4 if tp == "A" else 2) * self.pxPerMmFloor()
         flrCrds = [
-            (crd[0], crd[1] + 284 * (1 if f > 1 else 0))
+            (crd[0], crd[1] + 336 * (1 if f > 1 else 0))
             for crd in self.floor(xf, np.mod(f, 2))
         ]
         xHalf, yHalf = np.mean(flrCrds, axis=0)
@@ -185,7 +186,7 @@ class CT(enum.Enum):
     def floor(self, xf, f=None):
         if f is None or self is CT.regular:
             return (0, 0), xf.frameSize
-        elif self in (CT.htl, CT.large):
+        elif self in (CT.htl, CT.large, CT.large2):
             return (xf.t2f(*xy, f=f, noMirr=True) for xy in self.value["floor"])
         else:
             error("not yet implemented")
@@ -217,6 +218,7 @@ class CT(enum.Enum):
 #  top left chamber with 0 representing the top left corner of the floor
 class Xformer:
     # tm: dictionary with template match values (keys: fctr, x, and y)
+    # fy: flip y-coordinates for lower half of chamber
     def __init__(self, tm, ct, frame, fy):
         self.ct, self.nc, self.frameSize = ct, ct.numCols(), util.imgSize(frame)
         if tm is not None:
@@ -235,18 +237,20 @@ class Xformer:
     # shifts template coordinates between top left (TL) and the given fly's
     #  chambers
     def _shift(self, xy, f, toTL):
-        if self.ct in (CT.htl, CT.large) and f is not None:
+        if self.ct in (CT.htl, CT.large, CT.large2) and f is not None:
             r, c = divmod(f, self.nc)
             tf = util.tupleSub if toTL else util.tupleAdd
             if self.ct is CT.htl:
                 xy = tf(xy, (144 * c + 5, [4, 180, 355, 531][r]))
+            elif self.ct is CT.large:
+                xy = tf(xy, (336 * c + 4, 336 * r + 4))
             else:
-                xy = tf(xy, (284 * c + 4, 284 * r + 4))
+                xy = tf(xy, (337 * c + 5, 337 * r + 5))
         return xy
 
     # mirrors template coordinates, with 0 representing top left corner of floor
     def _mirror(self, xy, f, noMirr=False):
-        if self.ct in (CT.htl, CT.large) and f is not None:
+        if self.ct in (CT.htl, CT.large, CT.large2) and f is not None:
             r, c = divmod(f, self.nc)
             x, y = xy
             if self.ct is CT.htl:

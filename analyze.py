@@ -481,13 +481,18 @@ g.add_argument(
     "--controlCircleInCorner",
     action="store_true",
     help="override control circle placement from saved training protocol,"
-    " placing it in the corner of the chamber instead."
+    " placing it in the corner of the chamber instead.",
 )
 g.add_argument(
     "--disableCornerCircleScaling",
     action="store_true",
     help="(TEMPORARY) Disable the scaling by (1/4) when using four control"
-    " circles placed at the corners of the chamber."
+    " circles placed at the corners of the chamber.",
+)
+g.add_argument(
+    "--rotateControlCircle",
+    action="store_true",
+    help="rotate the control circle 180° from the reward circle for CT.large chamber",
 )
 g.add_argument(
     "--rmCC",
@@ -2697,6 +2702,8 @@ def plotHeatmaps(vas):
         fig = plt.figure(figsize=(4 * nc, 6))
     elif va0.ct is CT.large:
         fig = plt.figure(figsize=(3.1 * nc, 6 * nsr))
+    elif va0.ct is CT.large2:
+        error("plotHeatmaps not yet implemented")
     gs = mpl.gridspec.GridSpec(
         2,
         nc + 1,
@@ -4248,7 +4255,11 @@ def postAnalyze(vas):
                 "means with 95%% confidence intervals%s:"
                 % (" (pre, training)" if spst else "")
             )
-            if tp == "spd" and va.ct in (CT.htl, CT.large) and SPEED_ON_BOTTOM:
+            if (
+                tp == "spd"
+                and va.ct in (CT.htl, CT.large, CT.large2)
+                and SPEED_ON_BOTTOM
+            ):
                 print("note: sidewall and lid currently included")
             flies, groups = fliesForType(va, tp) if ng == 1 else (0,), list(range(ng))
             mgll = None if ng == 1 else max(len(g) for g in gls)
