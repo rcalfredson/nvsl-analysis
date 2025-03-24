@@ -83,7 +83,7 @@ def deep_access(x, attr, keylist, new_val=None):
 class CT(enum.Enum):
     regular = dict(ppmm=8.4, center=(45, 70))
     htl = dict(ppmm=8.0, nc=5, name="HtL", floor=((0, 0), (80, 128)), center=(40, 64))
-    large = dict(ppmm=7.0, nc=2, floor=((0, 0), (244, 244)), center=(122, 122))
+    large = dict(ppmm=7.0, nc=2, floor=((0, 0), (296, 296)), center=(148, 148))
 
     # returns chamber type given the number of flies per camera
     @staticmethod
@@ -152,7 +152,7 @@ class CT(enum.Enum):
     def _arenaWellsLarge(self, xf, f, tp="A", c=1):
         wellRadius = (4 if tp == "A" else 2) * self.pxPerMmFloor()
         flrCrds = [
-            (crd[0], crd[1] + 284 * (1 if f > 1 else 0))
+            (crd[0], crd[1] + 336 * (1 if f > 1 else 0))
             for crd in self.floor(xf, np.mod(f, 2))
         ]
         xHalf, yHalf = np.mean(flrCrds, axis=0)
@@ -241,7 +241,7 @@ class Xformer:
             if self.ct is CT.htl:
                 xy = tf(xy, (144 * c + 5, [4, 180, 355, 531][r]))
             else:
-                xy = tf(xy, (284 * c + 4, 284 * r + 4))
+                xy = tf(xy, (336 * c + 4, 336 * r + 4))
         return xy
 
     # mirrors template coordinates, with 0 representing top left corner of floor

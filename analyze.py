@@ -490,6 +490,11 @@ g.add_argument(
     " circles placed at the corners of the chamber."
 )
 g.add_argument(
+    "--rotateControlCircle",
+    action="store_true",
+    help="rotate the control circle 180° from the reward circle for CT.large chamber"
+)
+g.add_argument(
     "--rmCC",
     dest="radiusMultCC",
     type=float,
