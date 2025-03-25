@@ -11,25 +11,27 @@ This document provides instructions for setting up the data analysis environment
 - A C compiler (e.g., `gcc` on Linux, Xcode command line tools on macOS, or Visual Studio Build Tools on Windows)
 
 ---
+### Installation Methods
+You can set up this project using either of two recommended methods:
+- **Method 1**: Virtualenv (requires system-wide Python installation)
+- **Method 2**: Conda (provides isolated Python environments and package management)
+Choose the method most suitable for your needs.
+---
 
-### Installation Steps
+### Method 1: Virtualenv
+Follow this method if you already have a system-wide Python installation and prefer using `virtualenv`.
 
 #### 1. Install Python 3.10
-Make sure Python 3.10 is installed on your system. This can typically be done via:
-- **Linux/macOS**: Your OS package manager (e.g., `apt`, `brew`)  
-- **Windows**: The Microsoft Store or the [official Python website](https://www.python.org/downloads/)
 
-> **Note**: Installing Python 3.10 includes `pip`, but **not** `virtualenv`.  
+Use your OS package manager (apt, brew, etc.) or download from the [official Python website](https://www.python.org/downloads/).
 
 #### 2. Install `virtualenv` (if necessary)
-If `virtualenv` is not available on your system:
+
 ```bash
 pip install virtualenv
 ```
 
 #### 3. Create a Virtual Environment
-
-In your project directory, create a virtual environment (replace `myenv` with any environment name you like):
 
 - Linux/macOS
 
@@ -61,8 +63,6 @@ In your project directory, create a virtual environment (replace `myenv` with an
 
 #### 5. Install Dependencies
 
-With the virtual environment **activated**, install required packages:
-
 ```bash
 
 pip install -r requirements.txt
@@ -70,41 +70,63 @@ pip install -r requirements.txt
 
 #### 6. Build Cython Extensions
 
-If [Cython](https://cython.org/) is listed in requirements.txt, it will already be installed. Then build the Cython extensions:
-
 ```bash
 
 python scripts/setup.py build_ext --inplace
 ```
+---
+### Method 2: Conda
 
-#### 7. (Optional) Create Drive Mapping File
+Follow this method for a more isolated environment, particularly if you do not have Python 3.10 installed system-wide or prefer easy package management.
 
-By default, the script will use OS-specific path conventions (e.g., `/home/you/your_video.avi` vs. `C:\Users\you\your_video.avi`).
-If you want to use Unix-style paths universally on Windows, create a JSON file named `drive_mapping.json` in this directory:
+#### 1. Install Miniconda
+Download and install from the [official Miniconda website](https://docs.conda.io/en/latest/miniconda.html), selecting the appropriate installer for your OS.
+
+#### 2. Create and Activate a Conda Environment
+```bash
+conda create -n nvsl-analysis python=3.10
+conda activate nvsl-analysis
+```
+
+#### 3. Install Dependencies
+With the environment activated, install packages listed in `requirements.txt`:
+```bash
+pip install -r requirements.txt
+```
+
+#### 4. Build Cython Extensions
+```bash
+python scripts/setup.py build_ext --inplace
+```
+---
+### (Optional) Create Drive Mapping File
+
+By default, the script will use OS-specific path conventions (e.g., `/home/you/your_video.avi` vs. `C:\Users\you\your_video.avi`). To universally use Unix-style paths on Windows, create a JSON file `drive_mapping.json`:
 
 ```json
 {
-    "/media/Synology4/": "Y:\\",
+    "/media/Synology4/": "Y:\\\\"
 }
 ```
-
-Any input path starting with /media/Synology4/ will be mapped to `Y:\`.
 
 ---
 
 ### Typical Installation Time
-If Python 3.10 is **already installed**, setting up the virtual environment and installing dependencies (including building Cython extensions) typically takes about **2 minutes** on a normal desktop computer. If you need to install Python from scratch, plan for an additional **3–5 minutes**, depending on your internet speed and operating system.
+If Python 3.10 is **already installed**, setting up the virtual environment and installing dependencies (including building Cython extensions) typically takes about **2 minutes** on a normal desktop computer. If you need to install Python or Miniconda from scratch, plan for an additional **3–5 minutes**, depending on your internet speed and operating system.
 
 ---
 
 ### Deactivation
 
-When finished, you can leave the virtual environment by running:
-
-```bash
-
-deactivate
-```
+Exit your environment:
+- **Virtualenv:**
+  ```bash
+  deactivate
+  ```
+- **Conda:**
+  ```bash
+  conda deactivate
+  ```
 
 ### Troubleshooting
 
@@ -116,7 +138,7 @@ deactivate
 ## Basic Usage
 Once your environment is ready, you can run a standard analysis with:
 ```bash
-python analyze.py -v "$path_to_video" -f "0-9"
+python analyze.py -v "/actual/path/to/your_video.avi" -f "0-9"
 ```
 Where:
 - `-v` is **required** and specifies the path to your video file.
@@ -131,7 +153,7 @@ You can detect turn events in different areas with the --turn flag:
 
 For example:
 ```bash
-python analyze.py -v "$path_to_video" -f "0-9" --turn circle
+python analyze.py -v "/actual/path/to/your_video.avi" -f "0-9" --turn circle
 ```
 For more details on optional flags, see the top of `analyze.py` or run `python analyze.py --help`.
 
