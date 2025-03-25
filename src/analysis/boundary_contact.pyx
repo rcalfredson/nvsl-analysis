@@ -1388,19 +1388,19 @@ cdef class EllipseToBoundaryDistCalculator:
         # Store the original wall_contact_bool before any modifications
         original_wall_contact_bool = wall_contact_bool.copy()
 
-        contact_regions = trueRegions(wall_contact_bool)
+        contact_regions = trueRegions(wall_contact_bool)[1:]
         if self.boundary_type == 'wall' and self.boundary_combo == "tb":
             for reg in contact_regions:
                 if self.oob_on_ignored_wall[reg.start] or self.return_data[
                     'boundary_event_stats'
                 ]['wall']['all']['edge']['boundary_contact'][reg.start]:
                     wall_contact_bool[reg] = False
-            contact_regions = trueRegions(wall_contact_bool)
+            contact_regions = trueRegions(wall_contact_bool)[1:]
         if self.boundary_combo == "lr":
             for reg in contact_regions:
                 if self.best_wall_indices[reg.start] in (1, 3):
                     wall_contact_bool[reg] = False
-            contact_regions = trueRegions(wall_contact_bool)
+            contact_regions = trueRegions(wall_contact_bool)[1:]
         if self.ellipse_ref_pt == "edge":
             if self.ellipse_edge_pt == 'opposite':
                 self.ellipse_ref_pt = "opp_edge"
@@ -1687,7 +1687,7 @@ cdef class EllipseToBoundaryDistCalculator:
             image_format,
         )
 
-    def detectWallContact(self, ellipse_edge_pt="closest"):
+    def detectWallContact(self, ellipse_edge_pt="closest", experimental=False):
         # Map the `ellipse_edge_pt` to the corresponding nested key in the return_data
         edge_type_key = "opp_edge" if ellipse_edge_pt == "opposite" else "closest"
         
@@ -1697,18 +1697,19 @@ cdef class EllipseToBoundaryDistCalculator:
         
         if boundary_contact is None or len(boundary_contact) == 0:
             # Run your logic since the key doesn't exist
-            if ellipse_edge_pt == "closest":
-                # Wall contact thresholds
-                wall_thresholds = [
-                    CONTACT_BUFFER_OFFSETS["wall_contact"]["min"],
-                    CONTACT_BUFFER_OFFSETS["wall_contact"]["max"]
-                ]
-            elif ellipse_edge_pt == "opposite":
-                # Wall walking thresholds
-                wall_thresholds = [
-                    CONTACT_BUFFER_OFFSETS["wall_walking"]["min"],
-                    CONTACT_BUFFER_OFFSETS["wall_walking"]["max"]
-                ]
+            if experimental and ellipse_edge_pt in ("closest", "opposite"):
+                if ellipse_edge_pt == "closest":
+                    # Wall contact thresholds
+                    wall_thresholds = [
+                        CONTACT_BUFFER_OFFSETS["wall_contact"]["min"],
+                        CONTACT_BUFFER_OFFSETS["wall_contact"]["max"]
+                    ]
+                elif ellipse_edge_pt == "opposite":
+                    # Wall walking thresholds
+                    wall_thresholds = [
+                        CONTACT_BUFFER_OFFSETS["wall_walking"]["min"],
+                        CONTACT_BUFFER_OFFSETS["wall_walking"]["max"]
+                    ]
             else:
                 # Default thresholds (if any)
                 wall_thresholds = [

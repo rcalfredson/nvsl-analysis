@@ -1,5 +1,6 @@
 **/__pycache__/*
 imgs/*.png*
+imgs/*.pdf*
 build/**
 
 src/**/*.c
