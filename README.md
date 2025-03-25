@@ -7,7 +7,7 @@ This document provides instructions for setting up the data analysis environment
 
 ### Prerequisites
 
-- **Python 3.10**  
+- **Python 3.10** (either system-installed or provided via Conda)
 - A C compiler (e.g., `gcc` on Linux, Xcode command line tools on macOS, or Visual Studio Build Tools on Windows)
 
 ---
