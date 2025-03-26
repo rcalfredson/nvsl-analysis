@@ -108,7 +108,7 @@ class Training:
         elif t.yc and t.ct is CT.large:
             t.v_cs.append((cx, 2 * xf.t2fY(268) - cy, r))
         elif t.yc and t.ct is CT.large2:
-            t.v_cs.append((cx, cy + xf.t2fY(-xf.y, f=t.va.nef), r))
+            t.v_cs.append((cx, 2 * xf.t2fY(321) - cy, r))
         elif t.yc and t.ct is CT.htl:
             t.v_cs.append((cx, cy + xf.t2fY(-xf.y, f=t.va.nef), r))
 
@@ -121,7 +121,7 @@ class Training:
             "bottom-left": (floor_tl[0] + t.r, floor_br[1] - t.r),
             "bottom-right": (floor_br[0] - t.r, floor_br[1] - t.r),
         }
-    
+
     @staticmethod
     def _getRadiusMultCC(opts, ct):
         if opts.radiusMultCC:
@@ -177,7 +177,9 @@ class Training:
                                 )
                             else:
                                 rm = Training._getRadiusMultCC(opts, t.ct)
-                                Training._addCircle(t, t.cx, t.cy, util.intR(t.r * rm), xf)
+                                Training._addCircle(
+                                    t, t.cx, t.cy, util.intR(t.r * rm), xf
+                                )
                         elif t.ct is CT.htl:
                             Training._addCircle(t, t.cx, 2 * t.cntr[1] - t.cy, t.r, xf)
                             t.sym = True
