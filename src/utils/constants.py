@@ -24,5 +24,6 @@ RDP_MIN_LINES = RDP_MIN_TURNS = 100  # for including fly in analysis
 RI_START = ST.midline  # when to start RI calculation
 RI_START_POST = ST.control  # ditto for post period
 SPEED_ON_BOTTOM = True  # whether to measure speed only on bottom
+VBA = False
 
 _RDP_PKG = False

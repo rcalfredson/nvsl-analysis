@@ -72,7 +72,7 @@ class Training:
     # draws, e.g., circles on the given image
     # ctrl: False: exp. circle, True: control circle, None: all circles
     # returns cx, cy, and r in case of single circle
-    def annotate(self, img, ctrl=False, col=COL_W, f=0):
+    def annotate(self, img, ctrl=False, col=COL_W, f=0, verbose=False):
         if self.cs:
             cs = (
                 self.cs + self.v_cs
@@ -81,6 +81,30 @@ class Training:
             )
             for cx, cy, r in cs:
                 cv2.circle(img, (cx, cy), r, col)
+            if verbose:
+                if hasattr(self, "cntr"):
+                    ccs, d = [self.cntr], 5
+                    if self.yc:
+                        ccs.append(self.xf.fe2y(*ccs[0]))
+                    for x, y in ccs:
+                        cv2.line(img, (x - d, y), (x + d, y), col)
+                        cv2.line(img, (x, y - d), (x, y + d), col)
+                    for c in cs:
+                        cc = ccs[0] if c in self.cs else ccs[1]
+                        adc = [abs(e) for e in util.tupleSub(c[:2], cc)]
+                        if any(e > 0 for e in adc):
+                            txt = util.join(", ", adc)
+                            util.putText(
+                                img,
+                                txt,
+                                (c[0] + c[2] + 3, c[1]),
+                                (
+                                    0,
+                                    0.5,
+                                ),
+                                util.textStyle(color=col),
+                            )
+
             if len(cs) == 1:
                 return cs[0]
         elif self.tp is self.TP.choice:
@@ -105,12 +129,8 @@ class Training:
             ccx = 150.5 if isCntr else 192 - 22
             ccx = util.intR(ccx * tmFct + tmX) if LEGACY_YC_CIRCLES else xf.t2fX(ccx)
             t.v_cs.append((ccx, cy, r))
-        elif t.yc and t.ct is CT.large:
-            t.v_cs.append((cx, 2 * xf.t2fY(268) - cy, r))
-        elif t.yc and t.ct is CT.large2:
-            t.v_cs.append((cx, 2 * xf.t2fY(321) - cy, r))
-        elif t.yc and t.ct is CT.htl:
-            t.v_cs.append((cx, cy + xf.t2fY(-xf.y, f=t.va.nef), r))
+        elif t.yc and t.ct in (CT.large, CT.large2, CT.htl):
+            t.v_cs.append(xf.fe2y(cx, cy, t, r) + (r,))
 
     @staticmethod
     def _getCornerCoords(t, xf, fly_index):

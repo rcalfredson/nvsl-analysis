@@ -38,6 +38,7 @@ from src.utils.constants import (
     RI_START_POST,
     SPEED_ON_BOTTOM,
     ST,
+    VBA
 )
 from src.analysis.contact_event_training_comparison import (
     ContactEventTrainingComparison,
@@ -373,7 +374,7 @@ class VideoAnalysis:
         else:
             img, self.aimg = self.currAImg, None
         for t in self.trns:
-            t.annotate(img, ctrl=None)
+            t.annotate(img, ctrl=None, verbose=VBA)
 
     # extractChamber() extracts the experimental fly's chamber floor plus the
     #  given border from the given frame

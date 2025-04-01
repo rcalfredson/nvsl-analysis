@@ -83,7 +83,7 @@ def deep_access(x, attr, keylist, new_val=None):
 class CT(enum.Enum):
     regular = dict(ppmm=8.4, center=(45, 70))
     htl = dict(ppmm=8.0, nc=5, name="HtL", floor=((0, 0), (80, 128)), center=(40, 64))
-    large = dict(ppmm=7.0, nc=2, floor=((0, 0), (296, 296)), center=(148, 148))
+    large = dict(ppmm=7.0, nc=2, floor=((0, 0), (244, 244)), center=(122, 122))
     large2 = dict(ppmm=7.56, nc=2, floor=((0, 0), (295, 295)), center=(147.5, 147.5))
 
     # returns chamber type given the number of flies per camera
@@ -277,13 +277,30 @@ class Xformer:
     def t2fY(self, y, f=None):
         return self.t2f(0, y, f)[1]
 
-    def t2fR(self, r):
-        return util.intR(r * self.fctr)
+    def t2fS(self, d):
+        """
+        Applies only the template-match scaling factor; should be used for distances
+        """
+        return util.intR(d * self.fctr)
 
     # xforms frame coordinates to template coordinates; x and y can be ndarrays
     def f2t(self, x, y, f=None, noMirr=False):
         xy = (x - self.x) / self.fctr, (y - self.y) / self.fctr
         return self._mirror(self._shift(xy, f, toTL=True), f, noMirr=noMirr)
+
+    def fe2y(self, x, y, t, r):
+        """
+        Transforms frame coordinates for an experimental chamber to its yoked control
+        chamber (for placing circles, etc.)
+        """
+        if self.ct is CT.large:
+            return (x, 2 * self.t2fY(268) - y)
+        elif self.ct is CT.large2:
+            return (x, 2 * self.t2fY(321) - y)
+        elif self.ct is CT.htl:
+            return (x, self.t2fS(351 + y))
+        else:
+            raise NotImplementedError()
 
 
 # - - - output formatting
