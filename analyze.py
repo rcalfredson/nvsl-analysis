@@ -4170,6 +4170,7 @@ def postAnalyze(vas):
             )
             and not "exp_min_yok" in tp
         ):
+            a_orig = a.copy()
             a = propagate_nans(a)
         # a's dimensions: video, training, bucket or fly x bucket
         assert cns is None or a.shape[2] == len(cns)
@@ -4178,23 +4179,28 @@ def postAnalyze(vas):
             for i, t in enumerate(trns):
                 ttest_1samp(a[:, i, 0], 0, "%s %s" % (t.name(), cns[0]))
         elif tp in ("rpi", "rpid"):
+            a_for_ttest = a_orig if tp == "rpi" else a
             for i, t in enumerate(trns):
                 if t.hasSymCtrl():
                     for j, cn in enumerate(cns or []):
-                        ttest_1samp(a[:, i, j], 0, "%s %s" % (t.name(), cn))
+                        ttest_1samp(a_for_ttest[:, i, j], 0, "%s %s" % (t.name(), cn))
             plotRewards(va, tp, a, trns, gis, gls, vas)
             if len(trns) > 1 and all(t.hasSymCtrl() for t in trns[:2]):
                 test_hdr = "first sync bucket, training 1 vs. 2"
                 if tp == "rpid":
                     test_hdr += " (exp - yok)"
-                ttest_rel(a[:, 0, 0], a[:, 1, 0], test_hdr)
+                ttest_rel(a_for_ttest[:, 0, 0], a_for_ttest[:, 1, 0], test_hdr)
             for i, t in enumerate(trns):
                 lb = nb - 1
                 if nf == 1 and not t.hasSymCtrl() or lb == 0:
                     continue
                 while True:
                     ab = [
-                        a[:, i, b] if t.hasSymCtrl() else a[:, i, b] - a[:, i, b + nb]
+                        (
+                            a_for_ttest[:, i, b]
+                            if t.hasSymCtrl()
+                            else a_for_ttest[:, i, b] - a_for_ttest[:, i, b + nb]
+                        )
                         for b in (0, lb)
                     ]
                     nbt = ttest_rel(
@@ -5231,13 +5237,8 @@ def analyze():
             if opts.fixSeed:
                 random.seed(101)
             try:
-                random.choice(
-                    [
-                        _va
-                        for _va in vas
-                        if not True in [_va._bad(j) for j in range(len(_va.flies))]
-                    ]
-                ).calcRewardsImgs()
+
+                random.choice(vas).calcRewardsImgs()
             except VideoError:
                 print('some "rewards images" not written due to video error')
         if opts.hm:

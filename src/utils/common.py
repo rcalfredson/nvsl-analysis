@@ -88,7 +88,7 @@ class CT(enum.Enum):
 
     # returns chamber type given the number of flies per camera
     @staticmethod
-    def get(numFlies, lgc2):
+    def get(numFlies, lgc2=False):
         return {2: CT.regular, 4: CT.large2 if lgc2 else CT.large, 20: CT.htl}[numFlies]
 
     def __str__(self):
@@ -298,7 +298,7 @@ class Xformer:
         elif self.ct is CT.large2:
             return (x, 2 * self.t2fY(321) - y)
         elif self.ct is CT.htl:
-            return (x, self.t2fS(351 + y))
+            return (x, self.t2fS(351) + y)
         else:
             raise NotImplementedError()
 

@@ -1,4 +1,4 @@
-# command: analyze.py -v '/media/Synology/Uli/2015-09-1[567]/*'  [r2355]
+# command: analyze.py -v '/media/Synology/Uli/2015-09-1[567]/*'  [ra93f0621231ae17331042463d6121a39ef84e43d]
 
 === analyzing c1__2015-09-15__10-08-49.avi ===
 
@@ -2017,13 +2017,13 @@ training 3
 speed stats (with values for 10-min pre period first):
 training 1
   exp: avg. speed bottom [mm/s]: 4.4, 4.9, stop fraction: 0.73, 0.30
-  yok: avg. speed bottom [mm/s]: nan, 6.2, stop fraction: 0.85, 0.26
+  yok: avg. speed bottom [mm/s]: trajectory bad, stop fraction: trajectory bad
 training 2
   exp: avg. speed bottom [mm/s]: 0.3, 4.2, stop fraction: 1.00, 0.48
-  yok: avg. speed bottom [mm/s]: 0.4, 5.5, stop fraction: 1.00, 0.43
+  yok: avg. speed bottom [mm/s]: trajectory bad, stop fraction: trajectory bad
 training 3
   exp: avg. speed bottom [mm/s]: 0.3, 6.0, stop fraction: 1.00, 0.35
-  yok: avg. speed bottom [mm/s]: 0.5, 4.6, stop fraction: 0.99, 0.51
+  yok: avg. speed bottom [mm/s]: trajectory bad, stop fraction: trajectory bad
 
 === analyzing c22__2015-09-15__10-10-47.avi ===
 
@@ -3314,27 +3314,27 @@ one-sample t-test -- training 2 post 2 min:
 
 __calculated__ reward PI by sync bucket:
 one-sample t-test -- training 1 exp fly 10 min #1:
-  n = 23, mean: 0.345, value: 0; t-test: p = 0.00000, t = 7.616
+  n = 24, mean: 0.34, value: 0; t-test: p = 0.00000, t = 7.789
 one-sample t-test -- training 1 #2:
-  n = 23, mean: 0.539, value: 0; t-test: p = 0.00000, t = 11.560
+  n = 24, mean: 0.547, value: 0; t-test: p = 0.00000, t = 12.071
 one-sample t-test -- training 1 #3:
-  n = 23, mean: 0.631, value: 0; t-test: p = 0.00000, t = 14.936
+  n = 24, mean: 0.642, value: 0; t-test: p = 0.00000, t = 15.310
 one-sample t-test -- training 1 #4:
-  n = 23, mean: 0.681, value: 0; t-test: p = 0.00000, t = 15.809
+  n = 24, mean: 0.689, value: 0; t-test: p = 0.00000, t = 16.404
 one-sample t-test -- training 1 #5:
-  n = 23, mean: 0.679, value: 0; t-test: p = 0.00000, t = 15.521
+  n = 24, mean: 0.688, value: 0; t-test: p = 0.00000, t = 16.102
 one-sample t-test -- training 1 #6:
-  n = 23, mean: 0.691, value: 0; t-test: p = 0.00000, t = 11.691
+  n = 24, mean: 0.692, value: 0; t-test: p = 0.00000, t = 12.229
 one-sample t-test -- training 1 #7:
-  n = 23, mean: 0.712, value: 0; t-test: p = 0.00000, t = 15.943
+  n = 24, mean: 0.717, value: 0; t-test: p = 0.00000, t = 16.633
 one-sample t-test -- training 1 #8:
-  n = 23, mean: 0.671, value: 0; t-test: p = 0.00000, t = 12.430
+  n = 24, mean: 0.676, value: 0; t-test: p = 0.00000, t = 13.016
 one-sample t-test -- training 1 #9:
-  n = 23, mean: 0.706, value: 0; t-test: p = 0.00000, t = 13.022
+  n = 24, mean: 0.708, value: 0; t-test: p = 0.00000, t = 13.635
 one-sample t-test -- training 1 #10:
-  n = 22, mean: 0.724, value: 0; t-test: p = 0.00000, t = 14.254
+  n = 23, mean: 0.732, value: 0; t-test: p = 0.00000, t = 14.867
 one-sample t-test -- training 1 #11:
-  n = 22, mean: 0.724, value: 0; t-test: p = 0.00000, t = 9.974
+  n = 23, mean: 0.731, value: 0; t-test: p = 0.00000, t = 10.486
 one-sample t-test -- training 1 yok fly 10 min #1:
   n = 23, mean: 0.0319, value: 0; t-test: p = 0.30753, t = 1.045
 one-sample t-test -- training 1 #2:
@@ -3358,33 +3358,33 @@ one-sample t-test -- training 1 #10:
 one-sample t-test -- training 1 #11:
   n = 22, mean: 0.0143, value: 0; t-test: p = 0.78687, t = 0.274
 one-sample t-test -- training 2 exp fly 10 min #1:
-  n = 22, mean: 0.525, value: 0; t-test: p = 0.00000, t = 12.053
+  n = 23, mean: 0.529, value: 0; t-test: p = 0.00000, t = 12.651
 one-sample t-test -- training 2 #2:
-  n = 23, mean: 0.612, value: 0; t-test: p = 0.00000, t = 17.566
+  n = 24, mean: 0.618, value: 0; t-test: p = 0.00000, t = 18.267
 one-sample t-test -- training 2 #3:
-  n = 22, mean: 0.623, value: 0; t-test: p = 0.00000, t = 17.824
+  n = 23, mean: 0.626, value: 0; t-test: p = 0.00000, t = 18.662
 one-sample t-test -- training 2 #4:
-  n = 23, mean: 0.669, value: 0; t-test: p = 0.00000, t = 21.372
+  n = 24, mean: 0.675, value: 0; t-test: p = 0.00000, t = 22.115
 one-sample t-test -- training 2 #5:
-  n = 23, mean: 0.679, value: 0; t-test: p = 0.00000, t = 21.407
+  n = 24, mean: 0.685, value: 0; t-test: p = 0.00000, t = 22.066
 one-sample t-test -- training 2 #6:
-  n = 23, mean: 0.637, value: 0; t-test: p = 0.00000, t = 16.681
+  n = 24, mean: 0.648, value: 0; t-test: p = 0.00000, t = 17.007
 one-sample t-test -- training 2 #7:
-  n = 22, mean: 0.681, value: 0; t-test: p = 0.00000, t = 20.485
+  n = 23, mean: 0.692, value: 0; t-test: p = 0.00000, t = 20.575
 one-sample t-test -- training 2 #8:
-  n = 21, mean: 0.703, value: 0; t-test: p = 0.00000, t = 17.229
+  n = 22, mean: 0.713, value: 0; t-test: p = 0.00000, t = 17.766
 one-sample t-test -- training 2 #9:
-  n = 20, mean: 0.742, value: 0; t-test: p = 0.00000, t = 19.641
+  n = 23, mean: 0.694, value: 0; t-test: p = 0.00000, t = 13.167
 one-sample t-test -- training 2 #10:
-  n = 22, mean: 0.721, value: 0; t-test: p = 0.00000, t = 14.180
+  n = 23, mean: 0.73, value: 0; t-test: p = 0.00000, t = 14.792
 one-sample t-test -- training 2 #11:
-  n = 19, mean: 0.682, value: 0; t-test: p = 0.00000, t = 10.284
+  n = 21, mean: 0.671, value: 0; t-test: p = 0.00000, t = 11.082
 one-sample t-test -- training 2 yok fly 10 min #1:
-  n = 22, mean: -0.00486, value: 0; t-test: p = 0.91513, t = -0.108
+  n = 23, mean: -0.0115, value: 0; t-test: p = 0.79407, t = -0.264
 one-sample t-test -- training 2 #2:
   n = 23, mean: 0.0103, value: 0; t-test: p = 0.81430, t = 0.238
 one-sample t-test -- training 2 #3:
-  n = 22, mean: 0.0299, value: 0; t-test: p = 0.35381, t = 0.948
+  n = 23, mean: 0.0319, value: 0; t-test: p = 0.30159, t = 1.058
 one-sample t-test -- training 2 #4:
   n = 23, mean: 0.012, value: 0; t-test: p = 0.78421, t = 0.277
 one-sample t-test -- training 2 #5:
@@ -3403,11 +3403,11 @@ one-sample t-test -- training 2 #11:
   n = 19, mean: 0.115, value: 0; t-test: p = 0.01660, t = 2.641
 writing imgs/reward_pi__10_min_buckets.png...
 paired t-test -- first sync bucket, training 1 vs. 2:
-  n = 22, means: 0.329, 0.525; t-test: p = 0.00038, t = -4.224
+  n = 23, means: 0.325, 0.529; t-test: p = 0.00017, t = -4.530
 paired t-test -- training 1, fly 1, bucket #1 vs. #11:
-  n = 22, means: 0.349, 0.724; t-test: p = 0.00003, t = -5.315
+  n = 23, means: 0.344, 0.731; t-test: p = 0.00001, t = -5.651
 paired t-test -- training 2, fly 1, bucket #1 vs. #11:
-  n = 19, means: 0.575, 0.682; t-test: p = 0.05907, t = -2.015
+  n = 20, means: 0.557, 0.681; t-test: p = 0.03084, t = -2.332
 paired t-test -- training 3, fly delta, bucket #1 vs. #11:
   n = 12, means: 0.825, 0.985; t-test: p = 0.13295, t = -1.623
 

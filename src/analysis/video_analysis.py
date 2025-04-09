@@ -38,7 +38,7 @@ from src.utils.constants import (
     RI_START_POST,
     SPEED_ON_BOTTOM,
     ST,
-    VBA
+    VBA,
 )
 from src.analysis.contact_event_training_comparison import (
     ContactEventTrainingComparison,
@@ -1105,8 +1105,6 @@ class VideoAnalysis:
 
     # - - -
 
-    _TB = "trajectory bad"
-
     def _bad(self, f):
         return self.trx[0 if f is None else f].bad()
 
@@ -1220,6 +1218,9 @@ class VideoAnalysis:
     def _f2ms(self, a):
         return util.time2str(a / self.fps, "%M:%S", utc=True)
 
+    def _vals(self, vals, f):
+        return "trajectory bad" if self._bad(f) else vals
+
     def _printBucketVals(self, vs, f, msg=None, nParen=0, prec=None):
         """
         Prints bucket values or a placeholder message.
@@ -1248,11 +1249,7 @@ class VideoAnalysis:
             "  %s%s"
             % (
                 "%s: " % msg if msg else "",
-                (
-                    self._TB
-                    if self._bad(f)
-                    else (util.join(", ", vs, 10) if vs else "no full bucket")
-                ),
+                self._vals(util.join(", ", vs, 10) if vs else "no full bucket", f),
             )
         )
 
@@ -1425,8 +1422,6 @@ class VideoAnalysis:
                     onb = util.inRange(on, fi, fi + df)
                     nOn = len(onb)
                     for f in self.flies:
-                        if self._bad(f):
-                            continue
                         if maxD:
                             maxDs = []
                             for i, f1 in enumerate(onb[:-1]):
@@ -2983,7 +2978,7 @@ class VideoAnalysis:
         a = tuple(
             (
                 np.mean(data[i * n : (i + 1) * n])
-                if not bad and (i + 1) * n <= len(data)
+                if not self._bad(f) and (i + 1) * n <= len(data)
                 else np.nan
             )
             for i in range(2)
@@ -2994,7 +2989,7 @@ class VideoAnalysis:
             % (
                 lbl,
                 "" if f is None else " (%s)" % (flyDesc(f)),
-                "trajectory bad" if bad else "%.1f vs. %.1f" % a,
+                self._vals("%.1f vs. %.1f" % a, f),
             )
         )
 
@@ -3602,11 +3597,12 @@ class VideoAnalysis:
                     % (
                         flyDesc(f),
                         (
-                            self._TB
-                            if noSp
-                            else "avg. %s: " % self.speedLbl
+                            "avg. %s: " % self.speedLbl
                             + "%s, stop fraction: %s"
-                            % (util.join(", ", sps, p=1), util.join(", ", stpFs, p=2))
+                            % (
+                                self._vals(util.join(", ", sps, p=1), f),
+                                self._vals(util.join(", ", stpFs, p=2), f),
+                            )
                         ),
                     )
                 )

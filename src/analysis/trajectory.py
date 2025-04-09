@@ -495,6 +495,8 @@ class Trajectory:
             # post rewards shown for ctrl == False
             imgs, hdrs = [], []
             for t in self.va.trns:
+                if not hasattr(self, "en"):
+                    continue
                 en = self.en[ctrl]
                 fi, la = (t.start, t.stop) if ctrl else (t.stop, t.postStop)
                 en = util.inRange(en, fi, la)
@@ -1522,7 +1524,7 @@ class Trajectory:
         Returns:
             float: The total distance traveled between the two frames.
         """
-        return np.sum(self.d[i1:i2])
+        return np.sum(self.d[i1:i2]) if hasattr(self, "d") else np.nan
 
     def dist(self, i1=None, i2=None):
         """
