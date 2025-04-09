@@ -1,4 +1,4 @@
-# command: analyze.py -v '/media/Synology4/Yang Chen/2025-03-01/c5[2]_*' -f 0-9 --rmCC 5  [ra93f0621231ae17331042463d6121a39ef84e43d-M]
+# command: analyze.py -v '/media/Synology4/Yang Chen/2025-03-01/c5[2]_*' -f 0-9 --rmCC 5  [rca125d6edf933ce8cca5ed149297810c95db46e7]
 
 === analyzing c52__2025-03-01__13-28-00.avi, fly 0 ===
 
