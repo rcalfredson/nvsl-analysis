@@ -15,14 +15,16 @@ CONTACT_BUFFER_OFFSETS = {
 AGAROSE_BOUNDARY_DIST = 3
 MIDLINE_BOUNDARY_DIST = 4
 HEATMAP_DIV = 2
-LEGACY_YC_CIRCLES = False  # whether to use calculated template match values
+# whether to use calculated template match values for yoked control circles
+LEGACY_YC_CIRCLES = False
 LGC2 = True  # version 2 of large chamber (39x39 mm)
-#  for yoked control circles
 P = False  # whether to use paper style for plots
 POST_SYNC = ST.fixed  # when to start post buckets
 RDP_MIN_LINES = RDP_MIN_TURNS = 100  # for including fly in analysis
 RI_START = ST.midline  # when to start RI calculation
 RI_START_POST = ST.control  # ditto for post period
+# whether to use circle-distance-based calculation for midline crossing
+MIDLINE_XING2 = True
 SPEED_ON_BOTTOM = True  # whether to measure speed only on bottom
 VBA = False
 

@@ -1,5 +1,6 @@
 # standard libraries
 import enum
+import itertools
 
 # third-party libraries
 import cv2
@@ -9,7 +10,7 @@ import numpy as np
 from src.utils.common import CT, frame2hm, pch
 from src.utils.constants import LEGACY_YC_CIRCLES
 import src.utils.util as util
-from src.utils.util import COL_W, error
+from src.utils.util import COL_W, COL_Y, error
 
 POST_TIME_MIN = False
 
@@ -51,6 +52,9 @@ class Training:
     def hasSymCtrl(self):
         return self.tp in self.HAS_SYM_CTRL or self.sym
 
+    def _symCtrl(self):
+        self.sym = True
+
     # returns training and control circle(s) for the given fly
     def circles(self, f=0):
         return self.v_cs if f == 1 else self.cs
@@ -72,15 +76,18 @@ class Training:
     # draws, e.g., circles on the given image
     # ctrl: False: exp. circle, True: control circle, None: all circles
     # returns cx, cy, and r in case of single circle
-    def annotate(self, img, ctrl=False, col=COL_W, f=0, verbose=False):
+    def annotate(self, img, ctrl=False, col=COL_W, colC=COL_Y, f=0, verbose=False):
         if self.cs:
+            assert len(self.cs) == 2 and len(self.v_cs) in (0, 2)
             cs = (
                 self.cs + self.v_cs
                 if ctrl is None
                 else self.circles(f)[ctrl : ctrl + 1]
             )
-            for cx, cy, r in cs:
-                cv2.circle(img, (cx, cy), r, col)
+            for i, (cx, cy, r) in enumerate(cs):
+                cv2.circle(
+                    img, (cx, cy), r, col if ctrl is not None or i % 2 == 0 else colC
+                )
             if verbose:
                 if hasattr(self, "cntr"):
                     ccs, d = [self.cntr], 5
@@ -104,6 +111,18 @@ class Training:
                                 ),
                                 util.textStyle(color=col),
                             )
+                    d = 15 if self.ct is CT.htl else 20
+                    for f1 in self.va.trxf:
+                        (xl, yt), (xr, yb) = self.ct.floor(self.xf, f1)
+                        for x, y in itertools(
+                            (
+                                xl,
+                                xr,
+                            ),
+                            (yt, yb),
+                        ):
+                            cv2.line(img, (x, y), (x + d if x == xl else x - d, y), col)
+                            cv2.line(img, (x, y), (x, y + d if y == yt else y - d), col)
 
             if len(cs) == 1:
                 return cs[0]
@@ -169,6 +188,7 @@ class Training:
                 assert all(err < 0.7 for err in errs[:2]) and errs[2] < 0.01
         else:
             tmFct, tmX = xf.fctr, xf.x
+        t: Training
         for t in trns:
             if t.isCircle():
                 isCntr = t.tp is t.TP.center
@@ -186,23 +206,21 @@ class Training:
                         Training._addCircle(t, ctrl_cx, ctrl_cy, t.r, xf)
                 else:
                     if t.tp is t.TP.circle:
-                        if t.ct in (CT.large, CT.large2):
-                            if t.ct is CT.large2 and opts.rotateControlCircle:
-                                Training._addCircle(
-                                    t,
-                                    2 * t.cntr[0] - t.cx,
-                                    2 * t.cntr[1] - t.cy,
-                                    t.r,
-                                    xf,
-                                )
-                            else:
-                                rm = Training._getRadiusMultCC(opts, t.ct)
-                                Training._addCircle(
-                                    t, t.cx, t.cy, util.intR(t.r * rm), xf
-                                )
+                        if t.ct is CT.large:
+                            rm = Training._getRadiusMultCC(opts, t.ct)
+                            Training._addCircle(t, t.cx, t.cy, util.intR(t.r * rm), xf)
+                        elif t.ct is CT.large2:
+                            Training._addCircle(
+                                t,
+                                2 * t.cntr[0] - t.cx,
+                                2 * t.cntr[1] - t.cy,
+                                t.r,
+                                xf,
+                            )
+                            t._symCtrl()
                         elif t.ct is CT.htl:
                             Training._addCircle(t, t.cx, 2 * t.cntr[1] - t.cy, t.r, xf)
-                            t.sym = True
+                            t._symCtrl()
                         else:
                             error(
                                 "TrainingType circle not implemented for %s chamber"

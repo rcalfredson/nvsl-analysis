@@ -490,11 +490,6 @@ g.add_argument(
     " circles placed at the corners of the chamber.",
 )
 g.add_argument(
-    "--rotateControlCircle",
-    action="store_true",
-    help="rotate the control circle 180° from the reward circle for CT.large chamber",
-)
-g.add_argument(
     "--rmCC",
     dest="radiusMultCC",
     type=float,
@@ -1941,7 +1936,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
         True if not opts.hidePltTests else False
     )  # p values between first and last buckets
     showPT = not P if not opts.hidePltTests else False  # p values between trainings
-    showSS = False  # speed stats
+    showSS = not P  # speed stats
     if showSS and vas:
         speed, stpFr = (
             np.array([getattr(va, k) for va in vas]) for k in ("speed", "stopFrac")
@@ -2321,7 +2316,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                     assert util.isClose(mci[0, :], ms_group0)
                     x1, x2 = xs[0], xs[lb]
                     y, h, col = (
-                        max_mean_value + (pch(0.15, 0.13) * (ylim[1] - ylim[0])),
+                        max_mean_value + pch(0.15, 0.13),
                         0.03,
                         "0",
                     )
@@ -2345,22 +2340,9 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                     if i > 0 and t.hasSymCtrl() == trns[0].hasSymCtrl():
                         tpn = ttest_rel(fbv[0], fbv[i])
 
-                        safety_margin = 0.05 * (ylim[1] - ylim[0])
-
-                        text_y_position = 0.10 * (ylim[1] - ylim[0]) + ylim[0]
-
-                        if (
-                            "bracket_top" in locals()
-                            and abs(text_y_position - bracket_top) < safety_margin
-                        ) or (
-                            text_y_position > min_mean_value * 0.9
-                            and text_y_position - max_mean_value < safety_margin
-                        ):
-                            text_y_position = ylim[1] - (0.05 * (ylim[1] - ylim[0]))
-
                         util.pltText(
-                            xs[0],
-                            text_y_position,
+                            xs[1],
+                            .25*(ylim[1]-ylim[0]) if circle else -.7,
                             "1st bucket, t1 vs. t%d (n=%d): %s"
                             % (i + 1, min(tpn[2], tpn[3]), util.p2stars(tpn[1], True)),
                             size=customizer.in_plot_font_size,
@@ -2371,7 +2353,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                     for f1 in va.flies:
                         i1 = i * 2 + f1
                         util.pltText(
-                            xs[0],
+                            xs[1],
                             -0.83 - f1 * 0.11,
                             "%s: %s/s: %s, stop: %s"
                             % (

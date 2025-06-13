@@ -32,6 +32,7 @@ from src.utils.constants import (
     AGAROSE_BOUNDARY_DIST,
     HEATMAP_DIV,
     LGC2,
+    MIDLINE_XING2,
     POST_SYNC,
     RDP_MIN_LINES,
     RI_START,
@@ -1150,7 +1151,8 @@ class VideoAnalysis:
             if record:
                 self.buckets[-1].append(fi)
         if fiCount is None:
-            assert sum(nOns) == self._countOn(fi0, fi, calc, ctrl, f)
+            no = self._countOn(fi0, fi, calc, ctrl, f)
+            assert np.isnan(no) or sum(nOns) == no
         return nOns
 
     # returns frame index of first reward in the given frame index range
@@ -1161,9 +1163,20 @@ class VideoAnalysis:
     # returns frame index of first frame where fly 0 is on control side (across
     #  midline) in the given frame range
     def _idxFirstCtrlSide(self, fi, la, trn):
-        yc, ym, ys = trn.circles()[0][1], trn.cntr[1], self.trx[0].y[fi:la]
-        assert abs(yc - ym) > trn.r
-        onCs = ys > ym if yc < ym else ys < ym
+        assert trn.hasSymCtrl()
+        if MIDLINE_XING2:
+            tc, cc = trn.circles()[:2]
+            assert util.distance(tc, cc) > 2 * trn.r
+            xy = (self.trx[0].x[fi:la], self.trx[0].y[fi:la])
+            onCs = util.distances(xy, pnt=cc) < util.distances(xy, pnt=tc)
+        else:
+            # y-coordinate-based calculation which requires horizontal midline.
+            # there can be small differences (due to rounding) compared to new
+            #  calculation; kept this around since it was used for the 2019 paper.
+
+            yc, ym, ys = trn.circles()[0][1], trn.cntr[1], self.trx[0].y[fi:la]
+            assert abs(yc - ym) > trn.r
+            onCs = ys > ym if yc < ym else ys < ym
         idx = np.argmax(onCs)
         return fi + idx if onCs[idx] else None
 
@@ -3022,7 +3035,8 @@ class VideoAnalysis:
         trx, db = self.trx[f], []
         for fi, la in zip(on[:-1], on[1:]):
             db.append(trx.distTrav(fi, la))
-        assert not db or np.isclose(sum(db), trx.distTrav(on[0], on[-1]))
+        dt = trx.distTrav(on[0], on[-1]) if len(on) else np.nan
+        assert not db or np.isnan(dt) or np.isclose(sum(db), dt)
         return db
 
     def byActualReward(self):

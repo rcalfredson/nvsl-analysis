@@ -876,12 +876,18 @@ def xy2T(xy):
     return xy if isinstance(xy, tuple) else (xy[:, 0], xy[:, 1])
 
 
-# returns the distances between the given points or from the first given point
-#  to each point
+# returns the distances between the given points, from the first given point
+#  to each point, or between the given point and each point
 # note: see also distance()
-def distances(xy, fromFirst=False):
+def distances(xy, fromFirst=False, pnt=None):
+    if fromFirst and pnt is not None:
+        raise ArgumentError(fromFirst, pnt)
     x, y = xy2T(xy)
-    dx, dy = (x - x[0], y - y[0]) if fromFirst else (np.diff(x), np.diff(y))
+    dx, dy = (
+        (x - pnt[0], y - pnt[1])
+        if pnt is not None
+        else (x - x[0], y - y[0]) if fromFirst else (np.diff(x), np.diff(y))
+    )
     return np.linalg.norm([dx, dy], axis=0)
 
 
