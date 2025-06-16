@@ -516,13 +516,22 @@ g.add_argument(
     help="(TEMPORARY) Disable the scaling by (1/4) when using four control"
     " circles placed at the corners of the chamber.",
 )
-g.add_argument(
+g1 = g.add_mutually_exclusive_group()
+g1.add_argument(
     "--rmCC",
     dest="radiusMultCC",
     type=float,
     default=None,
     metavar="F",
-    help="multiplier for radius for control circle (default: 2.5 if HtL " + "else 3)",
+    help="multiplier for radius for control circle (default: 2.5 if HtL else 3)",
+)
+g1.add_argument(
+    "--rCC",
+    dest="radiusCC",
+    type=float,
+    default=None,
+    metavar="F",
+    help="radius of control circle (in mm)",
 )
 g.add_argument(
     "--pb",
