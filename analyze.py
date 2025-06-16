@@ -27,6 +27,7 @@ import argparse
 import collections
 import csv
 import itertools
+import logging
 import os
 import random
 import re
@@ -75,6 +76,11 @@ from src.plotting.outside_circle_duration_plotter import OutsideCircleDurationPl
 from src.utils.parsers import parse_distances
 from src.plotting.plot import plotAngularVelocity, plotTurnRadiusHist
 from src.plotting.plot_customizer import PlotCustomizer
+from src.analysis.sli_tools import (
+    compute_sli_per_fly,
+    plot_sli_extremes,
+    select_extremes,
+)
 from src.analysis.training import Training
 from src.analysis.trajectory import Trajectory
 from src.plotting.turn_directionality_plotter import TurnDirectionalityPlotter
@@ -193,6 +199,27 @@ g.add_argument(
     action="store_true",
     help='analyze "open loop" experiments; not needed for on-off and '
     + "alternating side protocols",
+)
+g.add_argument(
+    "--best-worst-sli",
+    action="store_true",
+    help=(
+        "Plot the SLI (Spatial Learning Index) across the full experiment "
+        "for the top and bottom 10% of learners, selected based on their SLI "
+        "score in the final sync bucket of training session 2, or the session "
+        "specified by --best-worst-trn."
+    ),
+)
+
+g.add_argument(
+    "--best-worst-trn",
+    type=int,
+    default=2,
+    help=(
+        "Specify which training session index to use when determining the top "
+        "and bottom 10% of learners for --best-worst-sli. The SLI is taken "
+        "from the final sync bucket of the specified training session. Default is 2."
+    ),
 )
 g.add_argument(
     "--rdp",
@@ -1971,6 +1998,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
     tas = 2 * [None]  # index: 0:under curve, 1:between curves
     if P and F2T:
         trns = trns[:2]
+
     nc = len(trns)
     figsize = pch(([5.33, 11.74, 18.18][nc - 1], 4.68 * nr), (20, 5 * nr))
     if customizer.font_size_customized:
@@ -2342,7 +2370,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
 
                         util.pltText(
                             xs[1],
-                            .25*(ylim[1]-ylim[0]) if circle else -.7,
+                            0.25 * (ylim[1] - ylim[0]) if circle else -0.7,
                             "1st bucket, t1 vs. t%d (n=%d): %s"
                             % (i + 1, min(tpn[2], tpn[3]), util.p2stars(tpn[1], True)),
                             size=customizer.in_plot_font_size,
@@ -4124,6 +4152,14 @@ def postAnalyze(vas):
         a = np.array([vaVarForType(va, tp, calc) for va in vas])
         a = a.reshape((len(vas), len(trns), -1))
         if tp in ("rpid", "rpipd") or "exp_min_yok" in tp:
+            raw_perf = a.copy()
+            n_videos = len(vas)
+            n_trains = len(trns)
+            n_flies = len(va.flies)
+            logging.debug("raw perf shape: %s", raw_perf.shape)
+            logging.debug("n flies: %d", n_flies)
+            nb = raw_perf.shape[2] // n_flies
+            raw_4 = raw_perf.reshape((n_videos, n_trains, n_flies, nb))
             a = np.array(
                 [
                     np.subtract(
@@ -4133,6 +4169,39 @@ def postAnalyze(vas):
                     for i in range(a.shape[0])
                 ]
             )
+
+            # if the user asked for best/worst SLI, select those flies now
+            selected_bottom = selected_top = None
+            if opts.best_worst_sli and tp in ("rpid", "rpipd"):
+                logging.debug("raw 4 shape: %s", raw_4.shape)
+                sli_ser = compute_sli_per_fly(raw_4, opts.best_worst_trn - 1)
+                print("SLI series:\n%s", sli_ser)
+                selected_bottom, selected_top = select_extremes(sli_ser, fraction=0.1)
+                print("  bottom flies: %s", selected_bottom)
+                print("     top flies: %s", selected_top)
+                # now plot SLI over all buckets for those extremes:
+                # get bucket length in minutes (sync buckets)
+                bl, _ = bucketLenForType(tp)
+                plot_sli_extremes(
+                    perf4=raw_4,
+                    trns=trns,
+                    bucket_len_minutes=bl,
+                    selected_bottom=selected_bottom,
+                    selected_top=selected_top,
+                    gis=gis,
+                    gls=gls,
+                    training_idx=opts.best_worst_trn - 1,
+                    fraction=0.1,
+                    tp=tp,
+                    n_nonpost_buckets=(
+                        va.rpiNumNonPostBuckets
+                        if tp.startswith("rpip")
+                        else va.numNonPostBuckets
+                    ),
+                    outdir="imgs",
+                    title=f"SLI extremes (training {opts.best_worst_trn})",
+                )
+
         if (
             len(va.flies) > 1
             and (
@@ -5262,6 +5331,7 @@ def test():
 
 # - - -
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     opts = p.parse_args()
     if opts.angVelOverTime:
         opts.circle = True

@@ -599,8 +599,11 @@ def join(withStr, l, lim=None, p=None, end=False):
     )
 
 
-def slugify(value):
-    return value.lower().replace(" ", "_").replace("/", "-")
+def slugify(text: str) -> str:
+    """Convert a string to a lowercase, underscore-separated slug."""
+    text = text.lower()
+    text = re.sub(r"[^a-z0-9]+", "_", text)
+    return text.strip("_")
 
 
 # joins the given list using "," and "and"
