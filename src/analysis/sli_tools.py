@@ -138,6 +138,10 @@ def plot_sli_extremes(
             color=top_color,
             alpha=ci_alpha,
         )
+        pct = int(fraction * 100)
+        bottom_label = f"Bottom {pct}%"
+        top_label = f"Top {pct}%"
+
         # draw means
         ax.plot(
             xs,
@@ -145,10 +149,10 @@ def plot_sli_extremes(
             marker="o",
             markersize=ms,
             color=bottom_color,
-            label="Bottom 10%",
+            label=bottom_label,
         )
         ax.plot(
-            xs, m_top[i], marker="o", markersize=ms, color=top_color, label="Top 10%"
+            xs, m_top[i], marker="o", markersize=ms, color=top_color, label=top_label
         )
         # annotate counts
         y_min, y_max = ax.get_ylim()
@@ -190,7 +194,11 @@ def plot_sli_extremes(
             save_path = outdir
         else:
             os.makedirs(outdir, exist_ok=True)
-            save_path = os.path.join(outdir, slugify(title) + ".png")
+            # pick whether this is the training-period or post-training plot
+            suffix = "train" if tp == "rpid" else "post"
+            idx = f"_t{training_idx+ 1}" if training_idx is not None else ""
+            fname = f"sli_extremes_{suffix}{idx}.png"
+            save_path = os.path.join(outdir, fname)
         fig.savefig(save_path)
         plt.close(fig)
         print(f"Saved SLI extremes plot to {save_path}")

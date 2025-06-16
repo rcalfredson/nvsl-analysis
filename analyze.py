@@ -205,7 +205,7 @@ g.add_argument(
     action="store_true",
     help=(
         "Plot the SLI (Spatial Learning Index) across the full experiment "
-        "for the top and bottom 10% of learners, selected based on their SLI "
+        "for the top and bottom 10%% of learners, selected based on their SLI "
         "score in the final sync bucket of training session 2, or the session "
         "specified by --best-worst-trn."
     ),
@@ -217,9 +217,16 @@ g.add_argument(
     default=2,
     help=(
         "Specify which training session index to use when determining the top "
-        "and bottom 10% of learners for --best-worst-sli. The SLI is taken "
+        "and bottom 10%% of learners for --best-worst-sli. The SLI is taken "
         "from the final sync bucket of the specified training session. Default is 2."
     ),
+)
+g.add_argument(
+    '--best-worst-fraction',
+    type=float,
+    default=0.1,
+    help="Fraction of flies to use for SLI cutoff when plotting best/worst learners."
+    " Default: %(default)0.1f."
 )
 g.add_argument(
     "--rdp",
@@ -4184,10 +4191,10 @@ def postAnalyze(vas):
             if opts.best_worst_sli and tp in ("rpid", "rpipd"):
                 logging.debug("raw 4 shape: %s", raw_4.shape)
                 sli_ser = compute_sli_per_fly(raw_4, opts.best_worst_trn - 1)
-                print("SLI series:\n%s", sli_ser)
-                selected_bottom, selected_top = select_extremes(sli_ser, fraction=0.1)
-                print("  bottom flies: %s", selected_bottom)
-                print("     top flies: %s", selected_top)
+                logging.debug("SLI series:\n%s", sli_ser)
+                selected_bottom, selected_top = select_extremes(sli_ser, fraction=opts.best_worst_fraction)
+                logging.debug("  bottom flies: %s", selected_bottom)
+                logging.debug("     top flies: %s", selected_top)
                 # now plot SLI over all buckets for those extremes:
                 # get bucket length in minutes (sync buckets)
                 bl, _ = bucketLenForType(tp)
@@ -4200,7 +4207,7 @@ def postAnalyze(vas):
                     gis=gis,
                     gls=gls,
                     training_idx=opts.best_worst_trn - 1,
-                    fraction=0.1,
+                    fraction=opts.best_worst_fraction,
                     tp=tp,
                     n_nonpost_buckets=(
                         va.rpiNumNonPostBuckets
