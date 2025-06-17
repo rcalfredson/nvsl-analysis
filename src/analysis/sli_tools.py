@@ -169,6 +169,7 @@ def plot_sli_extremes(
         ax.plot(
             xs, m_top[i], marker="o", markersize=ms, color=top_color, label=top_label
         )
+        ax.axhline(0, color='black', linewidth=1)
         # annotate counts
         y_min, y_max = ax.get_ylim()
         offset = 0.02 * (y_max - y_min)

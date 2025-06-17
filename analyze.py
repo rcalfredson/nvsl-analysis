@@ -222,11 +222,11 @@ g.add_argument(
     ),
 )
 g.add_argument(
-    '--best-worst-fraction',
+    "--best-worst-fraction",
     type=float,
     default=0.1,
     help="Fraction of flies to use for SLI cutoff when plotting best/worst learners."
-    " Default: %(default)0.1f."
+    " Default: %(default)0.1f.",
 )
 g.add_argument(
     "--rdp",
@@ -4151,6 +4151,8 @@ def postAnalyze(vas):
                 tcs += ("dbr_no_contact", "max_ctr_d_no_contact")
                 for boundary_orientation in ("all", "agarose_adj"):
                     tcs += ("r_no_contact_%s" % boundary_orientation,)
+
+    saved_bottom = saved_top = None
     for tc in tcs:
         tp, calc = typeCalc(tc)
         hdr = headerForType(va, tp, calc)
@@ -4186,18 +4188,27 @@ def postAnalyze(vas):
                 ]
             )
 
-            # if the user asked for best/worst SLI, select those flies now
+            # if the user asked for best/worst SLI, pick them once during TRAINING (rpid)
             selected_bottom = selected_top = None
-            if opts.best_worst_sli and tp in ("rpid", "rpipd"):
-                logging.debug("raw 4 shape: %s", raw_4.shape)
-                sli_ser = compute_sli_per_fly(raw_4, opts.best_worst_trn - 1)
-                logging.debug("SLI series:\n%s", sli_ser)
-                selected_bottom, selected_top = select_extremes(sli_ser, fraction=opts.best_worst_fraction)
-                logging.debug("  bottom flies: %s", selected_bottom)
-                logging.debug("     top flies: %s", selected_top)
-                # now plot SLI over all buckets for those extremes:
-                # get bucket length in minutes (sync buckets)
+            if opts.best_worst_sli:
+                if tp == "rpid":
+                    # *training* period: actually compute the extremes
+                    sli_ser = compute_sli_per_fly(raw_4, opts.best_worst_trn - 1)
+                    selected_bottom, selected_top = select_extremes(
+                        sli_ser, fraction=opts.best_worst_fraction
+                    )
+                    # save them so we can reuse for the post period
+                    saved_bottom, saved_top = selected_bottom, selected_top
+                elif tp == "rpipd" and saved_bottom is not None:
+                    # *post* period: reuse the exact same flies we picked above
+                    selected_bottom, selected_top = saved_bottom, saved_top
+
+            # now call the plotting function for either training or post
+            if tp in ("rpid", "rpipd") and selected_bottom is not None:
                 bl, _ = bucketLenForType(tp)
+                logging.debug("raw 4 shape: %s", raw_4.shape)
+                if tp == "rpid":
+                    logging.debug("SLI series:\n%s", sli_ser)
                 plot_sli_extremes(
                     perf4=raw_4,
                     trns=trns,
@@ -4215,8 +4226,10 @@ def postAnalyze(vas):
                         else va.numNonPostBuckets
                     ),
                     outdir="imgs",
-                    title=f"SLI extremes (training {opts.best_worst_trn})",
+                    title=f"SLI extremes ({'training' if tp=='rpid' else 'post'} {opts.best_worst_trn})",
                 )
+                logging.debug("  bottom flies: %s", selected_bottom)
+                logging.debug("     top flies: %s", selected_top)
 
         if (
             len(va.flies) > 1
@@ -5237,22 +5250,21 @@ def analyze():
         error("fly numbers required for each group")
 
     # fn2fs: file name: list with the lists of fly numbers for each group
-    def fctry():
-        return [[]] * ng
 
-    fn2fs, fnf = collections.defaultdict(fctry), []
+    fn2fs, fnf = collections.defaultdict(lambda: [[] for _ in range(ng)]), []
     for i, vg in enumerate(vgs):
-        for v in vg.split(","):
-            v, fs1 = detect_and_split_input(v)
-            if fs1:
-                fs1 = util.parseIntList(fs1)
+        for entry in vg.split(","):
+            path, raw_ids = detect_and_split_input(entry)
+            if raw_ids:
+                ids = util.parseIntList(raw_ids)
             else:
-                fs1 = fs[i]
+                ids = fs[i]
             if WINDOWS:
-                v = util.unix_to_windows(v)
-            for fn in util.fileList(v, "analyze", pattern=AVI_X):
-                fn2fs[fn][i] = fs1
-                fnf.extend(fn if f is None else "%s:%d" % (fn, f) for f in fs1)
+                path = util.unix_to_windows(path)
+            for fn in util.fileList(path, "analyze", pattern=AVI_X):
+                fn2fs[fn][i].extend(ids)
+                # build flat list of filename:ID strings
+                fnf.extend(fn if f is None else f"{fn}:{f}" for f in ids)
     dups = util.duplicates(fnf)
     if dups:
         error("duplicate: %s" % dups[0])

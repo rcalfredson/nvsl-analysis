@@ -26,5 +26,17 @@
             "reference": "reward_pi__10_min_buckets_wt.png",
             "output": "reward_pi__10_min_buckets.png"
         }
+    ],
+    "python analyze.py -v \"/media/Synology4/Yang Chen/2025-04-17/c[1234]*.avi,/media/Synology4/Yang Chen/2025-04-20/c[12]*.avi\"  -f \"0-9\" --best-worst-sli --best-worst-trn 2": [
+        {
+            "reference": "sli_extremes_train_t2_top_bottom_10pct_validation.png",
+            "output": "sli_extremes_train_t2.png"
+        }
+    ],
+    "python analyze.py -v \"/media/Synology4/Yang Chen/2025-04-20/c2__2025-04-20__13-43-10.avi:0-1,/media/Synology4/Yang Chen/2025-04-20/c2__2025-04-20__13-43-10.avi:6,/media/Synology4/Yang Chen/2025-04-17/c42__2025-04-17__12-02-42.avi:1,/media/Synology4/Yang Chen/2025-04-17/c42__2025-04-17__12-02-42.avi:5,/media/Synology4/Yang Chen/2025-04-17/c42__2025-04-17__12-02-42.avi:8,/media/Synology4/Yang Chen/2025-04-17/c41__2025-04-17__12-02-33.avi:7,/media/Synology4/Yang Chen/2025-04-17/c41__2025-04-17__12-02-33.avi:9,/media/Synology4/Yang Chen/2025-04-20/c1__2025-04-20__13-43-06.avi:6|/media/Synology4/Yang Chen/2025-04-17/c2__2025-04-17__12-00-39.avi:1-2,/media/Synology4/Yang Chen/2025-04-17/c2__2025-04-17__12-00-39.avi:4,/media/Synology4/Yang Chen/2025-04-17/c22__2025-04-17__12-00-45.avi:2,/media/Synology4/Yang Chen/2025-04-17/c22__2025-04-17__12-00-45.avi:7,/media/Synology4/Yang Chen/2025-04-20/c1__2025-04-20__13-43-06.avi:7,/media/Synology4/Yang Chen/2025-04-17/c1__2025-04-17__12-00-35.avi:2,/media/Synology4/Yang Chen/2025-04-17/c31__2025-04-17__12-02-00.avi:1,/media/Synology4/Yang Chen/2025-04-20/c2__2025-04-20__13-43-10.avi:9\" --gl \"Top 10%|Bottom 10%\"": [
+        {
+            "reference": "reward_pi_diff__10_min_buckets_top_bottom_10pct_validation.png",
+            "output": "reward_pi_diff__10_min_buckets.png"
+        }
     ]
 }
