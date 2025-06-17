@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from typing import Optional, Tuple, List
 
-from src.utils.util import slugify
+from src.utils.util import meanConfInt, slugify
 
 
 def plot_sli_extremes(
@@ -89,13 +89,28 @@ def plot_sli_extremes(
     sli_bot = sli[selected_bottom]
     sli_top = sli[selected_top]
 
-    # compute mean, 95% CI, and counts
+    
     def mean_ci(group: np.ndarray):
-        m = np.nanmean(group, axis=0)
-        sem = np.nanstd(group, axis=0, ddof=1) / np.sqrt(group.shape[0])
-        ci = 1.96 * sem
-        count = np.sum(~np.isnan(group), axis=0)
-        return m, ci, count
+        """
+        group shape: (n_flies, n_trns, n_buckets)
+        returns:
+            means, cis, counts: each shape (n_trns, n_buckets)
+        """
+        n_trns = group.shape[1]
+        n_buckets = group.shape[2]
+        means = np.empty((n_trns, n_buckets))
+        ci_deltas = np.empty((n_trns, n_buckets))
+        counts = np.empty((n_trns, n_buckets), dtype=int)
+
+        for i in range(n_trns):
+            for j in range(n_buckets):
+                vals = group[:, i, j]
+                m, d, n = meanConfInt(vals, conf=0.95, asDelta=True)
+                means[i, j] = m
+                ci_deltas[i, j] = d
+                counts[i, j] = n
+
+        return means, ci_deltas, counts
 
     m_bot, ci_bot, n_bot = mean_ci(sli_bot)
     m_top, ci_top, n_top = mean_ci(sli_top)
