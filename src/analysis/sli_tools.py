@@ -198,7 +198,7 @@ def plot_sli_extremes(
         ax.set_xlim(*xlim)
         ax.set_ylim(-0.5, 1.50)
         if i == 0:
-            ax.set_ylabel("RPI (exp - yok)")
+            ax.set_ylabel("Reward index diff (exp - yok)")
 
     axes[-1].legend(loc="best")
     fig.suptitle(title)
