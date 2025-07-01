@@ -218,8 +218,6 @@ class Training:
 
             # primary experimental circle
             Training._addCircle(t, t.cx, t.cy, t.r, xf, tmFct, tmX, isCntr=is_center)
-            
-
 
             # Then add control circles
             if opts.controlCircleInCorner:
@@ -229,6 +227,12 @@ class Training:
             else:
                 if t.tp is t.TP.circle:
                     if t.ct is CT.large:
+                        Training._addCircle(t, t.cx, t.cy, rcc_px, xf)
+                    elif (
+                        t.ct in (CT.large2, CT.htl)
+                        and opts.radiusCC
+                        or opts.radiusMultCC
+                    ):
                         Training._addCircle(t, t.cx, t.cy, rcc_px, xf)
                     elif t.ct is CT.large2:
                         Training._addCircle(
@@ -244,8 +248,7 @@ class Training:
                         t._symCtrl()
                     else:
                         error(
-                            "TrainingType circle not implemented for %s chamber"
-                            % t.ct
+                            "TrainingType circle not implemented for %s chamber" % t.ct
                         )
                 elif is_center:
                     Training._addCircle(
@@ -260,7 +263,9 @@ class Training:
                         ccy = xf.t2fY(112.5 if t.tp is t.TP.top else 27.5)
                     else:
                         error("not yet implemented")
-                    Training._addCircle(t, t.cx, ccy, rcc_px, xf, tmFct, tmX, isCntr=False)
+                    Training._addCircle(
+                        t, t.cx, ccy, rcc_px, xf, tmFct, tmX, isCntr=False
+                    )
 
     @staticmethod
     def _setYTopBottom(trns):
