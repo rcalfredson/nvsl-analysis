@@ -178,7 +178,12 @@ class Training:
     def _getRadiusMultCC(opts, ct):
         if opts.radiusMultCC:
             return opts.radiusMultCC
-        return 2.5 if ct is CT.htl else 3
+        if ct is CT.htl:
+            return 2.5
+        elif ct is CT.large2:
+            return 1
+        else:
+            return 3
 
     # sets training, control, and virtual (yoked control) circles
     @staticmethod
