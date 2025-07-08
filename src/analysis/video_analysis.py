@@ -715,9 +715,9 @@ class VideoAnalysis:
 
         boundary_tps = ("boundary", "agarose", "wall")
         if any(getattr(self.opts, opt) for opt in boundary_tps) or self.opts.turn_prob_by_dist:
-            if self.ct != CT.htl:
+            if self.ct not in (CT.htl, CT.large, CT.large2):
                 raise NotImplementedError(
-                    "Only HTL chamber type supported for boundary-contact analysis"
+                    "Only HTL and large chamber types supported for boundary-contact analysis"
                 )
         else:
             return

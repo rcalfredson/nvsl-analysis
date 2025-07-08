@@ -8,6 +8,11 @@ from src.analysis.video_analysis_interface import VideoAnalysisInterface
 
 class VATurnProbabilityDistanceCollator:
     def __init__(self, va: VideoAnalysisInterface, opts):
+        if va.ct not in (CT.htl, CT.large, CT.large2):
+            raise NotImplementedError(
+                "Only HTL and large chambers are supported for analysis"
+                " of turn probability by distance."
+            )
         self.va = va
         self.distances = opts.turn_prob_by_dist
         self.min_vel_angle_delta = opts.min_vel_angle_delta
