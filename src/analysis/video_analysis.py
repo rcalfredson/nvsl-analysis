@@ -128,11 +128,12 @@ class VideoAnalysis:
 
         self.opts = opts
         self.gidx, self.f = gidx, f
+        self._skipped = True  # for early returns
         self._loadData(fn)
-        if hasattr(self, "_skipped") and self._skipped:
+        if self.isyc:
+            print("yoked control")
             return
         self.flies = (0,) if self.noyc else (0, 1)
-        self._skipped = True  # for early returns
         if opts.annotate:
             self._writeAnnotatedVideo()
             return
@@ -441,14 +442,29 @@ class VideoAnalysis:
         self.ct = CT.get(nfls, LGC2)
         self.fns, self.info = (proto[k] for k in ("frameNums", "info"))
         multEx = isinstance(self.fns, list)
-        nef = self.nef = len(self.fns) if multEx else 1
-        self.noyc, self.ef = nfls == nef, self.f or 0
+        nef = self.nef = sum(bool(d) for d in self.fns) if multEx else 1
+        self.noyc, self.ef, self.isyc = nfls == nef, self.f or 0, False
         assert self.noyc or nef == int(nfls / 2)
-        if self.ef >= nef:
-            error(
-                "fly number %d out of range (only %s)"
-                % (self.ef, util.nItems(nef, "experimental fly"))
+        ef2yc = self.ef2yc = proto.get("ef2yc", {})
+        oor, err = self.ef >= nfls, None
+        if oor or not ef2yc and self.ef >= nef:
+            err = "fly number %d out of range (only %s)" % (
+                self.ef,
+                util.nItems(
+                    nfls if oor else nef, ("" if oor else "experimental ") + "fly"
+                ),
             )
+            self.isyc = not oor
+        elif ef2yc and self.ef not in ef2yc:
+            err = "fly number %d not among experimental flies (%s)" % (
+                self.ef,
+                util.commaAndJoin(ef2yc.keys()),
+            )
+            self.isyc = True
+        if err:
+            if self.opts.allowYC and self.isyc:
+                return
+            error(err)
         yTop, yBottom = (
             (proto["lines"][k] for k in ("yTop", "yBottom"))
             if "lines" in proto
@@ -556,7 +572,11 @@ class VideoAnalysis:
         """
         print("\nprocessing trajectories...")
         self.trx, ts = [], self.trxRw.get("ts")
-        self.trxf = (self.ef,) if self.noyc else (self.ef, self.ef + self.nef)
+        self.trxf = (
+            (self.ef,)
+            if self.noyc
+            else (self.ef, self.ef2yc[self.ef] if self.ef2yc else self.ef + self.nef)
+        )
         for f in self.trxf:
             x, y, w, h, theta = (
                 np.array(self.trxRw[xy][f], dtype=np.float64)
@@ -699,6 +719,8 @@ class VideoAnalysis:
                 raise NotImplementedError(
                     "Only HTL chamber type supported for boundary-contact analysis"
                 )
+        else:
+            return
 
         thresholds = {}
         self.boundary_contact_offsets = {}
@@ -796,6 +818,7 @@ class VideoAnalysis:
                     )
                 )
             with ThreadPool() as pool:
+                print("input data:", input_data)
                 results = pool.starmap(runBoundaryContactAnalyses, input_data)
             for i, res in enumerate(results):
                 for k in res:

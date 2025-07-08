@@ -30,6 +30,11 @@ class Training:
     def __init__(self, n, start, stop, va, opts, circle=None, ytb=None):
         self.n, self.start, self.stop, self.va = n, start, stop, va
         self.ct, self.xf, self.fps, self.yc = va.ct, va.xf, va.fps, not va.noyc
+        self.efyc = (
+            (va.ef, va.ef2yc[va.ef] if va.ef2yc else va.ef + va.nef)
+            if self.yc
+            else None
+        )
         (self.cx, self.cy), self.r = circle if circle else ((None, None), None)
         (self.yTop, self.yBottom) = ytb if ytb else (None, None)
         self.cs, self.v_cs = [], []  # training and control circles for each fly
@@ -92,7 +97,7 @@ class Training:
                 if hasattr(self, "cntr"):
                     ccs, d = [self.cntr], 5
                     if self.yc:
-                        ccs.append(self.xf.fe2y(*ccs[0]))
+                        ccs.append(self.xf.fe2y(*ccs[0], efyc=self.efyc))
                     for x, y in ccs:
                         cv2.line(img, (x - d, y), (x + d, y), col)
                         cv2.line(img, (x, y - d), (x, y + d), col)
@@ -149,7 +154,7 @@ class Training:
             ccx = util.intR(ccx * tmFct + tmX) if LEGACY_YC_CIRCLES else xf.t2fX(ccx)
             t.v_cs.append((ccx, cy, r))
         elif t.yc and t.ct in (CT.large, CT.large2, CT.htl):
-            t.v_cs.append(xf.fe2y(cx, cy, t, r) + (r,))
+            t.v_cs.append(xf.fe2y(cx, cy, t.efyc) + (r,))
 
     @staticmethod
     def _getCornerCoords(t, xf, fly_index):

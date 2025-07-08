@@ -288,17 +288,24 @@ class Xformer:
         xy = (x - self.x) / self.fctr, (y - self.y) / self.fctr
         return self._mirror(self._shift(xy, f, toTL=True), f, noMirr=noMirr)
 
-    def fe2y(self, x, y, t, r):
+    def fe2y(self, x, y, efyc=None):
         """
         Transforms frame coordinates for an experimental chamber to its yoked control
         chamber (for placing circles, etc.)
         """
-        if self.ct is CT.large:
-            return (x, 2 * self.t2fY(268) - y)
-        elif self.ct is CT.large2:
-            return (x, 2 * self.t2fY(321) - y)
+        if self.ct in (CT.large, CT.large2):
+            if efyc and efyc[1] != efyc[0] + 2:
+                raise NotImplementedError()
+            return (x, 2 * self.t2fY(268 if self.ct is CT.large else 321) - y)
         elif self.ct is CT.htl:
-            return (x, self.t2fS(351) + y)
+            if not efyc:
+                return (x, y + self.t2fS(351))
+            else:
+                re, ce = divmod(efyc[0], self.ct.numCols())
+                ry, cy = divmod(efyc[1], self.ct.numCols())
+                ro = [0, 176, 351, 527]
+                return (x + self.t2fS((cy - ce) * 144), y + self.t2fS(ro[ry] - ro[re]))
+
         else:
             raise NotImplementedError()
 

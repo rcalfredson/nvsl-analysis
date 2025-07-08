@@ -185,6 +185,12 @@ p.add_argument(
     action="store_true",
     help="allow experiment descriptor mismatch, which leads to error otherwise",
 )
+p.add_argument(
+    "--ayc",
+    dest="allowYC",
+    action="store_true",
+    help="allow yoked controls among fly numbers, which leads to error otherwise",
+)
 
 g = p.add_argument_group("specialized analysis")
 g.add_argument(
