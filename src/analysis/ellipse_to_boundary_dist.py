@@ -82,7 +82,7 @@ class VaDataContainer(DataContainer):
                        proxies based on `obj.trns`.
     """
 
-    keys = ("ct", "xf", "f", "fn", "ef", "noyc", "nef", "fps")
+    keys = ("ct", "xf", "f", "fn", "ef", "noyc", "nef", "fps", "trxf")
 
     def __init__(self, obj):
         """

@@ -675,7 +675,7 @@ cdef class EllipseToBoundaryDistCalculator:
             self.chamber_center[0] - list(self.va.ct.floor(self.va.xf, f=0))[0][0]
         )
         self.max_dists_from_ctr[1] = self.chamber_center[1] - self.x_align_fl[0][1]
-        gen = self.va.ct.floor(self.va.xf, f=self.va.nef * (self.trj.f) + self.va.ef)
+        gen = self.va.ct.floor(self.va.xf, f=self.va.trxf[self.trj.f])
         for i, (x, y) in enumerate(gen):
             self.bounds_orig[i][0] = x
             self.bounds_orig[i][1] = y

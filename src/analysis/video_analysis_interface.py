@@ -28,6 +28,7 @@ class VideoAnalysisInterface(Protocol):
     trx: list
     fn: str
     cap: cv2.VideoCapture
+    trxf: tuple
 
     def _syncBucket(self, trn, df: float, skip: int):
         """

@@ -1463,6 +1463,7 @@ class Trajectory:
         mockVA.circle = True
         mockVA.nef = 10
         mockVA.ef = 0
+        mockVA.trxf = (0,)
         mockVA.ct = CT.htl
         mockVA.on = np.array([100, 200])
         mockVA.trns = [slice(0, 5)]

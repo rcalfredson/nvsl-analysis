@@ -714,7 +714,7 @@ class VideoAnalysis:
                     )
 
         boundary_tps = ("boundary", "agarose", "wall")
-        if any(getattr(self.opts, opt) for opt in boundary_tps):
+        if any(getattr(self.opts, opt) for opt in boundary_tps) or self.opts.turn_prob_by_dist:
             if self.ct != CT.htl:
                 raise NotImplementedError(
                     "Only HTL chamber type supported for boundary-contact analysis"
@@ -760,7 +760,7 @@ class VideoAnalysis:
                     "wall": 0,
                 }[bnd_tp]
 
-        if self.opts.bnd_ct_plots or self.opts.wall_debug:
+        if self.opts.bnd_ct_plots or self.opts.wall_debug or self.opts.turn_prob_by_dist:
             for i, trj in enumerate(self.trx):
                 if trj.bad():
                     continue
@@ -1592,7 +1592,7 @@ class VideoAnalysis:
 
     def floorCenter(self, f=0):
         if not hasattr(self, "_floor_center") or f not in self._floor_center:
-            floor = list(self.ct.floor(self.xf, f=self.nef * (f) + self.ef))
+            floor = list(self.ct.floor(self.xf, f=self.trxf[f]))
             floor_center = np.transpose(
                 np.expand_dims(
                     (
