@@ -4249,6 +4249,8 @@ def postAnalyze(vas):
                 logging.debug("  bottom flies: %s", selected_bottom)
                 logging.debug("     top flies: %s", selected_top)
 
+        a_orig = a.copy()
+
         if (
             len(va.flies) > 1
             and (
@@ -4268,7 +4270,6 @@ def postAnalyze(vas):
             )
             and not "exp_min_yok" in tp
         ):
-            a_orig = a.copy()
             a = propagate_nans(a)
         # a's dimensions: video, training, bucket or fly x bucket
         assert cns is None or a.shape[2] == len(cns)
