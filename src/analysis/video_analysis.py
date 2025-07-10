@@ -1,9 +1,12 @@
 # standard libraries
 import collections
+import csv
+import gc
 from multiprocessing.pool import ThreadPool
 import os
 import random
 import re
+import sys
 import textwrap
 import timeit
 
@@ -138,6 +141,13 @@ class VideoAnalysis:
             self._writeAnnotatedVideo()
             return
         self.setOptionDefaults()
+
+        needs_tp = (
+            opts.contact_geometry == "horizontal" and opts.turn_prob_by_dist
+        ) or (opts.contact_geometry == "circular" and opts.outside_circle_radii)
+        if needs_tp:
+            opts.chooseOrientations = True
+
         if (opts.cTurnAnlyz or opts.outside_circle_radii) and not opts.wall:
             setattr(
                 opts,
@@ -147,8 +157,6 @@ class VideoAnalysis:
             )
             opts.chooseOrientations = True
         if opts.wall or opts.boundary or opts.agarose:
-            opts.chooseOrientations = True
-        if opts.turn_prob_by_dist:
             opts.chooseOrientations = True
         self._initTrx()
         self._readNoteFile(fn)  # possibly overrides whether trajectories bad
@@ -236,7 +244,7 @@ class VideoAnalysis:
             turn_finder.calcLargeTurnsAfterCircleExit()
             if opts.timeit:
                 per_lgt_processing_times.append(timeit.default_timer() - lg_turn_start)
-        if opts.turn_prob_by_dist:
+        if needs_tp:
             turn_prob_dist_collator = VATurnProbabilityDistanceCollator(self, opts)
             turn_prob_dist_collator.calcTurnProbabilitiesByDistance()
         if self.choice:
@@ -261,7 +269,7 @@ class VideoAnalysis:
         if opts.delayCheckMult is not None:
             self.delayCheck()
 
-        self.clean_up_boundary_contact_data()
+        self.clean_up_boundary_contact_data(verbose=False)
         if opts.timeit:
             proc_time = timeit.default_timer() - start_t
             print("va proc time:", proc_time)
@@ -277,28 +285,15 @@ class VideoAnalysis:
         if self.opts.piBucketLenMin is None:
             self.opts.piBucketLenMin = 10 if self.choice else 2
 
-    def clean_up_boundary_contact_data(self):
+    def clean_up_boundary_contact_data(self, *, verbose: bool = False):
         """
-        Cleans up and removes boundary contact and turning event data from trajectory objects
-        after these data have been used for analysis.
-
-        This method is responsible for iterating over each trajectory object in the `self.trx` list
-        and removing specific keys related to boundary contact and turning events. The data removal
-        targets keys associated with details like distance to boundaries, points and regions of boundary
-        contact, indices of contact events, and statistics on turning events near boundaries.
-
-        Keys for removal are grouped into:
-        - Boundary-related keys: 'dist_to_boundary', 'ellipse_and_boundary_pts', 'bounds', etc.
-        - Turn-related keys: 'turning', 'turning_indices', 'near_turning', etc.
-
-        The key insight for the removal logic is based on the analysis options specified in `self.opts`.
-        If an option for a specific event (e.g., wall contact, turns) is enabled, it indicates that the
-        corresponding data were generated and utilized for analysis. Post-analysis, this method is called
-        to remove those data to optimize memory usage and clean up the trajectory objects for potential
-        further processing or serialization. This step is essential for managing resources efficiently,
-        especially in analyses where only a subset of the generated data is needed for final results or
-        when operating under memory constraints.
+        Remove heavy per-frame / per-event data that are no longer needed.
+        If verbose=True, print a human-readable report of everything removed.
         """
+
+        # ─────────────────────────────────────────────────────────────
+        # 1.  Keys that can be safely discarded
+        # ─────────────────────────────────────────────────────────────
         boundary_related_keys = (
             "dist_to_boundary",
             "ellipse_and_boundary_pts",
@@ -311,7 +306,12 @@ class VideoAnalysis:
             "contact_start_idxs",
             "near_contact_start_idxs",
             "closest_boundary_indices",
+            # new since circular-contact analysis
+            "training_ranges",
+            "circle_radius_px",
+            "circle_centre_px",
         )
+
         turn_related_keys = (
             "turning",
             "turning_indices",
@@ -321,26 +321,50 @@ class VideoAnalysis:
             "total_vel_angle_deltas",
             "frames_to_skip",
         )
-        for trj in self.trx:
+
+        # ─────────────────────────────────────────────────────────────
+        # 2.  Helpers
+        # ─────────────────────────────────────────────────────────────
+        def _prune(
+            stats_dict: dict, delete_turn: bool, path: str, log: collections.defaultdict
+        ):
+            """
+            Remove keys from ONE leaf dict; update log if verbose.
+            """
+            for k in boundary_related_keys:
+                if k in stats_dict:
+                    if verbose:
+                        log[path][k] = sys.getsizeof(stats_dict[k])
+                    stats_dict.pop(k)
+
+            if delete_turn:
+                for k in turn_related_keys:
+                    if k in stats_dict:
+                        if verbose:
+                            log[path][k] = sys.getsizeof(stats_dict[k])
+                        stats_dict.pop(k)
+
+        # where we accumulate bytes removed when verbose
+        removal_log = collections.defaultdict(dict)
+
+        # ─────────────────────────────────────────────────────────────
+        # 3.  Walk through every trajectory
+        # ─────────────────────────────────────────────────────────────
+        for trj_idx, trj in enumerate(self.trx):
             if not hasattr(trj, "boundary_event_stats"):
                 continue
-            for boundary_tp in trj.boundary_event_stats:
-                if getattr(self.opts, "%s_eg" % boundary_tp, None):
+
+            for boundary_tp, orient_dict in trj.boundary_event_stats.items():
+
+                # honour “export raw events” flags (e.g.  --wall_eg)
+                if getattr(self.opts, f"{boundary_tp}_eg", None):
                     continue
-                for boundary_orientation in trj.boundary_event_stats[boundary_tp]:
-                    for ellipse_ref_pt in trj.boundary_event_stats[boundary_tp][
-                        boundary_orientation
-                    ]:
-                        for k in boundary_related_keys:
-                            if (
-                                k
-                                in trj.boundary_event_stats[boundary_tp][
-                                    boundary_orientation
-                                ][ellipse_ref_pt]
-                            ):
-                                del trj.boundary_event_stats[boundary_tp][
-                                    boundary_orientation
-                                ][ellipse_ref_pt][k]
+
+                for boundary_orientation, ep_dict in orient_dict.items():
+                    for ellipse_ref_pt, leaf in ep_dict.items():
+
+                        # Decide whether turn-specific keys should be removed
+                        delete_turn_here = False
                         if self.opts.turn:
                             for turn_boundary in self.opts.turn:
                                 if (
@@ -348,16 +372,40 @@ class VideoAnalysis:
                                     and boundary_orientation
                                     == WALL_ORIENTATION_FOR_TURN[turn_boundary]
                                 ):
-                                    for k in turn_related_keys:
-                                        if (
-                                            k
-                                            in trj.boundary_event_stats[boundary_tp][
-                                                boundary_orientation
-                                            ][ellipse_ref_pt]
-                                        ):
-                                            del trj.boundary_event_stats[boundary_tp][
-                                                boundary_orientation
-                                            ][ellipse_ref_pt][k]
+                                    delete_turn_here = True
+                                    break
+
+                        path = (
+                            f"fly{trj_idx}.{boundary_tp}"
+                            f".{boundary_orientation}.{ellipse_ref_pt}"
+                        )
+
+                        # ─── normal branches (wall / boundary / agarose …) ───
+                        if boundary_tp != "circle":
+                            _prune(leaf, delete_turn_here, path, removal_log)
+                            continue
+
+                        # ─── circle branch: one more level for each radius ───
+                        for r_mm, stats in leaf.items():  # stats is per-radius dict
+                            _prune(
+                                stats, delete_turn_here, f"{path}.r{r_mm}", removal_log
+                            )
+
+        # ─────────────────────────────────────────────────────────────
+        # 4.  Optional GC kick & verbose summary
+        # ─────────────────────────────────────────────────────────────
+        gc.collect()
+
+        if verbose and removal_log:
+            total_bytes = 0
+            print("\n✂  Clean-up report:")
+            for scope, kv in removal_log.items():
+                freed = sum(kv.values())
+                total_bytes += freed
+                print(f"  • {scope}: removed {len(kv)} keys, ~{freed/1e6:.2f} MB")
+                for k, sz in kv.items():
+                    print(f"      – {k:<24} {sz/1e6:.3f} MB")
+            print(f"  → TOTAL freed ≈ {total_bytes/1e6:.2f} MB\n")
 
     # returns whether analysis was skipped
     def skipped(self):
@@ -714,7 +762,10 @@ class VideoAnalysis:
                     )
 
         boundary_tps = ("boundary", "agarose", "wall")
-        if any(getattr(self.opts, opt) for opt in boundary_tps) or self.opts.turn_prob_by_dist:
+        if (
+            any(getattr(self.opts, opt) for opt in boundary_tps)
+            or self.opts.turn_prob_by_dist
+        ):
             if self.ct not in (CT.htl, CT.large, CT.large2):
                 raise NotImplementedError(
                     "Only HTL and large chamber types supported for boundary-contact analysis"
@@ -760,7 +811,11 @@ class VideoAnalysis:
                     "wall": 0,
                 }[bnd_tp]
 
-        if self.opts.bnd_ct_plots or self.opts.wall_debug or self.opts.turn_prob_by_dist:
+        if (
+            self.opts.bnd_ct_plots
+            or self.opts.wall_debug
+            or self.opts.turn_prob_by_dist
+        ):
             for i, trj in enumerate(self.trx):
                 if trj.bad():
                     continue
@@ -818,7 +873,6 @@ class VideoAnalysis:
                     )
                 )
             with ThreadPool() as pool:
-                print("input data:", input_data)
                 results = pool.starmap(runBoundaryContactAnalyses, input_data)
             for i, res in enumerate(results):
                 for k in res:
@@ -1698,6 +1752,15 @@ class VideoAnalysis:
             contactless_rewards[-1] = np.nan
 
     @staticmethod
+    def centre_for(training_ranges, frame_idx):
+        # ranges are (start, stop, cx, cy)
+        for s, e, cx, cy in training_ranges:
+            if s <= frame_idx < e:
+                return cx, cy
+        # fallback – shouldn’t happen
+        return training_ranges[-1][2], training_ranges[-1][3]
+
+    @staticmethod
     def val_to_numeric(entry):
         """
         Converts a value to its numeric equivalent.
@@ -1858,7 +1921,7 @@ class VideoAnalysis:
         self.firsts_by_trn = []
 
     def determineTurnDirectionality(
-        self, boundary_tp, turn_tp, ext_data=None, trj=None
+        self, boundary_tp, turn_tp, ext_data=None, trj=None, boundary_combo="tb"
     ):
         """
         Determines the turn directionality towards the center based on trajectory data.
@@ -1872,7 +1935,7 @@ class VideoAnalysis:
         - dict or None: Returns a dictionary containing the turn directionality results if ext_data is provided,
           otherwise updates internal state.
         """
-        debug = False  # Set this to False to hide debug output
+        debug = False
         results = {} if ext_data is not None else None
 
         trx = [trj] if trj is not None else self.trx
@@ -1886,32 +1949,39 @@ class VideoAnalysis:
                 turn_type = "inside" if "inside" in turn_tp else "outside"
                 # Use data from ext_data if provided, otherwise use internal data
                 if ext_data:
-                    turn_boolean = ext_data[boundary_tp]["tb"][ellipse_ref_pt][
-                        "turning"
-                    ] == (1 if turn_type == "inside" else 2)
-                else:
-                    turn_boolean = trj.boundary_event_stats[boundary_tp]["tb"][
+                    turn_boolean = ext_data[boundary_tp][boundary_combo][
                         ellipse_ref_pt
                     ]["turning"] == (1 if turn_type == "inside" else 2)
+                else:
+                    turn_boolean = trj.boundary_event_stats[boundary_tp][
+                        boundary_combo
+                    ][ellipse_ref_pt]["turning"] == (1 if turn_type == "inside" else 2)
             else:
                 ellipse_ref_pt = turn_tp
                 turn_type = "all"
                 # Use data from ext_data if provided, otherwise use internal data
                 if ext_data:
                     turn_boolean = (
-                        ext_data[boundary_tp]["tb"][ellipse_ref_pt]["turning"] > 0
+                        ext_data[boundary_tp][boundary_combo][ellipse_ref_pt]["turning"]
+                        > 0
                     )
                 else:
                     turn_boolean = (
-                        trj.boundary_event_stats[boundary_tp]["tb"][ellipse_ref_pt][
-                            "turning"
-                        ]
+                        trj.boundary_event_stats[boundary_tp][boundary_combo][
+                            ellipse_ref_pt
+                        ]["turning"]
                         > 0
                     )
 
             turn_starts_ends = util.trueRegions(turn_boolean)
-            floor_center = self.floorCenter(trj.f)
-            floor_center_x, floor_center_y = floor_center[0][0], floor_center[1][0]
+
+            if boundary_tp == "circle":
+                floor_center_x, floor_center_y = None, None
+                training_ranges = ext_data["circle"]["ctr"]["ctr"]["training_ranges"]
+            else:
+                floor_center = self.floorCenter(trj.f)
+                floor_center_x, floor_center_y = floor_center[0][0], floor_center[1][0]
+                training_ranges = None
 
             if results is not None:
                 turn_directionality_data = self.collectTurnDirectionalityStats(
@@ -1920,6 +1990,7 @@ class VideoAnalysis:
                     floor_center_x,
                     floor_center_y,
                     debug,
+                    training_ranges,
                 )
                 results.setdefault(boundary_tp, {}).setdefault(ellipse_ref_pt, {})[
                     turn_type
@@ -1928,12 +1999,14 @@ class VideoAnalysis:
                 self.updateTurnDirectionalityStats(
                     trj,
                     boundary_tp,
+                    boundary_combo,
                     ellipse_ref_pt,
                     turn_type,
                     turn_starts_ends,
                     floor_center_x,
                     floor_center_y,
                     debug,
+                    training_ranges,
                 )
 
         return results
@@ -1945,6 +2018,7 @@ class VideoAnalysis:
         floor_center_x,
         floor_center_y,
         debug,
+        training_ranges=None,
     ):
         """
         Collects the boundary event statistics for turn directionality based on the provided parameters.
@@ -1953,40 +2027,78 @@ class VideoAnalysis:
         - dict: Collected turn directionality statistics for the trajectory.
         """
         turn_data = {}
+        debug_rows = []  # For CSV output
+        max_debug_rows = 250
+
         for start_end in turn_starts_ends:
             start, end = start_end.start, start_end.stop
             if start == end or end == len(trj.x):
                 continue
-            start_pos_x, start_pos_y = trj.x[start], trj.y[start]
-            end_pos_x, end_pos_y = trj.x[end], trj.y[end]
+            # raw positions
+            sx, sy = trj.x[start], trj.y[start]
+            ex, ey = trj.x[end], trj.y[end]
 
-            start_vector = np.array(
-                [floor_center_x - start_pos_x, floor_center_y - start_pos_y]
-            )
-            start_heading_angle = np.degrees(trj.velAngles[start])
-            end_vector = np.array(
-                [floor_center_x - end_pos_x, floor_center_y - end_pos_y]
+            if training_ranges is not None:
+                cx, cy = VideoAnalysis.centre_for(training_ranges, start)
+            else:
+                cx, cy = floor_center_x, floor_center_y
+
+            # compute vectors
+            svx, svy = cx - sx, cy - sy
+            evx, evy = cx - ex, cy - ey
+
+            sh = round(np.degrees(trj.velAngles[start]), 2)
+            eh = round(np.degrees(trj.velAngles[end]), 2)
+
+            turn_toward = self.calculate_turn_toward_center(
+                np.array([svx, svy]), np.array([evx, evy]), sh, eh
             )
 
-            end_heading_angle = np.degrees(trj.velAngles[end])
-            turn_direction_toward_ctr = self.calculate_turn_toward_center(
-                start_vector, end_vector, start_heading_angle, end_heading_angle
-            )
-
-            turn_data[start] = turn_direction_toward_ctr
+            turn_data[start] = turn_toward
 
             if debug:
-                print("Debug Info:")
-                print("floor center:", floor_center_x, floor_center_y)
-                print("start/end index:", start, end)
-                print("start position:", start_pos_x, start_pos_y)
-                print("start heading angle:", start_heading_angle)
-                print("start vector to center:", start_vector)
-                print("end position:", end_pos_x, end_pos_y)
-                print("end heading angle:", end_heading_angle)
-                print("end vector to center:", end_vector)
-                print("is turn toward center?", turn_direction_toward_ctr)
-                input()
+                print(f"start/end index: {start}, {end}")
+                print(
+                    f"start pos: ({sx:.2f}, {sy:.2f})   end pos: ({ex:.2f}, {ey:.2f})"
+                )
+                print(f"start heading: {sh}°   end heading: {eh}°")
+                print(
+                    f"start vec: ({svx:.2f}, {svy:.2f})   end vec: ({evx:.2f}, {evy:.2f})"
+                )
+                print(f"is turn toward center? {turn_toward}")
+                print("-" * 40)
+
+                if len(debug_rows) < max_debug_rows:
+                    debug_rows.append(
+                        {
+                            "start_index": start,
+                            "end_index": end,
+                            "start_x": round(sx, 2),
+                            "start_y": round(sy, 2),
+                            "end_x": round(ex, 2),
+                            "end_y": round(ey, 2),
+                            "start_heading_deg": sh,
+                            "end_heading_deg": eh,
+                            "start_vec_x": round(svx, 2),
+                            "start_vec_y": round(svy, 2),
+                            "end_vec_x": round(evx, 2),
+                            "end_vec_y": round(evy, 2),
+                            "toward_center": turn_toward,
+                        }
+                    )
+
+        # write out CSV if in debug mode
+        if debug and debug_rows:
+            csv_path = (
+                f"turn_direction_debug_{trj.id}.csv"
+                if hasattr(trj, "id")
+                else "turn_direction_debug.csv"
+            )
+            with open(csv_path, "w", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=debug_rows[0].keys())
+                writer.writeheader()
+                writer.writerows(debug_rows)
+            print(f"\nWrote {len(debug_rows)} debug events to {csv_path}\n")
 
         return turn_data
 
@@ -1994,12 +2106,14 @@ class VideoAnalysis:
         self,
         trj,
         boundary_tp,
+        boundary_combo,
         ellipse_ref_pt,
         turn_type,
         turn_starts_ends,
         floor_center_x,
         floor_center_y,
         debug,
+        training_ranges=None,
     ):
         """
         Updates the boundary event statistics for turn directionality based on the provided parameters.
@@ -2021,22 +2135,22 @@ class VideoAnalysis:
         - None: Directly modifies the trajectory object's internal statistics.
         """
 
-        if ellipse_ref_pt not in trj.boundary_event_stats[boundary_tp]["tb"]:
-            trj.boundary_event_stats[boundary_tp]["tb"][ellipse_ref_pt] = {}
+        if ellipse_ref_pt not in trj.boundary_event_stats[boundary_tp][boundary_combo]:
+            trj.boundary_event_stats[boundary_tp][boundary_combo][ellipse_ref_pt] = {}
         if (
             "turn_direction_toward_ctr"
-            not in trj.boundary_event_stats[boundary_tp]["tb"][ellipse_ref_pt]
+            not in trj.boundary_event_stats[boundary_tp][boundary_combo][ellipse_ref_pt]
         ):
-            trj.boundary_event_stats[boundary_tp]["tb"][ellipse_ref_pt][
+            trj.boundary_event_stats[boundary_tp][boundary_combo][ellipse_ref_pt][
                 "turn_direction_toward_ctr"
             ] = {}
         if (
             turn_type
-            not in trj.boundary_event_stats[boundary_tp]["tb"][ellipse_ref_pt][
-                "turn_direction_toward_ctr"
-            ]
+            not in trj.boundary_event_stats[boundary_tp][boundary_combo][
+                ellipse_ref_pt
+            ]["turn_direction_toward_ctr"]
         ):
-            trj.boundary_event_stats[boundary_tp]["tb"][ellipse_ref_pt][
+            trj.boundary_event_stats[boundary_tp][boundary_combo][ellipse_ref_pt][
                 "turn_direction_toward_ctr"
             ][turn_type] = {}
 
@@ -2047,20 +2161,21 @@ class VideoAnalysis:
             start_pos_x, start_pos_y = trj.x[start], trj.y[start]
             end_pos_x, end_pos_y = trj.x[end], trj.y[end]
 
-            start_vector = np.array(
-                [floor_center_x - start_pos_x, floor_center_y - start_pos_y]
-            )
+            if training_ranges is not None:
+                cx, cy = VideoAnalysis.centre_for(training_ranges, start)
+            else:
+                cx, cy = floor_center_x, floor_center_y
+
+            start_vector = np.array([cx - start_pos_x, cy - start_pos_y])
             start_heading_angle = np.degrees(trj.velAngles[start])
-            end_vector = np.array(
-                [floor_center_x - end_pos_x, floor_center_y - end_pos_y]
-            )
+            end_vector = np.array([cx - end_pos_x, cy - end_pos_y])
 
             end_heading_angle = np.degrees(trj.velAngles[end])
             turn_direction_toward_ctr = self.calculate_turn_toward_center(
                 start_vector, end_vector, start_heading_angle, end_heading_angle
             )
 
-            trj.boundary_event_stats[boundary_tp]["tb"][ellipse_ref_pt][
+            trj.boundary_event_stats[boundary_tp][boundary_combo][ellipse_ref_pt][
                 "turn_direction_toward_ctr"
             ][turn_type][start] = turn_direction_toward_ctr
 
@@ -2081,7 +2196,7 @@ class VideoAnalysis:
         if debug:
             print("all results for turn direction toward center:")
             print(
-                trj.boundary_event_stats[boundary_tp]["tb"][ellipse_ref_pt][
+                trj.boundary_event_stats[boundary_tp][boundary_combo][ellipse_ref_pt][
                     "turn_direction_toward_ctr"
                 ][turn_type]
             )
@@ -3251,7 +3366,7 @@ class VideoAnalysis:
                     self.avgDistancesByBkt[-1].append(
                         np.mean(db[f][distance_mask[:-1]])
                     )
-                if t.n == 3 and f == 0:
+                if t.n == len(self.trns) and f == 0:
                     self.t_lengths_for_plot = np.array(self.t_lengths_for_plot)
                     if self.opts.wall:
                         self.t_length_contactless_mask = np.array(

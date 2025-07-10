@@ -358,6 +358,13 @@ g.add_argument(
     help="analyze directionality of agarose- and/or boundary-anchored turns",
 )
 g.add_argument(
+    "--contact-geometry",
+    choices=("horizontal", "circular"),
+    default="horizontal",
+    help="[turn-probability] use horizontal centre-line analysis "
+    "or concentric-circle analysis (default: horizontal)",
+)
+g.add_argument(
     "--turn-prob-by-dist",
     type=str,
     help="Generate a plot of turn probability as a function of distance from the"
@@ -367,9 +374,9 @@ g.add_argument(
 g.add_argument(
     "--outside-circle-radii",
     type=str,
-    help="Analyze the distribution of durations of events outside circles of varying"
-    " various radii, concentric with the reward circle - i.e., measure 'exit' to 'entry'"
-    " periods. Provide a comma-separated list of monotonically increase radii (mm).",
+    help="Comma-separated list of radii (mm) concentric with the reward circle. "
+    "Used for (i) histograms of exit-to-entry durations AND "
+    "(ii) turn-probability-by-distance when --contact-geometry circular.",
 )
 g.add_argument(
     "--outside-circle-norm",
@@ -4062,6 +4069,11 @@ def plotTlenDist(vas, gis, gls, tp):
 def postAnalyze(vas):
     if len(vas) <= 1:
         return
+    
+    run_turn_prob = (
+        (opts.contact_geometry == "horizontal" and opts.turn_prob_by_dist)
+        or (opts.contact_geometry == "circular"   and opts.outside_circle_radii)
+    )
 
     print("\n\n=== all video analysis (%d videos) ===" % len(vas))
     print("\ntotal rewards training: %d" % sum(va.totalTrainingNOn for va in vas))
@@ -4093,7 +4105,7 @@ def postAnalyze(vas):
         turn_dir_plotter = TurnDirectionalityPlotter(vas, gls, customizer, opts)
         turn_dir_plotter.plot_turn_directionality()
 
-    if opts.turn_prob_by_dist:
+    if run_turn_prob:
         turn_prob_plotter = TurnProbabilityByDistancePlotter(vas, gls, opts, customizer)
         turn_prob_plotter.average_turn_probabilities()
         turn_prob_plotter.plot_turn_probabilities()
@@ -5379,6 +5391,12 @@ if __name__ == "__main__":
         opts.turn_prob_by_dist = parse_distances(opts.turn_prob_by_dist)
     if opts.outside_circle_radii:
         opts.outside_circle_radii = parse_distances(opts.outside_circle_radii)
+
+    if opts.turn_prob_by_dist or opts.outside_circle_radii:
+        if opts.contact_geometry == "horizontal" and not opts.turn_prob_by_dist:
+            error("--turn-prob-by-dist must be supplied for horizontal geometry")
+        if opts.contact_geometry == "circular" and not opts.outside_circle_radii:
+            error("--outside-circle-radii must be supplied for circular geometry")
 
     # - - -
     test()

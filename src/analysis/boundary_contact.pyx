@@ -7,6 +7,7 @@ import numpy as np
 cimport numpy as cnp
 
 from src.plotting.event_chain_plotter import EventChainPlotter
+from src.utils.common import CT
 from src.utils.constants import CONTACT_BUFFER_OFFSETS
 from src.utils.debug_util import (
     ellipse_edge_points_within_boundaries,
@@ -622,79 +623,137 @@ cdef class EllipseToBoundaryDistCalculator:
         self.cos_of_angles = np.cos(-rot_angles_array)
         self.rot_angles = rot_angles_array
 
+    # ────────────────────────────────────────────────────────────────────
+    # helper: map chamber enum → (n_rows, n_cols)
+    # ────────────────────────────────────────────────────────────────────
+    @staticmethod
+    cdef inline tuple _grid_shape(ct):
+        if   ct is CT.htl:      # 4 × 5 chamber
+            return (4, 5)
+        elif ct in (CT.large, CT.large2):   # 2 × 2 chambers
+            return (2, 2)
+        else:
+            raise ValueError(f"Unsupported chamber type {ct!r}")
+
+    # helper: return the central index/indices along one dimension
+    #   odd  n → [mid]
+    #   even n → [mid-1, mid]
+    @staticmethod
+    cdef inline list _central_indices(int n):
+        return [n // 2] if n & 1 else [n // 2 - 1, n // 2]
+
+    # helper: convert (row, col) → global fly-ID (f)
+    @staticmethod
+    cdef inline int _cell_id(int row, int col, int n_cols):
+        return row * n_cols + col
 
     cdef _set_trj_data(self):
         """
-        Sets up the trajectory data and initializes boundary conditions for the
-        EllipseToBoundaryDistCalculator. This method processes video analysis data to
-        establish initial conditions related to the chamber's geometry, aligns boundary origin
-        points based on video analysis, calculates chamber center and maximum distances from
-        the center, and adjusts boundary positions considering offsets. It also directly
-        copies trajectory X and Y positions into class attributes for subsequent calculations.
-
-        The process involves:
-        - Extracting floor alignment coordinates to calculate the chamber's center.
-        - Determining the maximum distances from the chamber center to its boundaries to help
-          adjust boundary positions.
-        - Calculating offsets for original boundary positions based on predefined factors,
-          ensuring boundaries are dynamically adjusted relative to the chamber center and
-          maximum distances.
-        - Copying trajectory X and Y data into class attributes for use in distance
-          calculations to boundaries.
-
-        Modifies:
-        - `self.x_align_fl`, `self.y_align_fls`: Stores alignment information for calculating
-                                                 the chamber center.
-        - `self.chamber_center`: The calculated center of the chamber based on alignment
-                                 information.
-        - `self.max_dists_from_ctr`: Maximum distances from the chamber center to its edges,
-                                     used for boundary adjustment.
-        - `self.bounds_orig` and `self.offsets`: Original boundary positions and their
-                                                 adjustments.
-        - `self.x`, `self.y`: Direct copying of trajectory data for use in distance
-                              calculations.
-
-        Raises:
-        - Does not explicitly raise exceptions but relies on the integrity and availability of
-          `self.va` attributes.
+        Generalised version supporting all chamber grids.
+        Computes chamber centre by averaging across BOTH central rows / columns
+        when their counts are even (e.g. 4x5, 2x2), reproducing original HTL logic.
         """
+
+        # ─────────────────────────────────────────────────────────────────
+        # 0. Fast-exit if video-analysis object lacks chamber-tools
+        # ─────────────────────────────────────────────────────────────────
         if not hasattr(self.va, "ct"):
             return
-        gen = self.va.ct.floor(self.va.xf, f=2)
-        for i, (x, y) in enumerate(gen):
-            self.x_align_fl[i][0] = x
-            self.x_align_fl[i][1] = y
-        lists = [list(self.va.ct.floor(self.va.xf, f=f)) for f in (5, 10)]
-        for i, lst in enumerate(lists):
-            for j, (x, y) in enumerate(lst):
-                self.y_align_fls[i][j][0] = x
-                self.y_align_fls[i][j][1] = y
-        self.chamber_center[0] = 0.5 * (self.x_align_fl[0][0] + self.x_align_fl[1][0])
-        self.chamber_center[1] = 0.5 * (self.y_align_fls[0][1][1] + self.y_align_fls[1][0][1])
-        self.max_dists_from_ctr[0] = (
-            self.chamber_center[0] - list(self.va.ct.floor(self.va.xf, f=0))[0][0]
-        )
+
+        cdef int n_rows, n_cols
+        n_rows, n_cols = EllipseToBoundaryDistCalculator._grid_shape(self.va.ct)
+
+        # shorthand
+        floor = self.va.ct.floor
+        xf    = self.va.xf
+
+        # ─────────────────────────────────────────────────────────────────
+        # 1. Determine true chamber centre
+        #    · For X → probe EVERY central column, any convenient row (row 0)
+        #    · For Y → probe EVERY central row,    any convenient column (col 0)
+        #      Collect the two wall-points per probe cell, then average.
+        # ─────────────────────────────────────────────────────────────────
+        cdef list x_vals = []
+        cdef list y_vals = []
+
+        cdef list mid_cols = EllipseToBoundaryDistCalculator._central_indices(n_cols)
+        cdef list mid_rows = EllipseToBoundaryDistCalculator._central_indices(n_rows)
+
+        # ---- X-axis probes ------------------------------------------------
+        cdef int row_for_x = 0
+        cdef int i, j, f
+        cdef int x, y
+
+        # we also keep the first two points we encounter in self.x_align_fl
+        cdef int xalign_idx = 0
+
+        for j in mid_cols:
+            f = EllipseToBoundaryDistCalculator._cell_id(row_for_x, j, n_cols)
+            for (x, y) in floor(xf, f=f):
+                x_vals.append(x)
+                if xalign_idx < len(self.x_align_fl):
+                    self.x_align_fl[xalign_idx][0] = x
+                    self.x_align_fl[xalign_idx][1] = y
+                    xalign_idx += 1
+
+        # ---- Y-axis probes ------------------------------------------------
+        cdef int col_for_y = 0
+        cdef int yalign_row = 0            # 0 or 1 into self.y_align_fls
+        cdef int yalign_pt  = 0
+
+        for i in mid_rows:
+            f = EllipseToBoundaryDistCalculator._cell_id(i, col_for_y, n_cols)
+            for (x, y) in floor(xf, f=f):
+                y_vals.append(y)
+                if yalign_row < len(self.y_align_fls):
+                    self.y_align_fls[yalign_row][yalign_pt][0] = x
+                    self.y_align_fls[yalign_row][yalign_pt][1] = y
+                    yalign_pt += 1
+                    if yalign_pt == 2:      # two wall points stored → next row
+                        yalign_pt  = 0
+                        yalign_row += 1
+
+        # chamber centre = mean of all collected wall points
+        self.chamber_center[0] = np.mean(x_vals)
+        self.chamber_center[1] = np.mean(y_vals)
+
+        # ─────────────────────────────────────────────────────────────────
+        # 2. Maximum distances from centre to extreme walls
+        #    • left-most cell (0,0) suffices for X-max
+        #    • any first X-probe provides Y-max like original logic
+        # ─────────────────────────────────────────────────────────────────
+        leftmost_pts = list(floor(xf, f=0))
+        self.max_dists_from_ctr[0] = self.chamber_center[0] - leftmost_pts[0][0]
         self.max_dists_from_ctr[1] = self.chamber_center[1] - self.x_align_fl[0][1]
-        gen = self.va.ct.floor(self.va.xf, f=self.va.trxf[self.trj.f])
+
+        # ─────────────────────────────────────────────────────────────────
+        # 3. Raw boundary coordinates for THIS trajectory’s fly
+        # ─────────────────────────────────────────────────────────────────
+        gen = floor(xf, f=self.va.trxf[self.trj.f])
         for i, (x, y) in enumerate(gen):
             self.bounds_orig[i][0] = x
             self.bounds_orig[i][1] = y
+
+        # ─────────────────────────────────────────────────────────────────
+        # 4. Visibility-bias correction (unchanged)
+        # ─────────────────────────────────────────────────────────────────
         for i in range(len(self.bounds_orig)):
             for j in range(2):
-                # apply maximum of 0.4% offset to compensate for left-right and top-bottom
-                # biases in boundary contact events caused by uneven visibility of sidewalls
-                self.offsets[i][j] = 0.004 * (                   
+                self.offsets[i][j] = 0.004 * (
                     self.bounds_orig[i][j] - self.chamber_center[j]
                 ) / self.max_dists_from_ctr[j] * abs(
                     self.bounds_orig[i][j] - self.chamber_center[j]
                 )
-        for i in range(len(self.bounds_orig)):
-            self.bounds_orig[i][0] += self.offsets[i][0]
-            self.bounds_orig[i][1] += self.offsets[i][1]
+                self.bounds_orig[i][j] += self.offsets[i][j]
+
+        # ─────────────────────────────────────────────────────────────────
+        # 5. Convenience arrays (unchanged)
+        # ─────────────────────────────────────────────────────────────────
         self.x_bounds_orig = [self.bounds_orig[0][0], self.bounds_orig[1][0]]
         self.y_bounds_orig = [self.bounds_orig[0][1], self.bounds_orig[1][1]]
-        self.x = np.array(self.trj.x)
-        self.y = np.array(self.trj.y)
+
+        self.x = np.asarray(self.trj.x)
+        self.y = np.asarray(self.trj.y)
         self.origins = np.vstack((self.x, self.y)).T
 
     def _rotate_chamber_bounds_about_ellipses(self, offset=0):

@@ -730,6 +730,10 @@ class Trajectory:
         # Convert radii from mm to pixels
         radii_px = [el * self.va.ct.pxPerMmFloor() * self.va.xf.fctr for el in radii_mm]
 
+        self.boundary_event_stats.setdefault("circle", {}).setdefault(
+            "ctr", {}
+        ).setdefault("ctr", {})
+
         if debug:
             print(f"[INFO] Radii (mm): {radii_mm}")
             print(f"[INFO] Radii (px): {radii_px}")
@@ -790,6 +794,24 @@ class Trajectory:
 
             return durations
 
+        circle_stats = (
+            self.boundary_event_stats.setdefault("circle", {})
+            .setdefault("ctr", {})
+            .setdefault("ctr", {})
+        )
+
+        for r_mm, r_px in zip(radii_mm, radii_px):
+            if r_mm not in circle_stats:  # first time we see this radius
+                circle_stats[r_mm] = {
+                    "boundary_contact": np.zeros(len(self.x), dtype=bool),
+                    "original_boundary_contact": np.zeros(len(self.x), dtype=bool),
+                    "boundary_contact_regions": [],  # list of slices
+                    "contact_start_idxs": np.array([], dtype=int),
+                    "training_ranges": [],
+                    "circle_radius_px": r_px,
+                    # turns will be filled later
+                }
+
         for t_idx, t in enumerate(self.va.trns):
             start = t.start if t.n > 1 else self.va.startPre
             cx, cy, r_smallest = list(t.circles(self.f))[0]
@@ -814,6 +836,34 @@ class Trajectory:
             x, y = self.xy(start, t.postStop)
             for r_mm, r_px in zip(radii_mm, radii_px):
                 inC = self.calc_in_circle(x, y, cx, cy, r_px)
+
+                contact = ~inC
+                contact[np.isnan(contact)] = False
+                regions = util.trueRegions(contact)[1:]
+                contact_starts = np.array([r.start for r in regions])
+
+                abs_offset = start  # how many frames we cropped away
+
+                # 1. create an absolute contact vector the length of the *whole* video
+                contact_full = np.zeros(len(self.x), dtype=bool)
+                contact_full[abs_offset : abs_offset + len(contact)] = contact
+
+                # 2. shift region slices to absolute frame numbers
+                regions_abs = [
+                    slice(r.start + abs_offset, r.stop + abs_offset) for r in regions
+                ]
+
+                # 3. shift the contact-start indices
+                contact_starts_abs = contact_starts + abs_offset
+
+                stats_r = circle_stats[r_mm]
+                stats_r["boundary_contact"] |= contact_full
+                stats_r["original_boundary_contact"] |= contact_full
+                stats_r["boundary_contact_regions"].extend(regions_abs)
+                stats_r["contact_start_idxs"] = np.concatenate(
+                    (stats_r["contact_start_idxs"], contact_starts_abs)
+                )
+                stats_r["training_ranges"].append((start, t.postStop, cx, cy))
 
                 if debug:
                     print(

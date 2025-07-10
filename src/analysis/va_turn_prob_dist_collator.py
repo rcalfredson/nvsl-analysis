@@ -1,6 +1,7 @@
 import numpy as np
 
 from src.analysis.boundary_contact import runBndContactAnalysisForCtrReferencePt
+from src.analysis.circle_contact import runCircleContactAnalysisUsingOutside
 from src.utils.common import CT
 from src.analysis.reward_range_calculator import RewardRangeCalculator
 from src.analysis.video_analysis_interface import VideoAnalysisInterface
@@ -14,10 +15,14 @@ class VATurnProbabilityDistanceCollator:
                 " of turn probability by distance."
             )
         self.va = va
-        self.distances = opts.turn_prob_by_dist
+        self.geom = getattr(opts, "contact_geometry", "horizontal")
+        if self.geom == "circular":
+            self.distances = opts.outside_circle_radii
+        else:
+            self.distances = opts.turn_prob_by_dist
+            self.invert_distances()
         self.min_vel_angle_delta = opts.min_vel_angle_delta
         self.opts = opts
-        self.invert_distances()
 
     def invert_distances(self):
         """
@@ -40,15 +45,20 @@ class VATurnProbabilityDistanceCollator:
                     )
                     continue
                 self.va.turn_prob_by_distance[dist].append([])
-                stats = runBndContactAnalysisForCtrReferencePt(
-                    traj, self.va, self.distances_inv[i], self.opts
-                )["boundary_event_stats"]
+                if self.geom == "horizontal":
+                    be_stats = runBndContactAnalysisForCtrReferencePt(
+                        traj, self.va, self.distances_inv[i], self.opts
+                    )["boundary_event_stats"]
+                    btp, bcombo, ref_pt = "boundary", "tb", "ctr"
+                else:  # circular
+                    be_stats = runCircleContactAnalysisUsingOutside(
+                        traj, self.va, self.distances[i], self.opts
+                    )
+                    btp, bcombo, ref_pt = "circle", "ctr", "ctr"
                 turn_results = self.va.determineTurnDirectionality(
-                    "boundary", "ctr", stats, traj
-                )["boundary"]["ctr"]["all"]
-                contact_start_data = stats["boundary"]["tb"]["ctr"][
-                    "contact_start_idxs"
-                ]
+                    btp, ref_pt, ext_data=be_stats, trj=traj, boundary_combo=bcombo
+                )[btp]["ctr"]["all"]
+                contact_start_data = be_stats[btp][bcombo][ref_pt]["contact_start_idxs"]
 
                 for j, reward_range in enumerate(self.va.reward_ranges):
                     if self.va.pair_exclude[j]:
