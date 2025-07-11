@@ -1,4 +1,4 @@
-# command: analyze.py -v '/media/Synology3/KJ/rt-trx/2017-02-16_33C/c2[1-4]_*|/media/Synology3/KJ/rt-trx/2017-02-16_33C/c[1-4]_*' --gl '13F02>shi; 0273>CsC at 33C|lexA-shi; 0273>CsC at 33C'  [r5339cb6cc53060dc04dc88d83e73f8643f986e60]
+# command: analyze.py -v '/media/Synology3/KJ/rt-trx/2017-02-16_33C/c2[1-4]_*|/media/Synology3/KJ/rt-trx/2017-02-16_33C/c[1-4]_*' --gl '13F02>shi; 0273>CsC at 33C|lexA-shi; 0273>CsC at 33C'  [r5021621f6f096ac92c561567f3fb69ca778c2d90]
 
 === analyzing c1__2017-02-16__10-07-20.avi ===
 
@@ -1329,6 +1329,10 @@ unpaired t-test -- training 1-2, total AUC:
 writing imgs/reward_pi_diff__10_min_buckets.png...
 paired t-test -- first sync bucket, training 1 vs. 2 (exp - yok):
   n = 8, means: 0.625, 0.535; t-test: p = 0.47607, t = 0.753
+paired t-test -- training 1, fly 1, bucket #1 vs. #5:
+  n = 8, means: 0.625, 0.674; t-test: p = 0.71937, t = -0.374
+paired t-test -- training 2, fly 1, bucket #1 vs. #5:
+  n = 8, means: 0.535, 0.735; t-test: p = 0.23882, t = -1.288
 
 writing imgs/reward_pi_post_diff__3_min_buckets.png...
 

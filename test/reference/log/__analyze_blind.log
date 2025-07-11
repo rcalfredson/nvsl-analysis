@@ -1,4 +1,4 @@
-# command: analyze.py -v '/media/Synology/Uli/2015-09-1[567]/*'  [rca125d6edf933ce8cca5ed149297810c95db46e7]
+# command: analyze.py -v '/media/Synology/Uli/2015-09-1[567]/*'  [r5021621f6f096ac92c561567f3fb69ca778c2d90]
 
 === analyzing c1__2015-09-15__10-08-49.avi ===
 
@@ -3508,6 +3508,10 @@ writing imgs/dist_btwn_rewards__10_min_buckets.png...
 writing imgs/reward_pi_diff__10_min_buckets.png...
 paired t-test -- first sync bucket, training 1 vs. 2 (exp - yok):
   n = 22, means: 0.305, 0.53; t-test: p = 0.01593, t = -2.622
+paired t-test -- training 1, fly 1, bucket #1 vs. #11:
+  n = 22, means: 0.309, 0.71; t-test: p = 0.00036, t = -4.247
+paired t-test -- training 2, fly 1, bucket #1 vs. #11:
+  n = 19, means: 0.576, 0.567; t-test: p = 0.92610, t = 0.094
 
 writing imgs/reward_pi_post_diff__3_min_buckets.png...
 
