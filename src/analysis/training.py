@@ -232,11 +232,9 @@ class Training:
             else:
                 if t.tp is t.TP.circle:
                     if t.ct is CT.large:
-                        Training._addCircle(t, t.cx, t.cy, rcc_px, xf)
-                    elif (
-                        t.ct in (CT.large2, CT.htl)
-                        and opts.radiusCC
-                        or opts.radiusMultCC
+                        Training._addCircle(t, t.cx, t.cy, 55, xf)
+                    elif t.ct in (CT.large2, CT.htl) and (
+                        opts.radiusCC or opts.radiusMultCC
                     ):
                         Training._addCircle(t, t.cx, t.cy, rcc_px, xf)
                     elif t.ct is CT.large2:
@@ -244,12 +242,12 @@ class Training:
                             t,
                             2 * t.cntr[0] - t.cx,
                             2 * t.cntr[1] - t.cy,
-                            rcc_px,
+                            t.r,
                             xf,
                         )
                         t._symCtrl()
                     elif t.ct is CT.htl:
-                        Training._addCircle(t, t.cx, 2 * t.cntr[1] - t.cy, rcc_px, xf)
+                        Training._addCircle(t, t.cx, 2 * t.cntr[1] - t.cy, t.r, xf)
                         t._symCtrl()
                     else:
                         error(
@@ -268,9 +266,7 @@ class Training:
                         ccy = xf.t2fY(112.5 if t.tp is t.TP.top else 27.5)
                     else:
                         error("not yet implemented")
-                    Training._addCircle(
-                        t, t.cx, ccy, rcc_px, xf, tmFct, tmX, isCntr=False
-                    )
+                    Training._addCircle(t, t.cx, ccy, t.r, xf, tmFct, tmX, isCntr=False)
 
     @staticmethod
     def _setYTopBottom(trns):
