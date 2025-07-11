@@ -2,9 +2,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 
-from src.utils.common import adjustLegend, writeImage
+from src.utils.common import writeImage
 from src.plotting.plot_customizer import PlotCustomizer
 from src.utils.util import meanConfInt, slugify
+
+
+# ── helper, very top of file (or anywhere before plot_turn_probabilities) ─────────
+def _fmt_label(name, n, *, show_n):
+    """Return  'name (n=…)'  only when show_n is True."""
+    return f"{name} (n={n})" if show_n else name
 
 
 class TurnProbabilityByDistancePlotter:
@@ -12,6 +18,7 @@ class TurnProbabilityByDistancePlotter:
         self.va_instances = va_instances
         self.gls = gls
         self.opts = opts
+        self.use_union_filter = getattr(self.opts, "use_union_filter", False)
         self.plot_customizer = plot_customizer or PlotCustomizer()
         self.distances = list(va_instances[0].turn_prob_by_distance.keys())
         self.timeframes = ["pre_trn", "t1_start", "t2_end", "t3_end"]
@@ -93,7 +100,39 @@ class TurnProbabilityByDistancePlotter:
             return exclusion_indices_union
 
     def average_turn_probabilities(self):
-        exclude_indices = self.filter_flies()
+        if self.gls:
+            self.per_tick_ns = {
+                grp: {
+                    "exp": {
+                        d: [[] for _ in self.timeframes]
+                        for d in ("toward", "away", "all")
+                    },
+                    "ctrl": {
+                        d: [[] for _ in self.timeframes]
+                        for d in ("toward", "away", "all")
+                    },
+                }
+                for grp in self.gls
+            }
+        else:
+
+            self.per_tick_ns = {
+                "exp": {
+                    "toward": [[] for _ in self.timeframes],
+                    "away": [[] for _ in self.timeframes],
+                    "all": [[] for _ in self.timeframes],
+                },
+                "ctrl": {
+                    "toward": [[] for _ in self.timeframes],
+                    "away": [[] for _ in self.timeframes],
+                    "all": [[] for _ in self.timeframes],
+                },
+            }
+
+        if self.use_union_filter:
+            exclude_indices = self.filter_flies()
+        else:
+            exclude_indices = {}
 
         for i, dist in enumerate(self.distances):
             if self.gls:
@@ -137,7 +176,10 @@ class TurnProbabilityByDistancePlotter:
                     if self.gls:
                         group_idx = va.gidx
                         group = self.gls[group_idx]
-                        if (va, timeframe, group_idx) in exclude_indices[group]:
+                        if (
+                            self.use_union_filter
+                            and (va, timeframe, group_idx) in exclude_indices[group]
+                        ):
                             continue
                         group_values_toward[group]["exp"].append(
                             va.turn_prob_by_distance[dist][0][timeframe][0]
@@ -168,7 +210,7 @@ class TurnProbabilityByDistancePlotter:
                             )
                         )
                     else:
-                        if (va, timeframe) in exclude_indices:
+                        if self.use_union_filter and (va, timeframe) in exclude_indices:
                             continue
                         exp_values_toward.append(
                             va.turn_prob_by_distance[dist][0][timeframe][0]
@@ -339,6 +381,57 @@ class TurnProbabilityByDistancePlotter:
                     ctrl_means_all.append(ctrl_mean_all)
                     ctrl_cis_all.append((ctrl_low_all, ctrl_high_all))
 
+                # ————— record per-tick sample sizes if skipping union —————
+                if not self.use_union_filter:
+                    if self.gls:
+                        for group in self.gls:
+                            # experimental
+                            self.per_tick_ns[group]["exp"]["toward"][timeframe].append(
+                                int(
+                                    np.sum(~np.isnan(group_values_toward[group]["exp"]))
+                                )
+                            )
+                            self.per_tick_ns[group]["exp"]["away"][timeframe].append(
+                                int(np.sum(~np.isnan(group_values_away[group]["exp"])))
+                            )
+                            self.per_tick_ns[group]["exp"]["all"][timeframe].append(
+                                int(np.sum(~np.isnan(group_values_all[group]["exp"])))
+                            )
+                            # control
+                            self.per_tick_ns[group]["ctrl"]["toward"][timeframe].append(
+                                int(
+                                    np.sum(
+                                        ~np.isnan(group_values_toward[group]["ctrl"])
+                                    )
+                                )
+                            )
+                            self.per_tick_ns[group]["ctrl"]["away"][timeframe].append(
+                                int(np.sum(~np.isnan(group_values_away[group]["ctrl"])))
+                            )
+                            self.per_tick_ns[group]["ctrl"]["all"][timeframe].append(
+                                int(np.sum(~np.isnan(group_values_all[group]["ctrl"])))
+                            )
+                    else:
+                        self.per_tick_ns["exp"]["toward"][timeframe].append(
+                            int(np.sum(~np.isnan(exp_values_toward)))
+                        )
+                        self.per_tick_ns["exp"]["away"][timeframe].append(
+                            int(np.sum(~np.isnan(exp_values_away)))
+                        )
+                        self.per_tick_ns["exp"]["all"][timeframe].append(
+                            int(np.sum(~np.isnan(exp_values_all)))
+                        )
+                        # control
+                        self.per_tick_ns["ctrl"]["toward"][timeframe].append(
+                            int(np.sum(~np.isnan(ctrl_values_toward)))
+                        )
+                        self.per_tick_ns["ctrl"]["away"][timeframe].append(
+                            int(np.sum(~np.isnan(ctrl_values_away)))
+                        )
+                        self.per_tick_ns["ctrl"]["all"][timeframe].append(
+                            int(np.sum(~np.isnan(ctrl_values_all)))
+                        )
+
             # Store the results
             if self.gls:
                 for group in self.gls:
@@ -400,41 +493,86 @@ class TurnProbabilityByDistancePlotter:
             return "#{:06x}".format(random.randint(0, 0xFFFFFF))
 
         def plot_data(
-            distances,
-            means,
-            cis,
-            labels,
-            title,
-            filename,
-            colors,
-            legend_loc,
+            distances, means, cis, labels, title, filename, colors, legend_loc, ns=None
         ):
             figure_size = 6
-            fig, axs = plt.subplots(1, 1, figsize=(figure_size, figure_size))
-            all_line_vals = []
-
-            for i, (mean, ci, label, color) in enumerate(
+            fig, ax = plt.subplots(1, 1, figsize=(figure_size, figure_size))
+            # zip together each curve’s mean/ci/label/color—and its ns-list if provided
+            for idx, (mean, ci, label, color) in enumerate(
                 zip(means, cis, labels, colors)
             ):
                 low, high = zip(*ci)
-                edge_color = color["edge"]
-                fill_color = color["fill"]
-                (line,) = axs.plot(
-                    distances, mean, label=label, marker="o", color=edge_color
-                )
-                axs.fill_between(distances, low, high, alpha=0.2, color=fill_color)
-                all_line_vals.append(mean)
+                ec, fc = color["edge"], color["fill"]
+                ax.plot(distances, mean, label=label, marker="o", color=ec)
+                ax.fill_between(distances, low, high, alpha=0.2, color=fc)
+            if ns is not None:
 
-            axs.set_xlabel("Distance from center (mm)", labelpad=15)
-            axs.set_ylabel("Turn probability", labelpad=15)
-            legend = axs.legend(loc=legend_loc, prop={"style": "italic"})
-            axs.grid(True)
-            axs.set_ylim(bottom=0)
+                # precompute lanes
+                y0, y1 = ax.get_ylim()
+                h = y1 - y0
+                lanes = {
+                    "top": y1 - 0.05 * h,
+                    "second": y1 - 0.10 * h,
+                    "bottom": y0 + 0.05 * h,
+                    "third": y0 + 0.10 * h,
+                }
+
+                for curve_idx, (mean, n_list, color) in enumerate(
+                    zip(means, ns, colors)
+                ):
+                    # pick the “primary” and “secondary” lane for this curve
+                    # when high: use bottom + third; otherwise: top + second
+                    high_lanes = (lanes["bottom"], lanes["third"])
+                    normal_lanes = (lanes["top"], lanes["second"])
+                    chosen_lanes = (
+                        high_lanes
+                        if any(y > y1 - 0.10 * h for y in mean)
+                        else normal_lanes
+                    )
+
+                    # then alternate within that pair
+                    lane = chosen_lanes[curve_idx % 2]
+
+                    # now draw all its labels at that fixed lane
+                    for x, y, n in zip(distances, mean, n_list):
+                        ax.text(
+                            x,
+                            lane,
+                            f"n={n}",
+                            color=color["edge"],
+                            ha="center",
+                            va="bottom" if lane <= lanes["bottom"] else "top",
+                            fontsize="small",
+                        )
+
+            dist_ref_pt = (
+                "reward circle"
+                if self.opts.contact_geometry == "circular"
+                else "chamber"
+            )
+            ax.set_xlabel(
+                f"Distance from {dist_ref_pt} center (mm)",
+                labelpad=15,
+            )
+            ax.set_ylabel("Turn probability", labelpad=15)
+            ax.grid(True)
+            ax.set_ylim(bottom=0)
+
+            # ——— make room for an outside legend ———
+            box = ax.get_position()  # get the original axis bounds
+            ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+
+            legend = ax.legend(
+                loc=legend_loc,
+                bbox_to_anchor=(1.02, 1),  # x=just to the right, y=top
+                borderaxespad=0.0,
+                prop={"style": "italic"},
+            )
+
             self.plot_customizer.adjust_padding_proportionally()
             kwargs = {}
             if self.opts:
                 kwargs["format"] = self.opts.imageFormat
-            adjustLegend(legend, np.array([[axs]]), all_line_vals, legend_loc)
             writeImage(filename, **kwargs)
             plt.close()
 
@@ -463,8 +601,13 @@ class TurnProbabilityByDistancePlotter:
                         ]
                         for group in self.gls
                     ]
+                    show_n = self.use_union_filter
                     labels = [
-                        f"{group} (n={self.sample_sizes[group]['exp'][direction][i]})"
+                        _fmt_label(
+                            group,
+                            self.sample_sizes[group]["exp"][direction][i],
+                            show_n=show_n,
+                        )
                         for group in self.gls
                     ]
                     group_colors = [
@@ -475,6 +618,12 @@ class TurnProbabilityByDistancePlotter:
                         )
                         for idx in range(len(self.gls))
                     ]
+                    extra = {}
+                    if not self.use_union_filter:
+                        extra["ns"] = [
+                            self.per_tick_ns[group]["exp"][direction][i]
+                            for group in self.gls
+                        ]
                     plot_data(
                         self.distances,
                         means,
@@ -484,6 +633,7 @@ class TurnProbabilityByDistancePlotter:
                         f"imgs/turn_probability_{self.timeframes[i]}_{direction}_exp_across_groups.png",
                         group_colors,
                         legend_loc,
+                        **extra,
                     )
 
                     # Plot experimental vs. yoked control within each group
@@ -502,11 +652,29 @@ class TurnProbabilityByDistancePlotter:
                             ]
                             for key in ["exp", "ctrl"]
                         ]
-                        key_name_dict = {"exp": "Experimental", "ctrl": "Yoked"}
+                        show_n_exp = (
+                            self.use_union_filter
+                        )  # experimental label gets n only w/ union filter
+                        show_n_ctrl = False  # yoked never shows n (per your spec)
+
                         labels = [
-                            f"{key_name_dict[key]} (n={self.sample_sizes[group][key][direction][i]})"
-                            for key in ["exp", "ctrl"]
+                            _fmt_label(
+                                "Experimental",
+                                self.sample_sizes[group]["exp"][direction][i],
+                                show_n=show_n_exp,
+                            ),
+                            _fmt_label(
+                                "Yoked",  # yoked sample size omitted
+                                self.sample_sizes[group]["ctrl"][direction][i],
+                                show_n=show_n_ctrl,
+                            ),
                         ]
+                        extra = {}
+                        if not self.use_union_filter:
+                            extra["ns"] = [
+                                self.per_tick_ns[group]["exp"][direction][i],
+                                self.per_tick_ns[group]["ctrl"][direction][i],
+                            ]
                         plot_data(
                             self.distances,
                             means,
@@ -519,6 +687,7 @@ class TurnProbabilityByDistancePlotter:
                                 {"fill": "#a00000", "edge": "#a00000"},
                             ],
                             legend_loc,
+                            **extra,
                         )
 
                 else:
@@ -530,10 +699,26 @@ class TurnProbabilityByDistancePlotter:
                         [results[dist]["exp"]["cis"][i] for dist in self.distances],
                         [results[dist]["ctrl"]["cis"][i] for dist in self.distances],
                     ]
+                    show_n_exp = self.use_union_filter
+                    show_n_ctrl = False
                     labels = [
-                        f"Experimental (n={self.sample_sizes['exp'][direction][i]})",
-                        f"Yoked (n={self.sample_sizes['ctrl'][direction][i]})",
+                        _fmt_label(
+                            "Experimental",
+                            self.sample_sizes["exp"][direction][i],
+                            show_n=show_n_exp,
+                        ),
+                        _fmt_label(
+                            "Yoked",
+                            self.sample_sizes["ctrl"][direction][i],
+                            show_n=show_n_ctrl,
+                        ),
                     ]
+                    extra = {}
+                    if not self.use_union_filter:
+                        extra["ns"] = [
+                            self.per_tick_ns["exp"][direction][i],
+                            self.per_tick_ns["ctrl"][direction][i],
+                        ]
                     plot_data(
                         self.distances,
                         means,
@@ -546,6 +731,7 @@ class TurnProbabilityByDistancePlotter:
                             {"fill": "#a00000", "edge": "#a00000"},
                         ],
                         legend_loc,
+                        **extra,
                     )
 
             # Plot Training 1 Start vs. Training 3 End for the same category
@@ -579,10 +765,35 @@ class TurnProbabilityByDistancePlotter:
 
                         means = [t1_means, t3_means]
                         cis = [t1_cis, t3_cis]
-                        labels = [
-                            f"Training 1 Start (n={self.sample_sizes[group][key][direction][self.timeframes.index('t1_start')]})",
-                            f"Training 3 End (n={self.sample_sizes[group][key][direction][self.timeframes.index('t3_end')]})",
+                        timeframe_indices = [
+                            self.timeframes.index("t1_start"),
+                            self.timeframes.index("t3_end"),
                         ]
+                        show_n = (
+                            self.use_union_filter
+                        )  # only when union filter is active
+                        labels = [
+                            _fmt_label(
+                                "Training 1 Start",
+                                self.sample_sizes[group][key][direction][
+                                    timeframe_indices[0]
+                                ],
+                                show_n=show_n,
+                            ),
+                            _fmt_label(
+                                "Training 3 End",
+                                self.sample_sizes[group][key][direction][
+                                    timeframe_indices[1]
+                                ],
+                                show_n=show_n,
+                            ),
+                        ]
+                        extra = {}
+                        if not self.use_union_filter:
+                            extra["ns"] = [
+                                self.per_tick_ns[group][key][direction][index]
+                                for index in timeframe_indices
+                            ]
                         plot_data(
                             self.distances,
                             means,
@@ -595,6 +806,7 @@ class TurnProbabilityByDistancePlotter:
                                 {"fill": "#a00000", "edge": "#a00000"},
                             ],
                             legend_loc,
+                            **extra,
                         )
             else:
                 t1_means_exp = [
@@ -633,15 +845,34 @@ class TurnProbabilityByDistancePlotter:
 
                 means_exp = [t1_means_exp, t3_means_exp]
                 cis_exp = [t1_cis_exp, t3_cis_exp]
-                labels_exp = [
-                    f"Training 1 Start (n={self.sample_sizes['exp'][direction][self.timeframes.index('t1_start')]})",
-                    f"Training 3 End (n={self.sample_sizes['exp'][direction][self.timeframes.index('t3_end')]})",
+                timeframe_indices = [
+                    self.timeframes.index("t1_start"),
+                    self.timeframes.index("t3_end"),
                 ]
+                show_n = self.use_union_filter  # only when union filter is active
+                labels = [
+                    _fmt_label(
+                        "Training 1 Start",
+                        self.sample_sizes["exp"][direction][timeframe_indices[0]],
+                        show_n=show_n,
+                    ),
+                    _fmt_label(
+                        "Training 3 End",
+                        self.sample_sizes["exp"][direction][timeframe_indices[1]],
+                        show_n=show_n,
+                    ),
+                ]
+                extra = {}
+                if not self.use_union_filter:
+                    extra["ns"] = [
+                        self.per_tick_ns["exp"][direction][index]
+                        for index in timeframe_indices
+                    ]
                 plot_data(
                     self.distances,
                     means_exp,
                     cis_exp,
-                    labels_exp,
+                    labels,
                     f"Turn Probability by Distance ({direction.capitalize()}) - Training 1 Start vs. Training 3 End\nSingle Group Analysis - Experimental",
                     f"imgs/turn_probability_t1_vs_t3_{direction}_single_group_exp.png",
                     [
@@ -649,14 +880,34 @@ class TurnProbabilityByDistancePlotter:
                         {"fill": "#a00000", "edge": "#a00000"},
                     ],
                     legend_loc,
+                    **extra,
                 )
 
                 means_ctrl = [t1_means_ctrl, t3_means_ctrl]
                 cis_ctrl = [t1_cis_ctrl, t3_cis_ctrl]
-                labels_ctrl = [
-                    f"Training 1 Start (n={self.sample_sizes['ctrl'][direction][self.timeframes.index('t1_start')]})",
-                    f"Training 3 End (n={self.sample_sizes['ctrl'][direction][self.timeframes.index('t3_end')]})",
+                timeframe_indices = [
+                    self.timeframes.index("t1_start"),
+                    self.timeframes.index("t3_end"),
                 ]
+                show_n = self.use_union_filter
+                labels_ctrl = [
+                    _fmt_label(
+                        "Training 1 Start",
+                        self.sample_sizes["ctrl"][direction][timeframe_indices[0]],
+                        show_n=show_n,
+                    ),
+                    _fmt_label(
+                        "Training 3 End",
+                        self.sample_sizes["ctrl"][direction][timeframe_indices[1]],
+                        show_n=show_n,
+                    ),
+                ]
+                extra = {}
+                if not self.use_union_filter:
+                    extra["ns"] = [
+                        self.per_tick_ns["ctrl"][direction][index]
+                        for index in timeframe_indices
+                    ]
                 plot_data(
                     self.distances,
                     means_ctrl,
@@ -669,4 +920,5 @@ class TurnProbabilityByDistancePlotter:
                         {"fill": "#a00000", "edge": "#a00000"},
                     ],
                     legend_loc,
+                    **extra,
                 )

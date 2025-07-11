@@ -372,6 +372,13 @@ g.add_argument(
     " monotonically increasing values.",
 )
 g.add_argument(
+    "--use-union-filter",
+    dest="use_union_filter",
+    action="store_true",
+    default=False,
+    help="Apply the union-based exclusion across all ticks (default: per-tick exclusion only).",
+)
+g.add_argument(
     "--outside-circle-radii",
     type=str,
     help="Comma-separated list of radii (mm) concentric with the reward circle. "
@@ -4069,11 +4076,10 @@ def plotTlenDist(vas, gis, gls, tp):
 def postAnalyze(vas):
     if len(vas) <= 1:
         return
-    
+
     run_turn_prob = (
-        (opts.contact_geometry == "horizontal" and opts.turn_prob_by_dist)
-        or (opts.contact_geometry == "circular"   and opts.outside_circle_radii)
-    )
+        opts.contact_geometry == "horizontal" and opts.turn_prob_by_dist
+    ) or (opts.contact_geometry == "circular" and opts.outside_circle_radii)
 
     print("\n\n=== all video analysis (%d videos) ===" % len(vas))
     print("\ntotal rewards training: %d" % sum(va.totalTrainingNOn for va in vas))
