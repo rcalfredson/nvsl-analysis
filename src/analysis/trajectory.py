@@ -1635,6 +1635,17 @@ class Trajectory:
         """
         return util.xy2T(util.rdp(self.xy(i1, i2), epsilon, _RDP_PKG))
 
+    def centerOfMass(self, i1=None, i2=None):
+        """
+        Compute the mean x,y over frames [i1:i2). If no indices given, use the whole trajectory.
+        Returns (x̄, ȳ).
+        """
+        if i1 is None and i2 is None:
+            xs, ys = self.x, self.y
+        else:
+            xs, ys = self.xy(i1, i2)  # uses your existing xy() helper
+        return np.nanmean(xs), np.nanmean(ys)
+
     def ellipse(self, i, rounded=False, semi_axes=False):
         """
         Returns the parameters of the ellipse representing the fly at a given frame.

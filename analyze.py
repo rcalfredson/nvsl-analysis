@@ -74,6 +74,7 @@ from src.utils.constants import (
 from src.analysis.motion import CircularMotionDetector
 from src.plotting.outside_circle_duration_plotter import OutsideCircleDurationPlotter
 from src.utils.parsers import parse_distances
+from src.plotting.com_plotter import plot_com_distance
 from src.plotting.plot import plotAngularVelocity, plotTurnRadiusHist
 from src.plotting.plot_customizer import PlotCustomizer
 from src.analysis.sli_tools import (
@@ -940,6 +941,8 @@ def headerForType(va, tp, calc):
         )
     elif tp in ("nr", "nrc"):
         return "\nnumber %s rewards by sync bucket:" % cVsA_l(calc, tp == "nrc")
+    elif tp == "com":
+        return "distance from trajectory COM to reward circle center"
     elif (
         tp
         in (
@@ -1121,6 +1124,7 @@ def fliesForType(va, tp, calc=None):
             "bysb2",
             "spd",
             "stp",
+            "com",
             "agarose",
             "boundary",
             "wall",
@@ -1176,6 +1180,7 @@ def bucketLenForType(tp):
             "boundary",
             "wall",
             "dbr",
+            "com",
             "rpid",
             "max_ctr_d_no_contact",
         )
@@ -1362,7 +1367,14 @@ def columnNamesForType(va, tp, calc, n):
             return [f"{flyDesc(f)} fly" for f in range(len(va.trx))]
         bl = " %s min" % bl
         return fiNe(bl, 0) + fiNe(bl, 1) if calc else fiNe(bl)
-
+    elif tp == "com":
+        n_buckets = len(va.syncCOMDist[0]["exp"])
+        flies = [flyDesc(0)] + ([flyDesc(1)] if len(va.flies) > 1 else [])
+        names = []
+        for f in flies:
+            for b in range(1, n_buckets + 1):
+                names.append(f"{f}_b{b}")
+        return names
     elif tp == "ppi":
         return ("post %s min" % bl,)
     elif tp in ("rpi", "bysb2"):
@@ -1431,6 +1443,7 @@ def columnNamesForType(va, tp, calc, n):
             "wall",
             "rpipd",
             "dbr",
+            "com",
             "dbr_no_contact",
             "max_ctr_d_no_contact",
         )
@@ -1757,6 +1770,17 @@ def vaVarForType(va, tp, calc):
         return va.pctInC["custom"]
     elif tp == "dbr":
         return va.avgDistancesByBkt
+    elif tp == "com":
+        # flatten syncCOMDist into (n_trns, n_flies * n_buckets)
+        data = []
+        has_ctrl = len(va.flies) > 1
+        flies = ["exp"] + (["ctrl"] if has_ctrl else [])
+        for trn_dict in va.syncCOMDist:
+            row = []
+            for fkey in flies:
+                row.extend(trn_dict[fkey])
+            data.append(row)
+        return np.array(data)
     elif tp == "dbr_no_contact_csv":
         return [va.contactless_trajectory_lengths[opts.wall_orientation]["csv"]]
     elif tp == "max_ctr_d_no_contact_csv":
@@ -4140,6 +4164,7 @@ def postAnalyze(vas):
             "stp",
             "rpm",
             "dbr",
+            "com",
         )
     )
     if opts.circle:
@@ -4318,6 +4343,9 @@ def postAnalyze(vas):
                         lb = lb - 1
                     else:
                         break
+        elif tp == "com":
+            bl, _ = bucketLenForType(tp)
+            plot_com_distance(vas, trns, bl, gis, gls, "imgs")
         elif tp in ("rpip", "rpipd"):
             plotRewards(va, tp, a, trns, gis, gls)
         elif (

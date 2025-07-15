@@ -187,6 +187,8 @@ class VideoAnalysis:
             self.bySyncBucket()
             self.bySyncBucket2()  # pass True to get maximum distance reached
             self.byPostBucket()
+            self.bySyncBucketCOM()
+            self.bySyncBucketCOMDist()
             self.byReward()
             self.byTraining()
             if opts.plotTrx:
@@ -1533,6 +1535,54 @@ class VideoAnalysis:
                 self._printBucketVals(adb[f], f, msg=flyDesc(f), prec=1)
                 self._append(self.bySB2, adb[f], f, n=n if self.opts.ol else n - 1)
         self.buckets = np.array(self.buckets)
+
+    def bySyncBucketCOM(self):
+        df = self._numRewardsMsg(True)  # same bucket width you use elsewhere
+
+        self.syncCOM = []
+
+        for trn in self.trns:
+            fi, n_buckets, _ = self._syncBucket(trn, df)
+            starts = [int(trn.start + k * df) for k in range(int(n_buckets))]
+            ends = [min(int(s + df), trn.stop) for s in starts]
+
+            # A dict to hold COMs for this one training:
+            this_training = {}
+
+            # Always do the experimental fly (self.trx[0]):
+            traj_exp = self.trx[0]
+            coms_exp = [traj_exp.centerOfMass(s, e) for s, e in zip(starts, ends)]
+            this_training["exp"] = coms_exp
+
+            # If you have a yoked control (self.trx[1]):
+            if len(self.trx) > 1:
+                traj_ctrl = self.trx[1]
+                coms_ctrl = [traj_ctrl.centerOfMass(s, e) for s, e in zip(starts, ends)]
+                this_training["ctrl"] = coms_ctrl
+
+            self.syncCOM.append(this_training)
+
+    def bySyncBucketCOMDist(self):
+        """
+        After bySyncBucketCOM, compute—for each training and each fly—the
+        distance between the bucket-wise COM and the reward-circle center.
+        Results go into self.syncCOMDist, parallel to self.syncCOM.
+        """
+        # make sure COMs exist
+        if not hasattr(self, "syncCOM"):
+            self.bySyncBucketCOM()
+
+        self.syncCOMDist = []
+
+        trn: Training
+        for trn, com_dict in zip(self.trns, self.syncCOM):
+            dist_dict = {}
+            for fly_key, coms in com_dict.items():
+                fly_idx = 0 if fly_key == "exp" else 1
+                cx, cy, _ = trn.circles(fly_idx)[0]
+
+                dist_dict[fly_key] = [np.hypot(x - cx, y - cy) for x, y in coms]
+            self.syncCOMDist.append(dist_dict)
 
     # calculates 1) number of calculated and control rewards during entire pre-
     # training and 2) reward PI for final 10 minutes of pre-training
