@@ -1368,7 +1368,7 @@ def columnNamesForType(va, tp, calc, n):
         bl = " %s min" % bl
         return fiNe(bl, 0) + fiNe(bl, 1) if calc else fiNe(bl)
     elif tp == "com":
-        n_buckets = len(va.syncCOMDist[0]["exp"])
+        n_buckets = len(va.syncMeanDist[0]["exp"])
         flies = [flyDesc(0)] + ([flyDesc(1)] if len(va.flies) > 1 else [])
         names = []
         for f in flies:
@@ -1775,7 +1775,7 @@ def vaVarForType(va, tp, calc):
         data = []
         has_ctrl = len(va.flies) > 1
         flies = ["exp"] + (["ctrl"] if has_ctrl else [])
-        for trn_dict in va.syncCOMDist:
+        for trn_dict in va.syncMeanDist:
             row = []
             for fkey in flies:
                 row.extend(trn_dict[fkey])

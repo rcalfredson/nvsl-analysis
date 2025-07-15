@@ -187,8 +187,7 @@ class VideoAnalysis:
             self.bySyncBucket()
             self.bySyncBucket2()  # pass True to get maximum distance reached
             self.byPostBucket()
-            self.bySyncBucketCOM()
-            self.bySyncBucketCOMDist()
+            self.bySyncBucketMeanDist()
             self.byReward()
             self.byTraining()
             if opts.plotTrx:
@@ -1536,53 +1535,58 @@ class VideoAnalysis:
                 self._append(self.bySB2, adb[f], f, n=n if self.opts.ol else n - 1)
         self.buckets = np.array(self.buckets)
 
-    def bySyncBucketCOM(self):
-        df = self._numRewardsMsg(True)  # same bucket width you use elsewhere
-
-        self.syncCOM = []
+    # --------------- new mean-based distance method ----------------
+    def bySyncBucketMeanDist(self, min_no_contact_s=None):
+        """
+        For each sync-bucket, compute the mean of per-frame
+        distances to the reward-circle center, optionally filtering out
+        brief no-contact bouts as in cleanNonContactMask().
+        Results in self.syncMeanDist: a list (per training) of dicts
+        with 'exp' and optionally 'ctrl' keys mapping to mean distances.
+        """
+        df = self._numRewardsMsg(True)
+        self.syncMeanDist = []
 
         for trn in self.trns:
+            # build bucket boundaries from the first‐reward frame
             fi, n_buckets, _ = self._syncBucket(trn, df)
-            starts = [int(trn.start + k * df) for k in range(int(n_buckets))]
-            ends = [min(int(s + df), trn.stop) for s in starts]
+            starts = [int(fi + k * df) for k in range(int(n_buckets))]
+            ends = [s + df for s in starts]
+            # la guards against partial buckets
+            la = min(trn.stop, int(trn.start + n_buckets * df))
+            buckets = [(s, e) for s, e in zip(starts, ends) if e <= la]
 
-            # A dict to hold COMs for this one training:
             this_training = {}
+            for fly_key, traj in (("exp", self.trx[0]),) + (
+                (("ctrl", self.trx[1]),) if len(self.trx) > 1 else ()
+            ):
+                # precompute mask if requested
+                if min_no_contact_s is not None:
+                    mask = traj.cleanNonContactMask(min_no_contact_s)
 
-            # Always do the experimental fly (self.trx[0]):
-            traj_exp = self.trx[0]
-            coms_exp = [traj_exp.centerOfMass(s, e) for s, e in zip(starts, ends)]
-            this_training["exp"] = coms_exp
-
-            # If you have a yoked control (self.trx[1]):
-            if len(self.trx) > 1:
-                traj_ctrl = self.trx[1]
-                coms_ctrl = [traj_ctrl.centerOfMass(s, e) for s, e in zip(starts, ends)]
-                this_training["ctrl"] = coms_ctrl
-
-            self.syncCOM.append(this_training)
-
-    def bySyncBucketCOMDist(self):
-        """
-        After bySyncBucketCOM, compute—for each training and each fly—the
-        distance between the bucket-wise COM and the reward-circle center.
-        Results go into self.syncCOMDist, parallel to self.syncCOM.
-        """
-        # make sure COMs exist
-        if not hasattr(self, "syncCOM"):
-            self.bySyncBucketCOM()
-
-        self.syncCOMDist = []
-
-        trn: Training
-        for trn, com_dict in zip(self.trns, self.syncCOM):
-            dist_dict = {}
-            for fly_key, coms in com_dict.items():
+                # find correct reward‐circle center for this fly
                 fly_idx = 0 if fly_key == "exp" else 1
                 cx, cy, _ = trn.circles(fly_idx)[0]
 
-                dist_dict[fly_key] = [np.hypot(x - cx, y - cy) for x, y in coms]
-            self.syncCOMDist.append(dist_dict)
+                mean_vals = []
+                for s, e in buckets:
+                    # pick valid frame indices
+                    if min_no_contact_s is not None:
+                        idxs = np.nonzero(mask[s:e])[0] + s
+                    else:
+                        idxs = np.arange(s, e)
+                    xs = traj.x[idxs]
+                    ys = traj.y[idxs]
+                    # per-frame distances
+                    ds = np.hypot(xs - cx, ys - cy)
+                    if ds.size == 0:
+                        mean_vals.append(np.nan)
+                    else:
+                        mean_vals.append(np.nanmean(ds))
+
+                this_training[fly_key] = mean_vals
+
+            self.syncMeanDist.append(this_training)
 
     # calculates 1) number of calculated and control rewards during entire pre-
     # training and 2) reward PI for final 10 minutes of pre-training

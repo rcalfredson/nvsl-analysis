@@ -17,20 +17,20 @@ def plot_com_distance(
     """
     vas.shape → (n_videos)
     trns: length = n_trns
-    Each va.syncCOMDist[t_idx]['exp'] is a length-n_buckets list of distances
-    If control present, va.syncCOMDist[t_idx]['ctrl'] likewise.
+    Each va.syncMeanDist[t_idx]['exp'] is a length-n_buckets list of distances
+    If control present, va.syncMeanDist[t_idx]['ctrl'] likewise.
     """
     # ----- 1) pack into a 4D array: (vid, trn, fly, bucket) -----
     n_videos = len(vas)
     n_trns = len(trns)
     # assume all videos have same bucket count for training 0:
-    n_buckets = len(vas[0].syncCOMDist[0]["exp"])
-    has_ctrl = "ctrl" in vas[0].syncCOMDist[0]
+    n_buckets = len(vas[0].syncMeanDist[0]["exp"])
+    has_ctrl = "ctrl" in vas[0].syncMeanDist[0]
     n_flies = 2 if has_ctrl else 1
 
     com4 = np.full((n_videos, n_trns, n_flies, n_buckets), np.nan)
     for vid, va in enumerate(vas):
-        for t_idx, dist_dict in enumerate(va.syncCOMDist):
+        for t_idx, dist_dict in enumerate(va.syncMeanDist):
             # exp
             com4[vid, t_idx, 0, : len(dist_dict["exp"])] = dist_dict["exp"]
             # ctrl (if present)
