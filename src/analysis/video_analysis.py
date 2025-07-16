@@ -187,7 +187,7 @@ class VideoAnalysis:
             self.bySyncBucket()
             self.bySyncBucket2()  # pass True to get maximum distance reached
             self.byPostBucket()
-            self.bySyncBucketMeanDist()
+            self.bySyncBucketMedDist()
             self.byReward()
             self.byTraining()
             if opts.plotTrx:
@@ -1535,17 +1535,17 @@ class VideoAnalysis:
                 self._append(self.bySB2, adb[f], f, n=n if self.opts.ol else n - 1)
         self.buckets = np.array(self.buckets)
 
-    # --------------- new mean-based distance method ----------------
-    def bySyncBucketMeanDist(self, min_no_contact_s=None):
+    # --------------- new median-based distance method ----------------
+    def bySyncBucketMedDist(self, min_no_contact_s=None):
         """
-        For each sync-bucket, compute the mean of per-frame
+        For each sync-bucket, compute the median of per-frame
         distances to the reward-circle center, optionally filtering out
         brief no-contact bouts as in cleanNonContactMask().
-        Results in self.syncMeanDist: a list (per training) of dicts
-        with 'exp' and optionally 'ctrl' keys mapping to mean distances.
+        Results in self.syncMedDist: a list (per training) of dicts
+        with 'exp' and optionally 'ctrl' keys mapping to median distances.
         """
         df = self._numRewardsMsg(True)
-        self.syncMeanDist = []
+        self.syncMedDist = []
 
         for trn in self.trns:
             # build bucket boundaries from the first‐reward frame
@@ -1586,7 +1586,7 @@ class VideoAnalysis:
 
                 this_training[fly_key] = mean_vals
 
-            self.syncMeanDist.append(this_training)
+            self.syncMedDist.append(this_training)
 
     # calculates 1) number of calculated and control rewards during entire pre-
     # training and 2) reward PI for final 10 minutes of pre-training
