@@ -128,19 +128,21 @@ class CT(enum.Enum):
     #   - coordinates of upper-left and lower-right corners of well, e.g.,
     #       tuple((well1_x1, well1_y1, well1_x2, well1_y2), ...)
     def arenaWells(self, xf, f, tp="A", c=1, wellLength=24):
-        if self not in (CT.large, CT.htl):
+        if self not in (CT.large, CT.large2, CT.htl):
             error("only implemented for large or HTL chamber")
         args = (xf, f) + (
             (
                 "A",
                 c,
             )
-            if self is CT.large
+            if self in (CT.large, CT.large2)
             else (wellLength,)
         )
-        return {CT.large: self._arenaWellsLarge, CT.htl: self._arenaWellsHTL}[self](
-            *args
-        )
+        return {
+            CT.large: self._arenaWellsLarge,
+            CT.large2: self._arenaWellsLarge,
+            CT.htl: self._arenaWellsHTL,
+        }[self](*args)
 
     # returns agarose wells for HTL chamber (see arenaWells)
     def _arenaWellsHTL(self, xf, f, wellLength=24):
@@ -151,18 +153,16 @@ class CT(enum.Enum):
 
     # returns agarose wells for large chamber (see arenaWells)
     def _arenaWellsLarge(self, xf, f, tp="A", c=1):
-        wellRadius = (4 if tp == "A" else 2) * self.pxPerMmFloor()
-        flrCrds = [
-            (crd[0], crd[1] + 336 * (1 if f > 1 else 0))
-            for crd in self.floor(xf, np.mod(f, 2))
-        ]
+        wellRadius = (4 if tp == "A" else 2) * self.pxPerMmFloor() * xf.fctr
+        flrCrds = list(self.floor(xf, f))
         xHalf, yHalf = np.mean(flrCrds, axis=0)
+        inwardOffset = (2 if self is CT.large2 else 0) * self.pxPerMmFloor() * xf.fctr
         if tp == "A":
             wellCoords = (
-                (flrCrds[0][0] + wellRadius, yHalf),
-                (xHalf, flrCrds[0][1] + wellRadius),
-                (flrCrds[1][0] - wellRadius, yHalf),
-                (xHalf, flrCrds[1][1] - wellRadius),
+                (flrCrds[0][0] + wellRadius + inwardOffset, yHalf),
+                (xHalf, flrCrds[0][1] + wellRadius + inwardOffset),
+                (flrCrds[1][0] - wellRadius - inwardOffset, yHalf),
+                (xHalf, flrCrds[1][1] - wellRadius - inwardOffset),
             )
         else:
             if c == 1:
@@ -243,7 +243,7 @@ class Xformer:
             if self.ct is CT.htl:
                 xy = tf(xy, (144 * c + 5, [4, 180, 355, 531][r]))
             elif self.ct is CT.large:
-                xy = tf(xy, (336 * c + 4, 336 * r + 4))
+                xy = tf(xy, (284 * c + 4, 284 * r + 4))
             else:
                 xy = tf(xy, (337 * c + 5, 337 * r + 5))
         return xy
