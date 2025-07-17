@@ -159,7 +159,7 @@ def plot_com_distance(
         ax.set_xlabel("Sync-bucket end [min]")
         ax.set_xlim(*xlim)
         if i == 0:
-            ax.set_ylabel("Distance to reward center [px]")
+            ax.set_ylabel("Distance to reward center [mm]")
 
     axes[-1].legend(loc="best")
     fig.suptitle(title)

@@ -1582,7 +1582,7 @@ class VideoAnalysis:
                     if ds.size == 0:
                         mean_vals.append(np.nan)
                     else:
-                        mean_vals.append(np.nanmean(ds))
+                        mean_vals.append(np.nanmean(ds) / (self.xf.fctr * self.ct.pxPerMmFloor()))
 
                 this_training[fly_key] = mean_vals
 
