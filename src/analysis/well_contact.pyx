@@ -30,7 +30,15 @@ def detect_well_contacts_edge_or_center(
     cdef Py_ssize_t i, j
     cdef double xe, ye, a, b, theta
     cdef double cx, cy
-    cdef cython.bint inside
+    cdef cython.bint in_contact, enter_hit, exit_hold
+    cdef double r_enter, r_exit, r_enter2, r_exit2
+
+    # initialize hysteresis thresholds
+    in_contact = False
+    r_enter = well_radius
+    r_exit = well_radius + 1.0
+    r_enter2 = r_enter * r_enter
+    r_exit2 = r_exit * r_exit
 
     for i in range(n):
         xe = x[i]
@@ -42,20 +50,37 @@ def detect_well_contacts_edge_or_center(
         a = semimaj_ax[i]          # width/2 in ellipse frame
         b = semimin_ax[i]          # height/2 in ellipse frame
 
-        inside = 0
+        enter_hit = False
+        exit_hold = False
         for j in range(len(wells)):
             cx, cy = wells[j]
             if ref_mode == "center":
                 # simple point‑in‑circle
-                if (xe-cx)*(xe-cx) + (ye-cy)*(ye-cy) <= well_radius*well_radius:
-                    inside = 1
+                dc2 = (xe-cx)*(xe-cx) + (ye-cy)*(ye-cy)
+                if dc2 <= r_enter2:
+                    enter_hit = True
+                    exit_hold = True
                     break
+                elif dc2 <= r_exit2:
+                    exit_hold = True
             else:  # "edge"
+                # "enter" overlap at r_enter
                 if _ellipse_circle_overlap_edge(
-                        xe, ye, a, b, theta, cx, cy, well_radius, i):
-                    inside = 1
+                        xe, ye, a, b, theta, cx, cy, r_enter, i):
+                    enter_hit = True
+                    exit_hold = True
                     break
-        well_contact[i] = inside
+                # "exit" overlap at r_exit
+                elif _ellipse_circle_overlap_edge(
+                    xe, ye, a, b, theta, cx, cy, r_exit, i
+                ):
+                    exit_hold = True
+        # hysteresis update
+        if in_contact:
+            in_contact = exit_hold
+        else:
+            in_contact = enter_hit
+        well_contact[i] = in_contact
     return well_contact
 
 cdef inline double _deg_to_rad_world(double rot_angle_deg):
