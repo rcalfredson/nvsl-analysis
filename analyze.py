@@ -286,7 +286,7 @@ g.add_argument(
 g.add_argument(
     "--agarose",
     nargs="?",
-    help="[HTL chamber only] detect when the fly makes contact with agarose."
+    help="Detect when the fly makes contact with agarose."
     " An optional value of two numbers enclosed in quotes and separated by a"
     " vertical divider, e.g., 'x1|x2', is used to set the distance from the"
     " agarose boundary at which contact events begin and end (defaults:"
