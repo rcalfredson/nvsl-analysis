@@ -36,6 +36,11 @@ extensions = [
         sources=["src/analysis/boundary_contact.pyx"],
         include_dirs=[np.get_include()],
     ),
+    Extension(
+        "src.analysis.well_contact",
+        sources=["src/analysis/well_contact.pyx"],
+        include_dirs=[np.get_include()],
+    ),
 ]
 
 # Setup function to build the Cython extensions

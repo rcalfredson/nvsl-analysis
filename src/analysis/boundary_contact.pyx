@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 cimport numpy as cnp
 
+from src.analysis.well_contact import detect_well_contacts_edge_or_center
 from src.plotting.event_chain_plotter import EventChainPlotter
 from src.utils.common import CT
 from src.utils.constants import CONTACT_BUFFER_OFFSETS
@@ -246,16 +247,54 @@ cpdef runBoundaryContactAnalyses(trj, va, offsets, thresholds, opts):
                         ellipse_ref_pt=pt
                     )
             elif bnd_tp == 'agarose':
-                boundary_dist_calc.calc_dist_boundary_to_ellipse(
-                    boundary_type=bnd_tp,
-                    boundary_combo=boundary_combos[0],
-                    offset=offsets[bnd_tp],
-                    event_thresholds=thresholds[bnd_tp],
-                    ellipse_ref_pt='edge'
-                )
-                boundary_dist_calc.get_ellipse_ctr_boundary_crossings(
-                    offset=offsets[bnd_tp]
-                )
+                if va.ct is CT.htl:
+                    boundary_dist_calc.calc_dist_boundary_to_ellipse(
+                        boundary_type=bnd_tp,
+                        boundary_combo=boundary_combos[0],
+                        offset=offsets[bnd_tp],
+                        event_thresholds=thresholds[bnd_tp],
+                        ellipse_ref_pt='edge'
+                    )
+                    boundary_dist_calc.get_ellipse_ctr_boundary_crossings(
+                        offset=offsets[bnd_tp]
+                    )
+                elif va.ct is CT.large2:
+                    well_rad, wells = va.ct.arenaWells(
+                            va.xf,
+                            va.f + (0 if va.noyc else trj.f * va.nef)
+                    )
+                    boundary_dist_calc.boundary_type = 'agarose'
+                    boundary_dist_calc.boundary_combo = 'tb'
+                    boundary_dist_calc.ellipse_edge_pt = 'closest'
+
+                    # Edge mode  ────────────────────────────────────────────────────────────────
+                    boundary_dist_calc.ellipse_ref_pt = "edge"
+                    edge_wc = detect_well_contacts_edge_or_center(
+                        boundary_dist_calc.x, boundary_dist_calc.y,
+                        trj.theta,                              # degrees
+                        boundary_dist_calc.semimaj_ax,          # width/2
+                        boundary_dist_calc.semimin_ax,          # height/2
+                        trj.nan,
+                        wells,
+                        well_rad,
+                        ref_mode="edge",
+                    )
+                    boundary_dist_calc.update_return_data_for_boundary_contact_stats(edge_wc, False)
+
+                    # Center mode  ──────────────────────────────────────────────────────────────
+                    boundary_dist_calc.ellipse_ref_pt = "ctr"
+                    ctr_wc = detect_well_contacts_edge_or_center(
+                        boundary_dist_calc.x,
+                        boundary_dist_calc.y,
+                        trj.theta,
+                        boundary_dist_calc.semimaj_ax,
+                        boundary_dist_calc.semimin_ax,
+                        trj.nan,
+                        wells,
+                        well_rad,
+                        ref_mode="center"
+                    )
+                    boundary_dist_calc.update_return_data_for_boundary_contact_stats(ctr_wc, False)
             for pt in ellipse_ref_pts:
                 findTurns(
                     va, opts, boundary_dist_calc, bnd_tp, boundary_combos[0], ellipse_ref_pt=pt
