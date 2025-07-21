@@ -88,7 +88,6 @@ def plot_com_distance(
 
     # ----- 3) build x-axis -----
     xs = (np.arange(n_buckets) + 1) * bucket_len_minutes
-    xlim = (0, xs[-1] + bucket_len_minutes)
 
     # ----- 4) plot -----
     fig, axes = plt.subplots(1, n_trns, figsize=(4 * n_trns, 4), sharey=True)
@@ -101,44 +100,64 @@ def plot_com_distance(
     ms = 4
 
     for i, ax in enumerate(axes):
-        # CI bands
+        # — find last bucket with data for this training —
+        valid = ~np.isnan(m_exp[i])
+        if has_ctrl:
+            valid |= ~np.isnan(m_ctrl[i])
+        if valid.any():
+            last = np.where(valid)[0].max()
+        else:
+            last = -1  # no data at all
+
+        # — slice everything up to last+1 —
+        xs_i = xs[: last + 1]
+        m_exp_i = m_exp[i, : last + 1]
+        ci_exp_i = ci_exp[i, : last + 1]
+        n_exp_i = n_exp[i, : last + 1]
+        if has_ctrl:
+            m_ctrl_i = m_ctrl[i, : last + 1]
+            ci_ctrl_i = ci_ctrl[i, : last + 1]
+            n_ctrl_i = n_ctrl[i, : last + 1]
+
+        # plot Exp
         ax.fill_between(
-            xs, m_exp[i] - ci_exp[i], m_exp[i] + ci_exp[i], color=exp_color, alpha=alpha
+            xs_i, m_exp_i - ci_exp_i, m_exp_i + ci_exp_i, color=exp_color, alpha=alpha
         )
         ax.plot(
-            xs,
-            m_exp[i],
+            xs_i,
+            m_exp_i,
             marker="o",
             markersize=ms,
             color=exp_color,
             label="Experimental",
         )
 
+        # plot Ctrl
         if has_ctrl:
             ax.fill_between(
-                xs,
-                m_ctrl[i] - ci_ctrl[i],
-                m_ctrl[i] + ci_ctrl[i],
+                xs_i,
+                m_ctrl_i - ci_ctrl_i,
+                m_ctrl_i + ci_ctrl_i,
                 color=ctrl_color,
                 alpha=alpha,
             )
             ax.plot(
-                xs,
-                m_ctrl[i],
+                xs_i,
+                m_ctrl_i,
                 marker="o",
                 markersize=ms,
                 color=ctrl_color,
                 label="Control",
             )
 
-        # annotate counts just below each CI
+        # annotate counts
         y_min, y_max = ax.get_ylim()
         dy = 0.02 * (y_max - y_min)
-        for j, x in enumerate(xs):
+        for j, x in enumerate(xs_i):
             ax.text(
                 x,
-                m_exp[i, j] - dy,
-                str(n_exp[i, j]),
+                m_exp_i[j] - dy,
+                str(n_exp_i[j]),
                 ha="center",
                 va="top",
                 fontsize=8,
@@ -147,8 +166,8 @@ def plot_com_distance(
             if has_ctrl:
                 ax.text(
                     x,
-                    m_ctrl[i, j] + dy,
-                    str(n_ctrl[i, j]),
+                    m_ctrl_i[j] + dy,
+                    str(n_ctrl_i[j]),
                     ha="center",
                     va="bottom",
                     fontsize=8,
@@ -156,8 +175,14 @@ def plot_com_distance(
                 )
 
         ax.set_title(f"Training {trns[i].n}")
+        ax.set_xlabel("Sync‑bucket end [min]")
+        ax.set_xlim(0, xs_i[-1] + bucket_len_minutes)
+        # input()
+        if i == 0:
+            ax.set_ylabel("Distance to reward center [mm]")
+
+        ax.set_title(f"Training {trns[i].n}")
         ax.set_xlabel("Sync-bucket end [min]")
-        ax.set_xlim(*xlim)
         if i == 0:
             ax.set_ylabel("Distance to reward center [mm]")
 

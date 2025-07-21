@@ -1544,19 +1544,25 @@ class VideoAnalysis:
         Results in self.syncMedDist: a list (per training) of dicts
         with 'exp' and optionally 'ctrl' keys mapping to median distances.
         """
-        df = self._numRewardsMsg(True)
+        df = self._numRewardsMsg(True, silent=True)
         self.syncMedDist = []
 
         for trn in self.trns:
             # build bucket boundaries from the first‐reward frame
             fi, n_buckets, _ = self._syncBucket(trn, df)
+            n_buckets = int(n_buckets)
+            this_training = {}
+            if fi is None:
+                for fly_key in ("exp", "ctrl"):
+                    this_training[fly_key] = [np.nan for _ in range(n_buckets)]
+                self.syncMedDist.append(this_training)
+                continue
             starts = [int(fi + k * df) for k in range(int(n_buckets))]
             ends = [s + df for s in starts]
             # la guards against partial buckets
             la = min(trn.stop, int(trn.start + n_buckets * df))
             buckets = [(s, e) for s, e in zip(starts, ends) if e <= la]
 
-            this_training = {}
             for fly_key, traj in (("exp", self.trx[0]),) + (
                 (("ctrl", self.trx[1]),) if len(self.trx) > 1 else ()
             ):
@@ -1566,9 +1572,12 @@ class VideoAnalysis:
 
                 # find correct reward‐circle center for this fly
                 fly_idx = 0 if fly_key == "exp" else 1
+                if self.trx[fly_idx]._bad:
+                    this_training[fly_key] = [np.nan] * n_buckets
+                    continue
                 cx, cy, _ = trn.circles(fly_idx)[0]
 
-                mean_vals = []
+                med_vals = []
                 for s, e in buckets:
                     # pick valid frame indices
                     if min_no_contact_s is not None:
@@ -1580,11 +1589,16 @@ class VideoAnalysis:
                     # per-frame distances
                     ds = np.hypot(xs - cx, ys - cy)
                     if ds.size == 0:
-                        mean_vals.append(np.nan)
+                        med_vals.append(np.nan)
                     else:
-                        mean_vals.append(np.nanmean(ds) / (self.xf.fctr * self.ct.pxPerMmFloor()))
+                        med_vals.append(
+                            np.nanmedian(ds) / (self.xf.fctr * self.ct.pxPerMmFloor())
+                        )
 
-                this_training[fly_key] = mean_vals
+                missing = int(n_buckets) - len(med_vals)
+                if missing > 0:
+                    med_vals.extend([np.nan] * missing)
+                this_training[fly_key] = med_vals
 
             self.syncMedDist.append(this_training)
 
