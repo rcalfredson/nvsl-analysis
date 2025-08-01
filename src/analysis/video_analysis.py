@@ -909,6 +909,60 @@ class VideoAnalysis:
         collator.combineCircleResults()
         collator.combineTurnResults()
 
+    def calcOnRegionVisitDurationsForCsv(self, region_label):
+        """
+        Builds a CSV-ready flat list of all mean visit durations (seconds) per interval,
+        one value per fly per interval, mirroring regionPercentagesCsv.
+
+        Definition: visits whose start is within the interval and whose stop does not cross the interval end.
+        """
+        # scaffold
+        if not hasattr(self, "regionVisitDurCsv"):
+            self.regionVisitDurCsv = {region_label: {"ctr": [], "edge": []}}
+        else:
+            self.regionVisitDurCsv[region_label] = {"ctr": [], "edge": []}
+
+        if not hasattr(self, "reward_ranges"):
+            for tp in ("ctr", "edge"):
+                self.regionVisitDurCsv[region_label][tp].extend(
+                    len(self.trx) * (len(self.trns) + 1) * [np.nan]
+                )
+            return
+
+        def durations_in_interval(region_slices, start, stop):
+            return [
+                sl.stop - sl.start
+                for sl in region_slices
+                if sl.start >= start and sl.start < stop and sl.stop <= stop
+            ]
+
+        for tp in ("ctr", "edge"):
+            vals = []
+            for i, intvl in enumerate(self.reward_ranges):
+                try:
+                    intvl = slice(int(intvl.start), int(intvl.stop))
+                except (TypeError, ValueError):
+                    vals.extend(len(self.trx) * [np.nan])
+                    continue
+
+                for trj in self.trx:
+                    if trj.bad() or self.pair_exclude[i]:
+                        vals.append(np.nan)
+                        continue
+
+                    # get visit slices for this fly/region/type
+                    region_slices = trj.boundary_event_stats[region_label]["tb"][tp][
+                        "boundary_contact_regions"
+                    ]
+
+                    durs = durations_in_interval(region_slices, intvl.start, intvl.stop)
+
+                    if len(durs) == 0:
+                        vals.append(np.nan)
+                    else:
+                        vals.append(self._f2s(np.mean(durs)))
+            self.regionVisitDurCsv[region_label][tp].extend(vals)
+
     def calcOnRegionProportionsForCsv(self, region_label):
         """
         Calculates the percentages of contacts with regions of interest (typically an agarose area,
@@ -999,9 +1053,12 @@ class VideoAnalysis:
     # measures % of time on agarose, or in a defined region, by sync bucket.
     def _analyzeRegionPreference(self, region_label):
         self.calcOnRegionProportionsForCsv(region_label)
+        self.calcOnRegionVisitDurationsForCsv(region_label)
         combiner = DataCombiner(self, self.opts.postBucketLenMin)
         combiner.combineOnRegionResults(region_label, "edge")
         combiner.combineOnRegionResults(region_label, "ctr")
+        combiner.combineOnRegionVisitDurations(region_label, "edge")
+        combiner.combineOnRegionVisitDurations(region_label, "ctr")
 
     def _writeMatFile(self):
         """
@@ -1389,7 +1446,7 @@ class VideoAnalysis:
                     self._idxFirstOn(fi, trn.stop, calc=True, ctrl=True), skip
                 )
             )
-        n = np.ceil(trn.len() / df - 0.01)
+        n = np.ceil(trn.len() / df - 0.01).astype(int)
         return fi, n, on
 
     # returns SyncType (tp)-dependent frame index in the given frame index range

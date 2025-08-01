@@ -112,6 +112,7 @@ ANALYSIS_IMG_FILE = "imgs/analysis.png"
 CIRCULAR_MOTION_IMG_FILE = "imgs/circular_motion__%s_min_buckets.png"
 PIVOT_IMG_FILE = "imgs/pivots__%s_min_buckets.png"
 CONTACT_EVENT_IMG_FILE = "imgs/%s_%s_contact__%%s_min_buckets.png"
+CONTACT_EVENT_DURATION_IMG_FILE = "imgs/%s_%s_contact_duration__%%s_min_buckets.png"
 DIST_BTWN_REWARDS_FILE = "imgs/dist_btwn_%srewards__%%s_min_buckets.png"
 DIST_BTWN_REWARDS_HIST_FILE = "imgs/trajectory_len_dist%s.png"
 MAX_DIST_REWARDS_FILE = "imgs/max_dist_from_center__%s_min_buckets.png"
@@ -1061,6 +1062,19 @@ def headerForType(va, tp, calc):
             f"\n% time {'over agarose' if is_agarose else 'past border'} (contact events begin when"
             + f" %s crosses {'agarose ' if is_agarose else ''}border)" % calc_method
         )
+    elif tp.startswith('agarose_dur'):
+        if tp.endswith('_csv'):
+            calc_method = {"ctr": "body center", "edge": "edge of fitted ellipse"}[
+                tp.split("_")[-2]
+            ]
+            is_agarose = tp.startswith("agarose")
+
+            return (
+                f"\nduration of visits {'to agarose' if is_agarose else 'past border'} (contact events begin when"
+                + f" %s crosses {'agarose ' if is_agarose else ''}border)" % calc_method
+            )
+        else:
+            return ""
     elif "pic" in tp:
         modifier = "reward" if tp == "pic" else f"{opts.pctTimeCircleRad}mm"
         return f"\n% time in {modifier} circle:"
@@ -1133,6 +1147,8 @@ def fliesForType(va, tp, calc=None):
         or "dbr" in tp
         or "_turn" in tp
         or "max_ctr_d" in tp
+        or "agarose_dur" in tp
+        or "boundary_dur" in tp
     ):
         return va.flies
     else:
@@ -1186,6 +1202,7 @@ def bucketLenForType(tp):
         )
         or "_turn" in tp
         or "r_no_contact" in tp
+        or "_dur" in tp
     ):
         bl = opts.syncBucketLenMin
     elif tp in ("ppi", "c_pi"):
@@ -1267,6 +1284,12 @@ def columnNamesForBoundaryContactType(va, tp):
     elif evt_tp == "boundary_pct":
         contact_types = ["% time spent past border"]
         suffixes = ("",)
+    elif evt_tp == "agarose_dur":
+        contact_types = ["duration of visits to agarose"]
+        suffixes = ('',)
+    elif evt_tp == 'boundary_dur':
+        contact_types = ['duration of periods spent past border']
+        suffixes = ('',)
     elif "_turn" in evt_tp:
         directional = "_dir" in evt_tp
         ellipse_ref_tp, boundary_tp = evt_tp.split("_turn")[0].split("_")
@@ -1419,6 +1442,10 @@ def columnNamesForType(va, tp, calc, n):
         or "wall_turn_dir_csv" in tp
     ):
         return columnNamesForBoundaryContactType(va, tp)
+    elif "agarose_dur" in tp or "boundary_dur" in tp:
+        if "csv" in tp:
+            return columnNamesForBoundaryContactType(va, tp)
+        return None
     elif tp == "btwn_rwd_dist_from_ctr":
         pass
         return [
@@ -1812,6 +1839,15 @@ def vaVarForType(va, tp, calc):
         region_tp = "_".join(tp_split[:-2])
         contact_tp = tp_split[-1]
         return [va.regionPercentagesCsv[region_tp][contact_tp]]
+    elif "agarose_dur" in tp:
+        tp_split = tp.split('_')
+        region_tp = tp_split[0]
+        contact_tp = tp_split[2]
+        if tp.endswith("_csv"):
+            return [va.regionVisitDurCsv[region_tp][contact_tp]]
+        region_tp = region_tp.capitalize()
+        contact_tp = contact_tp.capitalize()
+        return getattr(va, f"on{region_tp}{contact_tp}DurSB")
     elif "turn_duration" in tp:
         return va.boundary_event_durations[tp.split("_duration")[0]]
     elif tp == "wall_csv":
@@ -1948,6 +1984,7 @@ def drawLegend(ng, nf, nrp, gls, customizer):
     """
     kwargs = {}
     prop_dict = {"style": "italic"}
+    print('Drawing legend with ng=%d, nf=%d, nrp=%s, gls=%s' % (ng, nf, nrp, gls))
     if ng == 1 and nf == 2 and not P:
         kwargs["labels"] = ["Experimental", "Yoked"]
         kwargs["handles"] = [plt.Line2D([], [], color=FLY_COLS[i]) for i in range(2)]
@@ -1961,6 +1998,7 @@ def drawLegend(ng, nf, nrp, gls, customizer):
     kwargs["prop"] = prop_dict
     if not gls and "labels" not in kwargs:
         return None
+    print(f"returning legend with kwargs={kwargs}")
     return plt.legend(**kwargs)
 
 
@@ -1997,6 +2035,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
     diff_tp = r_diff or "exp_min_yok" in tp
     bnd_contact = tp in ("wall", "agarose", "boundary")
     bnd_turn = "_turn" in tp
+    visit_dur = '_dur' in tp
     pcm, turn_rad, pivot = tp == "pcm", tp == "turn", tp == "pivot"
     circle = pcm or turn_rad or pivot
     txt_positioned_vert_mid = (
@@ -2024,6 +2063,9 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
     )  # p values between first and last buckets
     showPT = not P if not opts.hidePltTests else False  # p values between trainings
     showSS = not P  # speed stats
+    if '_dur' in tp:
+        showSS = False
+    firstVsLastBasedOnAxLim = circle or visit_dur
     if showSS and vas:
         speed, stpFr = (
             np.array([getattr(va, k) for va in vas]) for k in ("speed", "stopFrac")
@@ -2043,11 +2085,13 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
         ylim = [0, 150]
     elif tp == "max_ctr_d_no_contact":
         ylim = [0, 40]
-    elif "duration" in tp:
+    elif "turn_duration" in tp:
         if "_exp_min_yok" in tp:
             ylim = [-2, 2]
         else:
             ylim = [0, 2]
+    elif tp.startswith('agarose_dur') or tp.startswith('boundary_dur'):
+        ylim = [0, 5]
     elif r_diff:
         ylim = [-0.5, 1.5]
     else:
@@ -2070,6 +2114,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
             axs = np.array([[axs]])
         else:
             axs = axs[None]
+    mci_max = None
     for f in fs:
         mc = fly2C if joinF and f == 1 else meanC
         for i, t in enumerate(trns):
@@ -2130,6 +2175,9 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                     )
                     assert rewardsAvgs.shape == (nc, nb)
                 mci = np.array([util.meanConfInt(getVals(g, b)) for b in range(nb)]).T
+                if not np.all(np.isnan(mci[2, :])):
+                    mci_max = max(mci_max, np.nanmax(mci[2, :])) if mci_max is not None else np.nanmax(mci[2, :])
+                
                 if turn_rad or pivot:
                     ylim[1] = 8 if turn_rad else 50
                     # 4 rows: mean, lower bound, upper bound, number samples
@@ -2430,7 +2478,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
 
                         util.pltText(
                             xs[1],
-                            0.25 * (ylim[1] - ylim[0]) if circle else -0.7,
+                            0.25 * (ylim[1] - ylim[0]) if firstVsLastBasedOnAxLim else -0.7,
                             "1st bucket, t1 vs. t%d (n=%d): %s"
                             % (i + 1, min(tpn[2], tpn[3]), util.p2stars(tpn[1], True)),
                             size=customizer.in_plot_font_size,
@@ -2454,6 +2502,9 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                             color="0",
                         )
             # labels etc.
+            if visit_dur and mci_max is not None:
+                if mci_max > ylim[1]:
+                    plt.ylim([ylim[0], mci_max])
             if f == 0 or not joinF:
                 plt.title(
                     pcap(
@@ -2528,7 +2579,12 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                         ylabels["r_no_contact_%s" % boundary_orientation] = (
                             CONTACTLESS_RWDS_LABEL % name
                         )
-
+                    for boundary_tp in ("agarose", "boundary"):
+                        for ellipse_ref_pt in ("edge", "ctr"):
+                            ylabels["%s_dur_%s" % (boundary_tp, ellipse_ref_pt)] = (
+                                "%s contact duration (s)\n(%s ellipse ref. pt.)"
+                                % (boundary_tp, ellipse_ref_pt)
+                            )
                     y_label_tp = tp
                     if y_label_tp.startswith("ctr_") or y_label_tp.startswith("edge_"):
                         y_label_tp = "_".join(y_label_tp.split("_")[1:])
@@ -2550,8 +2606,13 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                 else:
                     plt.xlim(0, xs[-1])
                     plt.ylim(*ylim)
+            print('at drawLegend for "%s" with %d groups' % (tp, ng))
+            print(f"i: {i}, f: {f}, nrp: {nrp}, gls: {gls}")
+            print(f"nf: {nf}, ng: {ng}, nr: {nr}")
             if i == 0 and f == 0:
                 legend = drawLegend(ng, nf, nrp, gls, customizer)
+                # if tp == 'agarose_dur_edge':
+                    # plt.show()
     if not nrp:
         plt.subplots_adjust(wspace=opts.wspace)
     if tp in ("wall", "agarose"):
@@ -2654,9 +2715,10 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
     ):
         for ellipse_ref_pt in ("edge", "ctr"):
             imgFiles[bnd] = CONTACT_EVENT_IMG_FILE % (ellipse_ref_pt, bnd)
+            if bnd in ('agarose', 'boundary'):
+                imgFiles[f"{bnd}_dur_{ellipse_ref_pt}"] = CONTACT_EVENT_DURATION_IMG_FILE % (ellipse_ref_pt, bnd)
     if customizer.customized:
         customizer.adjust_padding_proportionally()
-        adjustLegend(legend, axs, all_line_vals)
     writeImage(imgFiles[tp] % blf, format=opts.imageFormat)
     plt.close()
 
@@ -4200,6 +4262,8 @@ def postAnalyze(vas):
                 tcs += ("dbr_no_contact", "max_ctr_d_no_contact")
                 for boundary_orientation in ("all", "agarose_adj"):
                     tcs += ("r_no_contact_%s" % boundary_orientation,)
+            elif opt == "agarose":
+                tcs += ("agarose_dur_edge", "agarose_dur_ctr")
 
     saved_bottom = saved_top = None
     for tc in tcs:
@@ -4352,6 +4416,7 @@ def postAnalyze(vas):
             tp in ("wall", "agarose", "boundary", "dbr", "max_ctr_d_no_contact")
             or "_turn" in tp
             or "r_no_contact" in tp
+            or '_dur' in tp
         ):
             plotRewards(va, tp, a, trns, gis, gls, vas)
         elif tp in ["pcm", "turn", "pivot"]:
@@ -4619,8 +4684,8 @@ def writeStats(vas, sf):
             analysis_types_with_training_number_columns.append(key)
 
     if opts.agarose:
-        analysis_types += ("agarose_csv", "agarose_pct_edge", "agarose_pct_ctr")
-        analysis_types_with_training_number_columns.extend(analysis_types[-2:])
+        analysis_types += ("agarose_csv", "agarose_pct_edge", "agarose_pct_ctr", "agarose_dur_edge_csv", "agarose_dur_ctr_csv")
+        analysis_types_with_training_number_columns.extend(analysis_types[-4:])
 
     if opts.boundary:
         analysis_types += ("boundary_csv", "boundary_pct_edge", "boundary_pct_ctr")

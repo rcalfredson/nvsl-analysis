@@ -366,6 +366,11 @@ class DataCombiner:
                     getattr(self.va, SB)[i][j], f, msg="f%d" % (f + 1), prec=3
                 )
 
+    def _visit_durations_in_range(self, region_slices, start, stop):
+        return [
+            sl.stop - sl.start for sl in region_slices if sl.start >= start and sl.start < stop and sl.stop <= stop
+        ]
+
     def calcRatio(self, fIdx, fi, la, results, asPct=False):
         """
         Calculates average value of self.predictions over the given range of video
@@ -410,6 +415,116 @@ class DataCombiner:
                 "desc": "body center",
             },
         }[tp]
+    
+    def combineOnRegionVisitDurations(self, region_label, tp):
+        """
+        Calculates the mean duration (in seconds) of each visit across a region
+        border, broken down exactly the same way as on-region percentages
+        (sync buckets, pre-training, post-training, post buckets).
+
+        Results are stored in attributes whose base name is the *same* as the
+        percentage metric but with the suffix 'Dur', e.g.
+            onAgaroseSB      →  onAgaroseDurSB
+            onAgarosePre     →  onAgaroseDurPre  …etc.
+        """
+        reg_caps = region_label.capitalize()
+        base = f"on{reg_caps}Edge" if tp == "edge" else f"on{reg_caps}Ctr"
+        sv_name = f"{base}Dur"          # attribute stem for durations
+
+        # Attribute scaffolding
+        SB, pre, post, postBB = [
+            f"{sv_name}{sect}" for sect in ("SB", "Pre", "Post", "PostByBucket")
+        ]
+        for attr in (SB, pre, post, postBB):
+            setattr(self.va, attr, [])
+            # input(f'set up attribute {attr}')
+
+        # pre‑training range
+        pre_intvl = slice(self.va.startPre, self.va.trns[0].start)
+
+        df = self.va._numRewardsMsg(True, silent=True)     # frames / bucket
+        for i, trn in enumerate(self.va.trns):
+
+            getattr(self.va, SB).append([])                # bucket container
+
+            # frame indices that define sync buckets in this training
+            fi_start, n_buckets, _ = self.va._syncBucket(trn, df)
+            la = min(trn.stop, int(trn.start + n_buckets * df))
+
+            # loop over flies
+            for j, trj in enumerate(self.va.trx):
+
+                # ensure container rows exist
+                for attr in (pre, post, postBB):
+                    if len(getattr(self.va, attr)) <= j:
+                        getattr(self.va, attr).append([])
+
+                # skip bad flies
+                if fi_start is None or trj.bad():
+                    getattr(self.va, SB)[i].append(n_buckets * [np.nan])
+                    getattr(self.va, pre)[j].append(np.nan)
+                    getattr(self.va, post)[j].append(np.nan)
+                    continue
+
+                # ---- extract all visit slices for this fly ----
+                visit_slices = trj.boundary_event_stats[region_label]["tb"][tp][
+                    "boundary_contact_regions"
+                ]
+
+                # pre‑training mean
+                pre_durs = self._visit_durations_in_range(
+                    visit_slices, pre_intvl.start, pre_intvl.stop
+                )
+                getattr(self.va, pre)[j].append(
+                    np.nan
+                    if len(pre_durs) == 0
+                    else self.va._f2s(np.mean(pre_durs))
+                )
+
+                # post‑training mean (whole post period)
+                post_start = self.va.fns["startPost"][i]
+                post_end = (
+                    self.va.trns[i + 1].start
+                    if i < len(self.va.trns) - 1
+                    else self.va.nf
+                )
+                post_durs = self._visit_durations_in_range(
+                    visit_slices, post_start, post_end
+                )
+                getattr(self.va, post)[j].append(
+                    np.nan
+                    if len(post_durs) == 0
+                    else self.va._f2s(np.mean(post_durs))
+                )
+
+                # post‑training, bucketed
+                bucket_len = self.va._min2f(self.post_bucket_len_min)
+                for _ in range(2):
+                    pb_durs = self._visit_durations_in_range(
+                        visit_slices, post_start, post_start + bucket_len
+                    )
+                    getattr(self.va, postBB)[j].append(
+                        np.nan
+                        if len(pb_durs) == 0
+                        else self.va._f2s(np.mean(pb_durs))
+                    )
+                    post_start += bucket_len
+
+                # ---- sync buckets inside training ----
+                bucket_means = []
+                fi = fi_start
+                while fi + df <= la:
+                    sb_durs = self._visit_durations_in_range(
+                        visit_slices, fi, fi + df
+                    )
+                    bucket_means.append(
+                        np.nan if len(sb_durs) == 0 else self.va._f2s(np.mean(sb_durs))
+                    )
+                    fi += df
+                n_missing = n_buckets - len(bucket_means)
+                if n_missing > 0:
+                    bucket_means.extend([np.nan] * n_missing)
+                getattr(self.va, SB)[i].append(bucket_means)
 
     def combineOnRegionResults(self, region_label, tp):
         """

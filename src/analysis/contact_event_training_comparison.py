@@ -405,7 +405,7 @@ class ContactEventTrainingComparison:
             ].append(val)
 
         # Prepare data for output if needed
-        elif self.t.n == 3 and self.save_stats:
+        if self.t.n == len(self.va.trns) and self.save_stats:
             setattr(self.va, self.va.csv_attr_name, [[]])
             if self.evt_name == "wall_contact":
                 wall_orientations = ("all", "lr", "agarose_adj")
@@ -415,7 +415,7 @@ class ContactEventTrainingComparison:
                 wall_orientations = ("all",) if "wall" in self.evt_name else ("tb",)
 
             for wall_orientation in wall_orientations:
-                for i in range(0, 4):
+                for i in range(0, len(self.va.trns) + 1):
                     for trj in self.va.trx:
                         evt_ratio = trj.boundary_event_rel_raw_stats[self.evt_name][
                             wall_orientation
@@ -448,6 +448,7 @@ class ContactEventTrainingComparison:
                         if not_enough_bkts or not denom[1]:
                             evt_ratio = np.nan
                         getattr(trj.va, self.va.csv_attr_name)[-1].append(evt_ratio)
+
             setattr(
                 self.va,
                 self.va.csv_attr_name,
