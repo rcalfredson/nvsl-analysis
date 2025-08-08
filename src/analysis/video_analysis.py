@@ -1098,11 +1098,16 @@ class VideoAnalysis:
                         ).astype(int)
                     else:
                         valid_contact = boundary_contact
+                    
+                    if region_label == 'agarose':
+                        intvl_len = np.sum(~trj.nan[intvl])
+                    else:
+                        intvl_len = intvl.stop - intvl.start
 
                     vals.append(
                         100
                         * np.count_nonzero(valid_contact)
-                        / (intvl.stop - intvl.start)
+                        / intvl_len
                     )
             self.regionPercentagesCsv[region_label][tp].extend(vals)
 

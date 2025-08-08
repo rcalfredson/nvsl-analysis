@@ -960,6 +960,8 @@ def headerForType(va, tp, calc):
         return "\nnumber %s rewards by sync bucket:" % cVsA_l(calc, tp == "nrc")
     elif tp == "com":
         return "distance from trajectory COM to reward circle center"
+    elif tp == "com_csv":
+        return '\n"median COM-to-center distance, by sync bucket (exp and yoked control), by training"'
     elif (
         tp
         in (
@@ -1545,6 +1547,18 @@ def columnNamesForType(va, tp, calc, n):
             ),
             entireTrn=True,
         )
+    elif tp == "com_csv":
+        # Use T1 to define the base block; writer will duplicate across trainings.
+        df = va._numRewardsMsg(True, silent=True)
+        _, n_buckets, _ = va._syncBucket(va.trns[0], df)
+
+        # Build columns per fly, then per bucket.
+        # If there's only one fly, you'll just get the "exp" block.
+        col_blocks = []
+        for f in range(len(va.flies)):
+            fly_label = f"{flyDesc(f)}"
+            col_blocks.extend(f"{fly_label} b{i + 1}" for i in range(n_buckets))
+        return tuple(col_blocks)
     elif tp in ("psc_conc_csv", "psc_shift_csv"):
         # Use T1 to define the base block; writer will duplicate across trainings.
         df = va._numRewardsMsg(True, silent=True)
@@ -1873,6 +1887,39 @@ def vaVarForType(va, tp, calc):
                 row.extend(trn_dict[fkey])
             data.append(row)
         return np.array(data)
+    elif tp == "com_csv":
+        # Flatten across trainings in the same order as column names:
+        # for each training: [exp b1..bN, (ctrl b1..bN if exists)]
+        flat = []
+        has_ctrl = len(va.flies) > 1
+        for trn_dict in va.syncMedDist:
+            # Safeguard if structure is missing or malformed
+            exp_vals = trn_dict.get("exp", [])
+            ctrl_vals = trn_dict.get("ctrl", []) if has_ctrl else None
+
+            # How many buckets should we write? Use exp's length if present; otherwise fall back
+            n_buckets = (
+                len(exp_vals)
+                if isinstance(exp_vals, (list, tuple))
+                else (
+                    len(ctrl_vals)
+                    if (has_ctrl and isinstance(ctrl_vals, (list, tuple)))
+                    else 0
+                )
+            )
+
+            # Append EXP buckets
+            for i in range(n_buckets):
+                v = exp_vals[i] if i < len(exp_vals) else np.nan
+                flat.append(v)
+
+            # Append CTRL buckets (if we have a ctrl fly in this VA)
+            if has_ctrl:
+                for i in range(n_buckets):
+                    v = ctrl_vals[i] if (ctrl_vals and i < len(ctrl_vals)) else np.nan
+                    flat.append(v)
+        # writeStats expects a list-like of rows for CSV-style types
+        return [flat]
     elif tp == "dbr_no_contact_csv":
         return [va.contactless_trajectory_lengths[opts.wall_orientation]["csv"]]
     elif tp == "max_ctr_d_no_contact_csv":
@@ -4801,6 +4848,12 @@ def writeStats(vas, sf):
 
     if opts.prefCircleSlideRad:
         analysis_types += ("psc_conc_csv", "psc_shift_csv")
+        # IMPORTANT: do NOT add these to analysis_types_with_training_number_columns
+        # so we avoid pairwise/quadruple exclusion rules and let
+        # duplicateColumnsAcrossTrns() do the per-training expansion.
+
+    if hasattr(va, "syncMedDist") and va.syncMedDist:
+        analysis_types += ("com_csv",)
         # IMPORTANT: do NOT add these to analysis_types_with_training_number_columns
         # so we avoid pairwise/quadruple exclusion rules and let
         # duplicateColumnsAcrossTrns() do the per-training expansion.
