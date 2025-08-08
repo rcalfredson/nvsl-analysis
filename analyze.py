@@ -123,7 +123,10 @@ REWARD_PI_DIFF_IMG_FILE = "imgs/reward_pi_diff__%s_min_buckets.png"
 REWARD_PI_POST_IMG_FILE = "imgs/reward_pi_post__%s_min_buckets.png"
 REWARD_PI_POST_DIFF_IMG_FILE = "imgs/reward_pi_post_diff__%s_min_buckets.png"
 DIST_BTWN_REWARDS_LABEL = "mean dist. between calc. rewards%s"
+PSC_LABEL = "%% in circle\n(%s, %.1f-cm radius)"
 TURN_IMG_FILE = "imgs/%s%s_turn%s%s__%%s_min_buckets.png"
+PSC_CONC_IMG_FILE = "imgs/pref_slide_conc__%s_min_buckets.png"
+PSC_SHIFT_IMG_FILE = "imgs/pref_slide_shift__%s_min_buckets.png"
 TURN_LABEL = "turns per %s-contact event%s"
 TURN_DURATION_LABEL = "mean turn duration (s)%s"
 CONTACTLESS_RWDS_LABEL = "proportion contactless rewards, %s walls"
@@ -253,6 +256,19 @@ g.add_argument(
     type=float,
     help="measure the percentage of time the fly spends within a circle"
     " of the specified radius (in mm), concentric with the reward circle.",
+)
+g.add_argument(
+    "--pref-circle-slide",
+    dest="prefCircleSlideRad",
+    type=float,
+    nargs="?",
+    const=1.0,
+    default=None,
+    help=(
+        "Measure %% time the fly spends in two circles: "
+        "one concentric with the reward circle and one shifted 2 cm downward. "
+        "Radius is given in cm (default 1 cm)."
+    ),
 )
 g.add_argument(
     "--wall",
@@ -1062,8 +1078,8 @@ def headerForType(va, tp, calc):
             f"\n% time {'over agarose' if is_agarose else 'past border'} (contact events begin when"
             + f" %s crosses {'agarose ' if is_agarose else ''}border)" % calc_method
         )
-    elif tp.startswith('agarose_dur'):
-        if tp.endswith('_csv'):
+    elif tp.startswith("agarose_dur"):
+        if tp.endswith("_csv"):
             calc_method = {"ctr": "body center", "edge": "edge of fitted ellipse"}[
                 tp.split("_")[-2]
             ]
@@ -1078,6 +1094,11 @@ def headerForType(va, tp, calc):
     elif "pic" in tp:
         modifier = "reward" if tp == "pic" else f"{opts.pctTimeCircleRad}mm"
         return f"\n% time in {modifier} circle:"
+    elif tp in ("psc_conc", "psc_shift"):
+        return ""
+    elif tp in ("psc_conc_csv", "psc_shift_csv"):
+        which = "concentric" if tp == "psc_conc_csv" else "shifted (2 cm down)"
+        return f'\n"% time in slide circle ({which}), experimental fly only, by sync bucket:"'
     else:
         raise ArgumentError(tp)
 
@@ -1142,6 +1163,8 @@ def fliesForType(va, tp, calc=None):
             "agarose",
             "boundary",
             "wall",
+            "psc_conc",
+            "psc_shift",
         )
         or "r_no_contact" in tp
         or "dbr" in tp
@@ -1199,6 +1222,8 @@ def bucketLenForType(tp):
             "com",
             "rpid",
             "max_ctr_d_no_contact",
+            "psc_conc",
+            "psc_shift",
         )
         or "_turn" in tp
         or "r_no_contact" in tp
@@ -1286,10 +1311,10 @@ def columnNamesForBoundaryContactType(va, tp):
         suffixes = ("",)
     elif evt_tp == "agarose_dur":
         contact_types = ["duration of visits to agarose"]
-        suffixes = ('',)
-    elif evt_tp == 'boundary_dur':
-        contact_types = ['duration of periods spent past border']
-        suffixes = ('',)
+        suffixes = ("",)
+    elif evt_tp == "boundary_dur":
+        contact_types = ["duration of periods spent past border"]
+        suffixes = ("",)
     elif "_turn" in evt_tp:
         directional = "_dir" in evt_tp
         ellipse_ref_tp, boundary_tp = evt_tp.split("_turn")[0].split("_")
@@ -1473,6 +1498,8 @@ def columnNamesForType(va, tp, calc, n):
             "com",
             "dbr_no_contact",
             "max_ctr_d_no_contact",
+            "psc_conc",
+            "psc_shift",
         )
         or "_turn" in tp
         or "r_no_contact" in tp
@@ -1518,6 +1545,11 @@ def columnNamesForType(va, tp, calc, n):
             ),
             entireTrn=True,
         )
+    elif tp in ("psc_conc_csv", "psc_shift_csv"):
+        # Use T1 to define the base block; writer will duplicate across trainings.
+        df = va._numRewardsMsg(True, silent=True)
+        _, n_buckets, _ = va._syncBucket(va.trns[0], df)
+        return tuple(f"b{i+1}" for i in range(n_buckets))
     elif tp == "rpi_combined":
         return colNamesForPrePostAndTraining(
             va,
@@ -1795,6 +1827,39 @@ def vaVarForType(va, tp, calc):
         return va.pctInC["rwd"]
     elif tp == "pic_custom":
         return va.pctInC["custom"]
+    elif tp == "psc_conc":  # psc = pref-slide-circle
+        return va.slidePctConc
+    elif tp == "psc_shift":
+        return va.slidePctShift
+    elif tp in ("psc_conc_csv", "psc_shift_csv"):
+        # Source data are assembled by _aggregate_slide_circle_metrics():
+        #   self.slidePctConc = [(exp_row, ctrl_row), ...]
+        #   self.slidePctShift = [(exp_row, ctrl_row), ...]
+        src_name = "slidePctConc" if tp == "psc_conc_csv" else "slidePctShift"
+        data = getattr(va, src_name, [])
+
+        # Fallback if aggregator didn't run produce the correct number of NaNs
+        if not data:
+            df = va._numRewardsMsg(True, silent=True)
+            total = 0
+            for trn in va.trns:
+                _, nb, _ = va._syncBucket(trn, df)
+                total += nb
+            return [[np.nan] * total]
+
+        flat_exp = []
+        for item in data:
+            # item should be (exp_row, ctrl_row); tolerate missing/bad traj
+            if (
+                isinstance(item, (tuple, list))
+                and len(item) >= 1
+                and item[0] is not None
+            ):
+                exp_row = item[0]
+            else:
+                exp_row = []
+            flat_exp.extend(exp_row)
+        return [flat_exp]
     elif tp == "dbr":
         return va.avgDistancesByBkt
     elif tp == "com":
@@ -1840,7 +1905,7 @@ def vaVarForType(va, tp, calc):
         contact_tp = tp_split[-1]
         return [va.regionPercentagesCsv[region_tp][contact_tp]]
     elif "agarose_dur" in tp:
-        tp_split = tp.split('_')
+        tp_split = tp.split("_")
         region_tp = tp_split[0]
         contact_tp = tp_split[2]
         if tp.endswith("_csv"):
@@ -1984,7 +2049,6 @@ def drawLegend(ng, nf, nrp, gls, customizer):
     """
     kwargs = {}
     prop_dict = {"style": "italic"}
-    print('Drawing legend with ng=%d, nf=%d, nrp=%s, gls=%s' % (ng, nf, nrp, gls))
     if ng == 1 and nf == 2 and not P:
         kwargs["labels"] = ["Experimental", "Yoked"]
         kwargs["handles"] = [plt.Line2D([], [], color=FLY_COLS[i]) for i in range(2)]
@@ -1998,7 +2062,6 @@ def drawLegend(ng, nf, nrp, gls, customizer):
     kwargs["prop"] = prop_dict
     if not gls and "labels" not in kwargs:
         return None
-    print(f"returning legend with kwargs={kwargs}")
     return plt.legend(**kwargs)
 
 
@@ -2035,7 +2098,8 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
     diff_tp = r_diff or "exp_min_yok" in tp
     bnd_contact = tp in ("wall", "agarose", "boundary")
     bnd_turn = "_turn" in tp
-    visit_dur = '_dur' in tp
+    visit_dur = "_dur" in tp
+    psc = tp in ("psc_conc", "psc_shift")
     pcm, turn_rad, pivot = tp == "pcm", tp == "turn", tp == "pivot"
     circle = pcm or turn_rad or pivot
     txt_positioned_vert_mid = (
@@ -2063,9 +2127,9 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
     )  # p values between first and last buckets
     showPT = not P if not opts.hidePltTests else False  # p values between trainings
     showSS = not P  # speed stats
-    if '_dur' in tp:
+    if "_dur" in tp or psc:
         showSS = False
-    firstVsLastBasedOnAxLim = circle or visit_dur
+    firstVsLastBasedOnAxLim = circle or visit_dur or psc
     if showSS and vas:
         speed, stpFr = (
             np.array([getattr(va, k) for va in vas]) for k in ("speed", "stopFrac")
@@ -2090,7 +2154,9 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
             ylim = [-2, 2]
         else:
             ylim = [0, 2]
-    elif tp.startswith('agarose_dur') or tp.startswith('boundary_dur'):
+    elif tp in ("psc_conc", "psc_shift"):
+        ylim = [0, 100]
+    elif tp.startswith("agarose_dur") or tp.startswith("boundary_dur"):
         ylim = [0, 5]
     elif r_diff:
         ylim = [-0.5, 1.5]
@@ -2119,7 +2185,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
         mc = fly2C if joinF and f == 1 else meanC
         for i, t in enumerate(trns):
             nosym = not t.hasSymCtrl()
-            comparable = not (nf == 1 and nosym)
+            comparable = not ((nf == 1 and nosym) or psc)
             ax = axs[0 if joinF else f, i]
             plt.sca(ax)
             if P and f == 0:
@@ -2176,8 +2242,12 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                     assert rewardsAvgs.shape == (nc, nb)
                 mci = np.array([util.meanConfInt(getVals(g, b)) for b in range(nb)]).T
                 if not np.all(np.isnan(mci[2, :])):
-                    mci_max = max(mci_max, np.nanmax(mci[2, :])) if mci_max is not None else np.nanmax(mci[2, :])
-                
+                    mci_max = (
+                        max(mci_max, np.nanmax(mci[2, :]))
+                        if mci_max is not None
+                        else np.nanmax(mci[2, :])
+                    )
+
                 if turn_rad or pivot:
                     ylim[1] = 8 if turn_rad else 50
                     # 4 rows: mean, lower bound, upper bound, number samples
@@ -2478,7 +2548,11 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
 
                         util.pltText(
                             xs[1],
-                            0.25 * (ylim[1] - ylim[0]) if firstVsLastBasedOnAxLim else -0.7,
+                            (
+                                0.25 * (ylim[1] - ylim[0])
+                                if firstVsLastBasedOnAxLim
+                                else -0.7
+                            ),
                             "1st bucket, t1 vs. t%d (n=%d): %s"
                             % (i + 1, min(tpn[2], tpn[3]), util.p2stars(tpn[1], True)),
                             size=customizer.in_plot_font_size,
@@ -2549,6 +2623,10 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                         r_no_contact=CONTACTLESS_RWDS_LABEL,
                         rpid="reward index diff. (exp - yok)",
                         rpipd="post reward index diff. (exp - yok)",
+                        psc_conc=PSC_LABEL
+                        % ("reward-aligned", opts.prefCircleSlideRad),
+                        psc_shift=PSC_LABEL
+                        % ("shifted 2 cm down", opts.prefCircleSlideRad),
                     )
                     if opts.turn:
                         label_variant = {"_exp_min_yok": ", exp - yoked", "": ""}
@@ -2606,13 +2684,8 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                 else:
                     plt.xlim(0, xs[-1])
                     plt.ylim(*ylim)
-            print('at drawLegend for "%s" with %d groups' % (tp, ng))
-            print(f"i: {i}, f: {f}, nrp: {nrp}, gls: {gls}")
-            print(f"nf: {nf}, ng: {ng}, nr: {nr}")
-            if i == 0 and f == 0:
+            if i == 0 and f == 0 and not psc:
                 legend = drawLegend(ng, nf, nrp, gls, customizer)
-                # if tp == 'agarose_dur_edge':
-                    # plt.show()
     if not nrp:
         plt.subplots_adjust(wspace=opts.wspace)
     if tp in ("wall", "agarose"):
@@ -2669,6 +2742,8 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
         dbr=DIST_BTWN_REWARDS_FILE % "",
         dbr_no_contact=DIST_BTWN_REWARDS_FILE % "contactless_",
         max_ctr_d_no_contact=MAX_DIST_REWARDS_FILE,
+        psc_conc=PSC_CONC_IMG_FILE,
+        psc_shift=PSC_SHIFT_IMG_FILE,
     )
 
     if opts.turn:
@@ -2715,8 +2790,10 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
     ):
         for ellipse_ref_pt in ("edge", "ctr"):
             imgFiles[bnd] = CONTACT_EVENT_IMG_FILE % (ellipse_ref_pt, bnd)
-            if bnd in ('agarose', 'boundary'):
-                imgFiles[f"{bnd}_dur_{ellipse_ref_pt}"] = CONTACT_EVENT_DURATION_IMG_FILE % (ellipse_ref_pt, bnd)
+            if bnd in ("agarose", "boundary"):
+                imgFiles[f"{bnd}_dur_{ellipse_ref_pt}"] = (
+                    CONTACT_EVENT_DURATION_IMG_FILE % (ellipse_ref_pt, bnd)
+                )
     if customizer.customized:
         customizer.adjust_padding_proportionally()
     writeImage(imgFiles[tp] % blf, format=opts.imageFormat)
@@ -4235,6 +4312,8 @@ def postAnalyze(vas):
             "turn",
             "pivot",
         )
+    if opts.prefCircleSlideRad:
+        tcs += ("psc_conc", "psc_shift")
     if not va.noyc and not va.choice:
         tcs += ("rpid", "rpipd")
     for opt in ("wall", "agarose", "boundary", "turn"):
@@ -4413,10 +4492,19 @@ def postAnalyze(vas):
         elif tp in ("rpip", "rpipd"):
             plotRewards(va, tp, a, trns, gis, gls)
         elif (
-            tp in ("wall", "agarose", "boundary", "dbr", "max_ctr_d_no_contact")
+            tp
+            in (
+                "wall",
+                "agarose",
+                "boundary",
+                "dbr",
+                "max_ctr_d_no_contact",
+                "psc_conc",
+                "psc_shift",
+            )
             or "_turn" in tp
             or "r_no_contact" in tp
-            or '_dur' in tp
+            or "_dur" in tp
         ):
             plotRewards(va, tp, a, trns, gis, gls, vas)
         elif tp in ["pcm", "turn", "pivot"]:
@@ -4684,7 +4772,13 @@ def writeStats(vas, sf):
             analysis_types_with_training_number_columns.append(key)
 
     if opts.agarose:
-        analysis_types += ("agarose_csv", "agarose_pct_edge", "agarose_pct_ctr", "agarose_dur_edge_csv", "agarose_dur_ctr_csv")
+        analysis_types += (
+            "agarose_csv",
+            "agarose_pct_edge",
+            "agarose_pct_ctr",
+            "agarose_dur_edge_csv",
+            "agarose_dur_ctr_csv",
+        )
         analysis_types_with_training_number_columns.extend(analysis_types[-4:])
 
     if opts.boundary:
@@ -4704,6 +4798,12 @@ def writeStats(vas, sf):
         analysis_types += ("btwn_rwd_dist_from_ctr",)
     if opts.pctTimeCircleRad:
         analysis_types += ("pic_custom",)
+
+    if opts.prefCircleSlideRad:
+        analysis_types += ("psc_conc_csv", "psc_shift_csv")
+        # IMPORTANT: do NOT add these to analysis_types_with_training_number_columns
+        # so we avoid pairwise/quadruple exclusion rules and let
+        # duplicateColumnsAcrossTrns() do the per-training expansion.
 
     analysis_types_with_quadruple_exclusion = [
         tp for tp in analysis_types if "turn_dir_csv" in tp

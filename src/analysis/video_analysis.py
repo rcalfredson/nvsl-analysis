@@ -162,6 +162,8 @@ class VideoAnalysis:
         self._readNoteFile(fn)  # possibly overrides whether trajectories bad
         if opts.circle:
             self._analyzeCircularAndTurningMotion()
+        if opts.prefCircleSlideRad:
+            self._aggregate_slide_circle_metrics()
         self.runBoundaryContactAnalyses()
         if opts.jaabaOut:
             for trj in self.trx:
@@ -634,6 +636,60 @@ class VideoAnalysis:
             self.trx.append(
                 Trajectory(
                     (x, y), self.opts, (w, h, theta), len(self.trx), va=self, ts=ts
+                )
+            )
+
+    def _aggregate_slide_circle_metrics(self):
+        """Collate slide-circle %-in metrics from every Trajectory."""
+        if not self.opts.prefCircleSlideRad:
+            return
+
+        self.slidePctConc = []
+        self.slidePctShift = []
+
+        exp_trj = self.trx[0]  # experimental
+        ctrl_trj = self.trx[1] if len(self.trx) > 1 else None
+
+        # helper ---------------------------------------------------------
+        def _row(trj, lbl, trn):
+            """Safe fetch of one training row; NaNs if anything is missing."""
+            # how many buckets does this training *expect*
+            df = self._numRewardsMsg(True, silent=True)
+            _, n_buckets, _ = self._syncBucket(trn, df)
+            nan_row = [np.nan] * n_buckets
+
+            if (
+                trj is None
+                or getattr(trj, "_bad", True)
+                or not hasattr(trj, "pctInC_SB")
+                or lbl not in trj.pctInC_SB
+                or len(trj.pctInC_SB[lbl]) <= trn.n - 1
+            ):
+                return nan_row
+
+            row = trj.pctInC_SB[lbl][trn.n - 1]
+            # pad / trim to the expected length just in case
+            if len(row) < n_buckets:
+                row = row + [np.nan] * (n_buckets - len(row))
+            elif len(row) > n_buckets:
+                row = row[:n_buckets]
+            return row
+
+        # ---------------------------------------------------------------
+
+        for trn in self.trns:
+            # concentric
+            self.slidePctConc.append(
+                (
+                    _row(exp_trj, "slideConc", trn),
+                    _row(ctrl_trj, "slideConc", trn),
+                )
+            )
+            # shifted
+            self.slidePctShift.append(
+                (
+                    _row(exp_trj, "slideShift", trn),
+                    _row(ctrl_trj, "slideShift", trn),
                 )
             )
 

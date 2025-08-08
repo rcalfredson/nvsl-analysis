@@ -963,6 +963,90 @@ class Trajectory:
                 else:
                     print(f"  Radius {r_mm:.2f} mm: No outside periods recorded")
 
+    def _circle_masks(self, x, y, cx, cy):
+        """
+        Return a dict {label: np.ndarray} of *additional* circle masks
+        requested by CLI flags.  The reward-circle mask itself is **not**
+        included here.
+        """
+        masks = {}
+
+        # --pct-time-circle-rad  (concentric, radius in mm)
+        if self.opts.pctTimeCircleRad:
+            r_px = util.intR(
+                self.opts.pctTimeCircleRad * self.va.ct.pxPerMmFloor() * self.va.xf.fctr
+            )
+            masks["custom"] = self.calc_in_circle(x, y, cx, cy, r_px)
+
+        # --pref-circle-slide  (two circles, radius in cm)
+        if self.opts.prefCircleSlideRad:
+            r_px = util.intR(
+                self.opts.prefCircleSlideRad
+                * 10
+                * self.va.ct.pxPerMmFloor()
+                * self.va.xf.fctr
+            )
+            masks["slideConc"] = self.calc_in_circle(x, y, cx, cy, r_px)
+
+            shift_px = util.intR(
+                20 * self.va.ct.pxPerMmFloor() * self.va.xf.fctr  # 2 cm down
+            )
+            masks["slideShift"] = self.calc_in_circle(x, y, cx, cy + shift_px, r_px)
+
+        return masks
+
+    def _percent_per_sync_bucket(self, trn, mask, lbl):
+        """
+        Append one list[float|nan] (len = n_buckets) to self.pctInC_SB[lbl]
+        containing %-time inside *mask* for each sync bucket of this training.
+        Yoked controls (self.f == 1) are filled with NaNs.
+        """
+        # Initialise container if first time we see this label
+        if lbl not in self.pctInC_SB:
+            self.pctInC_SB[lbl] = []
+
+        # YOKED CONTROL → all-NaN row, same bucket count
+        if self.f == 1:
+            _, n_buckets, _ = self.va._syncBucket(
+                trn, self.va._numRewardsMsg(True, silent=True)
+            )
+            self.pctInC_SB[lbl].append([np.nan] * n_buckets)
+            return
+
+        # Experimental fly
+        df = self.va._numRewardsMsg(True, silent=True)
+        fi_start, n_buckets, _ = self.va._syncBucket(trn, df)
+
+        # Incomplete training
+        if fi_start is None:
+            self.pctInC_SB[lbl].append([np.nan] * n_buckets)
+            return
+
+        pct_vals = []
+        fi = fi_start
+        fi_last = min(trn.stop, int(trn.start + n_buckets * df))
+
+        while fi + df <= fi_last:
+            seg = mask[fi - trn.start : fi + df - trn.start]
+            valid = ~self.nan[fi : fi + df]
+            denom = np.sum(valid)
+            pct_vals.append(
+                np.nan if denom == 0 else 100 * np.sum((seg == 2) & valid) / denom
+            )
+            fi += df
+
+        # pad with NaNs if run ended early
+        pct_vals.extend([np.nan] * (n_buckets - len(pct_vals)))
+        self.pctInC_SB[lbl].append(pct_vals)
+
+        # ----- DEBUG BLOCK (optional) ------------------------------------
+        # import csv
+        # with open(f"debug_{lbl}_training{trn.n}.csv", "w", newline="") as f:
+        #     writer = csv.writer(f)
+        #     writer.writerow(range(len(pct_vals)))
+        #     writer.writerow([f"{v:.2f}" if not math.isnan(v) else "" for v in pct_vals])
+        # -----------------------------------------------------------------
+
     def _calcRewards(self):
         """
         Calculates the occurrences of reward entries (circle enter events) for both the actual training
@@ -988,6 +1072,7 @@ class Trajectory:
         self.no_en = self.no_on = 0  # statistics for mismatch calc. vs. actual
         self.rmImNum, nEnT, nEn0T, twc = 0, [0, 0], 0, []
         self.pctInC = {"rwd": [], "custom": []}
+        self.pctInC_SB = {}
         if self.opts.cTurnAnlyz:
             self.rCirExits = []
         for t in self.va.trns:
@@ -995,6 +1080,18 @@ class Trajectory:
             x, y = self.xy(start, t.postStop)
             for i, (cx, cy, r) in enumerate(t.circles(self.f)):
                 inC = self.calc_in_circle(x, y, cx, cy, r)
+
+                # ------------------------------------------------------
+                # Build any extra circle masks (custom / slide)
+                # ------------------------------------------------------
+
+                extra_masks = self._circle_masks(x, y, cx, cy) if i == 0 else {}
+
+                if t.n == 1 and i == 0:
+                    offset = t.start - self.va.startPre
+                    for lbl in extra_masks:
+                        extra_masks[lbl] = extra_masks[lbl][offset:]
+
                 if self.opts.pctTimeCircleRad and i == 0:
                     customRad = self.opts.pctTimeCircleRad
                     inC_custom = self.calc_in_circle(x, y, cx, cy, customRad)
@@ -1032,6 +1129,9 @@ class Trajectory:
                 if i == 0:
                     if not self._bad:
                         self._calcPercentInCircle(t, inC, inCPre if t.n == 1 else None)
+
+                        for lbl, msk in extra_masks.items():
+                            self._percent_per_sync_bucket(t, msk, lbl)
                     en0 = (
                         (np.diff((inC > 1).astype(int)) == 1).nonzero()[0] + 1 + t.start
                     )
