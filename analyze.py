@@ -2669,12 +2669,15 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                         " no preceding wall contact)",
                         r_no_contact=CONTACTLESS_RWDS_LABEL,
                         rpid="reward index diff. (exp - yok)",
-                        rpipd="post reward index diff. (exp - yok)",
-                        psc_conc=PSC_LABEL
-                        % ("reward-aligned", opts.prefCircleSlideRad),
-                        psc_shift=PSC_LABEL
-                        % ("shifted 2 cm down", opts.prefCircleSlideRad),
+                        rpipd="post reward index diff. (exp - yok)"
                     )
+                    if opts.prefCircleSlideRad:
+                      ylabels['psc_conc'] = PSC_LABEL % (
+                        "reward-aligned", opts.prefCircleSlideRad
+                      )
+                      ylabels['psc_shift'] = PSC_LABEL % (
+                        "shifted 2 cm down", opts.prefCircleSlideRad
+                      )
                     if opts.turn:
                         label_variant = {"_exp_min_yok": ", exp - yoked", "": ""}
                         for turn_boundary in opts.turn:
