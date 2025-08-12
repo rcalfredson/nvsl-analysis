@@ -2206,7 +2206,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
     elif tp.startswith("agarose_dur") or tp.startswith("boundary_dur"):
         ylim = [0, 5]
     elif r_diff:
-        ylim = [-0.5, 1.5]
+        ylim = [-0.25, 2.0]
     else:
         ylim = [-1, 1]
     if circle:
