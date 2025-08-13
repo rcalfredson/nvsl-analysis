@@ -8,6 +8,97 @@ from src.utils.common import ttest_ind, writeImage
 from src.utils.util import meanConfInt, p2stars, slugify
 
 
+def _draw_bucketwise_sig_stars(
+    ax, xs, ymins, ymaxs, top_envelope, arr_a, arr_b, in_plot_font_size
+):
+    """
+    Draw stars comparing two groups at each bucket.
+    arr_a, arr_b: shape (n_videos_in_group, n_buckets)
+    Returns max_star_top_y_data: the top of the tallest star text bbox (data units).
+    """
+    stars_to_draw = []
+
+    # 1) figure out data range to compute anchor pad
+    if ymins and ymaxs:
+        data_min = float(np.min(ymins))
+        data_max = float(np.max(ymaxs))
+    else:
+        finite_env = np.isfinite(top_envelope)
+        data_min = 0.0
+        data_max = (
+            float(np.nanmax(top_envelope[finite_env])) if finite_env.any() else 1.0
+        )
+
+    data_range = max(1e-9, data_max - data_min)
+    anchor_pad = 0.05 * data_range  # pad between CI cap and *text anchor*
+
+    # 2) compute anchors & store to draw
+    for j in range(arr_a.shape[1]):  # over buckets
+        t, p, na, nb, _ = ttest_ind(arr_a[:, j], arr_b[:, j])  # Welch handled upstream
+        s = p2stars(p)
+        if not s:
+            continue
+        y_cap = top_envelope[j]
+        if not np.isfinite(y_cap):
+            continue
+        y_anchor = y_cap + anchor_pad  # va="bottom" → anchor is bottom of glyph
+        stars_to_draw.append((xs[j], y_anchor, s))
+
+    if not stars_to_draw:
+        return np.nan  # nothing to draw / no ylim change
+
+    # 3) draw the stars (visible), then measure their bboxes with renderer
+    text_artists = []
+    for xj, yj, s in stars_to_draw:
+        txt = ax.text(
+            xj,
+            yj,
+            s,
+            ha="center",
+            va="bottom",
+            fontsize=in_plot_font_size,
+            color="0",
+            weight="bold",
+        )
+        text_artists.append(txt)
+
+    # Important: force a draw so extents are computed
+    fig = ax.figure
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    inv = ax.transData.inverted()
+
+    # 4) find the tallest star TOP in data units
+    max_star_top_y_data = -np.inf
+    tallest_h_data = 0.0
+    for t in text_artists:
+        bbox_disp = t.get_window_extent(renderer=renderer)
+        # convert bbox height to data units (use any x; y is what matters)
+        y0_data = inv.transform((bbox_disp.x0, bbox_disp.y0))[1]
+        y1_data = inv.transform((bbox_disp.x0, bbox_disp.y1))[1]
+        h_data = abs(y1_data - y0_data)
+        tallest_h_data = max(tallest_h_data, h_data)
+        max_star_top_y_data = max(max_star_top_y_data, y1_data)
+
+    # 5) expand ylim so the *top of the tallest text box* is inside, sign-agnostic
+    if np.isfinite(max_star_top_y_data):
+        cur_lo, cur_hi = ax.get_ylim()
+        data_span = max(1e-9, data_max - data_min)
+        # small cushion above the tallest text box; also guard against zero-height fonts
+        top_head = max(0.04 * data_span, 0.25 * tallest_h_data)
+        bot_head = 0.02 * data_span
+
+        desired_top = max_star_top_y_data + top_head
+        desired_bottom = data_min - bot_head
+
+        ax.set_ylim(
+            bottom=min(cur_lo, desired_bottom),
+            top=max(cur_hi, desired_top),
+        )
+
+    return max_star_top_y_data
+
+
 def plot_com_distance(
     vas,  # list of VideoAnalysis instances
     trns,  # list of Training instances (same for all videos)
@@ -29,17 +120,21 @@ def plot_com_distance(
     n_videos = len(vas)
     n_trns = len(trns)
     n_buckets = len(vas[0].syncMedDist[0]["exp"])
-    has_ctrl = False
+
+    # auto-detect if any control data is present
+    has_ctrl = any(
+        ("ctrl" in dist_dict and len(dist_dict["ctrl"]) > 0)
+        for va in vas
+        for dist_dict in va.syncMedDist
+    )
     n_flies = 2 if has_ctrl else 1
 
     com4 = np.full((n_videos, n_trns, n_flies, n_buckets), np.nan)
     for vid, va in enumerate(vas):
         for t_idx, dist_dict in enumerate(va.syncMedDist):
             com4[vid, t_idx, 0, : len(dist_dict["exp"])] = dist_dict["exp"]
-            if has_ctrl:
-                com4[vid, t_idx, 1, : len(dist_dict.get("ctrl", []))] = dist_dict.get(
-                    "ctrl", []
-                )
+            if has_ctrl and "ctrl" in dist_dict and dist_dict["ctrl"]:
+                com4[vid, t_idx, 1, : len(dist_dict["ctrl"])] = dist_dict["ctrl"]
 
     # ----- 2) grouping logic -----
     multi_group = gis is not None and gls is not None and len(set(gis)) > 1
@@ -93,9 +188,6 @@ def plot_com_distance(
         ymins, ymaxs = [], []
         top_envelope = np.full(n_buckets, -np.inf)
         present_in_ax = []
-
-        stars_to_draw = []
-        max_star_y = -np.inf
 
         for g_pos, g in enumerate(groups):
             if multi_group:
@@ -230,64 +322,16 @@ def plot_com_distance(
 
         if multi_group and len(present_in_ax) == 2:
             g0, g1 = present_in_ax[0], present_in_ax[1]
-
-            # pull raw EXP values for both groups: shape (n_videos_in_group, n_buckets)
             idx0 = np.flatnonzero(gis == g0)
             idx1 = np.flatnonzero(gis == g1)
-            a = com4[idx0, i, 0, :]  # EXP of group 0 for training i
+
+            # per-video EXP values for training i (shape: n_vids_in_group × n_buckets)
+            a = com4[idx0, i, 0, :]
             b = com4[idx1, i, 0, :]
 
-            y_min, y_max = ax.get_ylim()
-
-            # compute a pad in data units from the *data* range (not the current ylim)
-            if ymins and ymaxs:
-                data_min = min(ymins)
-                data_max = max(ymaxs)
-            else:
-                data_min, data_max = 0.0, np.nanmax(top_envelope)
-            data_range = max(data_max - data_min, 1e-9)
-            y_pad = 0.05 * data_range  # 5% of data range; tweak as desired
-
-            for j in range(n_buckets):
-                # two-sample (Welch controlled by your global WELCH flag in common.ttest)
-                t, p, na, nb, _ = ttest_ind(a[:, j], b[:, j])
-                stars = p2stars(p)
-                if not stars:
-                    continue
-                y_star = top_envelope[j]
-                if not np.isfinite(y_star):
-                    continue  # nothing plotted at this bucket
-                y_draw = y_star + y_pad
-                stars_to_draw.append((xs[j], y_draw, stars))
-                if np.isfinite(y_draw):
-                    max_star_y = max(max_star_y, y_draw)
-
-                # Now set ylim high enough for stars *and* curves
-                top_curves = max(ymaxs) if ymaxs else None
-                top_needed = max_star_y if np.isfinite(max_star_y) else -np.inf
-                if top_curves is None and not np.isfinite(top_needed):
-                    pass
-                else:
-                    # add a small headroom
-                    top_final = max(
-                        (top_curves * 1.10) if top_curves is not None else -np.inf,
-                        (top_needed * 1.05) if np.isfinite(top_needed) else -np.inf,
-                    )
-                    ax.set_ylim(bottom=0, top=top_final)
-
-                # Finally draw the stars at the computed positions
-                for xj, yj, s in stars_to_draw:
-                    ax.text(
-                        xj,
-                        yj,
-                        s,
-                        ha="center",
-                        va="bottom",
-                        fontsize=customizer.in_plot_font_size,
-                        color="0",
-                        weight="bold",
-                    )
-
+            max_star_y = _draw_bucketwise_sig_stars(
+                ax, xs, ymins, ymaxs, top_envelope, a, b, customizer.in_plot_font_size
+            )
             if np.isfinite(max_star_y):
                 max_star_y_per_ax[i] = max_star_y
 
@@ -374,3 +418,173 @@ def plot_com_distance(
         print(f"Saved COM-distance plot to {save_path}")
     else:
         plt.show()
+
+    # ===== EXTRA FIGURE: experimental − yoked (only if controls exist) =====
+    if has_ctrl:
+        # Compute (exp - ctrl) per video/training/bucket
+        # Shape for exp/ctrl: (n_videos, n_trns, n_buckets)
+        exp_all = com4[:, :, 0, :]
+        ctrl_all = com4[:, :, 1, :]
+        diff_all = exp_all - ctrl_all  # nan-propagates as desired
+
+        fig2, axes2 = plt.subplots(1, n_trns, figsize=(4 * n_trns, 4), sharey=True)
+        if n_trns == 1:
+            axes2 = [axes2]
+
+        # Styling
+        diff_color = "#1f4da1"  # reuse exp color for continuity
+        group_linestyles = ["-", "--", ":", "-."]  # same as above
+        alpha = 0.18
+        ms = 2
+
+        # Keep legend styles consistent with the first figure
+        # (re-using style_idx_for_group and present_groups computed earlier)
+        for i, ax in enumerate(axes2):
+            ymins, ymaxs = [], []
+            top_envelope = np.full(n_buckets, -np.inf)
+            present_in_ax = []
+
+            for g_pos, g in enumerate(groups):
+                if multi_group:
+                    vid_idxs = np.flatnonzero(gis == g)
+                else:
+                    vid_idxs = np.arange(n_videos)
+
+                if vid_idxs.size == 0:
+                    continue
+
+                # take diffs for this group and training i: (n_vids_in_group, n_buckets)
+                diff_arr_g_full = diff_all[vid_idxs, :, :]
+                m_diff, ci_diff, n_diff = mean_ci_over_vids(diff_arr_g_full)
+
+                # select current training i
+                m_i = m_diff[i]
+                ci_i = ci_diff[i]
+                n_i = n_diff[i]
+
+                # trim to common available range
+                valid = ~np.isnan(m_i)
+                last = np.where(valid)[0].max() if valid.any() else -1
+                if last < 0:
+                    continue
+
+                xs_i = xs[: last + 1]
+                m_i = m_i[: last + 1]
+                ci_i = ci_i[: last + 1]
+                n_i = n_i[: last + 1]
+
+                for jj in range(len(xs_i)):
+                    cand = m_i[jj] + ci_i[jj]
+                    if np.isfinite(cand):
+                        top_envelope[jj] = max(top_envelope[jj], cand)
+
+                present_in_ax.append(g if multi_group else 0)
+
+                ls = group_linestyles[style_idx_for_group[g if multi_group else 0]]
+
+                # band + line
+                ax.fill_between(
+                    xs_i,
+                    m_i - ci_i,
+                    m_i + ci_i,
+                    color=diff_color,
+                    alpha=alpha,
+                    linewidth=0,
+                )
+                ax.plot(
+                    xs_i, m_i, marker="o", markersize=ms, color=diff_color, linestyle=ls
+                )
+
+                # counts (put them slightly below the curve for readability)
+                y_min, y_max = ax.get_ylim()
+                dy = 0.02 * (y_max - y_min) if y_max > y_min else 0.5
+                for xj, yj, nj in zip(xs_i, m_i, n_i):
+                    ax.text(
+                        xj,
+                        yj - dy,
+                        str(nj),
+                        ha="center",
+                        va="top",
+                        fontsize=customizer.in_plot_font_size,
+                        color=diff_color,
+                    )
+
+                ymins.append(np.nanmin(m_i - ci_i))
+                ymaxs.append(np.nanmax(m_i + ci_i))
+
+                if multi_group and len(present_in_ax) == 2:
+                    g0, g1 = present_in_ax[0], present_in_ax[1]
+                    idx0 = np.flatnonzero(gis == g0)
+                    idx1 = np.flatnonzero(gis == g1)
+
+                    a = diff_all[idx0, i, :]
+                    b = diff_all[idx1, i, :]
+
+                    max_star_y = _draw_bucketwise_sig_stars(
+                        ax,
+                        xs,
+                        ymins,
+                        ymaxs,
+                        top_envelope,
+                        a,
+                        b,
+                        customizer.in_plot_font_size,
+                    )
+                    if np.isfinite(max_star_y):
+                        max_star_y_per_ax[i] = max_star_y
+
+            # zero reference line
+            ax.axhline(0, linewidth=1, linestyle="--", color="0.35", zorder=0)
+
+            # titles/labels
+            ax.set_title(f"training {trns[i].n}")
+            ax.set_xlabel(f"end points [min] of {bucket_len_minutes} min sync buckets")
+            if i == 0:
+                ax.set_ylabel(
+                    "median dist. to reward\ncircle center (exp. - yok.) [mm]"
+                )
+
+            # tighten y based on plotted data with small headroom
+            # if ymins and ymaxs:
+            #     lo, hi = min(ymins), max(ymaxs)
+            #     if np.isfinite(lo) and np.isfinite(hi):
+            #         pad = 0.06 * max(1e-9, hi - lo)
+            #         ax.set_ylim(lo - pad, hi + pad)
+
+        # legend (reuse group labels/styles, identical placement heuristic optional)
+        if multi_group:
+            ordered_present = [g for g in sorted(set(gis)) if g in present_groups]
+            proxy_handles = [
+                Line2D(
+                    [0],
+                    [0],
+                    color=diff_color,
+                    linestyle=group_linestyles[style_idx_for_group[g]],
+                    linewidth=2,
+                    marker=None,
+                )
+                for g in ordered_present
+            ]
+            proxy_labels = [gls[g] for g in ordered_present]
+            axes2[0].legend(
+                handles=proxy_handles,
+                labels=proxy_labels,
+                loc="best",
+                prop={"style": "italic"},
+            )
+        else:
+            for ax in axes2:
+                ax.legend_.remove() if ax.get_legend() else None
+
+        fig2.suptitle(f"{title} — experimental minus yoked")
+        plt.tight_layout()
+
+        # save/show
+        if outdir:
+            os.makedirs(outdir, exist_ok=True)
+            fn = f"{slugify(title)}__exp_minus_yoked.png"
+            save_path = os.path.join(outdir, fn)
+            writeImage(save_path, format=format)
+            print(f"Saved COM-distance (exp − yoked) plot to {save_path}")
+        else:
+            plt.show()
