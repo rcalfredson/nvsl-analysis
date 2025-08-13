@@ -134,7 +134,6 @@ def plot_com_distance(
                 ci_ctrl_i = ci_ctrl[i, : last + 1]
                 n_ctrl_i = n_ctrl[i, : last + 1]
 
-
             for jj in range(last + 1):
                 cand = m_exp_i[jj] + ci_exp_i[jj]
                 if has_ctrl:
@@ -289,14 +288,13 @@ def plot_com_distance(
                         weight="bold",
                     )
 
-                ax.set_title(f"training {trns[i].n}")
-                ax.set_xlabel(
-                    f"end points [min] of {bucket_len_minutes} min sync buckets"
-                )
-                if i == 0:
-                    ax.set_ylabel("median dist. to\nreward circle center [mm]")
             if np.isfinite(max_star_y):
                 max_star_y_per_ax[i] = max_star_y
+
+        ax.set_title(f"training {trns[i].n}")
+        ax.set_xlabel(f"end points [min] of {bucket_len_minutes} min sync buckets")
+        if i == 0:
+            ax.set_ylabel("median dist. to\nreward circle center [mm]")
 
     # legend & layout
     if multi_group:
