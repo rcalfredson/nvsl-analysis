@@ -2669,15 +2669,17 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                         " no preceding wall contact)",
                         r_no_contact=CONTACTLESS_RWDS_LABEL,
                         rpid="reward index diff. (exp - yok)",
-                        rpipd="post reward index diff. (exp - yok)"
+                        rpipd="post reward index diff. (exp - yok)",
                     )
                     if opts.prefCircleSlideRad:
-                      ylabels['psc_conc'] = PSC_LABEL % (
-                        "reward-aligned", opts.prefCircleSlideRad
-                      )
-                      ylabels['psc_shift'] = PSC_LABEL % (
-                        "shifted 2 cm down", opts.prefCircleSlideRad
-                      )
+                        ylabels["psc_conc"] = PSC_LABEL % (
+                            "reward-aligned",
+                            opts.prefCircleSlideRad,
+                        )
+                        ylabels["psc_shift"] = PSC_LABEL % (
+                            "shifted 2 cm down",
+                            opts.prefCircleSlideRad,
+                        )
                     if opts.turn:
                         label_variant = {"_exp_min_yok": ", exp - yoked", "": ""}
                         for turn_boundary in opts.turn:
@@ -4538,7 +4540,9 @@ def postAnalyze(vas):
                         break
         elif tp == "com":
             bl, _ = bucketLenForType(tp)
-            plot_com_distance(vas, trns, bl, gis, gls, "imgs")
+            plot_com_distance(
+                vas, trns, bl, customizer, gis, gls, "imgs", format=opts.imageFormat
+            )
         elif tp in ("rpip", "rpipd"):
             plotRewards(va, tp, a, trns, gis, gls)
         elif (

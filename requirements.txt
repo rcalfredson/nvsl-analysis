@@ -1,6 +1,6 @@
 Cython==3.0.0
 inflect==7.0.0
-matplotlib==3.7.2
+matplotlib==3.8.1
 numba==0.59.0
 numpy==1.26.4
 opencv-python==4.5.5.64

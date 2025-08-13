@@ -509,7 +509,7 @@ class VideoAnalysis:
         elif ef2yc and self.ef not in ef2yc:
             err = "fly number %d not among experimental flies (%s)" % (
                 self.ef,
-                util.commaAndJoin(ef2yc.keys()),
+                util.commaAndJoin(list(ef2yc.keys())),
             )
             self.isyc = True
         if err:
