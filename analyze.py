@@ -1940,7 +1940,7 @@ def vaVarForType(va, tp, calc):
         return va.btwnRwdDistsFromCtr
     elif tp in ("agarose", "wall", "boundary"):
         if tp == "agarose" or tp == "boundary":
-            return va.boundary_events["%s_contact" % tp]
+            return va.boundary_event_counts["%s_contact" % tp]
         return va.boundary_events["%s_contact" % tp][
             :, va.wall_orientation_idx :: len(va.wall_orientations), :
         ]
@@ -2144,6 +2144,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
     r_diff = tp in ("rpid", "rpipd")
     diff_tp = r_diff or "exp_min_yok" in tp
     bnd_contact = tp in ("wall", "agarose", "boundary")
+    num_events = tp == "agarose"
     bnd_turn = "_turn" in tp
     visit_dur = "_dur" in tp
     psc = tp in ("psc_conc", "psc_shift")
@@ -2174,16 +2175,18 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
     )  # p values between first and last buckets
     showPT = not P if not opts.hidePltTests else False  # p values between trainings
     showSS = not P  # speed stats
-    if "_dur" in tp or psc:
+    if "_dur" in tp or psc or num_events:
         showSS = False
-    firstVsLastBasedOnAxLim = circle or visit_dur or psc
+    firstVsLastBasedOnAxLim = circle or num_events or visit_dur or psc
+    showAUC = (
+        not firstVsLastBasedOnAxLim
+    )  # AUC text pending improved Y-position logic for plots with dynamic limits
     if showSS and vas:
         speed, stpFr = (
             np.array([getattr(va, k) for va in vas]) for k in ("speed", "stopFrac")
         )
         speed, stpFr = (np.nanmean(a, axis=0) for a in (speed, stpFr))
     nr = 1 if joinF else nf
-    legend = None
     bl, blf = bucketLenForType(tp)
     xs = (np.arange(nb) + (-(nnpb - 1) if post else 1)) * bl
     if nrp:
@@ -2443,7 +2446,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                             if i == 0:
                                 all_line_vals.append([ys])
                     # AUC
-                    if not (rpip) and not opts.hidePltTests:
+                    if not (rpip) and showAUC and not opts.hidePltTests:
                         if txt_positioned_vert_mid:
                             yp = 0.8 * (ylim[1] - ylim[0])
                         else:
@@ -2585,7 +2588,6 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                             color=col,
                             weight="bold",
                         )
-                        bracket_top = y + h
                 # t-test between trainings
                 if showPT and ng == 1 and f == 0 and not post and comparable:
                     assert len(fbv) == i
@@ -2623,7 +2625,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                             color="0",
                         )
             # labels etc.
-            if visit_dur and mci_max is not None:
+            if firstVsLastBasedOnAxLim and mci_max is not None:
                 if mci_max > ylim[1]:
                     plt.ylim([ylim[0], mci_max])
             if f == 0 or not joinF:
@@ -2660,8 +2662,8 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                         pivot="number of pivots",
                         pcm="proportion circular motion",
                         wall="wall-contact events per reward",
-                        agarose="agarose-contact events",
-                        boundary="boundary-contact events",
+                        agarose="agarose contact events",
+                        boundary="boundary contact events",
                         dbr=DIST_BTWN_REWARDS_LABEL % "",
                         dbr_no_contact=DIST_BTWN_REWARDS_LABEL
                         % " (no preceding wall contact)",
@@ -2740,7 +2742,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                 legend = drawLegend(ng, nf, nrp, gls, customizer)
     if not nrp:
         plt.subplots_adjust(wspace=opts.wspace)
-    if tp in ("wall", "agarose"):
+    if tp in ("wall", "agarose") and va.ct is CT.htl:
         if tp == "agarose":
             boundary_orientation = "tb"
         else:

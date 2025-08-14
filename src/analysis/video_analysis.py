@@ -1098,17 +1098,13 @@ class VideoAnalysis:
                         ).astype(int)
                     else:
                         valid_contact = boundary_contact
-                    
-                    if region_label == 'agarose':
+
+                    if region_label == "agarose":
                         intvl_len = np.sum(~trj.nan[intvl])
                     else:
                         intvl_len = intvl.stop - intvl.start
 
-                    vals.append(
-                        100
-                        * np.count_nonzero(valid_contact)
-                        / intvl_len
-                    )
+                    vals.append(100 * np.count_nonzero(valid_contact) / intvl_len)
             self.regionPercentagesCsv[region_label][tp].extend(vals)
 
     # measures % of time on agarose, or in a defined region, by sync bucket.
@@ -2099,6 +2095,10 @@ class VideoAnalysis:
         self.evts = []
         if is_turn:
             self.evt_durations = []
+            if hasattr(self, "evts_counts"):
+                delattr(self, "evts_counts")
+        else:
+            self.evts_counts = []
         print(("\n%s:" % self.sb_contact_evt_log_header))
         if evt_name == "wall_contact":
             self.wall_orientation_idx = boundary_orientations.index(
@@ -2445,6 +2445,8 @@ class VideoAnalysis:
             self.evts.append([])
             if is_turn:
                 self.evt_durations.append([])
+            else:
+                self.evts_counts.append([])
             for i, trj in enumerate(self.trx):
                 calc_rewards = self._getOn(t, calc=True, f=trj.f)
                 ctrl_entries = self._getOn(t, ctrl=True, calc=True, f=trj.f)
@@ -2454,7 +2456,7 @@ class VideoAnalysis:
                 orig_fi = fi
                 self.firsts_by_trn.append(orig_fi)
                 rewards_for_fly = self.numRewardsTot[1][0][trj.f :: len(self.flies)]
-                if trj._bad or fi == None or None in self.firsts_by_trn:
+                if trj._bad or fi is None or None in self.firsts_by_trn:
                     if "turn" in evt_name:
                         n_measures_per_trn = 1
                     else:
@@ -2540,6 +2542,8 @@ class VideoAnalysis:
                         self.evts[-1].append(np.full(int(n), np.nan))
                         if is_turn:
                             self.evt_durations[-1].append(np.full(int(n), np.nan))
+                        else:
+                            self.evts_counts[-1].append(np.full(int(n), np.nan))
                     self._printBucketVals(
                         self.evts[-1][-1], trj.f, msg=flyDesc(trj.f), prec=2
                     )
@@ -2596,17 +2600,32 @@ class VideoAnalysis:
                             ]
                             contact_idxs = idxs_all
                             idxs_all = idxs_all[turning_indices]
+
+                    calc_entries_per_bucket = []
+                    ctrl_entries_per_bucket = []
                     while fi + df <= la:
                         mask_for_indexing = (idxs_all >= fi) & (idxs_all < fi + df)
                         if "_turn" not in evt_name:
-                            num_events = len(idxs_all[mask_for_indexing])
-                            num_entries = len(
-                                calc_rewards[
+                            raw_count = int(np.count_nonzero(mask_for_indexing))
+
+                            # per-bucket counts of calc rewards and control entries
+                            n_calc = int(
+                                np.count_nonzero(
                                     (calc_rewards >= fi) & (calc_rewards < fi + df)
-                                ]
+                                )
                             )
-                            if num_entries < self.opts.piTh:
-                                num_events = np.nan
+                            n_ctrl = int(
+                                np.count_nonzero(
+                                    (ctrl_entries >= fi) & (ctrl_entries < fi + df)
+                                )
+                            )
+
+                            # stash temporarily; we’ll threshold after the loop
+                            evts_for_trj.append(raw_count)
+                            # make sure these two lists exist before the loop (see Part B below)
+                            calc_entries_per_bucket.append(n_calc)
+                            ctrl_entries_per_bucket.append(n_ctrl)
+
                             if (
                                 evt_name == "wall_contact"
                                 and boundary_orientation in self.contactless_rewards
@@ -2650,7 +2669,7 @@ class VideoAnalysis:
                                 ]
                             ]
                             durations_for_trj.append(np.mean(durations_for_bucket))
-                        evts_for_trj.append(num_events)
+                            evts_for_trj.append(num_events)
                         fi += df
                     if (
                         evt_name == "wall_contact"
@@ -2692,21 +2711,55 @@ class VideoAnalysis:
                                 ][n - 2]
                             )
                     if "_turn" not in evt_name:
-                        _evts_for_trj = np.empty_like(evts_for_trj, dtype=float)
-                        num_rewards = np.array(num_rewards)
-                        mask = num_rewards == 0
-                        _evts_for_trj[mask] = np.nan
-                        _evts_for_trj[~mask] = np.array(evts_for_trj)[~mask] / (
-                            1 if "agarose_turn" in evt_name else num_rewards[~mask]
+                        # Base arrays
+                        counts_raw = np.asarray(
+                            evts_for_trj, dtype=float
+                        )  # raw event counts (no gating yet)
+                        calc_arr = np.asarray(calc_entries_per_bucket, dtype=int)
+                        ctrl_arr = np.asarray(ctrl_entries_per_bucket, dtype=int)
+
+                        # ---- 1) COUNTS METRIC (relaxed gate: calc + ctrl) ----
+                        counts_ok = (calc_arr + ctrl_arr) >= self.opts.piTh
+                        counts_out = counts_raw.copy()
+                        counts_out[~counts_ok] = np.nan
+                        counts_out = np.where(np.isinf(counts_out), np.nan, counts_out)
+
+                        pad = int(n - len(counts_out))
+                        self.evts_counts[-1].append(
+                            np.hstack((counts_out, [np.nan] * pad))
+                            if pad > 0
+                            else counts_out
                         )
-                        evts_for_trj = _evts_for_trj
-                    evts_for_trj = np.where(
-                        evts_for_trj == np.inf, np.nan, evts_for_trj
-                    )
-                    n_missing_buckets = int(n - len(evts_for_trj))
-                    self.evts[-1].append(
-                        np.hstack((evts_for_trj, n_missing_buckets * [np.nan]))
-                    )
+
+                        # ---- 2) RATIO METRIC (status quo, calc-only gate) ----
+                        # num_rewards should be per-bucket; align defensively
+                        nr = np.asarray(num_rewards, dtype=float)[: len(counts_raw)]
+
+                        ratio_ok = calc_arr >= self.opts.piTh
+                        bad_div = (nr == 0) | ~np.isfinite(nr)
+
+                        ev = counts_raw.astype(float)
+                        # apply calc-only threshold first
+                        ev[~ratio_ok] = np.nan
+                        # divide where both threshold passes and denominator is valid
+                        do_div = ratio_ok & ~bad_div
+                        ev[do_div] = ev[do_div] / nr[do_div]
+                        # invalid denominators become NaN (already handled by ~do_div)
+
+                        ev = np.where(np.isinf(ev), np.nan, ev)
+                        ev = np.hstack((ev, [np.nan] * pad)) if pad > 0 else ev
+
+                        # store the ratio metric
+                        self.evts[-1].append(ev)
+                        evts_for_trj = ev
+                    else:
+                        evts_for_trj = np.where(
+                            evts_for_trj == np.inf, np.nan, evts_for_trj
+                        )
+                        n_missing_buckets = int(n - len(evts_for_trj))
+                        self.evts[-1].append(
+                            np.hstack((evts_for_trj, n_missing_buckets * [np.nan]))
+                        )
                     if is_turn:
                         self.evt_durations[-1].append(
                             np.hstack((durations_for_trj, n_missing_buckets * [np.nan]))
@@ -2821,6 +2874,11 @@ class VideoAnalysis:
             self.boundary_events = {evt_name: np.array(self.evts)}
         else:
             self.boundary_events[evt_name] = np.array(self.evts)
+        if (not is_turn) and hasattr(self, "evts_counts"):
+            if not hasattr(self, "boundary_event_counts"):
+                self.boundary_event_counts = {evt_name: np.array(self.evts_counts)}
+            else:
+                self.boundary_event_counts[evt_name] = np.array(self.evts_counts)
         if is_turn:
             array_to_save = np.array(self.evt_durations) / self.fps
             if not hasattr(self, "boundary_event_durations"):

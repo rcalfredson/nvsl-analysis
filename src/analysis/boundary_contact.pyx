@@ -1860,7 +1860,7 @@ cdef class EllipseToBoundaryDistCalculator:
         boundary_contact = np.zeros(len(self.x))
         well_kwargs = {"wellLength": offset * self.va.ct.htl.value["ppmm"]} if offset else {}
         wells = self.va.ct.arenaWells(
-            self.va.xf, self.va.f + (0 if self.va.noyc else self.trj.f * self.va.nef),
+            self.va.xf, self.va.trxf[self.trj.f],
             **well_kwargs
         )
         self.ellipse_ref_pt = 'ctr'
