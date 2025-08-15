@@ -162,8 +162,6 @@ class VideoAnalysis:
         self._readNoteFile(fn)  # possibly overrides whether trajectories bad
         if opts.circle:
             self._analyzeCircularAndTurningMotion()
-        if opts.prefCircleSlideRad:
-            self._aggregate_slide_circle_metrics()
         self.runBoundaryContactAnalyses()
         if opts.jaabaOut:
             for trj in self.trx:
@@ -205,6 +203,10 @@ class VideoAnalysis:
             self.rewardsPerMinute()
             if opts.outside_circle_radii:
                 self.analyzeOutsideCirclePeriods()
+            if opts.prefCircleSlideRad:
+                self._aggregate_slide_circle_metrics()
+            if opts.rpd:
+                self._rewards_per_distance()
         for opt, evt_name in (
             ("wall", "wall_contact"),
             ("agarose", "agarose_contact"),
@@ -638,6 +640,58 @@ class VideoAnalysis:
                     (x, y), self.opts, (w, h, theta), len(self.trx), va=self, ts=ts
                 )
             )
+
+    def _rewards_per_distance(self):
+        print("\nrewards per distance traveled [m⁻¹]")
+        self.rwdsPerDist = []
+        exp_trj = self.trx[0]
+        ctrl_trj = self.trx[1] if len(self.trx) > 1 else None
+        num_displayed_buckets = 0
+
+        def _row(trj: Trajectory, trn: Training):
+            """Safe fetch of one training row"""
+            nonlocal num_displayed_buckets
+            df = self._numRewardsMsg(True, silent=True)
+            fi_start, n_buckets, _ = self._syncBucket(trn, df)
+            nan_row = [np.nan] * n_buckets
+            row = []
+
+            if trj is None or fi_start is None or getattr(trj, "_bad", True):
+                return nan_row
+
+            fi = fi_start
+            la = min(trn.stop, int(trn.start + n_buckets * df))
+            fiRi = util.none2val(self._idxSync(RI_START, trn, fi, la), la)
+            n_calc = self._countOnByBucket(
+                fi, la, df, calc=True, ctrl=False, f=trj.f, fiCount=fiRi
+            )
+
+            while fi + df < la:
+                i = len(row)
+
+                # get distance traveled in meters
+                dist_trav_meters = (
+                    trj.distTrav(fi, fi + df)
+                    / (self.xf.fctr * self.ct.pxPerMmFloor())
+                    / 1000
+                )
+
+                row.append(n_calc[i] / dist_trav_meters)
+
+                fi += df
+
+            num_displayed_buckets = max(num_displayed_buckets, len(row))
+            row.extend([np.nan] * (n_buckets - len(row)))
+            return row
+
+        for trn in self.trns:
+            print(trn.name())
+            rows = (_row(exp_trj, trn), _row(ctrl_trj, trn))
+            for i, row in enumerate(rows):
+                self._printBucketVals(
+                    row[:num_displayed_buckets], i, flyDesc(i), prec=2
+                )
+            self.rwdsPerDist.append(rows)
 
     def _aggregate_slide_circle_metrics(self):
         """Collate slide-circle %-in metrics from every Trajectory."""

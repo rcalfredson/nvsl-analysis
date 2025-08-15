@@ -131,6 +131,7 @@ TURN_LABEL = "turns per %s-contact event%s"
 TURN_DURATION_LABEL = "mean turn duration (s)%s"
 CONTACTLESS_RWDS_LABEL = "proportion contactless rewards, %s walls"
 REWARDS_IMG_FILE = "imgs/rewards__%s_min_buckets.png"
+RPD_IMG_FILE = "imgs/rewards_per_dist__%s_min_buckets.png"
 RUN_LENGTHS_IMG_FILE = "imgs/run_lengths.png"
 TURN_ANGLES_IMG_FILE = "imgs/turn_angles.png"
 HEATMAPS_IMG_FILE = "imgs/heatmaps%s.png"
@@ -198,6 +199,9 @@ p.add_argument(
 )
 
 g = p.add_argument_group("specialized analysis")
+g.add_argument(
+    "--rpd", action="store_true", help="analyze rewards by distance traveled"
+)
 g.add_argument(
     "--move",
     dest="move",
@@ -1023,6 +1027,8 @@ def headerForType(va, tp, calc):
         or "_turn" in tp
     ):
         return ""
+    elif tp == "rpd":
+        return ""
     elif tp == "ppi":
         return "\npositional PI (r*%s) by post bucket:" % util.formatFloat(
             opts.radiusMult, 2
@@ -1167,6 +1173,7 @@ def fliesForType(va, tp, calc=None):
             "wall",
             "psc_conc",
             "psc_shift",
+            "rpd",
         )
         or "r_no_contact" in tp
         or "dbr" in tp
@@ -1223,6 +1230,7 @@ def bucketLenForType(tp):
             "dbr",
             "com",
             "rpid",
+            "rpd",
             "max_ctr_d_no_contact",
             "psc_conc",
             "psc_shift",
@@ -1502,6 +1510,7 @@ def columnNamesForType(va, tp, calc, n):
             "max_ctr_d_no_contact",
             "psc_conc",
             "psc_shift",
+            "rpd",
         )
         or "_turn" in tp
         or "r_no_contact" in tp
@@ -1876,6 +1885,8 @@ def vaVarForType(va, tp, calc):
         return [flat_exp]
     elif tp == "dbr":
         return va.avgDistancesByBkt
+    elif tp == "rpd":
+        return va.rwdsPerDist
     elif tp == "com":
         # flatten syncCOMDist into (n_trns, n_flies * n_buckets)
         data = []
@@ -2147,12 +2158,10 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
     num_events = tp == "agarose"
     bnd_turn = "_turn" in tp
     visit_dur = "_dur" in tp
+    rpd = tp == "rpd"
     psc = tp in ("psc_conc", "psc_shift")
     pcm, turn_rad, pivot = tp == "pcm", tp == "turn", tp == "pivot"
     circle = pcm or turn_rad or pivot
-    txt_positioned_vert_mid = (
-        circle or bnd_contact or bnd_turn or "dbr" in tp or "no_contact" in tp
-    )
     post = nrp or rpip
     nnpb = va.rpiNumNonPostBuckets if rpip else va.numNonPostBuckets
     fs, ng = fliesForType(va, tp), gis.max() + 1
@@ -2177,9 +2186,13 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
     showSS = not P  # speed stats
     if "_dur" in tp or psc or num_events:
         showSS = False
-    firstVsLastBasedOnAxLim = circle or num_events or visit_dur or psc
+    useAxLimsForStatsVerticalAlignment = circle or num_events or visit_dur or psc or rpd
+    useDynamicAxisLims = circle or num_events or visit_dur or psc
+    useMidPlotAUCVerticalAlignment = (
+        circle or bnd_contact or bnd_turn or "dbr" in tp or rpd or "no_contact" in tp
+    )
     showAUC = (
-        not firstVsLastBasedOnAxLim
+        not useDynamicAxisLims
     )  # AUC text pending improved Y-position logic for plots with dynamic limits
     if showSS and vas:
         speed, stpFr = (
@@ -2195,6 +2208,8 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
         ylim = [0, 15]
     elif tp == "dbr":
         ylim = [0, 1600]
+    elif tp == "rpd":
+        ylim = [0, 100]
     elif tp == "dbr_no_contact":
         ylim = [0, 150]
     elif tp == "max_ctr_d_no_contact":
@@ -2447,7 +2462,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                                 all_line_vals.append([ys])
                     # AUC
                     if not (rpip) and showAUC and not opts.hidePltTests:
-                        if txt_positioned_vert_mid:
+                        if useMidPlotAUCVerticalAlignment:
                             yp = 0.8 * (ylim[1] - ylim[0])
                         else:
                             yp = -0.79 if nosym else pch(-0.55, -0.46)
@@ -2532,7 +2547,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                                 )
                                 yp -= (
                                     pch(0.14, 0.11)
-                                    if not txt_positioned_vert_mid
+                                    if not useMidPlotAUCVerticalAlignment
                                     else 0.05 * (ylim[1] - ylim[0])
                                 )
 
@@ -2598,8 +2613,8 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                         util.pltText(
                             xs[1],
                             (
-                                0.25 * (ylim[1] - ylim[0])
-                                if firstVsLastBasedOnAxLim
+                                0.90 * (ylim[1] - ylim[0])
+                                if useAxLimsForStatsVerticalAlignment
                                 else -0.7
                             ),
                             "1st bucket, t1 vs. t%d (n=%d): %s"
@@ -2613,7 +2628,11 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                         i1 = i * 2 + f1
                         util.pltText(
                             xs[1],
-                            -0.83 - f1 * 0.11,
+                            (
+                                (0.80 - 0.05 * f1) * (ylim[1] - ylim[0])
+                                if useAxLimsForStatsVerticalAlignment
+                                else -0.83 - f1 * 0.11
+                            ),
                             "%s: %s/s: %s, stop: %s"
                             % (
                                 flyDesc(f1),
@@ -2625,7 +2644,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                             color="0",
                         )
             # labels etc.
-            if firstVsLastBasedOnAxLim and mci_max is not None:
+            if useDynamicAxisLims and mci_max is not None:
                 if mci_max > ylim[1]:
                     plt.ylim([ylim[0], mci_max])
             if f == 0 or not joinF:
@@ -2672,6 +2691,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                         r_no_contact=CONTACTLESS_RWDS_LABEL,
                         rpid="reward index diff. (exp - yok)",
                         rpipd="post reward index diff. (exp - yok)",
+                        rpd="rewards per distance $[m^{-1}]$",
                     )
                     if opts.prefCircleSlideRad:
                         ylabels["psc_conc"] = PSC_LABEL % (
@@ -2798,6 +2818,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
         max_ctr_d_no_contact=MAX_DIST_REWARDS_FILE,
         psc_conc=PSC_CONC_IMG_FILE,
         psc_shift=PSC_SHIFT_IMG_FILE,
+        rpd=RPD_IMG_FILE,
     )
 
     if opts.turn:
@@ -4368,6 +4389,8 @@ def postAnalyze(vas):
         )
     if opts.prefCircleSlideRad:
         tcs += ("psc_conc", "psc_shift")
+    if opts.rpd:
+        tcs += ("rpd-c",)
     if not va.noyc and not va.choice:
         tcs += ("rpid", "rpipd")
     for opt in ("wall", "agarose", "boundary", "turn"):
@@ -4486,6 +4509,7 @@ def postAnalyze(vas):
                 in (
                     "rpi",
                     "rpip",
+                    "rpd-c",
                     "dbr",
                     "dbr_no_contact",
                     "agarose",
@@ -4546,7 +4570,9 @@ def postAnalyze(vas):
                 vas, trns, bl, customizer, gis, gls, "imgs", format=opts.imageFormat
             )
         elif tp in ("rpip", "rpipd"):
-            plotRewards(va, tp, a, trns, gis, gls)
+            plotRewards(va, tp, a, trns, gis, gls, vas)
+        elif tp in ("rpd",):
+            plotRewards(va, tp, a, trns, gis, gls, vas)
         elif (
             tp
             in (

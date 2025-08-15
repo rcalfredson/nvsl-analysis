@@ -52,5 +52,11 @@
             "reference": "reward_pi_diff__10_min_buckets_top_bottom_10pct_validation.png",
             "output": "reward_pi_diff__10_min_buckets.png"
         }
+    ],
+    "python analyze.py -v \"/media/Synology4/Yang Chen/2025-07-09/c[12]_*,/media/Synology4/Yang Chen/2025-07-08/c1*\" -f 0-19 --ayc --rpd": [
+        {
+            "reference": "rewards_per_dist__10_min_buckets.png",
+            "output": "rewards_per_dist__10_min_buckets.png"
+        }
     ]
 }
