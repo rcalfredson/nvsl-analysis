@@ -358,7 +358,7 @@ class DataCombiner:
                 while fi + df <= la:
                     self.calcRatio(j, fi, fi + df, resByTrn, asPct=asPct)
                     fi += df
-                self.va._append(getattr(self.va, SB)[i], resByTrn, 0, n - 1)
+                self.va._append(getattr(self.va, SB)[i], resByTrn, 0, n)
                 if silent:
                     continue
                 print(t.name())
@@ -368,7 +368,9 @@ class DataCombiner:
 
     def _visit_durations_in_range(self, region_slices, start, stop):
         return [
-            sl.stop - sl.start for sl in region_slices if sl.start >= start and sl.start < stop and sl.stop <= stop
+            sl.stop - sl.start
+            for sl in region_slices
+            if sl.start >= start and sl.start < stop and sl.stop <= stop
         ]
 
     def calcRatio(self, fIdx, fi, la, results, asPct=False):
@@ -415,7 +417,7 @@ class DataCombiner:
                 "desc": "body center",
             },
         }[tp]
-    
+
     def combineOnRegionVisitDurations(self, region_label, tp):
         """
         Calculates the mean duration (in seconds) of each visit across a region
@@ -429,7 +431,7 @@ class DataCombiner:
         """
         reg_caps = region_label.capitalize()
         base = f"on{reg_caps}Edge" if tp == "edge" else f"on{reg_caps}Ctr"
-        sv_name = f"{base}Dur"          # attribute stem for durations
+        sv_name = f"{base}Dur"  # attribute stem for durations
 
         # Attribute scaffolding
         SB, pre, post, postBB = [
@@ -442,10 +444,10 @@ class DataCombiner:
         # pre‑training range
         pre_intvl = slice(self.va.startPre, self.va.trns[0].start)
 
-        df = self.va._numRewardsMsg(True, silent=True)     # frames / bucket
+        df = self.va._numRewardsMsg(True, silent=True)  # frames / bucket
         for i, trn in enumerate(self.va.trns):
 
-            getattr(self.va, SB).append([])                # bucket container
+            getattr(self.va, SB).append([])  # bucket container
 
             # frame indices that define sync buckets in this training
             fi_start, n_buckets, _ = self.va._syncBucket(trn, df)
@@ -476,9 +478,7 @@ class DataCombiner:
                     visit_slices, pre_intvl.start, pre_intvl.stop
                 )
                 getattr(self.va, pre)[j].append(
-                    np.nan
-                    if len(pre_durs) == 0
-                    else self.va._f2s(np.mean(pre_durs))
+                    np.nan if len(pre_durs) == 0 else self.va._f2s(np.mean(pre_durs))
                 )
 
                 # post‑training mean (whole post period)
@@ -492,9 +492,7 @@ class DataCombiner:
                     visit_slices, post_start, post_end
                 )
                 getattr(self.va, post)[j].append(
-                    np.nan
-                    if len(post_durs) == 0
-                    else self.va._f2s(np.mean(post_durs))
+                    np.nan if len(post_durs) == 0 else self.va._f2s(np.mean(post_durs))
                 )
 
                 # post‑training, bucketed
@@ -504,9 +502,7 @@ class DataCombiner:
                         visit_slices, post_start, post_start + bucket_len
                     )
                     getattr(self.va, postBB)[j].append(
-                        np.nan
-                        if len(pb_durs) == 0
-                        else self.va._f2s(np.mean(pb_durs))
+                        np.nan if len(pb_durs) == 0 else self.va._f2s(np.mean(pb_durs))
                     )
                     post_start += bucket_len
 
@@ -514,9 +510,7 @@ class DataCombiner:
                 bucket_means = []
                 fi = fi_start
                 while fi + df <= la:
-                    sb_durs = self._visit_durations_in_range(
-                        visit_slices, fi, fi + df
-                    )
+                    sb_durs = self._visit_durations_in_range(visit_slices, fi, fi + df)
                     bucket_means.append(
                         np.nan if len(sb_durs) == 0 else self.va._f2s(np.mean(sb_durs))
                     )
@@ -620,6 +614,17 @@ class DataCombiner:
         flyMsg([len(visitList) for visitList in preTrnVisits], prec=0)
         print(f"Avg duration (secs) of visits across {region_label} border:")
         flyMsg([self.va._f2s(visitAvg) for visitAvg in visitAvgs], newline=True)
+
+        print(
+            f"\n% time spent past {region_label} border by training"
+            f' ({self.regionContactByTp(region_label, tp)["desc"]})'
+        )
+        for t in self.va.trns:
+            print(t.name())
+            for trj in self.va.trx:
+                self.va._printBucketVals(
+                    sb[i][trj.f], trj.f, msg=flyDesc(trj.f), prec=2
+                )
 
     def combineCircleResults(self):
         """

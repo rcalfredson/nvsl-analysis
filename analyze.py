@@ -113,6 +113,7 @@ CIRCULAR_MOTION_IMG_FILE = "imgs/circular_motion__%s_min_buckets.png"
 PIVOT_IMG_FILE = "imgs/pivots__%s_min_buckets.png"
 CONTACT_EVENT_IMG_FILE = "imgs/%s_%s_contact__%%s_min_buckets.png"
 CONTACT_EVENT_PER_RWD_IMG_FILE = "imgs/%s_%s_contact_per_rwd__%%s_min_buckets.png"
+CONTACT_EVENT_PCT_TIME_IMG_FILE = "imgs/%s_%s_pct_time__%%s_min_buckets.png"
 CONTACT_EVENT_DURATION_IMG_FILE = "imgs/%s_%s_contact_duration__%%s_min_buckets.png"
 DIST_BTWN_REWARDS_FILE = "imgs/dist_btwn_%srewards__%%s_min_buckets.png"
 DIST_BTWN_REWARDS_HIST_FILE = "imgs/trajectory_len_dist%s.png"
@@ -1079,11 +1080,23 @@ def headerForType(va, tp, calc):
         return "\naverage stop fraction:"
     elif tp == "rpm":
         return "\nrewards per minute:"
-    elif tp.startswith("agarose_pct_") or tp.startswith("boundary_pct_"):
+    elif tp in (
+        "agarose_pct_edge",
+        "agarose_pct_edge_csv",
+        "agarose_pct_ctr",
+        "agarose_pct_ctr_csv",
+        "boundary_pct_edge",
+        "boundary_pct_edge_csv",
+        "boundary_pct_ctr",
+        "boundary_pct_ctr_csv",
+    ):
+        tp_split = tp.split("_")
+        region_tp = tp_split[0]
+        contact_tp = tp_split[2]
         calc_method = {"ctr": "body center", "edge": "edge of fitted ellipse"}[
-            tp.split("_")[-1]
+            contact_tp
         ]
-        is_agarose = tp.startswith("agarose")
+        is_agarose = region_tp == "agarose"
 
         return (
             f"\n% time {'over agarose' if is_agarose else 'past border'} (contact events begin when"
@@ -1173,6 +1186,10 @@ def fliesForType(va, tp, calc=None):
             "com",
             "agarose",
             "agarose_per_rwd",
+            "agarose_pct_edge",
+            "agarose_pct_ctr",
+            "boundary_pct_edge",
+            "boundary_pct_ctr",
             "boundary",
             "wall",
             "psc_conc",
@@ -1230,6 +1247,10 @@ def bucketLenForType(tp):
             "pivot",
             "agarose",
             "agarose_per_rwd",
+            "agarose_pct_edge",
+            "agarose_pct_ctr",
+            "boundary_pct_edge",
+            "boundary_pct_ctr",
             "boundary",
             "wall",
             "dbr",
@@ -1470,10 +1491,12 @@ def columnNamesForType(va, tp, calc, n):
             "agarose_csv",
             "boundary_csv",
             "wall_csv",
+            "agarose_pct_edge_csv",
+            "agarose_pct_ctr_csv",
+            "boundary_pct_edge_csv",
+            "boundary_pct_ctr_csv",
         )
         or ("r_no_contact" in tp and "csv" in tp)
-        or "agarose_pct" in tp
-        or "boundary_pct" in tp
         or "agarose_turn_csv" in tp
         or "agarose_turn_dir_csv" in tp
         or "boundary_turn_csv" in tp
@@ -1560,7 +1583,14 @@ def columnNamesForType(va, tp, calc, n):
             ),
             entireTrn=True,
         )
-    elif tp in ("rpd", "com_csv"):
+    elif tp in (
+        "rpd",
+        "com_csv",
+        "agarose_pct_edge",
+        "agarose_pct_ctr",
+        "boundary_pct_edge",
+        "boundary_pct_ctr",
+    ):
         # Use T1 to define the base block; writer will duplicate across trainings.
         df = va._numRewardsMsg(True, silent=True)
         _, n_buckets, _ = va._syncBucket(va.trns[0], df)
@@ -1965,10 +1995,18 @@ def vaVarForType(va, tp, calc):
         return va.boundary_events["agarose_contact"]
     elif tp == "bot_top_cross":
         return va.botToTopCrossings
-    elif "agarose_pct" in tp or "boundary_pct" in tp:
+    elif tp in ("agarose_pct_edge", "agarose_pct_ctr"):
+        ref_pt = tp.split("_")[-1]
+        return getattr(va, f'onAgarose{"" if ref_pt == "edge" else "Ctr"}SB')
+    elif tp in (
+        "agarose_pct_edge_csv",
+        "agarose_pct_ctr_csv",
+        "boundary_pct_edge_csv",
+        "boundary_pct_ctr_csv",
+    ):
         tp_split = tp.split("_")
-        region_tp = "_".join(tp_split[:-2])
-        contact_tp = tp_split[-1]
+        region_tp = "_".join(tp_split[:-3])
+        contact_tp = tp_split[-2]
         return [va.regionPercentagesCsv[region_tp][contact_tp]]
     elif "agarose_dur" in tp:
         tp_split = tp.split("_")
@@ -2165,6 +2203,12 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
     bnd_contact = tp in ("wall", "agarose", "boundary")
     num_events = tp == "agarose"
     evts_per_rwd = tp == "agarose_per_rwd"
+    pct_time = tp in (
+        "agarose_pct_edge",
+        "agarose_pct_ctr",
+        "boundary_pct_edge",
+        "boundary_pct_ctr",
+    )
     bnd_turn = "_turn" in tp
     visit_dur = "_dur" in tp
     rpd = tp == "rpd"
@@ -2196,13 +2240,14 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
     if "_dur" in tp or psc or num_events:
         showSS = False
     useAxLimsForStatsVerticalAlignment = (
-        circle or num_events or evts_per_rwd or visit_dur or psc or rpd
+        circle or num_events or evts_per_rwd or pct_time or visit_dur or psc or rpd
     )
     useDynamicAxisLims = circle or num_events or visit_dur or psc
     useMidPlotAUCVerticalAlignment = (
         circle
         or bnd_contact
         or evts_per_rwd
+        or pct_time
         or bnd_turn
         or "dbr" in tp
         or rpd
@@ -2237,6 +2282,8 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
         else:
             ylim = [0, 2]
     elif tp in ("psc_conc", "psc_shift"):
+        ylim = [0, 100]
+    elif pct_time:
         ylim = [0, 100]
     elif tp.startswith("agarose_dur") or tp.startswith("boundary_dur"):
         ylim = [0, 5]
@@ -2757,6 +2804,10 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                                 "%s contact duration (s)\n(%s ellipse ref. pt.)"
                                 % (boundary_tp, ellipse_ref_pt)
                             )
+                            ylabels[f"{boundary_tp}_pct_{ellipse_ref_pt}"] = (
+                                f"% time {'over agarose' if boundary_tp == 'agarose' else 'past boundary'}\n"
+                                f"(ellipse {'center' if ellipse_ref_pt == 'ctr' else 'edge'})"
+                            )
                     y_label_tp = tp
                     if y_label_tp.startswith("ctr_") or y_label_tp.startswith("edge_"):
                         y_label_tp = "_".join(y_label_tp.split("_")[1:])
@@ -2888,6 +2939,9 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
             if bnd in ("agarose", "boundary"):
                 imgFiles[f"{bnd}_dur_{ellipse_ref_pt}"] = (
                     CONTACT_EVENT_DURATION_IMG_FILE % (ellipse_ref_pt, bnd)
+                )
+                imgFiles[f"{bnd}_pct_{ellipse_ref_pt}"] = (
+                    CONTACT_EVENT_PCT_TIME_IMG_FILE % (ellipse_ref_pt, bnd)
                 )
     imgFiles["agarose_per_rwd"] = CONTACT_EVENT_PER_RWD_IMG_FILE % ("edge", "agarose")
     if customizer.customized:
@@ -4440,7 +4494,13 @@ def postAnalyze(vas):
                 for boundary_orientation in ("all", "agarose_adj"):
                     tcs += ("r_no_contact_%s" % boundary_orientation,)
             elif opt == "agarose":
-                tcs += ("agarose_dur_edge", "agarose_dur_ctr", "agarose_per_rwd")
+                tcs += (
+                    "agarose_dur_edge",
+                    "agarose_dur_ctr",
+                    "agarose_per_rwd",
+                    "agarose_pct_edge",
+                    "agarose_pct_ctr",
+                )
 
     saved_bottom = saved_top = None
     for tc in tcs:
@@ -4592,7 +4652,7 @@ def postAnalyze(vas):
             )
         elif tp in ("rpip", "rpipd"):
             plotRewards(va, tp, a, trns, gis, gls, vas)
-        elif tp in ("rpd", "agarose_per_rwd"):
+        elif tp in ("rpd", "agarose_per_rwd", "agarose_pct_edge", "agarose_pct_ctr"):
             for i, t in enumerate(trns):
                 last_bkt = nb
                 a0 = a[:, i, 0]
@@ -4885,15 +4945,19 @@ def writeStats(vas, sf):
     if opts.agarose:
         analysis_types += (
             "agarose_csv",
-            "agarose_pct_edge",
-            "agarose_pct_ctr",
+            "agarose_pct_edge_csv",
+            "agarose_pct_ctr_csv",
             "agarose_dur_edge_csv",
             "agarose_dur_ctr_csv",
         )
         analysis_types_with_training_number_columns.extend(analysis_types[-4:])
 
     if opts.boundary:
-        analysis_types += ("boundary_csv", "boundary_pct_edge", "boundary_pct_ctr")
+        analysis_types += (
+            "boundary_csv",
+            "boundary_pct_edge_csv",
+            "boundary_pct_ctr_csv",
+        )
         analysis_types_with_training_number_columns.extend(analysis_types[-2:])
 
     if opts.turn:
