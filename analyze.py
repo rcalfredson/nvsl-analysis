@@ -1028,7 +1028,7 @@ def headerForType(va, tp, calc):
     ):
         return ""
     elif tp == "rpd":
-        return ""
+        return "\nrewards per distance traveled [m⁻¹]"
     elif tp == "ppi":
         return "\npositional PI (r*%s) by post bucket:" % util.formatFloat(
             opts.radiusMult, 2
@@ -1510,7 +1510,6 @@ def columnNamesForType(va, tp, calc, n):
             "max_ctr_d_no_contact",
             "psc_conc",
             "psc_shift",
-            "rpd",
         )
         or "_turn" in tp
         or "r_no_contact" in tp
@@ -1556,7 +1555,7 @@ def columnNamesForType(va, tp, calc, n):
             ),
             entireTrn=True,
         )
-    elif tp == "com_csv":
+    elif tp in ("rpd", "com_csv"):
         # Use T1 to define the base block; writer will duplicate across trainings.
         df = va._numRewardsMsg(True, silent=True)
         _, n_buckets, _ = va._syncBucket(va.trns[0], df)
@@ -4572,6 +4571,14 @@ def postAnalyze(vas):
         elif tp in ("rpip", "rpipd"):
             plotRewards(va, tp, a, trns, gis, gls, vas)
         elif tp in ("rpd",):
+            for i, t in enumerate(trns):
+                last_bkt = nb
+                a0 = a[:, i, 0]
+                a1 = a[:, i, last_bkt - 1]
+                if np.all(np.isnan(a1)):
+                    last_bkt -= 1
+                    a1 = a[:, i, last_bkt - 1]
+                ttest_rel(a0, a1, "%s, bucket #%d vs. #%d" % (t.name(), 1, last_bkt))
             plotRewards(va, tp, a, trns, gis, gls, vas)
         elif (
             tp
@@ -4892,6 +4899,9 @@ def writeStats(vas, sf):
         # IMPORTANT: do NOT add these to analysis_types_with_training_number_columns
         # so we avoid pairwise/quadruple exclusion rules and let
         # duplicateColumnsAcrossTrns() do the per-training expansion.
+
+    if opts.rpd:
+        analysis_types += ("rpd",)
 
     analysis_types_with_quadruple_exclusion = [
         tp for tp in analysis_types if "turn_dir_csv" in tp

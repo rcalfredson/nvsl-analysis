@@ -691,7 +691,7 @@ class VideoAnalysis:
                 self._printBucketVals(
                     row[:num_displayed_buckets], i, flyDesc(i), prec=2
                 )
-            self.rwdsPerDist.append(rows)
+            self.rwdsPerDist.extend(rows)
 
     def _aggregate_slide_circle_metrics(self):
         """Collate slide-circle %-in metrics from every Trajectory."""
