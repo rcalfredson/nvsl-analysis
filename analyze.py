@@ -112,6 +112,7 @@ ANALYSIS_IMG_FILE = "imgs/analysis.png"
 CIRCULAR_MOTION_IMG_FILE = "imgs/circular_motion__%s_min_buckets.png"
 PIVOT_IMG_FILE = "imgs/pivots__%s_min_buckets.png"
 CONTACT_EVENT_IMG_FILE = "imgs/%s_%s_contact__%%s_min_buckets.png"
+CONTACT_EVENT_PER_RWD_IMG_FILE = "imgs/%s_%s_contact_per_rwd__%%s_min_buckets.png"
 CONTACT_EVENT_DURATION_IMG_FILE = "imgs/%s_%s_contact_duration__%%s_min_buckets.png"
 DIST_BTWN_REWARDS_FILE = "imgs/dist_btwn_%srewards__%%s_min_buckets.png"
 DIST_BTWN_REWARDS_HIST_FILE = "imgs/trajectory_len_dist%s.png"
@@ -1027,8 +1028,10 @@ def headerForType(va, tp, calc):
         or "_turn" in tp
     ):
         return ""
+    elif tp == "agarose_per_rwd":
+        return "\nagarose contact events per reward:"
     elif tp == "rpd":
-        return "\nrewards per distance traveled [m⁻¹]"
+        return "\nrewards per distance traveled [m⁻¹]:"
     elif tp == "ppi":
         return "\npositional PI (r*%s) by post bucket:" % util.formatFloat(
             opts.radiusMult, 2
@@ -1169,6 +1172,7 @@ def fliesForType(va, tp, calc=None):
             "stp",
             "com",
             "agarose",
+            "agarose_per_rwd",
             "boundary",
             "wall",
             "psc_conc",
@@ -1225,6 +1229,7 @@ def bucketLenForType(tp):
             "turn",
             "pivot",
             "agarose",
+            "agarose_per_rwd",
             "boundary",
             "wall",
             "dbr",
@@ -1567,6 +1572,8 @@ def columnNamesForType(va, tp, calc, n):
             fly_label = f"{flyDesc(f)}"
             col_blocks.extend(f"{fly_label} b{i + 1}" for i in range(n_buckets))
         return tuple(col_blocks)
+    elif tp == "agarose_per_rwd":
+        return None
     elif tp in ("psc_conc_csv", "psc_shift_csv"):
         # Use T1 to define the base block; writer will duplicate across trainings.
         df = va._numRewardsMsg(True, silent=True)
@@ -1954,6 +1961,8 @@ def vaVarForType(va, tp, calc):
         return va.boundary_events["%s_contact" % tp][
             :, va.wall_orientation_idx :: len(va.wall_orientations), :
         ]
+    elif tp == "agarose_per_rwd":
+        return va.boundary_events["agarose_contact"]
     elif tp == "bot_top_cross":
         return va.botToTopCrossings
     elif "agarose_pct" in tp or "boundary_pct" in tp:
@@ -2155,6 +2164,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
     diff_tp = r_diff or "exp_min_yok" in tp
     bnd_contact = tp in ("wall", "agarose", "boundary")
     num_events = tp == "agarose"
+    evts_per_rwd = tp == "agarose_per_rwd"
     bnd_turn = "_turn" in tp
     visit_dur = "_dur" in tp
     rpd = tp == "rpd"
@@ -2185,14 +2195,22 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
     showSS = not P  # speed stats
     if "_dur" in tp or psc or num_events:
         showSS = False
-    useAxLimsForStatsVerticalAlignment = circle or num_events or visit_dur or psc or rpd
+    useAxLimsForStatsVerticalAlignment = (
+        circle or num_events or evts_per_rwd or visit_dur or psc or rpd
+    )
     useDynamicAxisLims = circle or num_events or visit_dur or psc
     useMidPlotAUCVerticalAlignment = (
-        circle or bnd_contact or bnd_turn or "dbr" in tp or rpd or "no_contact" in tp
+        circle
+        or bnd_contact
+        or evts_per_rwd
+        or bnd_turn
+        or "dbr" in tp
+        or rpd
+        or "no_contact" in tp
     )
     showAUC = (
         not useDynamicAxisLims
-    )  # AUC text pending improved Y-position logic for plots with dynamic limits
+    )  # improved AUC text placement for plots with dynamic limits still pending
     if showSS and vas:
         speed, stpFr = (
             np.array([getattr(va, k) for va in vas]) for k in ("speed", "stopFrac")
@@ -2222,6 +2240,8 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
         ylim = [0, 100]
     elif tp.startswith("agarose_dur") or tp.startswith("boundary_dur"):
         ylim = [0, 5]
+    elif tp == "agarose_per_rwd":
+        ylim = [0, 15]
     elif r_diff:
         ylim = [-0.25, 2.0]
     else:
@@ -2681,6 +2701,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                         pcm="proportion circular motion",
                         wall="wall-contact events per reward",
                         agarose="agarose contact events",
+                        agarose_per_rwd="agarose contact events per reward",
                         boundary="boundary contact events",
                         dbr=DIST_BTWN_REWARDS_LABEL % "",
                         dbr_no_contact=DIST_BTWN_REWARDS_LABEL
@@ -2868,6 +2889,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                 imgFiles[f"{bnd}_dur_{ellipse_ref_pt}"] = (
                     CONTACT_EVENT_DURATION_IMG_FILE % (ellipse_ref_pt, bnd)
                 )
+    imgFiles["agarose_per_rwd"] = CONTACT_EVENT_PER_RWD_IMG_FILE % ("edge", "agarose")
     if customizer.customized:
         customizer.adjust_padding_proportionally()
     writeImage(imgFiles[tp] % blf, format=opts.imageFormat)
@@ -4418,7 +4440,7 @@ def postAnalyze(vas):
                 for boundary_orientation in ("all", "agarose_adj"):
                     tcs += ("r_no_contact_%s" % boundary_orientation,)
             elif opt == "agarose":
-                tcs += ("agarose_dur_edge", "agarose_dur_ctr")
+                tcs += ("agarose_dur_edge", "agarose_dur_ctr", "agarose_per_rwd")
 
     saved_bottom = saved_top = None
     for tc in tcs:
@@ -4570,7 +4592,7 @@ def postAnalyze(vas):
             )
         elif tp in ("rpip", "rpipd"):
             plotRewards(va, tp, a, trns, gis, gls, vas)
-        elif tp in ("rpd",):
+        elif tp in ("rpd", "agarose_per_rwd"):
             for i, t in enumerate(trns):
                 last_bkt = nb
                 a0 = a[:, i, 0]

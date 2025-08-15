@@ -2697,7 +2697,7 @@ class VideoAnalysis:
                                     contactless_trajectory_lengths,
                                     contactless_max_dists,
                                 )
-                        else:
+                        else:  # handle turns
                             num_turns = len(idxs_all[mask_for_indexing])
                             num_contacts = len(
                                 contact_idxs[
