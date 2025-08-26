@@ -1091,7 +1091,7 @@ def headerForType(va, tp, calc):
     elif tp == "rpd_auc_csv":
         return '\n"AUC of rewards per distance (exp and yoked control), by training:"'
     elif tp == "com_auc_csv":
-        return '\n"AUC of median distance to rwd. circle center (exp and yoked control), training:"'
+        return '\n"AUC of median distance to rwd. circle center (exp and yoked control), by training:"'
     elif tp == "rpid_auc_csv":
         return '\n"AUC of reward PI difference (exp - yoked), by training"'
     else:
