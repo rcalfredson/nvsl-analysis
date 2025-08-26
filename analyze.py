@@ -49,9 +49,10 @@ from statsmodels.stats.multitest import multipletests
 
 # custom modules and functions
 from src.utils.common import (
+    areaUnderCurve,
     CT,
     cVsA_l,
-    adjustLegend,
+    flatten_auc_entries,
     flyDesc,
     is_nan,
     pch,
@@ -68,6 +69,7 @@ from src.utils.constants import (
     HEATMAP_DIV,
     POST_SYNC,
     RDP_MIN_TURNS,
+    SAVE_AUC_TYPES,
     SPEED_ON_BOTTOM,
     ST,
 )
@@ -871,43 +873,6 @@ def pcap(s):
     return s[:1].upper() + s[1:] if P else s
 
 
-def areaUnderCurve(a):
-    """
-    Calculates the area under the curve (AUC) for each row in the input array, handling missing
-    values by returning NaN for rows entirely composed of NaNs.
-
-    This function computes the AUC using the trapezoidal rule across all columns for each row
-    in the input 2D array `a`. If the last column of a row consists entirely of NaN values,
-    these are ignored in the computation. This is particularly useful for processing data where
-    some rows may have missing or incomplete measurements.
-
-    Parameters:
-    - a : numpy.ndarray
-        A 2D numpy array where each row represents a sequence of values for which the AUC is
-        to be calculated.
-
-    Returns:
-    - numpy.ndarray
-        A 1D numpy array of the same length as the number of rows in `a`, containing the AUC
-        for each row. Rows entirely composed of NaNs are assigned NaN in the result.
-
-    Raises:
-    - AssertionError
-        If the numpy operation to check for NaN values in the trapezoidal calculation fails.
-        This serves as a sanity check for the input data's compatibility with the calculation
-        method.
-
-    Note:
-    - This function is designed to work with numerical data where measurements might be missing
-      or incomplete. It utilizes `numpy.trapz` for the AUC calculation, assuming that the input
-      array `a` is properly formatted as a 2D numpy array.
-    """
-    if np.all(np.isnan(a[:, -1])):
-        a = a[:, :-1]
-    assert np.isnan(np.trapz([1, np.nan]))
-    return np.trapz(a, axis=1)
-
-
 def headerForType(va, tp, calc):
     """
     Generate a header string for a specified report type.
@@ -1123,6 +1088,12 @@ def headerForType(va, tp, calc):
     elif tp in ("psc_conc_csv", "psc_shift_csv"):
         which = "concentric" if tp == "psc_conc_csv" else "shifted (2 cm down)"
         return f'\n"% time in slide circle ({which}), experimental fly only, by sync bucket:"'
+    elif tp == "rpd_auc_csv":
+        return '\n"AUC of rewards per distance (exp and yoked control), by training:"'
+    elif tp == "com_auc_csv":
+        return '\n"AUC of median distance to rwd. circle center (exp and yoked control), training:"'
+    elif tp == "rpid_auc_csv":
+        return '\n"AUC of reward PI difference (exp - yoked), by training"'
     else:
         raise ArgumentError(tp)
 
@@ -1627,6 +1598,18 @@ def columnNamesForType(va, tp, calc, n):
             extendedPost=False,
             intersperseExpYok=True,
         )
+    elif tp in ("rpd_auc_csv", "com_auc_csv"):
+        # One AUC per training, per fly (exp / ctrl if yoked available)
+        col_blocks = []
+        has_ctrl = len(va.flies) > 1
+        for t in va.trns:
+            col_blocks.append(f"T{t.n} (exp)")
+            if has_ctrl:
+                col_blocks.append(f"T{t.n} (ctrl)")
+        return tuple(col_blocks)
+    elif tp == "rpid_auc_csv":
+        # One AUC per training (exp - yoked difference)
+        return tuple(f"T{t.n}" for t in va.trns)
     else:
         raise ArgumentError(tp)
 
@@ -2049,6 +2032,8 @@ def vaVarForType(va, tp, calc):
             return va.boundary_events[tp]
         if "ctr" in tp or "edge" in tp:
             return va.boundary_events[tp]
+    elif tp in ("rpd_auc_csv", "com_auc_csv", "rpid_auc_csv"):
+        return flatten_auc_entries(va, tp.replace("_auc_csv", ""))
     else:
         raise ArgumentError(tp)
 
@@ -2169,7 +2154,7 @@ def drawLegend(ng, nf, nrp, gls, customizer):
     return plt.legend(**kwargs)
 
 
-def plotRewards(va, tp, a, trns, gis, gls, vas=None):
+def plotRewards(va, tp, a, trns, gis, gls, vas=None, save_auc_types=None):
     """
     Plots reward data from Drosophila behavior analysis.
 
@@ -2212,6 +2197,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
     bnd_turn = "_turn" in tp
     visit_dur = "_dur" in tp
     rpd = tp == "rpd"
+    auc_to_csv = r_diff or rpd
     psc = tp in ("psc_conc", "psc_shift")
     pcm, turn_rad, pivot = tp == "pcm", tp == "turn", tp == "pivot"
     circle = pcm or turn_rad or pivot
@@ -2534,7 +2520,10 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                             yp = -0.79 if nosym else pch(-0.55, -0.46)
                         printed_header = False
                         for btwn in pch((False,), (False, True)):
-                            if nosym and not btwn or nf == 1 and btwn:
+                            # Skip when not saving AUCs or when control symmetry / single-fly make btwn invalid
+                            cond1 = (not auc_to_csv) or btwn
+                            cond2 = (nosym and not btwn) or (nf == 1 and btwn)
+                            if cond1 and cond2:
                                 continue
                             a_ = tuple(
                                 areaUnderCurve(getVals(x, None, btwn)) for x in (0, 1)
@@ -2543,6 +2532,26 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None):
                                 tas[btwn] = a_
                             else:
                                 tas[btwn] = util.tupleAdd(tas[btwn], a_)
+                            if save_auc_types and tp in save_auc_types and not btwn:
+                                for g in range(ng):
+                                    vis = np.flatnonzero(gis == g)
+                                    exp_aucs = areaUnderCurve(
+                                        getVals(g, None, btwn, f1=0)
+                                    )
+                                    ctrl_aucs = (
+                                        areaUnderCurve(getVals(g, None, btwn, f1=1))
+                                        if nf > 1 and tp != "rpid"
+                                        else np.full_like(exp_aucs, np.nan)
+                                    )
+                                    for local_idx, vid_idx in enumerate(vis):
+                                        va_i = vas[vid_idx]
+                                        va_i.saved_auc.setdefault(tp, []).append(
+                                            {
+                                                "training": i,
+                                                "exp": exp_aucs[local_idx],
+                                                "ctrl": ctrl_aucs[local_idx],
+                                            }
+                                        )
                             for tot in (False, True):
                                 if i == 0 and tot:
                                     continue
@@ -4616,7 +4625,7 @@ def postAnalyze(vas):
                 if t.hasSymCtrl():
                     for j, cn in enumerate(cns or []):
                         ttest_1samp(a_for_ttest[:, i, j], 0, "%s %s" % (t.name(), cn))
-            plotRewards(va, tp, a, trns, gis, gls, vas)
+            plotRewards(va, tp, a, trns, gis, gls, vas, save_auc_types=SAVE_AUC_TYPES)
             if len(trns) > 1 and all(t.hasSymCtrl() for t in trns[:2]):
                 test_hdr = "first sync bucket, training 1 vs. 2"
                 if tp == "rpid":
@@ -4661,7 +4670,7 @@ def postAnalyze(vas):
                     last_bkt -= 1
                     a1 = a[:, i, last_bkt - 1]
                 ttest_rel(a0, a1, "%s, bucket #%d vs. #%d" % (t.name(), 1, last_bkt))
-            plotRewards(va, tp, a, trns, gis, gls, vas)
+            plotRewards(va, tp, a, trns, gis, gls, vas, save_auc_types=SAVE_AUC_TYPES)
         elif (
             tp
             in (
@@ -4843,6 +4852,8 @@ def writeStats(vas, sf):
     print("\nwriting %s..." % STATS_FILE)
 
     def should_apply_pairwise_exclusion(va, tp, col_index=None):
+        if tp in ("com_auc_csv", "rpd_auc_csv", "rpid_auc_csv"):
+            return False
         if col_index is not None:
             # Skip pairwise exclusion for the first pair in specific tables
             if tp in ["agarose_pct_edge", "agarose_pct_ctr"] and col_index == 0:
@@ -4982,12 +4993,19 @@ def writeStats(vas, sf):
 
     if hasattr(va, "syncMedDist") and va.syncMedDist:
         analysis_types += ("com_csv",)
-        # IMPORTANT: do NOT add these to analysis_types_with_training_number_columns
-        # so we avoid pairwise/quadruple exclusion rules and let
-        # duplicateColumnsAcrossTrns() do the per-training expansion.
+        if "com" in SAVE_AUC_TYPES:
+            analysis_types += ("com_auc_csv",)
+            analysis_types_with_training_number_columns.append(analysis_types[-1])
 
     if opts.rpd:
         analysis_types += ("rpd",)
+        if "rpd" in SAVE_AUC_TYPES:
+            analysis_types += ("rpd_auc_csv",)
+            analysis_types_with_training_number_columns.append(analysis_types[-1])
+
+    if "rpid" in SAVE_AUC_TYPES:
+        analysis_types += ("rpid_auc_csv",)
+        analysis_types_with_training_number_columns.append(analysis_types[-1])
 
     analysis_types_with_quadruple_exclusion = [
         tp for tp in analysis_types if "turn_dir_csv" in tp

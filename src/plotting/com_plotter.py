@@ -4,7 +4,8 @@ from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 
 from src.plotting.plot_customizer import PlotCustomizer
-from src.utils.common import ttest_ind, writeImage
+from src.utils.common import areaUnderCurve, ttest_ind, writeImage
+from src.utils.constants import SAVE_AUC_TYPES
 from src.utils.util import meanConfInt, p2stars, slugify
 
 
@@ -135,6 +136,25 @@ def plot_com_distance(
             com4[vid, t_idx, 0, : len(dist_dict["exp"])] = dist_dict["exp"]
             if has_ctrl and "ctrl" in dist_dict and dist_dict["ctrl"]:
                 com4[vid, t_idx, 1, : len(dist_dict["ctrl"])] = dist_dict["ctrl"]
+
+    # optionally save AUC results
+    if "com" in SAVE_AUC_TYPES:
+        for vid, va in enumerate(vas):
+            for t_idx in range(n_trns):
+                exp_vals = com4[vid, t_idx, 0, :]
+                if np.all(np.isnan(exp_vals)):
+                    continue
+                exp_auc = areaUnderCurve(exp_vals[np.newaxis, :])[0]
+
+                if com4.shape[2] > 1:
+                    ctrl_vals = com4[vid, t_idx, 1, :]
+                    ctrl_auc = areaUnderCurve(ctrl_vals[np.newaxis, :])[0]
+                else:
+                    ctrl_auc = np.nan
+
+                va.saved_auc.setdefault("com", []).append(
+                    {"training": t_idx, "exp": exp_auc, "ctrl": ctrl_auc}
+                )
 
     # ----- 2) grouping logic -----
     multi_group = gis is not None and gls is not None and len(set(gis)) > 1
