@@ -64,6 +64,43 @@ def propagate_nans(array):
     return array
 
 
+def areaUnderCurve(a):
+    """
+    Calculates the area under the curve (AUC) for each row in the input array, handling missing
+    values by returning NaN for rows entirely composed of NaNs.
+
+    This function computes the AUC using the trapezoidal rule across all columns for each row
+    in the input 2D array `a`. If the last column of a row consists entirely of NaN values,
+    these are ignored in the computation. This is particularly useful for processing data where
+    some rows may have missing or incomplete measurements.
+
+    Parameters:
+    - a : numpy.ndarray
+        A 2D numpy array where each row represents a sequence of values for which the AUC is
+        to be calculated.
+
+    Returns:
+    - numpy.ndarray
+        A 1D numpy array of the same length as the number of rows in `a`, containing the AUC
+        for each row. Rows entirely composed of NaNs are assigned NaN in the result.
+
+    Raises:
+    - AssertionError
+        If the numpy operation to check for NaN values in the trapezoidal calculation fails.
+        This serves as a sanity check for the input data's compatibility with the calculation
+        method.
+
+    Note:
+    - This function is designed to work with numerical data where measurements might be missing
+      or incomplete. It utilizes `numpy.trapz` for the AUC calculation, assuming that the input
+      array `a` is properly formatted as a 2D numpy array.
+    """
+    if np.all(np.isnan(a[:, -1])):
+        a = a[:, :-1]
+    assert np.isnan(np.trapz([1, np.nan]))
+    return np.trapz(a, axis=1)
+
+
 # dict utilities
 def deep_access(x, attr, keylist, new_val=None):
     val = getattr(x, attr)
@@ -77,6 +114,20 @@ def deep_access(x, attr, keylist, new_val=None):
                 continue
         val = val[key]
     return val
+
+
+def flatten_auc_entries(va, tp):
+    """
+    Flatten va.saved_auc[tp] into a single-row list for CSV writing.
+    """
+    row = []
+    if tp in va.saved_auc:
+        for auc_entry in va.saved_auc[tp]:
+            if tp == "rpid":  # exp - yoked; only one value per training
+                row.extend([auc_entry["exp"]])
+            else:  # rpd or com
+                row.extend([auc_entry["exp"], auc_entry["ctrl"]])
+    return [row]
 
 
 # chamber type

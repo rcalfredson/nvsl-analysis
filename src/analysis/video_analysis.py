@@ -159,6 +159,7 @@ class VideoAnalysis:
         if opts.wall or opts.boundary or opts.agarose:
             opts.chooseOrientations = True
         self._initTrx()
+        self._initSlots()
         self._readNoteFile(fn)  # possibly overrides whether trajectories bad
         if opts.circle:
             self._analyzeCircularAndTurningMotion()
@@ -602,6 +603,12 @@ class VideoAnalysis:
         )
         # note: also used for "choice type" open-loop protocols
         self._createExtractChamber()
+
+    def _initSlots(self):
+        """
+        Initializes attributes used as save slots for derived results (e.g., area under curve for different analysis types)
+        """
+        self.saved_auc = {}
 
     def _initTrx(self):
         """
