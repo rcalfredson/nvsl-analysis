@@ -1780,6 +1780,21 @@ def readFrame(cap, n):
     return frm
 
 
+def average_frames(cap, center_f, n=10):
+    frames = []
+    start = max(center_f - n, 0)
+    stop = center_f + n
+    for f in range(start, stop + 1):
+        try:
+            frames.append(readFrame(cap, f).astype(np.float32))
+        except VideoError:
+            continue
+    if not frames:
+        raise VideoError(f"could not read any frames around {center_f}")
+    avg = np.mean(frames, axis=0).astype(np.uint8)
+    return avg
+
+
 # sets the current position for the given VideoCapture
 def setPosFrame(cap, n=0):
     capProp(cap, "POS_FRAMES", n)

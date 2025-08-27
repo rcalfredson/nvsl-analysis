@@ -19,7 +19,7 @@ import src.utils.util as util
 from src.utils.util import VideoError, COL_BK, COL_O, COL_Y, COL_W
 
 N_TRX_DEFAULT = 24
-TRX_IMG_FILE2 = "imgs/%s__t%d_b%d%s.png"
+TRX_IMG_FILE2 = "imgs/%s__t%d_b%d_f%d%s.png"
 
 
 class TrxPlotter:
@@ -303,6 +303,8 @@ class TrxPlotter:
         self.hm = "hm" in mode
         if mode == "grid":
             self._plot_trx_grid()
+        elif mode == "overlay":
+            self._plot_overlay()
         elif mode == "hm_norm":
             self._plot_hm_norm()
         elif mode == "hm":
@@ -364,6 +366,98 @@ class TrxPlotter:
                     post_callback(t, b, context)
                 b += 1
                 fi += self.df
+
+    def _plot_overlay(self):
+        """
+        Overlay multiple experimental trajectories.
+        Now uses floor coordinates as bounds, scales up by 1.5x,
+        and draws reward circle + trajectories without video frame background.
+        """
+        scale = 1.5
+        padding = 20
+
+        for t in self.trns:
+            fi, on = self._getSyncBucket(t)
+            if fi is None or len(on) == 0:
+                print(f"No rewards found for t={t.n}")
+                continue
+
+            # Collect all between-reward frame ranges
+            segs = []
+            f1 = None
+            for f2 in util.inRange(on, fi, t.stop):
+                if f1:
+                    segs.append((f1, f2))
+                f1 = f2
+
+            if not segs:
+                continue
+
+            # Take first 10 and last 10
+            segs_to_plot = segs[:10] + segs[-10:]
+
+            # Floor bounds for experimental fly
+            floor_coords = t._getCornerCoords(t, self.va.xf, self.va.trxf[0])
+            x0, y0 = floor_coords["top-left"]
+            x1, y1 = floor_coords["bottom-right"]
+            x0 -= padding
+            y0 -= padding
+            x1 += padding
+            y1 += padding
+            w, h = int(x1 - x0), int(y1 - y0)
+            W, H = int(w * scale), int(h * scale)
+
+            def rescale(pt):
+                return (int((pt[0] - x0) * scale), int((pt[1] - y0) * scale))
+
+            for chunk_i in range(0, len(segs_to_plot), 10):
+                seg_chunk = segs_to_plot[chunk_i : chunk_i + 10]
+
+                # Use video frame as background
+                try:
+                    frame = util.average_frames(self.va.cap, seg_chunk[-1][1], n=10)
+                except VideoError:
+                    print("could not read frame, using blank background")
+                    frame = self.frame.copy()
+
+                # Crop to floor region
+                crop = frame[y0:y1, x0:x1]
+
+                # Scale up
+                img = cv2.resize(crop, (W, H), interpolation=cv2.INTER_LINEAR)
+
+                fig, ax = plt.subplots(figsize=(W / 100, H / 100), dpi=100)
+                ax.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+                ax.set_xlim([0, W])
+                ax.set_ylim([H, 0])
+
+                # Draw reward circle
+                cx, cy, r = t.circles(0)[0]  # experimental fly, reward circle
+                circle = plt.Circle(
+                    rescale((cx, cy)), r * scale, color="black", fill=False, linewidth=1
+                )
+                ax.add_patch(circle)
+
+                for f1, f2 in seg_chunk:
+                    trx = self.va.trx[0]
+                    xy = trx.xy(f1, f2 + 1)
+                    pts = np.array([rescale((x, y)) for x, y in zip(*xy)])
+                    color = np.random.rand(
+                        3,
+                    )
+                    ax.plot(pts[:, 0], pts[:, 1], color=color, linewidth=1, alpha=0.9)
+                    ax.scatter(pts[-1, 0], pts[-1, 1], s=8, color=color, zorder=3)
+
+                ax.axis("off")
+                fname = TRX_IMG_FILE2 % (
+                    self.fn,
+                    t.n,
+                    chunk_i // 10 + 1,
+                    self.va.f,
+                    "_overlay",
+                )
+                plt.savefig(fname, dpi=200, bbox_inches="tight")
+                plt.close()
 
     def _plot_trx_grid(self):
         """
@@ -521,8 +615,11 @@ class TrxPlotter:
         """
         imgs = context["imgs"]
         hdrs = context["hdrs"]
+        if not imgs:
+            print(f"Skipping batch {b} for t={t.n}: no trajectories in this bucket")
+            return
         img = util.combineImgs(imgs, hdrs=hdrs, nc=6)[0]
-        cv2.imwrite(TRX_IMG_FILE2 % (self.fn, t.n, b, ""), img)
+        cv2.imwrite(TRX_IMG_FILE2 % (self.fn, t.n, b, self.va.f, ""), img)
 
     def _plot_hm_norm(self):
         """
@@ -654,7 +751,7 @@ class TrxPlotter:
                 self.plot_stats["avgMaxDist"][f].append(amd)
                 self.plot_stats["avgFirstTA"][f].append(atad)
                 self.plot_stats["avgFirstRL"][f].append(arl)
-        cv2.imwrite(TRX_IMG_FILE2 % (self.fn, t.n, b, "_hm"), img)
+        cv2.imwrite(TRX_IMG_FILE2 % (self.fn, t.n, b, self.va.f, "_hm"), img)
 
 
 class TrxHmPlotter:
