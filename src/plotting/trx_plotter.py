@@ -19,7 +19,7 @@ import src.utils.util as util
 from src.utils.util import VideoError, COL_BK, COL_O, COL_Y, COL_W
 
 N_TRX_DEFAULT = 24
-TRX_IMG_FILE2 = "imgs/%s__t%d_b%d_f%d%s.png"
+TRX_IMG_FILE2 = "imgs/%s__t%d_%s_f%d%s.png"
 
 
 class TrxPlotter:
@@ -374,7 +374,7 @@ class TrxPlotter:
         and draws reward circle + trajectories without video frame background.
         """
         scale = 1.5
-        padding = 20
+        padding = 30
 
         for t in self.trns:
             fi, on = self._getSyncBucket(t)
@@ -452,7 +452,7 @@ class TrxPlotter:
                 fname = TRX_IMG_FILE2 % (
                     self.fn,
                     t.n,
-                    chunk_i // 10 + 1,
+                    f"{('first', 'last')[chunk_i // 10]}10",
                     self.va.f,
                     "_overlay",
                 )
@@ -619,7 +619,7 @@ class TrxPlotter:
             print(f"Skipping batch {b} for t={t.n}: no trajectories in this bucket")
             return
         img = util.combineImgs(imgs, hdrs=hdrs, nc=6)[0]
-        cv2.imwrite(TRX_IMG_FILE2 % (self.fn, t.n, b, self.va.f, ""), img)
+        cv2.imwrite(TRX_IMG_FILE2 % (self.fn, t.n, f"b{b}", self.va.f, ""), img)
 
     def _plot_hm_norm(self):
         """
@@ -751,7 +751,7 @@ class TrxPlotter:
                 self.plot_stats["avgMaxDist"][f].append(amd)
                 self.plot_stats["avgFirstTA"][f].append(atad)
                 self.plot_stats["avgFirstRL"][f].append(arl)
-        cv2.imwrite(TRX_IMG_FILE2 % (self.fn, t.n, b, self.va.f, "_hm"), img)
+        cv2.imwrite(TRX_IMG_FILE2 % (self.fn, t.n, f"b{b}", self.va.f, "_hm"), img)
 
 
 class TrxHmPlotter:
