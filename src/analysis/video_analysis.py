@@ -192,7 +192,7 @@ class VideoAnalysis:
             self.byReward()
             self.byTraining()
             if opts.plotTrx:
-                TrxPlotter(self, self.opts).plotTrx(mode="grid")
+                TrxPlotter(self, self.opts).plotTrx(mode=opts.plotTrx)
             if opts.plotThm:
                 TrxPlotter(self, self.opts).plotTrx(mode="hm")
             if opts.plotThmNorm:

@@ -680,8 +680,11 @@ g.add_argument("--pltAll", dest="plotAll", action="store_true", help="plot all r
 g.add_argument(
     "--pltTrx",
     dest="plotTrx",
-    action="store_true",
-    help="plot trajectories (plot depends on protocol)",
+    choices=["grid", "overlay"],
+    nargs="?",
+    default=None,
+    const="grid",
+    help="plot trajectories (default: grid if no value given; overlay if specified)",
 )
 g.add_argument(
     "--cirTrx",
