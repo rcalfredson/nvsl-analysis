@@ -3071,7 +3071,7 @@ def plotHeatmaps(vas):
     elif va0.ct is CT.large:
         fig = plt.figure(figsize=(3.1 * nc, 6 * nsr))
     elif va0.ct is CT.large2:
-        error("plotHeatmaps not yet implemented")
+        fig = plt.figure(figsize=(3.1 * nc, 6 * nsr))
     gs = mpl.gridspec.GridSpec(
         2,
         nc + 1,

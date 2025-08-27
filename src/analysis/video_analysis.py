@@ -3765,6 +3765,10 @@ class VideoAnalysis:
                     sw = 36
                     xym = np.array((4 - sw, (4 - sw, 286)[f]))
                     xyM = np.array((250, (250, 532 + sw)[f]))
+                elif self.ct is CT.large2:
+                    sw = 37
+                    xym = np.array((5 - sw, (5 - sw, 339.5)[f]))
+                    xyM = np.array((302.5, (302.5, 637 + sw)[f]))
                 else:
                     error("heatmap not yet implemented")
                 bins, rng = [int(el) for el in (xyM - xym) / HEATMAP_DIV], np.vstack(
