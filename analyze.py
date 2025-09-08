@@ -930,7 +930,7 @@ def headerForType(va, tp, calc):
             "time" if tp == "atb" else "distance traveled",
             cVsA_l(calc),
         )
-    elif tp in ("nr", "nrc"):
+    elif tp in ("nr", "nr_all", "nrc"):
         return "\nnumber %s rewards by sync bucket:" % cVsA_l(calc, tp == "nrc")
     elif tp == "com":
         return "distance from trajectory COM to reward circle center"
@@ -1558,6 +1558,7 @@ def columnNamesForType(va, tp, calc, n):
             entireTrn=True,
         )
     elif tp in (
+        "nr_all",
         "rpd",
         "com_csv",
         "agarose_pct_edge",
@@ -1567,7 +1568,10 @@ def columnNamesForType(va, tp, calc, n):
     ):
         # Use T1 to define the base block; writer will duplicate across trainings.
         df = va._numRewardsMsg(True, silent=True)
-        _, n_buckets, _ = va._syncBucket(va.trns[0], df)
+        if tp == "nr_all":
+            n_buckets = len(va.numRewardsTot[True][0][0])
+        else:
+            _, n_buckets, _ = va._syncBucket(va.trns[0], df)
 
         # Build columns per fly, then per bucket.
         # If there's only one fly, you'll just get the "exp" block.
@@ -1828,6 +1832,8 @@ def vaVarForType(va, tp, calc):
             return va.avgDistBetween
     elif tp in ("nr", "nrc"):
         return va.numRewards[calc][tp == "nrc"]
+    elif tp == "nr_all":
+        return va.numRewardsTot[calc][0] # Get all calculated rewards
     elif tp == "ppi":
         return va.posPI
     elif tp == "rpi":
@@ -4911,7 +4917,7 @@ def writeStats(vas, sf):
                 "adb",
                 "adb_csv-c",
                 "nr",
-                "nr-c",
+                "nr_all-c",
                 "nrc-c",
                 "ppi",
                 "nrp-c",
