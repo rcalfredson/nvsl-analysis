@@ -68,7 +68,8 @@ class PlotCustomizer:
         plt.rc("figure", titlesize=new_font_size)
         plt.rc("legend", fontsize=self.in_plot_font_size)
 
-        self.font_size_customized = True
+        if self.font_size != new_font_size:
+            self.font_size_customized = True
         self.font_size = new_font_size
         self.increase_factor = self.font_size / self.font_size_default
 
@@ -116,13 +117,28 @@ class PlotCustomizer:
 
     def adjust_padding_proportionally(self, aspect_ratio=0.75):
         """
-        Adjusts the plot padding proportionally and ensures a consistent aspect ratio for a given font size.
+        Adjusts the figure size and subplot padding proportionally to the font size.
+        Enlarges the figure instead of shrinking the axes area when fonts are big.
         """
         fig = plt.gcf()
+
+        # --- Step 1: Adjust aspect ratio for each axis
         for ax in fig.get_axes():
             self.adjust_aspect_ratio(ax, aspect_ratio)
 
-        padding_increase = (self.increase_factor - 1) * 0.05
+        # --- Step 2: Scale the figure size based on font size increase (scaled down by 2)
+        w, h = fig.get_size_inches()
+        new_w = w * self.increase_factor / 2
+        new_h = h * self.increase_factor / 2
+
+        # Only resize if either dimension would increase (avoid shrinking)
+        if new_w > w or new_h > h:
+            fig.set_size_inches(new_w, new_h, forward=True)
+
+        # --- Step 3: Adjust subplot spacing mildly
+        base_padding_increase = 0.02
+        scaled_padding_increase = (self.increase_factor - 1) * 0.02
+        padding_increase = base_padding_increase + scaled_padding_increase
 
         current_wspace = plt.rcParams["figure.subplot.wspace"]
         current_hspace = plt.rcParams["figure.subplot.hspace"]

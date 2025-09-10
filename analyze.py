@@ -1833,7 +1833,7 @@ def vaVarForType(va, tp, calc):
     elif tp in ("nr", "nrc"):
         return va.numRewards[calc][tp == "nrc"]
     elif tp == "nr_all":
-        return va.numRewardsTot[calc][0] # Get all calculated rewards
+        return va.numRewardsTot[calc][0]  # Get all calculated rewards
     elif tp == "ppi":
         return va.posPI
     elif tp == "rpi":
@@ -2247,6 +2247,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None, save_auc_types=None):
         or "dbr" in tp
         or rpd
         or "no_contact" in tp
+        or r_diff
     )
     showAUC = (
         not useDynamicAxisLims
@@ -2285,7 +2286,11 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None, save_auc_types=None):
     elif tp == "agarose_per_rwd":
         ylim = [0, 15]
     elif r_diff:
-        ylim = [-0.25, 2.0]
+        if va.ct is CT.htl:
+            ylim_upper = 1.5
+        else:
+            ylim_upper = 2.0
+        ylim = [-0.25, ylim_upper]
     else:
         ylim = [-1, 1]
     if circle:
@@ -2426,12 +2431,21 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None, save_auc_types=None):
                                 if txt1:
                                     y1 = txt1._y_
                                     txt1._firstSm_ = y1 < y
-                                    if (
-                                        abs(y1 - y) < pch(0.14, 0.1) * m
-                                    ):  # move label below
+                                    overlap_thresh = pch(0.14, 0.1) * m
+                                    margin = 0.10 * (
+                                        ylim[1] - ylim[0]
+                                    )  # 5% of vertical span
+                                    if abs(y1 - y) < overlap_thresh:  # move label below
                                         txta, ya = (txt, y) if y1 > y else (txt1, y1)
-                                        txta.set_y(ya - pch(0.04, 0.03) * m)
-                                        txta.set_va("top")
+                                        if ya < ylim[0] + margin:
+                                            txta.set_y(ya + pch(0.04, 0.03) * m)
+                                            txta.set_va("bottom")
+                                        elif ya > ylim[1] - margin:
+                                            txta.set_y(ya - pch(0.04, 0.03) * m)
+                                            txta.set_va("top")
+                                        else:
+                                            txta.set_y(ya - pch(0.04, 0.03) * m)
+                                            txta.set_va("top")
                                         txta._ontp_ = False
                                 else:
                                     txt._y_, txt._ontp_, txt._firstSm_ = y, True, False
@@ -2495,38 +2509,50 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None, save_auc_types=None):
                             sws = strs.startswith("*")
                             if not cmpg and not nosym and not sws:
                                 continue
+
+                            # slight nudge upward if not a star string
                             y += 0 if sws else pch(0.02, 0.015) * m
-                            ys = (
-                                y - pch(0.15, 0.105) * m
-                                if not ontp
-                                else (
-                                    y - pch(0.06, 0.045) * m
-                                    if fs
-                                    else y + pch(0.13, 0.1) * m
-                                )
+
+                            # --- NEW LOGIC: default above, flip below if too high
+                            font_size_adjustment_factor = 0.003
+                            additional_space = (
+                                font_size_adjustment_factor
+                                * customizer.font_size_diff
+                                * (ylim[1] - ylim[0])
                             )
-                            if ys > y:
-                                ys += additional_space
-                            else:
-                                ys -= additional_space
+
+                            # by default: place above the sample-size label
+                            ys = y + pch(0.15, 0.105) * m + additional_space
+                            va = "baseline"
+
+                            # safeguard: if too close to top, move below instead
+                            margin = 0.05 * (ylim[1] - ylim[0])
+                            if ys > ylim[1] - margin:
+                                ys = y - pch(0.15, 0.105) * m - additional_space
+                                va = "top"
+
                             util.pltText(
                                 xs[j],
                                 ys,
                                 strs,
                                 ha="center",
-                                va=("baseline" if ys > y else "top"),
+                                va=va,
                                 size=customizer.in_plot_font_size,
                                 color="0",
                                 weight="bold",
                             )
                             if i == 0:
                                 all_line_vals.append([ys])
+
                     # AUC
                     if not (rpip) and showAUC and not opts.hidePltTests:
                         if useMidPlotAUCVerticalAlignment:
-                            yp = 0.8 * (ylim[1] - ylim[0])
+                            yp = ylim[0] + 0.9 * (ylim[1] - ylim[0])
                         else:
                             yp = -0.79 if nosym else pch(-0.55, -0.46)
+
+                        if i == 0:
+                            yp -= 0.25 * (ylim[1] - ylim[0])
                         printed_header = False
                         for btwn in pch((False,), (False, True)):
                             # Skip when not saving AUCs or when control symmetry / single-fly make btwn invalid
@@ -2632,7 +2658,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None, save_auc_types=None):
                                 yp -= (
                                     pch(0.14, 0.11)
                                     if not useMidPlotAUCVerticalAlignment
-                                    else 0.05 * (ylim[1] - ylim[0])
+                                    else 0.10 * (ylim[1] - ylim[0])
                                 )
 
                 runPFL = showPFL and ng == 1 and f == 0 and not post and comparable
@@ -2774,8 +2800,8 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None, save_auc_types=None):
                         max_ctr_d_no_contact="mean of max dists. from center\n(trajectories w/"
                         " no preceding wall contact)",
                         r_no_contact=CONTACTLESS_RWDS_LABEL,
-                        rpid="reward index diff. (exp - yok)",
-                        rpipd="post reward index diff. (exp - yok)",
+                        rpid="SLI",
+                        rpipd="SLI (post-training)",
                         rpd="rewards per distance $[m^{-1}]$",
                     )
                     if opts.prefCircleSlideRad:
@@ -2962,7 +2988,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None, save_auc_types=None):
                     CONTACT_EVENT_PCT_TIME_IMG_FILE % (ellipse_ref_pt, bnd)
                 )
     imgFiles["agarose_per_rwd"] = CONTACT_EVENT_PER_RWD_IMG_FILE % ("edge", "agarose")
-    if customizer.customized:
+    if customizer.font_size_customized:
         customizer.adjust_padding_proportionally()
     writeImage(imgFiles[tp] % blf, format=opts.imageFormat)
     plt.close()
