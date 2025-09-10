@@ -2604,14 +2604,21 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None, save_auc_types=None):
                                     TypeError
                                 ):  # triggered, e.g., for 3x center training
                                     continue
-                                nm = pcap(
-                                    ("total " if tot else "")
-                                    + (
-                                        "AUC + ABC"
-                                        if nosym and tot
-                                        else ("ABC" if btwn else "AUC")
-                                    )
-                                )
+                                if tot:
+                                    prefix = "total "
+                                else:
+                                    prefix = ""
+                                if nosym and tot:
+                                    if nf == 1:
+                                        label = "AUC"
+                                    else:
+                                        label = "AUC + ABC"
+                                else:
+                                    if btwn:
+                                        label = "ABC"
+                                    else:
+                                        label = "AUC"
+                                nm = pcap(f"{prefix}{label}")
                                 tpn = ttest_ind(
                                     a0,
                                     a1,
