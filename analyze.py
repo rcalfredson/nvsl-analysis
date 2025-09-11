@@ -81,7 +81,6 @@ from src.plotting.plot import plotAngularVelocity, plotTurnRadiusHist
 from src.plotting.plot_customizer import PlotCustomizer
 from src.analysis.sli_tools import (
     compute_sli_per_fly,
-    plot_sli_extremes,
     select_extremes,
 )
 from src.analysis.training import Training
@@ -2163,7 +2162,20 @@ def drawLegend(ng, nf, nrp, gls, customizer):
     return plt.legend(**kwargs)
 
 
-def plotRewards(va, tp, a, trns, gis, gls, vas=None, save_auc_types=None):
+def plotRewards(
+    va,
+    tp,
+    a,
+    trns,
+    gis,
+    gls,
+    vas=None,
+    save_auc_types=None,
+    sli_extremes=None,  # None | "top" | "bottom" | "both"
+    sli_fraction=0.1,  #  fraction of flies to select
+    sli_training_idx=None,  # which training index to compute extremes
+    sli_selected=None,  # optional precomputed (bottom, top)
+):
     """
     Plots reward data from Drosophila behavior analysis.
 
@@ -2213,6 +2225,38 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None, save_auc_types=None):
     post = nrp or rpip
     nnpb = va.rpiNumNonPostBuckets if rpip else va.numNonPostBuckets
     fs, ng = fliesForType(va, tp), gis.max() + 1
+
+    if sli_extremes and tp in ("rpid", "rpipd"):
+        if sli_selected is not None:
+            bottom, top = sli_selected
+        else:
+            # need raw_4 shaped array (video, training, fly, bucket)
+            n_videos = len(vas)
+            n_trains = len(trns)
+            n_flies = len(va.flies)
+            nb = a.shape[2] // n_flies
+            raw_4 = a.reshape((n_videos, n_trains, n_flies, nb))
+            sli_ser = compute_sli_per_fly(raw_4, sli_training_idx)
+            bottom, top = select_extremes(sli_ser, sli_fraction)
+
+        if sli_extremes == "bottom":
+            selected = bottom
+            gls = [f"Bottom {int(sli_fraction*100)}%"]
+        elif sli_extremes == "top":
+            selected = top
+            gls = [f"Top {int(sli_fraction*100)}%"]
+        elif sli_extremes == "both":
+            selected = bottom + top
+            gls = [f"Bottom {int(sli_fraction*100)}%", f"Top {int(sli_fraction*100)}%"]
+        # Now filter a down to just those flies
+        a = a[selected, :, :]
+        gis = (
+            np.array([0 if vid in bottom else 1 for vid in selected])
+            if sli_extremes == "both"
+            else np.zeros(len(selected), dtype=int)
+        )
+        ng = len(gls)
+
     nf = len(fs)
     nb, (meanC, fly2C) = int(a.shape[2] / nf), FLY_COLS
 
@@ -2999,7 +3043,15 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None, save_auc_types=None):
     imgFiles["agarose_per_rwd"] = CONTACT_EVENT_PER_RWD_IMG_FILE % ("edge", "agarose")
     if customizer.font_size_customized:
         customizer.adjust_padding_proportionally()
-    writeImage(imgFiles[tp] % blf, format=opts.imageFormat)
+
+    base, ext = os.path.splitext(imgFiles[tp] % blf)
+    suffix = ""
+    if sli_extremes:
+        if sli_extremes == "both":
+            sli_extremes = "top_bottom"
+        suffix = f"_{sli_extremes}{int(sli_fraction*100)}"
+    outfile = f"{base}{suffix}{ext}"
+    writeImage(outfile, format=opts.imageFormat)
     plt.close()
 
 
@@ -4608,31 +4660,23 @@ def postAnalyze(vas):
 
             # now call the plotting function for either training or post
             if tp in ("rpid", "rpipd") and selected_bottom is not None:
-                bl, _ = bucketLenForType(tp)
-                logging.debug("raw 4 shape: %s", raw_4.shape)
-                if tp == "rpid":
-                    logging.debug("SLI series:\n%s", sli_ser)
-                plot_sli_extremes(
-                    perf4=raw_4,
-                    trns=trns,
-                    bucket_len_minutes=bl,
-                    selected_bottom=selected_bottom,
-                    selected_top=selected_top,
-                    gis=gis,
-                    gls=gls,
-                    training_idx=opts.best_worst_trn - 1,
-                    fraction=opts.best_worst_fraction,
-                    tp=tp,
-                    n_nonpost_buckets=(
-                        va.rpiNumNonPostBuckets
-                        if tp.startswith("rpip")
-                        else va.numNonPostBuckets
+                plotRewards(
+                    va,
+                    tp,
+                    a,
+                    trns,
+                    gis,
+                    gls,
+                    vas,
+                    save_auc_types=SAVE_AUC_TYPES,
+                    sli_extremes="both" if opts.best_worst_sli else None,
+                    sli_fraction=opts.best_worst_fraction,
+                    sli_training_idx=opts.best_worst_trn - 1,
+                    sli_selected=(
+                        selected_bottom,
+                        selected_top,
                     ),
-                    outdir="imgs",
-                    title=f"SLI extremes ({'training' if tp=='rpid' else 'post'} {opts.best_worst_trn})",
                 )
-                logging.debug("  bottom flies: %s", selected_bottom)
-                logging.debug("     top flies: %s", selected_top)
 
         a_orig = a.copy()
 
