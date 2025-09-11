@@ -76,7 +76,6 @@ from src.utils.constants import (
 from src.analysis.motion import CircularMotionDetector
 from src.plotting.outside_circle_duration_plotter import OutsideCircleDurationPlotter
 from src.utils.parsers import parse_distances
-from src.plotting.com_plotter import plot_com_distance
 from src.plotting.plot import plotAngularVelocity, plotTurnRadiusHist
 from src.plotting.plot_customizer import PlotCustomizer
 from src.analysis.sli_tools import (
@@ -117,6 +116,7 @@ CONTACT_EVENT_PER_RWD_IMG_FILE = "imgs/%s_%s_contact_per_rwd__%%s_min_buckets.pn
 CONTACT_EVENT_PCT_TIME_IMG_FILE = "imgs/%s_%s_pct_time__%%s_min_buckets.png"
 CONTACT_EVENT_DURATION_IMG_FILE = "imgs/%s_%s_contact_duration__%%s_min_buckets.png"
 DIST_BTWN_REWARDS_FILE = "imgs/dist_btwn_%srewards__%%s_min_buckets.png"
+MED_DIST_TO_REWARD_FILE = "imgs/med_dist_to_rwd_ctr__%s_min_buckets.png"
 DIST_BTWN_REWARDS_HIST_FILE = "imgs/trajectory_len_dist%s.png"
 MAX_DIST_REWARDS_FILE = "imgs/max_dist_from_center__%s_min_buckets.png"
 CONTACTLESS_RWDS_IMG_FILE = "imgs/contactless_rewards_%s__%%s_min_buckets.png"
@@ -2218,6 +2218,7 @@ def plotRewards(
     bnd_turn = "_turn" in tp
     visit_dur = "_dur" in tp
     rpd = tp == "rpd"
+    com = tp == "com"
     auc_to_csv = r_diff or rpd
     psc = tp in ("psc_conc", "psc_shift")
     pcm, turn_rad, pivot = tp == "pcm", tp == "turn", tp == "pivot"
@@ -2276,10 +2277,17 @@ def plotRewards(
     )  # p values between first and last buckets
     showPT = not P if not opts.hidePltTests else False  # p values between trainings
     showSS = not P  # speed stats
-    if "_dur" in tp or psc or num_events:
+    if "_dur" in tp or psc or num_events or com:
         showSS = False
     useAxLimsForStatsVerticalAlignment = (
-        circle or num_events or evts_per_rwd or pct_time or visit_dur or psc or rpd
+        circle
+        or num_events
+        or evts_per_rwd
+        or pct_time
+        or visit_dur
+        or psc
+        or rpd
+        or com
     )
     useDynamicAxisLims = circle or num_events or visit_dur or psc
     useMidPlotAUCVerticalAlignment = (
@@ -2290,6 +2298,7 @@ def plotRewards(
         or bnd_turn
         or "dbr" in tp
         or rpd
+        or com
         or "no_contact" in tp
         or r_diff
     )
@@ -2313,6 +2322,8 @@ def plotRewards(
         ylim = [0, 1600]
     elif tp == "rpd":
         ylim = [0, 100]
+    elif tp == "com":
+        ylim = [0, 10]
     elif tp == "dbr_no_contact":
         ylim = [0, 150]
     elif tp == "max_ctr_d_no_contact":
@@ -2776,7 +2787,7 @@ def plotRewards(
                         util.pltText(
                             xs[1],
                             (
-                                0.90 * (ylim[1] - ylim[0])
+                                ylim[0] + 0.90 * (ylim[1] - ylim[0])
                                 if useAxLimsForStatsVerticalAlignment
                                 else -0.7
                             ),
@@ -2856,6 +2867,7 @@ def plotRewards(
                         rpid="SLI",
                         rpipd="SLI (post-training)",
                         rpd="rewards per distance $[m^{-1}]$",
+                        com="median dist. to reward circle center [mm]",
                     )
                     if opts.prefCircleSlideRad:
                         ylabels["psc_conc"] = PSC_LABEL % (
@@ -2987,6 +2999,7 @@ def plotRewards(
         psc_conc=PSC_CONC_IMG_FILE,
         psc_shift=PSC_SHIFT_IMG_FILE,
         rpd=RPD_IMG_FILE,
+        com=MED_DIST_TO_REWARD_FILE,
     )
 
     if opts.turn:
@@ -4743,10 +4756,7 @@ def postAnalyze(vas):
                     else:
                         break
         elif tp == "com":
-            bl, _ = bucketLenForType(tp)
-            plot_com_distance(
-                vas, trns, bl, customizer, gis, gls, "imgs", format=opts.imageFormat
-            )
+            plotRewards(va, tp, a, trns, gis, gls, vas, save_auc_types=SAVE_AUC_TYPES)
         elif tp in ("rpip", "rpipd"):
             plotRewards(va, tp, a, trns, gis, gls, vas)
         elif tp in ("rpd", "agarose_per_rwd", "agarose_pct_edge", "agarose_pct_ctr"):
