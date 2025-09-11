@@ -2252,6 +2252,7 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None, save_auc_types=None):
     showAUC = (
         not useDynamicAxisLims
     )  # improved AUC text placement for plots with dynamic limits still pending
+    hideAUCCumulative = r_diff
     if showSS and vas:
         speed, stpFr = (
             np.array([getattr(va, k) for va in vas]) for k in ("speed", "stopFrac")
@@ -2587,7 +2588,8 @@ def plotRewards(va, tp, a, trns, gis, gls, vas=None, save_auc_types=None):
                                                 "ctrl": ctrl_aucs[local_idx],
                                             }
                                         )
-                            for tot in (False, True):
+                            tot_types = (False,) if hideAUCCumulative else (False, True)
+                            for tot in tot_types:
                                 if i == 0 and tot:
                                     continue
 
