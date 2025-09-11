@@ -670,6 +670,14 @@ g.add_argument(
     help="width of space between subplots (default: %(default)s)",
 )
 g.add_argument(
+    "--num-trainings",
+    type=int,
+    choices=[2, 3],
+    default=None,
+    help="Limit the number of trainings/post-trainings plotted (2 or 3). "
+    "Default: show all trainings.",
+)
+g.add_argument(
     "--hidePltTests",
     action="store_true",
     help="hide statistical tests displayed in plots saved by plotRewards"
@@ -2175,6 +2183,7 @@ def plotRewards(
     sli_fraction=0.1,  #  fraction of flies to select
     sli_training_idx=None,  # which training index to compute extremes
     sli_selected=None,  # optional precomputed (bottom, top)
+    num_trainings=None,  # optionally limit number of trainings shown (e.g., 2)
 ):
     """
     Plots reward data from Drosophila behavior analysis.
@@ -2184,24 +2193,26 @@ def plotRewards(
     to facilitate behavioral analysis.
 
     Parameters:
-    - va (VideoAnalysis): An instance of VideoAnalysis representing the analysis of a single video.
-    - tp (str): The type of plot to generate, which determines how the data is visualized.
-    - a (numpy.ndarray): An array of data to be plotted, structured to match the requirements
-                         of the specified plot type.
-    - trns (list[Training]): A list of Training instances, each containing training data for
-                             the Drosophila involved in the analysis.
-    - gis (list[int]): Indices specifying the group to which each VideoAnalysis instance belongs.
-    - gls (list[str]): Labels for each group, used for annotating the plot.
-    - vas (list[VideoAnalysis]): A list of VideoAnalysis instances, each analysis corresponding
-                                 to a different video.
+        - va (VideoAnalysis): An instance of VideoAnalysis representing the analysis of a single video.
+        - tp (str): The type of plot to generate, which determines how the data is visualized.
+        - a (numpy.ndarray): An array of data to be plotted, structured to match the requirements
+                            of the specified plot type.
+        - trns (list[Training]): A list of Training instances, each containing training data for
+                                the Drosophila involved in the analysis.
+        - gis (list[int]): Indices specifying the group to which each VideoAnalysis instance belongs.
+        - gls (list[str]): Labels for each group, used for annotating the plot.
+        - vas (list[VideoAnalysis]): A list of VideoAnalysis instances, each analysis corresponding
+                                    to a different video.
+        - num_trainings (int | None): If set, trims the number of trainings/post-trainings
+                                    displayed to this number (e.g. 2). Default None shows all.
 
     Returns:
-    - The function does not return a value but generates and displays a plot based on the
-      provided data and parameters.
+        - The function does not return a value but generates and displays a plot based on the
+        provided data and parameters.
 
     Raises:
-    - ValueError: If any of the input parameters are invalid or not in the expected format.
-    - RuntimeError: If there's an issue generating the plot.
+        - ValueError: If any of the input parameters are invalid or not in the expected format.
+        - RuntimeError: If there's an issue generating the plot.
     """
     nrp, rpip = tp == "nrpp", tp in ("rpip", "rpipd")
     r_diff = tp in ("rpid", "rpipd")
@@ -2356,8 +2367,14 @@ def plotRewards(
     if P and F2T:
         trns = trns[:2]
 
+    # Apply optional user-specified training limit
+    if num_trainings is not None:
+        trns = trns[:num_trainings]
+
     nc = len(trns)
-    figsize = pch(([5.33, 11.74, 18.18][nc - 1], 4.68 * nr), (20, 5 * nr))
+    figsize = pch(
+        ([5.33, 11.74, 18.18][nc - 1], 4.68 * nr), ((20, 15, 10)[nc - 1], 5 * nr)
+    )
     if customizer.font_size_customized:
         figsize = list(figsize)
         figsize[0] += 0.2 * (customizer.font_size - customizer.font_size_default)
@@ -4689,6 +4706,7 @@ def postAnalyze(vas):
                         selected_bottom,
                         selected_top,
                     ),
+                    num_trainings=opts.num_trainings,
                 )
 
         a_orig = a.copy()
@@ -4726,7 +4744,17 @@ def postAnalyze(vas):
                 if t.hasSymCtrl():
                     for j, cn in enumerate(cns or []):
                         ttest_1samp(a_for_ttest[:, i, j], 0, "%s %s" % (t.name(), cn))
-            plotRewards(va, tp, a, trns, gis, gls, vas, save_auc_types=SAVE_AUC_TYPES)
+            plotRewards(
+                va,
+                tp,
+                a,
+                trns,
+                gis,
+                gls,
+                vas,
+                save_auc_types=SAVE_AUC_TYPES,
+                num_trainings=opts.num_trainings,
+            )
             if len(trns) > 1 and all(t.hasSymCtrl() for t in trns[:2]):
                 test_hdr = "first sync bucket, training 1 vs. 2"
                 if tp == "rpid":
@@ -4756,9 +4784,21 @@ def postAnalyze(vas):
                     else:
                         break
         elif tp == "com":
-            plotRewards(va, tp, a, trns, gis, gls, vas, save_auc_types=SAVE_AUC_TYPES)
+            plotRewards(
+                va,
+                tp,
+                a,
+                trns,
+                gis,
+                gls,
+                vas,
+                save_auc_types=SAVE_AUC_TYPES,
+                num_trainings=opts.num_trainings,
+            )
         elif tp in ("rpip", "rpipd"):
-            plotRewards(va, tp, a, trns, gis, gls, vas)
+            plotRewards(
+                va, tp, a, trns, gis, gls, vas, num_trainings=opts.num_trainings
+            )
         elif tp in ("rpd", "agarose_per_rwd", "agarose_pct_edge", "agarose_pct_ctr"):
             for i, t in enumerate(trns):
                 last_bkt = nb
@@ -4768,7 +4808,17 @@ def postAnalyze(vas):
                     last_bkt -= 1
                     a1 = a[:, i, last_bkt - 1]
                 ttest_rel(a0, a1, "%s, bucket #%d vs. #%d" % (t.name(), 1, last_bkt))
-            plotRewards(va, tp, a, trns, gis, gls, vas, save_auc_types=SAVE_AUC_TYPES)
+            plotRewards(
+                va,
+                tp,
+                a,
+                trns,
+                gis,
+                gls,
+                vas,
+                save_auc_types=SAVE_AUC_TYPES,
+                num_trainings=opts.num_trainings,
+            )
         elif (
             tp
             in (
@@ -4784,12 +4834,16 @@ def postAnalyze(vas):
             or "r_no_contact" in tp
             or "_dur" in tp
         ):
-            plotRewards(va, tp, a, trns, gis, gls, vas)
+            plotRewards(
+                va, tp, a, trns, gis, gls, vas, num_trainings=opts.num_trainings
+            )
         elif tp in ["pcm", "turn", "pivot"]:
             if not va.noyc:
                 nPts = a.shape[2] // 2
                 a = a[:, :, slice(nPts, None) if opts.yoked else slice(None, nPts)]
-            plotRewards(va, tp, a, trns, gis, gls, vas)
+            plotRewards(
+                va, tp, a, trns, gis, gls, vas, num_trainings=opts.num_trainings
+            )
         elif tp == "nrp":
             for i, t in enumerate(trns):
                 for i1, i2 in ((0, 1), (4, 5), (0, 4), (1, 5), (2, 6), (3, 7)):
@@ -4800,7 +4854,9 @@ def postAnalyze(vas):
                             "training %d, %s vs. %s" % (t.n, cns[i1], cns[i2]),
                         )
         elif tp == "nrpp":
-            plotRewards(va, tp, a, trns, gis, gls)
+            plotRewards(
+                va, tp, a, trns, gis, gls, vas, num_trainings=opts.num_trainings
+            )
         elif tp == "rdp":
             ttest_rel(a[:, 0, 0], a[:, 0, 1], va.rdpInterval + ", %s vs. %s" % cns[:2])
             plotRdpStats(vas, gls, False)
