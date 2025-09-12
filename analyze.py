@@ -2344,7 +2344,7 @@ def plotRewards(
     showAUC = (
         not useDynamicAxisLims
     )  # improved AUC text placement for plots with dynamic limits still pending
-    hideAUCCumulative = r_diff
+    hideAUCCumulative = r_diff or com or rpd
     if showSS and vas:
         speed, stpFr = (
             np.array([getattr(va, k) for va in vas]) for k in ("speed", "stopFrac")
