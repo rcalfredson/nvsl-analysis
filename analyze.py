@@ -2152,7 +2152,7 @@ def paired_slice(start, end, reverse=True):
 METRIC_PALETTES = {
     "sli": paired_slice(0, 2),
     "rpd": paired_slice(2, 4),
-    "com": paired_slice(4, 6),
+    "com": paired_slice(8, 10),
 }
 
 
