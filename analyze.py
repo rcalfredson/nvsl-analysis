@@ -2141,6 +2141,33 @@ def checkValues(vas, tp, calc, a):
 
 FLY_COLS = ("#1f4da1", "#a00000")
 
+PAIRED = sns.color_palette("Paired", 12)  # has 12 distinct colors
+
+
+def paired_slice(start, end, reverse=True):
+    colors = PAIRED[start:end]
+    return list(reversed(colors)) if reverse else colors
+
+
+METRIC_PALETTES = {
+    "sli": paired_slice(0, 2),
+    "rpd": paired_slice(2, 4),
+    "com": paired_slice(4, 6),
+}
+
+
+def get_palette(tp, sli_extremes, ng):
+    if tp in ("rpid", "rpipd"):
+        if sli_extremes == "both":
+            return METRIC_PALETTES["sli"]
+        return METRIC_PALETTES["sli"][:ng]
+    elif tp == "rpd":
+        return METRIC_PALETTES["rpd"][:ng]
+    elif tp == "com":
+        return METRIC_PALETTES["com"][:ng]
+    else:
+        return FLY_COLS
+
 
 def drawLegend(ng, nf, nrp, gls, customizer):
     """
@@ -2270,6 +2297,7 @@ def plotRewards(
         ng = len(gls)
 
     nf = len(fs)
+    palette = get_palette(tp, sli_extremes, ng)
     nb, (meanC, fly2C) = int(a.shape[2] / nf), FLY_COLS
 
     def getVals(g, b=None, delta=False, f1=None):
@@ -2332,7 +2360,7 @@ def plotRewards(
     elif tp == "dbr":
         ylim = [0, 1600]
     elif tp == "rpd":
-        ylim = [0, 100]
+        ylim = [0, 120]
     elif tp == "com":
         ylim = [0, 10]
     elif tp == "dbr_no_contact":
@@ -2386,7 +2414,10 @@ def plotRewards(
             axs = axs[None]
     mci_max = None
     for f in fs:
-        mc = fly2C if joinF and f == 1 else meanC
+        if tp in ("rpid", "rpipd", "rpd", "com"):
+            mc = palette[f % len(palette)]
+        else:
+            mc = fly2C if joinF and f == 1 else meanC
         for i, t in enumerate(trns):
             nosym = not t.hasSymCtrl()
             comparable = not ((nf == 1 and nosym) or psc)
@@ -2624,8 +2655,6 @@ def plotRewards(
                         else:
                             yp = -0.79 if nosym else pch(-0.55, -0.46)
 
-                        if i == 0:
-                            yp -= 0.25 * (ylim[1] - ylim[0])
                         printed_header = False
                         for btwn in pch((False,), (False, True)):
                             # Skip when not saving AUCs or when control symmetry / single-fly make btwn invalid
@@ -2683,7 +2712,7 @@ def plotRewards(
                                 else:
                                     prefix = ""
                                 if nosym and tot:
-                                    if nf == 1:
+                                    if nf == 1 or not btwn:
                                         label = "AUC"
                                     else:
                                         label = "AUC + ABC"
@@ -2711,23 +2740,6 @@ def plotRewards(
                                     printed_header = True
                                 if tpn[4] is not None:
                                     print(tpn[4])
-                                safety_margin = 0.05 * (ylim[1] - ylim[0])
-                                for vals in all_line_vals:
-                                    if len(vals) <= 1:
-                                        continue
-                                    valid_vals = sorted(vals[~np.isnan(vals)])
-                                    if not valid_vals:
-                                        continue
-                                    closest_y_value = min(
-                                        valid_vals, key=lambda y: abs(y - yp)
-                                    )
-                                    if abs(closest_y_value - yp) < safety_margin:
-                                        if t.n == 1:
-                                            yp = ylim[0] + safety_margin
-                                        else:
-                                            yp = ylim[1] - 2 * safety_margin
-                                if i == 0:
-                                    all_line_vals.append([yp])
                                 util.pltText(
                                     xs[0],
                                     yp,
