@@ -590,6 +590,50 @@ def writeImage(fn, img=None, format="png"):
         cv2.imwrite(fn, img)
 
 
+def pick_non_overlapping_y(
+    base_y, avoid_ys, ylim, prefer="above", gap=0.085, step=0.03
+):
+    """
+    base_y: the anchor y near the mean/sample label
+    avoid_ys: list of y's to avoid overlapping (final text y positions)
+    ylim: (ymin, ymax)
+    prefer: "above" or "below"
+    gap, step: fractions of (ylim[1]-ylim[0]) to keep clear / to nudge
+    Returns (y_star, va_align)
+    """
+    span = ylim[1] - ylim[0]
+    up = base_y + 0.04 * span
+    down = base_y - 0.04 * span
+    gap = gap * span
+    step = step * span
+
+    def clear(ycand):
+        return all(abs(ycand - y0) >= gap for y0 in avoid_ys) and (
+            ylim[0] + 0.02 * span
+        ) <= ycand <= (ylim[1] - 0.02 * span)
+
+    candidates = [up, down] if prefer == "above" else [down, up]
+    for c in candidates:
+        if clear(c):
+            return c, ("baseline" if c >= base_y else "top")
+
+    # Nudge in small steps until clear (alternate above/below)
+    k = 1
+    while k < 10:
+        for sign in (+1, -1):
+            ycand = base_y + sign * (0.04 * span + k * step)
+            if clear(ycand):
+                return ycand, ("baseline" if ycand >= base_y else "top")
+        k += 1
+
+    # Fallback: clamp near top/bottom margin
+    clamp_top = ylim[1] - 0.03 * span
+    if clear(clamp_top):
+        return clamp_top, "baseline"
+    clamp_bot = ylim[0] + 0.03 * span
+    return clamp_bot, "top"
+
+
 def adjustLegend(legend, axs, all_line_vals, legend_loc="best"):
     """
     Increases Y axis limit based on detected overlaps with other objects in the plot.

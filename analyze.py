@@ -56,6 +56,7 @@ from src.utils.common import (
     flyDesc,
     is_nan,
     pch,
+    pick_non_overlapping_y,
     propagate_nans,
     skipMsg,
     ttest_1samp,
@@ -2390,7 +2391,7 @@ def plotRewards(
         ylim = [-1, 1]
     if circle:
         ylim[0] = 0
-    lbls, fbv = {}, []
+    lbls, fbv = collections.defaultdict(list), []
     tas = 2 * [None]  # index: 0:under curve, 1:between curves
     if P and F2T:
         trns = trns[:2]
@@ -2531,29 +2532,23 @@ def plotRewards(
                                 )
                                 if i == 0:
                                     all_line_vals.append([y_pos])
-                                txt1 = lbls.get(key)
-                                if txt1:
+                                txt._y_ = y
+                                txt._final_y = y_pos
+                                txt._firstSm_ = False
+                                txt._ontp_ = True
+                                if lbls[key]:
+                                    txt1 = lbls[key][0]
                                     y1 = txt1._y_
                                     txt1._firstSm_ = y1 < y
-                                    overlap_thresh = pch(0.14, 0.1) * m
-                                    margin = 0.10 * (
-                                        ylim[1] - ylim[0]
-                                    )  # 5% of vertical span
-                                    if abs(y1 - y) < overlap_thresh:  # move label below
+                                    if (
+                                        abs(y1 - y) < pch(0.14, 0.1) * m
+                                    ):  # move label below
                                         txta, ya = (txt, y) if y1 > y else (txt1, y1)
-                                        if ya < ylim[0] + margin:
-                                            txta.set_y(ya + pch(0.04, 0.03) * m)
-                                            txta.set_va("bottom")
-                                        elif ya > ylim[1] - margin:
-                                            txta.set_y(ya - pch(0.04, 0.03) * m)
-                                            txta.set_va("top")
-                                        else:
-                                            txta.set_y(ya - pch(0.04, 0.03) * m)
-                                            txta.set_va("top")
+                                        txta.set_y(ya - pch(0.04, 0.03) * m)
+                                        txta.set_va("top")
                                         txta._ontp_ = False
-                                else:
-                                    txt._y_, txt._ontp_, txt._firstSm_ = y, True, False
-                                    lbls[key] = txt
+                                        txt1._final_y_ = ya - pch(0.04, 0.03) * m
+                                lbls[key].append(txt)
                     # values
                     if showV:
                         for j, y in enumerate(mci[0, :]):
@@ -2599,54 +2594,52 @@ def plotRewards(
                     ).T
                     # 3 rows: t-test t and p and mean for g == int(cmpg)
                     assert util.isClose(mci[0, :], tpm[2, :])
-                    font_size_adjustment_factor = 0.003
-                    additional_space = (
-                        font_size_adjustment_factor
-                        * customizer.font_size_diff
-                        * (ylim[1] - ylim[0])
-                    )
                     for j, p in enumerate(tpm[1, :]):
-                        txt = lbls.get(util.join("|", (i, j)))
-                        if txt:
-                            y, ontp, fs = txt._y_, txt._ontp_, txt._firstSm_
-                            strs = util.p2stars(p, nanR="")
-                            sws = strs.startswith("*")
-                            if not cmpg and not nosym and not sws:
-                                continue
+                        txts_here = lbls.get(util.join("|", (i, j)), [])
+                        strs = util.p2stars(p, nanR="")
+                        avoid_ys = [
+                            t._final_y_ if hasattr(t, "_final_y_") else t._y_
+                            for t in txts_here
+                        ]
 
-                            # slight nudge upward if not a star string
-                            y += 0 if sws else pch(0.02, 0.015) * m
+                        if avoid_ys:
+                            anchor_y = max(avoid_ys)
+                        else:
+                            anchor_y = mci[0, j]
 
-                            # --- NEW LOGIC: default above, flip below if too high
-                            font_size_adjustment_factor = 0.003
-                            additional_space = (
-                                font_size_adjustment_factor
-                                * customizer.font_size_diff
-                                * (ylim[1] - ylim[0])
-                            )
+                        base_y_for_star = anchor_y + (
+                            0 if strs.startswith("*") else pch(0.02, 0.015) * m
+                        )
 
-                            # by default: place above the sample-size label
-                            ys = y + pch(0.15, 0.105) * m + additional_space
-                            va = "baseline"
+                        # Prefer above unless too close to top margin:
+                        prefer = "above"
+                        margin = 0.05 * (ylim[1] - ylim[0])
 
-                            # safeguard: if too close to top, move below instead
-                            margin = 0.05 * (ylim[1] - ylim[0])
-                            if ys > ylim[1] - margin:
-                                ys = y - pch(0.15, 0.105) * m - additional_space
-                                va = "top"
+                        if (
+                            base_y_for_star + 0.15 * (ylim[1] - ylim[0])
+                            > ylim[1] - margin
+                        ):
 
-                            util.pltText(
-                                xs[j],
-                                ys,
-                                strs,
-                                ha="center",
-                                va=va,
-                                size=customizer.in_plot_font_size,
-                                color="0",
-                                weight="bold",
-                            )
-                            if i == 0:
-                                all_line_vals.append([ys])
+                            prefer = "below"
+
+                        ys, va_align = pick_non_overlapping_y(
+                            base_y_for_star,
+                            avoid_ys,
+                            ylim,
+                            prefer=prefer,
+                        )
+                        util.pltText(
+                            xs[j],
+                            ys,
+                            strs,
+                            ha="center",
+                            va=va_align,
+                            size=customizer.in_plot_font_size,
+                            color="0",
+                            weight="bold",
+                        )
+                        if i == 0:
+                            all_line_vals.append([ys])
 
                     # AUC
                     if not (rpip) and showAUC and not opts.hidePltTests:
