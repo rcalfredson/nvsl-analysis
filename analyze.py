@@ -2157,34 +2157,38 @@ METRIC_PALETTES = {
 }
 
 
-def get_palette(tp, sli_extremes, ng):
+def get_palette(tp):
+    """Return a pair of colors (exp, yok) appropriate for this metric type."""
     if tp in ("rpid", "rpipd"):
-        if sli_extremes == "both":
-            return METRIC_PALETTES["sli"]
-        return METRIC_PALETTES["sli"][:ng]
+        return METRIC_PALETTES["sli"]
     elif tp == "rpd":
-        return METRIC_PALETTES["rpd"][:ng]
+        return METRIC_PALETTES["rpd"]
     elif tp == "com":
-        return METRIC_PALETTES["com"][:ng]
+        return METRIC_PALETTES["com"]
     else:
         return FLY_COLS
 
 
-def drawLegend(ng, nf, nrp, gls, customizer):
+def drawLegend(tp, ng, nf, nrp, gls, customizer):
     """
     Generates and adds a legend to the plot based on the experimental setup, including
     distinguishing between experimental and control groups, and accommodating for various
     plotting preferences such as font size and location.
 
     Parameters:
-    - ng, nf, nrp, gls: As previously defined.
+    - tp ng, nf, nrp, gls: As previously defined.
     - customizer: Plot customizer with font size attributes.
     """
     kwargs = {}
     prop_dict = {"style": "italic"}
     if ng == 1 and nf == 2 and not P:
+        # Single group with exp vs yok: show both explicitly
+        exp_color, yok_color = get_palette(tp)
         kwargs["labels"] = ["Experimental", "Yoked"]
-        kwargs["handles"] = [plt.Line2D([], [], color=FLY_COLS[i]) for i in range(2)]
+        kwargs["handles"] = [
+            plt.Line2D([], [], color=exp_color, linestyle="-"),
+            plt.Line2D([], [], color=yok_color, linestyle="-"),
+        ]
         kwargs["loc"] = "best"
     elif gls and (not P or LEG):
         if customizer.font_size_customized:
@@ -2298,7 +2302,7 @@ def plotRewards(
         ng = len(gls)
 
     nf = len(fs)
-    palette = get_palette(tp, sli_extremes, ng)
+    palette = get_palette(tp)
     nb, (meanC, fly2C) = int(a.shape[2] / nf), FLY_COLS
 
     def getVals(g, b=None, delta=False, f1=None):
@@ -2317,7 +2321,7 @@ def plotRewards(
     )  # p values between first and last buckets
     showPT = not P if not opts.hidePltTests else False  # p values between trainings
     showSS = not P  # speed stats
-    if "_dur" in tp or psc or num_events or com:
+    if "_dur" in tp or psc or num_events or com or rpd:
         showSS = False
     useAxLimsForStatsVerticalAlignment = (
         circle
@@ -2402,7 +2406,7 @@ def plotRewards(
 
     nc = len(trns)
     figsize = pch(
-        ([5.33, 11.74, 18.18][nc - 1], 4.68 * nr), ((20, 15, 10)[nc - 1], 5 * nr)
+        ([5.33, 11.74, 18.18][nc - 1], 4.68 * nr), ((10, 15, 20)[nc - 1], 5 * nr)
     )
     if customizer.font_size_customized:
         figsize = list(figsize)
@@ -2416,7 +2420,8 @@ def plotRewards(
     mci_max = None
     for f in fs:
         if tp in ("rpid", "rpipd", "rpd", "com"):
-            mc = palette[f % len(palette)]
+            exp_color, yok_color = palette[0], palette[1]
+            mc = exp_color if f == 0 else yok_color
         else:
             mc = fly2C if joinF and f == 1 else meanC
         for i, t in enumerate(trns):
@@ -2533,7 +2538,7 @@ def plotRewards(
                                 if i == 0:
                                     all_line_vals.append([y_pos])
                                 txt._y_ = y
-                                txt._final_y = y_pos
+                                txt._final_y_ = y_pos
                                 txt._firstSm_ = False
                                 txt._ontp_ = True
                                 if lbls[key]:
@@ -2782,19 +2787,40 @@ def plotRewards(
                             break
                     assert util.isClose(mci[0, :], ms_group0)
                     x1, x2 = xs[0], xs[lb]
-                    y, h, col = (
-                        max_mean_value + pch(0.15, 0.13),
-                        0.03,
-                        "0",
-                    )
-                    if np.isfinite(y):
-                        plt.plot([x1, x1, x2, x2], [y, y + h, y + h, y], lw=1.5, c=col)
+                    col = "0"
+                    if np.isfinite(max_mean_value):
+                        # candidate base y just above the higher of the two bars
+                        base_y = max_mean_value
+                        avoid_ys = [
+                            t._final_y_ if hasattr(t, "_final_y_") else t._y_
+                            for t in lbls.get(util.join("|", (i, 0)), [])
+                        ]
+                        y_star, va_align = pick_non_overlapping_y(
+                            base_y, avoid_ys, ylim, prefer="above"
+                        )
+
+                        # draw the connecting line at y_star - small offset
+                        h = 0.03 * (ylim[1] - ylim[0])
+                        y_line = y_star - 0.5 * h
+                        plt.plot(
+                            [
+                                x1,
+                                x1,
+                                x2,
+                                x2,
+                            ],
+                            [y_line, y_star, y_star, y_line],
+                            lw=1.5,
+                            c=col,
+                        )
+
+                        # draw the significance stars at y_star
                         util.pltText(
                             (x1 + x2) * 0.5,
-                            y + h,
+                            y_star,
                             util.p2stars(tpn[1]),
                             ha="center",
-                            va="bottom",
+                            va=va_align,
                             size=pch(11, customizer.in_plot_font_size),
                             color=col,
                             weight="bold",
@@ -2807,7 +2833,7 @@ def plotRewards(
                         tpn = ttest_rel(fbv[0], fbv[i])
 
                         util.pltText(
-                            xs[1],
+                            xs[0],
                             (
                                 ylim[0] + 0.90 * (ylim[1] - ylim[0])
                                 if useAxLimsForStatsVerticalAlignment
@@ -2889,7 +2915,7 @@ def plotRewards(
                         rpid="SLI",
                         rpipd="SLI (post-training)",
                         rpd="rewards per distance $[m^{-1}]$",
-                        com="median dist. to reward circle center [mm]",
+                        com="median dist. to reward\ncircle center [mm]",
                     )
                     if opts.prefCircleSlideRad:
                         ylabels["psc_conc"] = PSC_LABEL % (
@@ -2961,7 +2987,7 @@ def plotRewards(
                     plt.xlim(0, xs[-1])
                     plt.ylim(*ylim)
             if i == 0 and f == 0 and not psc:
-                legend = drawLegend(ng, nf, nrp, gls, customizer)
+                legend = drawLegend(tp, ng, nf, nrp, gls, customizer)
     if not nrp:
         plt.subplots_adjust(wspace=opts.wspace)
     if tp in ("wall", "agarose") and va.ct is CT.htl:
