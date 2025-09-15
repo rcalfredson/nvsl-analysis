@@ -3594,13 +3594,6 @@ class VideoAnalysis:
             db = np.array(self._distTrav(f, on))
             self.avgDistBtwnCalcPre.append(np.mean(db))
 
-    def _below_pi_threshold(self, f, t_idx, b_idx, num_rewards):
-        """Return True if fly f in training t_idx should be excluded (PI threshold)"""
-        if num_rewards < self.opts.piTh:
-            self.reward_exclusion_mask[t_idx][f][b_idx] = True
-            return True
-        return False
-
     def is_excluded_pair(self, f, t_idx, b_idx):
         """
         Return True if either this fly or its yoked control partner
