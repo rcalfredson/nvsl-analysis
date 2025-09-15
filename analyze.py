@@ -243,9 +243,9 @@ g.add_argument(
 g.add_argument(
     "--best-worst-fraction",
     type=float,
-    default=0.1,
+    default=argparse.SUPPRESS,
     help="Fraction of flies to use for SLI cutoff when plotting best/worst learners."
-    " Default: %(default)0.1f.",
+    " Default: 0.1.",
 )
 g.add_argument(
     "--rdp",
@@ -2794,7 +2794,7 @@ def plotRewards(
                         keys = [util.join("|", (i, j)) for j in (0, lb)]
                         txts_near = sum([lbls.get(k, []) for k in keys], [])
                         avoid_ys = [
-                            (t._final_y_ if hasattr(t, "_final_y_") else t._y_) 
+                            (t._final_y_ if hasattr(t, "_final_y_") else t._y_)
                             for t in txts_near
                         ]
                         y_star, va_align = pick_non_overlapping_y(
@@ -5986,6 +5986,12 @@ if __name__ == "__main__":
             error("--turn-prob-by-dist must be supplied for horizontal geometry")
         if opts.contact_geometry == "circular" and not opts.outside_circle_radii:
             error("--outside-circle-radii must be supplied for circular geometry")
+
+    if hasattr(opts, "best_worst_fraction"):
+        print("Warning: --best-worst-fraction implies --best-worst-sli.")
+        opts.best_worst_sli = True
+    else:
+        opts.best_worst_fraction = 0.1
 
     # - - -
     test()
