@@ -676,6 +676,11 @@ class VideoAnalysis:
             while fi + df < la:
                 i = len(row)
 
+                if self.is_excluded_pair(trj.f, trn.n - 1, i):
+                    row.append(np.nan)
+                    fi += df
+                    continue
+
                 # get distance traveled in meters
                 dist_trav_meters = (
                     trj.distTrav(fi, fi + df)
@@ -1618,6 +1623,10 @@ class VideoAnalysis:
         df = self._numRewardsMsg(True)
         self.numRewards = [[[]], [[], []]]  # idxs: calc, ctrl
         self.numRewardsTot = [[[]], [[], []]]
+        self.reward_exclusion_mask = [
+            [[False for _ in range(int((t.stop - t.start) / df))] for _ in self.flies]
+            for t in self.trns
+        ]
         self.rewardPI, self.rewardPITrns = [], []
         self.firstRewardCtrl, self.xedMidlineBefore = [], []
         self.buckets = []
@@ -1659,6 +1668,9 @@ class VideoAnalysis:
                         pis = util.prefIdx(nOnsP, nOns, n=self.opts.piTh)
                         self._printBucketVals(pis, f, msg="  PI", prec=2)
                         self._append(self.rewardPI, pis, f, n=n)
+                        for b_idx, pi_val in enumerate(pis):
+                            if np.isnan(pi_val):
+                                self.reward_exclusion_mask[t.n - 1][f][b_idx] = True
                     nOnsP = nOns
 
     # distance traveled or maximum distance reached between (actual) rewards
@@ -1754,6 +1766,12 @@ class VideoAnalysis:
 
                 med_vals = []
                 for s, e in buckets:
+                    b_idx = len(med_vals)
+
+                    if self.is_excluded_pair(fly_idx, trn.n - 1, b_idx):
+                        med_vals.append(np.nan)
+                        continue
+
                     # pick valid frame indices
                     if min_no_contact_s is not None:
                         idxs = np.nonzero(mask[s:e])[0] + s
@@ -3575,6 +3593,20 @@ class VideoAnalysis:
                 continue
             db = np.array(self._distTrav(f, on))
             self.avgDistBtwnCalcPre.append(np.mean(db))
+
+    def is_excluded_pair(self, f, t_idx, b_idx):
+        """
+        Return True if either this fly or its yoked control partner
+        is excluded for the given training t_idx and bucket b_idx.
+        """
+        if self.noyc:
+            return self.reward_exclusion_mask[t_idx][f][b_idx]
+
+        partner = 1 - f
+        return (
+            self.reward_exclusion_mask[t_idx][f][b_idx]
+            or self.reward_exclusion_mask[t_idx][partner][b_idx]
+        )
 
     def byCalcReward(self):
         """

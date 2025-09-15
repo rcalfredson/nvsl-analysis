@@ -602,8 +602,6 @@ def pick_non_overlapping_y(
     Returns (y_star, va_align)
     """
     span = ylim[1] - ylim[0]
-    up = base_y + 0.04 * span
-    down = base_y - 0.04 * span
     gap = gap * span
     step = step * span
 
@@ -612,19 +610,25 @@ def pick_non_overlapping_y(
             ylim[0] + 0.02 * span
         ) <= ycand <= (ylim[1] - 0.02 * span)
 
-    candidates = [up, down] if prefer == "above" else [down, up]
-    for c in candidates:
-        if clear(c):
-            return c, ("baseline" if c >= base_y else "top")
+    # --- Helper: generate candidate offsets for one direction
+    def candidates(direction):
+        sign = +1 if direction == "above" else -1
+        # start at ~0.04*span offset, then keep nudging outward
+        k = 0
+        while k < 10:
+            yield base_y + sign * (0.04 * span + k * step)
+            k += 1
 
-    # Nudge in small steps until clear (alternate above/below)
-    k = 1
-    while k < 10:
-        for sign in (+1, -1):
-            ycand = base_y + sign * (0.04 * span + k * step)
-            if clear(ycand):
-                return ycand, ("baseline" if ycand >= base_y else "top")
-        k += 1
+    # Try preferred direction fully first
+    for ycand in candidates(prefer):
+        if clear(ycand):
+            return ycand, ("baseline" if ycand >= base_y else "top")
+
+    # Then try the opposite direction
+    other = "below" if prefer == "above" else "above"
+    for ycand in candidates(other):
+        if clear(ycand):
+            return ycand, ("baseline" if ycand >= base_y else "top")
 
     # Fallback: clamp near top/bottom margin
     clamp_top = ylim[1] - 0.03 * span

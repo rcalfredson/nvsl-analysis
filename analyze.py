@@ -2791,9 +2791,11 @@ def plotRewards(
                     if np.isfinite(max_mean_value):
                         # candidate base y just above the higher of the two bars
                         base_y = max_mean_value
+                        keys = [util.join("|", (i, j)) for j in (0, lb)]
+                        txts_near = sum([lbls.get(k, []) for k in keys], [])
                         avoid_ys = [
-                            t._final_y_ if hasattr(t, "_final_y_") else t._y_
-                            for t in lbls.get(util.join("|", (i, 0)), [])
+                            (t._final_y_ if hasattr(t, "_final_y_") else t._y_) 
+                            for t in txts_near
                         ]
                         y_star, va_align = pick_non_overlapping_y(
                             base_y, avoid_ys, ylim, prefer="above"
