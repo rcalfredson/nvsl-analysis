@@ -2408,9 +2408,6 @@ def plotRewards(
     figsize = pch(
         ([5.33, 11.74, 18.18][nc - 1], 4.68 * nr), ((10, 15, 20)[nc - 1], 5 * nr)
     )
-    if customizer.font_size_customized:
-        figsize = list(figsize)
-        figsize[0] += 0.2 * (customizer.font_size - customizer.font_size_default)
     axs = plt.subplots(nr, nc, figsize=figsize)[1]
     if nr == 1:
         if nc == 1:

@@ -61,8 +61,8 @@ class PlotCustomizer:
             new_font_size (float): The new font size to apply to the plot.
         """
         self.in_plot_font_size = new_font_size - 3
-        plt.rc("axes", titlesize=new_font_size)
-        plt.rc("axes", labelsize=new_font_size)
+        plt.rc("axes", titlesize=new_font_size + 3)
+        plt.rc("axes", labelsize=new_font_size + 2)
         plt.rc("xtick", labelsize=new_font_size - 2)
         plt.rc("ytick", labelsize=new_font_size - 2)
         plt.rc("figure", titlesize=new_font_size)
@@ -119,6 +119,8 @@ class PlotCustomizer:
         """
         Adjusts the figure size and subplot padding proportionally to the font size.
         Enlarges the figure instead of shrinking the axes area when fonts are big.
+        Ensures X tick spacing <= 10 and avoids Y-axis label cutoff on all sides.
+        Also inserts newlines into oversized text boxes and axis labels.
         """
         fig = plt.gcf()
 
@@ -128,22 +130,120 @@ class PlotCustomizer:
 
         # --- Step 2: Scale the figure size based on font size increase (scaled down by 2)
         w, h = fig.get_size_inches()
-        new_w = w * self.increase_factor / 2
-        new_h = h * self.increase_factor / 2
+        effective_factor_x = 1 + 0.6 * (self.increase_factor - 1)
+        effective_factor_y = effective_factor_x
+        new_w = w * effective_factor_x / 2
+        new_h = h * effective_factor_y / 2
 
-        # Only resize if either dimension would increase (avoid shrinking)
         if new_w > w or new_h > h:
             fig.set_size_inches(new_w, new_h, forward=True)
 
         # --- Step 3: Adjust subplot spacing mildly
         base_padding_increase = 0.02
-        scaled_padding_increase = (self.increase_factor - 1) * 0.02
-        padding_increase = base_padding_increase + scaled_padding_increase
+        scaled_padding_increase_x = (effective_factor_x - 1) * 0.08
+        scaled_padding_increase_y = (effective_factor_y - 1) * 0.75
+        padding_increase = base_padding_increase + scaled_padding_increase_x
+        padding_increase_y = base_padding_increase + scaled_padding_increase_y
 
         current_wspace = plt.rcParams["figure.subplot.wspace"]
         current_hspace = plt.rcParams["figure.subplot.hspace"]
 
         plt.subplots_adjust(
             wspace=current_wspace + padding_increase,
-            hspace=current_hspace + padding_increase,
+            hspace=current_hspace + padding_increase_y,
         )
+
+        # --- Step 4a: Ensure X-axis tick spacing is not greater than 10
+        for ax in fig.get_axes():
+            xticks = ax.get_xticks()
+            if len(xticks) >= 2:
+                spacing = xticks[1] - xticks[0]
+                if spacing > 10:
+                    ax.xaxis.set_major_locator(plt.MultipleLocator(10))
+
+        # --- Step 4b: Ensure Y-axis tick spacing is not greater than 20
+        for ax in fig.get_axes():
+            yticks = ax.get_yticks()
+            if len(yticks) >= 2:
+                spacing = yticks[1] - yticks[0]
+                if spacing > 20:
+                    ax.yaxis.set_major_locator(plt.MultipleLocator(20))
+
+        # --- Step 5: Ensure Y-axis label is not cut off (left, top, bottom)
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+
+        for ax in fig.get_axes():
+            label = ax.yaxis.get_label()
+            if label.get_text():
+                bbox = label.get_window_extent(renderer=renderer)
+                bbox_fig = bbox.transformed(fig.transFigure.inverted())
+
+                left, right, bottom, top = (
+                    fig.subplotpars.left,
+                    fig.subplotpars.right,
+                    fig.subplotpars.bottom,
+                    fig.subplotpars.top,
+                )
+
+                # Left cutoff
+                if bbox_fig.x0 < left:
+                    extra = abs(bbox_fig.x0) + 0.03
+                    left -= extra
+
+                # Bottom cutoff
+                if bbox_fig.y0 < bottom:
+                    extra = abs(bbox_fig.y0) + 0.03
+                    bottom -= extra
+
+                # Top cutoff
+                if bbox_fig.y1 > top:
+                    extra = bbox_fig.y1 - 1 + 0.03
+                    top += extra  # decrease top margin to give space
+
+                plt.subplots_adjust(left=left, right=right, bottom=bottom, top=top)
+
+        # --- Step 6: Add newlines for long texts and axis labels ---
+        font_threshold = 20
+
+        def split_evenly(s: str) -> str:
+            """Split string into two roughly even parts by word count."""
+            words = s.split()
+            if len(words) < 2:
+                return s
+            mid = len(words) // 2
+            # join first half and second half with newline
+            return " ".join(words[:mid]) + "\n" + " ".join(words[mid:])
+
+        for ax in fig.get_axes():
+            # Axis labels
+            for label in [ax.xaxis.get_label(), ax.yaxis.get_label()]:
+                if label.get_text() and label.get_fontsize() > font_threshold:
+                    s = label.get_text()
+                    if "\n" not in s:  # avoid double splitting
+                        label.set_text(split_evenly(s))
+
+        # Text boxes other than titles and tick labels
+        for txt in fig.findobj(match=plt.Text):
+            if txt in [ax.title for ax in fig.get_axes()] + [
+                lab
+                for ax in fig.get_axes()
+                for lab in ax.get_xticklabels() + ax.get_yticklabels()
+            ]:
+                continue
+
+            if txt.get_fontsize() > font_threshold and ":" in txt.get_text():
+                # --- Step A: Capture bounding box BEFORE editing ---
+                fig.canvas.draw()
+                renderer = fig.canvas.get_renderer()
+                bbox = txt.get_window_extent(renderer=renderer)
+
+                # --- Step C: Modify the original text ---
+                s = txt.get_text()
+                head, tail = s.rsplit(":", 1)
+                new_s = head + ":\n  " + tail.strip()
+                x, y = txt.get_position()
+                txt.set_text(new_s)
+                txt.set_ha("left")
+                txt.set_va("top")
+                txt.set_position((x, y))
