@@ -1,4 +1,6 @@
 import matplotlib.pyplot as plt
+import matplotlib.transforms as mtransforms
+import numpy as np
 
 
 class PlotCustomizer:
@@ -116,7 +118,7 @@ class PlotCustomizer:
         ax.set_box_aspect(target_aspect)
 
     def adjust_padding_proportionally(
-        self, aspect_ratio=0.75, wspace=0.02, base_hspace=0.35
+        self, aspect_ratio=0.75, wspace=0.08, base_hspace=0.35
     ):
         """
         Adjusts the figure size and subplot padding proportionally to the font size.
@@ -147,19 +149,25 @@ class PlotCustomizer:
 
         # --- Step 2: Ensure X-axis tick spacing is not greater than 10
         for ax in fig.get_axes():
+            xlim = ax.get_xlim()
             xticks = ax.get_xticks()
             if len(xticks) >= 2:
                 spacing = xticks[1] - xticks[0]
                 if spacing > 10:
                     ax.xaxis.set_major_locator(plt.MultipleLocator(10))
+                    # restore lower limit
+                    ax.set_xlim(left=xlim[0])
 
         # --- Step 3: Ensure Y-axis tick spacing is not greater than 20
         for ax in fig.get_axes():
+            ylim = ax.get_ylim()
             yticks = ax.get_yticks()
             if len(yticks) >= 2:
                 spacing = yticks[1] - yticks[0]
                 if spacing > 20:
                     ax.yaxis.set_major_locator(plt.MultipleLocator(20))
+                    # restore lower limit
+                    ax.set_ylim(bottom=ylim[0])
 
         # --- Step 4: Add newlines for long texts and axis labels ---
         font_threshold = 20
@@ -222,9 +230,74 @@ class PlotCustomizer:
                 for ax in axes_sorted[1:]:
                     ax.yaxis.label.set_visible(False)
 
+        # --- Step 5b: For large fonts, remove lowest Y tick label if it is 0
+        for ax in fig.get_axes():
+            ymin, ymax = ax.get_ylim()
+            if ymin <= 0 <= ymax:
+                yticks = ax.get_yticks()
+                ticklabels = ax.get_yticklabels()
+                new_labels = [
+                    lab.get_text() if not np.isclose(val, 0) else ""
+                    for val, lab in zip(yticks, ticklabels)
+                ]
+                ax.set_yticklabels(new_labels)
+
+        # --- Step 5c: For large fonts, keep only leftmost Y tick labels
+        if any(
+            label.get_fontsize() >= font_threshold
+            for ax in fig.get_axes()
+            for label in [ax.yaxis.get_label()]
+        ):
+            axes_sorted = sorted(fig.get_axes(), key=lambda ax: ax.get_position().x0)
+            if axes_sorted:
+                for ax in axes_sorted[1:]:
+                    ax.yaxis.label.set_visible(False)
+                    ax.set_yticklabels([])  # hide tick labels too
+
+        # --- Step 5d: For large fonts with exactly two subplots, use shared Y label between them
+        axes = fig.get_axes()
+        if len(axes) == 2 and any(
+            ax.yaxis.get_label().get_fontsize() >= font_threshold for ax in axes
+        ):
+            # Left/right in display order
+            left_ax, right_ax = sorted(axes, key=lambda ax: ax.get_position().x0)
+
+            # Choose the shared label text (prefer non-empty)
+            label_texts = [
+                ax.yaxis.get_label().get_text()
+                for ax in axes
+                if ax.yaxis.get_label().get_text()
+            ]
+            shared_label = label_texts[0] if label_texts else ""
+
+            # Hide both native y-axis labels
+            for ax in axes:
+                ax.yaxis.label.set_visible(False)
+
+            # Place one shared Y label at a fixed pad from the right subplot's left spine
+            fontsize = left_ax.yaxis.get_label().get_fontsize()
+            pad_pts = (
+                1.2 * fontsize + 15
+            )
+            trans = right_ax.transAxes + mtransforms.ScaledTranslation(
+                -pad_pts / 72.0, 0.0, fig.dpi_scale_trans
+            )
+
+            # x=0 is the left spine of right_ax in axes coords; y=0.5 centers vertically
+            fig.text(
+                0.0,
+                0.5,
+                shared_label,
+                transform=trans,
+                rotation="vertical",
+                va="center",
+                ha="center",
+                fontsize=fontsize,
+            )
+
         # --- Step 6: Normalize subplot box aspect ---
         for ax in fig.get_axes():
             ax.set_box_aspect(aspect_ratio)
 
-        # --- Step 7: Apply unified subplot spacing ---
+        # --- Step 7: Apply subplot spacing ---
         fig.subplots_adjust(left=0.12, right=0.95, wspace=wspace, hspace=base_hspace)
