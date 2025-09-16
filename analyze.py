@@ -2320,6 +2320,9 @@ def plotRewards(
         True if not opts.hidePltTests else False
     )  # p values between first and last buckets
     showPT = not P if not opts.hidePltTests else False  # p values between trainings
+    if rpd or r_diff or com:
+        showPFL = False
+        showPT = False
     showSS = not P  # speed stats
     if "_dur" in tp or psc or num_events or com or rpd:
         showSS = False
@@ -2882,19 +2885,18 @@ def plotRewards(
                         )
                     )
                 )
-                plt.xlabel(
-                    pcap(
-                        "end points [min] of %s min %sbuckets"
-                        % (
-                            blf,
-                            (
-                                ""
-                                if post and not (rpip and POST_SYNC is not ST.fixed)
-                                else "sync "
-                            ),
-                        )
+                if customizer.font_family_customized and customizer.font_size >= 20:
+                    xlabel_text = "time elapsed [min]"
+                else:
+                    xlabel_text = "end points [min] of %s min %sbuckets" % (
+                        blf,
+                        (
+                            ""
+                            if post and not (rpip and POST_SYNC is not ST.fixed)
+                            else "sync "
+                        ),
                     )
-                )
+                plt.xlabel(pcap(xlabel_text))
                 if not P or i == 0:
                     ylabels = dict(
                         nrp="circle enter events",
