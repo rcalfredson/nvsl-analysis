@@ -155,7 +155,6 @@ class PlotCustomizer:
                 spacing = xticks[1] - xticks[0]
                 if spacing > 10:
                     ax.xaxis.set_major_locator(plt.MultipleLocator(10))
-                    # restore lower limit
                     ax.set_xlim(left=xlim[0])
 
         # --- Step 3: Ensure Y-axis tick spacing is not greater than 20
@@ -166,7 +165,6 @@ class PlotCustomizer:
                 spacing = yticks[1] - yticks[0]
                 if spacing > 20:
                     ax.yaxis.set_major_locator(plt.MultipleLocator(20))
-                    # restore lower limit
                     ax.set_ylim(bottom=ylim[0])
 
         # --- Step 4: Add newlines for long texts and axis labels ---
@@ -194,7 +192,6 @@ class PlotCustomizer:
             return head + ":\n  " + tail.strip()
 
         for ax in fig.get_axes():
-            # Axis labels
             for label in [ax.xaxis.get_label(), ax.yaxis.get_label()]:
                 if label.get_text() and label.get_fontsize() > font_threshold:
                     s = label.get_text()
@@ -219,85 +216,77 @@ class PlotCustomizer:
                     txt.set_va("top")
                     txt.set_position((x, y))
 
-        # --- Step 5: Keep only leftmost Y-axis label for large fonts ---
-        if any(
-            label.get_fontsize() >= font_threshold
-            for ax in fig.get_axes()
-            for label in [ax.yaxis.get_label()]
-        ):
-            axes_sorted = sorted(fig.get_axes(), key=lambda ax: ax.get_position().x0)
-            if axes_sorted:
-                for ax in axes_sorted[1:]:
-                    ax.yaxis.label.set_visible(False)
-
-        # --- Step 5b: For large fonts, remove lowest Y tick label if it is 0
-        for ax in fig.get_axes():
-            ymin, _ = ax.get_ylim()
-            if ymin == 0:
-                yticks = ax.get_yticks()
-                ticklabels = ax.get_yticklabels()
-                new_labels = [
-                    lab.get_text() if not np.isclose(val, 0) else ""
-                    for val, lab in zip(yticks, ticklabels)
-                ]
-                ax.set_yticklabels(new_labels)
-
-        # --- Step 5c: For large fonts, keep only leftmost Y tick labels
-        if any(
-            label.get_fontsize() >= font_threshold
-            for ax in fig.get_axes()
-            for label in [ax.yaxis.get_label()]
-        ):
-            axes_sorted = sorted(fig.get_axes(), key=lambda ax: ax.get_position().x0)
-            if axes_sorted:
-                for ax in axes_sorted[1:]:
-                    ax.yaxis.label.set_visible(False)
-                    ax.set_yticklabels([])  # hide tick labels too
-
-        # --- Step 5d: For large fonts with exactly two subplots, use shared Y label between them
+        # --- Step 5: Shared axis label logic for large fonts ---
         axes = fig.get_axes()
-        if len(axes) == 2 and any(
+        if not axes:
+            return
+
+        large_font = any(
             ax.yaxis.get_label().get_fontsize() >= font_threshold for ax in axes
-        ):
-            # Left/right in display order
-            left_ax, right_ax = sorted(axes, key=lambda ax: ax.get_position().x0)
+        )
 
-            # Choose the shared label text (prefer non-empty)
-            label_texts = [
-                ax.yaxis.get_label().get_text()
-                for ax in axes
-                if ax.yaxis.get_label().get_text()
-            ]
-            shared_label = label_texts[0] if label_texts else ""
+        if large_font:
+            # --- Step 5a: Single Y label (use leftmost subplot) ---
+            left_ax = min(axes, key=lambda ax: ax.get_position().x0)
+            shared_y_label = next(
+                (
+                    ax.yaxis.get_label().get_text()
+                    for ax in axes
+                    if ax.yaxis.get_label().get_text()
+                ),
+                "",
+            )
+            fontsize = left_ax.yaxis.get_label().get_fontsize()
 
-            # Hide both native y-axis labels
+            # Hide all native labels excluding Y tick labels for leftmost subplot
             for ax in axes:
                 ax.yaxis.label.set_visible(False)
+                if ax is not left_ax:
+                    ax.set_yticklabels([])
 
-            # Place one shared Y label at a fixed pad from the right subplot's left spine
-            fontsize = left_ax.yaxis.get_label().get_fontsize()
-            pad_pts = (
-                1.2 * fontsize + 15
-            )
-            trans = right_ax.transAxes + mtransforms.ScaledTranslation(
-                -pad_pts / 72.0, 0.0, fig.dpi_scale_trans
-            )
+            if shared_y_label:
+                pad_pts = 2.75 * fontsize + 15
+                trans = left_ax.transAxes + mtransforms.ScaledTranslation(
+                    -pad_pts / 72.0, 0.0, fig.dpi_scale_trans
+                )
+                fig.text(
+                    0.0,
+                    0.5,
+                    shared_y_label,
+                    transform=trans,
+                    rotation="vertical",
+                    va="center",
+                    ha="center",
+                    fontsize=fontsize,
+                )
 
-            # x=0 is the left spine of right_ax in axes coords; y=0.5 centers vertically
-            fig.text(
-                0.0,
-                0.5,
-                shared_label,
-                transform=trans,
-                rotation="vertical",
-                va="center",
-                ha="center",
-                fontsize=fontsize,
+            # --- Step 5b: Reduce horizontal spacing if shared Y label is used ---
+            wspace *= 0
+
+            # --- Step 5c: Single X label (centered) ---
+            shared_x_label = next(
+                (
+                    ax.xaxis.get_label().get_text()
+                    for ax in axes
+                    if ax.xaxis.get_label().get_text()
+                ),
+                "",
             )
+            if shared_x_label:
+                for ax in axes:
+                    ax.xaxis.label.set_visible(False)
+                fig.text(
+                    0.5,
+                    0.0,
+                    shared_x_label,
+                    ha="center",
+                    va="top",
+                    fontsize=fontsize,
+                )
 
         # --- Step 6: Normalize subplot box aspect ---
         for ax in fig.get_axes():
             ax.set_box_aspect(aspect_ratio)
 
         # --- Step 7: Apply subplot spacing ---
-        fig.subplots_adjust(left=0.12, right=0.95, wspace=wspace, hspace=base_hspace)
+        fig.subplots_adjust(left=0.12, right=0.88, wspace=wspace, hspace=base_hspace)

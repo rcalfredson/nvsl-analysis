@@ -2247,7 +2247,8 @@ def plotRewards(
         - ValueError: If any of the input parameters are invalid or not in the expected format.
         - RuntimeError: If there's an issue generating the plot.
     """
-    nrp, rpip = tp == "nrpp", tp in ("rpip", "rpipd")
+    nrp = tp == "nrpp"
+    rpi, rpip = tp in ("rpi", "rpip"), tp in ("rpip", "rpipd")
     r_diff = tp in ("rpid", "rpipd")
     diff_tp = r_diff or "exp_min_yok" in tp
     bnd_contact = tp in ("wall", "agarose", "boundary")
@@ -2321,11 +2322,11 @@ def plotRewards(
         True if not opts.hidePltTests else False
     )  # p values between first and last buckets
     showPT = not P if not opts.hidePltTests else False  # p values between trainings
-    if rpd or r_diff or com:
+    if rpi or rpd or r_diff or com:
         showPFL = False
         showPT = False
     showSS = not P  # speed stats
-    if "_dur" in tp or psc or num_events or com or rpd:
+    if "_dur" in tp or psc or num_events or com or rpi or rpd:
         showSS = False
     useAxLimsForStatsVerticalAlignment = (
         circle
