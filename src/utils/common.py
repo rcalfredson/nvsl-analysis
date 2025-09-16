@@ -9,6 +9,7 @@
 import enum
 import math
 import os
+import re
 
 # third-party libraries
 import cv2
@@ -17,7 +18,7 @@ import numpy as np
 import scipy.stats as st
 
 # custom modules and constants
-from src.utils.constants import P
+from src.utils.constants import CAP_1ST_LTR, P
 from src.utils.numba_loader import jit
 
 import src.utils.util as util
@@ -99,6 +100,27 @@ def areaUnderCurve(a):
         a = a[:, :-1]
     assert np.isnan(np.trapz([1, np.nan]))
     return np.trapz(a, axis=1)
+
+
+# text utilities
+def sentence_case(s: str) -> str:
+    s = s.strip()
+    if not s:
+        return ""
+
+    # Lowercase everything first, except fully-uppercase words
+    def preserve_acronyms(match):
+        word = match.group(0)
+        return word if word.isupper() else word.lower()
+
+    lowered = re.sub(r"[A-Za-z]+", preserve_acronyms, s[1:])
+    return s[0].upper() + lowered
+
+
+def maybe_sentence_case(text: str) -> str:
+    if CAP_1ST_LTR:
+        return sentence_case(text)
+    return text
 
 
 # dict utilities

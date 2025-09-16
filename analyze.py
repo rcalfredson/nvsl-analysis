@@ -55,6 +55,7 @@ from src.utils.common import (
     flatten_auc_entries,
     flyDesc,
     is_nan,
+    maybe_sentence_case,
     pch,
     pick_non_overlapping_y,
     propagate_nans,
@@ -2873,14 +2874,16 @@ def plotRewards(
                     plt.ylim([ylim[0], mci_max])
             if f == 0 or not joinF:
                 plt.title(
-                    pcap(
-                        ("post " if post else "")
-                        + (
-                            t.name()
-                            if joinF
-                            else (
-                                ("%s " % t.name() if f == 0 else "")
-                                + "fly %d" % (f + 1)
+                    maybe_sentence_case(
+                        pcap(
+                            ("post " if post else "")
+                            + (
+                                t.name()
+                                if joinF
+                                else (
+                                    ("%s " % t.name() if f == 0 else "")
+                                    + "fly %d" % (f + 1)
+                                )
                             )
                         )
                     )
@@ -2896,7 +2899,7 @@ def plotRewards(
                             else "sync "
                         ),
                     )
-                plt.xlabel(pcap(xlabel_text))
+                plt.xlabel(maybe_sentence_case(pcap(xlabel_text)))
                 if not P or i == 0:
                     ylabels = dict(
                         nrp="circle enter events",
@@ -2914,7 +2917,7 @@ def plotRewards(
                         " no preceding wall contact)",
                         r_no_contact=CONTACTLESS_RWDS_LABEL,
                         rpid="SLI",
-                        rpipd="SLI (post-training)",
+                        rpipd="SLI",
                         rpd="rewards per distance $[m^{-1}]$",
                         com="median dist. to reward\ncircle center [mm]",
                     )
@@ -2969,7 +2972,11 @@ def plotRewards(
                     y_label_tp = tp
                     if y_label_tp.startswith("ctr_") or y_label_tp.startswith("edge_"):
                         y_label_tp = "_".join(y_label_tp.split("_")[1:])
-                    plt.ylabel(pcap(ylabels.get(y_label_tp, "reward index")))
+                    plt.ylabel(
+                        maybe_sentence_case(
+                            pcap(ylabels.get(y_label_tp, "reward index"))
+                        )
+                    )
                 plt.axhline(color="k")
                 if post:
                     plt.xlim(xs[0] - bl, xs[-1] + bl)

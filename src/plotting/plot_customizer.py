@@ -115,16 +115,27 @@ class PlotCustomizer:
         """
         ax.set_box_aspect(target_aspect)
 
-    def adjust_padding_proportionally(self, aspect_ratio=0.75):
+    def adjust_padding_proportionally(
+        self, aspect_ratio=0.75, wspace=0.02, base_hspace=0.35
+    ):
         """
         Adjusts the figure size and subplot padding proportionally to the font size.
         Enlarges the figure instead of shrinking the axes area when fonts are big.
-        Ensures X tick spacing <= 10 and avoids Y-axis label cutoff on all sides.
+        Ensures X tick spacing <= 10 and Y tick spacing <= 20.
         Also inserts newlines into oversized text boxes and axis labels.
+
+        Parameters
+        ----------
+        aspect_ratio : float
+            Target box aspect ratio for each subplot.
+        wspace : float
+            Horizontal spacing between subplots, as a fraction of axis width.
+        base_hspace : float
+            Baseline vertical spacing between subplot rows.
         """
         fig = plt.gcf()
 
-        # --- Step 2: Scale the figure size based on font size increase (scaled down by 2)
+        # --- Step 1: Scale figure size based on font size increase (scaled down by 2)
         w, h = fig.get_size_inches()
         effective_factor_x = 1 + 0.6 * (self.increase_factor - 1)
         effective_factor_y = effective_factor_x
@@ -134,22 +145,7 @@ class PlotCustomizer:
         if new_w > w or new_h > h:
             fig.set_size_inches(new_w, new_h, forward=True)
 
-        # --- Step 3: Adjust subplot spacing mildly
-        base_padding_increase = 0.02
-        scaled_padding_increase_x = (effective_factor_x - 1) * 0.01
-        scaled_padding_increase_y = (effective_factor_y - 1) * 0.75
-        padding_increase = base_padding_increase + scaled_padding_increase_x
-        padding_increase_y = base_padding_increase + scaled_padding_increase_y
-
-        current_wspace = plt.rcParams["figure.subplot.wspace"]
-        current_hspace = plt.rcParams["figure.subplot.hspace"]
-
-        plt.subplots_adjust(
-            wspace=current_wspace + padding_increase,
-            hspace=current_hspace + padding_increase_y,
-        )
-
-        # --- Step 4a: Ensure X-axis tick spacing is not greater than 10
+        # --- Step 2: Ensure X-axis tick spacing is not greater than 10
         for ax in fig.get_axes():
             xticks = ax.get_xticks()
             if len(xticks) >= 2:
@@ -157,7 +153,7 @@ class PlotCustomizer:
                 if spacing > 10:
                     ax.xaxis.set_major_locator(plt.MultipleLocator(10))
 
-        # --- Step 4b: Ensure Y-axis tick spacing is not greater than 20
+        # --- Step 3: Ensure Y-axis tick spacing is not greater than 20
         for ax in fig.get_axes():
             yticks = ax.get_yticks()
             if len(yticks) >= 2:
@@ -165,13 +161,13 @@ class PlotCustomizer:
                 if spacing > 20:
                     ax.yaxis.set_major_locator(plt.MultipleLocator(20))
 
-        # --- Step 5: Add newlines for long texts and axis labels ---
+        # --- Step 4: Add newlines for long texts and axis labels ---
         font_threshold = 20
 
         def split_evenly(s: str) -> str:
             """Split string into two roughly even parts by word count."""
             words = s.split()
-            if len(words) < 4:  # need at least 2 words on each side
+            if len(words) < 4:
                 return s
             mid = len(words) // 2
             left, right = words[:mid], words[mid:]
@@ -194,7 +190,7 @@ class PlotCustomizer:
             for label in [ax.xaxis.get_label(), ax.yaxis.get_label()]:
                 if label.get_text() and label.get_fontsize() > font_threshold:
                     s = label.get_text()
-                    if "\n" not in s:  # avoid double splitting
+                    if "\n" not in s:
                         label.set_text(split_evenly(s))
 
         # Text boxes other than titles and tick labels
@@ -215,25 +211,20 @@ class PlotCustomizer:
                     txt.set_va("top")
                     txt.set_position((x, y))
 
-        # --- Step 6: Keep only leftmost Y-axis label for large fonts ---
+        # --- Step 5: Keep only leftmost Y-axis label for large fonts ---
         if any(
             label.get_fontsize() >= font_threshold
             for ax in fig.get_axes()
             for label in [ax.yaxis.get_label()]
         ):
-
-            # Group axes by row using their y position
-            axes = fig.get_axes()
-            # Sort axes left-to-right by x coordinate
-            axes_sorted = sorted(axes, key=lambda ax: ax.get_position().x0)
-
+            axes_sorted = sorted(fig.get_axes(), key=lambda ax: ax.get_position().x0)
             if axes_sorted:
                 for ax in axes_sorted[1:]:
                     ax.yaxis.label.set_visible(False)
 
-        # --- Step 7: Normalize subplot box aspect and spacing ---
+        # --- Step 6: Normalize subplot box aspect ---
         for ax in fig.get_axes():
             ax.set_box_aspect(aspect_ratio)
 
-        # Fix subplot spacing to a consistent standard
-        fig.subplots_adjust(left=0.12, right=0.95, wspace=0.25, hspace=0.35)
+        # --- Step 7: Apply unified subplot spacing ---
+        fig.subplots_adjust(left=0.12, right=0.95, wspace=wspace, hspace=base_hspace)

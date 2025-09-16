@@ -5,6 +5,7 @@ import enum
 ST = enum.Enum("SyncType", "fixed midline control")
 
 BORDER_WIDTH = 1
+CAP_1ST_LTR = True
 CONTACT_BUFFER_OFFSETS = {
     "wall": {"min": 0.7, "max": 1.0},
     "wall_contact": {"min": 0.4, "max": 0.8},
