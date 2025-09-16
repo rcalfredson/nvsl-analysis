@@ -232,8 +232,8 @@ class PlotCustomizer:
 
         # --- Step 5b: For large fonts, remove lowest Y tick label if it is 0
         for ax in fig.get_axes():
-            ymin, ymax = ax.get_ylim()
-            if ymin <= 0 <= ymax:
+            ymin, _ = ax.get_ylim()
+            if ymin == 0:
                 yticks = ax.get_yticks()
                 ticklabels = ax.get_yticklabels()
                 new_labels = [
