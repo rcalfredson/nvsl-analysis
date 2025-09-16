@@ -2351,8 +2351,8 @@ def plotRewards(
         or "no_contact" in tp
         or r_diff
     )
-    showAUC = (
-        not useDynamicAxisLims
+    showAUC = (not useDynamicAxisLims) and not (
+        rpd or com
     )  # improved AUC text placement for plots with dynamic limits still pending
     hideAUCCumulative = r_diff or com or rpd
     if showSS and vas:
@@ -2574,6 +2574,9 @@ def plotRewards(
                     and ng == 2
                     and g == 1
                     and f == 0
+                    or showPG
+                    and ng == 1
+                    and f == nf - 1
                     or rpip
                     and showPP
                     and ng == 1
@@ -2649,7 +2652,7 @@ def plotRewards(
                             all_line_vals.append([ys])
 
                     # AUC
-                    if not (rpip) and showAUC and not opts.hidePltTests:
+                    if ng > 1 and not rpip and showAUC and not opts.hidePltTests:
                         if useMidPlotAUCVerticalAlignment:
                             yp = ylim[0] + 0.9 * (ylim[1] - ylim[0])
                         else:
@@ -2689,6 +2692,8 @@ def plotRewards(
                                                 "ctrl": ctrl_aucs[local_idx],
                                             }
                                         )
+                            if auc_to_csv and cond2:
+                                continue
                             tot_types = (False,) if hideAUCCumulative else (False, True)
                             for tot in tot_types:
                                 if i == 0 and tot:
