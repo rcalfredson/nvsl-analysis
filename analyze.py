@@ -2351,8 +2351,8 @@ def plotRewards(
         or "no_contact" in tp
         or r_diff
     )
-    showAUC = (not useDynamicAxisLims) and not (
-        rpd or com
+    showAUC = (
+        not useDynamicAxisLims
     )  # improved AUC text placement for plots with dynamic limits still pending
     hideAUCCumulative = r_diff or com or rpd
     if showSS and vas:
