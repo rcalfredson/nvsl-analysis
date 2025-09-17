@@ -90,6 +90,8 @@ def check_nan_alignment(csv_path: str):
     merged = merged.merge(num_rwd, on=["video", "fly"], suffixes=("", "_numrwd"))
 
     inconsistencies = []
+
+    # --- Pass 1: cross-table row-wise NaN mismatches
     for pi_col, (com_col, rpd_col, numrwd_col) in col_map.items():
         # Sanity: ensure targets exist
         missing = [x for x in (com_col, rpd_col, numrwd_col) if x not in merged.columns]
@@ -117,15 +119,39 @@ def check_nan_alignment(csv_path: str):
                     )
                 )
 
-    return col_map, inconsistencies
+    # --- Pass 2: exp/yok pairwise co-occurrence check
+    pairwise_mismatches = []
+    for T in [1, 2, 3]:  # trainings
+        for bucket in ["b1", "b5"]:  # first/last
+            exp_col = f"exp {bucket}" if T == 1 else f"exp {bucket}.{T-1}"
+            yok_col = f"yok {bucket}" if T == 1 else f"yok {bucket}.{T-1}"
+
+            counts = {}
+            for tbl_name, tbl in zip(
+                ["PI", "COM", "RPD", "NUM_RWD"], [pi, com, rpd, num_rwd]
+            ):
+                if exp_col in tbl.columns and yok_col in tbl.columns:
+                    both_non_nan = tbl[[exp_col, yok_col]].dropna().shape[0]
+                    counts[tbl_name] = both_non_nan
+
+            if len(set(counts.values())) > 1:
+                pairwise_mismatches.append((f"training {T} {bucket}", counts))
+
+    return col_map, inconsistencies, pairwise_mismatches
 
 
 # --- Example usage ---
 csv_path = "learning_stats.csv"
-col_map, mismatches = check_nan_alignment(csv_path)
+col_map, mismatches, pairwise_mismatches = check_nan_alignment(csv_path)
+
 print("Column mapping:")
 for k, v in col_map.items():
     print(f"  {k} -> {v}")
-print("\nMismatches:", len(mismatches))
+
+print("\nRow-wise inconsistencies:", len(mismatches))
 for m in mismatches[:10]:
     print(m)
+
+print("\nPairwise exp/yok mismatches:", len(pairwise_mismatches))
+for bucket, counts in pairwise_mismatches:
+    print(f"  {bucket}: {counts}")
