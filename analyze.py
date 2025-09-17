@@ -2379,7 +2379,7 @@ def plotRewards(
     elif tp == "com":
         ylim = [0, 10]
     elif tp == "com_exp_min_yok":
-        ylim = [-22, 22]
+        ylim = [-16, 16]
     elif tp == "dbr_no_contact":
         ylim = [0, 150]
     elif tp == "max_ctr_d_no_contact":
@@ -4643,7 +4643,6 @@ def postAnalyze(vas):
             "rpm",
             "dbr",
             "com",
-            "com_exp_min_yok",
         )
     )
     if opts.circle:
@@ -4656,6 +4655,8 @@ def postAnalyze(vas):
         tcs += ("psc_conc", "psc_shift")
     if opts.rpd:
         tcs += ("rpd-c",)
+    if ng > 1:
+        tcs += ("com_exp_min_yok",)
     if not va.noyc and not va.choice:
         tcs += ("rpid", "rpipd")
     for opt in ("wall", "agarose", "boundary", "turn"):
