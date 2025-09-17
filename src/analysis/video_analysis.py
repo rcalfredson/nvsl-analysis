@@ -1822,6 +1822,31 @@ class VideoAnalysis:
                     self._countOn(start, stop, calc=True, ctrl=ctrl, f=f)
                 )
 
+    def _masked_num_rewards_tot(self, calc: bool):
+        """
+        Return a masked version of numRewardsTot[calc][0],
+        where exclusions from reward_exclusion_mask are applied as NaN.
+        """
+        raw = self.numRewardsTot[calc][0]
+        masked = []
+
+        # Walk in parallel over trainings and flies, consuming entries from raw
+        idx = 0
+        for t_idx, trn in enumerate(self.trns):
+            for f, _ in enumerate(self.flies):
+                if idx >= len(raw):
+                    break
+                vals = raw[idx]  # a tuple of bucket values for this fly/training
+                new_vals = []
+                for b_idx, val in enumerate(vals):
+                    if self.is_excluded_pair(f, t_idx, b_idx):
+                        new_vals.append(np.nan)
+                    else:
+                        new_vals.append(val)
+                masked.append(tuple(new_vals))
+                idx += 1
+        return masked
+
     def calcContactlessRewardsForCSV(
         self, evt_name, boundary_orientation, t, n_bkts, trj, contact_idxs
     ):

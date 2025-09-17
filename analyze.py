@@ -1847,7 +1847,7 @@ def vaVarForType(va, tp, calc):
     elif tp in ("nr", "nrc"):
         return va.numRewards[calc][tp == "nrc"]
     elif tp == "nr_all":
-        return va.numRewardsTot[calc][0]  # Get all calculated rewards
+        return va._masked_num_rewards_tot(calc)
     elif tp == "ppi":
         return va.posPI
     elif tp == "rpi":
