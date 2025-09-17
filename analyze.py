@@ -118,7 +118,7 @@ CONTACT_EVENT_PER_RWD_IMG_FILE = "imgs/%s_%s_contact_per_rwd__%%s_min_buckets.pn
 CONTACT_EVENT_PCT_TIME_IMG_FILE = "imgs/%s_%s_pct_time__%%s_min_buckets.png"
 CONTACT_EVENT_DURATION_IMG_FILE = "imgs/%s_%s_contact_duration__%%s_min_buckets.png"
 DIST_BTWN_REWARDS_FILE = "imgs/dist_btwn_%srewards__%%s_min_buckets.png"
-MED_DIST_TO_REWARD_FILE = "imgs/med_dist_to_rwd_ctr__%s_min_buckets.png"
+MED_DIST_TO_REWARD_FILE = "imgs/med_dist_to_rwd_ctr%s__%%s_min_buckets.png"
 DIST_BTWN_REWARDS_HIST_FILE = "imgs/trajectory_len_dist%s.png"
 MAX_DIST_REWARDS_FILE = "imgs/max_dist_from_center__%s_min_buckets.png"
 CONTACTLESS_RWDS_IMG_FILE = "imgs/contactless_rewards_%s__%%s_min_buckets.png"
@@ -934,7 +934,9 @@ def headerForType(va, tp, calc):
         "\ndistance between actual rewards with no preceding wall contact"
 
     """
-    if tp == "atb" or "adb" in tp:
+    if "_exp_min_yok" in tp:
+        return ""
+    elif tp == "atb" or "adb" in tp:
         return "\naverage %s between %s rewards:" % (
             "time" if tp == "atb" else "distance traveled",
             cVsA_l(calc),
@@ -1238,6 +1240,7 @@ def bucketLenForType(tp):
             "wall",
             "dbr",
             "com",
+            "com_exp_min_yok",
             "rpid",
             "rpd",
             "max_ctr_d_no_contact",
@@ -1410,7 +1413,9 @@ def columnNamesForType(va, tp, calc, n):
         return "%sfirst%s" % (fly, pst), "%snext%s" % (fly, pst)
 
     bl = bucketLenForType(tp)[1]
-    if tp in ("atb", "adb", "adb_csv"):
+    if "_exp_min_yok" in tp:
+        return None
+    elif tp in ("atb", "adb", "adb_csv"):
         nr = " %d" % n
         if tp == "adb_csv":
             pre_cols = ["pre last 10m (%s)" % flyDesc(f) for f in range(len(va.trx))]
@@ -1924,7 +1929,7 @@ def vaVarForType(va, tp, calc):
         return va.avgDistancesByBkt
     elif tp == "rpd":
         return va.rwdsPerDist
-    elif tp == "com":
+    elif tp in ("com", "com_exp_min_yok"):
         # flatten syncCOMDist into (n_trns, n_flies * n_buckets)
         data = []
         has_ctrl = len(va.flies) > 1
@@ -2164,7 +2169,7 @@ def get_palette(tp):
         return METRIC_PALETTES["sli"]
     elif tp == "rpd":
         return METRIC_PALETTES["rpd"]
-    elif tp == "com":
+    elif tp in ("com", "com_exp_min_yok"):
         return METRIC_PALETTES["com"]
     else:
         return FLY_COLS
@@ -2322,7 +2327,7 @@ def plotRewards(
         True if not opts.hidePltTests else False
     )  # p values between first and last buckets
     showPT = not P if not opts.hidePltTests else False  # p values between trainings
-    if rpi or rpd or r_diff or com:
+    if rpi or rpd or diff_tp or com:
         showPFL = False
         showPT = False
     showSS = not P  # speed stats
@@ -2349,12 +2354,12 @@ def plotRewards(
         or rpd
         or com
         or "no_contact" in tp
-        or r_diff
+        or diff_tp
     )
     showAUC = (
         not useDynamicAxisLims
     )  # improved AUC text placement for plots with dynamic limits still pending
-    hideAUCCumulative = r_diff or com or rpd
+    hideAUCCumulative = diff_tp or com or rpd
     if showSS and vas:
         speed, stpFr = (
             np.array([getattr(va, k) for va in vas]) for k in ("speed", "stopFrac")
@@ -2373,6 +2378,8 @@ def plotRewards(
         ylim = [0, 120]
     elif tp == "com":
         ylim = [0, 10]
+    elif tp == "com_exp_min_yok":
+        ylim = [-22, 22]
     elif tp == "dbr_no_contact":
         ylim = [0, 150]
     elif tp == "max_ctr_d_no_contact":
@@ -2421,7 +2428,7 @@ def plotRewards(
             axs = axs[None]
     mci_max = None
     for f in fs:
-        if tp in ("rpid", "rpipd", "rpd", "com"):
+        if tp in ("rpid", "rpipd", "rpd", "com", "com_exp_min_yok"):
             exp_color, yok_color = palette[0], palette[1]
             mc = exp_color if f == 0 else yok_color
         else:
@@ -2582,7 +2589,7 @@ def plotRewards(
                     and ng == 1
                     and f == nf - 1
                     and comparable
-                    or r_diff
+                    or diff_tp
                     and ng == 1
                 ) and not nrp:
                     if g == 1:
@@ -2590,7 +2597,7 @@ def plotRewards(
                         dlt = nosym if nf == 2 else False
                     else:
                         cmpg = False
-                        dlt = nosym if not r_diff else False
+                        dlt = nosym if not diff_tp else False
                     tpm = np.array(
                         [
                             (
@@ -2926,6 +2933,7 @@ def plotRewards(
                         rpipd="SLI",
                         rpd="rewards per distance $[m^{-1}]$",
                         com="median dist. to reward\ncircle center [mm]",
+                        com_exp_min_yok="med. dist. to center\n$(\\text{exp} - \\text{yok})$",
                     )
                     if opts.prefCircleSlideRad:
                         ylabels["psc_conc"] = PSC_LABEL % (
@@ -3061,7 +3069,8 @@ def plotRewards(
         psc_conc=PSC_CONC_IMG_FILE,
         psc_shift=PSC_SHIFT_IMG_FILE,
         rpd=RPD_IMG_FILE,
-        com=MED_DIST_TO_REWARD_FILE,
+        com=MED_DIST_TO_REWARD_FILE % "",
+        com_exp_min_yok=MED_DIST_TO_REWARD_FILE % "_exp_min_yok",
     )
 
     if opts.turn:
@@ -4634,6 +4643,7 @@ def postAnalyze(vas):
             "rpm",
             "dbr",
             "com",
+            "com_exp_min_yok",
         )
     )
     if opts.circle:
@@ -4828,7 +4838,7 @@ def postAnalyze(vas):
                         lb = lb - 1
                     else:
                         break
-        elif tp == "com":
+        elif tp in ("com", "com_exp_min_yok"):
             plotRewards(
                 va,
                 tp,
