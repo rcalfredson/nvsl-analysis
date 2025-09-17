@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 import matplotlib.transforms as mtransforms
-import numpy as np
 
 
 class PlotCustomizer:
@@ -157,15 +157,18 @@ class PlotCustomizer:
                     ax.xaxis.set_major_locator(plt.MultipleLocator(10))
                     ax.set_xlim(left=xlim[0])
 
-        # --- Step 3: Ensure Y-axis tick spacing is not greater than 20
+        # --- Step 3: Ensure Y-axis tick spacing is set proportionally based on font size
         for ax in fig.get_axes():
-            ylim = ax.get_ylim()
-            yticks = ax.get_yticks()
-            if len(yticks) >= 2:
-                spacing = yticks[1] - yticks[0]
-                if spacing > 20:
-                    ax.yaxis.set_major_locator(plt.MultipleLocator(20))
-                    ax.set_ylim(bottom=ylim[0])
+            _, height = (
+                ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted()).size
+            )
+            fontsize = ax.yaxis.get_label().get_fontsize()
+
+            # Rough heuristic: one label needs about 1.5 x fontsize in points of vertical space
+            label_height_inches = 1.5 * fontsize / 72
+            max_ticks = max(2, int(height / label_height_inches))
+
+            ax.yaxis.set_major_locator(MaxNLocator(nbins=max_ticks, prune=None))
 
         # --- Step 4: Add newlines for long texts and axis labels ---
         font_threshold = 20

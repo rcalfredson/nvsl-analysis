@@ -136,7 +136,7 @@ TURN_LABEL = "turns per %s-contact event%s"
 TURN_DURATION_LABEL = "mean turn duration (s)%s"
 CONTACTLESS_RWDS_LABEL = "proportion contactless rewards, %s walls"
 REWARDS_IMG_FILE = "imgs/rewards__%s_min_buckets.png"
-RPD_IMG_FILE = "imgs/rewards_per_dist__%s_min_buckets.png"
+RPD_IMG_FILE = "imgs/rewards_per_dist%s__%%s_min_buckets.png"
 RUN_LENGTHS_IMG_FILE = "imgs/run_lengths.png"
 TURN_ANGLES_IMG_FILE = "imgs/turn_angles.png"
 HEATMAPS_IMG_FILE = "imgs/heatmaps%s.png"
@@ -1243,6 +1243,7 @@ def bucketLenForType(tp):
             "com_exp_min_yok",
             "rpid",
             "rpd",
+            "rpd_exp_min_yok",
             "max_ctr_d_no_contact",
             "psc_conc",
             "psc_shift",
@@ -1927,7 +1928,7 @@ def vaVarForType(va, tp, calc):
         return [flat_exp]
     elif tp == "dbr":
         return va.avgDistancesByBkt
-    elif tp == "rpd":
+    elif tp in ("rpd", "rpd_exp_min_yok"):
         return va.rwdsPerDist
     elif tp in ("com", "com_exp_min_yok"):
         # flatten syncCOMDist into (n_trns, n_flies * n_buckets)
@@ -2167,7 +2168,7 @@ def get_palette(tp):
     """Return a pair of colors (exp, yok) appropriate for this metric type."""
     if tp in ("rpid", "rpipd"):
         return METRIC_PALETTES["sli"]
-    elif tp == "rpd":
+    elif tp in ("rpd", "rpd_exp_min_yok"):
         return METRIC_PALETTES["rpd"]
     elif tp in ("com", "com_exp_min_yok"):
         return METRIC_PALETTES["com"]
@@ -2376,6 +2377,8 @@ def plotRewards(
         ylim = [0, 1600]
     elif tp == "rpd":
         ylim = [0, 120]
+    elif tp == "rpd_exp_min_yok":
+        ylim = [-80, 80]
     elif tp == "com":
         ylim = [0, 10]
     elif tp == "com_exp_min_yok":
@@ -2428,7 +2431,7 @@ def plotRewards(
             axs = axs[None]
     mci_max = None
     for f in fs:
-        if tp in ("rpid", "rpipd", "rpd", "com", "com_exp_min_yok"):
+        if tp in ("rpid", "rpipd", "rpd", "rpd_exp_min_yok", "com", "com_exp_min_yok"):
             exp_color, yok_color = palette[0], palette[1]
             mc = exp_color if f == 0 else yok_color
         else:
@@ -2932,8 +2935,9 @@ def plotRewards(
                         rpid="SLI",
                         rpipd="SLI",
                         rpd="rewards per distance $[m^{-1}]$",
+                        rpd_exp_min_yok="rewards per distance $[m^{-1}]$\n$(\\text{exp} - \\text{yok})$",
                         com="median dist. to reward\ncircle center [mm]",
-                        com_exp_min_yok="med. dist. to center\n$(\\text{exp} - \\text{yok})$",
+                        com_exp_min_yok="med. dist. to center [mm]\n$(\\text{exp} - \\text{yok})$",
                     )
                     if opts.prefCircleSlideRad:
                         ylabels["psc_conc"] = PSC_LABEL % (
@@ -3068,7 +3072,8 @@ def plotRewards(
         max_ctr_d_no_contact=MAX_DIST_REWARDS_FILE,
         psc_conc=PSC_CONC_IMG_FILE,
         psc_shift=PSC_SHIFT_IMG_FILE,
-        rpd=RPD_IMG_FILE,
+        rpd=RPD_IMG_FILE % "",
+        rpd_exp_min_yok=RPD_IMG_FILE % "_exp_min_yok",
         com=MED_DIST_TO_REWARD_FILE % "",
         com_exp_min_yok=MED_DIST_TO_REWARD_FILE % "_exp_min_yok",
     )
@@ -4655,6 +4660,8 @@ def postAnalyze(vas):
         tcs += ("psc_conc", "psc_shift")
     if opts.rpd:
         tcs += ("rpd-c",)
+        if ng > 1:
+            tcs += ("rpd_exp_min_yok-c",)
     if ng > 1:
         tcs += ("com_exp_min_yok",)
     if not va.noyc and not va.choice:
@@ -4839,7 +4846,7 @@ def postAnalyze(vas):
                         lb = lb - 1
                     else:
                         break
-        elif tp in ("com", "com_exp_min_yok"):
+        elif tp in ("com", "com_exp_min_yok", "rpd_exp_min_yok"):
             plotRewards(
                 va,
                 tp,
