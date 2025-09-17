@@ -7,6 +7,7 @@ COM_TITLE = (
     "median COM-to-center distance, by sync bucket (exp and yoked control), by training"
 )
 RPD_TITLE = "rewards per distance traveled [m⁻¹]"
+NUM_RWD_TITLE = "number __calculated__ rewards by sync bucket"
 
 
 def _extract_table(lines: List[str], start_idx: int) -> pd.DataFrame:
@@ -19,27 +20,27 @@ def _extract_table(lines: List[str], start_idx: int) -> pd.DataFrame:
     return pd.read_csv(StringIO("".join(block)))
 
 
-def load_three_tables(csv_path: str) -> Dict[str, pd.DataFrame]:
+def load_four_tables(csv_path: str) -> Dict[str, pd.DataFrame]:
     with open(csv_path, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
-    titles = [PI_TITLE, COM_TITLE, RPD_TITLE]
+    titles = [PI_TITLE, COM_TITLE, RPD_TITLE, NUM_RWD_TITLE]
     idx = {t: i for t in titles for i, line in enumerate(lines) if t in line}
     return {t: _extract_table(lines, i) for t, i in idx.items()}
 
 
 def build_mapping(
     reward_pi_cols: List[str], com_cols: List[str]
-) -> Dict[str, Tuple[str, str]]:
+) -> Dict[str, Tuple[str, str, str]]:
     """
-    Auto-map Reward PI SB columns to the corresponding COM/RPD bucket columns.
+    Auto-map Reward PI SB columns to the corresponding COM/RPD/NUM_RWD bucket columns.
     Rules:
       - 'first SB' → b1
       - 'last SB'  → b5
       - Training-specific suffixes ('.1', '.2', …) for b2..b6 columns.
       - For b1: 'training {T} exp b1' and 'yok b1' ['.1', '.2' for T>1]
     """
-    mapping: Dict[str, Tuple[str, str]] = {}
+    mapping: Dict[str, Tuple[str, str, str]] = {}
 
     for col in reward_pi_cols:
         if "training" not in col or "SB" not in col:
@@ -66,17 +67,18 @@ def build_mapping(
             else:
                 target = f"yok {bucket}" if T == 1 else f"yok {bucket}.{T-1}"
 
-        # COM and RPD have identical column names for these
-        mapping[col] = (target, target)
+        # COM, RPD, and NUM_RWD all have identical column names for these
+        mapping[col] = (target, target, target)
 
     return mapping
 
 
 def check_nan_alignment(csv_path: str):
-    tables = load_three_tables(csv_path)
+    tables = load_four_tables(csv_path)
     pi = tables[PI_TITLE]
     com = tables[COM_TITLE]
     rpd = tables[RPD_TITLE]
+    num_rwd = tables[NUM_RWD_TITLE]
 
     # Build mapping from Reward PI column names
     pi_cols = [c for c in pi.columns if "SB" in c]
@@ -85,11 +87,12 @@ def check_nan_alignment(csv_path: str):
     # Align rows by (video, fly)
     merged = pi.merge(com, on=["video", "fly"], suffixes=("_pi", "_com"))
     merged = merged.merge(rpd, on=["video", "fly"], suffixes=("", "_rpd"))
+    merged = merged.merge(num_rwd, on=["video", "fly"], suffixes=("", "_numrwd"))
 
     inconsistencies = []
-    for pi_col, (com_col, rpd_col) in col_map.items():
+    for pi_col, (com_col, rpd_col, numrwd_col) in col_map.items():
         # Sanity: ensure targets exist
-        missing = [x for x in (com_col, rpd_col) if x not in merged.columns]
+        missing = [x for x in (com_col, rpd_col, numrwd_col) if x not in merged.columns]
         if missing:
             inconsistencies.append(
                 ("__MISSING_COL__", None, pi_col, tuple(missing), None)
@@ -101,10 +104,17 @@ def check_nan_alignment(csv_path: str):
                 pd.isna(row[pi_col]),
                 pd.isna(row[com_col]),
                 pd.isna(row[rpd_col]),
+                pd.isna(row[numrwd_col]),
             )
             if len(set(pattern)) > 1:
                 inconsistencies.append(
-                    (row["video"], row["fly"], pi_col, (com_col, rpd_col), pattern)
+                    (
+                        row["video"],
+                        row["fly"],
+                        pi_col,
+                        (com_col, rpd_col, numrwd_col),
+                        pattern,
+                    )
                 )
 
     return col_map, inconsistencies
