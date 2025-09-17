@@ -67,8 +67,12 @@ def build_mapping(
             else:
                 target = f"yok {bucket}" if T == 1 else f"yok {bucket}.{T-1}"
 
-        # COM, RPD, and NUM_RWD all have identical column names for these
-        mapping[col] = (target, target, target)
+        # Map to the three versions of the column in the merged table
+        com_target = target
+        rpd_target = f"{target}_rpd"
+        numrwd_target = f"{target}_numrwd"
+
+        mapping[col] = (com_target, rpd_target, numrwd_target)
 
     return mapping
 
