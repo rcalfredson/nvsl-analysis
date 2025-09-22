@@ -2345,13 +2345,7 @@ def plotRewards(
         or com
     )
     useDynamicAxisLims = (
-        circle
-        or num_events
-        or visit_dur
-        or psc
-        or com
-        or rpd
-        or tp in ("rpd_exp_min_yok", "com_exp_min_yok")
+        circle or num_events or visit_dur or psc or com or rpd or diff_tp
     )
     useMidPlotAUCVerticalAlignment = (
         circle
@@ -2365,9 +2359,6 @@ def plotRewards(
         or "no_contact" in tp
         or diff_tp
     )
-    showAUC = (
-        not useDynamicAxisLims
-    )  # improved AUC text placement for plots with dynamic limits still pending
     hideAUCCumulative = diff_tp or com or rpd
     if showSS and vas:
         speed, stpFr = (
@@ -2386,11 +2377,11 @@ def plotRewards(
     elif tp == "rpd":
         ylim = [0, 120]
     elif tp == "rpd_exp_min_yok":
-        ylim = [-1, 2]
+        ylim = [-0.5, 0.5]
     elif tp == "com":
         ylim = [0, 10]
     elif tp == "com_exp_min_yok":
-        ylim = [-1, 1.5]
+        ylim = [-0.5, 0.5]
     elif tp == "dbr_no_contact":
         ylim = [0, 150]
     elif tp == "max_ctr_d_no_contact":
@@ -2410,9 +2401,9 @@ def plotRewards(
         ylim = [0, 15]
     elif r_diff:
         if va.ct is CT.htl:
-            ylim_upper = 1.5
+            ylim_upper = 1.2
         else:
-            ylim_upper = 2.0
+            ylim_upper = 1.8
         ylim = [-0.25, ylim_upper]
     else:
         ylim = [-1, 1]
@@ -2548,7 +2539,9 @@ def plotRewards(
                             ylim[0] = mci_min * 1.2
                             plt.ylim([ylim[0], ylim[1]])
                         if mci_max is not None and mci_max > ylim[1]:
-                            ylim[1] = mci_max * 1.5
+                            ylim[1] = (
+                                mci_max * 2 * 0.6 * (customizer.increase_factor - 1)
+                            )
                             plt.ylim([ylim[0], ylim[1]])
                     # sample sizes
                     if showN and (not nrp or i == 0) and (ng == 1 or f == 0):
@@ -2685,18 +2678,23 @@ def plotRewards(
                             all_line_vals.append([ys])
 
                     # AUC
-                    if ng > 1 and not rpip and showAUC and not opts.hidePltTests:
+                    if ng > 1 and not tp == "rpip" and not opts.hidePltTests:
                         if useMidPlotAUCVerticalAlignment:
-                            yp = ylim[0] + 0.9 * (ylim[1] - ylim[0])
+                            base_y_for_auc = ylim[0] + 0.75 * (ylim[1] - ylim[0])
                         else:
-                            yp = -0.79 if nosym else pch(-0.55, -0.46)
+                            base_y_for_auc = -0.79 if nosym else pch(-0.55, -0.46)
 
                         printed_header = False
                         for btwn in pch((False,), (False, True)):
                             # Skip when not saving AUCs or when control symmetry / single-fly make btwn invalid
                             cond1 = (not auc_to_csv) or btwn
                             cond2 = (nosym and not btwn) or (nf == 1 and btwn)
-                            if cond1 and cond2:
+                            if diff_tp and not btwn:
+                                if i == 1:
+                                    pass  # allow AUC only for training 2 for exp-minus-yoked plots
+                                else:
+                                    continue
+                            elif cond1 and cond2:
                                 continue
                             a_ = tuple(
                                 areaUnderCurve(getVals(x, None, btwn)) for x in (0, 1)
@@ -2726,17 +2724,26 @@ def plotRewards(
                                             }
                                         )
                             if auc_to_csv and cond2:
-                                continue
+                                if diff_tp and i == 1:
+                                    pass
+                                else:
+                                    continue
                             tot_types = (False,) if hideAUCCumulative else (False, True)
                             for tot in tot_types:
                                 if i == 0 and tot:
                                     continue
 
                                 def getA(g):
-                                    return (
-                                        (tas[0][g] + a_[g] if nosym else tas[btwn][g])
-                                        if tot
-                                        else a_[g]
+                                    return np.abs(
+                                        (
+                                            (
+                                                tas[0][g] + a_[g]
+                                                if nosym
+                                                else tas[btwn][g]
+                                            )
+                                            if tot
+                                            else a_[g]
+                                        )
                                     )
 
                                 try:
@@ -2778,19 +2785,37 @@ def plotRewards(
                                     printed_header = True
                                 if tpn[4] is not None:
                                     print(tpn[4])
+
+                                avoid_ys = [
+                                    (
+                                        t._final_y_
+                                        if hasattr(t, "_final_y_")
+                                        else getattr(t, "_y_", None)
+                                    )
+                                    for tlist in lbls.values()
+                                    for t in tlist
+                                    if hasattr(t, "_y_") or hasattr(t, "_final_y_")
+                                ]
+                                avoid_ys = [y for y in avoid_ys if y is not None]
+
+                                ys, va_align = pick_non_overlapping_y(
+                                    base_y_for_auc,
+                                    avoid_ys,
+                                    ylim,
+                                    prefer="above",
+                                )
+
                                 util.pltText(
-                                    xs[0],
-                                    yp,
+                                    0.05 * (xs[-1] + 2 * bl - xs[0]),
+                                    ys,
                                     "%s (n=%d,%d): %s"
                                     % (nm, tpn[2], tpn[3], util.p2stars(tpn[1], True)),
                                     size=pch(12, customizer.in_plot_font_size),
                                     color="0",
                                 )
-                                yp -= (
-                                    pch(0.14, 0.11)
-                                    if not useMidPlotAUCVerticalAlignment
-                                    else 0.10 * (ylim[1] - ylim[0])
-                                )
+
+                                txt._y_ = base_y_for_auc
+                                txt._final_y_ = ys
 
                 runPFL = showPFL and ng == 1 and f == 0 and not post and comparable
                 runPT = showPT and ng == 1 and f == 0 and not post and comparable
