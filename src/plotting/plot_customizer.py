@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-from matplotlib.ticker import MaxNLocator
+from matplotlib.ticker import FuncFormatter, MaxNLocator
 import matplotlib.transforms as mtransforms
 
 
@@ -170,6 +170,16 @@ class PlotCustomizer:
 
             ax.yaxis.set_major_locator(MaxNLocator(nbins=max_ticks, prune=None))
 
+            yticks = ax.get_yticks()
+            if len(yticks) > 0:
+                if all(abs(t - round(t)) < 1e-8 for t in yticks):
+                    # all integers
+                    ax.yaxis.set_major_formatter(
+                        FuncFormatter(lambda x, _: f"{int(x)}")
+                    )
+                else:
+                    ax.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.1f}"))
+
         # --- Step 4: Add newlines for long texts and axis labels ---
         font_threshold = 20
 
@@ -200,24 +210,6 @@ class PlotCustomizer:
                     s = label.get_text()
                     if "\n" not in s:
                         label.set_text(split_evenly(s))
-
-        # Text boxes other than titles and tick labels
-        for txt in fig.findobj(match=plt.Text):
-            if txt in [ax.title for ax in fig.get_axes()] + [
-                lab
-                for ax in fig.get_axes()
-                for lab in ax.get_xticklabels() + ax.get_yticklabels()
-            ]:
-                continue
-
-            if txt.get_fontsize() > font_threshold and ":" in txt.get_text():
-                new_s = split_at_colon(txt.get_text())
-                if new_s != txt.get_text():
-                    x, y = txt.get_position()
-                    txt.set_text(new_s)
-                    txt.set_ha("left")
-                    txt.set_va("top")
-                    txt.set_position((x, y))
 
         # --- Step 5: Shared axis label logic for large fonts ---
         axes = fig.get_axes()
