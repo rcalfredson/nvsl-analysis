@@ -2344,7 +2344,15 @@ def plotRewards(
         or rpd
         or com
     )
-    useDynamicAxisLims = circle or num_events or visit_dur or psc
+    useDynamicAxisLims = (
+        circle
+        or num_events
+        or visit_dur
+        or psc
+        or com
+        or rpd
+        or tp in ("rpd_exp_min_yok", "com_exp_min_yok")
+    )
     useMidPlotAUCVerticalAlignment = (
         circle
         or bnd_contact
@@ -2378,11 +2386,11 @@ def plotRewards(
     elif tp == "rpd":
         ylim = [0, 120]
     elif tp == "rpd_exp_min_yok":
-        ylim = [-80, 80]
+        ylim = [-1, 2]
     elif tp == "com":
         ylim = [0, 10]
     elif tp == "com_exp_min_yok":
-        ylim = [-16, 16]
+        ylim = [-1, 1.5]
     elif tp == "dbr_no_contact":
         ylim = [0, 150]
     elif tp == "max_ctr_d_no_contact":
@@ -2429,7 +2437,7 @@ def plotRewards(
             axs = np.array([[axs]])
         else:
             axs = axs[None]
-    mci_max = None
+    mci_min, mci_max = None, None
     for f in fs:
         if tp in ("rpid", "rpipd", "rpd", "rpd_exp_min_yok", "com", "com_exp_min_yok"):
             exp_color, yok_color = palette[0], palette[1]
@@ -2494,6 +2502,14 @@ def plotRewards(
                     )
                     assert rewardsAvgs.shape == (nc, nb)
                 mci = np.array([util.meanConfInt(getVals(g, b)) for b in range(nb)]).T
+
+                if not np.all(np.isnan(mci[2, :])):
+                    mci_min = (
+                        min(mci_min, np.nanmin(mci[1, :]))
+                        if mci_min is not None
+                        else np.nanmin(mci[1, :])
+                    )
+
                 if not np.all(np.isnan(mci[2, :])):
                     mci_max = (
                         max(mci_max, np.nanmax(mci[2, :]))
@@ -2526,6 +2542,14 @@ def plotRewards(
                             plt.fill_between(
                                 xs[fin], mci[1, :][fin], ys[fin], color=mc, alpha=0.15
                             )
+
+                    if useDynamicAxisLims and mci_max is not None:
+                        if mci_min is not None and mci_min < ylim[0]:
+                            ylim[0] = mci_min * 1.2
+                            plt.ylim([ylim[0], ylim[1]])
+                        if mci_max is not None and mci_max > ylim[1]:
+                            ylim[1] = mci_max * 1.5
+                            plt.ylim([ylim[0], ylim[1]])
                     # sample sizes
                     if showN and (not nrp or i == 0) and (ng == 1 or f == 0):
                         for j, n in enumerate(mci[3, :1] if nrp else mci[3, :]):
@@ -2639,7 +2663,6 @@ def plotRewards(
                             base_y_for_star + 0.15 * (ylim[1] - ylim[0])
                             > ylim[1] - margin
                         ):
-
                             prefer = "below"
 
                         ys, va_align = pick_non_overlapping_y(
@@ -2884,10 +2907,6 @@ def plotRewards(
                             size=customizer.in_plot_font_size,
                             color="0",
                         )
-            # labels etc.
-            if useDynamicAxisLims and mci_max is not None:
-                if mci_max > ylim[1]:
-                    plt.ylim([ylim[0], mci_max])
             if f == 0 or not joinF:
                 plt.title(
                     maybe_sentence_case(
