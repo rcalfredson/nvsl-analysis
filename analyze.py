@@ -2645,7 +2645,7 @@ def plotRewards(
                             anchor_y = mci[0, j]
 
                         base_y_for_star = anchor_y + (
-                            0 if strs.startswith("*") else pch(0.02, 0.015) * m
+                            0 if strs.startswith("*") else pch(0.02, 0.015) * anchor_y
                         )
 
                         # Prefer above unless too close to top margin:
