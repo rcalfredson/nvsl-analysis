@@ -178,7 +178,16 @@ class PlotCustomizer:
                         FuncFormatter(lambda x, _: f"{int(x)}")
                     )
                 else:
-                    ax.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.1f}"))
+                    # choose precision adaptively to avoid duplicate labels
+                    def _adaptive_fmt(x, _):
+                        for prec in range(1, 5):
+                            labels = [f"{t:.{prec}f}" for t in yticks]
+                            if len(set(labels)) == len(labels):
+                                return f"{x:.{prec}f}"
+                        # fallback if still duplicates
+                        return f"{x:.5f}"
+
+                    ax.yaxis.set_major_formatter(FuncFormatter(_adaptive_fmt))
 
         # --- Step 4: Add newlines for long texts and axis labels ---
         font_threshold = 20
@@ -220,7 +229,7 @@ class PlotCustomizer:
             ax.yaxis.get_label().get_fontsize() >= font_threshold for ax in axes
         )
 
-        if large_font:
+        if large_font and len(axes) > 1:
             # --- Step 5a: Single Y label (use leftmost subplot) ---
             left_ax = min(axes, key=lambda ax: ax.get_position().x0)
             shared_y_label = next(

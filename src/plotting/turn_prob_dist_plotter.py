@@ -505,45 +505,6 @@ class TurnProbabilityByDistancePlotter:
                 ec, fc = color["edge"], color["fill"]
                 ax.plot(distances, mean, label=label, marker="o", color=ec)
                 ax.fill_between(distances, low, high, alpha=0.2, color=fc)
-            if ns is not None:
-
-                # precompute lanes
-                y0, y1 = ax.get_ylim()
-                h = y1 - y0
-                lanes = {
-                    "top": y1 - 0.05 * h,
-                    "second": y1 - 0.10 * h,
-                    "bottom": y0 + 0.05 * h,
-                    "third": y0 + 0.10 * h,
-                }
-
-                for curve_idx, (mean, n_list, color) in enumerate(
-                    zip(means, ns, colors)
-                ):
-                    # pick the “primary” and “secondary” lane for this curve
-                    # when high: use bottom + third; otherwise: top + second
-                    high_lanes = (lanes["bottom"], lanes["third"])
-                    normal_lanes = (lanes["top"], lanes["second"])
-                    chosen_lanes = (
-                        high_lanes
-                        if any(y > y1 - 0.10 * h for y in mean)
-                        else normal_lanes
-                    )
-
-                    # then alternate within that pair
-                    lane = chosen_lanes[curve_idx % 2]
-
-                    # now draw all its labels at that fixed lane
-                    for x, y, n in zip(distances, mean, n_list):
-                        ax.text(
-                            x,
-                            lane,
-                            f"n={n}",
-                            color=color["edge"],
-                            ha="center",
-                            va="bottom" if lane <= lanes["bottom"] else "top",
-                            fontsize="small",
-                        )
 
             dist_ref_pt = (
                 "reward circle"
@@ -552,22 +513,27 @@ class TurnProbabilityByDistancePlotter:
             )
             ax.set_xlabel(
                 f"Distance from {dist_ref_pt} center (mm)",
-                labelpad=15,
             )
-            ax.set_ylabel("Turn probability", labelpad=15)
-            ax.grid(True)
+            ax.set_ylabel("Turn probability")
+            ax.grid(False)
             ax.set_ylim(bottom=0)
 
-            # ——— make room for an outside legend ———
-            box = ax.get_position()  # get the original axis bounds
-            ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+            legend_inside = True
 
-            legend = ax.legend(
-                loc=legend_loc,
-                bbox_to_anchor=(1.02, 1),  # x=just to the right, y=top
-                borderaxespad=0.0,
-                prop={"style": "italic"},
-            )
+            if legend_inside:
+                legend = ax.legend(
+                    loc=legend_loc, borderaxespad=0.2, prop={"style": "italic"}
+                )
+            else:
+                box = ax.get_position()  # get the original axis bounds
+                ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+
+                legend = ax.legend(
+                    loc=legend_loc,
+                    bbox_to_anchor=(1.02, 1),
+                    borderaxespad=0.0,
+                    prop={"style": "italic"},
+                )
 
             self.plot_customizer.adjust_padding_proportionally()
             kwargs = {}

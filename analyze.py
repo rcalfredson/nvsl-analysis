@@ -402,8 +402,13 @@ g.add_argument(
     "--use-union-filter",
     dest="use_union_filter",
     action="store_true",
-    default=False,
-    help="Apply the union-based exclusion across all ticks (default: per-tick exclusion only).",
+    help="Apply the union-based exclusion across all ticks (default).",
+)
+g.add_argument(
+    "--no-union-filter",
+    dest="use_union_filter",
+    action="store_false",
+    help="Disable the union-based exclusion (fall back to per-tick exclusion)",
 )
 g.add_argument(
     "--outside-circle-radii",
@@ -480,6 +485,7 @@ g.add_argument(
     help="number of rewards over which to average boundary-contact events at"
     + " the beginning and end of the experiment.",
 )
+g.set_defaults(use_union_filter=True)
 
 g = p.add_argument_group("tweaking analysis")
 g.add_argument(
