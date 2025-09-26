@@ -1583,10 +1583,7 @@ def columnNamesForType(va, tp, calc, n):
     ):
         # Use T1 to define the base block; writer will duplicate across trainings.
         df = va._numRewardsMsg(True, silent=True)
-        if tp == "nr_all":
-            n_buckets = len(va.numRewardsTot[True][0][0])
-        else:
-            _, n_buckets, _ = va._syncBucket(va.trns[0], df)
+        _, n_buckets, _ = va._syncBucket(va.trns[0], df)
 
         # Build columns per fly, then per bucket.
         # If there's only one fly, you'll just get the "exp" block.

@@ -1657,10 +1657,17 @@ class VideoAnalysis:
                             record=(not calc and not ctrl),
                         )
                     )
+
+                    mask = self.reward_exclusion_mask[t.n - 1][f or 0]
+                    actual = len(self.buckets[-1]) - 1
+                    if len(mask) > actual:
+                        mask[actual:] = [True] * (len(mask) - actual)
+
                     if len(self.buckets[-1]) - 1 < n:
                         self.buckets[-1].extend(
                             [np.nan] * int(n - len(self.buckets[-1]) + 1)
                         )
+
                     self._printBucketVals(nOns, f, msg=self._rewardType(calc, ctrl, f))
                     self._append(self.numRewards[calc][ctrl], nOns, f)
                     self._append(self.numRewardsTot[calc][ctrl], nOns, f, len(nOns))
@@ -1829,20 +1836,23 @@ class VideoAnalysis:
         """
         raw = self.numRewardsTot[calc][0]
         masked = []
-
-        # Walk in parallel over trainings and flies, consuming entries from raw
         idx = 0
+
         for t_idx, trn in enumerate(self.trns):
             for f, _ in enumerate(self.flies):
                 if idx >= len(raw):
                     break
-                vals = raw[idx]  # a tuple of bucket values for this fly/training
+                vals = list(raw[idx])
+                mask_len = len(self.reward_exclusion_mask[t_idx][f])
+                if len(vals) < mask_len:
+                    vals.extend([np.nan] * (mask_len - len(vals)))
+
                 new_vals = []
-                for b_idx, val in enumerate(vals):
+                for b_idx in range(mask_len):
                     if self.is_excluded_pair(f, t_idx, b_idx):
                         new_vals.append(np.nan)
                     else:
-                        new_vals.append(val)
+                        new_vals.append(vals[b_idx])
                 masked.append(tuple(new_vals))
                 idx += 1
         return masked
