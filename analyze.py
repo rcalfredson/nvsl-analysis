@@ -2401,9 +2401,9 @@ def plotRewards(
         ylim = [0, 15]
     elif r_diff:
         if va.ct is CT.htl:
-            ylim_upper = 1.2
+            ylim_upper = 0.25
         else:
-            ylim_upper = 1.8
+            ylim_upper = 0.25
         ylim = [-0.25, ylim_upper]
     else:
         ylim = [-1, 1]
