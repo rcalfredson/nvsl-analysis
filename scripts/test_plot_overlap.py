@@ -27,7 +27,7 @@ def test_exp_vs_yoked_two_groups():
 
     # --- Base pattern for exp vs yoked ---
     yoked_base = np.array([0.3, 0.35, 0.25, 0.32, 0.28])
-    exp_base = yoked_base + np.array([0.0, 0.0, 0.0, 0.0, 0.0]) + 1.2
+    exp_base = yoked_base + np.array([0.0, 0.0, 0.0, 0.0, 0.0]) + 0.3
 
     # --- Build fake data array ---
     fake_data = np.zeros((nvid, ntr, nf * (nb + 1)))
@@ -86,7 +86,6 @@ def test_exp_vs_yoked_two_groups():
         gis=gis,
         gls=gls,
         vas=[fake_va] * nvid,
-        manual_overrides=None,
     )
 
     fake_data_diff = (
@@ -101,7 +100,6 @@ def test_exp_vs_yoked_two_groups():
         gis=gis,
         gls=gls,
         vas=[fake_va] * nvid,
-        manual_overrides=None,
     )
 
 

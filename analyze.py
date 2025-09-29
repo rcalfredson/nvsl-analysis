@@ -2667,7 +2667,7 @@ def plotRewards(
                             ylim,
                             prefer=prefer,
                         )
-                        util.pltText(
+                        txt = util.pltText(
                             xs[j],
                             ys,
                             strs,
@@ -2677,6 +2677,13 @@ def plotRewards(
                             color="0",
                             weight="bold",
                         )
+                        txt._y_ = anchor_y
+                        txt._final_y_ = ys
+                        txt._firstSm_ = False
+                        txt._ontp_ = True
+                        key = util.join("|", (i, j))
+                        lbls[key].append(txt)
+
                         if i == 0:
                             all_line_vals.append([ys])
 
