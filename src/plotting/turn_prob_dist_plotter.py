@@ -522,7 +522,7 @@ class TurnProbabilityByDistancePlotter:
 
             if legend_inside:
                 legend = ax.legend(
-                    loc=legend_loc, borderaxespad=0.2, prop={"style": "italic"}
+                    loc="best", borderaxespad=0.2, prop={"style": "italic"}
                 )
             else:
                 box = ax.get_position()  # get the original axis bounds
