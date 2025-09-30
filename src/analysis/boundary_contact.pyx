@@ -1772,9 +1772,10 @@ cdef class EllipseToBoundaryDistCalculator:
         frames_to_skip = self.return_data["boundary_event_stats"][self.boundary_type][
             self.boundary_combo
         ][ellipse_ref_pt].get("frames_to_skip", set())
-        event_chain_plotter = EventChainPlotter(self.trj, self.va, self.y_bounds, self.x, self.y)
 
-        event_chain_plotter._plot_event_chain(
+        plotter = EventChainPlotter(self.trj, self.va, self.y_bounds, self.x, self.y)
+
+        plotter.plot_sharp_turn_chain_wall(
             ellipse_ref_pt,
             bcr,
             turning_idxs_filtered,

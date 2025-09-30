@@ -757,8 +757,10 @@ g.add_argument(
 g.add_argument(
     "--fix",
     dest="fixSeed",
-    action="store_true",
-    help="fix random seed for rewards images",
+    nargs="?",
+    const=101,
+    type=int,
+    help="fix random seed (default: 101)",
 )
 g.add_argument(
     "--tlen_nbins",
@@ -5915,6 +5917,11 @@ def detect_and_split_input(v):
 
 
 def analyze():
+    if opts.fixSeed:
+        seed_value = 101 if opts.fixSeed is True else opts.fixSeed
+        random.seed(seed_value)
+        np.random.seed(seed_value)
+
     customizer.update_font_size(opts.fontSize)
     customizer.update_font_family(opts.fontFamily)
     if P:
@@ -6004,8 +6011,6 @@ def analyze():
         if va0.circle or va0.choice:
             analysisImage(vas)
         if va0.circle:
-            if opts.fixSeed:
-                random.seed(101)
             try:
 
                 random.choice(vas).calcRewardsImgs()

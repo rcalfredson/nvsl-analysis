@@ -131,11 +131,70 @@ class EventChainPlotter:
             )
         )
 
-    def _setup_plot_and_axes(self, top_left, bottom_right, padding_x, padding_y):
-        """Sets up the plot and axis properties."""
+    def _draw_circle_overlays(self, radius_stats, cx=None, cy=None, trn_index=0):
+        """Draw the analysis circle used for sharp-turn detection."""
+
+        r_px = radius_stats["circle_radius_px"]
+        r_mm = radius_stats.get("circle_radius_mm", None)
+        if cx is None or cy is None:
+            # fallback: reward circle center from training
+            cx, cy, _ = self.va.trns[trn_index].circles(self.trj.f)[0]
+
+        analysis_patch = plt.Circle(
+            (cx, cy),
+            r_px,
+            color="black",
+            fill=False,
+            linestyle="--",
+            linewidth=2,
+            zorder=2,
+            label=f"Analysis Circle (r={r_px:.1f}px)",
+        )
+        ax = plt.gca()
+        ax.add_patch(analysis_patch)
+
+        cx_trn, cy_trn, r_trn = self.va.trns[trn_index].circles(self.trj.f)[0]
+
+        training_patch = plt.Circle(
+            (cx_trn, cy_trn),
+            r_trn,
+            color="lightgray",
+            fill=False,
+            linestyle=":",
+            linewidth=2,
+            zorder=1,
+            label=f"Training Circle (r={r_trn:.1f}px)",
+        )
+        ax.add_patch(training_patch)
+
+        if r_mm is not None:
+            plt.text(
+                1.02,
+                0.5,
+                f"r = {r_mm:.1f} mm",
+                transform=ax.transAxes,
+                va="center",
+                fontsize=12,
+                color="black",
+                rotation=90,
+                zorder=3,
+            )
+
+    def _draw_wall_overlays(self, top_left, bottom_right, contact_buffer_px):
         if self.y_bounds is not None:
             plt.axhline(y=self.y_bounds[0], color="k", linestyle="--", zorder=3)
             plt.axhline(y=self.y_bounds[1], color="k", linestyle="--", zorder=3)
+
+        self._draw_sidewall_contact_region(
+            lower_left_x=top_left[0],
+            lower_left_y=top_left[1],
+            top_left=top_left,
+            bottom_right=bottom_right,
+            contact_buffer_px=contact_buffer_px,
+        )
+
+    def _setup_plot_and_axes(self, top_left, bottom_right, padding_x, padding_y):
+        """Sets up the plot and axis properties."""
 
         # Draw the rounded floor box
         rect = patches.FancyBboxPatch(
@@ -150,8 +209,6 @@ class EventChainPlotter:
         )
         plt.gca().add_patch(rect)
         plt.gca().axis("off")
-
-        # Set equal scaling for both axes
         plt.gca().set_aspect("equal", adjustable="box")
 
         plt.xlim(top_left[0] - padding_x, bottom_right[0] + padding_x)
@@ -222,13 +279,8 @@ class EventChainPlotter:
         contact_buffer_px = (
             self.va.ct.pxPerMmFloor() * self.va.xf.fctr * contact_buffer_mm
         )
-        self._draw_sidewall_contact_region(
-            lower_left_x=top_left[0],
-            lower_left_y=top_left[1],
-            top_left=top_left,
-            bottom_right=bottom_right,
-            contact_buffer_px=contact_buffer_px,
-        )
+
+        self._draw_wall_overlays(top_left, bottom_right, contact_buffer_px)
 
         # Define the frame range
         if start_frame is None:
@@ -506,16 +558,69 @@ class EventChainPlotter:
         writeImage(output_path, format=image_format)
         plt.close()
 
-    def _plot_event_chain(
+    def plot_sharp_turn_chain_wall(
         self,
         ellipse_ref_pt,
         bcr,
-        turning_idxs_filtered,
+        turning_idxs,
         rejection_reasons,
         frames_to_skip,
         start_frame=None,
         mode="all_types",
         image_format="png",
+    ):
+        def overlays(top_left, bottom_right, contact_buffer_px, _trn_index):
+            self._draw_wall_overlays(top_left, bottom_right, contact_buffer_px)
+
+        self._plot_event_chain_core(
+            ellipse_ref_pt=ellipse_ref_pt,
+            bcr=bcr,
+            turning_idxs=turning_idxs,
+            rejection_reasons=rejection_reasons or {},
+            frames_to_skip=frames_to_skip or set(),
+            start_frame=start_frame,
+            mode=mode,
+            image_format=image_format,
+            overlays=overlays,
+        )
+
+    def plot_sharp_turn_chain_circle(
+        self, radius_stats, trn_index, start_frame, mode, image_format
+    ):
+        bcr = radius_stats["boundary_contact_regions"]
+        turning_idxs = radius_stats["turning_indices"]
+        rejection_reasons = radius_stats.get("rejection_reasons", {})
+        frames_to_skip = radius_stats.get("frames_to_skip", set())
+
+        cx, cy, _ = self.va.trns[trn_index].circles(self.trj.f)[0]
+
+        def overlays(top_left, bottom_right, contact_buffer_px, _trn_index):
+            self._draw_circle_overlays(radius_stats, cx=cx, cy=cy, trn_index=_trn_index)
+
+        self._plot_event_chain_core(
+            ellipse_ref_pt="ctr",
+            bcr=bcr,
+            turning_idxs=turning_idxs,
+            rejection_reasons=rejection_reasons,
+            frames_to_skip=frames_to_skip,
+            start_frame=start_frame,
+            mode=mode,
+            image_format=image_format,
+            overlays=overlays,
+        )
+
+    def _plot_event_chain_core(
+        self,
+        ellipse_ref_pt,
+        bcr,
+        turning_idxs,
+        rejection_reasons,
+        frames_to_skip,
+        start_frame=None,
+        mode="all_types",
+        image_format="png",
+        overlays=None,
+        trn_index=-1,
     ):
         """
         Plots a chain of sharp turn events in a single figure, applying
@@ -550,30 +655,28 @@ class EventChainPlotter:
             start_idx = next(
                 (
                     idx
-                    for idx, turn_idx in enumerate(turning_idxs_filtered)
+                    for idx, turn_idx in enumerate(turning_idxs)
                     if bcr[turn_idx].start >= start_frame
                 ),
                 None,
             )
 
-            if start_idx is None or start_idx + chain_length > len(
-                turning_idxs_filtered
-            ):
+            if start_idx is None or start_idx + chain_length > len(turning_idxs):
                 raise ValueError(
                     "No sufficient sharp turns found after the specified start_frame"
                 )
 
-            selected_turns = turning_idxs_filtered[start_idx : start_idx + chain_length]
+            selected_turns = turning_idxs[start_idx : start_idx + chain_length]
         else:
             # Ensure there are enough sharp turns to select from
-            if len(turning_idxs_filtered) < chain_length:
-                chain_length = len(turning_idxs_filtered)
+            if len(turning_idxs) < chain_length:
+                chain_length = len(turning_idxs)
 
             # Randomly select a starting index
-            start_idx = random.randint(0, len(turning_idxs_filtered) - chain_length)
+            start_idx = random.randint(0, len(turning_idxs) - chain_length)
 
             # Select the range of sharp turns
-            selected_turns = turning_idxs_filtered[start_idx : start_idx + chain_length]
+            selected_turns = turning_idxs[start_idx : start_idx + chain_length]
 
         # Define the start and end frames for the selected chain of turns
         start_frame = bcr[selected_turns[0]].start
@@ -587,7 +690,7 @@ class EventChainPlotter:
             # Find the first event after the selected sharp turn that is not a sharp turn
             next_event_idx = None
             for i in range(selected_turns[-1] + 1, len(bcr)):
-                if i not in turning_idxs_filtered:
+                if i not in turning_idxs:
                     next_event_idx = i
                     break
                 else:
@@ -614,20 +717,13 @@ class EventChainPlotter:
             self.va.ct.floor(self.va.xf, f=self.va.nef * (self.trj.f) + self.va.ef)
         )
         top_left, bottom_right = floor_coords[0], floor_coords[1]
-
-        # Adjust for coordinate system where Y-axis points down
-        lower_left_x = top_left[0]
-        lower_left_y = top_left[1]
-
-        # Calculate sidewall contact region
         contact_buffer_mm = CONTACT_BUFFER_OFFSETS["wall"]["max"]
         contact_buffer_px = (
             self.va.ct.pxPerMmFloor() * self.va.xf.fctr * contact_buffer_mm
         )
 
-        self._draw_sidewall_contact_region(
-            lower_left_x, lower_left_y, top_left, bottom_right, contact_buffer_px
-        )
+        if overlays:
+            overlays(top_left, bottom_right, contact_buffer_px, trn_index)
 
         # For the legend, we'll collect the labels and colors used
         handles = []
@@ -651,16 +747,13 @@ class EventChainPlotter:
             ):
                 continue
 
-            # Determine if the current frame is part of a sharp turn
-            is_turn = any(bcr[j].start - 1 <= i < bcr[j].stop for j in selected_turns)
-
-            if i in frames_to_skip and color != "black":
-                frames_to_mark.append((self.trj.x[i], self.trj.y[i]))
-
-            # Initialize default color and label
+            # Initialize defaults
             color = "black"
             label = None
             rejection_reason = None
+
+            # Determine if the current frame is part of a sharp turn
+            is_turn = any(bcr[j].start - 1 <= i < bcr[j].stop for j in selected_turns)
 
             # Mode-specific logic for color and label
             if mode == "turn_plus_1":
@@ -706,6 +799,9 @@ class EventChainPlotter:
                                 rejection_reason, ("black", None)
                             )
                             break
+
+            if i in frames_to_skip and color != "black":
+                frames_to_mark.append((self.trj.x[i], self.trj.y[i]))
 
             # Add to the legend only if it hasn't been added yet
             self._add_legend_entry(handles, labels, label, color)

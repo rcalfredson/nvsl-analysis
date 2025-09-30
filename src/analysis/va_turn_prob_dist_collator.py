@@ -3,6 +3,7 @@ import numpy as np
 from src.analysis.boundary_contact import runBndContactAnalysisForCtrReferencePt
 from src.analysis.circle_contact import runCircleContactAnalysisUsingOutside
 from src.utils.common import CT
+from src.plotting.event_chain_plotter import EventChainPlotter
 from src.analysis.reward_range_calculator import RewardRangeCalculator
 from src.analysis.video_analysis_interface import VideoAnalysisInterface
 
@@ -35,7 +36,9 @@ class VATurnProbabilityDistanceCollator:
         if not hasattr(self.va, "reward_ranges"):
             rr_calc = RewardRangeCalculator(self.va, self.opts)
             rr_calc.calculate_reward_ranges()
+
         self.va.turn_prob_by_distance = {}
+
         for i, dist in enumerate(self.distances):
             self.va.turn_prob_by_distance[dist] = []
             for traj in self.va.trx:
@@ -55,6 +58,48 @@ class VATurnProbabilityDistanceCollator:
                         traj, self.va, self.distances[i], self.opts
                     )
                     btp, bcombo, ref_pt = "circle", "ctr", "ctr"
+                    radius_stats = be_stats[btp][bcombo][ref_pt]
+
+                    if self.opts.bnd_ct_plots:
+                        plotter = EventChainPlotter(traj, self.va)
+
+                        if self.opts.bnd_ct_plots == "troubleshooting":
+                            raise NotImplementedError(
+                                "Circle-based sharp turn troubleshooting plots are not implemented yet."
+                            )
+                        for trn_index, trn in enumerate(self.va.trns):
+                            bcr_all = radius_stats["boundary_contact_regions"]
+                            turning_all = radius_stats["turning_indices"]
+
+                            bcr_filtered = [
+                                ev
+                                for ev in bcr_all
+                                if ev.start >= trn.start and ev.stop <= trn.stop
+                            ]
+                            turning_filtered = [
+                                new_idx
+                                for new_idx, ev in enumerate(bcr_filtered)
+                                if ev in [bcr_all[idx] for idx in turning_all]
+                            ]
+
+                            if not turning_filtered:
+                                continue
+
+                            rs_filtered = {
+                                **radius_stats,
+                                "boundary_contact_regions": bcr_filtered,
+                                "turning_indices": turning_filtered,
+                                "circle_radius_mm": self.opts.outside_circle_radii[i],
+                            }
+
+                            plotter.plot_sharp_turn_chain_circle(
+                                radius_stats=rs_filtered,
+                                trn_index=trn_index,
+                                start_frame=self.opts.bnd_ct_plot_start_fm,
+                                mode=self.opts.bnd_ct_plot_mode,
+                                image_format="png",
+                            )
+
                 turn_results = self.va.determineTurnDirectionality(
                     btp, ref_pt, ext_data=be_stats, trj=traj, boundary_combo=bcombo
                 )[btp]["ctr"]["all"]
