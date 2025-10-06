@@ -3700,6 +3700,8 @@ class LgTurnPlotter:
         for i in range(len(self.vas[0].trns)):
             self.plot_turn_dist_for_trn(i, tp, gis)
             self.plot_turn_dist_for_trn(i, tp, gis, exp_only=True)
+
+        self.plot_turn_dist_trn1_vs_trn2(gis)
         self.plot_turn_dist_trn1_vs_trn3(gis)
 
     def calculate_histograms(self, fly_data):
@@ -4088,7 +4090,7 @@ class LgTurnPlotter:
         if not self.exp_only or len(t_idxs) > 1:
             suffix += ("_%s" % self.gls[gi]) if self.gls is not None else ""
         if len(t_idxs) > 1:
-            suffix += "_T1vsT3"
+            suffix += "_T%ivsT%i" % (t_idxs[0] + 1, t_idxs[1] + 1)
         save_path = "turn_%s_dist_from_rwd_ctr" % self.tp
         if len(t_idxs) == 1:
             save_path += "_T%i" % (t_idxs[0] + 1)
@@ -4100,6 +4102,19 @@ class LgTurnPlotter:
             format=opts.imageFormat,
         )
         plt.close("all")
+
+    def plot_turn_dist_trn1_vs_trn2(self, gis):
+        """
+        Plots comparison of turn distance histograms between training 1 and training 2.
+        Mirrors `plot_turn_dist_trn1_vs_trn3` but for the first two trainings.
+        """
+        self.turn_data = {}
+        range_len = len(self.gls) if ~np.all(gis == 0) else 1
+        for exp_only in (True, False):
+            self.exp_only = exp_only
+            for i in range(range_len):
+                self.collect_raw_turns((1, 0), i, reset=True, f=int(not exp_only))
+                self.draw_dist_hist(t_idxs=(1, 0), gi=i)
 
     def plot_turn_dist_trn1_vs_trn3(self, gis):
         """
