@@ -218,9 +218,9 @@ class VideoAnalysis:
                 if opt == "turn":
                     boundary_tps = getattr(opts, opt)
                     for boundary_tp in boundary_tps:
-                        if boundary_tp == "wall":
-                            continue
-                        turn_tps = ["inside_line", "outside_line", "edge", "ctr"]
+                        turn_tps = ["inside_line", "outside_line", "edge"]
+                        if boundary_tp != "wall":
+                            turn_tps.append("ctr")
                         for turn_tp in turn_tps:
                             self.contactEventsBySyncBucket(
                                 "%s_%s_turn" % (turn_tp, boundary_tp)

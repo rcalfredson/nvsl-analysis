@@ -13,7 +13,7 @@ from libc.math cimport atan2, fabs, fmod, nan, sqrt
 
 cdef double PI = 3.141592653589793
 
-cdef in_range(np.ndarray[long, ndim=1] a, double r1, double r2):
+cdef in_range(np.ndarray[np.int64_t, ndim=1] a, double r1, double r2):
     # Filters an array, returning elements within the specified range [r1, r2).
     #
     # Parameters:
@@ -29,7 +29,7 @@ cdef in_range(np.ndarray[long, ndim=1] a, double r1, double r2):
     #     A 1D NumPy array containing elements from `a` that lie within the specified range.
     cdef int n = a.shape[0]
     cdef int idx_count = 0
-    cdef np.ndarray[long, ndim=1] result = np.empty(n, dtype=long)
+    cdef np.ndarray[np.int64_t, ndim=1] result = np.empty(n, dtype=np.int64)
     
     for i in range(n):
         if r1 <= a[i] and a[i] < r2:

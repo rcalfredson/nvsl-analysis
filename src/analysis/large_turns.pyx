@@ -498,7 +498,7 @@ cdef class RewardCircleAnchoredTurnFinder:
 
             upper_index = fm_i + 1
             while (
-                upper_index < len(trj.sp) and
+                upper_index + 1 < len(trj.sp) and
                 self.check_speed_threshold(
                     upper_index + 1, trj, debug, debug_frame_range_low, debug_frame_range_high
                 )

@@ -376,7 +376,7 @@ g.add_argument(
     "--turn",
     help="detect turn events as a subset of boundary-contact events with respect either"
     " to the wall, to the plastic/agarose boundary, or the reward circle",
-    choices=("agarose", "boundary", "circle"),
+    choices=("agarose", "boundary", "circle", "wall"),
     nargs="+",
 )
 g.add_argument(
