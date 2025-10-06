@@ -4032,14 +4032,17 @@ class LgTurnPlotter:
         current_ylim = plt.ylim()
         plt.ylim((current_ylim[0], current_ylim[1] * 2))
         star_spacing = 0.05 * (plt.ylim()[1] - plt.ylim()[0])
+        star_tops = []
         for i, p_val in enumerate(p_values):
+            star_y = max(mean_distributions[0][i], mean_distributions[1][i]) + star_spacing
             plt.text(
                 bin_centers[i],
-                max(mean_distributions[0][i], mean_distributions[1][i]) + star_spacing,
+                star_y,
                 util.p2stars(p_val),
                 ha="center",
                 size=customizer.in_plot_font_size,
             )
+            star_tops.append(star_y)
         title = "Mean normalized distribution"
         descriptors = ["%s of turn" % self.tp]
 
@@ -4081,15 +4084,18 @@ class LgTurnPlotter:
 
         ax = plt.gca()
         ylim = ax.get_ylim()
-        max_y = np.max(all_upper_bounds)
+        max_ci_y = np.max(all_upper_bounds)
+        max_star_y = np.max(star_tops) if star_tops else 0
+        max_y = max(max_ci_y, max_star_y)
         padding = 0.05 * (ylim[1] - ylim[0])
+        y_text = max_y + padding
 
         plt.gca().text(
-            0.02 * (ax.get_xlim()[1] - ax.get_xlim()[0]) + ax.get_xlim()[0],
-            (max_y + padding),
+            0.5 * (ax.get_xlim()[1] - ax.get_xlim()[0]) + ax.get_xlim()[0],
+            y_text,
             ttest_txt,
             verticalalignment="bottom",
-            horizontalalignment="left",
+            horizontalalignment="center",
             transform=plt.gca().transData,
             fontsize=customizer.in_plot_font_size,
         )
