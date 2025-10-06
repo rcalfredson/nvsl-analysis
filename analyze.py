@@ -4025,7 +4025,7 @@ class LgTurnPlotter:
                 edgecolor="mediumblue",
                 linewidth=0.5,
             )
-        legend = plt.legend(prop={"style": "italic"})
+        legend = plt.legend(prop={"style": "italic"}, loc="upper right")
         plt.xlabel("Distance from chamber center (mm)")
         plt.ylabel("Frequency")
         plt.xlim((0, 8))
@@ -4064,7 +4064,7 @@ class LgTurnPlotter:
         if not self.exp_only or len(self.labels) == 2:
             ttest_txt = ""
             if "t" in opts.rc_turn_tests:
-                ttest_txt += "\n%st-test, mean distance\nfrom chamber center: %s" % (
+                ttest_txt += "\n%st-test, mean distance from chamber center: %s" % (
                     ("Welch's " if len(self.t_idxs) == 1 else "paired "),
                     util.p2stars(avg_dist_pvalue),
                 )
@@ -4073,15 +4073,25 @@ class LgTurnPlotter:
                     util.p2stars(mw_result.pvalue)
                 )
 
+        # Determine the highest plotted data point (upper CI or mean)
+        all_upper_bounds = []
+        for i in range(len(mean_distributions)):
+            upper_vals = np.maximum(mean_distributions[i], cis[i][1])
+            all_upper_bounds.append(upper_vals)
+
+        ax = plt.gca()
+        ylim = ax.get_ylim()
+        max_y = np.max(all_upper_bounds)
+        padding = 0.05 * (ylim[1] - ylim[0])
+
         plt.gca().text(
-            0.02,
-            0.98,
+            0.02 * (ax.get_xlim()[1] - ax.get_xlim()[0]) + ax.get_xlim()[0],
+            (max_y + padding),
             ttest_txt,
-            verticalalignment="top",
+            verticalalignment="bottom",
             horizontalalignment="left",
-            transform=plt.gca().transAxes,
+            transform=plt.gca().transData,
             fontsize=customizer.in_plot_font_size,
-            linespacing=1.3,
         )
         suffix = ""
         if self.exp_only:
