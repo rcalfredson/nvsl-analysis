@@ -4064,7 +4064,7 @@ class LgTurnPlotter:
         if not self.exp_only or len(self.labels) == 2:
             ttest_txt = ""
             if "t" in opts.rc_turn_tests:
-                ttest_txt += "\n%st-test, mean distance from chamber center: %s" % (
+                ttest_txt += "\n%st-test, mean distance\nfrom chamber center: %s" % (
                     ("Welch's " if len(self.t_idxs) == 1 else "paired "),
                     util.p2stars(avg_dist_pvalue),
                 )
@@ -4074,13 +4074,14 @@ class LgTurnPlotter:
                 )
 
         plt.gca().text(
+            0.02,
             0.98,
-            bbox.y0 - 0.02,
             ttest_txt,
             verticalalignment="top",
-            horizontalalignment="right",
+            horizontalalignment="left",
             transform=plt.gca().transAxes,
             fontsize=customizer.in_plot_font_size,
+            linespacing=1.3,
         )
         suffix = ""
         if self.exp_only:
