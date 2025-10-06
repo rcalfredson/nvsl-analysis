@@ -231,6 +231,7 @@ cpdef runBoundaryContactAnalyses(trj, va, offsets, thresholds, opts):
                     event_thresholds=wall_thr,
                     ellipse_ref_pt="edge"  # Use edge reference point for walls
                 )
+                findTurns(va, opts, boundary_dist_calc, bnd_tp, boundary_combo, ellipse_ref_pt="edge")
         else:
             boundary_combos = ["tb"]
             boundary_dist_calc.detectWallContact("opposite")
