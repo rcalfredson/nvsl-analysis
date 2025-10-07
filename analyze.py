@@ -3070,6 +3070,23 @@ def plotRewards(
                     plt.ylim(*ylim)
             if i == 0 and f == 0 and not psc:
                 legend = drawLegend(tp, ng, nf, nrp, gls, customizer)
+
+                # Adjust ylim only if dynamic scaling is active
+                if useDynamicAxisLims and legend is not None:
+                    fig = plt.gcf()
+                    fig.canvas.draw()
+                    ax = plt.gca()
+                    inv = ax.transData.inverted()
+                    legend_bbox_data = legend.get_window_extent().transformed(inv)
+
+                    legend_bottom, legend_top = legend_bbox_data.y0, legend_bbox_data.y1
+                    y0, y1 = ax.get_ylim()
+
+                    # If legend overlaps with plotted area, expand ylim upward
+                    if legend_bottom < y1:
+                        pad = 0.2 * (y1 - y0)
+                        ax.set_ylim(y0, max(y1, legend_top + pad))
+
     if not nrp:
         plt.subplots_adjust(wspace=opts.wspace)
     if tp in ("wall", "agarose") and va.ct is CT.htl:
@@ -4034,7 +4051,9 @@ class LgTurnPlotter:
         star_spacing = 0.05 * (plt.ylim()[1] - plt.ylim()[0])
         star_tops = []
         for i, p_val in enumerate(p_values):
-            star_y = max(mean_distributions[0][i], mean_distributions[1][i]) + star_spacing
+            star_y = (
+                max(mean_distributions[0][i], mean_distributions[1][i]) + star_spacing
+            )
             plt.text(
                 bin_centers[i],
                 star_y,
