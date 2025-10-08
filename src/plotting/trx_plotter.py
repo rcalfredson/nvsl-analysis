@@ -379,7 +379,7 @@ class TrxPlotter:
         and draws reward circle + trajectories without video frame background.
         """
         scale = 1.5
-        padding = 30
+        padding = 0
 
         for t in self.trns:
             fi, on = self._getSyncBucket(t)
@@ -402,11 +402,11 @@ class TrxPlotter:
             segs_to_plot = segs[:10] + segs[-10:]
 
             # Floor bounds for experimental fly
-            floor_coords = t._getCornerCoords(t, self.va.xf, self.va.trxf[0])
-            x0, y0 = floor_coords["top-left"]
-            x1, y1 = floor_coords["bottom-right"]
-            x0 -= padding
-            y0 -= padding
+            floor_coords = list(t.ct.floor(self.va.xf, f=self.va.trxf[0]))
+            x0, y0 = floor_coords[0]
+            x1, y1 = floor_coords[1]
+            x0 = max(x0-padding, 0)
+            y0 = max(y0 -padding, 0)
             x1 += padding
             y1 += padding
             w, h = int(x1 - x0), int(y1 - y0)
@@ -426,6 +426,7 @@ class TrxPlotter:
                     frame = self.frame.copy()
 
                 # Crop to floor region
+                print(f"cropping to {y0}:{y1}, {x0}:{x1}")
                 crop = frame[y0:y1, x0:x1]
 
                 # Scale up

@@ -1,5 +1,4 @@
 import numpy as np
-
 import os
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -8,56 +7,66 @@ from analyze import plotRewards, customizer
 from src.utils.common import CT
 
 customizer.update_font_family("Arial")
-customizer.update_font_size(25)
+customizer.update_font_size(23)
 
 
-def test_exp_vs_yoked_two_groups():
+def test_sli_plot_like_paper():
     """
-    Contrived test harness for plotRewards with 2 trainings,
-    2 groups, and ~70 exp-yoked pairs per group.
-    Experimental (f=0) is ~0.2-0.4 higher than yoked (f=1),
-    with added variation and occasional outliers.
+    Synthetic test harness to reproduce an SLI (rpid) plot like the paper figure.
+    - Two trainings (T1, T2)
+    - Two groups (Ctrl vs Antenna removed)
+    - Controlled exp–yoked deltas per training/group.
     """
-    nb = 5  # sync buckets
-    nf = 2  # flies (exp, yoked)
+    nb = 5  # number of time bins
+    nf = 2  # flies per exp–yoked pair
     ng = 2  # groups
     ntr = 2  # trainings
-    pairs_per_group = 70
-    nvid = ng * pairs_per_group  # one "video" = one exp–yoked pair
+    pairs_per_group = 50
+    nvid = ng * pairs_per_group
+    rng = np.random.default_rng()
 
-    # --- Base pattern for exp vs yoked ---
-    yoked_base = np.array([0.3, 0.35, 0.25, 0.32, 0.28])
-    exp_base = yoked_base + np.array([0.0, 0.0, 0.0, 0.0, 0.0]) + 0.3
+    # --- Define target EXP–YOKED deltas (what will become SLI) ---
+    delta_ctrl_T1 = np.linspace(1.0, 1.5, nb)
+    delta_ctrl_T2 = np.full(nb, 1.1)
+    delta_ant_T1  = np.full(nb, 0.5)
+    delta_ant_T2  = np.full(nb, 0.3)
 
-    # --- Build fake data array ---
+    # --- Define base yoked means (shared shape) ---
+    yoked_base = np.array([0.4, 0.45, 0.5, 0.55, 0.6])
+
+    # --- Collect into structured arrays ---
+    deltas = [[delta_ctrl_T1, delta_ant_T1],
+              [delta_ctrl_T2, delta_ant_T2]]
+
     fake_data = np.zeros((nvid, ntr, nf * (nb + 1)))
 
-    rng = np.random.default_rng()  # reproducible
     for vid in range(nvid):
-        g = vid // pairs_per_group
+        g = vid // pairs_per_group  # 0=Ctrl, 1=Antenna removed
         for tr in range(ntr):
+            # Choose delta curve for this group×training
+            delta_curve = deltas[tr][g]
             for f in range(nf):
-                base_vals = exp_base if f == 0 else yoked_base
-                # systematic offsets by training & group
-                vals = base_vals + 0.05 * tr + 0.02 * g
-                # add Gaussian noise
-                vals = vals + rng.normal(0, 0.05, size=nb)
-                # occasional outliers (1 in 20 flies)
+                # Yoked is baseline, exp = yoked + delta
+                if f == 0:
+                    vals = yoked_base + delta_curve  # EXP
+                else:
+                    vals = yoked_base                # YOKED
+
+                # Add Gaussian noise
+                vals = vals + rng.normal(0, 0.1, size=nb)
+                # Occasional small outlier
                 if rng.random() < 0.05:
-                    vals = vals + rng.choice([-0.5, 0.5])
-
-                # append with NaN bucket at the end
+                    vals += rng.choice([-0.25, 0.25])
+                # Append NaN at end
                 vals_with_nan = np.concatenate([vals, [np.nan]])
-                fake_data[vid, tr, f * (nb + 1) : (f + 1) * (nb + 1)] = vals_with_nan
+                fake_data[vid, tr, f * (nb + 1):(f + 1) * (nb + 1)] = vals_with_nan
 
-    # --- Dummy objects for plotRewards ---
+    # --- Dummy objects expected by plotRewards ---
     class DummyTraining:
         def __init__(self, name):
             self._name = name
-
         def name(self):
             return self._name
-
         def hasSymCtrl(self):
             return False
 
@@ -72,26 +81,18 @@ def test_exp_vs_yoked_two_groups():
             self.ct = CT.htl
 
     fake_va = DummyVA()
-    trns = [DummyTraining("T1"), DummyTraining("T2")]
-    gis = np.repeat([0, 1], pairs_per_group)  # group index for each pair
-    gls = ["Group A", "Group B"]
+    trns = [DummyTraining("Training 1"), DummyTraining("Training 2")]
+    gis = np.repeat([0, 1], pairs_per_group)
+    gls = ["Ctrl large agarose", "Antenna removed large agarose"]
 
-    # --- Call plotRewards ---
-    print("fake data shape:", fake_data.shape)
-    plotRewards(
-        va=fake_va,
-        tp="rpi",
-        a=fake_data,
-        trns=trns,
-        gis=gis,
-        gls=gls,
-        vas=[fake_va] * nvid,
-    )
+    # --- Compute exp–yoked difference (the actual SLI values) ---
+    fake_data_diff = fake_data[:, :, 0:(nb + 1)] - fake_data[:, :, (nb + 1):2*(nb + 1)]
 
-    fake_data_diff = (
-        fake_data[:, :, 0 : (nb + 1)] - fake_data[:, :, (nb + 1) : 2 * (nb + 1)]
-    )
+    # Quick check on mean deltas (sanity print)
+    mean_deltas = np.nanmean(fake_data_diff, axis=(0, 1))
+    print("Approx mean SLI across all videos:", mean_deltas)
 
+    # --- Plot using plotRewards() ---
     plotRewards(
         va=fake_va,
         tp="rpid",
@@ -104,4 +105,4 @@ def test_exp_vs_yoked_two_groups():
 
 
 if __name__ == "__main__":
-    test_exp_vs_yoked_two_groups()
+    test_sli_plot_like_paper()

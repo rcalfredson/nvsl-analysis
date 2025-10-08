@@ -565,12 +565,6 @@ g.add_argument(
     help="multiplier for radius for positional PI (default: %(default)s)",
 )
 g.add_argument(
-    "--controlCircleInCorner",
-    action="store_true",
-    help="override control circle placement from saved training protocol,"
-    " placing it in the corner of the chamber instead.",
-)
-g.add_argument(
     "--disableCornerCircleScaling",
     action="store_true",
     help="(TEMPORARY) Disable the scaling by (1/4) when using four control"
@@ -3070,6 +3064,47 @@ def plotRewards(
                     plt.ylim(*ylim)
             if i == 0 and f == 0 and not psc:
                 legend = drawLegend(tp, ng, nf, nrp, gls, customizer)
+
+            # --- Adjust legend if overlapping significance stars (synchronized across subplots) ---
+            fig = plt.gcf()
+            all_axes = fig.get_axes()
+            delta_y_global = 0.0
+
+            if legend is not None:
+                fig.canvas.draw()  # ensures renderer exists
+
+                # Convert legend bbox to figure coords
+                legend_bbox = legend.get_window_extent(fig.canvas.renderer)
+                legend_bbox_fig = legend_bbox.transformed(fig.transFigure.inverted())
+                legend_y0, legend_y1 = legend_bbox_fig.y0, legend_bbox_fig.y1
+
+                # Find approximate top position of all star texts (using axis transforms)
+                top_star_y = None
+                for ax in all_axes:
+                    for txt in ax.texts:
+                        s = txt.get_text()
+                        if "*" in s or s == "ns":
+                            # transform data coords to figure coords
+                            xy_fig = ax.transData.transform(txt.get_position())
+                            xy_fig = fig.transFigure.inverted().transform(xy_fig)
+                            y_fig = xy_fig[1]
+                            if top_star_y is None or y_fig > top_star_y:
+                                top_star_y = y_fig
+
+                # Compare in same figure coordinate space
+                if top_star_y is not None and legend_y0 < top_star_y < legend_y1:
+                    # Adjust ylim globally
+                    ylim_vals = [ax.get_ylim() for ax in all_axes]
+                    y_spans = [y1 - y0 for (y0, y1) in ylim_vals]
+                    delta_y_global = min(
+                        0.15 * np.mean(y_spans), 0.3 * np.median(y_spans)
+                    )
+
+                    ymin_global = min(y0 for (y0, _) in ylim_vals)
+                    ymax_global = max(y1 for (_, y1) in ylim_vals) + delta_y_global
+                    for ax in all_axes:
+                        ax.set_ylim(ymin_global, ymax_global)
+
     if not nrp:
         plt.subplots_adjust(wspace=opts.wspace)
     if tp in ("wall", "agarose") and va.ct is CT.htl:
@@ -4034,7 +4069,9 @@ class LgTurnPlotter:
         star_spacing = 0.05 * (plt.ylim()[1] - plt.ylim()[0])
         star_tops = []
         for i, p_val in enumerate(p_values):
-            star_y = max(mean_distributions[0][i], mean_distributions[1][i]) + star_spacing
+            star_y = (
+                max(mean_distributions[0][i], mean_distributions[1][i]) + star_spacing
+            )
             plt.text(
                 bin_centers[i],
                 star_y,

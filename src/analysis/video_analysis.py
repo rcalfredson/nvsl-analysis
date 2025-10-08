@@ -1385,13 +1385,6 @@ class VideoAnalysis:
         if len(on) == 0:
             on = np.array([])
         count = util.inRange(on, fi, la, count=True)
-
-        if (
-            ctrl
-            and self.opts.controlCircleInCorner
-            and not self.opts.disableCornerCircleScaling
-        ):
-            count /= 4
         return count
 
     # returns number of rewards by bucket; fiCount can be used to make

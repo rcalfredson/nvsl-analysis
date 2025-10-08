@@ -225,48 +225,39 @@ class Training:
             Training._addCircle(t, t.cx, t.cy, t.r, xf, tmFct, tmX, isCntr=is_center)
 
             # Then add control circles
-            if opts.controlCircleInCorner:
-                corner_coords = Training._getCornerCoords(t, xf, t.va.ef)
-                for _, (ctrl_x, ctrl_y) in corner_coords.items():
-                    Training._addCircle(t, ctrl_x, ctrl_y, t.r, xf)
-            else:
-                if t.tp is t.TP.circle:
-                    if t.ct is CT.large:
-                        Training._addCircle(t, t.cx, t.cy, 55, xf)
-                    elif t.ct in (CT.large2, CT.htl) and (
-                        opts.radiusCC or opts.radiusMultCC
-                    ):
-                        Training._addCircle(t, t.cx, t.cy, rcc_px, xf)
-                    elif t.ct is CT.large2:
-                        Training._addCircle(
-                            t,
-                            2 * t.cntr[0] - t.cx,
-                            2 * t.cntr[1] - t.cy,
-                            t.r,
-                            xf,
-                        )
-                        t._symCtrl()
-                    elif t.ct is CT.htl:
-                        Training._addCircle(t, t.cx, 2 * t.cntr[1] - t.cy, t.r, xf)
-                        t._symCtrl()
-                    else:
-                        error(
-                            "TrainingType circle not implemented for %s chamber" % t.ct
-                        )
-                elif is_center:
+            if t.tp is t.TP.circle:
+                if t.ct is CT.large:
+                    Training._addCircle(t, t.cx, t.cy, 55, xf)
+                elif t.ct in (CT.large2, CT.htl) and (
+                    opts.radiusCC or opts.radiusMultCC
+                ):
+                    Training._addCircle(t, t.cx, t.cy, rcc_px, xf)
+                elif t.ct is CT.large2:
                     Training._addCircle(
-                        t, t.cx, t.cy, rcc_px, xf, tmFct, tmX, isCntr=True
+                        t,
+                        2 * t.cntr[0] - t.cx,
+                        2 * t.cntr[1] - t.cy,
+                        t.r,
+                        xf,
                     )
+                    t._symCtrl()
+                elif t.ct is CT.htl:
+                    Training._addCircle(t, t.cx, 2 * t.cntr[1] - t.cy, t.r, xf)
+                    t._symCtrl()
                 else:
-                    if len(cyu) == 3:
-                        assert t.cy == cyu[0] or t.cy == cyu[2]
-                        ccy = cyu[2] if t.cy == cyu[0] else cyu[0]
-                    elif t.tp in (t.TP.bottom, t.TP.top):
-                        assert t.ct is CT.regular
-                        ccy = xf.t2fY(112.5 if t.tp is t.TP.top else 27.5)
-                    else:
-                        error("not yet implemented")
-                    Training._addCircle(t, t.cx, ccy, t.r, xf, tmFct, tmX, isCntr=False)
+                    error("TrainingType circle not implemented for %s chamber" % t.ct)
+            elif is_center:
+                Training._addCircle(t, t.cx, t.cy, rcc_px, xf, tmFct, tmX, isCntr=True)
+            else:
+                if len(cyu) == 3:
+                    assert t.cy == cyu[0] or t.cy == cyu[2]
+                    ccy = cyu[2] if t.cy == cyu[0] else cyu[0]
+                elif t.tp in (t.TP.bottom, t.TP.top):
+                    assert t.ct is CT.regular
+                    ccy = xf.t2fY(112.5 if t.tp is t.TP.top else 27.5)
+                else:
+                    error("not yet implemented")
+                Training._addCircle(t, t.cx, ccy, t.r, xf, tmFct, tmX, isCntr=False)
 
     @staticmethod
     def _setYTopBottom(trns):
