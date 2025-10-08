@@ -19,7 +19,7 @@ import src.utils.util as util
 from src.utils.util import VideoError, COL_BK, COL_O, COL_Y, COL_W
 
 N_TRX_DEFAULT = 24
-TRX_IMG_FILE2 = "imgs/%s__t%d_%s_f%d%s.png"
+TRX_IMG_FILE2 = "imgs/%s__t%d_%s_f%d%s"
 
 
 class TrxPlotter:
@@ -43,7 +43,9 @@ class TrxPlotter:
 
     """
 
-    def __init__(self, va: VideoAnalysisInterface, opts, ntrx=N_TRX_DEFAULT):
+    def __init__(
+        self, va: VideoAnalysisInterface, opts, ntrx=N_TRX_DEFAULT, image_format=None
+    ):
         """
         Initializes the TrxPlotter with video analysis data, plotting options, and the
         number of trajectories.
@@ -52,6 +54,8 @@ class TrxPlotter:
             va (VideoAnalysisInterface): The video analysis interface with data for plotting.
             opts (dict): Plotting options to customize the output.
             ntrx (int): The number of trajectories to consider for plotting.
+            image_format (str, optional): Image format for saved figures (e.g., 'png', 'pdf', 'svg').
+                If None, defaults to opts['imageFormat'] or 'png'.
         """
         self.va = va
         self.frame = va.frame
@@ -65,6 +69,7 @@ class TrxPlotter:
             "avgFirstTA": [[], []],
             "avgFirstRL": [[], []],
         }
+        self.image_format = image_format or getattr(opts, "imageFormat", "png")
 
     def _convert_to_matrix(self, xy):
         """
@@ -454,7 +459,7 @@ class TrxPlotter:
                     t.n,
                     f"{('first', 'last')[chunk_i // 10]}10",
                     self.va.f,
-                    "_overlay",
+                    f"_overlay.{self.image_format}",
                 )
                 plt.savefig(fname, dpi=200, bbox_inches="tight")
                 plt.close()
