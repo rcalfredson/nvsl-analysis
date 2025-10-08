@@ -73,7 +73,8 @@ cdef class RewardCircleAnchoredTurnFinder:
         double min_turn_speed,
         int num_hist_bins,
         int end_turn_before_recontact,
-        str trj_plot_mode=None
+        str trj_plot_mode=None,
+        str image_format='png'
     ):
         # Initializes the RewardCircleAnchoredTurnFinder with required parameters.
         #
@@ -95,6 +96,7 @@ cdef class RewardCircleAnchoredTurnFinder:
         self.turn_to_exit_ratios = vector[vector[double]]()
         self.end_turn_before_recontact = end_turn_before_recontact
         self.trj_plot_mode = trj_plot_mode
+        self.image_format = image_format
 
     def calcLargeTurnsAfterCircleExit(self):
         # Calculates large turns occurring after exiting a circle by analyzing the trajectory
@@ -274,7 +276,7 @@ cdef class RewardCircleAnchoredTurnFinder:
         # Check if plotting flag is enabled
         if self.trj_plot_mode:
             # Call to EventChainPlotter, passing large turn-specific variables
-            large_turn_plotter = EventChainPlotter(trj, self.va)
+            large_turn_plotter = EventChainPlotter(trj, self.va, image_format=self.image_format)
             
             # Define variables that map to large turn events
             lg_turn_idxs = self.indices_of_turns
@@ -292,7 +294,6 @@ cdef class RewardCircleAnchoredTurnFinder:
                 plot_mode=self.trj_plot_mode,
                 start_frame=start_frame,
                 stop_frame=stop_frame,
-                image_format="png"
             )
 
     cdef compute_histogram(self, trj, trn_idx):

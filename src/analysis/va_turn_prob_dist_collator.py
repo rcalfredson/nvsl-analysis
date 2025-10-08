@@ -61,7 +61,9 @@ class VATurnProbabilityDistanceCollator:
                     radius_stats = be_stats[btp][bcombo][ref_pt]
 
                     if self.opts.bnd_ct_plots:
-                        plotter = EventChainPlotter(traj, self.va)
+                        plotter = EventChainPlotter(
+                            traj, self.va, image_format=self.opts.imageFormat
+                        )
 
                         if self.opts.bnd_ct_plots == "troubleshooting":
                             raise NotImplementedError(
@@ -97,7 +99,6 @@ class VATurnProbabilityDistanceCollator:
                                 trn_index=trn_index,
                                 start_frame=self.opts.bnd_ct_plot_start_fm,
                                 mode=self.opts.bnd_ct_plot_mode,
-                                image_format="png",
                             )
 
                 turn_results = self.va.determineTurnDirectionality(

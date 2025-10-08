@@ -11,12 +11,13 @@ from src.utils.constants import CONTACT_BUFFER_OFFSETS
 
 
 class EventChainPlotter:
-    def __init__(self, trj, va, y_bounds=None, x=None, y=None):
+    def __init__(self, trj, va, y_bounds=None, x=None, y=None, image_format="png"):
         self.trj = trj
         self.va = va
         self.y_bounds = y_bounds
         self.x = np.array(trj.x) if x is None else x
         self.y = np.array(trj.y) if y is None else y
+        self.image_format = image_format
 
     def draw_custom_arrowhead(
         self, ax, x_mid, y_mid, dx, dy, color, length=1.1, angle=30, shift_factor=-0.08
@@ -231,7 +232,7 @@ class EventChainPlotter:
         start_frame=None,
         stop_frame=None,
         color_map=None,
-        image_format="png",
+        image_format=None,
     ):
         """
         Plots a trajectory for large turns with color-coded events, applying
@@ -251,6 +252,8 @@ class EventChainPlotter:
         - color_map: a dictionary mapping rejection reasons to colors
         - image_format: format for saving the plot (default: "png")
         """
+
+        image_format = image_format or self.image_format
 
         plt.figure(figsize=(12, 8))
 
@@ -567,8 +570,10 @@ class EventChainPlotter:
         frames_to_skip,
         start_frame=None,
         mode="all_types",
-        image_format="png",
+        image_format=None,
     ):
+        image_format = image_format or self.image_format
+
         def overlays(top_left, bottom_right, contact_buffer_px, _trn_index):
             self._draw_wall_overlays(top_left, bottom_right, contact_buffer_px)
 
@@ -585,8 +590,9 @@ class EventChainPlotter:
         )
 
     def plot_sharp_turn_chain_circle(
-        self, radius_stats, trn_index, start_frame, mode, image_format
+        self, radius_stats, trn_index, start_frame, mode, image_format=None
     ):
+        image_format = image_format or self.image_format
         bcr = radius_stats["boundary_contact_regions"]
         turning_idxs = radius_stats["turning_indices"]
         rejection_reasons = radius_stats.get("rejection_reasons", {})
@@ -618,7 +624,7 @@ class EventChainPlotter:
         frames_to_skip,
         start_frame=None,
         mode="all_types",
-        image_format="png",
+        image_format=None,
         overlays=None,
         trn_index=-1,
     ):
@@ -642,6 +648,7 @@ class EventChainPlotter:
                 'all_types' - show two sharp turns along with all parts of the trajectory between them.
                 'turn_plus_1' - show a single sharp turn and one non-turn event following it, with distinct colors.
         """
+        image_format = image_format or self.image_format
         speed_threshold_high = 18
         speed_threshold_low = 6
         # Number of sharp turns to chain together
@@ -934,7 +941,7 @@ class EventChainPlotter:
             f"Boundary contact events and sharp turns, {start_frame} to {end_frame}"
         )
 
-        output_path = f"imgs/turn__{ellipse_ref_pt}_ref_pt/chained_turn_{start_idx}_f{self.trj.f}.png"
+        output_path = f"imgs/turn__{ellipse_ref_pt}_ref_pt/chained_turn_{start_idx}_f{self.trj.f}.{image_format}"
         output_dir = os.path.dirname(output_path)
         os.makedirs(output_dir, exist_ok=True)
         writeImage(output_path, format=image_format)
