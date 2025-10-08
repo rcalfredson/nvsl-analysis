@@ -3079,29 +3079,39 @@ def plotRewards(
                 legend_y0, legend_y1 = legend_bbox_fig.y0, legend_bbox_fig.y1
 
                 # Find approximate top position of all star texts (using axis transforms)
-                top_star_y = None
+                top_star_y, bottom_star_y = None, None
                 for ax in all_axes:
                     for txt in ax.texts:
                         s = txt.get_text()
-                        if "*" in s or s == "ns":
+                        if "*" in s or s == "ns" or re.fullmatch(r"\d+", s):
                             # transform data coords to figure coords
                             xy_fig = ax.transData.transform(txt.get_position())
                             xy_fig = fig.transFigure.inverted().transform(xy_fig)
                             y_fig = xy_fig[1]
                             if top_star_y is None or y_fig > top_star_y:
                                 top_star_y = y_fig
+                            if bottom_star_y is None or y_fig < bottom_star_y:
+                                bottom_star_y = y_fig
+
+                # Compute all axes’ y-lims
+                ylim_vals = [ax.get_ylim() for ax in all_axes]
+                y_spans = [y1 - y0 for (y0, y1) in ylim_vals]
+                mean_span = np.mean(y_spans)
+                med_span = np.median(y_spans)
 
                 # Compare in same figure coordinate space
                 if top_star_y is not None and legend_y0 < top_star_y < legend_y1:
-                    # Adjust ylim globally
-                    ylim_vals = [ax.get_ylim() for ax in all_axes]
-                    y_spans = [y1 - y0 for (y0, y1) in ylim_vals]
-                    delta_y_global = min(
-                        0.15 * np.mean(y_spans), 0.3 * np.median(y_spans)
-                    )
-
+                    # Legend overlaps top labels → expand upward
+                    delta_y_global = min(0.2 * mean_span, 0.3 * med_span)
                     ymin_global = min(y0 for (y0, _) in ylim_vals)
                     ymax_global = max(y1 for (_, y1) in ylim_vals) + delta_y_global
+                    for ax in all_axes:
+                        ax.set_ylim(ymin_global, ymax_global)
+                elif bottom_star_y is not None and legend_y0 < bottom_star_y < legend_y1:
+                    # Legend overlaps bottom labels → shift downward
+                    delta_y_global = min(0.35 * mean_span, 0.35 * med_span)
+                    ymin_global = min(y0 for (y0, _) in ylim_vals) - delta_y_global
+                    ymax_global = max(y1 for (_, y1) in ylim_vals)
                     for ax in all_axes:
                         ax.set_ylim(ymin_global, ymax_global)
 

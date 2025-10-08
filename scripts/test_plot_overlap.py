@@ -25,11 +25,14 @@ def test_sli_plot_like_paper():
     nvid = ng * pairs_per_group
     rng = np.random.default_rng()
 
-    # --- Define target EXP–YOKED deltas (what will become SLI) ---
-    delta_ctrl_T1 = np.linspace(1.0, 1.5, nb)
-    delta_ctrl_T2 = np.full(nb, 1.1)
-    delta_ant_T1  = np.full(nb, 0.5)
-    delta_ant_T2  = np.full(nb, 0.3)
+    # Weak and noisy trends near zero
+    delta_ctrl_T1 = rng.normal(0.0, 0.15, nb)
+    delta_ctrl_T2 = rng.normal(0.1, 0.25, nb)
+    delta_ant_T1  = rng.normal(-0.05, 0.2, nb)
+    delta_ant_T2  = rng.normal(0.0, 0.3, nb)
+
+    # Optional: add one dramatic spike to simulate a "weird" bin
+    delta_ctrl_T2[rng.integers(nb)] += 0.8
 
     # --- Define base yoked means (shared shape) ---
     yoked_base = np.array([0.4, 0.45, 0.5, 0.55, 0.6])
