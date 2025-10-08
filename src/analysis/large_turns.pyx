@@ -56,6 +56,7 @@ cdef class RewardCircleAnchoredTurnFinder:
     cdef int num_hist_bins
     cdef bint end_turn_before_recontact
     cdef str trj_plot_mode
+    cdef str image_format
     cdef vector[TurnData] lg_turn_dists
     cdef vector[HistData] large_turn_hist_counts_edges
     cdef vector[vector[double]] turn_to_exit_ratios
