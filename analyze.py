@@ -76,6 +76,8 @@ from src.utils.constants import (
     ST,
 )
 from src.analysis.motion import CircularMotionDetector
+from src.plotting.cross_fly_correlations import plot_cross_fly_correlations
+from src.plotting.individual_strategy_plotter import plot_individual_strategy_overlays
 from src.plotting.outside_circle_duration_plotter import OutsideCircleDurationPlotter
 from src.utils.parsers import parse_distances
 from src.plotting.plot import plotAngularVelocity, plotTurnRadiusHist
@@ -3107,7 +3109,9 @@ def plotRewards(
                     ymax_global = max(y1 for (_, y1) in ylim_vals) + delta_y_global
                     for ax in all_axes:
                         ax.set_ylim(ymin_global, ymax_global)
-                elif bottom_star_y is not None and legend_y0 < bottom_star_y < legend_y1:
+                elif (
+                    bottom_star_y is not None and legend_y0 < bottom_star_y < legend_y1
+                ):
                     # Legend overlaps bottom labels → shift downward
                     delta_y_global = min(0.35 * mean_span, 0.35 * med_span)
                     ymin_global = min(y0 for (y0, _) in ylim_vals) - delta_y_global
@@ -4850,8 +4854,10 @@ def postAnalyze(vas):
         if not trns:
             print("skipped")
             continue
+
         a = np.array([vaVarForType(va, tp, calc) for va in vas])
         a = a.reshape((len(vas), len(trns), -1))
+
         if tp in ("rpid", "rpipd") or "exp_min_yok" in tp:
             raw_perf = a.copy()
             n_videos = len(vas)
@@ -4861,6 +4867,8 @@ def postAnalyze(vas):
             logging.debug("n flies: %d", n_flies)
             nb = raw_perf.shape[2] // n_flies
             raw_4 = raw_perf.reshape((n_videos, n_trains, n_flies, nb))
+
+            # exp - yoked along fly axis
             a = np.array(
                 [
                     np.subtract(
@@ -4872,11 +4880,15 @@ def postAnalyze(vas):
             )
 
             # if the user asked for best/worst SLI, pick them once during TRAINING (rpid)
+            sli_ser = None
+            sli_training_idx = getattr(opts, "best_worst_trn", 1) - 1
+            if tp == "rpid":
+                sli_ser = compute_sli_per_fly(raw_4, sli_training_idx)
+
             selected_bottom = selected_top = None
             if opts.best_worst_sli:
                 if tp == "rpid":
                     # *training* period: actually compute the extremes
-                    sli_ser = compute_sli_per_fly(raw_4, opts.best_worst_trn - 1)
                     selected_bottom, selected_top = select_extremes(
                         sli_ser, fraction=opts.best_worst_fraction
                     )
@@ -4899,12 +4911,29 @@ def postAnalyze(vas):
                     save_auc_types=SAVE_AUC_TYPES,
                     sli_extremes="both" if opts.best_worst_sli else None,
                     sli_fraction=opts.best_worst_fraction,
-                    sli_training_idx=opts.best_worst_trn - 1,
+                    sli_training_idx=sli_training_idx,
                     sli_selected=(
                         selected_bottom,
                         selected_top,
                     ),
                     num_trainings=opts.num_trainings,
+                )
+            if tp == "rpid" and opts.best_worst_sli and selected_bottom is not None:
+                plot_individual_strategy_overlays(
+                    vas=vas,
+                    gls=gls,
+                    opts=opts,
+                    sli_selected=(selected_bottom, selected_top),
+                )
+
+            if tp == "rpid" and sli_ser is not None:
+                plot_cross_fly_correlations(
+                    sli_values=sli_ser,
+                    vas=vas,
+                    training_idx=sli_training_idx,
+                    opts=opts,
+                    out_dir="imgs/correlations",
+                    plot_customizer=customizer,
                 )
 
         a_orig = a.copy()
@@ -6155,10 +6184,13 @@ if __name__ == "__main__":
         if opts.contact_geometry == "circular" and not opts.outside_circle_radii:
             error("--outside-circle-radii must be supplied for circular geometry")
 
-    if hasattr(opts, "best_worst_fraction"):
+    bw_frac = getattr(opts, "best_worst_fraction", None)
+    bw_sli = getattr(opts, "best_worst_sli", False)
+
+    if bw_frac is not None and not bw_sli:
         print("Warning: --best-worst-fraction implies --best-worst-sli.")
         opts.best_worst_sli = True
-    else:
+    elif bw_sli and bw_frac is None:
         opts.best_worst_fraction = 0.1
 
     # - - -
