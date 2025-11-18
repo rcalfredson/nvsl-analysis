@@ -2278,6 +2278,7 @@ def plotRewards(
     post = nrp or rpip
     nnpb = va.rpiNumNonPostBuckets if rpip else va.numNonPostBuckets
     fs, ng = fliesForType(va, tp), gis.max() + 1
+    row_to_video_idx = np.arange(a.shape[0])
 
     if sli_extremes and tp in ("rpid", "rpipd"):
         if sli_selected is not None:
@@ -2302,7 +2303,9 @@ def plotRewards(
             selected = bottom + top
             gls = [f"Bottom {int(sli_fraction*100)}%", f"Top {int(sli_fraction*100)}%"]
         # Now filter a down to just those flies
+        selected = np.asarray(selected, dtype=int)
         a = a[selected, :, :]
+        row_to_video_idx = row_to_video_idx[selected]
         gis = (
             np.array([0 if vid in bottom else 1 for vid in selected])
             if sli_extremes == "both"
@@ -2722,8 +2725,9 @@ def plotRewards(
                                         if nf > 1 and tp != "rpid"
                                         else np.full_like(exp_aucs, np.nan)
                                     )
-                                    for local_idx, vid_idx in enumerate(vis):
-                                        va_i = vas[vid_idx]
+                                    for local_idx, row_idx in enumerate(vis):
+                                        original_vid_idx = row_to_video_idx[row_idx]
+                                        va_i = vas[original_vid_idx]
                                         va_i.saved_auc.setdefault(tp, []).append(
                                             {
                                                 "training": i,
@@ -4888,9 +4892,21 @@ def postAnalyze(vas):
             selected_bottom = selected_top = None
             if opts.best_worst_sli:
                 if tp == "rpid":
+                    # How many flies do we actually have?
+                    n_flies = len(sli_ser)
+                    # max fraction per group so that bottom/top can be disjoint
+                    max_fraction_non_overlap = (n_flies // 2) / float(n_flies)
+                    fraction = opts.best_worst_fraction
+                    if fraction > max_fraction_non_overlap:
+                        print(
+                            f"[Warning] Requested best_worst_fraction={fraction:.3f} "
+                            f"is too large for {n_flies} flies. "
+                            f"Clamping to {max_fraction_non_overlap:.3f} to avoid overlap."
+                        )
+                        fraction = max_fraction_non_overlap
                     # *training* period: actually compute the extremes
                     selected_bottom, selected_top = select_extremes(
-                        sli_ser, fraction=opts.best_worst_fraction
+                        sli_ser, fraction=fraction
                     )
                     # save them so we can reuse for the post period
                     saved_bottom, saved_top = selected_bottom, selected_top
