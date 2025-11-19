@@ -210,7 +210,7 @@ def plot_cross_fly_correlations(
 
             if (
                 isinstance(tot, (list, tuple))
-                and len(tot) >= 2
+                and len(tot) >= calc_idx
                 and isinstance(tot[calc_idx], (list, tuple))
             ):
                 flat_list = tot[calc_idx][
