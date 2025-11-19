@@ -212,25 +212,41 @@ cdef class RewardCircleAnchoredTurnFinder:
         # This computation relies on previously gathered histogram data on large turn distances
         # and the relationship between turns and exits, iterating through each training session
         # and trajectory to populate the large turn statistics with these derived metrics.
-        cdef int i, j
+        cdef int trn_i, fly_i
         cdef int num_trns = len(self.va.trns)
+        cdef int num_trx = len(self.va.trx)
+        cdef int range_idx
         cdef double sum_, med_dist_
 
-        self.large_turn_stats.resize(len(self.va.trns))
-        for i in range(num_trns):
-            self.large_turn_stats[i].resize(len(self.va.trx))
-            for j in range(len(self.va.trx)):
-                self.large_turn_stats[i][j].resize(3, nan(""))
+        # One entry per training session (pre is omitted from large_turn_stats)
+        self.large_turn_stats.resize(num_trns)
 
-            for j in range(2):
+        for trn_i in range(num_trns):
+            # Map training index (0..num_trns-1) to trn_ranges index (1..num_trns)
+            # 0 == pre, so skip that and use i+1
+            range_idx = trn_i + 1
+
+            self.large_turn_stats[trn_i].resize(num_trx)
+
+            for fly_i in range(num_trx):
+                # [0] = total large-turn count, [1] = median distance, [2] = turn/exit ratio
+                self.large_turn_stats[trn_i][fly_i].resize(3, nan(""))
+
+                # Guard in case a trajectory has fewer ranges (shouldn't normally happen,
+                # but safer if some trajectories were skipped or truncated)
+                if range_idx >= self.large_turn_hist_counts_edges[fly_i].end.size():
+                    continue
+
                 sum_, med_dist_ = RewardCircleAnchoredTurnFinder.compute_statistic(
-                    self.large_turn_hist_counts_edges[j].end[i].first,
-                    self.large_turn_hist_counts_edges[j].end[i].second
+                    self.large_turn_hist_counts_edges[fly_i].end[range_idx].first,
+                    self.large_turn_hist_counts_edges[fly_i].end[range_idx].second
                 )
 
-                self.large_turn_stats[i][j][0] = sum_
-                self.large_turn_stats[i][j][1] = med_dist_
-                self.large_turn_stats[i][j][2] = self.turn_to_exit_ratios[j][i + 1]
+                self.large_turn_stats[trn_i][fly_i][0] = sum_
+                self.large_turn_stats[trn_i][fly_i][1] = med_dist_
+
+                if range_idx < self.turn_to_exit_ratios[fly_i].size():
+                    self.large_turn_stats[trn_i][fly_i][2] = self.turn_to_exit_ratios[fly_i][range_idx]
 
 
     cdef getTurnsForRange(self, trj, i, trn_range):
@@ -375,23 +391,31 @@ cdef class RewardCircleAnchoredTurnFinder:
             pair[vector[double], vector[double]]()   
         )
 
-    cdef void set_circle_data(self, trj, int i):
+    cdef void set_circle_data(self, trj, int trn_range_idx):
         # Sets the circle data (center and radius) for the current trajectory and training
         # session.
         #
         # Parameters:
         # - trj : Trajectory
         #     The trajectory object being analyzed.
-        # - i : int
-        #     The index of the current training session.
+        # - trn_range_idx : int
+        #     index into self.trn_ranges
+        #     0      -> pre
+        #     1..N   -> training 1..N (self.va.trns[0..N-1])
         #
         # This method extracts and sets the circle data (center and radius) for the trajectory's
         # current training session. It adjusts the index for accessing the circle data and
         # retrieves this information from the trajectory's associated training session, storing
         # it for use in large turn analysis.
-        if i > 0:
-            i -= i
-        circle = self.va.trns[i].circles(trj.f)[0]
+        cdef int trn_idx
+
+        if trn_range_idx <= 0:
+            # Pre period: use the first training's circle (adjust if you prefer something else)
+            trn_idx = 0
+        else:
+            trn_idx = trn_range_idx - 1
+
+        circle = self.va.trns[trn_idx].circles(trj.f)[0]
         self.circle_ctr = np.array(circle[:2])
         self.circle_rad = circle[2]
 

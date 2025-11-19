@@ -456,6 +456,11 @@ g.add_argument(
 )
 g.add_argument("--turn_eg", action="store_true", help="save example images of turns")
 g.add_argument(
+    '--debug-large-turns',
+    action='store_true',
+    help='Dump per-video/per-fly large-turn summary for individual-strategy overlays.'
+)
+g.add_argument(
     "--turn_contact_thresh",
     help="threshold of contact events needed for turn stats to be reported over a"
     " given period (i.e., a sync bucket). Default: 10",

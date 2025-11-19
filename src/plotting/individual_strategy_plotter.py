@@ -30,6 +30,17 @@ def _warn(msg: str):
     print(f"[individual_strategy] WARNING: {msg}")
 
 
+def _get_video_label(va) -> str:
+    for attr in ("fn",):
+        if hasattr(va, attr):
+            val = getattr(va, attr)
+            if val:
+                return str(val)
+
+    # Fallback: something stable-ish even if we don't know the exact attribute
+    return getattr(va, "name", f"VideoAnalysis_{id(va)}")
+
+
 # ---- helpers for data access ----------------------------------------------
 
 
@@ -214,6 +225,81 @@ def gather_large_turn_ratio_matrix(vas) -> np.ndarray:
         padded.append(vals)
 
     return np.vstack(padded)
+
+
+def _debug_dump_large_turn_summary(
+    vas,
+    selected_bottom: Sequence[int],
+    selected_top: Sequence[int],
+    cfg: IndividualStrategyConfig,
+    opts,
+):
+    """
+    Optional debug helper: write out a TSV summarizing large-turn stats for the
+    flies in the top/bottom SLI groups.
+
+    Controlled by opts.debug_large_turns (boolean). If that attribute is absent
+    or False, this is a no-op.
+
+    Output file:
+        <out_dir>/debug_large_turns/large_turn_summary.tsv
+    """
+    debug_flag = getattr(opts, "debug_large_turns", False)
+    if not debug_flag:
+        return
+
+    out_dir = cfg.out_dir / "debug_large_turns"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / "large_turn_summary.tsv"
+
+    with open(out_path, "w") as f:
+        f.write(
+            "group\trow_idx\tvideo\tfly\ttraining_idx\trole\tturns\tturn_to_exit_ratio\tapprox_exits\n"
+        )
+
+        # Combine bottom + top groups, but keep label of which group each belongs to
+        for group_name, indices in (("bottom", selected_bottom), ("top", selected_top)):
+            for row_idx in indices:
+                if not (0 <= row_idx < len(vas)):
+                    continue
+
+                va = vas[row_idx]
+                video_label = _get_video_label(va)
+                fly_index = getattr(va, 'f', None)
+
+                if not hasattr(va, "large_turn_stats") or va.large_turn_stats is None:
+                    continue
+
+                stats = np.asarray(va.large_turn_stats, dtype=float)
+                if stats.ndim != 3 or stats.shape[0] == 0 or stats.shape[2] < 3:
+                    continue
+
+                n_trns, n_flies, _ = stats.shape
+
+                for trn_idx in range(n_trns):
+                    for fly_idx in range(n_flies):
+                        turns = stats[trn_idx, fly_idx, 0]
+                        ratio = stats[trn_idx, fly_idx, 2]
+
+                        # Infer approximate number of exits when possible
+                        if np.isfinite(turns) and np.isfinite(ratio) and ratio > 0:
+                            approx_exits = turns / ratio
+                        else:
+                            approx_exits = np.nan
+
+                        role = "exp" if fly_idx == 0 else "yoked"
+
+                        f.write(
+                            f"{group_name}\t"
+                            f"{row_idx}\t"
+                            f"{video_label}\t"
+                            f"{fly_index}\t"
+                            f"{trn_idx + 1}\t"
+                            f"{role}\t"
+                            f"{turns:.6g}\t"
+                            f"{ratio:.6g}\t"
+                            f"{approx_exits:.6g}\n"
+                        )
 
 
 # ---- plotting helpers ------------------------------------------------------
@@ -512,6 +598,14 @@ def plot_individual_strategy_overlays(
                     cfg=cfg,
                     customizer=customizer,
                     filename_stub="individual_large_turn_ratio_overlays",
+                )
+
+                _debug_dump_large_turn_summary(
+                    vas,
+                    selected_bottom=selected_bottom,
+                    selected_top=selected_top,
+                    cfg=cfg,
+                    opts=opts,
                 )
         except Exception as e:
             _warn(f"Exception during large-turn plotting — skipping. Details: {e}")
