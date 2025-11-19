@@ -111,6 +111,68 @@ def _ensure_sync_med_dist(va, min_no_contact_s=None):
             print("[correlations] WARNING: no syncMedDist and no bySyncBucketMedDist()")
 
 
+def summarize_fast_vs_strong(
+    sli_T1_first: np.ndarray,
+    sli_T2_last: np.ndarray,
+    vas,
+    frac: float = 0.2,
+):
+    """
+    Summarize proportions of fast vs strong learners.
+    - fast = top percentile of SLI at first sync bucket of T1
+    - strong = top percentile of SLI at last sync bucket of T2
+
+    This version uses *separate* validity masks, so a fly with NaN in one
+    bucket can still be classified in the other.
+    """
+    sli_T1_first = np.asarray(sli_T1_first, float)
+    sli_T2_last = np.asarray(sli_T2_last, float)
+
+    # Separate masks
+    mask1 = np.isfinite(sli_T1_first)
+    mask2 = np.isfinite(sli_T2_last)
+
+    # Ensure enough data
+    if mask1.sum() < 3 or mask2.sum() < 3:
+        print("[correlations] WARNING: insufficient data for fast/strong summary")
+        return
+
+    # Extract valid subsets
+    sli1 = sli_T1_first[mask1]
+    sli2 = sli_T2_last[mask2]
+
+    # Percentile counts
+    k1 = max(1, int(frac * len(sli1)))
+    k2 = max(1, int(frac * len(sli2)))
+
+    # Top percentile indices (relative to sli1 and sli2)
+    idx1 = np.argpartition(sli1, -k1)[-k1:]
+    idx2 = np.argpartition(sli2, -k2)[-k2:]
+
+    fast = set(idx1)
+    strong = set(idx2)
+
+    # Map back to original vas indices
+    orig_idx1 = np.arange(len(vas))[mask1]
+    orig_idx2 = np.arange(len(vas))[mask2]
+
+    fast_global = set(orig_idx1[list(fast)])
+    strong_global = set(orig_idx2[list(strong)])
+
+    overlap = fast_global & strong_global
+
+    print("\n=== Fast vs Strong learner summary ===")
+    print(f"Fast learners:   {len(fast_global)} (from N={mask1.sum()})")
+    print(f"Strong learners: {len(strong_global)} (from N={mask2.sum()})")
+    print(f"Overlap:         {len(overlap)}")
+
+    return {
+        "fast": np.array(sorted(fast_global)),
+        "strong": np.array(sorted(strong_global)),
+        "overlap": np.array(sorted(overlap)),
+    }
+
+
 def plot_cross_fly_correlations(
     sli_values: Sequence[float],
     vas: Sequence,
@@ -298,3 +360,14 @@ def plot_cross_fly_correlations(
         print(
             "[correlations] WARNING: missing reward_pi_training_vals; skipping plot 4"
         )
+
+    if reward_pi_training_vals is not None:
+        try:
+            summarize_fast_vs_strong(
+                sli_T1_first=reward_pi_training_vals,
+                sli_T2_last=sli_vals,
+                vas=vas,
+                frac=getattr(opts, "best_worst_fraction", 0.2),
+            )
+        except Exception as e:
+            print(f"[correlations] WARNING: failed fast/strong summary: {e}")
