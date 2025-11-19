@@ -173,6 +173,123 @@ def summarize_fast_vs_strong(
     }
 
 
+def plot_fast_vs_strong_scatter(
+    sli_T1_first: np.ndarray,
+    sli_T2_last: np.ndarray,
+    vas,
+    fast_idx: np.ndarray,
+    strong_idx: np.ndarray,
+    out_dir: Path,
+    frac: float,
+    customizer: PlotCustomizer,
+):
+    """
+    Scatter plot of:
+        X = SLI at T1 first sync bucket (fast learners)
+        Y = SLI at T2 final sync bucket (strong learners)
+
+    Points are colored by group:
+        - Fast-only (fast & not strong)
+        - Strong-only (strong & not fast)
+        - Overlap (fast & strong)
+        - Unclassified (neither)
+    """
+    x = np.asarray(sli_T1_first, float)
+    y = np.asarray(sli_T2_last, float)
+
+    # Masks
+    mask_x = np.isfinite(x)
+    mask_y = np.isfinite(y)
+    mask = mask_x & mask_y  # only for plotting (not classification)
+
+    x_f = x[mask]
+    y_f = y[mask]
+
+    # Build global index arrays
+    valid_global_idx = np.arange(len(vas))[mask]
+
+    fast_set = set(fast_idx.tolist())
+    strong_set = set(strong_idx.tolist())
+    overlap_set = fast_set & strong_set
+
+    # Classification per plotted point
+    classes = []
+    for idx in valid_global_idx:
+        if idx in overlap_set:
+            classes.append("overlap")
+        elif idx in fast_set:
+            classes.append("fast")
+        elif idx in strong_set:
+            classes.append("strong")
+        else:
+            classes.append("other")
+
+    # Colors (simple, can be refined)
+    color_map = {
+        "overlap": "#cc0000",  # red
+        "fast": "#1f77b4",  # blue
+        "strong": "#2ca02c",  # green
+        "other": "#aaaaaa",  # gray
+    }
+
+    point_colors = [color_map[c] for c in classes]
+
+    fig, ax = plt.subplots(figsize=(5.5, 4.5))
+    ax.scatter(x_f, y_f, c=point_colors, alpha=0.85)
+
+    ax.set_xlabel("SLI (T1, first sync bucket)")
+    ax.set_ylabel("SLI (T2, last sync bucket)")
+    ax.set_title(f"Fast vs Strong Learners (top {frac*100:.0f}% each)")
+
+    # Legend
+    handles = [
+        plt.Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            markerfacecolor=color_map["fast"],
+            markersize=8,
+            label="Fast only",
+        ),
+        plt.Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            markerfacecolor=color_map["strong"],
+            markersize=8,
+            label="Strong only",
+        ),
+        plt.Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            markerfacecolor=color_map["overlap"],
+            markersize=8,
+            label="Overlap",
+        ),
+        plt.Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            markerfacecolor=color_map["other"],
+            markersize=8,
+            label="Other",
+        ),
+    ]
+    ax.legend(handles=handles, loc="best", frameon=True)
+
+    # Optional proportional padding
+    customizer.adjust_padding_proportionally()
+
+    out_path = out_dir / "scatter_fast_vs_strong.png"
+    writeImage(str(out_path), format="png")
+    plt.close(fig)
+
+
 def plot_cross_fly_correlations(
     sli_values: Sequence[float],
     vas: Sequence,
@@ -363,7 +480,7 @@ def plot_cross_fly_correlations(
 
     if reward_pi_training_vals is not None:
         try:
-            summarize_fast_vs_strong(
+            summary = summarize_fast_vs_strong(
                 sli_T1_first=reward_pi_training_vals,
                 sli_T2_last=sli_vals,
                 vas=vas,
@@ -371,3 +488,15 @@ def plot_cross_fly_correlations(
             )
         except Exception as e:
             print(f"[correlations] WARNING: failed fast/strong summary: {e}")
+
+    if summary is not None:
+        plot_fast_vs_strong_scatter(
+            sli_T1_first=reward_pi_training_vals,
+            sli_T2_last=sli_vals,
+            vas=vas,
+            fast_idx=summary["fast"],
+            strong_idx=summary["strong"],
+            out_dir=Path(out_dir),
+            frac=getattr(opts, "best_worst_fraction", 0.2),
+            customizer=customizer,
+        )
