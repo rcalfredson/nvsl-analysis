@@ -116,6 +116,7 @@ def plot_cross_fly_correlations(
     vas: Sequence,
     training_idx: int,
     opts,
+    reward_pi_first_bucket: Sequence[float] | None = None,
     out_dir: str | Path = "imgs/correlations",
     plot_customizer: PlotCustomizer | None = None,
 ):
@@ -125,6 +126,8 @@ def plot_cross_fly_correlations(
       1) SLI_final vs reward-per-distance (final bucket of chosen training)
       2) SLI_final vs median distance to reward during chosen training
       3) Pre-training reward PI (exp − yoked) vs SLI_final
+      4) Reward PI (T1, first sync bucket, exp - yoked) vs total rewards
+         in that same bucket (experimental fly)
 
     `sli_values` should be a 1D sequence aligned with `vas`
     (one SLI per VideoAnalysis / learner).
@@ -143,6 +146,15 @@ def plot_cross_fly_correlations(
             f"({sli_vals.shape[0]} vs {len(vas)})"
         )
 
+    reward_pi_training_vals = None
+    if reward_pi_first_bucket is not None:
+        reward_pi_training_vals = np.asarray(reward_pi_first_bucket, float)
+        if reward_pi_training_vals.shape[0] != len(vas):
+            print(
+                "[correlations] WARNING: len(reward_pi_first_bucket) != len(vas) "
+                f"({reward_pi_training_vals.shape[0]} vs {len(vas)})"
+            )
+
     # Use 1-based training index in axis label
     trn_label_idx = training_idx + 1
     x_label_sli = f"SLI (last sync bucket, training {trn_label_idx})"
@@ -150,10 +162,11 @@ def plot_cross_fly_correlations(
     rpd_vals = []
     med_train_vals = []
     pre_pi_diff_vals = []
+    total_reward_vals = []
 
     min_no_contact_s = getattr(opts, "min_no_contact_s", None)
 
-    for idx, va in enumerate(vas):
+    for va in vas:
         # --- Reward per distance (final bucket of training_idx) ---
         if _ensure_rewards_per_distance(va):
             row_idx = 2 * training_idx  # exp row
@@ -187,13 +200,51 @@ def plot_cross_fly_correlations(
         else:
             pre_diff = np.nan
 
+        # --- Total rewards in the same sync bucket used for the reward-PI X variable ---
+        try:
+            calc_idx = 1
+            training_idx_T1 = 0
+            bucket_idx = 0  # first sync bucket of T1
+
+            tot = getattr(va, "numRewardsTot", None)
+
+            if (
+                isinstance(tot, (list, tuple))
+                and len(tot) >= 2
+                and isinstance(tot[calc_idx], (list, tuple))
+            ):
+                flat_list = tot[calc_idx][
+                    0
+                ]  # 0 = reward circle; entries: (exp T1, yok T1, exp T2, yok T2, ...)
+
+                # compute flat index into alternating exp/yok structure
+                flat_idx_exp = 2 * training_idx_T1
+
+                if flat_idx_exp < len(flat_list):
+                    bucket_vals = flat_list[flat_idx_exp]
+                    if isinstance(
+                        bucket_vals, (list, tuple, np.ndarray)
+                    ) and bucket_idx < len(bucket_vals):
+                        total_rewards = float(bucket_vals[bucket_idx])
+                    else:
+                        total_rewards = np.nan
+                else:
+                    total_rewards = np.nan
+            else:
+                total_rewards = np.nan
+
+        except Exception:
+            total_rewards = np.nan
+
         rpd_vals.append(rpd_val)
         med_train_vals.append(med_train)
         pre_pi_diff_vals.append(pre_diff)
+        total_reward_vals.append(total_rewards)
 
     rpd_vals = np.asarray(rpd_vals, float)
     med_train_vals = np.asarray(med_train_vals, float)
     pre_pi_diff_vals = np.asarray(pre_pi_diff_vals, float)
+    total_reward_vals = np.asarray(total_reward_vals, float)
 
     # --- Plot 1: SLI_final vs reward-per-distance ---
     _scatter_with_corr(
@@ -230,3 +281,20 @@ def plot_cross_fly_correlations(
         filename="corr_pre_reward_pi_vs_sli",
         customizer=customizer,
     )
+
+    # --- Plot 4: SLI_final vs total rewards ---
+    if reward_pi_training_vals is not None:
+        _scatter_with_corr(
+            x=reward_pi_training_vals,
+            y=total_reward_vals,
+            title="Reward PI vs total rewards",
+            x_label="Reward PI\n(exp - yok, T1, first sync bucket)",
+            y_label="Total rewards\n(exp, T1, first sync bucket)",
+            cfg=cfg,
+            filename="corr_reward_pi_first_bucket_vs_total_rewards",
+            customizer=customizer,
+        )
+    else:
+        print(
+            "[correlations] WARNING: missing reward_pi_training_vals; skipping plot 4"
+        )

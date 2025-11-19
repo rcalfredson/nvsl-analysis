@@ -456,9 +456,9 @@ g.add_argument(
 )
 g.add_argument("--turn_eg", action="store_true", help="save example images of turns")
 g.add_argument(
-    '--debug-large-turns',
-    action='store_true',
-    help='Dump per-video/per-fly large-turn summary for individual-strategy overlays.'
+    "--debug-large-turns",
+    action="store_true",
+    help="Dump per-video/per-fly large-turn summary for individual-strategy overlays.",
 )
 g.add_argument(
     "--turn_contact_thresh",
@@ -4894,6 +4894,29 @@ def postAnalyze(vas):
             if tp == "rpid":
                 sli_ser = compute_sli_per_fly(raw_4, sli_training_idx)
 
+                # Reward index (exp − yoked) for the FIRST sync bucket of the FIRST training.
+                # raw_4 shape: (n_videos, n_trains, n_flies, nb)
+                reward_pi_first_bucket = None
+                try:
+                    if (
+                        raw_4.shape[1] > 0  # at least one training
+                        and raw_4.shape[2] > 1  # exp + yoked present
+                        and raw_4.shape[3] > 0  # at least one sync bucket
+                    ):
+                        # X values for the new correlation plot:
+                        # exp − yoked, training 0, bucket 0, per VideoAnalysis
+                        reward_pi_first_bucket = raw_4[:, 0, 0, 0] - raw_4[:, 0, 1, 0]
+                    else:
+                        print(
+                            "[correlations] WARNING: raw_4 too small to extract "
+                            "reward PI for T1, bucket 1"
+                        )
+                except Exception as e:
+                    print(
+                        "[correlations] WARNING: error computing reward PI for "
+                        f"T1, bucket 1: {e}"
+                    )
+
             selected_bottom = selected_top = None
             if opts.best_worst_sli:
                 if tp == "rpid":
@@ -4953,6 +4976,7 @@ def postAnalyze(vas):
                     vas=vas,
                     training_idx=sli_training_idx,
                     opts=opts,
+                    reward_pi_first_bucket=reward_pi_first_bucket,
                     out_dir="imgs/correlations",
                     plot_customizer=customizer,
                 )
