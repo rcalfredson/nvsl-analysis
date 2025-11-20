@@ -2,6 +2,7 @@
 **/__pycache__/*
 imgs/**/*.png*
 imgs/**/*.pdf*
+logs/*
 build/**
 
 src/**/*.c

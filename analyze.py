@@ -26,9 +26,11 @@
 import argparse
 import collections
 import csv
+from datetime import datetime
 import itertools
 import logging
 import os
+from pathlib import Path
 import random
 import re
 import sys
@@ -93,7 +95,7 @@ from src.analysis.training import Training
 from src.analysis.trajectory import Trajectory
 from src.plotting.turn_directionality_plotter import TurnDirectionalityPlotter
 from src.plotting.turn_prob_dist_plotter import TurnProbabilityByDistancePlotter
-from src.utils.debug_fly_groups import log_fly_group
+from src.utils.debug_fly_groups import init_fly_group_logging, log_fly_group
 import src.utils.util as util
 from src.utils.util import (
     ArgumentError,
@@ -6405,6 +6407,21 @@ def test():
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     opts = p.parse_args()
+
+    if opts.log_fly_grps:
+        # Top-level logs directory (parallel to imgs/)
+        logs_root = Path("logs")
+        logs_root.mkdir(exist_ok=True)
+
+        # Timestamped subdirectory, unique per run
+        ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        run_log_dir = logs_root / ts
+        run_log_dir.mkdir(parents=True, exist_ok=True)
+
+        # Full output file path
+        log_path = run_log_dir / "debug_fly_groups.log"
+        init_fly_group_logging(log_path)
+
     if opts.angVelOverTime:
         opts.circle = True
     if opts.turn and "circle" in opts.turn:
