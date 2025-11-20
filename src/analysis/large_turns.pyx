@@ -67,6 +67,7 @@ cdef class RewardCircleAnchoredTurnFinder:
     cdef double circle_rad
     cdef double[:] dist_from_ctr_at_end
     cdef vector[vector[vector[double]]] large_turn_stats
+    cdef bint collect_exit_events
 
     def __cinit__(
         self,
@@ -75,7 +76,8 @@ cdef class RewardCircleAnchoredTurnFinder:
         int num_hist_bins,
         int end_turn_before_recontact,
         str trj_plot_mode=None,
-        str image_format='png'
+        str image_format='png',
+        bint collect_exit_events=False,
     ):
         # Initializes the RewardCircleAnchoredTurnFinder with required parameters.
         #
@@ -98,6 +100,7 @@ cdef class RewardCircleAnchoredTurnFinder:
         self.end_turn_before_recontact = end_turn_before_recontact
         self.trj_plot_mode = trj_plot_mode
         self.image_format = image_format
+        self.collect_exit_events = collect_exit_events
 
     def calcLargeTurnsAfterCircleExit(self):
         # Calculates large turns occurring after exiting a circle by analyzing the trajectory
@@ -151,6 +154,12 @@ cdef class RewardCircleAnchoredTurnFinder:
             self.d_view = trj.d
             self.walking_view = trj.walking.astype(np.int32)
             self.min_turn_speed_px = self.min_turn_speed * trj.pxPerMmFloor * self.va.xf.fctr
+
+        if self.collect_exit_events:
+            if not hasattr(self.va, "lg_turn_exit_events"):
+                self.va.lg_turn_exit_events = []
+            while len(self.va.lg_turn_exit_events) <= trj.f:
+                self.va.lg_turn_exit_events.append([])
 
         if not hasattr(self.va, 'lg_turn_rejection_reasons'):
             self.va.lg_turn_rejection_reasons = []
@@ -285,6 +294,41 @@ cdef class RewardCircleAnchoredTurnFinder:
 
         for j, ex_fm in enumerate(exits):
             self.run_turn_search(trj, i, ex_fm, j, entries)
+
+        if self.collect_exit_events:
+            # ------------------ record low-level per-exit / per-fly data ------------------
+            # Build a mapping: exit_idx -> (turn_start_idx, turn_end_idx)
+            exit_to_turn = {}
+            for k, exit_idx_for_turn in enumerate(self.turn_circle_index_mapping):
+                turn_st_idx, turn_end_idx = self.indices_of_turns[k]
+                exit_to_turn[exit_idx_for_turn] = (turn_st_idx, turn_end_idx)
+
+            # One record per reward-circle exit in this time range (pre or training)
+            for exit_idx, ex_fm in enumerate(exits):
+                if exit_idx in exit_to_turn:
+                    turn_st_idx, turn_end_idx = exit_to_turn[exit_idx]
+                    has_turn = True
+                else:
+                    turn_st_idx = -1
+                    turn_end_idx = -1
+                    has_turn = False
+
+                # Append a Python dict describing this exit for this fly
+                self.va.lg_turn_exit_events[trj.f].append(
+                    {
+                        "trn_range_idx": i,            # 0 = pre, 1..N = trn_ranges 1..N
+                        "exit_idx": exit_idx,          # index within 'exits' for this range
+                        "exit_frame": int(ex_fm),      # absolute frame index
+                        "has_large_turn": has_turn,    # True if a large turn was accepted
+                        "turn_start_idx": (
+                            int(turn_st_idx) if has_turn else None
+                        ),
+                        "turn_end_idx": (
+                            int(turn_end_idx) if has_turn else None
+                        ),
+                    }
+                )
+            # -------------------------------------------------------------------------
 
         # Large turn-to-exit ratio calculation
         self.turn_to_exit_ratios[trj.f].push_back(self.calc_turn_to_exit_ratio(trj, i))

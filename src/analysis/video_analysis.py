@@ -44,6 +44,7 @@ from src.utils.constants import (
     ST,
     VBA,
 )
+from src.utils.large_turn_debug import save_large_turn_exit_table
 from src.analysis.contact_event_training_comparison import (
     ContactEventTrainingComparison,
 )
@@ -247,8 +248,13 @@ class VideoAnalysis:
                 int(opts.end_turn_before_recontact),
                 opts.lg_turn_plots,
                 opts.imageFormat,
+                getattr(opts, "dump_large_turn_exits", False),
             )
             turn_finder.calcLargeTurnsAfterCircleExit()
+            if getattr(opts, "dump_large_turn_exits", False):
+                save_large_turn_exit_table(
+                    self, "per_fly_turn_exit_tables/", per_fly=True
+                )
             if opts.timeit:
                 per_lgt_processing_times.append(timeit.default_timer() - lg_turn_start)
         if needs_tp:
@@ -399,7 +405,24 @@ class VideoAnalysis:
                             )
 
         # ─────────────────────────────────────────────────────────────
-        # 4.  Optional GC kick & verbose summary
+        # 4.  Remove large-turn debug attributes on VideoAnalysis
+        # ─────────────────────────────────────────────────────────────
+        if hasattr(self, "lg_turn_exit_events"):
+            if verbose:
+                removal_log["VideoAnalysis.lg_turn_exit_events"]["__attr__"] = (
+                    sys.getsizeof(self.lg_turn_exit_events)
+                )
+            del self.lg_turn_exit_events
+
+        if hasattr(self, "lg_turn_rejection_reasons"):
+            if verbose:
+                removal_log["VideoAnalysis.lg_turn_rejection_reasons"]["__attr__"] = (
+                    sys.getsizeof(self.lg_turn_rejection_reasons)
+                )
+            del self.lg_turn_rejection_reasons
+
+        # ─────────────────────────────────────────────────────────────
+        # 5.  Optional GC kick & verbose summary
         # ─────────────────────────────────────────────────────────────
         gc.collect()
 

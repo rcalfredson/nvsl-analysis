@@ -823,6 +823,14 @@ g.add_argument(
     help="Output the members (video filename + fly number) of fly groups, e.g., "
     '"strong" or "fast" learners, top/bottom SLI percentiles, etc.',
 )
+g.add_argument(
+    "--dump-large-turn-exits",
+    action="store_true",
+    help=(
+        "Dump per-video/per-fly reward-circle exits and whether each is associated "
+        "with an accepted large turn."
+    )
+)
 g.add_argument("--timeit", action="store_true", help="log stats of processing times")
 
 g = p.add_argument_group("specialized files and player")
