@@ -137,7 +137,33 @@ class PlotCustomizer:
         """
         fig = plt.gcf()
 
-        # --- Step 1: Scale figure size based on font size increase (scaled down by 2)
+        # --- Step 1: Scale legend font size based on longest entry ---
+        for ax in fig.get_axes():
+            leg = ax.get_legend()
+            if leg is not None:
+                # Get longest label length
+                labels = [t.get_text() for t in leg.get_texts()]
+                if labels:
+                    longest = max(len(s) for s in labels)
+
+                    base_fontsize = leg.get_texts()[0].get_fontsize()  # current size
+                    max_chars = 20  # threshold where scaling begins
+
+                    if longest > max_chars:
+                        # Scale font inversely with label length
+                        scale = max_chars / float(longest)
+                        new_size = max(
+                            base_fontsize * scale, 6
+                        )  # never smaller than 6 pt
+
+                        for text in leg.get_texts():
+                            text.set_fontsize(new_size)
+
+                        # Scale title too (if present)
+                        if leg.get_title() is not None:
+                            leg.get_title().set_fontsize(new_size)
+
+        # --- Step 2: Scale figure size based on font size increase (scaled down by 2)
         w, h = fig.get_size_inches()
         effective_factor_x = 1 + 0.6 * (self.increase_factor - 1)
         effective_factor_y = effective_factor_x
@@ -147,7 +173,7 @@ class PlotCustomizer:
         if new_w > w or new_h > h:
             fig.set_size_inches(new_w, new_h, forward=True)
 
-        # --- Step 2: Ensure X-axis tick spacing is not greater than 10
+        # --- Step 3: Ensure X-axis tick spacing is not greater than 10
         for ax in fig.get_axes():
             xlim = ax.get_xlim()
             xticks = ax.get_xticks()
@@ -157,7 +183,7 @@ class PlotCustomizer:
                     ax.xaxis.set_major_locator(plt.MultipleLocator(10))
                     ax.set_xlim(left=xlim[0])
 
-        # --- Step 3: Ensure Y-axis tick spacing is set proportionally based on font size
+        # --- Step 4: Ensure Y-axis tick spacing is set proportionally based on font size
         for ax in fig.get_axes():
             _, height = (
                 ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted()).size
@@ -189,7 +215,7 @@ class PlotCustomizer:
 
                     ax.yaxis.set_major_formatter(FuncFormatter(_adaptive_fmt))
 
-        # --- Step 4: Add newlines for long texts and axis labels ---
+        # --- Step 5: Add newlines for long texts and axis labels ---
         font_threshold = 20
 
         def split_evenly(s: str) -> str:
@@ -220,7 +246,7 @@ class PlotCustomizer:
                     if "\n" not in s:
                         label.set_text(split_evenly(s))
 
-        # --- Step 5: Shared axis label logic for large fonts ---
+        # --- Step 6: Shared axis label logic for large fonts ---
         axes = fig.get_axes()
         if not axes:
             return
@@ -230,7 +256,7 @@ class PlotCustomizer:
         )
 
         if large_font and len(axes) > 1:
-            # --- Step 5a: Single Y label (use leftmost subplot) ---
+            # --- Step 6a: Single Y label (use leftmost subplot) ---
             left_ax = min(axes, key=lambda ax: ax.get_position().x0)
             shared_y_label = next(
                 (
@@ -264,10 +290,10 @@ class PlotCustomizer:
                     fontsize=fontsize,
                 )
 
-            # --- Step 5b: Reduce horizontal spacing if shared Y label is used ---
+            # --- Step 6b: Reduce horizontal spacing if shared Y label is used ---
             wspace *= 0
 
-            # --- Step 5c: Single X label (centered) ---
+            # --- Step 6c: Single X label (centered) ---
             shared_x_label = next(
                 (
                     ax.xaxis.get_label().get_text()
@@ -288,9 +314,9 @@ class PlotCustomizer:
                     fontsize=fontsize,
                 )
 
-        # --- Step 6: Normalize subplot box aspect ---
+        # --- Step 7: Normalize subplot box aspect ---
         for ax in fig.get_axes():
             ax.set_box_aspect(aspect_ratio)
 
-        # --- Step 7: Apply subplot spacing ---
+        # --- Step 8: Apply subplot spacing ---
         fig.subplots_adjust(left=0.12, right=0.88, wspace=wspace, hspace=base_hspace)

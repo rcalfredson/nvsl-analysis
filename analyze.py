@@ -33,6 +33,7 @@ import random
 import re
 import sys
 import timeit
+from typing import Optional
 import warnings
 
 # third-party libraries
@@ -85,6 +86,8 @@ from src.plotting.plot_customizer import PlotCustomizer
 from src.analysis.sli_tools import (
     compute_sli_per_fly,
     select_extremes,
+    SLISelectionSpec,
+    compute_sli_set_groups,
 )
 from src.analysis.training import Training
 from src.analysis.trajectory import Trajectory
@@ -250,6 +253,38 @@ g.add_argument(
     default=argparse.SUPPRESS,
     help="Fraction of flies to use for SLI cutoff when plotting best/worst learners."
     " Default: 0.1.",
+)
+g.add_argument(
+    "--sli-pos",
+    type=str,
+    default=None,
+    help=(
+        "Positive SLI selection as 'TRN,BKT' (1-based indices). "
+        "TRN is the training index, BKT is the sync bucket index. "
+        "Example: '1,1' = T1, first bucket."
+    ),
+)
+
+g.add_argument(
+    "--sli-neg",
+    type=str,
+    default=None,
+    help=(
+        "Negative SLI selection as 'TRN,BKT' (1-based). "
+        "If given, can be used for set operations with --sli-set-op."
+    ),
+)
+
+g.add_argument(
+    "--sli-set-op",
+    type=str,
+    choices=("pos", "neg", "pos_minus_neg", "neg_minus_pos", "intersect", "union"),
+    default=None,
+    help=(
+        "Restrict SLI plots (rpid/rpipd) to a composite learner group "
+        "built from positive/negative SLI selections. "
+        "Uses --best-worst-fraction as the cutoff."
+    ),
 )
 g.add_argument(
     "--rdp",
@@ -829,7 +864,7 @@ g.add_argument(
     help=(
         "Dump per-video/per-fly reward-circle exits and whether each is associated "
         "with an accepted large turn."
-    )
+    ),
 )
 g.add_argument("--timeit", action="store_true", help="log stats of processing times")
 
@@ -2244,6 +2279,8 @@ def plotRewards(
     sli_training_idx=None,  # which training index to compute extremes
     sli_selected=None,  # optional precomputed (bottom, top)
     num_trainings=None,  # optionally limit number of trainings shown (e.g., 2)
+    sli_custom_selection=None,  # Optional[List[int]], indices into vas
+    sli_custom_label=None,  # Optional[str]
 ):
     """
     Plots reward data from Drosophila behavior analysis.
@@ -2300,6 +2337,30 @@ def plotRewards(
     fs, ng = fliesForType(va, tp), gis.max() + 1
     row_to_video_idx = np.arange(a.shape[0])
 
+    # --- Apply custom SLI-based subset, if requested ---
+    if sli_custom_selection is not None and tp in ("rpid", "rpipd"):
+        selected = np.asarray(sli_custom_selection, dtype=int)
+        a = a[selected, :, :]
+        row_to_video_idx = row_to_video_idx[selected]
+
+        # Single group: all selected are in group 0
+        gis = np.zeros(len(selected), dtype=int)
+        if sli_custom_label is not None and getattr(opts, "sli_set_op", None):
+            parts = [sli_custom_label]
+
+            # Add training/bucket specs:
+            if getattr(opts, "sli_pos", None):
+                trn, bkt = opts.sli_pos.split(",")
+                parts.append(f"[pos: T{trn},B{bkt}]")
+
+            if getattr(opts, "sli_neg", None):
+                trn, bkt = opts.sli_neg.split(",")
+                parts.append(f"[neg: T{trn},B{bkt}]")
+            gls = [" ".join(parts)]
+        else:
+            gls = [sli_custom_label]
+        ng = 1
+
     if sli_extremes and tp in ("rpid", "rpipd"):
         if sli_selected is not None:
             bottom, top = sli_selected
@@ -2322,7 +2383,7 @@ def plotRewards(
         elif sli_extremes == "both":
             selected = bottom + top
             gls = [f"Bottom {int(sli_fraction*100)}%", f"Top {int(sli_fraction*100)}%"]
-        if tp =='rpid' and sli_extremes and getattr(opts, 'log_fly_grps', False):
+        if tp == "rpid" and sli_extremes and getattr(opts, "log_fly_grps", False):
             log_fly_group("SLI_BOTTOM_LEARNERS", bottom, vas)
             log_fly_group("SLI_TOP_LEARNERS", top, vas)
         # Now filter a down to just those flies
@@ -3266,11 +3327,38 @@ def plotRewards(
         customizer.adjust_padding_proportionally()
 
     base, ext = os.path.splitext(imgFiles[tp] % blf)
-    suffix = ""
+    suffix_parts = []
     if sli_extremes:
+        ext_tag = sli_extremes
         if sli_extremes == "both":
-            sli_extremes = "top_bottom"
-        suffix = f"_{sli_extremes}{int(sli_fraction*100)}"
+            ext_tag = "top_bottom"
+        suffix_parts.append(f"_{ext_tag}{int(sli_fraction * 100)}")
+
+    if (
+        sli_custom_selection is not None
+        and tp
+        in (
+            "rpid",
+            "rpipd",
+        )
+        and getattr(opts, "sli_set_op", None)
+    ):
+        op_tag = opts.sli_set_op
+        op_slug = op_tag.replace("_", "-")
+
+        bits = [op_slug]
+
+        if getattr(opts, "sli_pos", None):
+            trn_str, bkt_str = opts.sli_pos.split(",")
+            bits.append(f"posT{trn_str}B{bkt_str}")
+
+        if getattr(opts, "sli_neg", None):
+            trn_str, bkt_str = opts.sli_neg.split(",")
+            bits.append(f"negT{trn_str}B{bkt_str}")
+
+        suffix_parts.append("_sli_" + "_".join(bits))
+
+    suffix = "".join(suffix_parts)
     outfile = f"{base}{suffix}{ext}"
     writeImage(outfile, format=opts.imageFormat)
     plt.close()
@@ -4764,6 +4852,7 @@ def postAnalyze(vas):
     if gls and len(gls) != ng:
         error("numbers of groups and group labels differ")
 
+    using_sli_set_op = bool(getattr(opts, "sli_set_op", None))
     if opts.wall:
         plotTlenDist(vas, gis, gls, "contactless")
         plotTlenDist(vas, gis, gls, "with_contact")
@@ -4867,6 +4956,7 @@ def postAnalyze(vas):
                 )
 
     saved_bottom = saved_top = None
+    saved_custom_selection = None
     for tc in tcs:
         tp, calc = typeCalc(tc)
         hdr = headerForType(va, tp, calc)
@@ -4935,6 +5025,77 @@ def postAnalyze(vas):
                         f"T1, bucket 1: {e}"
                     )
 
+            # --- Compute composite SLI group if requested ---
+            if tp == "rpid" and using_sli_set_op:
+                composite_group = None
+                frac = getattr(opts, "best_worst_fraction", 0.1)
+
+                def _parse_spec(name: str) -> Optional[SLISelectionSpec]:
+                    val = getattr(opts, name, None)
+                    if not val:
+                        return None
+                    try:
+                        trn_str, bkt_str = val.split(",")
+                        trn = int(trn_str) - 1  # 0-based
+                        bkt = int(bkt_str) - 1  # 0-based
+                        return SLISelectionSpec(training_idx=trn, bucket_idx=bkt)
+                    except Exception:
+                        print(f"[SLI] WARNING: could not parse --{name}='{val}'")
+                        return None
+
+                pos_spec = _parse_spec("sli_pos")
+                neg_spec = _parse_spec("sli_neg")
+
+                if pos_spec is None:
+                    print(
+                        "[SLI] WARNING: --sli-set-op used without --sli-pos; "
+                        "ignoring composite selection."
+                    )
+                else:
+                    groups = compute_sli_set_groups(
+                        raw_4, pos_spec=pos_spec, neg_spec=neg_spec, fraction=frac
+                    )
+                    op = opts.sli_set_op
+                    if op == "pos":
+                        composite_group = groups.get("pos_top", [])
+                        label = "Positive SLI selection"
+                    elif op == "neg":
+                        composite_group = groups.get("neg_top", [])
+                        label = "Negative SLI selection"
+                    elif op == "pos_minus_neg":
+                        composite_group = groups.get("pos_minus_neg", [])
+                        label = "Pos − Neg (top)"
+                    elif op == "neg_minus_pos":
+                        composite_group = groups.get("neg_minus_pos", [])
+                        label = "Neg − Pos (top)"
+                    elif op == "intersect":
+                        composite_group = groups.get("intersection", [])
+                        label = "Intersection (top)"
+                    elif op == "union":
+                        composite_group = groups.get("union", [])
+                        label = "Union (top)"
+                    else:
+                        composite_group = None
+                        label = None
+
+                    if composite_group is not None:
+                        saved_custom_selection = composite_group
+                        custom_label = label
+                    else:
+                        custom_label = None
+            elif tp == "rpipd" and using_sli_set_op:
+                composite_group = saved_custom_selection
+            else:
+                composite_group = None
+
+            if (
+                getattr(opts, "log_fly_grps", False)
+                and composite_group is not None
+                and tp == "rpid"
+            ):
+                log_fly_group("SLI_CUSTOM_" + op.upper(), composite_group, vas)
+
+            # Create SLI groups based on best/worst percentiles
             selected_bottom = selected_top = None
             if opts.best_worst_sli:
                 if tp == "rpid":
@@ -4961,7 +5122,13 @@ def postAnalyze(vas):
                     selected_bottom, selected_top = saved_bottom, saved_top
 
             # now call the plotting function for either training or post
-            if tp in ("rpid", "rpipd") and selected_bottom is not None:
+            should_plot = False
+            if opts.best_worst_sli and selected_bottom is not None:
+                should_plot = True
+
+            if using_sli_set_op and saved_custom_selection is not None:
+                should_plot = True
+            if tp in ("rpid", "rpipd") and should_plot:
                 plotRewards(
                     va,
                     tp,
@@ -4971,14 +5138,24 @@ def postAnalyze(vas):
                     gls,
                     vas,
                     save_auc_types=SAVE_AUC_TYPES,
-                    sli_extremes="both" if opts.best_worst_sli else None,
+                    sli_extremes=(
+                        "both" if opts.best_worst_sli and not using_sli_set_op else None
+                    ),
                     sli_fraction=opts.best_worst_fraction,
                     sli_training_idx=sli_training_idx,
                     sli_selected=(
-                        selected_bottom,
-                        selected_top,
+                        (
+                            selected_bottom,
+                            selected_top,
+                        )
+                        if (opts.best_worst_sli and selected_bottom is not None)
+                        else None
                     ),
                     num_trainings=opts.num_trainings,
+                    sli_custom_selection=(
+                        saved_custom_selection if using_sli_set_op else None
+                    ),
+                    sli_custom_label=(custom_label if using_sli_set_op else None),
                 )
             if tp == "rpid" and opts.best_worst_sli and selected_bottom is not None:
                 plot_individual_strategy_overlays(
@@ -6249,11 +6426,23 @@ if __name__ == "__main__":
 
     bw_frac = getattr(opts, "best_worst_fraction", None)
     bw_sli = getattr(opts, "best_worst_sli", False)
+    sli_set_op = getattr(opts, "sli_set_op", None)
 
-    if bw_frac is not None and not bw_sli:
+    # Do not allow extremes + composite at the same time: semantics unclear and
+    # leads to double-slicing bugs.
+    if bw_sli and sli_set_op:
+        raise SystemExit(
+            "--best-worst-sli and --sli-set-op cannot be used together. "
+            "Use only one SLI selection mode."
+        )
+
+    if bw_frac is not None and not bw_sli and not sli_set_op:
         print("Warning: --best-worst-fraction implies --best-worst-sli.")
         opts.best_worst_sli = True
     elif bw_sli and bw_frac is None:
+        opts.best_worst_fraction = 0.1
+
+    if sli_set_op and bw_frac is None:
         opts.best_worst_fraction = 0.1
 
     # - - -
