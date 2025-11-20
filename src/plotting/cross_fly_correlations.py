@@ -12,6 +12,7 @@ from scipy.stats import pearsonr
 
 from src.plotting.plot_customizer import PlotCustomizer
 from src.utils.common import writeImage
+from src.utils.debug_fly_groups import log_fly_group
 
 
 @dataclass
@@ -115,6 +116,7 @@ def summarize_fast_vs_strong(
     sli_T1_first: np.ndarray,
     sli_T2_last: np.ndarray,
     vas,
+    opts,
     frac: float = 0.2,
 ):
     """
@@ -128,49 +130,57 @@ def summarize_fast_vs_strong(
     sli_T1_first = np.asarray(sli_T1_first, float)
     sli_T2_last = np.asarray(sli_T2_last, float)
 
-    # Separate masks
-    mask1 = np.isfinite(sli_T1_first)
-    mask2 = np.isfinite(sli_T2_last)
-
-    # Ensure enough data
-    if mask1.sum() < 3 or mask2.sum() < 3:
-        print("[correlations] WARNING: insufficient data for fast/strong summary")
+    N_total = len(vas)
+    if N_total == 0:
         return
 
-    # Extract valid subsets
+    # Global percentile count (same rule as select_extremes)
+    k_global = max(1, int(frac * N_total))
+
+    # FAST LEARNERS (T1 first bucket)
+    mask1 = np.isfinite(sli_T1_first)
     sli1 = sli_T1_first[mask1]
+
+    # --- STRONG LEARNERS (T2 last bucket) ---
+    mask2 = np.isfinite(sli_T2_last)
     sli2 = sli_T2_last[mask2]
 
-    # Percentile counts
-    k1 = max(1, int(frac * len(sli1)))
-    k2 = max(1, int(frac * len(sli2)))
+    if len(sli1) == 0 or len(sli2) == 0:
+        print("[correlations] WARNING: no finite SLI values for fast/strong summary")
+        return
+    
+    # clamp k to finite size
+    k1 = min(k_global, len(sli1))
+    k2 = min(k_global, len(sli2))
 
-    # Top percentile indices (relative to sli1 and sli2)
+    # argpartition selection on the finite values
     idx1 = np.argpartition(sli1, -k1)[-k1:]
+    orig_idx1 = np.arange(N_total)[mask1]
+    fast_global = set(orig_idx1[idx1])
     idx2 = np.argpartition(sli2, -k2)[-k2:]
+    orig_idx2 = np.arange(N_total)[mask2]
+    strong_global = set(orig_idx2[idx2])
 
-    fast = set(idx1)
-    strong = set(idx2)
-
-    # Map back to original vas indices
-    orig_idx1 = np.arange(len(vas))[mask1]
-    orig_idx2 = np.arange(len(vas))[mask2]
-
-    fast_global = set(orig_idx1[list(fast)])
-    strong_global = set(orig_idx2[list(strong)])
-
+    # Overlap
     overlap = fast_global & strong_global
 
     print("\n=== Fast vs Strong learner summary ===")
-    print(f"Fast learners:   {len(fast_global)} (from N={mask1.sum()})")
-    print(f"Strong learners: {len(strong_global)} (from N={mask2.sum()})")
+    print(f"Fast learners:   {len(fast_global)} (k={k1}, from N={N_total})")
+    print(f"Strong learners: {len(strong_global)} (k={k2}, from N={N_total})")
     print(f"Overlap:         {len(overlap)}")
 
-    return {
+    summary = {
         "fast": np.array(sorted(fast_global)),
         "strong": np.array(sorted(strong_global)),
         "overlap": np.array(sorted(overlap)),
     }
+
+    if getattr(opts, "log_fly_grps", False):
+        log_fly_group("FAST_LEARNERS", summary["fast"], vas)
+        log_fly_group("STRONG_LEARNERS", summary["strong"], vas)
+        log_fly_group("FAST_STRONG_OVERLAP", summary["overlap"], vas)
+
+    return summary
 
 
 def plot_fast_vs_strong_scatter(
@@ -478,12 +488,14 @@ def plot_cross_fly_correlations(
             "[correlations] WARNING: missing reward_pi_training_vals; skipping plot 4"
         )
 
+    summary = None
     if reward_pi_training_vals is not None:
         try:
             summary = summarize_fast_vs_strong(
                 sli_T1_first=reward_pi_training_vals,
                 sli_T2_last=sli_vals,
                 vas=vas,
+                opts=opts,
                 frac=getattr(opts, "best_worst_fraction", 0.2),
             )
         except Exception as e:

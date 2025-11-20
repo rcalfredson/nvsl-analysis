@@ -90,6 +90,7 @@ from src.analysis.training import Training
 from src.analysis.trajectory import Trajectory
 from src.plotting.turn_directionality_plotter import TurnDirectionalityPlotter
 from src.plotting.turn_prob_dist_plotter import TurnProbabilityByDistancePlotter
+from src.utils.debug_fly_groups import log_fly_group
 import src.utils.util as util
 from src.utils.util import (
     ArgumentError,
@@ -815,6 +816,12 @@ g.add_argument(
     help='check delay between response and "LED on," using the given '
     + 'standard deviation multiplier to set the "LED on" threshold '
     + "(default: %(const)s)",
+)
+g.add_argument(
+    "--log-fly-grps",
+    action="store_true",
+    help="Output the members (video filename + fly number) of fly groups, e.g., "
+    '"strong" or "fast" learners, top/bottom SLI percentiles, etc.',
 )
 g.add_argument("--timeit", action="store_true", help="log stats of processing times")
 
@@ -2307,6 +2314,9 @@ def plotRewards(
         elif sli_extremes == "both":
             selected = bottom + top
             gls = [f"Bottom {int(sli_fraction*100)}%", f"Top {int(sli_fraction*100)}%"]
+        if tp =='rpid' and sli_extremes and getattr(opts, 'log_fly_grps', False):
+            log_fly_group("SLI_BOTTOM_LEARNERS", bottom, vas)
+            log_fly_group("SLI_TOP_LEARNERS", top, vas)
         # Now filter a down to just those flies
         selected = np.asarray(selected, dtype=int)
         a = a[selected, :, :]
