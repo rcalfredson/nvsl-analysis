@@ -148,7 +148,7 @@ def summarize_fast_vs_strong(
     if len(sli1) == 0 or len(sli2) == 0:
         print("[correlations] WARNING: no finite SLI values for fast/strong summary")
         return
-    
+
     # clamp k to finite size
     k1 = min(k_global, len(sli1))
     k2 = min(k_global, len(sli2))
@@ -317,6 +317,9 @@ def plot_cross_fly_correlations(
       3) Pre-training reward PI (exp − yoked) vs SLI_final
       4) Reward PI (T1, first sync bucket, exp - yoked) vs total rewards
          in that same bucket (experimental fly)
+      5) Pre-training reward PI (exp − yoked) vs first-bucket reward PI:
+            a) all learners
+            b) fast learners only
 
     `sli_values` should be a 1D sequence aligned with `vas`
     (one SLI per VideoAnalysis / learner).
@@ -435,6 +438,20 @@ def plot_cross_fly_correlations(
     pre_pi_diff_vals = np.asarray(pre_pi_diff_vals, float)
     total_reward_vals = np.asarray(total_reward_vals, float)
 
+    # --- Fast/strong learner summary (needed for fast-only Plot 5) ---
+    summary = None
+    if reward_pi_training_vals is not None:
+        try:
+            summary = summarize_fast_vs_strong(
+                sli_T1_first=reward_pi_training_vals,
+                sli_T2_last=sli_vals,
+                vas=vas,
+                opts=opts,
+                frac=getattr(opts, "best_worst_fraction", 0.2),
+            )
+        except Exception as e:
+            print(f"[correlations] WARNING: failed fast/strong summary: {e}")
+
     # --- Plot 1: SLI_final vs reward-per-distance ---
     _scatter_with_corr(
         x=sli_vals,
@@ -471,8 +488,8 @@ def plot_cross_fly_correlations(
         customizer=customizer,
     )
 
-    # --- Plot 4: SLI_final vs total rewards ---
     if reward_pi_training_vals is not None:
+        # --- Plot 4: Reward PI (T1, first bucket) vs total rewards in that bucket ---
         _scatter_with_corr(
             x=reward_pi_training_vals,
             y=total_reward_vals,
@@ -483,23 +500,48 @@ def plot_cross_fly_correlations(
             filename="corr_reward_pi_first_bucket_vs_total_rewards",
             customizer=customizer,
         )
-    else:
-        print(
-            "[correlations] WARNING: missing reward_pi_training_vals; skipping plot 4"
+
+        # --- Plot 5a: Pre-training PI vs T1 first-bucket PI (all learners) ---
+        _scatter_with_corr(
+            x=pre_pi_diff_vals,
+            y=reward_pi_training_vals,
+            title="Pre-training vs early reward preference (all learners)",
+            x_label="Reward PI\n(exp - yok, pre-training)",
+            y_label="Reward PI\n(exp - yok, T1, first sync bucket)",
+            cfg=cfg,
+            filename="corr_pre_reward_pi_vs_T1_first_bucket_reward_pi_all",
+            customizer=customizer,
         )
 
-    summary = None
-    if reward_pi_training_vals is not None:
-        try:
-            summary = summarize_fast_vs_strong(
-                sli_T1_first=reward_pi_training_vals,
-                sli_T2_last=sli_vals,
-                vas=vas,
-                opts=opts,
-                frac=getattr(opts, "best_worst_fraction", 0.2),
+        # --- Plot 5b: Pre-training PI vs T1 first-bucket PI (fast learners only) ---
+        if summary is not None and "fast" in summary:
+            fast_idx = np.asarray(summary["fast"], dtype=int)
+            if fast_idx.size == 0:
+                print(
+                    "[correlations] WARNING: no fast learners; "
+                    "skipping fast-only pre-vs-early PI correlation"
+                )
+            else:
+                _scatter_with_corr(
+                    x=pre_pi_diff_vals[fast_idx],
+                    y=reward_pi_training_vals[fast_idx],
+                    title="Pre-training vs early reward preference (fast learners)",
+                    x_label="Reward PI\n(exp - yok, pre-training)",
+                    y_label="Reward PI\n(exp - yok, T1, first sync bucket)",
+                    cfg=cfg,
+                    filename="corr_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast",
+                    customizer=customizer,
+                )
+        else:
+            print(
+                "[correlations] WARNING: missing fast-learner summary; "
+                "skipping fast-only pre-vs-early PI correlation"
             )
-        except Exception as e:
-            print(f"[correlations] WARNING: failed fast/strong summary: {e}")
+    else:
+        print(
+            "[correlations] WARNING: missing reward_pi_training_vals; "
+            "skipping plots 4–5"
+        )
 
     if summary is not None:
         plot_fast_vs_strong_scatter(
