@@ -574,6 +574,11 @@ g.add_argument(
     + "(default: %(default)s)",
 )
 g.add_argument(
+    "--apply-pi-pre",
+    action="store_true",
+    help="Apply PI threshold to pre-training reward window as well as training.",
+)
+g.add_argument(
     "--independent-exclusion",
     action="store_true",
     help=(

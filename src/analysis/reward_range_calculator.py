@@ -15,6 +15,7 @@ class RewardRangeCalculator:
         self.rewards_for_fly = self.va.numRewardsTot[1][0][0 :: len(self.va.flies)]
         self.opts = opts
         self.expected_num_ranges = len(self.va.trns) + 1  # Number of trainings plus 1
+        self.apply_pi_pre = getattr(self.opts, "apply_pi_pre", False)
 
     def _nan_equal(self, x, y):
         """
@@ -78,20 +79,13 @@ class RewardRangeCalculator:
 
         if range_added:
             if not hasattr(self.va, "pair_exclude"):
-                self.va.pair_exclude = [
-                    (
-                        False
-                        if is_pre_training
-                        else self._check_paired_threshold_result(
-                            reward_range.start, reward_range.stop
-                        )
-                    )
-                ]
+                self.va.pair_exclude = []
+            if is_pre_training and not self.apply_pi_pre:
+                # Pre is always kept when the flag is off
+                self.va.pair_exclude.append(False)
             else:
                 self.va.pair_exclude.append(
-                    False
-                    if is_pre_training
-                    else self._check_paired_threshold_result(
+                    self._check_paired_threshold_result(
                         reward_range.start, reward_range.stop
                     )
                 )
@@ -144,13 +138,18 @@ class RewardRangeCalculator:
         ten_min_in_frames = self.va.fps * 10 * 60
         pre_reward_range = slice(t.start - ten_min_in_frames, t.start)
 
+        # Pre-training slice
+        pre_start, pre_end = pre_reward_range.start, pre_reward_range.stop
+        if self.apply_pi_pre:
+            pre_start, pre_end = self._apply_threshold_check(
+                pre_start, pre_end, paired=True
+            )
+
+        # Training 1 slice
         start_index = self.va.buckets[0][0]
         end_index = self.va.buckets[0][1]
-        reward_range = slice(start_index, end_index)
-
-        pre_start, pre_end = pre_reward_range.start, pre_reward_range.stop
         training_start, training_end = self._apply_threshold_check(
-            reward_range.start, reward_range.stop
+            start_index, end_index
         )
 
         self._add_unique_range(slice(pre_start, pre_end), is_pre_training=True)

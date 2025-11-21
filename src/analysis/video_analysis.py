@@ -890,6 +890,8 @@ class VideoAnalysis:
         with boundary contact information. Additionally, if the 'wall_orientations' data is generated
         during the analysis, it is stored as an attribute of the `VideoAnalysis` instance.
         """
+        if self.opts.timeit:
+            bnd_start_t = timeit.default_timer()
         if self.opts.turn:
             for boundary_type in self.opts.turn:
                 if not getattr(self.opts, boundary_type):
@@ -1000,9 +1002,6 @@ class VideoAnalysis:
                 results = pool.map(filterDataAndCalcDiffs, input_data)
             for i, res in enumerate(results):
                 self.trx[i].receiveDataByKey(res)
-
-            if self.opts.timeit:
-                bnd_start_t = timeit.default_timer()
 
             input_data = []
             for trj in self.trx:
