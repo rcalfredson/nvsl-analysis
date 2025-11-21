@@ -2631,12 +2631,20 @@ def plotRewards(
 
                     if useDynamicAxisLims and mci_max is not None:
                         if mci_min is not None and mci_min < ylim[0]:
-                            ylim[0] = mci_min * 1.2
+                            new_ymin = mci_min * 1.2
+                            ylim[0] = new_ymin
                             plt.ylim([ylim[0], ylim[1]])
                         if mci_max is not None and mci_max > ylim[1]:
-                            ylim[1] = (
-                                mci_max * 2 * 0.6 * (customizer.increase_factor - 1)
-                            )
+                            # Base headroom factor (works even when fonts are default)
+                            base_pad = 1.1
+
+                            if getattr(customizer, "font_size_customized", False):
+                                extra = 1 + 0.6 * (customizer.increase_factor - 1)
+                                pad_factor = base_pad * extra
+                            else:
+                                pad_factor = base_pad
+                            new_ymax = mci_max * pad_factor
+                            ylim[1] = new_ymax
                             plt.ylim([ylim[0], ylim[1]])
                     # sample sizes
                     if showN and (not nrp or i == 0) and (ng == 1 or f == 0):
