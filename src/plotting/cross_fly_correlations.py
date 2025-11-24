@@ -23,6 +23,27 @@ class CorrelationPlotConfig:
     figsize: tuple = (5.5, 4.5)
 
 
+def _compute_group_corr(
+    x: np.ndarray, y: np.ndarray, idx: np.ndarray
+) -> tuple[float, float] | None:
+    """
+    Compute Pearson correlation for a given index set, handling NaNs and
+    small sample sizes. Returns (r, p) or None if not enough valid data.
+    """
+    if idx is None or idx.size == 0:
+        return None
+
+    idx = np.asarray(idx, dtype=int)
+    x_g = np.asarray(x, float)[idx]
+    y_g = np.asarray(y, float)[idx]
+
+    mask = np.isfinite(x_g) & np.isfinite(y_g)
+    if np.sum(mask) < 3:
+        return None
+
+    return pearsonr(x_g[mask], y_g[mask])
+
+
 def _scatter_with_corr(
     *,
     x: np.ndarray,
@@ -102,6 +123,42 @@ def _last_valid_scalar(row) -> float:
         if np.isfinite(v):
             return float(v)
     return np.nan
+
+
+def _fast_slow_indices_from_sli_T1_first(
+    sli_T1_first: np.ndarray, frac: float
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Compute disjoint fast and slow index sets based on SLI in the first
+    sync bucket of T1 (reward PI, exp − yoked).
+
+    - fast = top `frac` of finite values
+    - slow = bottom `frac` of finite values
+
+    If 2*k would exceed the number of finite flies, k is clamped so that
+    fast and slow remain disjoint.
+    """
+    arr = np.asarray(sli_T1_first, float)
+    mask = np.isfinite(arr)
+    if not np.any(mask):
+        return np.array([], dtype=int), np.array([], dtype=int)
+
+    finite_vals = arr[mask]
+    finite_idx = np.arange(arr.shape[0])[mask]
+    n_finite = finite_vals.size
+
+    k = max(1, int(frac * n_finite))
+    if 2 * k > n_finite:
+        k = n_finite // 2
+
+    if k == 0:
+        return np.array([], dtype=int), np.array([], dtype=int)
+
+    order = np.argsort(finite_vals)  # ascending
+    slow_idx = finite_idx[order[:k]]
+    fast_idx = finite_idx[order[-k:]]
+
+    return fast_idx, slow_idx
 
 
 def _ensure_sync_med_dist(va, min_no_contact_s=None):
@@ -300,6 +357,145 @@ def plot_fast_vs_strong_scatter(
     plt.close(fig)
 
 
+def plot_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow(
+    pre_pi_diff_vals: np.ndarray,
+    reward_pi_first_bucket: np.ndarray,
+    fast_idx: np.ndarray,
+    slow_idx: np.ndarray,
+    out_dir: Path,
+    frac: float,
+    customizer: PlotCustomizer,
+):
+    """
+    Correlation plot:
+
+        X = pre-training reward PI (exp − yoked)
+        Y = reward PI at T1, first sync bucket (exp − yoked)
+
+    All flies are shown, color-coded by membership:
+
+        - Fast learners (top `frac` of SLI in T1 first bucket)
+        - Slow learners (bottom `frac` of SLI in T1 first bucket)
+        - Other (middle SLI values)
+
+    Correlations are computed separately for:
+        - Fast group
+        - Slow group
+    """
+    x = np.asarray(pre_pi_diff_vals, float)
+    y = np.asarray(reward_pi_first_bucket, float)
+
+    # Global finite mask for plotting
+    mask = np.isfinite(x) & np.isfinite(y)
+    if np.sum(mask) < 3:
+        print(
+            "[correlations] WARNING: not enough valid data for "
+            "pre-PI vs early-PI fast/slow plot"
+        )
+        return
+
+    x_f = x[mask]
+    y_f = y[mask]
+    valid_global_idx = np.arange(x.shape[0])[mask]
+
+    fast_set = set(np.asarray(fast_idx, dtype=int).tolist())
+    slow_set = set(np.asarray(slow_idx, dtype=int).tolist())
+
+    color_map = {
+        "fast": "#1f77b4",  # blue
+        "slow": "#cc0000",  # red
+        "other": "#aaaaaa",  # gray
+    }
+
+    classes = []
+    point_colors = []
+
+    for idx in valid_global_idx:
+        if idx in fast_set:
+            cls = "fast"
+        elif idx in slow_set:
+            cls = "slow"
+        else:
+            cls = "other"
+        classes.append(cls)
+        point_colors.append(color_map[cls])
+
+    fig, ax = plt.subplots(figsize=(5.5, 4.5))
+    ax.scatter(x_f, y_f, c=point_colors, alpha=0.85)
+
+    ax.set_xlabel("Reward PI\n(exp - yok, pre-training)")
+    ax.set_ylabel("Reward PI\n(exp - yok, T1, first sync bucket)")
+    ax.set_title(
+        f"Pre-training vs early reward preference\n"
+        f"(fast vs slow learners, top/bottom {frac * 100:.0f}% SLI)"
+    )
+
+    # Legend
+    handles = [
+        plt.Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            markerfacecolor=color_map["fast"],
+            markersize=8,
+            label="Fast",
+        ),
+        plt.Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            markerfacecolor=color_map["slow"],
+            markersize=8,
+            label="Slow",
+        ),
+        plt.Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            markerfacecolor=color_map["other"],
+            markersize=8,
+            label="Other",
+        ),
+    ]
+    ax.legend(handles=handles, loc="best", frameon=True)
+
+    # Correlations for each group
+    corr_fast = _compute_group_corr(x, y, fast_idx)
+    corr_slow = _compute_group_corr(x, y, slow_idx)
+
+    lines = []
+    if corr_fast is not None:
+        r_f, p_f = corr_fast
+        lines.append(f"Fast:  r = {r_f:.3f}, p = {p_f:.3g}")
+    else:
+        lines.append("Fast:  r = n/a")
+
+    if corr_slow is not None:
+        r_s, p_s = corr_slow
+        lines.append(f"Slow:  r = {r_s:.3f}, p = {p_s:.3g}")
+    else:
+        lines.append("Slow:  r = n/a")
+
+    ax.text(
+        0.05,
+        0.95,
+        "\n".join(lines),
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=10,
+    )
+
+    customizer.adjust_padding_proportionally()
+
+    out_path = out_dir / "corr_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow.png"
+    writeImage(str(out_path), format="png")
+    plt.close(fig)
+
+
 def plot_cross_fly_correlations(
     sli_values: Sequence[float],
     vas: Sequence,
@@ -315,11 +511,14 @@ def plot_cross_fly_correlations(
       1) SLI_final vs reward-per-distance (final bucket of chosen training)
       2) SLI_final vs median distance to reward during chosen training
       3) Pre-training reward PI (exp − yoked) vs SLI_final
-      4) Reward PI (T1, first sync bucket, exp - yoked) vs total rewards
+      4) Reward PI (T1, first sync bucket, exp − yoked) vs total rewards
          in that same bucket (experimental fly)
-      5) Pre-training reward PI (exp − yoked) vs first-bucket reward PI:
-            a) all learners
-            b) fast learners only
+      5) Pre-training reward PI (exp − yoked) vs T1 first-bucket reward PI:
+           a) all learners
+           b) fast learners only
+           c) fast vs slow learners (top and bottom percentile of early SLI)
+      6) SLI at T1 first sync bucket vs SLI at T2 final sync bucket,
+         color-coded by fast / strong / overlap / other.
 
     `sli_values` should be a 1D sequence aligned with `vas`
     (one SLI per VideoAnalysis / learner).
@@ -438,7 +637,7 @@ def plot_cross_fly_correlations(
     pre_pi_diff_vals = np.asarray(pre_pi_diff_vals, float)
     total_reward_vals = np.asarray(total_reward_vals, float)
 
-    # --- Fast/strong learner summary (needed for fast-only Plot 5) ---
+    # --- Fast/strong learner summary (for plots 5b/5c and fast/strong scatter) ---
     summary = None
     if reward_pi_training_vals is not None:
         try:
@@ -537,6 +736,29 @@ def plot_cross_fly_correlations(
                 "[correlations] WARNING: missing fast-learner summary; "
                 "skipping fast-only pre-vs-early PI correlation"
             )
+
+        # --- Plot 5c: Pre-training vs T1 first-bucket PI (fast vs slow) ---
+        frac = getattr(opts, "best_worst_fraction", 0.2)
+        fast_idx_fs, slow_idx_fs = _fast_slow_indices_from_sli_T1_first(
+            reward_pi_training_vals, frac
+        )
+
+        if fast_idx_fs.size == 0 or slow_idx_fs.size == 0:
+            print(
+                "[correlations] WARNING: empty fast/slow groups; "
+                "skipping fast/slow pre-vs-early PI correlation"
+            )
+        else:
+            plot_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow(
+                pre_pi_diff_vals=pre_pi_diff_vals,
+                reward_pi_first_bucket=reward_pi_training_vals,
+                fast_idx=fast_idx_fs,
+                slow_idx=slow_idx_fs,
+                out_dir=out_dir,
+                frac=frac,
+                customizer=customizer,
+            )
+
     else:
         print(
             "[correlations] WARNING: missing reward_pi_training_vals; "
@@ -550,7 +772,7 @@ def plot_cross_fly_correlations(
             vas=vas,
             fast_idx=summary["fast"],
             strong_idx=summary["strong"],
-            out_dir=Path(out_dir),
+            out_dir=out_dir,
             frac=getattr(opts, "best_worst_fraction", 0.2),
             customizer=customizer,
         )

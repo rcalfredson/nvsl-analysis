@@ -4915,7 +4915,7 @@ def postAnalyze(vas):
             "rpm",
             "dbr",
             "com",
-            'com_exp_min_yok'
+            "com_exp_min_yok",
         )
     )
     if opts.circle:
