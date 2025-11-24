@@ -2455,6 +2455,7 @@ def plotRewards(
         or diff_tp
     )
     hideAUCCumulative = diff_tp or com or rpd
+    legend = None
     if showSS and vas:
         speed, stpFr = (
             np.array([getattr(va, k) for va in vas]) for k in ("speed", "stopFrac")
@@ -2633,7 +2634,6 @@ def plotRewards(
                         if mci_min is not None and mci_min < ylim[0]:
                             new_ymin = mci_min * 1.2
                             ylim[0] = new_ymin
-                            plt.ylim([ylim[0], ylim[1]])
                         if mci_max is not None and mci_max > ylim[1]:
                             # Base headroom factor (works even when fonts are default)
                             base_pad = 1.1
@@ -2645,7 +2645,6 @@ def plotRewards(
                                 pad_factor = base_pad
                             new_ymax = mci_max * pad_factor
                             ylim[1] = new_ymax
-                            plt.ylim([ylim[0], ylim[1]])
                     # sample sizes
                     if showN and (not nrp or i == 0) and (ng == 1 or f == 0):
                         for j, n in enumerate(mci[3, :1] if nrp else mci[3, :]):
@@ -3170,58 +3169,56 @@ def plotRewards(
             if i == 0 and f == 0 and not psc:
                 legend = drawLegend(tp, ng, nf, nrp, gls, customizer)
 
-            # --- Adjust legend if overlapping significance stars (synchronized across subplots) ---
-            fig = plt.gcf()
-            all_axes = fig.get_axes()
-            delta_y_global = 0.0
+    fig = plt.gcf()
+    all_axes = fig.get_axes()
+    if useDynamicAxisLims and mci_max is not None:
+        for ax in all_axes:
+            ax.set_ylim(ylim[0], ylim[1])
 
-            if legend is not None:
-                fig.canvas.draw()  # ensures renderer exists
+    if legend is not None:
+        fig.canvas.draw()  # ensures renderer exists
 
-                # Convert legend bbox to figure coords
-                legend_bbox = legend.get_window_extent(fig.canvas.renderer)
-                legend_bbox_fig = legend_bbox.transformed(fig.transFigure.inverted())
-                legend_y0, legend_y1 = legend_bbox_fig.y0, legend_bbox_fig.y1
+        # Convert legend bbox to figure coords
+        legend_bbox = legend.get_window_extent(fig.canvas.renderer)
+        legend_bbox_fig = legend_bbox.transformed(fig.transFigure.inverted())
+        legend_y0, legend_y1 = legend_bbox_fig.y0, legend_bbox_fig.y1
 
-                # Find approximate top position of all star texts (using axis transforms)
-                top_star_y, bottom_star_y = None, None
-                for ax in all_axes:
-                    for txt in ax.texts:
-                        s = txt.get_text()
-                        if "*" in s or s == "ns" or re.fullmatch(r"\d+", s):
-                            # transform data coords to figure coords
-                            xy_fig = ax.transData.transform(txt.get_position())
-                            xy_fig = fig.transFigure.inverted().transform(xy_fig)
-                            y_fig = xy_fig[1]
-                            if top_star_y is None or y_fig > top_star_y:
-                                top_star_y = y_fig
-                            if bottom_star_y is None or y_fig < bottom_star_y:
-                                bottom_star_y = y_fig
+        # Find approximate top position of all star texts (using axis transforms)
+        top_star_y, bottom_star_y = None, None
+        for ax in all_axes:
+            for txt in ax.texts:
+                s = txt.get_text()
+                if "*" in s or s == "ns" or re.fullmatch(r"\d+", s):
+                    # transform data coords to figure coords
+                    xy_fig = ax.transData.transform(txt.get_position())
+                    xy_fig = fig.transFigure.inverted().transform(xy_fig)
+                    y_fig = xy_fig[1]
+                    if top_star_y is None or y_fig > top_star_y:
+                        top_star_y = y_fig
+                    if bottom_star_y is None or y_fig < bottom_star_y:
+                        bottom_star_y = y_fig
 
-                # Compute all axes’ y-lims
-                ylim_vals = [ax.get_ylim() for ax in all_axes]
-                y_spans = [y1 - y0 for (y0, y1) in ylim_vals]
-                mean_span = np.mean(y_spans)
-                med_span = np.median(y_spans)
+        # Compute all axes’ y-lims
+        ylim_vals = [ax.get_ylim() for ax in all_axes]
+        y_spans = [y1 - y0 for (y0, y1) in ylim_vals]
+        mean_span = np.mean(y_spans)
+        med_span = np.median(y_spans)
 
-                # Compare in same figure coordinate space
-                if top_star_y is not None and legend_y0 < top_star_y < legend_y1:
-                    # Legend overlaps top labels → expand upward
-                    delta_y_global = min(0.2 * mean_span, 0.3 * med_span)
-                    ymin_global = min(y0 for (y0, _) in ylim_vals)
-                    ymax_global = max(y1 for (_, y1) in ylim_vals) + delta_y_global
-                    for ax in all_axes:
-                        ax.set_ylim(ymin_global, ymax_global)
-                elif (
-                    bottom_star_y is not None and legend_y0 < bottom_star_y < legend_y1
-                ):
-                    # Legend overlaps bottom labels → shift downward
-                    delta_y_global = min(0.35 * mean_span, 0.35 * med_span)
-                    ymin_global = min(y0 for (y0, _) in ylim_vals) - delta_y_global
-                    ymax_global = max(y1 for (_, y1) in ylim_vals)
-                    for ax in all_axes:
-                        ax.set_ylim(ymin_global, ymax_global)
-
+        # Compare in same figure coordinate space
+        if top_star_y is not None and legend_y0 < top_star_y < legend_y1:
+            # Legend overlaps top labels → expand upward
+            delta_y_global = min(0.2 * mean_span, 0.3 * med_span)
+            ymin_global = min(y0 for (y0, _) in ylim_vals)
+            ymax_global = max(y1 for (_, y1) in ylim_vals) + delta_y_global
+            for ax in all_axes:
+                ax.set_ylim(ymin_global, ymax_global)
+        elif bottom_star_y is not None and legend_y0 < bottom_star_y < legend_y1:
+            # Legend overlaps bottom labels → shift downward
+            delta_y_global = min(0.35 * mean_span, 0.35 * med_span)
+            ymin_global = min(y0 for (y0, _) in ylim_vals) - delta_y_global
+            ymax_global = max(y1 for (_, y1) in ylim_vals)
+            for ax in all_axes:
+                ax.set_ylim(ymin_global, ymax_global)
     if not nrp:
         plt.subplots_adjust(wspace=opts.wspace)
     if tp in ("wall", "agarose") and va.ct is CT.htl:
@@ -4918,6 +4915,7 @@ def postAnalyze(vas):
             "rpm",
             "dbr",
             "com",
+            'com_exp_min_yok'
         )
     )
     if opts.circle:
@@ -4932,8 +4930,6 @@ def postAnalyze(vas):
         tcs += ("rpd-c",)
         if ng > 1:
             tcs += ("rpd_exp_min_yok-c",)
-    if ng > 1:
-        tcs += ("com_exp_min_yok",)
     if not va.noyc and not va.choice:
         tcs += ("rpid", "rpipd")
     for opt in ("wall", "agarose", "boundary", "turn"):
