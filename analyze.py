@@ -579,6 +579,13 @@ g.add_argument(
     help="Apply PI threshold to pre-training reward window as well as training.",
 )
 g.add_argument(
+    "--pre-explor-grid-sz",
+    type=float,
+    default=1.0,
+    help="size (in mm) of the grid used to subdivide the chamber floor when calculating "
+    "pre-training exploration percentage.",
+)
+g.add_argument(
     "--independent-exclusion",
     action="store_true",
     help=(
@@ -613,12 +620,6 @@ g.add_argument(
     default=1.3,
     metavar="F",
     help="multiplier for radius for positional PI (default: %(default)s)",
-)
-g.add_argument(
-    "--disableCornerCircleScaling",
-    action="store_true",
-    help="(TEMPORARY) Disable the scaling by (1/4) when using four control"
-    " circles placed at the corners of the chamber.",
 )
 g1 = g.add_mutually_exclusive_group()
 g1.add_argument(

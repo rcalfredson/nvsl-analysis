@@ -186,6 +186,7 @@ class VideoAnalysis:
         self.byBucket()
         if self.circle:
             self.calcRewardsPre()
+            self.calcPreFloorExploration(mm_bin_size=opts.pre_explor_grid_sz)
             self.bySyncBucket()
             self.bySyncBucket2()  # pass True to get maximum distance reached
             self.byPostBucket()
@@ -1844,6 +1845,125 @@ class VideoAnalysis:
                 self.numRewardsTotPrePost[j].append(
                     self._countOn(start, stop, calc=True, ctrl=ctrl, f=f)
                 )
+
+    def calcPreFloorExploration(self, mm_bin_size=1.0):
+        """
+        Estimate the fraction of the chamber floor explored during pre-training
+        for each fly in this VideoAnalysis instance.
+
+        For each fly, the floor region is subdivided into ~1 mm x 1 mm bins in
+        physical coordinates (using pxPerMmFloor() and the template-matching
+        scaling factor). A bin is marked as 'visited' if the ellipse center
+        enters it at least once during pre-training (from startPre up to the
+        start of the first training session).
+
+        Results are stored in self.preFloorExploredFrac, a list aligned with
+        self.flies (index 0 = experimental fly, index 1 = yoked control if present).
+        """
+        if mm_bin_size <= 0:
+            raise ValueError(
+                f"got invalid argument value of {mm_bin_size} for mm_bin_size. "
+                "Bin sizes must be > 0."
+            )
+        # Default to NaN if something is missing / incompatible
+        self.preFloorExploredFrac = [np.nan for _ in self.flies]
+
+        # Need at least one training and startPre indices
+        if not hasattr(self, "trns") or len(self.trns) == 0:
+            return
+        if not hasattr(self, "startPre"):
+            return
+
+        try:
+            base_px_per_mm = self.ct.pxPerMmFloor()
+        except AttributeError:
+            # No floor scaling available
+            return
+
+        # Template-matching scaling factor
+        fctr = getattr(self.xf, "fctr", 1.0)
+        px_per_mm = base_px_per_mm * fctr
+        if px_per_mm <= 0:
+            return
+
+        # Pre-training frame range
+        t0 = self.trns[0]
+        start = self.startPre
+        stop = t0.start
+        if start >= stop:
+            return
+
+        # Loop over slots (0 = experimental, 1 = yoked) and corresponding raw fly IDs
+        for slot_idx, raw_f in enumerate(self.trxf):
+            # Floor rectangle in frame coordinates for this fly
+            try:
+                (xl, yt), (xr, yb) = self.ct.floor(self.xf, raw_f)
+            except Exception:
+                continue
+
+            width_px = xr - xl
+            height_px = yb - yt
+            if width_px <= 0 or height_px <= 0:
+                continue
+
+            # Grid size in mm (ceil so we cover partial bins at edges)
+            n_x = int(np.ceil((width_px / px_per_mm) / mm_bin_size))
+            n_y = int(np.ceil((height_px / px_per_mm) / mm_bin_size))
+            if n_x <= 0 or n_y <= 0:
+                continue
+
+            visited = np.zeros((n_y, n_x), dtype=bool)
+
+            # Trajectory for this slot (ellipse centers in frame coordinates)
+            if slot_idx >= len(self.trx):
+                continue
+            trj = self.trx[slot_idx]
+            xs = np.asarray(trj.x[start:stop], dtype=float)
+            ys = np.asarray(trj.y[start:stop], dtype=float)
+
+            # Drop NaNs and positions outside the floor rectangle
+            mask = np.isfinite(xs) & np.isfinite(ys)
+            if not np.any(mask):
+                continue
+            xs = xs[mask]
+            ys = ys[mask]
+
+            x_rel = xs - xl
+            y_rel = ys - yt
+
+            # Keep only points inside the floor bounds
+            inside = (
+                (x_rel >= 0) & (x_rel < width_px) & (y_rel >= 0) & (y_rel < height_px)
+            )
+            if not np.any(inside):
+                continue
+
+            x_rel = x_rel[inside]
+            y_rel = y_rel[inside]
+
+            # Convert to mm and then to bin indices
+            x_mm = x_rel / px_per_mm
+            y_mm = y_rel / px_per_mm
+
+            ix = np.floor(x_mm / mm_bin_size).astype(int)
+            iy = np.floor(y_mm / mm_bin_size).astype(int)
+
+            # Clamp indices to grid bounds and mark visited
+            valid = (ix >= 0) & (ix < n_x) & (iy >= 0) & (iy < n_y)
+            if not np.any(valid):
+                continue
+
+            ix = ix[valid]
+            iy = iy[valid]
+            visited[iy, ix] = True
+
+            total_bins = n_x * n_y
+            if total_bins > 0:
+                frac = visited.sum() / float(total_bins)
+            else:
+                frac = np.nan
+
+            self.preFloorExploredFrac[slot_idx] = frac
 
     def _masked_num_rewards_tot(self, calc: bool):
         """

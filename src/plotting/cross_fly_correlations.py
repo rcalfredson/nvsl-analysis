@@ -511,6 +511,8 @@ def plot_cross_fly_correlations(
       1) SLI_final vs reward-per-distance (final bucket of chosen training)
       2) SLI_final vs median distance to reward during chosen training
       3) Pre-training reward PI (exp − yoked) vs SLI_final
+      3b) Pre-training floor exploration vs SLI at T1, first sync bucket
+      3c) Pre-training floor exploration vs SLI_final
       4) Reward PI (T1, first sync bucket, exp − yoked) vs total rewards
          in that same bucket (experimental fly)
       5) Pre-training reward PI (exp − yoked) vs T1 first-bucket reward PI:
@@ -554,6 +556,7 @@ def plot_cross_fly_correlations(
     med_train_vals = []
     pre_pi_diff_vals = []
     total_reward_vals = []
+    pre_coverage_vals = []
 
     min_no_contact_s = getattr(opts, "min_no_contact_s", None)
 
@@ -590,6 +593,17 @@ def plot_cross_fly_correlations(
                 pre_diff = float(pre_arr[0] - pre_arr[1])
         else:
             pre_diff = np.nan
+
+        # --- Pre-training floor exploration (experimental fly only) ---
+        coverage = np.nan
+        try:
+            if not hasattr(va, "preFloorExploredFrac"):
+                if hasattr(va, "calcPreFloorExploration"):
+                    va.calcPreFloorExploration()
+            if hasattr(va, "preFloorExploredFrac") and len(va.preFloorExploredFrac) > 0:
+                coverage = float(va.preFloorExploredFrac[0])
+        except Exception:
+            coverage = np.nan
 
         # --- Total rewards in the same sync bucket used for the reward-PI X variable ---
         try:
@@ -631,11 +645,13 @@ def plot_cross_fly_correlations(
         med_train_vals.append(med_train)
         pre_pi_diff_vals.append(pre_diff)
         total_reward_vals.append(total_rewards)
+        pre_coverage_vals.append(coverage)
 
     rpd_vals = np.asarray(rpd_vals, float)
     med_train_vals = np.asarray(med_train_vals, float)
     pre_pi_diff_vals = np.asarray(pre_pi_diff_vals, float)
     total_reward_vals = np.asarray(total_reward_vals, float)
+    pre_coverage_vals = np.asarray(pre_coverage_vals, float)
 
     # --- Fast/strong learner summary (for plots 5b/5c and fast/strong scatter) ---
     summary = None
@@ -684,6 +700,36 @@ def plot_cross_fly_correlations(
         y_label=x_label_sli,
         cfg=cfg,
         filename="corr_pre_reward_pi_vs_sli",
+        customizer=customizer,
+    )
+
+    # --- Plot 3b: Pre-training exploration vs SLI at T1, first sync bucket ---
+    if reward_pi_training_vals is not None:
+        _scatter_with_corr(
+            x=pre_coverage_vals,
+            y=reward_pi_training_vals,
+            title="Pre-training exploration vs early SLI",
+            x_label="Fraction of floor explored during pre-training\n(exp fly)",
+            y_label="SLI (T1, first sync bucket)",
+            cfg=cfg,
+            filename="corr_pre_floor_exploration_vs_sli_T1_first",
+            customizer=customizer,
+        )
+    else:
+        print(
+            "[correlations] WARNING: missing reward_pi_training_vals; "
+            "skipping pre-training exploration vs early SLI plot"
+        )
+
+    # --- Plot 3c: Pre-training exploration vs SLI_final (training {trn_label_idx}) ---
+    _scatter_with_corr(
+        x=pre_coverage_vals,
+        y=sli_vals,
+        title="Pre-training exploration vs SLI",
+        x_label="Fraction of floor explored during pre-training\n(exp fly)",
+        y_label=x_label_sli,
+        cfg=cfg,
+        filename="corr_pre_floor_exploration_vs_sli_final",
         customizer=customizer,
     )
 
