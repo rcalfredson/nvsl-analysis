@@ -750,10 +750,10 @@ def plot_individual_strategy_overlays(
                 x_weaving_labels = [f"Training {i+1}" for i in range(n_trns_weaving)]
 
                 title_weaving = (
-                    "Weaving-type exits after reward-circle exit\n"
+                    "Weaving re-entry probability after reward-circle exit\n"
                     "(experimental fly only)"
                 )
-                y_label_weaving = "Weaving exits / total exits\n(experimental fly)"
+                y_label_weaving = "Weaving re-entry / total exits\n(experimental fly)"
 
                 _plot_overlays(
                     title=title_weaving,
@@ -788,11 +788,11 @@ def plot_individual_strategy_overlays(
                 x_small_labels = [f"Training {i+1}" for i in range(n_trns_small)]
 
                 title_small = (
-                    "Small-angle re-entry exits after reward-circle exit\n"
+                    "Small-angle re-entry probability after reward-circle exit\n"
                     "(experimental fly only)"
                 )
                 y_label_small = (
-                    "Small-angle re-entry exits / total exits\n(experimental fly)"
+                    "Small-angle re-entry / total exits\n(experimental fly)"
                 )
 
                 _plot_overlays(
