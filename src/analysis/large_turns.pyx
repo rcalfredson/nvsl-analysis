@@ -128,6 +128,11 @@ cdef class RewardCircleAnchoredTurnFinder:
         # where training_idx indexes trainings 0..N-1 (pre is excluded).
         self.va.weaving_exit_stats = []
 
+        # Reset lightweight per-fly/per-training small-angle re-entry summary.
+        # Shape after analysis:
+        #   va.small_angle_exit_stats[fly_idx][training_idx] = (small_angle_count, total_exits)
+        self.va.small_angle_exit_stats = []
+
         self.trn_ranges = vector[pair[int, int]]()
         self.trn_ranges.push_back(pair[int, int](
             self.va.startPre, self.va.trns[0].start
@@ -283,6 +288,7 @@ cdef class RewardCircleAnchoredTurnFinder:
         cdef int turn_st_idx, turn_end_idx
         cdef int seg_start, seg_end
         cdef int weaving_nonlarge = 0
+        cdef int small_angle_nonlarge = 0
         cdef int total_exits
 
         # Identifies and processes large turns within a specified range of a trajectory.
@@ -387,9 +393,11 @@ cdef class RewardCircleAnchoredTurnFinder:
                 elif reason == "backward_walking":
                     strategy_backward = True
 
-            # --- Summary: count weaving among NON-large-turn exits only ---
+            # --- Summary: count weaving / small-angle among NON-large-turn exits only ---
             if (not has_turn) and (reason == "weaving"):
                 weaving_nonlarge += 1
+            elif (not has_turn) and (reason == "small_angle_reentry"):
+                small_angle_nonlarge += 1
 
             # --- Optional: heavy per-exit record, only if dump flag is enabled ---
             if self.collect_exit_events:
@@ -418,6 +426,7 @@ cdef class RewardCircleAnchoredTurnFinder:
         # Accumulate a light-weight per-fly/per-training summary, independent
         # of whether per-exit dumps are enabled.
         self._accumulate_weaving_stats(trj.f, i, weaving_nonlarge, total_exits)
+        self._accumulate_small_angle_stats(trj.f, i, small_angle_nonlarge, total_exits)
 
         # Large turn-to-exit ratio calculation
         self.turn_to_exit_ratios[trj.f].push_back(self.calc_turn_to_exit_ratio(trj, i))
@@ -1155,6 +1164,61 @@ cdef class RewardCircleAnchoredTurnFinder:
 
         per_trn[training_idx] = (
             prev_weaving + weaving_nonlarge,
+            prev_total + total_exits,
+        )
+
+    cdef void _accumulate_small_angle_stats(
+        self,
+        int fly_idx,
+        int trn_range_idx,
+        int small_angle_nonlarge,
+        int total_exits,
+    ):
+        """
+        Accumulate per-fly, per-training small-angle re-entry counts and
+        total exits, independent of whether per-exit dumps are enabled.
+
+        Layout on VideoAnalysis:
+            va.small_angle_exit_stats[fly_idx][training_idx] = (small_angle_count, total_exits)
+
+        where:
+            trn_range_idx = 0  -> pre   (ignored here)
+                        1..N -> training 1..N
+            training_idx  = trn_range_idx - 1  (0-based)
+        """
+        cdef int training_idx
+        cdef list per_fly
+        cdef list per_trn
+        cdef tuple old_val
+        cdef int prev_small, prev_total
+
+        # Map range index (0 = pre, 1..N = trainings) to training index 0..N-1.
+        if trn_range_idx <= 0:
+            return
+
+        training_idx = trn_range_idx - 1
+
+        if not hasattr(self.va, "small_angle_exit_stats"):
+            self.va.small_angle_exit_stats = []
+
+        per_fly = self.va.small_angle_exit_stats
+
+        # Ensure per-fly list exists
+        while len(per_fly) <= fly_idx:
+            per_fly.append([])
+
+        per_trn = per_fly[fly_idx]
+
+        # Ensure per-training index slot exists
+        while len(per_trn) <= training_idx:
+            per_trn.append((0, 0))
+
+        old_val = per_trn[training_idx]
+        prev_small = int(old_val[0])
+        prev_total = int(old_val[1])
+
+        per_trn[training_idx] = (
+            prev_small + small_angle_nonlarge,
             prev_total + total_exits,
         )
 

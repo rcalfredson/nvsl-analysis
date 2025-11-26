@@ -262,6 +262,69 @@ def extract_weaving_ratio_timecourse(va) -> np.ndarray:
     return ratios
 
 
+def extract_small_angle_ratio_timecourse(va) -> np.ndarray:
+    """
+    Return array of shape (n_trainings,) with the fraction of reward-circle
+    exits that are classified as small-angle re-entry (non-large-turn) for
+    the *experimental* fly only.
+
+    Source:
+        va.small_angle_exit_stats[fly_idx][training_idx] = (small_angle_count, total_exits)
+    """
+    if not hasattr(va, "small_angle_exit_stats") or va.small_angle_exit_stats is None:
+        return np.array([])
+
+    per_fly = va.small_angle_exit_stats
+    if not isinstance(per_fly, list) or len(per_fly) == 0:
+        return np.array([])
+
+    # By convention, fly index 0 = experimental
+    exp_idx = 0
+    if exp_idx >= len(per_fly):
+        return np.array([])
+
+    per_trn = per_fly[exp_idx]
+    if not isinstance(per_trn, list) or len(per_trn) == 0:
+        return np.array([])
+
+    n_trn = len(per_trn)
+    ratios = np.full(n_trn, np.nan, dtype=float)
+
+    for t_idx in range(n_trn):
+        small_count, total_exits = per_trn[t_idx]
+        total_exits = float(total_exits)
+        if total_exits > 0:
+            ratios[t_idx] = float(small_count) / total_exits
+
+    return ratios
+
+
+def gather_small_angle_ratio_matrix(vas) -> np.ndarray:
+    """
+    Stack per-video small-angle re-entry ratios into a matrix of shape
+    (n_videos, n_trainings). Rows correspond to VideoAnalysis objects (pairs).
+    """
+    series = []
+    max_len = 0
+
+    for va in vas:
+        vals = extract_small_angle_ratio_timecourse(va)
+        series.append(vals)
+        max_len = max(max_len, vals.size)
+
+    if not series or max_len == 0:
+        return np.empty((0, 0))
+
+    padded = []
+    for vals in series:
+        if vals.size < max_len:
+            pad = np.full(max_len - vals.size, np.nan)
+            vals = np.concatenate([vals, pad])
+        padded.append(vals)
+
+    return np.vstack(padded)
+
+
 def gather_weaving_ratio_matrix(vas) -> np.ndarray:
     """
     Stack per-video weaving-exit ratios into a matrix of shape
@@ -690,7 +753,7 @@ def plot_individual_strategy_overlays(
                     "Weaving-type exits after reward-circle exit\n"
                     "(experimental fly only)"
                 )
-                y_label_weaving = "Weaving exits / total exits (experimental fly)"
+                y_label_weaving = "Weaving exits / total exits\n(experimental fly)"
 
                 _plot_overlays(
                     title=title_weaving,
@@ -706,3 +769,46 @@ def plot_individual_strategy_overlays(
                 )
         except Exception as e:
             _warn(f"Exception during weaving plotting — skipping. Details: {e}")
+
+    # ------------------------------------------------------------------ #
+    # 5) Small-angle re-entry per reward-circle exit (experimental only) #
+    # ------------------------------------------------------------------ #
+
+    if not all(hasattr(va, "small_angle_exit_stats") for va in vas):
+        _warn("small_angle_exit_stats missing — skipping small-angle overlays.")
+    else:
+        try:
+            small_matrix = gather_small_angle_ratio_matrix(vas)
+
+            if small_matrix.size == 0:
+                _warn("Small-angle ratio data empty — skipping small-angle overlays.")
+            else:
+                n_trns_small = small_matrix.shape[1]
+                x_small = np.arange(n_trns_small)
+                x_small_labels = [f"Training {i+1}" for i in range(n_trns_small)]
+
+                title_small = (
+                    "Small-angle re-entry exits after reward-circle exit\n"
+                    "(experimental fly only)"
+                )
+                y_label_small = (
+                    "Small-angle re-entry exits / total exits\n(experimental fly)"
+                )
+
+                _plot_overlays(
+                    title=title_small,
+                    y_label=y_label_small,
+                    x=x_small,
+                    x_labels=x_small_labels,
+                    matrix=small_matrix,
+                    selected_bottom=selected_bottom,
+                    selected_top=selected_top,
+                    cfg=cfg,
+                    customizer=customizer,
+                    filename_stub="individual_small_angle_reentry_ratio_overlays",
+                )
+        except Exception as e:
+            _warn(
+                f"Exception during small-angle re-entry plotting — "
+                f"skipping. Details: {e}"
+            )
