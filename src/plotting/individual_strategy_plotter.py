@@ -168,9 +168,12 @@ def gather_median_distance_matrix(
 
 def extract_large_turn_ratio_timecourse(va) -> np.ndarray:
     """
-    Return array of shape (n_trainings,) with:
-        (exp - yoked) large-turn probability per exit
-    based on va.large_turn_stats.
+    Return array of shape (n_trainings,) with large-turn probability per exit
+    for the *experimental* fly only.
+
+    Yoked flies are being omitted for the time being because they rarely
+    produced reward-anchored exits, leading to unstable ratios.
+
 
     We assume va.large_turn_stats has shape:
         (n_trainings, n_flies, 3)
@@ -191,11 +194,6 @@ def extract_large_turn_ratio_timecourse(va) -> np.ndarray:
     # axis 1: fly index (0 = exp, 1 = yoked)
     # axis 2: metric index (2 = turn-to-exit ratio)
     exp_vals = stats[:, 0, 2]
-
-    # If there's a yoked control, subtract; otherwise just return exp vals.
-    if stats.shape[1] > 1:
-        yoked_vals = stats[:, 1, 2]
-        return exp_vals - yoked_vals
 
     return exp_vals
 
@@ -265,7 +263,7 @@ def _debug_dump_large_turn_summary(
 
                 va = vas[row_idx]
                 video_label = _get_video_label(va)
-                fly_index = getattr(va, 'f', None)
+                fly_index = getattr(va, "f", None)
 
                 if not hasattr(va, "large_turn_stats") or va.large_turn_stats is None:
                     continue
@@ -582,10 +580,8 @@ def plot_individual_strategy_overlays(
                 x_trn = np.arange(n_trns)
                 x_trn_labels = [f"Training {i+1}" for i in range(n_trns)]
 
-                title_lt = (
-                    "Large-turn probability after reward-circle exit\n(exp − yoked)"
-                )
-                y_label_lt = "Large turns / exits (exp − yoked)"
+                title_lt = "Large-turn probability after reward-circle exit\n(exp only)"
+                y_label_lt = "Large turns / exits (experimental fly)"
 
                 _plot_overlays(
                     title=title_lt,
