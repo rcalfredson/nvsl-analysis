@@ -10,7 +10,7 @@ import pandas as pd
 CATEGORY_ORDER = [
     "weaving",
     "backward_walking",
-    "reward_circle_entry",
+    "small_angle_reentry",
     "low_displacement",
     "too_little_walking",
     "wall_contact",
@@ -23,7 +23,7 @@ def plot_category_bars(prefix, fly, role, category_dicts, outdir="plots"):
     Create a bar chart of non-large-turn categories aggregated over all training blocks.
 
     category_dicts = list of dicts, one per training block
-                     e.g. [{"weaving": 2, "reward_circle_entry": 10}, ...]
+                     e.g. [{"weaving": 2, "small_angle_reentry": 10}, ...]
     """
     # Aggregate across training blocks
     agg_counts = defaultdict(int)
@@ -90,7 +90,7 @@ def classify_non_large_turn(row):
     if rr in (
         "low_displacement",
         "too_little_walking",
-        "reward_circle_entry",
+        "small_angle_reentry",
         "wall_contact",
     ):
         return rr
@@ -169,15 +169,15 @@ def extract_pair_key(path: Path):
     return (prefix, fly_id), role
 
 
-def filter_reward_circle_entry(df: pd.DataFrame) -> pd.DataFrame:
-    """Return only reward-circle-entry non-large-turn exits, excluding weaving/backward walking."""
+def filter_small_angle_reentry(df: pd.DataFrame) -> pd.DataFrame:
+    """Return only small-angle re-entry non-large-turn exits, excluding weaving/backward walking."""
     df = df.copy()
     weaving = df["strategy_weaving"].astype(str).str.lower() == "true"
     bw = df["strategy_backward_walking"].astype(str).str.lower() == "true"
     non_large = ~df["has_large_turn"]
 
     # Base reject_reason
-    rce = df["reject_reason"].astype(str).str.strip() == "reward_circle_entry"
+    rce = df["reject_reason"].astype(str).str.strip() == "small_angle_reentry"
 
     return df[non_large & (~weaving) & (~bw) & rce]
 
@@ -296,8 +296,8 @@ def process_directory(dir_path: str, out_csv="large_turn_ratios.csv"):
         plot_category_bars(prefix, fly, "exp", exp_plot_cats)
         plot_category_bars(prefix, fly, "yok", yok_plot_cats)
 
-        exp_rce = filter_reward_circle_entry(df_exp)
-        yok_rce = filter_reward_circle_entry(df_yok)
+        exp_rce = filter_small_angle_reentry(df_exp)
+        yok_rce = filter_small_angle_reentry(df_yok)
 
         for col in ["max_outside_mm", "angle_to_tangent_deg"]:
             plot_numeric_distribution(prefix, fly, "exp", exp_rce, col)

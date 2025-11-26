@@ -262,7 +262,7 @@ class EventChainPlotter:
             color_map = {
                 "no_event": "black",
                 "large_turn": "red",
-                "reward_circle_entry": "blue",
+                "small_angle_reentry": "blue",
                 "wall_contact": "orange",
                 "too_little_walking": "purple",
                 "low_displacement": "lime",

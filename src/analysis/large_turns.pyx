@@ -343,27 +343,37 @@ cdef class RewardCircleAnchoredTurnFinder:
                 strategy_weaving = False
                 strategy_backward = False
 
-                # Only classify strategies for non-large-turn exits that re-enter the circle
-                if (not has_turn) and (rejection_map is not None):
-                    if exit_idx in rejection_map:
-                        reason, bounds = rejection_map[exit_idx]
-                        # We are only interested in "reward_circle_entry" events
-                        if reason == 'reward_circle_entry':
-                            evt_start_idx, evt_end_idx = bounds
-                            # Use exit frame as start of the segment, clamp if needed
-                            seg_start = int(ex_fm)
-                            seg_end = int(evt_end_idx)
-                            if seg_end > seg_start:
-                                (
-                                    max_outside_mm,
-                                    angle_to_tangent_deg,
-                                    frac_backward,
-                                    strategy_weaving,
-                                    strategy_backward,
-                                ) = self.classify_weaving_and_backward_for_segment(
-                                    trj, seg_start, seg_end
-                                )
-                                reentry_frame = int(seg_end)
+                # Use the rejection map and cached metrics, if present
+                if rejection_map is not None and exit_idx in rejection_map:
+                    rej_val = rejection_map[exit_idx]
+                    reason = rej_val[0]
+                    evt_start_idx, evt_end_idx = rej_val[1]
+
+                    if reason in ("small_angle_reentry", "weaving", "backward_walking"):
+                        # Re-entry type event
+                        reentry_frame = int(evt_end_idx)
+
+                    # If metrics were cached during classification, fetch them
+                    if hasattr(self.va, "lg_turn_exit_metrics"):
+                        per_fly_metrics = self.va.lg_turn_exit_metrics
+                        if trj.f < len(per_fly_metrics):
+                            per_trn = per_fly_metrics[trj.f]
+                            if i < len(per_trn):
+                                per_exit = per_trn[i]
+                                if exit_idx in per_exit:
+                                    m = per_exit[exit_idx]
+                                    max_outside_mm = m.get("max_outside_mm")
+                                    angle_to_tangent_deg = m.get("angle_to_tangent_deg")
+                                    frac_backward = m.get("frac_backward")
+                                    strategy_weaving = bool(m.get("is_weaving", False))
+                                    strategy_backward = bool(m.get("is_backward", False))
+
+                    # Ensure booleans are at least consistent with the reason label,
+                    # even if metrics dict is missing for some reason.
+                    if reason == "weaving":
+                        strategy_weaving = True
+                    elif reason == "backward_walking":
+                        strategy_backward = True
 
                 # Append a Python dict describing this exit for this fly
                 self.va.lg_turn_exit_events[trj.f].append(
@@ -930,21 +940,69 @@ cdef class RewardCircleAnchoredTurnFinder:
         #     A tuple containing the updated frame index, angle_delta_sum, and angle_deltas if
         #     conditions are met; None otherwise.
 
-        cdef bint after_reentry_frame = circle_exit_idx + 1 < len(entries) and entries[circle_exit_idx + 1] <= event_end_idx
+        cdef bint after_reentry_frame = (
+            circle_exit_idx + 1 < len(entries)
+            and entries[circle_exit_idx + 1] <= event_end_idx
+        )
         cdef bint inside_circle = euclidean_norm(
             self.circle_ctr[0], 
             self.circle_ctr[1],
             self.x_view[event_end_idx],
             self.y_view[event_end_idx]
         ) < self.circle_rad
+
+        cdef double max_outside_mm = 0.0
+        cdef double angle_to_tangent_deg = nan("")
+        cdef double frac_backward = 0.0
+        cdef bint is_weaving = False
+        cdef bint is_backward = False
+        cdef object reason
         
+        # Event ends because we re-enter the circle OR hit the wall
         if after_reentry_frame or inside_circle or self.wall_contact[event_end_idx]:
-            if update_rejection_reasons:
-                if after_reentry_frame or inside_circle:
-                    self.va.lg_turn_rejection_reasons[trj.f][trn_idx][circle_exit_idx] = (
-                        'reward_circle_entry', (event_start_idx, event_end_idx)
-                    )
+            if after_reentry_frame or inside_circle:
+                # This is a re-entry; classify weaving / backward walking / small-angle.
+                (
+                    max_outside_mm,
+                    angle_to_tangent_deg,
+                    frac_backward,
+                    is_weaving,
+                    is_backward,
+                ) = self.classify_weaving_and_backward_for_segment(
+                    trj, event_start_idx, event_end_idx
+                )
+
+                if is_weaving:
+                    reason = "weaving"
+                elif is_backward:
+                    reason = "backward_walking"
                 else:
+                    reason = "small_angle_reentry"
+
+                if update_rejection_reasons:
+                    self.va.lg_turn_rejection_reasons[trj.f][trn_idx][circle_exit_idx] = (
+                            reason,
+                            (event_start_idx, event_end_idx),
+                        )
+                
+                # Only cache metrics if requested; this will be used later in
+                # getTurnsForRange to build lg_turn_exit_events without
+                # recomputing classify_weaving_and_backward_for_segment().
+                if self.collect_exit_events:
+                    self._store_strategy_metrics(
+                        trj.f,
+                        trn_idx,
+                        circle_exit_idx,
+                        event_end_idx,
+                        max_outside_mm,
+                        angle_to_tangent_deg,
+                        frac_backward,
+                        is_weaving,
+                        is_backward
+                    )
+            else:
+                # Pure wall-contact-terminated event; no weaving / backward classification.
+                if update_rejection_reasons:
                     self.va.lg_turn_rejection_reasons[trj.f][trn_idx][circle_exit_idx] = (
                         'wall_contact', (event_start_idx, event_end_idx)
                     )
@@ -976,6 +1034,55 @@ cdef class RewardCircleAnchoredTurnFinder:
         for i in range(i1, i2):
             result += self.d_view[i]
         return result
+
+    cdef void _store_strategy_metrics(
+        self,
+        int fly_idx,
+        int trn_idx,
+        int exit_idx,
+        int reentry_frame,
+        double max_outside_mm,
+        double angle_to_tangent_deg,
+        double frac_backward,
+        bint is_weaving,
+        bint is_backward,
+    ):
+        """
+        Internal helper to cache weaving/backward metrics for one exit→re-entry
+        segment so that we can reuse them when building lg_turn_exit_events.
+        Shape: va.lg_turn_exit_metrics[fly_idx][trn_idx][exit_idx] -> dict
+        """
+        cdef list per_fly
+        cdef list per_trn
+        cdef dict per_exit
+        cdef dict metrics
+
+        if not hasattr(self.va, "lg_turn_exit_metrics"):
+            self.va.lg_turn_exit_metrics = []
+
+        per_fly = self.va.lg_turn_exit_metrics
+
+        # Ensure per-fly list exists
+        while len(per_fly) <= fly_idx:
+            per_fly.append([])
+
+        per_trn = per_fly[fly_idx]
+        # Ensure per-training-range list exists
+        while len(per_trn) <= trn_idx:
+            per_trn.append({})
+
+        per_exit = per_trn[trn_idx]
+
+        metrics = {
+            "reentry_frame": int(reentry_frame),
+            "max_outside_mm": max_outside_mm,
+            "angle_to_tangent_deg": angle_to_tangent_deg,
+            "frac_backward": frac_backward,
+            "is_weaving": bool(is_weaving),
+            "is_backward": bool(is_backward),
+        }
+        per_exit[exit_idx] = metrics
+
 
     cdef tuple classify_weaving_and_backward_for_segment(
         self,
