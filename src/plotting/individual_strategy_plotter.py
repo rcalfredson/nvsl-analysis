@@ -225,6 +225,69 @@ def gather_large_turn_ratio_matrix(vas) -> np.ndarray:
     return np.vstack(padded)
 
 
+def extract_weaving_ratio_timecourse(va) -> np.ndarray:
+    """
+    Return array of shape (n_trainings,) with the fraction of reward-circle
+    exits that are classified as weaving (non-large-turn) for the
+    *experimental* fly only.
+
+    Source:
+        va.weaving_exit_stats[fly_idx][training_idx] = (weaving_count, total_exits)
+    """
+    if not hasattr(va, "weaving_exit_stats") or va.weaving_exit_stats is None:
+        return np.array([])
+
+    per_fly = va.weaving_exit_stats
+    if not isinstance(per_fly, list) or len(per_fly) == 0:
+        return np.array([])
+
+    # By convention, fly index 0 = experimental
+    exp_idx = 0
+    if exp_idx >= len(per_fly):
+        return np.array([])
+
+    per_trn = per_fly[exp_idx]
+    if not isinstance(per_trn, list) or len(per_trn) == 0:
+        return np.array([])
+
+    n_trn = len(per_trn)
+    ratios = np.full(n_trn, np.nan, dtype=float)
+
+    for t_idx in range(n_trn):
+        weaving_count, total_exits = per_trn[t_idx]
+        total_exits = float(total_exits)
+        if total_exits > 0:
+            ratios[t_idx] = float(weaving_count) / total_exits
+
+    return ratios
+
+
+def gather_weaving_ratio_matrix(vas) -> np.ndarray:
+    """
+    Stack per-video weaving-exit ratios into a matrix of shape
+    (n_videos, n_trainings). Rows correspond to VideoAnalysis objects (pairs).
+    """
+    series = []
+    max_len = 0
+
+    for va in vas:
+        vals = extract_weaving_ratio_timecourse(va)
+        series.append(vals)
+        max_len = max(max_len, vals.size)
+
+    if not series or max_len == 0:
+        return np.empty((0, 0))
+
+    padded = []
+    for vals in series:
+        if vals.size < max_len:
+            pad = np.full(max_len - vals.size, np.nan)
+            vals = np.concatenate([vals, pad])
+        padded.append(vals)
+
+    return np.vstack(padded)
+
+
 def _debug_dump_large_turn_summary(
     vas,
     selected_bottom: Sequence[int],
@@ -605,3 +668,41 @@ def plot_individual_strategy_overlays(
                 )
         except Exception as e:
             _warn(f"Exception during large-turn plotting — skipping. Details: {e}")
+
+    # ------------------------------------------------------------------ #
+    # 4) Weaving probability per reward-circle exit (experimental only)  #
+    # ------------------------------------------------------------------ #
+
+    if not all(hasattr(va, "weaving_exit_stats") for va in vas):
+        _warn("weaving_exit_stats missing — skipping weaving overlays.")
+    else:
+        try:
+            weaving_matrix = gather_weaving_ratio_matrix(vas)
+
+            if weaving_matrix.size == 0:
+                _warn("Weaving ratio data empty — skipping weaving overlays.")
+            else:
+                n_trns_weaving = weaving_matrix.shape[1]
+                x_weaving = np.arange(n_trns_weaving)
+                x_weaving_labels = [f"Training {i+1}" for i in range(n_trns_weaving)]
+
+                title_weaving = (
+                    "Weaving-type exits after reward-circle exit\n"
+                    "(experimental fly only)"
+                )
+                y_label_weaving = "Weaving exits / total exits (experimental fly)"
+
+                _plot_overlays(
+                    title=title_weaving,
+                    y_label=y_label_weaving,
+                    x=x_weaving,
+                    x_labels=x_weaving_labels,
+                    matrix=weaving_matrix,
+                    selected_bottom=selected_bottom,
+                    selected_top=selected_top,
+                    cfg=cfg,
+                    customizer=customizer,
+                    filename_stub="individual_weaving_ratio_overlays",
+                )
+        except Exception as e:
+            _warn(f"Exception during weaving plotting — skipping. Details: {e}")

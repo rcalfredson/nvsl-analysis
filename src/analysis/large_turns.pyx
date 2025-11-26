@@ -121,6 +121,13 @@ cdef class RewardCircleAnchoredTurnFinder:
         # a predefined circle. It updates internal structures with the details of these turns,
         # such as their start and stop indices, and computes statistics related to these large
         # turns for further analysis.
+
+        # Reset lightweight per-fly/per-training weaving summary for this analysis run.
+        # Shape after analysis:
+        #   va.weaving_exit_stats[fly_idx][training_idx] = (weaving_count, total_exits)
+        # where training_idx indexes trainings 0..N-1 (pre is excluded).
+        self.va.weaving_exit_stats = []
+
         self.trn_ranges = vector[pair[int, int]]()
         self.trn_ranges.push_back(pair[int, int](
             self.va.startPre, self.va.trns[0].start
@@ -275,6 +282,8 @@ cdef class RewardCircleAnchoredTurnFinder:
         cdef int j, k
         cdef int turn_st_idx, turn_end_idx
         cdef int seg_start, seg_end
+        cdef int weaving_nonlarge = 0
+        cdef int total_exits
 
         # Identifies and processes large turns within a specified range of a trajectory.
         #
@@ -312,70 +321,78 @@ cdef class RewardCircleAnchoredTurnFinder:
         for j, ex_fm in enumerate(exits):
             self.run_turn_search(trj, i, ex_fm, j, entries)
 
-        if self.collect_exit_events:
-            # ------------------ record low-level per-exit / per-fly data ------------------
-            # Build a mapping: exit_idx -> (turn_start_idx, turn_end_idx)
-            exit_to_turn = {}
-            for k, exit_idx_for_turn in enumerate(self.turn_circle_index_mapping):
-                turn_st_idx, turn_end_idx = self.indices_of_turns[k]
-                exit_to_turn[exit_idx_for_turn] = (turn_st_idx, turn_end_idx)
+        # ------------------ summarize exits for this fly / time range ------------------
+        # Build a mapping: exit_idx -> (turn_start_idx, turn_end_idx)
+        exit_to_turn = {}
+        for k, exit_idx_for_turn in enumerate(self.turn_circle_index_mapping):
+            turn_st_idx, turn_end_idx = self.indices_of_turns[k]
+            exit_to_turn[exit_idx_for_turn] = (turn_st_idx, turn_end_idx)
 
-            # Convenience handle for rejection reasons for this fly / time range
-            if trj.f < len(self.va.lg_turn_rejection_reasons):
-                if i < len(self.va.lg_turn_rejection_reasons[trj.f]):
-                    rejection_map = self.va.lg_turn_rejection_reasons[trj.f][i]
+        # Convenience handle for rejection reasons for this fly / time range
+        if trj.f < len(self.va.lg_turn_rejection_reasons):
+            if i < len(self.va.lg_turn_rejection_reasons[trj.f]):
+                rejection_map = self.va.lg_turn_rejection_reasons[trj.f][i]
 
-            # One record per reward-circle exit in this time range (pre or training)
-            for exit_idx, ex_fm in enumerate(exits):
-                if exit_idx in exit_to_turn:
-                    turn_st_idx, turn_end_idx = exit_to_turn[exit_idx]
-                    has_turn = True
-                else:
-                    turn_st_idx = -1
-                    turn_end_idx = -1
-                    has_turn = False
+        # Per-range weaving summary
+        total_exits = len(exits)
 
-                # Defaults for strategy-related fields
-                reentry_frame = None
-                max_outside_mm = None
-                angle_to_tangent_deg = None
-                frac_backward = None
-                strategy_weaving = False
-                strategy_backward = False
+        # One record per reward-circle exit in this time range (pre or training)
+        for exit_idx, ex_fm in enumerate(exits):
+            if exit_idx in exit_to_turn:
+                turn_st_idx, turn_end_idx = exit_to_turn[exit_idx]
+                has_turn = True
+            else:
+                turn_st_idx = -1
+                turn_end_idx = -1
+                has_turn = False
 
-                # Use the rejection map and cached metrics, if present
-                if rejection_map is not None and exit_idx in rejection_map:
-                    rej_val = rejection_map[exit_idx]
-                    reason = rej_val[0]
-                    evt_start_idx, evt_end_idx = rej_val[1]
+            # Defaults for strategy-related fields
+            reentry_frame = None
+            max_outside_mm = None
+            angle_to_tangent_deg = None
+            frac_backward = None
+            strategy_weaving = False
+            strategy_backward = False
+            reason = None
 
-                    if reason in ("small_angle_reentry", "weaving", "backward_walking"):
-                        # Re-entry type event
-                        reentry_frame = int(evt_end_idx)
+            # Use the rejection map and cached metrics, if present
+            if rejection_map is not None and exit_idx in rejection_map:
+                rej_val = rejection_map[exit_idx]
+                reason = rej_val[0]
+                evt_start_idx, evt_end_idx = rej_val[1]
 
-                    # If metrics were cached during classification, fetch them
-                    if hasattr(self.va, "lg_turn_exit_metrics"):
-                        per_fly_metrics = self.va.lg_turn_exit_metrics
-                        if trj.f < len(per_fly_metrics):
-                            per_trn = per_fly_metrics[trj.f]
-                            if i < len(per_trn):
-                                per_exit = per_trn[i]
-                                if exit_idx in per_exit:
-                                    m = per_exit[exit_idx]
-                                    max_outside_mm = m.get("max_outside_mm")
-                                    angle_to_tangent_deg = m.get("angle_to_tangent_deg")
-                                    frac_backward = m.get("frac_backward")
-                                    strategy_weaving = bool(m.get("is_weaving", False))
-                                    strategy_backward = bool(m.get("is_backward", False))
+                if reason in ("small_angle_reentry", "weaving", "backward_walking"):
+                    # Re-entry type event
+                    reentry_frame = int(evt_end_idx)
 
-                    # Ensure booleans are at least consistent with the reason label,
-                    # even if metrics dict is missing for some reason.
-                    if reason == "weaving":
-                        strategy_weaving = True
-                    elif reason == "backward_walking":
-                        strategy_backward = True
+                # If metrics were cached during classification, fetch them
+                if hasattr(self.va, "lg_turn_exit_metrics"):
+                    per_fly_metrics = self.va.lg_turn_exit_metrics
+                    if trj.f < len(per_fly_metrics):
+                        per_trn = per_fly_metrics[trj.f]
+                        if i < len(per_trn):
+                            per_exit = per_trn[i]
+                            if exit_idx in per_exit:
+                                m = per_exit[exit_idx]
+                                max_outside_mm = m.get("max_outside_mm")
+                                angle_to_tangent_deg = m.get("angle_to_tangent_deg")
+                                frac_backward = m.get("frac_backward")
+                                strategy_weaving = bool(m.get("is_weaving", False))
+                                strategy_backward = bool(m.get("is_backward", False))
 
-                # Append a Python dict describing this exit for this fly
+                # Ensure booleans are at least consistent with the reason label,
+                # even if metrics dict is missing for some reason.
+                if reason == "weaving":
+                    strategy_weaving = True
+                elif reason == "backward_walking":
+                    strategy_backward = True
+
+            # --- Summary: count weaving among NON-large-turn exits only ---
+            if (not has_turn) and (reason == "weaving"):
+                weaving_nonlarge += 1
+
+            # --- Optional: heavy per-exit record, only if dump flag is enabled ---
+            if self.collect_exit_events:
                 self.va.lg_turn_exit_events[trj.f].append(
                     {
                         "trn_range_idx": i,            # 0 = pre, 1..N = trn_ranges 1..N
@@ -388,7 +405,7 @@ cdef class RewardCircleAnchoredTurnFinder:
                         "turn_end_idx": (
                             int(turn_end_idx) if has_turn else None
                         ),
-                        # New strategy-related fields:
+                        # Strategy-related fields (if available):
                         "reentry_frame": reentry_frame,
                         "strategy_weaving": bool(strategy_weaving),
                         "strategy_backward_walking": bool(strategy_backward),
@@ -397,7 +414,10 @@ cdef class RewardCircleAnchoredTurnFinder:
                         "frac_backward_frames": frac_backward,
                     }
                 )
-            # -------------------------------------------------------------------------
+
+        # Accumulate a light-weight per-fly/per-training summary, independent
+        # of whether per-exit dumps are enabled.
+        self._accumulate_weaving_stats(trj.f, i, weaving_nonlarge, total_exits)
 
         # Large turn-to-exit ratio calculation
         self.turn_to_exit_ratios[trj.f].push_back(self.calc_turn_to_exit_ratio(trj, i))
@@ -1082,6 +1102,61 @@ cdef class RewardCircleAnchoredTurnFinder:
             "is_backward": bool(is_backward),
         }
         per_exit[exit_idx] = metrics
+
+    cdef void _accumulate_weaving_stats(
+        self,
+        int fly_idx,
+        int trn_range_idx,
+        int weaving_nonlarge,
+        int total_exits,
+    ):
+        """
+        Accumulate per-fly, per-training weaving-exit counts and total exits,
+        independent of whether per-exit dumps are enabled.
+
+        Layout on VideoAnalysis:
+            va.weaving_exit_stats[fly_idx][training_idx] = (weaving_count, total_exits)
+
+        where:
+            trn_range_idx = 0  -> pre   (ignored here)
+                        1..N -> training 1..N
+            training_idx  = trn_range_idx - 1  (0-based)
+        """
+        cdef int training_idx
+        cdef list per_fly
+        cdef list per_trn
+        cdef tuple old_val
+        cdef int prev_weaving, prev_total
+
+        # Map range index (0 = pre, 1..N = trainings) to training index 0..N-1.
+        if trn_range_idx <= 0:
+            return
+
+        training_idx = trn_range_idx - 1
+
+        if not hasattr(self.va, "weaving_exit_stats"):
+            self.va.weaving_exit_stats = []
+
+        per_fly = self.va.weaving_exit_stats
+
+        # Ensure per-fly list exists
+        while len(per_fly) <= fly_idx:
+            per_fly.append([])
+
+        per_trn = per_fly[fly_idx]
+
+        # Ensure per-training index slot exists
+        while len(per_trn) <= training_idx:
+            per_trn.append((0, 0))
+
+        old_val = per_trn[training_idx]
+        prev_weaving = int(old_val[0])
+        prev_total = int(old_val[1])
+
+        per_trn[training_idx] = (
+            prev_weaving + weaving_nonlarge,
+            prev_total + total_exits,
+        )
 
 
     cdef tuple classify_weaving_and_backward_for_segment(

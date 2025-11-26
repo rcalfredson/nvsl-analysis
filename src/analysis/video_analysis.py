@@ -422,6 +422,13 @@ class VideoAnalysis:
                 )
             del self.lg_turn_rejection_reasons
 
+        if hasattr(self, "lg_turn_exit_metrics"):
+            if verbose:
+                removal_log["VideoAnalysis.lg_turn_exit_metrics"]["__attr__"] = (
+                    sys.getsizeof(self.lg_turn_exit_metrics)
+                )
+            del self.lg_turn_exit_metrics
+
         # ─────────────────────────────────────────────────────────────
         # 5.  Optional GC kick & verbose summary
         # ─────────────────────────────────────────────────────────────
