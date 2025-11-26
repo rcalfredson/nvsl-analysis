@@ -2,7 +2,6 @@
 Script for processing per-fly large turn data raw data (obtained by running the analyze script using the --dump-large-turn-exits flag)
 """
 
-
 import matplotlib.pyplot as plt
 from pathlib import Path
 from collections import defaultdict

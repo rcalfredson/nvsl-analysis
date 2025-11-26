@@ -2,8 +2,11 @@
 **/__pycache__/*
 imgs/**/*.png*
 imgs/**/*.pdf*
+plots*/*
+
 logs/*
 build/**
+*.diff
 
 src/**/*.c
 src/**/*.cpp
@@ -14,3 +17,5 @@ __analyze.log
 __analyze.log.1
 learning_stats.csv
 learning_stats.csv.1
+large_turn_ratios.csv
+per_fly_turn_exit_tables/*
