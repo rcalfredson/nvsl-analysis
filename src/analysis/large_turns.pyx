@@ -5,7 +5,7 @@ import numpy as np
 cimport numpy as np
 from libcpp.pair cimport pair
 from libcpp.vector cimport vector
-from libc.math cimport (fabs, nan)
+from libc.math cimport (fabs, nan, cos, sin, acos, sqrt)
 
 from src.plotting.event_chain_plotter import EventChainPlotter
 from src.utils.common_cython cimport (
@@ -68,6 +68,9 @@ cdef class RewardCircleAnchoredTurnFinder:
     cdef double[:] dist_from_ctr_at_end
     cdef vector[vector[vector[double]]] large_turn_stats
     cdef bint collect_exit_events
+    cdef double weaving_max_outside_mm
+    cdef double tangent_thresh_deg
+    cdef double backward_frac_thresh
 
     def __cinit__(
         self,
@@ -78,6 +81,9 @@ cdef class RewardCircleAnchoredTurnFinder:
         str trj_plot_mode=None,
         str image_format='png',
         bint collect_exit_events=False,
+        double weaving_max_outside_mm=1.5,
+        double tangent_thresh_deg=30.0,
+        double backward_frac_thresh=0.6
     ):
         # Initializes the RewardCircleAnchoredTurnFinder with required parameters.
         #
@@ -101,6 +107,11 @@ cdef class RewardCircleAnchoredTurnFinder:
         self.trj_plot_mode = trj_plot_mode
         self.image_format = image_format
         self.collect_exit_events = collect_exit_events
+
+        # High-performing learning strategy parameters
+        self.weaving_max_outside_mm = weaving_max_outside_mm
+        self.tangent_thresh_deg = tangent_thresh_deg
+        self.backward_frac_thresh = backward_frac_thresh
 
     def calcLargeTurnsAfterCircleExit(self):
         # Calculates large turns occurring after exiting a circle by analyzing the trajectory
@@ -259,6 +270,12 @@ cdef class RewardCircleAnchoredTurnFinder:
 
 
     cdef getTurnsForRange(self, trj, i, trn_range):
+        cdef object rejection_map = None
+        cdef dict exit_to_turn
+        cdef int j, k
+        cdef int turn_st_idx, turn_end_idx
+        cdef int seg_start, seg_end
+
         # Identifies and processes large turns within a specified range of a trajectory.
         #
         # Parameters:
@@ -303,6 +320,11 @@ cdef class RewardCircleAnchoredTurnFinder:
                 turn_st_idx, turn_end_idx = self.indices_of_turns[k]
                 exit_to_turn[exit_idx_for_turn] = (turn_st_idx, turn_end_idx)
 
+            # Convenience handle for rejection reasons for this fly / time range
+            if trj.f < len(self.va.lg_turn_rejection_reasons):
+                if i < len(self.va.lg_turn_rejection_reasons[trj.f]):
+                    rejection_map = self.va.lg_turn_rejection_reasons[trj.f][i]
+
             # One record per reward-circle exit in this time range (pre or training)
             for exit_idx, ex_fm in enumerate(exits):
                 if exit_idx in exit_to_turn:
@@ -312,6 +334,36 @@ cdef class RewardCircleAnchoredTurnFinder:
                     turn_st_idx = -1
                     turn_end_idx = -1
                     has_turn = False
+
+                # Defaults for strategy-related fields
+                reentry_frame = None
+                max_outside_mm = None
+                angle_to_tangent_deg = None
+                frac_backward = None
+                strategy_weaving = False
+                strategy_backward = False
+
+                # Only classify strategies for non-large-turn exits that re-enter the circle
+                if (not has_turn) and (rejection_map is not None):
+                    if exit_idx in rejection_map:
+                        reason, bounds = rejection_map[exit_idx]
+                        # We are only interested in "reward_circle_entry" events
+                        if reason == 'reward_circle_entry':
+                            evt_start_idx, evt_end_idx = bounds
+                            # Use exit frame as start of the segment, clamp if needed
+                            seg_start = int(ex_fm)
+                            seg_end = int(evt_end_idx)
+                            if seg_end > seg_start:
+                                (
+                                    max_outside_mm,
+                                    angle_to_tangent_deg,
+                                    frac_backward,
+                                    strategy_weaving,
+                                    strategy_backward,
+                                ) = self.classify_weaving_and_backward_for_segment(
+                                    trj, seg_start, seg_end
+                                )
+                                reentry_frame = int(seg_end)
 
                 # Append a Python dict describing this exit for this fly
                 self.va.lg_turn_exit_events[trj.f].append(
@@ -326,6 +378,13 @@ cdef class RewardCircleAnchoredTurnFinder:
                         "turn_end_idx": (
                             int(turn_end_idx) if has_turn else None
                         ),
+                        # New strategy-related fields:
+                        "reentry_frame": reentry_frame,
+                        "strategy_weaving": bool(strategy_weaving),
+                        "strategy_backward_walking": bool(strategy_backward),
+                        "max_outside_mm": max_outside_mm,
+                        "angle_to_tangent_deg": angle_to_tangent_deg,
+                        "frac_backward_frames": frac_backward,
                     }
                 )
             # -------------------------------------------------------------------------
@@ -338,7 +397,7 @@ cdef class RewardCircleAnchoredTurnFinder:
         if self.trj_plot_mode:
             # Call to EventChainPlotter, passing large turn-specific variables
             large_turn_plotter = EventChainPlotter(trj, self.va, image_format=self.image_format)
-            
+
             # Define variables that map to large turn events
             lg_turn_idxs = self.indices_of_turns
             turn_circle_index_mapping = self.turn_circle_index_mapping
@@ -917,3 +976,121 @@ cdef class RewardCircleAnchoredTurnFinder:
         for i in range(i1, i2):
             result += self.d_view[i]
         return result
+
+    cdef tuple classify_weaving_and_backward_for_segment(
+        self,
+        trj,
+        int start_idx,
+        int end_idx
+    ):
+        """
+        Classify a single exit→re-entry segment as weaving and/or backward walking.
+
+        Returns:
+            (max_outside_mm, angle_to_tangent_deg, frac_backward, is_weaving, is_backward)
+        """
+        cdef int n_frames = len(self.x_view)
+        cdef int k
+        cdef double px_per_mm
+        cdef double rad_mm
+        cdef double dist_ctr_px, dist_ctr_mm, outside_mm
+        cdef double max_outside_mm = 0.0
+        cdef double angle_to_tangent_deg = nan("")
+        cdef double frac_backward = 0.0
+        cdef int n_steps
+        cdef int backward_count = 0
+
+        cdef double dx, dy, radial_angle
+        cdef double tx, ty
+        cdef double dot_ht, cos_diff
+        cdef double heading_rad, tangent_angle, diff_rad
+
+        cdef double v_norm, vx, vx_hat, vy, vy_hat, hx, hy, dot
+
+        # Clamp indices defensively
+        if start_idx < 0:
+            start_idx = 0
+        if end_idx >= n_frames:
+            end_idx = n_frames - 1
+        if end_idx <= start_idx:
+            return (max_outside_mm, angle_to_tangent_deg, frac_backward, False, False)
+
+        px_per_mm = trj.pxPerMmFloor * self.va.xf.fctr
+        rad_mm = self.circle_rad / px_per_mm
+
+        # --- 1) Max distance outside circle (mm)
+        for k in range(start_idx, end_idx + 1):
+            dist_ctr_px = euclidean_norm(
+                self.circle_ctr[0], self.circle_ctr[1],
+                self.x_view[k], self.y_view[k]
+            )
+            dist_ctr_mm = dist_ctr_px / px_per_mm
+            outside_mm = dist_ctr_mm - rad_mm
+            if outside_mm > max_outside_mm:
+                max_outside_mm = outside_mm
+
+        if max_outside_mm < 0:
+            max_outside_mm = 0.0
+
+        # --- 2) Heading vs tangent at re-entry (end_idx)
+        dx = self.x_view[end_idx] - self.circle_ctr[0]
+        dy = self.y_view[end_idx] - self.circle_ctr[1]
+
+        # Tangent vector (any orientation; we use CCW: (-dy, dx))
+        tx = -dy
+        ty = dx
+
+        # Heading unit vector from theta in screen coords (x right, y down)
+        heading_rad = trj.theta[end_idx] * PI / 180.0
+        hx = sin(heading_rad)
+        hy = -cos(heading_rad)
+
+        # Compute angle between heading and tangent
+        cdef double t_norm = sqrt(tx * tx + ty * ty)
+        if t_norm > 0:
+            dot_ht = hx * tx + hy * ty
+            cos_diff = dot_ht / t_norm # heading is unit length
+
+            if cos_diff > 1.0:
+                cos_diff = 1.0
+            elif cos_diff < -1.0:
+                cos_diff = -1.0
+
+            cos_diff = fabs(cos_diff)
+            
+            diff_rad = acos(cos_diff)
+            angle_to_tangent_deg = diff_rad * (180.0 / PI)
+        else:
+            angle_to_tangent_deg = nan("")
+
+
+        # --- 3) Backward walking fraction (velocity opposite heading)
+        n_steps = end_idx - start_idx
+        if n_steps <= 0:
+            return (max_outside_mm, angle_to_tangent_deg, frac_backward, False, False)
+
+        for k in range(start_idx, end_idx):
+            vx = self.x_view[k + 1] - self.x_view[k]
+            vy = self.y_view[k + 1] - self.y_view[k]
+
+            heading_rad = trj.theta[k] * PI / 180.0
+            hx = sin(heading_rad)
+            hy = -cos(heading_rad)
+
+            v_norm = sqrt(vx * vx + vy * vy) + 1e-9
+            vx_hat = vx / v_norm
+            vy_hat = vy / v_norm
+            dot = vx_hat * hx + vy_hat * hy
+            if dot < -0.5:
+                backward_count += 1
+        
+        frac_backward = backward_count / <double> n_steps
+
+        # --- 4) Apply thresholds
+        cdef bint is_weaving = (
+            max_outside_mm <= self.weaving_max_outside_mm
+            and angle_to_tangent_deg <= self.tangent_thresh_deg
+        )
+        cdef bint is_backward = (frac_backward >= self.backward_frac_thresh)
+
+        return (max_outside_mm, angle_to_tangent_deg, frac_backward, is_weaving, is_backward)
