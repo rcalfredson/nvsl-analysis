@@ -2717,10 +2717,10 @@ def plotRewards(
                 ) and not nrp:
                     if g == 1:
                         cmpg = True
-                        dlt = nosym if nf == 2 else False
+                        dlt = nosym and (nf >= 2)
                     else:
                         cmpg = False
-                        dlt = nosym if not diff_tp else False
+                        dlt = (nf >= 2) and nosym and (not diff_tp)
                     tpm = np.array(
                         [
                             (
