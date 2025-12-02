@@ -13,8 +13,8 @@ src/**/*.cpp
 src/**/*.html
 src/**/*.so
 
-__analyze.log
-__analyze.log.1
+*.log
+*.log.1
 learning_stats.csv
 learning_stats.csv.1
 large_turn_ratios.csv
