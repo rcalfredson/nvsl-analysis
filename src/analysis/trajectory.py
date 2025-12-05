@@ -521,6 +521,95 @@ class Trajectory:
                 fn = CALC_REWARDS_IMG_FILE % ("ctrl" if ctrl else "post", self.f + 1)
                 writeImage(fn, img)
 
+    def calc_agarose_dual_circle_episodes(self, delta_mm=0.5, debug=False):
+        """
+        Identify 'dual-circle' agarose avoidance episodes for this fly.
+
+        An episode is defined as a contiguous period when the fly is inside an
+        outer circle concentric with an agarose well. It is classified as
+        'avoidance' if the fly never enters the inner (agarose) circle during
+        that episode.
+
+        Results are stored in:
+            self.agarose_dual_circle_episodes: list of dicts with keys
+                'start': int (absolute frame index, inclusive)
+                'stop': int  (absolute frame index, exclusive)
+                'avoids_inner': bool
+        """
+        self.agarose_dual_circle_episodes = []
+
+        # Need VideoAnalysis context and large-chamber arena with wells
+        if not self.va:
+            return
+        if getattr(self.va, "ct", None) is None:
+            return
+        # Only defined for large chambers
+        if self.va.ct not in (CT.large, CT.large2):
+            return
+
+        wells = self.va.ct.arenaWells(self.va.xf, self.va.trxf[self.f])
+        if wells is None:
+            if debug:
+                print(f"{flyDesc(self.f)}: arenaWells returned None")
+            return
+
+        inner_radius_px, centers = wells  # radius (px), iterable of (cx, cy)
+        inner_radius_px = float(inner_radius_px)
+
+        # Convert padding from mm → px
+        px_per_mm = self.va.ct.pxPerMmFloor() * self.va.xf.fctr
+        outer_radius_px = inner_radius_px + delta_mm * px_per_mm
+
+        if debug:
+            print(
+                f"{flyDesc(self.f)}: inner r = {inner_radius_px:.2f}px, "
+                f"outer r = {outer_radius_px:.2f}px (Δ={delta_mm} mm)"
+            )
+            print(f"{flyDesc(self.f)}: wells centers = {centers}")
+
+        # Global per-frame flags: inside ANY outer well / ANY inner well
+        n_frames = len(self.x)
+        in_outer = np.zeros(n_frames, dtype=bool)
+        in_inner = np.zeros(n_frames, dtype=bool)
+
+        # Combine across all wells by OR-ing
+        for cx, cy in centers:
+            if np.isnan(cx) or np.isnan(cy):
+                continue
+            # Outer circle
+            outer_state = self.calc_in_circle(self.x, self.y, cx, cy, outer_radius_px)
+            # Inner circle (agarose itself)
+            inner_state = self.calc_in_circle(self.x, self.y, cx, cy, inner_radius_px)
+
+            in_outer |= outer_state > 0
+            in_inner |= inner_state > 0
+
+        # Find contiguous regions where in_outer is True
+        outer_regions = util.trueRegions(in_outer)
+
+        episodes = []
+        for sl in outer_regions:
+            start, stop = sl.start, sl.stop  # [start, stop)
+            if start is None or stop is None:
+                continue
+            # Did we ever enter the inner circle during this outer episode?
+            has_inner = np.any(in_inner[start:stop])
+
+            episodes.append(
+                {
+                    "start": int(start),
+                    "stop": int(stop),
+                    "avoids_inner": not bool(has_inner),
+                }
+            )
+
+            if debug:
+                print(
+                    f"[{flyDesc(self.f)}] episode {start}-{stop}: "
+                    f"{'AVOID' if not has_inner else 'CONTACT'}"
+                )
+        self.agarose_dual_circle_episodes = episodes
+
     def _calcPercentInCircle(self, t, inC, inCPre=None):
         bl_3_min = self.va._min2f(3)
         bl_10_min = self.va._min2f(10)

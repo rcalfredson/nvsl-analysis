@@ -210,6 +210,11 @@ class VideoAnalysis:
                 self._aggregate_slide_circle_metrics()
             if opts.rpd:
                 self._rewards_per_distance()
+            if getattr(opts, "agarose_dual_circle", False) and self.ct in (
+                CT.large,
+                CT.large2,
+            ):
+                self.analyzeAgaroseDualCircleAvoidance()
         for opt, evt_name in (
             ("wall", "wall_contact"),
             ("agarose", "agarose_contact"),
@@ -878,6 +883,95 @@ class VideoAnalysis:
         for trj in self.trx:
             trj._calcOutsideCirclePeriods()
 
+    def analyzeAgaroseDualCircleAvoidance(self, delta_mm=None):
+        """
+        Compute agarose-avoidance metric based on dual concentric circles around
+        agarose wells, aggregated by sync bucket.
+
+        For each sync bucket, we compute:
+            ratio[t, f, b] =
+                (# outer-circle episodes for fly f whose entry frame falls in bucket b
+                 and that never enter the inner circle)
+                 /
+                (# all such episodes whose entry frame falls in bucket b)
+
+        Results are stored in:
+            self.agarose_dual_circle_counts = {
+                "avoid":  np.ndarray,  # shape (n_trn, n_flies, n_sb)
+                "total":  np.ndarray,  # same shape
+                "ratio":  np.ndarray,  # same shape, NaN where total == 0
+            }
+        """
+        # Only defined for large chambers
+        if self.ct not in (CT.large, CT.large2):
+            return
+
+        # Allow override but fall back to an option or default
+        if delta_mm is None:
+            delta_mm = getattr(self.opts, "agarose_outer_delta_mm", 0.5)
+
+        sync_ranges = getattr(self, "sync_bucket_ranges", None)
+        if sync_ranges is None:
+            raise RuntimeError(
+                "sync_bucket_ranges is not defined. "
+                "Make sure bySyncBucket() has been called before "
+                "analyzeAgaroseDualCircleAvoidance()."
+            )
+        n_trn = len(sync_ranges)
+        n_flies = len(self.trx)
+        max_nb = max((len(br) for br in sync_ranges), default=0)
+
+        if max_nb == 0:
+            self.agarose_dual_circle_counts = {
+                "avoid": np.zeros((n_trn, n_flies, 0), dtype=int),
+                "total": np.zeros((n_trn, n_flies, 0), dtype=int),
+                "ratio": np.zeros((n_trn, n_flies, 0), dtype=float),
+            }
+            return
+
+        avoid_counts = np.zeros((n_trn, n_flies, max_nb), dtype=int)
+        total_counts = np.zeros((n_trn, n_flies, max_nb), dtype=int)
+
+        # 1) Per-fly episode detection
+        for fi, trj in enumerate(self.trx):
+            trj.calc_agarose_dual_circle_episodes(delta_mm=delta_mm)
+
+            episodes = getattr(trj, "agarose_dual_circle_episodes", [])
+            if not episodes:
+                continue
+
+            # 2) Assign episodes to training + sync buckets
+            for ep in episodes:
+                entry = ep["start"]  # use first frame of the episode
+                avoids_inner = ep["avoids_inner"]
+
+                # Find which training & bucket this entry belongs to
+                for t_idx, bucket_ranges in enumerate(sync_ranges):
+                    if not bucket_ranges:
+                        continue
+                    for b_idx, (sb_start, sb_stop) in enumerate(bucket_ranges):
+                        if sb_start <= entry < sb_stop:
+                            total_counts[t_idx, fi, b_idx] += 1
+                            if avoids_inner:
+                                avoid_counts[t_idx, fi, b_idx] += 1
+                            # Once placed, stop searching for this episode
+                            break
+                    else:
+                        # entry not in any bucket of this training
+                        continue
+                    # already assigned; go to next episode
+                    break
+
+        # 3) Compute ratios with safe division
+        ratio = np.full_like(avoid_counts, np.nan, dtype=float)
+        np.divide(avoid_counts, total_counts, out=ratio, where=(total_counts > 0))
+
+        self.agarose_dual_circle_counts = {
+            "avoid": avoid_counts,
+            "total": total_counts,
+            "ratio": ratio,
+        }
+
     def runBoundaryContactAnalyses(self):
         """
         Executes boundary contact analysis for each trajectory in the video.
@@ -1417,6 +1511,35 @@ class VideoAnalysis:
         count = util.inRange(on, fi, la, count=True)
         return count
 
+    def _build_sync_bucket_ranges_from_buckets(self):
+        """
+        Build per-training sync bucket (start, stop) ranges from self.buckets
+
+        After this, self.sync_bucket_ranges[t_idx] will be a list of
+        (start, stop) tuples in absolute frame indices for training t_idx.
+        """
+        self.sync_bucket_ranges = []
+
+        for t_idx in range(len(self.trns)):
+            b = self.buckets[t_idx]
+            # b[0] is fi (start), later entries are bucket end frames; may contain NaNs
+            if len(b) == 0 or np.isnan(b[0]):
+                self.sync_bucket_ranges.append([])
+                continue
+
+            ranges = []
+            start = int(b[0])
+            for end in b[1:]:
+                if np.isnan(end):
+                    break  # remaining buckets are unused / padded
+                end = int(end)
+                if end <= start:
+                    continue
+                ranges.append((start, end))
+                start = end
+
+            self.sync_bucket_ranges.append(ranges)
+
     # returns number of rewards by bucket; fiCount can be used to make
     #  counting start later than fi
     def _countOnByBucket(
@@ -1703,6 +1826,7 @@ class VideoAnalysis:
                             if np.isnan(pi_val):
                                 self.reward_exclusion_mask[t.n - 1][f][b_idx] = True
                     nOnsP = nOns
+        self._build_sync_bucket_ranges_from_buckets()
 
     # distance traveled or maximum distance reached between (actual) rewards
     #  by sync bucket
