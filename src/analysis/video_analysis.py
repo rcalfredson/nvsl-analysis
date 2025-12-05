@@ -244,6 +244,8 @@ class VideoAnalysis:
             if not getattr(opts, bnd_tp):
                 continue
             self._analyzeRegionPreference(bnd_tp)
+        if opts.debug_large_turns:
+            self.debug_large_turns = True
         if opts.cTurnAnlyz:
             if opts.timeit:
                 lg_turn_start = timeit.default_timer()

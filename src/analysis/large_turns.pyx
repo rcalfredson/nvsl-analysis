@@ -324,8 +324,9 @@ cdef class RewardCircleAnchoredTurnFinder:
         self.turn_circle_index_mapping = []  # Reset for each training session
         self.indices_of_turns = []
 
+        debug_flag = bool(getattr(self.va, "debug_large_turns", False))
         for j, ex_fm in enumerate(exits):
-            self.run_turn_search(trj, i, ex_fm, j, entries)
+            self.run_turn_search(trj, i, ex_fm, j, entries, debug_flag)
 
         # ------------------ summarize exits for this fly / time range ------------------
         # Build a mapping: exit_idx -> (turn_start_idx, turn_end_idx)
@@ -341,6 +342,8 @@ cdef class RewardCircleAnchoredTurnFinder:
 
         # Per-range weaving summary
         total_exits = len(exits)
+
+        debug_exits = bool(getattr(self.va, "debug_large_turns", False))
 
         # One record per reward-circle exit in this time range (pre or training)
         for exit_idx, ex_fm in enumerate(exits):
@@ -422,6 +425,17 @@ cdef class RewardCircleAnchoredTurnFinder:
                         "frac_backward_frames": frac_backward,
                     }
                 )
+
+                if debug_exits:
+                    if bool(strategy_weaving):
+                        print(f"weaving re-entry detected, {int(ex_fm)} to {reentry_frame}")
+                        input()
+                    elif (not has_turn) and (reason == 'small_angle_reentry'):
+                        print(f"detected small-angle re-entry, {int(ex_fm)} to {reentry_frame}")
+                        input()
+                    elif has_turn:
+                        print(f"detected large turn, {int(turn_st_idx)} to {int(turn_end_idx)}")
+                        input()
 
         # Accumulate a light-weight per-fly/per-training summary, independent
         # of whether per-exit dumps are enabled.
@@ -652,6 +666,8 @@ cdef class RewardCircleAnchoredTurnFinder:
         # Single forward pass to find initial turn frames and determine turn start and end
         debug_frame_range_low = 0
         debug_frame_range_high = 1000000
+        if debug and debug_frame_range_low <= circle_exit_frame <= debug_frame_range_high:
+            print(f"starting turn search for frame {circle_exit_frame}")
         while True:
             fm_i += 1
 
@@ -662,6 +678,8 @@ cdef class RewardCircleAnchoredTurnFinder:
             if self.check_speed_threshold(
                 fm_i + 1, trj, debug, debug_frame_range_low, debug_frame_range_high
             ):
+                if debug and debug_frame_range_low <= (fm_i + 1) <= debug_frame_range_high:
+                    print(f"continuing; frame {fm_i + 1} below speed threshold")
                 continue
 
             upper_index = fm_i + 1
@@ -671,6 +689,8 @@ cdef class RewardCircleAnchoredTurnFinder:
                     upper_index + 1, trj, debug, debug_frame_range_low, debug_frame_range_high
                 )
             ):
+                if debug and debug_frame_range_low <= upper_index <= debug_frame_range_high:
+                    print(f"frame {upper_index} - speed too low. Skipping.")
                 upper_index += 1
 
             if upper_index >= len(trj.sp):
@@ -968,16 +988,28 @@ cdef class RewardCircleAnchoredTurnFinder:
         # - tuple or None
         #     A tuple containing the updated frame index, angle_delta_sum, and angle_deltas if
         #     conditions are met; None otherwise.
+        cdef int reentry_frame = -1
+        cdef bint reached_reentry = False
+        cdef int eff_end_idx
 
-        cdef bint after_reentry_frame = (
-            circle_exit_idx + 1 < len(entries)
-            and entries[circle_exit_idx + 1] <= event_end_idx
-        )
+        # For exit index k, we assume:
+        #   entries[k]     = entry *before* the exit
+        #   entries[k + 1] = first entry *after* the exit (the re-entry we care about)
+        if circle_exit_idx + 1 < entries.shape[0]:
+            reentry_frame = <int> entries[circle_exit_idx + 1]
+            reached_reentry = (event_end_idx >= reentry_frame)
+
+        # Use the *true* re-entry frame as the effective end of the segment
+        if reached_reentry:
+            eff_end_idx = reentry_frame
+        else:
+            eff_end_idx = event_end_idx
+
         cdef bint inside_circle = euclidean_norm(
-            self.circle_ctr[0], 
+            self.circle_ctr[0],
             self.circle_ctr[1],
-            self.x_view[event_end_idx],
-            self.y_view[event_end_idx]
+            self.x_view[eff_end_idx],
+            self.y_view[eff_end_idx],
         ) < self.circle_rad
 
         cdef double max_outside_mm = 0.0
@@ -986,11 +1018,14 @@ cdef class RewardCircleAnchoredTurnFinder:
         cdef bint is_weaving = False
         cdef bint is_backward = False
         cdef object reason
-        
-        # Event ends because we re-enter the circle OR hit the wall
-        if after_reentry_frame or inside_circle or self.wall_contact[event_end_idx]:
-            if after_reentry_frame or inside_circle:
-                # This is a re-entry; classify weaving / backward walking / small-angle.
+
+        # Event ends because:
+        #   - we have reached the known re-entry frame, OR
+        #   - we are inside the circle at eff_end_idx, OR
+        #   - we hit the wall at eff_end_idx
+        if reached_reentry or inside_circle or self.wall_contact[eff_end_idx]:
+            if reached_reentry or inside_circle:
+                # Classify using the *true exit→re-entry* segment:
                 (
                     max_outside_mm,
                     angle_to_tangent_deg,
@@ -998,7 +1033,7 @@ cdef class RewardCircleAnchoredTurnFinder:
                     is_weaving,
                     is_backward,
                 ) = self.classify_weaving_and_backward_for_segment(
-                    trj, event_start_idx, event_end_idx
+                    trj, event_start_idx, eff_end_idx
                 )
 
                 if is_weaving:
@@ -1010,10 +1045,10 @@ cdef class RewardCircleAnchoredTurnFinder:
 
                 if update_rejection_reasons:
                     self.va.lg_turn_rejection_reasons[trj.f][trn_idx][circle_exit_idx] = (
-                            reason,
-                            (event_start_idx, event_end_idx),
-                        )
-                
+                        reason,
+                        (event_start_idx, eff_end_idx),
+                    )
+
                 # Only cache metrics if requested; this will be used later in
                 # getTurnsForRange to build lg_turn_exit_events without
                 # recomputing classify_weaving_and_backward_for_segment().
@@ -1022,24 +1057,27 @@ cdef class RewardCircleAnchoredTurnFinder:
                         trj.f,
                         trn_idx,
                         circle_exit_idx,
-                        event_end_idx,
+                        eff_end_idx,
                         max_outside_mm,
                         angle_to_tangent_deg,
                         frac_backward,
                         is_weaving,
-                        is_backward
+                        is_backward,
                     )
             else:
-                # Pure wall-contact-terminated event; no weaving / backward classification.
+                # Pure wall-contact-terminated event; no re-entry classification.
                 if update_rejection_reasons:
                     self.va.lg_turn_rejection_reasons[trj.f][trn_idx][circle_exit_idx] = (
-                        'wall_contact', (event_start_idx, event_end_idx)
+                        "wall_contact",
+                        (event_start_idx, eff_end_idx),
                     )
+
             if threshold_crossed:
                 return event_end_idx - self.end_turn_before_recontact, angle_delta_sum, angle_deltas
             else:
+                # No large turn: this exit is "rejected" (weaving/backward/small-angle or wall)
                 return -1, -1, angle_deltas
-        
+
         return None
 
     cdef double distTrav(self, int i1, int i2):
