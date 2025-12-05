@@ -423,8 +423,8 @@ def plot_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow(
     fig, ax = plt.subplots(figsize=(5.5, 4.5))
     ax.scatter(x_f, y_f, c=point_colors, alpha=0.85)
 
-    ax.set_xlabel("Reward PI\n(exp - yok, pre-training)")
-    ax.set_ylabel("Reward PI\n(exp - yok, T1, first sync bucket)")
+    ax.set_xlabel("\nBPI\n(exp - yok, pre-training)")
+    ax.set_ylabel("SLI\n(T1, first sync bucket)")
     ax.set_title(
         f"Pre-training vs early reward preference\n"
         f"(fast vs slow learners, top/bottom {frac * 100:.0f}% SLI)"
@@ -695,8 +695,8 @@ def plot_cross_fly_correlations(
     _scatter_with_corr(
         x=pre_pi_diff_vals,
         y=sli_vals,
-        title="Pre-training reward preference vs SLI",
-        x_label="Reward PI (pre-training, exp − yoked)",
+        title="Baseline PI vs SLI",
+        x_label="Baseline PI\n(exp − yok, pre-training)",
         y_label=x_label_sli,
         cfg=cfg,
         filename="corr_pre_reward_pi_vs_sli",
@@ -738,8 +738,8 @@ def plot_cross_fly_correlations(
         _scatter_with_corr(
             x=reward_pi_training_vals,
             y=total_reward_vals,
-            title="Reward PI vs total rewards",
-            x_label="Reward PI\n(exp - yok, T1, first sync bucket)",
+            title="Early SLI vs total rewards",
+            x_label="SLI\n(T1, first sync bucket)",
             y_label="Total rewards\n(exp, T1, first sync bucket)",
             cfg=cfg,
             filename="corr_reward_pi_first_bucket_vs_total_rewards",
@@ -750,9 +750,9 @@ def plot_cross_fly_correlations(
         _scatter_with_corr(
             x=pre_pi_diff_vals,
             y=reward_pi_training_vals,
-            title="Pre-training vs early reward preference (all learners)",
-            x_label="Reward PI\n(exp - yok, pre-training)",
-            y_label="Reward PI\n(exp - yok, T1, first sync bucket)",
+            title="Baseline PI vs early SLI (all learners)",
+            x_label="Baseline PI\n(exp - yok, pre-training)",
+            y_label="SLI\n(T1, first sync bucket)",
             cfg=cfg,
             filename="corr_pre_reward_pi_vs_T1_first_bucket_reward_pi_all",
             customizer=customizer,
@@ -770,9 +770,9 @@ def plot_cross_fly_correlations(
                 _scatter_with_corr(
                     x=pre_pi_diff_vals[fast_idx],
                     y=reward_pi_training_vals[fast_idx],
-                    title="Pre-training vs early reward preference (fast learners)",
-                    x_label="Reward PI\n(exp - yok, pre-training)",
-                    y_label="Reward PI\n(exp - yok, T1, first sync bucket)",
+                    title="Baseline PI vs early SLI (fast learners)",
+                    x_label="Baseline PI\n(exp - yok, pre-training)",
+                    y_label="SLI\n(T1, first sync bucket)",
                     cfg=cfg,
                     filename="corr_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast",
                     customizer=customizer,
