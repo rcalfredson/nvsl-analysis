@@ -559,6 +559,7 @@ class Trajectory:
         # Convert padding from mm → px
         px_per_mm = self.va.ct.pxPerMmFloor() * self.va.xf.fctr
         outer_radius_px = inner_radius_px + delta_mm * px_per_mm
+        border_width_inner_px = 0.1 * px_per_mm
 
         if debug:
             print(
@@ -577,9 +578,23 @@ class Trajectory:
             if np.isnan(cx) or np.isnan(cy):
                 continue
             # Outer circle
-            outer_state = self.calc_in_circle(self.x, self.y, cx, cy, outer_radius_px)
+            outer_state = self.calc_in_circle(
+                self.x,
+                self.y,
+                cx,
+                cy,
+                outer_radius_px,
+                border_width_px=border_width_inner_px,
+            )
             # Inner circle (agarose itself)
-            inner_state = self.calc_in_circle(self.x, self.y, cx, cy, inner_radius_px)
+            inner_state = self.calc_in_circle(
+                self.x,
+                self.y,
+                cx,
+                cy,
+                inner_radius_px,
+                border_width_px=border_width_inner_px,
+            )
 
             in_outer |= outer_state > 0
             in_inner |= inner_state > 0
@@ -774,23 +789,18 @@ class Trajectory:
         sign = 1 if mode == "en" else -1
         return idxs[np.flatnonzero(np.diff(inC[inC != 1]) == sign * 2) + 1] + start
 
-    def calc_in_circle(self, x, y, cx, cy, r):
+    def calc_in_circle(self, x, y, cx, cy, r, border_width_px=BORDER_WIDTH):
         """
         Calculates the position of the fly relative to a circle defined by its center and radius.
 
         Parameters:
-            x (np.array): X-coordinates of the fly's position.
-            y (np.array): Y-coordinates of the fly's position.
-            cx (float): X-coordinate of the circle's center.
-            cy (float): Y-coordinate of the circle's center.
-            r (float): Radius of the circle.
-
-        Returns:
-            np.array: An array indicating the fly's position relative to the circle for each frame.
-                    0 represents outside, 1 on the border, and 2 inside the border.
+            x, y : arrays of positions
+            cx, cy : circle center
+            r : radius (px)
+            border_width_px : thickness of border region (px)
         """
         dc = np.linalg.norm([x - cx, y - cy], axis=0)
-        inC = (dc < r).astype(int) + (dc < r + BORDER_WIDTH)
+        inC = (dc < r).astype(int) + (dc < r + border_width_px)
         return inC
 
     def _calcOutsideCirclePeriods(self, debug=False):
