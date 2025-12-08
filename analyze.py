@@ -239,7 +239,17 @@ g.add_argument(
         "specified by --best-worst-trn."
     ),
 )
-
+g.add_argument(
+    "--sli-use-training-mean",
+    action="store_true",
+    help=(
+        "When selecting best/worst learners or building SLI set-op groups, "
+        "compute SLI as the mean across all sync buckets in the specified "
+        "training session instead of using a single sync bucket. "
+        "By default, the SLI is taken from a single bucket "
+        "(final sync bucket unless otherwise specified)."
+    ),
+)
 g.add_argument(
     "--best-worst-trn",
     type=int,
@@ -2453,12 +2463,18 @@ def plotRewards(
             bottom, top = sli_selected
         else:
             # need raw_4 shaped array (video, training, fly, bucket)
+            use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
             n_videos = len(vas)
             n_trains = len(trns)
             n_flies = len(va.flies)
             nb = a.shape[2] // n_flies
             raw_4 = a.reshape((n_videos, n_trains, n_flies, nb))
-            sli_ser = compute_sli_per_fly(raw_4, sli_training_idx)
+            sli_ser = compute_sli_per_fly(
+                raw_4,
+                sli_training_idx,
+                bucket_idx=None,
+                average_over_buckets=use_training_mean,
+            )
             bottom, top = select_extremes(sli_ser, sli_fraction)
 
         if sli_extremes == "bottom":
@@ -5104,8 +5120,14 @@ def postAnalyze(vas):
             # if the user asked for best/worst SLI, pick them once during TRAINING (rpid)
             sli_ser = None
             sli_training_idx = getattr(opts, "best_worst_trn", 1) - 1
+            use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
             if tp == "rpid":
-                sli_ser = compute_sli_per_fly(raw_4, sli_training_idx)
+                sli_ser = compute_sli_per_fly(
+                    raw_4,
+                    sli_training_idx,
+                    bucket_idx=None,
+                    average_over_buckets=use_training_mean,
+                )
 
                 # Reward index (exp − yoked) for the FIRST sync bucket of the FIRST training.
                 # raw_4 shape: (n_videos, n_trains, n_flies, nb)
@@ -5134,8 +5156,10 @@ def postAnalyze(vas):
             if tp == "rpid" and using_sli_set_op:
                 composite_group = None
                 frac = getattr(opts, "best_worst_fraction", 0.1)
+                use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
 
                 def _parse_spec(name: str) -> Optional[SLISelectionSpec]:
+
                     val = getattr(opts, name, None)
                     if not val:
                         return None
@@ -5143,7 +5167,11 @@ def postAnalyze(vas):
                         trn_str, bkt_str = val.split(",")
                         trn = int(trn_str) - 1  # 0-based
                         bkt = int(bkt_str) - 1  # 0-based
-                        return SLISelectionSpec(training_idx=trn, bucket_idx=bkt)
+                        return SLISelectionSpec(
+                            training_idx=trn,
+                            bucket_idx=bkt,
+                            average_over_buckets=use_training_mean,
+                        )
                     except Exception:
                         print(f"[SLI] WARNING: could not parse --{name}='{val}'")
                         return None
