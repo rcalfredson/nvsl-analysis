@@ -32,8 +32,8 @@ def compute_sli_per_fly(
         # Mean over all buckets in this training for each fly.
         sli = {
             vid: (
-                perf4[vid, training_idx, 0, :].mean()
-                - perf4[vid, training_idx, 1, :].mean()
+                np.nanmean(perf4[vid, training_idx, 0, :])
+                - np.nanmean(perf4[vid, training_idx, 1, :])
             )
             for vid in range(n_vids)
         }
