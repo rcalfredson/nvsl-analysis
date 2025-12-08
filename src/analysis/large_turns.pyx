@@ -428,13 +428,13 @@ cdef class RewardCircleAnchoredTurnFinder:
 
                 if debug_exits:
                     if bool(strategy_weaving):
-                        print(f"weaving re-entry detected, {int(ex_fm)} to {reentry_frame}")
+                        print(f"weaving re-entry detected, f{trj.f}, {int(ex_fm)} to {reentry_frame}")
                         input()
                     elif (not has_turn) and (reason == 'small_angle_reentry'):
-                        print(f"detected small-angle re-entry, {int(ex_fm)} to {reentry_frame}")
+                        print(f"small-angle re-entry detected, f{trj.f},  {int(ex_fm)} to {reentry_frame}")
                         input()
                     elif has_turn:
-                        print(f"detected large turn, {int(turn_st_idx)} to {int(turn_end_idx)}")
+                        print(f"large turn detected, f{trj.f}, {int(turn_st_idx)} to {int(turn_end_idx)}")
                         input()
 
         # Accumulate a light-weight per-fly/per-training summary, independent
@@ -809,7 +809,7 @@ cdef class RewardCircleAnchoredTurnFinder:
         if debug and debug_frame_range_low <= fm_i <= debug_frame_range_high:
             print(f"Turn start frame = {turn_st_idx}, Turn end frame = {turn_end_idx}")
             print(f"Displacement = {displacement:.2f}, Distance Traveled = {dist_trav:.2f}")
-            input()
+            # input()
 
         self.lg_turn_dists[trj.f].start[trn_idx][circle_exit_idx] = compute_distance_or_nan(
             self.circle_ctr[0], self.circle_ctr[1], self.x_view[turn_st_idx], self.y_view[turn_st_idx]
