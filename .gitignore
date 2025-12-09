@@ -1,6 +1,7 @@
 .vscode
 **/__pycache__/*
 imgs/**/*.png*
+imgs/**/*.jpg*
 imgs/**/*.pdf*
 plots*/*
 

@@ -826,7 +826,7 @@ class EventChainPlotter:
 
         # --- Build output filename with video id, fly id, and role --------------
         video_id = os.path.splitext(os.path.basename(self.va.fn))[0]
-        fly_idx = self.trj.f
+        fly_idx = self.va.f
 
         if role_idx is None:
             try:
@@ -836,21 +836,27 @@ class EventChainPlotter:
                 role_idx = 0
 
         seed_str = f"{seed}" if seed is not None else "rand"
+        fly_role = "exp" if role_idx == 0 else "yok"
 
         title = (
-            f"Between-reward trajectory: video {video_id}, fly {fly_idx}, "
-            f"role {role_idx}, trn {trn_index + 1}, bucket {bucket_index + 1}"
+            "Between-reward trajectory\n"
+            f"{video_id}, fly {fly_idx}, {fly_role}\n"
+            f"trn {trn_index + 1}, bucket {bucket_index + 1}\n"
+            f"frames {start_frame}-{end_frame}"
         )
-        plt.title(title)
+        plt.title(title, fontsize=12)
 
         output_path = (
             f"imgs/between_rewards/"
             f"{video_id}__fly{fly_idx}_role{role_idx}_"
-            f"trn{trn_index + 1}_bkt{bucket_index + 1}_seed{seed_str}."
+            f"trn{trn_index + 1}_bkt{bucket_index + 1}"
+            f"_frames_{start_frame}-{end_frame}_seed{seed_str}."
             f"{image_format}"
         )
         output_dir = os.path.dirname(output_path)
         os.makedirs(output_dir, exist_ok=True)
+        fig = plt.gcf()
+        fig.subplots_adjust(top=0.83, bottom=0.18)
         writeImage(output_path, format=image_format)
         plt.close()
 
