@@ -561,6 +561,299 @@ class EventChainPlotter:
         writeImage(output_path, format=image_format)
         plt.close()
 
+    def plot_between_reward_chain(
+        self,
+        trn_index,
+        bucket_index,
+        seed=None,
+        image_format=None,
+        role_idx=None,
+    ):
+        """
+        Plot a single between-reward trajectory segment for this fly, sampled
+        randomly within the specified training and sync bucket.
+
+        Parameters
+        ----------
+        trn_index : int
+            0-based index of the training in va.trns.
+        bucket_index : int
+            0-based index of the sync bucket within the training.
+        seed : int or None
+            Random seed for reproducible selection of the between-reward segment.
+        image_format : str or None
+            Image format for output (defaults to self.image_format).
+        role_idx : int or None
+            Experimental role index for this fly (e.g., 0 = experimental,
+            1 = yoked control). If None, this method will attempt to infer it
+            via self.va.flies.index(self.trj.f).
+        """
+        image_format = image_format or self.image_format
+
+        # --- Basic safety checks ------------------------------------------------
+        if trn_index < 0 or trn_index >= len(self.va.trns):
+            print(
+                f"[plot_between_reward_chain] Invalid trn_index={trn_index}; "
+                f"valid range is 0..{len(self.va.trns) - 1}"
+            )
+            return
+
+        # Buckets for this training: array of boundaries, length = n_buckets + 1
+        if not hasattr(self.va, "buckets") or trn_index >= len(self.va.buckets):
+            print(
+                f"[plot_between_reward_chain] No buckets info for trn_index={trn_index}"
+            )
+            return
+
+        buckets = self.va.buckets[trn_index]
+        if bucket_index < 0 or bucket_index >= len(buckets) - 1:
+            print(
+                f"[plot_between_reward_chain] Invalid bucket_index={bucket_index}; "
+                f"valid range is 0..{len(buckets) - 2}"
+            )
+            return
+
+        bkt_start = buckets[bucket_index]
+        bkt_end = buckets[bucket_index + 1]
+
+        # --- Get reward frame indices for this training and fly -----------------
+        trn = self.va.trns[trn_index]
+        f_idx = self.trj.f
+
+        try:
+            reward_frames = np.array(self.va._getOn(trn, calc=True, f=f_idx), dtype=int)
+        except Exception as e:
+            print(
+                f"[plot_between_reward_chain] Error getting rewards for fly {f_idx}, "
+                f"training {trn_index}: {e}"
+            )
+            return
+
+        if reward_frames.size == 0:
+            print(
+                f"[plot_between_reward_chain] No rewards for fly {f_idx}, "
+                f"training {trn_index + 1}"
+            )
+            return
+
+        # Restrict rewards to those *within* the chosen bucket
+        in_bucket = (reward_frames > bkt_start) & (reward_frames <= bkt_end)
+        bucket_rewards = reward_frames[in_bucket]
+
+        if bucket_rewards.size < 2:
+            print(
+                f"[plot_between_reward_chain] Not enough rewards in bucket "
+                f"{bucket_index + 1} for fly {f_idx}, training {trn_index + 1} "
+                f"(found {bucket_rewards.size})"
+            )
+            return
+
+        # --- Build between-reward pairs and randomly choose one -----------------
+        bucket_rewards.sort()
+        reward_pairs = list(zip(bucket_rewards[:-1], bucket_rewards[1:]))
+
+        if not reward_pairs:
+            print(
+                f"[plot_between_reward_chain] No between-reward intervals found "
+                f"in bucket {bucket_index + 1} for fly {f_idx}, training {trn_index + 1}"
+            )
+            return
+
+        rng = random.Random(seed) if seed is not None else random
+        start_reward, end_reward = rng.choice(reward_pairs)
+
+        # Pad slightly around the interval, but clamp to valid frame indices
+        pad = 5
+        n_frames = len(self.x)
+        start_frame = max(0, start_reward - pad)
+        end_frame = min(n_frames - 1, end_reward + pad)
+
+        if start_frame >= end_frame:
+            print(
+                f"[plot_between_reward_chain] Degenerate frame range "
+                f"[{start_frame}, {end_frame}] for fly {f_idx}; skipping."
+            )
+            return
+
+        # --- Prepare arena / floor and overlays ---------------------------------
+        plt.figure(figsize=(12, 8))
+
+        floor_coords = list(
+            self.va.ct.floor(self.va.xf, f=self.va.nef * (self.trj.f) + self.va.ef)
+        )
+        top_left, bottom_right = floor_coords[0], floor_coords[1]
+
+        contact_buffer_mm = CONTACT_BUFFER_OFFSETS["wall"]["max"]
+        contact_buffer_px = (
+            self.va.ct.pxPerMmFloor() * self.va.xf.fctr * contact_buffer_mm
+        )
+
+        # Reward circle overlay, if available
+        reward_circle = None
+        if trn_index >= 0:
+            try:
+                reward_circle = self.va.trns[trn_index].circles(self.trj.f)[0]
+            except Exception:
+                reward_circle = None
+
+        ax = plt.gca()
+
+        # Draw floor box
+        rect = patches.FancyBboxPatch(
+            (top_left[0], top_left[1]),
+            bottom_right[0] - top_left[0],
+            bottom_right[1] - top_left[1],
+            boxstyle="round,pad=0.05,rounding_size=2",
+            linewidth=1,
+            edgecolor="black",
+            facecolor="none",
+            zorder=2,
+        )
+        ax.add_patch(rect)
+
+        # Optional sidewall contact region (same style as other plots)
+        self._draw_sidewall_contact_region(
+            lower_left_x=top_left[0],
+            lower_left_y=top_left[1],
+            top_left=top_left,
+            bottom_right=bottom_right,
+            contact_buffer_px=contact_buffer_px,
+        )
+
+        # Reward circle patch
+        if reward_circle is not None:
+            rcx, rcy, rcr = reward_circle
+            rc_patch = plt.Circle(
+                (rcx, rcy),
+                rcr,
+                color="lightgray",
+                fill=False,
+                linestyle="--",
+                linewidth=2,
+                zorder=3,
+                label="Reward circle",
+            )
+            ax.add_patch(rc_patch)
+
+        # --- Plot trajectory with small direction arrows ------------------------
+        ax.set_aspect("equal", adjustable="box")
+        ax.axis("off")
+
+        padding_x = (bottom_right[0] - top_left[0]) * 0.1
+        padding_y = (top_left[1] - bottom_right[1]) * 0.1
+        plt.xlim(top_left[0] - padding_x, bottom_right[0] + padding_x)
+        plt.ylim(bottom_right[1] - padding_y, top_left[1] + padding_y)
+
+        last_arrow_idx = None
+        arrow_interval = 3
+
+        # Base trajectory line
+        for i in range(start_frame, end_frame):
+            if (
+                np.isnan(self.x[i])
+                or np.isnan(self.y[i])
+                or np.isnan(self.x[i + 1])
+                or np.isnan(self.y[i + 1])
+            ):
+                continue
+
+            x_start, x_end = self.x[i], self.x[i + 1]
+            y_start, y_end = self.y[i], self.y[i + 1]
+
+            # Clamp X to floor limits, as in other methods
+            x_start = max(min(x_start, bottom_right[0]), top_left[0])
+            x_end = max(min(x_end, bottom_right[0]), top_left[0])
+
+            ax.plot(
+                [x_start, x_end],
+                [y_start, y_end],
+                color="black",
+                linewidth=0.75,
+                zorder=3,
+            )
+
+            # Optional: skip arrows when not walking, if that attribute exists
+            if getattr(self.trj, "walking", None) is not None:
+                if not self.trj.walking[i + 1]:
+                    continue
+
+            speed = np.hypot(x_end - x_start, y_end - y_start)
+            last_arrow_idx = self._draw_arrow_for_speed(
+                i,
+                x_start,
+                x_end,
+                y_start,
+                y_end,
+                last_arrow_idx,
+                arrow_interval,
+                speed,
+            )
+
+        # Mark the two reward frames themselves
+        start_y = self.y[start_reward]
+        end_y = self.y[end_reward]
+        ax.plot(
+            self.x[start_reward],
+            start_y,
+            marker="o",
+            color="green",
+            markersize=6,
+            zorder=4,
+            label="Reward (start)",
+        )
+        ax.plot(
+            self.x[end_reward],
+            end_y,
+            marker="o",
+            color="red",
+            markersize=6,
+            zorder=4,
+            label="Reward (end)",
+        )
+
+        # Legend (simple)
+        handles, labels = ax.get_legend_handles_labels()
+        if handles:
+            plt.legend(
+                handles=handles,
+                labels=labels,
+                loc="upper center",
+                bbox_to_anchor=(0.5, 0.05),
+                fancybox=True,
+                shadow=True,
+                ncol=2,
+            )
+
+        # --- Build output filename with video id, fly id, and role --------------
+        video_id = os.path.splitext(os.path.basename(self.va.fn))[0]
+        fly_idx = self.trj.f
+
+        if role_idx is None:
+            try:
+                role_idx = self.va.flies.index(fly_idx)
+            except Exception:
+                # Fall back to 0 if not resolvable, but keep going
+                role_idx = 0
+
+        seed_str = f"{seed}" if seed is not None else "rand"
+
+        title = (
+            f"Between-reward trajectory: video {video_id}, fly {fly_idx}, "
+            f"role {role_idx}, trn {trn_index + 1}, bucket {bucket_index + 1}"
+        )
+        plt.title(title)
+
+        output_path = (
+            f"imgs/between_rewards/"
+            f"{video_id}__fly{fly_idx}_role{role_idx}_"
+            f"trn{trn_index + 1}_bkt{bucket_index + 1}_seed{seed_str}."
+            f"{image_format}"
+        )
+        output_dir = os.path.dirname(output_path)
+        os.makedirs(output_dir, exist_ok=True)
+        writeImage(output_path, format=image_format)
+        plt.close()
+
     def plot_sharp_turn_chain_wall(
         self,
         ellipse_ref_pt,

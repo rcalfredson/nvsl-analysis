@@ -57,6 +57,7 @@ from src.analysis.large_turns import RewardCircleAnchoredTurnFinder
 from src.analysis.motion import CircularMotionDetector, DataCombiner
 from src.analysis.trajectory import Trajectory
 from src.analysis.training import Training
+from src.plotting.event_chain_plotter import EventChainPlotter
 from src.plotting.trx_plotter import TrxPlotter
 import src.utils.util as util
 from src.utils.util import (
@@ -265,6 +266,46 @@ class VideoAnalysis:
                 )
             if opts.timeit:
                 per_lgt_processing_times.append(timeit.default_timer() - lg_turn_start)
+        if (
+            getattr(opts, "btw_rwd_plots", False)
+            and getattr(opts, "btw_rwd_trn", None) is not None
+            and getattr(opts, "btw_rwd_bkt", None) is not None
+        ):
+            # Convert from 1-based CLI indices to 0-based internal indices
+            trn_index = opts.btw_rwd_trn - 1
+            bucket_index = opts.btw_rwd_bkt - 1
+
+            # Generate plots for each trajectory/fly in this VideoAnalysis
+            num_examples = getattr(opts, "btw_rwd_num", 1)
+            for trj in self.trx:
+                if self._bad(trj.f):
+                    continue
+
+                plotter = EventChainPlotter(
+                    trj,
+                    self,
+                    y_bounds=None,
+                    image_format=opts.imageFormat,
+                )
+
+                try:
+                    role_idx = self.flies.index(trj.f)
+                except Exception:
+                    role_idx = 0  # fallback if flies / mapping not as expected
+
+                for ex_idx in range(num_examples):
+                    if opts.btw_rwd_seed is not None:
+                        ex_seed = opts.btw_rwd_seed + ex_idx
+                    else:
+                        ex_seed = None
+
+                    plotter.plot_between_reward_chain(
+                        trn_index=trn_index,
+                        bucket_index=bucket_index,
+                        seed=ex_seed,
+                        image_format=opts.imageFormat,
+                        role_idx=role_idx,
+                    )
         if needs_tp:
             turn_prob_dist_collator = VATurnProbabilityDistanceCollator(self, opts)
             turn_prob_dist_collator.calcTurnProbabilitiesByDistance()

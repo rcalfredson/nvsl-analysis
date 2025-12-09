@@ -392,6 +392,42 @@ g.add_argument(
     " the end of every wall-contact event.",
 )
 g.add_argument(
+    "--btw-rwd-plots",
+    action="store_true",
+    help=(
+        "Generate between-reward trajectory plots, randomly sampling a single "
+        "between-reward segment within a specified training sync bucket."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-trn",
+    type=int,
+    help="1-based training index for between-reward trajectory plots.",
+)
+g.add_argument(
+    "--btw-rwd-bkt",
+    type=int,
+    help="1-based sync bucket index within the specified training.",
+)
+g.add_argument(
+    "--btw-rwd-num",
+    type=int,
+    default=1,
+    help=(
+        "Number of between-reward trajectory examples to plot per fly "
+        "for the specified training and sync bucket."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-seed",
+    type=int,
+    default=None,
+    help=(
+        "Random seed for between-reward trajectory selection (optional). "
+        "If omitted, a random interval is chosen each run."
+    ),
+)
+g.add_argument(
     "--lg-turn-plots",
     choices=("all_types", "turn_plus_1"),
     help="Generate large turn trajectory plot. Two modes are supported: 'all_types' includes all"
