@@ -3,6 +3,7 @@
 imgs/**/*.png*
 imgs/**/*.jpg*
 imgs/**/*.pdf*
+imgs/**/*.tsv*
 plots*/*
 
 logs/*

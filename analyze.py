@@ -894,6 +894,14 @@ g.add_argument(
     help="number of bins to plot in histograms of distance from reward"
     " circle of large turns. Default: %(default)s",
 )
+g.add_argument(
+    "--export-individual-strategy-data",
+    action="store_true",
+    help=(
+        "Export per-fly data underlying the individual strategy overlays "
+        "to a TSV file for reuse in standalone plotting / statistics"
+    ),
+)
 
 g = p.add_argument_group('rt-trx "debug"')
 g.add_argument(

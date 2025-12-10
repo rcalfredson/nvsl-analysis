@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+import csv
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
@@ -500,6 +502,96 @@ def _plot_with_gapped_markers(
             )
 
 
+def _plot_multi_group_overlays(
+    *,
+    title: str,
+    y_label: str,
+    x: np.ndarray,
+    x_labels: list[str],
+    group_matrices: dict[str, np.ndarray],
+    cfg: IndividualStrategyConfig,
+    customizer: PlotCustomizer,
+    filename_stub: str,
+    group_colors: dict[str, str] | None = None,
+):
+    """
+    Multi-group overlay plotting.
+
+    group_matrices: dict[label] -> matrix, shape (n_flies, n_timepoints)
+    Each row of each matrix is an individual fly (top learners only in the TSV workflow).
+    """
+    if not group_matrices:
+        return
+
+    # All matrices must have compatible shapes
+    labels = list(group_matrices.keys())
+    first_mat = group_matrices[labels[0]]
+    if first_mat.size == 0:
+        return
+
+    n_time = first_mat.shape[1]
+    for label, mat in group_matrices.items():
+        if mat.ndim != 2 or mat.shape[1] != n_time:
+            _warn(
+                f"Group {label!r} has incompatible matrix shape {mat.shape}; "
+                "skipping multi-group plot."
+            )
+            return
+
+    fig, ax = plt.subplots(figsize=(7.0, 4.5))
+
+    # Color mapping
+    if group_colors is None:
+        # Fall back to matplotlib default color cycle
+        default_cycle = plt.rcParams.get("axes.prop_cycle", None)
+        if default_cycle is not None:
+            base_colors = default_cycle.by_key().get("color", [])
+        else:
+            base_colors = []
+        if not base_colors:
+            base_colors = ["#1f4da1", "#a00000", "#008b45", "#ff8c00", "#6a3d9a"]
+
+        group_colors = {
+            label: base_colors[i % len(base_colors)] for i, label in enumerate(labels)
+        }
+
+    # Plot each group's flies
+    for label in labels:
+        mat = group_matrices[label]
+        color = group_colors.get(label, "#000000")
+
+        for row in range(mat.shape[0]):
+            _plot_with_gapped_markers(
+                ax,
+                x,
+                mat[row, :],
+                color=color,
+                alpha=cfg.alpha_top,  # reuse top alpha
+                linewidth=1.5,
+            )
+
+        # Dummy handle for legend
+        ax.plot([], [], color=color, label=label)
+
+    ax.axhline(0, color="0.7", linewidth=0.8, linestyle="--")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(x_labels, rotation=30, ha="right")
+    ax.set_xlabel("Time")
+    ax.set_ylabel(y_label)
+    ax.set_title(title)
+    ax.grid(False)
+
+    ax.legend(loc="best", frameon=False)
+
+    customizer.adjust_padding_proportionally()
+
+    ext = cfg.image_format or "png"
+    out_path = cfg.out_dir / f"{filename_stub}.{ext}"
+    writeImage(str(out_path), format=ext)
+    plt.close(fig)
+
+
 def _plot_overlays(
     *,
     title: str,
@@ -573,6 +665,147 @@ def _plot_overlays(
     plt.close(fig)
 
 
+def _export_individual_strategy_data(
+    vas,
+    selected_bottom: Sequence[int],
+    selected_top: Sequence[int],
+    *,
+    cfg: IndividualStrategyConfig,
+    st_away_matrix: np.ndarray | None,
+    mdist_matrix: np.ndarray | None,
+    training_idx: int | None,
+    lt_matrix: np.ndarray | None,
+    weaving_matrix: np.ndarray | None,
+    small_matrix: np.ndarray | None,
+    timeframes: Iterable[str] = TIMEFRAMES,
+    timeframe_titles: dict[str, str] = TIMEFRAME_TITLES,
+    enable: bool = True,
+):
+    """
+    Export per-fly, per-timepoint individual-strategy data to a tidy TSV.
+
+    This is intended as a lightweight data product that can be reused by
+    standalone plotting / statistics utilities without re-running analysis.
+    """
+    if not enable:
+        return
+
+    out_dir = cfg.out_dir / "individual_strategy_data"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / "individual_strategy_data.tsv"
+
+    # Map row index -> metadata
+    def _row_meta(idx: int) -> tuple[str, int | None, str]:
+        va = vas[idx]
+        video_label = _get_video_label(va)
+        fly_idx = getattr(va, "f", None)
+        return video_label, fly_idx, ("top" if idx in selected_top else "bottom")
+
+    with out_path.open("w", newline="") as f:
+        writer = csv.writer(f, delimiter="\t")
+        writer.writerow(
+            [
+                "video",
+                "fly_idx",
+                "group",
+                "metric",
+                "axis_kind",
+                "axis_index",
+                "axis_label",
+                "value",
+            ]
+        )
+
+        n_items = len(vas)
+
+        # 1) Sharp turns away from agarose (~5 mm)
+        if st_away_matrix is not None and st_away_matrix.size > 0:
+            n_sessions = st_away_matrix.shape[1]
+            tf_list = list(timeframes)
+            for row in range(n_items):
+                if row not in selected_bottom and row not in selected_top:
+                    continue
+                video_label, fly_idx, grp = _row_meta(row)
+                for col in range(n_sessions):
+                    val = st_away_matrix[row, col]
+                    if not np.isfinite(val):
+                        continue
+                    tf_key = tf_list[col]
+                    axis_label = timeframe_titles.get(tf_key, tf_key)
+                    writer.writerow(
+                        [
+                            video_label,
+                            fly_idx,
+                            grp,
+                            "sharp_turn_away",
+                            "session",
+                            col,
+                            axis_label,
+                            f"{val:.6g}",
+                        ]
+                    )
+
+        # 2) Median distance vs sync bucket
+        if (
+            mdist_matrix is not None
+            and mdist_matrix.size > 0
+            and training_idx is not None
+        ):
+            n_buckets = mdist_matrix.shape[1]
+            for row in range(n_items):
+                if row not in selected_bottom and row not in selected_top:
+                    continue
+                video_label, fly_idx, grp = _row_meta(row)
+                for col in range(n_buckets):
+                    val = mdist_matrix[row, col]
+                    if not np.isfinite(val):
+                        continue
+                    axis_label = f"Bucket {col + 1}"
+                    writer.writerow(
+                        [
+                            video_label,
+                            fly_idx,
+                            grp,
+                            "median_dist_exp_minus_yok",
+                            "bucket",
+                            col,
+                            axis_label,
+                            f"{val:.6g}",
+                        ]
+                    )
+
+        # Helper for the per-training metrics
+        def _dump_training_matrix(matrix: np.ndarray | None, metric_name: str):
+            if matrix is None or matrix.size == 0:
+                return
+            n_trn = matrix.shape[1]
+            for row in range(n_items):
+                if row not in selected_bottom and row not in selected_top:
+                    continue
+                video_label, fly_idx, grp = _row_meta(row)
+                for col in range(n_trn):
+                    val = matrix[row, col]
+                    if not np.isfinite(val):
+                        continue
+                    axis_label = f"Training {col + 1}"
+                    writer.writerow(
+                        [
+                            video_label,
+                            fly_idx,
+                            grp,
+                            metric_name,
+                            "training",
+                            col,
+                            axis_label,
+                            f"{val:.6g}",
+                        ]
+                    )
+
+        _dump_training_matrix(lt_matrix, "large_turn_ratio")
+        _dump_training_matrix(weaving_matrix, "weaving_ratio")
+        _dump_training_matrix(small_matrix, "small_angle_ratio")
+
+
 # ---- main entry point from postAnalyze ------------------------------------
 
 
@@ -605,6 +838,12 @@ def plot_individual_strategy_overlays(
     image_format = getattr(opts, "imageFormat", "png") or "png"
     cfg = IndividualStrategyConfig(out_dir=out_dir, image_format=image_format)
     customizer = plot_customizer or PlotCustomizer()
+
+    st_away_matrix: np.ndarray | None = None
+    mdist_matrix: np.ndarray | None = None
+    lt_matrix: np.ndarray | None = None
+    weaving_matrix: np.ndarray | None = None
+    small_matrix: np.ndarray | None = None
 
     # ------------------------------------------------------------------ #
     # 1) Sharp turns “away from agarose” at ~5 mm                        #
@@ -791,9 +1030,7 @@ def plot_individual_strategy_overlays(
                     "Small-angle re-entry probability after reward-circle exit\n"
                     "(experimental fly only)"
                 )
-                y_label_small = (
-                    "Small-angle re-entry / total exits\n(experimental fly)"
-                )
+                y_label_small = "Small-angle re-entry / total exits\n(experimental fly)"
 
                 _plot_overlays(
                     title=title_small,
@@ -812,3 +1049,23 @@ def plot_individual_strategy_overlays(
                 f"Exception during small-angle re-entry plotting — "
                 f"skipping. Details: {e}"
             )
+    # export raw per-fly data
+    export_flag = bool(getattr(opts, "export_individual_strategy_data", False))
+    try:
+        _export_individual_strategy_data(
+            vas=vas,
+            selected_bottom=selected_bottom,
+            selected_top=selected_top,
+            cfg=cfg,
+            st_away_matrix=st_away_matrix,
+            mdist_matrix=mdist_matrix,
+            training_idx=training_idx,
+            lt_matrix=lt_matrix,
+            weaving_matrix=weaving_matrix,
+            small_matrix=small_matrix,
+            enable=export_flag,
+        )
+    except Exception as e:
+        _warn(
+            f"Exception during individual-strategy data export - skipping. Details: {e}"
+        )
