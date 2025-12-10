@@ -293,19 +293,14 @@ class VideoAnalysis:
                 except Exception:
                     role_idx = 0  # fallback if flies / mapping not as expected
 
-                for ex_idx in range(num_examples):
-                    if opts.btw_rwd_seed is not None:
-                        ex_seed = opts.btw_rwd_seed + ex_idx
-                    else:
-                        ex_seed = None
-
-                    plotter.plot_between_reward_chain(
-                        trn_index=trn_index,
-                        bucket_index=bucket_index,
-                        seed=ex_seed,
-                        image_format=opts.imageFormat,
-                        role_idx=role_idx,
-                    )
+                plotter.plot_between_reward_chain(
+                    trn_index=trn_index,
+                    bucket_index=bucket_index,
+                    seed=opts.btw_rwd_seed,
+                    image_format=opts.imageFormat,
+                    role_idx=role_idx,
+                    num_examples=num_examples,
+                )
         if needs_tp:
             turn_prob_dist_collator = VATurnProbabilityDistanceCollator(self, opts)
             turn_prob_dist_collator.calcTurnProbabilitiesByDistance()

@@ -1,3 +1,4 @@
+import math
 from math import sin, cos
 import os
 import random
@@ -24,7 +25,17 @@ class EventChainPlotter:
         self._used_between_reward_pairs = {}
 
     def draw_custom_arrowhead(
-        self, ax, x_mid, y_mid, dx, dy, color, length=1.1, angle=30, shift_factor=-0.08
+        self,
+        ax,
+        x_mid,
+        y_mid,
+        dx,
+        dy,
+        color,
+        length=1.1,
+        angle=30,
+        shift_factor=-0.08,
+        linewidth=1.0,
     ):
         """
         Draws a custom arrowhead using two line segments that converge slightly past the midpoint.
@@ -38,6 +49,7 @@ class EventChainPlotter:
         - angle: Angle at which the arrowhead lines deviate from the trajectory (default: 30)
         - shift_factor: Fraction of the segment length to move the arrowhead towards the end
         (default: -0.08)
+        - linewidth: Line width of the arrowhead segments (default: 1.0)
 
         Returns:
         - None
@@ -76,7 +88,7 @@ class EventChainPlotter:
                 [x_mid_shifted, left_x],
                 [y_mid_shifted, left_y],
                 color=color,
-                lw=1,
+                lw=linewidth,
                 zorder=5,
             )
         )
@@ -85,13 +97,22 @@ class EventChainPlotter:
                 [x_mid_shifted, right_x],
                 [y_mid_shifted, right_y],
                 color=color,
-                lw=1,
+                lw=linewidth,
                 zorder=5,
             )
         )
 
     def _draw_arrow_for_speed(
-        self, i, x_start, x_end, y_start, y_end, last_arrow_idx, arrow_interval, speed
+        self,
+        i,
+        x_start,
+        x_end,
+        y_start,
+        y_end,
+        last_arrow_idx,
+        arrow_interval,
+        speed,
+        arrow_kwargs=None,
     ):
         """Draws an arrow if the conditions for speed are met."""
         if last_arrow_idx is None or i >= last_arrow_idx + arrow_interval:
@@ -99,7 +120,8 @@ class EventChainPlotter:
             y_mid = (y_start + y_end) / 2
             dx = x_end - x_start
             dy = y_end - y_start
-            self.draw_custom_arrowhead(plt.gca(), x_mid, y_mid, dx, dy, "black")
+            kw = arrow_kwargs or {}
+            self.draw_custom_arrowhead(plt.gca(), x_mid, y_mid, dx, dy, "black", **kw)
             return i  # Update last_arrow_idx
         return last_arrow_idx
 
@@ -572,9 +594,10 @@ class EventChainPlotter:
         seed=None,
         image_format=None,
         role_idx=None,
+        num_examples=1,
     ):
         """
-        Plot a single between-reward trajectory segment for this fly, sampled
+        Plot one or more between-reward trajectory segments for this fly, sampled
         randomly within the specified training and sync bucket.
 
         Parameters
@@ -584,15 +607,19 @@ class EventChainPlotter:
         bucket_index : int
             0-based index of the sync bucket within the training.
         seed : int or None
-            Random seed for reproducible selection of the between-reward segment.
+            Random seed for reproducible selection of between-reward segments.
         image_format : str or None
             Image format for output (defaults to self.image_format).
         role_idx : int or None
             Experimental role index for this fly (e.g., 0 = experimental,
             1 = yoked control). If None, this method will attempt to infer it
             via self.va.flies.index(self.trj.f).
+        num_examples : int
+            Maximum number of between-reward segments to show as subplots.
         """
+
         image_format = image_format or self.image_format
+        num_examples = max(1, int(num_examples))
 
         # --- Basic safety checks ------------------------------------------------
         if trn_index < 0 or trn_index >= len(self.va.trns):
@@ -602,7 +629,6 @@ class EventChainPlotter:
             )
             return
 
-        # Buckets for this training: array of boundaries, length = n_buckets + 1
         if not hasattr(self.va, "buckets") or trn_index >= len(self.va.buckets):
             print(
                 f"[plot_between_reward_chain] No buckets info for trn_index={trn_index}"
@@ -640,7 +666,6 @@ class EventChainPlotter:
             )
             return
 
-        # Restrict rewards to those *within* the chosen bucket
         in_bucket = (reward_frames > bkt_start) & (reward_frames <= bkt_end)
         bucket_rewards = reward_frames[in_bucket]
 
@@ -652,7 +677,6 @@ class EventChainPlotter:
             )
             return
 
-        # --- Build between-reward pairs and randomly choose one -----------------
         bucket_rewards.sort()
         reward_pairs = list(zip(bucket_rewards[:-1], bucket_rewards[1:]))
 
@@ -679,20 +703,23 @@ class EventChainPlotter:
         rng = random.Random(seed) if seed is not None else random
         rng.shuffle(candidate_pairs)
 
-        # Pad slightly around the interval, but clamp to valid frame indices
         pad = 5
         n_frames = len(self.x)
 
-        selected_pair = None
+        # --- Select up to num_examples valid segments ---------------------------
+        selected_segments = []
         for start_reward, end_reward in candidate_pairs:
-
             start_frame = max(0, start_reward - pad)
             end_frame = min(n_frames - 1, end_reward + pad)
             if start_frame < end_frame:
-                selected_pair = (start_reward, end_reward, start_frame, end_frame)
-                break
+                selected_segments.append(
+                    (start_reward, end_reward, start_frame, end_frame)
+                )
+                used_pairs.add((start_reward, end_reward))
+                if len(selected_segments) >= num_examples:
+                    break
 
-        if selected_pair is None:
+        if not selected_segments:
             print(
                 f"[plot_between_reward_chain] No valid between-reward frame ranges "
                 f"found after trying all unused intervals for fly {f_idx}, "
@@ -700,12 +727,16 @@ class EventChainPlotter:
             )
             return
 
-        start_reward, end_reward, start_frame, end_frame = selected_pair
-        used_pairs.add((start_reward, end_reward))
+        if len(selected_segments) < num_examples:
+            print(
+                f"[plot_between_reward_chain] Requested {num_examples} examples but only "
+                f"found {len(selected_segments)} unique intervals for fly {f_idx}, "
+                f"training {trn_index + 1}, bucket {bucket_index + 1}."
+            )
 
-        # --- Prepare arena / floor and overlays ---------------------------------
-        plt.figure(figsize=(12, 8))
+        n_examples = len(selected_segments)
 
+        # --- Prepare arena / floor and overlays shared across subplots ----------
         floor_coords = list(
             self.va.ct.floor(self.va.xf, f=self.va.nef * (self.trj.f) + self.va.ef)
         )
@@ -716,7 +747,6 @@ class EventChainPlotter:
             self.va.ct.pxPerMmFloor() * self.va.xf.fctr * contact_buffer_mm
         )
 
-        # Reward circle overlay, if available
         reward_circle = None
         if trn_index >= 0:
             try:
@@ -724,135 +754,164 @@ class EventChainPlotter:
             except Exception:
                 reward_circle = None
 
-        ax = plt.gca()
-
-        # Draw floor box
-        rect = patches.FancyBboxPatch(
-            (top_left[0], top_left[1]),
-            bottom_right[0] - top_left[0],
-            bottom_right[1] - top_left[1],
-            boxstyle="round,pad=0.05,rounding_size=2",
-            linewidth=1,
-            edgecolor="black",
-            facecolor="none",
-            zorder=2,
-        )
-        ax.add_patch(rect)
-
-        # Optional sidewall contact region (same style as other plots)
-        self._draw_sidewall_contact_region(
-            lower_left_x=top_left[0],
-            lower_left_y=top_left[1],
-            top_left=top_left,
-            bottom_right=bottom_right,
-            contact_buffer_px=contact_buffer_px,
-        )
-
-        # Reward circle patch
-        if reward_circle is not None:
-            rcx, rcy, rcr = reward_circle
-            rc_patch = plt.Circle(
-                (rcx, rcy),
-                rcr,
-                color="lightgray",
-                fill=False,
-                linestyle="--",
-                linewidth=2,
-                zorder=3,
-                label="Reward circle",
-            )
-            ax.add_patch(rc_patch)
-
-        # --- Plot trajectory with small direction arrows ------------------------
-        ax.set_aspect("equal", adjustable="box")
-        ax.axis("off")
-
         padding_x = (bottom_right[0] - top_left[0]) * 0.1
         padding_y = (top_left[1] - bottom_right[1]) * 0.1
-        plt.xlim(top_left[0] - padding_x, bottom_right[0] + padding_x)
-        plt.ylim(bottom_right[1] - padding_y, top_left[1] + padding_y)
 
-        last_arrow_idx = None
-        arrow_interval = 3
+        # --- Figure + axes grid -------------------------------------------------
+        n_cols = min(5, n_examples)
+        n_rows = int(math.ceil(n_examples / n_cols))
 
-        # Base trajectory line
-        for i in range(start_frame, end_frame):
-            if (
-                np.isnan(self.x[i])
-                or np.isnan(self.y[i])
-                or np.isnan(self.x[i + 1])
-                or np.isnan(self.y[i + 1])
-            ):
-                continue
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(4 * n_cols, 8 * n_rows))
+        axes = np.atleast_1d(axes).ravel()
 
-            x_start, x_end = self.x[i], self.x[i + 1]
-            y_start, y_end = self.y[i], self.y[i + 1]
+        # Use slightly bigger arrows for this plot
+        big_arrow_kwargs = {
+            "length": 3.0,
+            "linewidth": 2.0,
+        }
 
-            # Clamp X to floor limits, as in other methods
-            x_start = max(min(x_start, bottom_right[0]), top_left[0])
-            x_end = max(min(x_end, bottom_right[0]), top_left[0])
+        # --- Plot each selected segment in its own subplot ----------------------
+        for idx, (start_reward, end_reward, start_frame, end_frame) in enumerate(
+            selected_segments
+        ):
+            ax = axes[idx]
+            plt.sca(ax)
 
-            ax.plot(
-                [x_start, x_end],
-                [y_start, y_end],
-                color="black",
-                linewidth=0.75,
-                zorder=3,
+            # Floor box
+            rect = patches.FancyBboxPatch(
+                (top_left[0], top_left[1]),
+                bottom_right[0] - top_left[0],
+                bottom_right[1] - top_left[1],
+                boxstyle="round,pad=0.05,rounding_size=2",
+                linewidth=1,
+                edgecolor="black",
+                facecolor="none",
+                zorder=2,
+            )
+            ax.add_patch(rect)
+
+            # Sidewall contact region
+            self._draw_sidewall_contact_region(
+                lower_left_x=top_left[0],
+                lower_left_y=top_left[1],
+                top_left=top_left,
+                bottom_right=bottom_right,
+                contact_buffer_px=contact_buffer_px,
             )
 
-            # Optional: skip arrows when not walking, if that attribute exists
-            if getattr(self.trj, "walking", None) is not None:
-                if not self.trj.walking[i + 1]:
+            # Reward circle patch (slightly thinner, solid)
+            if reward_circle is not None:
+                rcx, rcy, rcr = reward_circle
+                rc_patch = plt.Circle(
+                    (rcx, rcy),
+                    rcr,
+                    color="lightgray",
+                    fill=False,
+                    linestyle="-",
+                    linewidth=1.5,
+                    zorder=3,
+                    label="Reward circle",
+                )
+                ax.add_patch(rc_patch)
+
+            ax.set_aspect("equal", adjustable="box")
+            ax.axis("off")
+            ax.set_xlim(top_left[0] - padding_x, bottom_right[0] + padding_x)
+            ax.set_ylim(bottom_right[1] - padding_y, top_left[1] + padding_y)
+
+            # Base trajectory line + arrows
+            last_arrow_idx = None
+            arrow_interval = 3
+
+            for i in range(start_frame, end_frame):
+                if (
+                    np.isnan(self.x[i])
+                    or np.isnan(self.y[i])
+                    or np.isnan(self.x[i + 1])
+                    or np.isnan(self.y[i + 1])
+                ):
                     continue
 
-            speed = np.hypot(x_end - x_start, y_end - y_start)
-            last_arrow_idx = self._draw_arrow_for_speed(
-                i,
-                x_start,
-                x_end,
-                y_start,
-                y_end,
-                last_arrow_idx,
-                arrow_interval,
-                speed,
+                x_start, x_end = self.x[i], self.x[i + 1]
+                y_start, y_end = self.y[i], self.y[i + 1]
+
+                x_start = max(min(x_start, bottom_right[0]), top_left[0])
+                x_end = max(min(x_end, bottom_right[0]), top_left[0])
+
+                ax.plot(
+                    [x_start, x_end],
+                    [y_start, y_end],
+                    color="black",
+                    linewidth=0.75,
+                    zorder=3,
+                )
+
+                if getattr(self.trj, "walking", None) is not None:
+                    if not self.trj.walking[i + 1]:
+                        continue
+
+                speed = np.hypot(x_end - x_start, y_end - y_start)
+                last_arrow_idx = self._draw_arrow_for_speed(
+                    i,
+                    x_start,
+                    x_end,
+                    y_start,
+                    y_end,
+                    last_arrow_idx,
+                    arrow_interval,
+                    speed,
+                    arrow_kwargs=big_arrow_kwargs,
+                )
+
+            # Mark the two reward frames themselves
+            start_y = self.y[start_reward]
+            end_y = self.y[end_reward]
+            ax.plot(
+                self.x[start_reward],
+                start_y,
+                marker="o",
+                color="green",
+                markersize=6,
+                zorder=4,
+                label="Reward (start)",
+            )
+            ax.plot(
+                self.x[end_reward],
+                end_y,
+                marker="o",
+                color="red",
+                markersize=6,
+                zorder=4,
+                label="Reward (end)",
             )
 
-        # Mark the two reward frames themselves
-        start_y = self.y[start_reward]
-        end_y = self.y[end_reward]
-        ax.plot(
-            self.x[start_reward],
-            start_y,
-            marker="o",
-            color="green",
-            markersize=6,
-            zorder=4,
-            label="Reward (start)",
-        )
-        ax.plot(
-            self.x[end_reward],
-            end_y,
-            marker="o",
-            color="red",
-            markersize=6,
-            zorder=4,
-            label="Reward (end)",
-        )
-
-        # Legend (simple)
-        handles, labels = ax.get_legend_handles_labels()
-        if handles:
-            plt.legend(
-                handles=handles,
-                labels=labels,
-                loc="upper center",
-                bbox_to_anchor=(0.5, 0.05),
-                fancybox=True,
-                shadow=True,
-                ncol=2,
+            # Per-subplot title: just the varying info
+            ax.set_title(
+                f"seg {idx + 1}: frames {start_frame}-{end_frame}\n"
+                f"rewards {start_reward}->{end_reward}",
+                fontsize=9,
             )
 
-        # --- Build output filename with video id, fly id, and role --------------
+            # Put a legend only on the first subplot to avoid clutter
+            if idx == 0:
+                handles, labels = ax.get_legend_handles_labels()
+                if handles:
+                    ax.legend(
+                        handles=handles,
+                        labels=labels,
+                        loc="lower center",
+                        bbox_to_anchor=(0.7, -0.15),
+                        fancybox=True,
+                        shadow=True,
+                        ncol=3,
+                        fontsize=8,
+                    )
+
+        # Hide any unused axes
+        for ax in axes[n_examples:]:
+            ax.axis("off")
+
+        # --- Build output filename + global title -------------------------------
         video_id = os.path.splitext(os.path.basename(self.va.fn))[0]
         fly_idx = self.va.f
 
@@ -860,33 +919,31 @@ class EventChainPlotter:
             try:
                 role_idx = self.va.flies.index(fly_idx)
             except Exception:
-                # Fall back to 0 if not resolvable, but keep going
-                role_idx = 0
+                role_idx = 0  # fallback if not resolvable, but keep going
 
         seed_str = f"{seed}" if seed is not None else "rand"
         fly_role = "exp" if role_idx == 0 else "yok"
 
-        title = (
-            "Between-reward trajectory\n"
+        global_title = (
+            "Between-reward trajectories\n"
             f"{video_id}, fly {fly_idx}, {fly_role}\n"
-            f"trn {trn_index + 1}, bucket {bucket_index + 1}\n"
-            f"frames {start_frame}-{end_frame}"
+            f"trn {trn_index + 1}, bucket {bucket_index + 1}"
         )
-        plt.title(title, fontsize=12)
+        fig.suptitle(global_title, fontsize=12)
 
         output_path = (
             f"imgs/between_rewards/"
             f"{video_id}__fly{fly_idx}_role{role_idx}_"
-            f"trn{trn_index + 1}_bkt{bucket_index + 1}"
-            f"_frames_{start_frame}-{end_frame}_seed{seed_str}."
+            f"trn{trn_index + 1}_bkt{bucket_index + 1}_"
+            f"N{n_examples}_seed{seed_str}."
             f"{image_format}"
         )
         output_dir = os.path.dirname(output_path)
         os.makedirs(output_dir, exist_ok=True)
-        fig = plt.gcf()
-        fig.subplots_adjust(top=0.83, bottom=0.18)
+
+        fig.subplots_adjust(left=0.04, right=0.98, top=0.9, bottom=0.20, wspace=0.01, hspace=0.25)
         writeImage(output_path, format=image_format)
-        plt.close()
+        plt.close(fig)
 
     def plot_sharp_turn_chain_wall(
         self,

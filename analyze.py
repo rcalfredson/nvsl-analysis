@@ -395,8 +395,9 @@ g.add_argument(
     "--btw-rwd-plots",
     action="store_true",
     help=(
-        "Generate between-reward trajectory plots, randomly sampling a single "
-        "between-reward segment within a specified training sync bucket."
+        "Generate between-reward trajectory plots for each fly, randomly "
+        "sampling one or more between-reward segments within a specified "
+        "training sync bucket and arranging them as subplots."
     ),
 )
 g.add_argument(
