@@ -19,6 +19,10 @@ class EventChainPlotter:
         self.y = np.array(trj.y) if y is None else y
         self.image_format = image_format
 
+        # track which between-reward intervals have already been plotted
+        # key: (trn_index, bucket_index) -> set of (start_reward, end_reward)
+        self._used_between_reward_pairs = {}
+
     def draw_custom_arrowhead(
         self, ax, x_mid, y_mid, dx, dy, color, length=1.1, angle=30, shift_factor=-0.08
     ):
@@ -659,21 +663,45 @@ class EventChainPlotter:
             )
             return
 
+        key = (trn_index, bucket_index)
+        used_pairs = self._used_between_reward_pairs.setdefault(key, set())
+
+        # Only consider unused intervals
+        candidate_pairs = [p for p in reward_pairs if p not in used_pairs]
+        if not candidate_pairs:
+            print(
+                f"[plot_between_reward_chain] All between-reward intervals already "
+                f"used for fly {f_idx}, training {trn_index + 1}, bucket {bucket_index + 1}; "
+                f"no unique intervals left to plot."
+            )
+            return
+
         rng = random.Random(seed) if seed is not None else random
-        start_reward, end_reward = rng.choice(reward_pairs)
+        rng.shuffle(candidate_pairs)
 
         # Pad slightly around the interval, but clamp to valid frame indices
         pad = 5
         n_frames = len(self.x)
-        start_frame = max(0, start_reward - pad)
-        end_frame = min(n_frames - 1, end_reward + pad)
 
-        if start_frame >= end_frame:
+        selected_pair = None
+        for start_reward, end_reward in candidate_pairs:
+
+            start_frame = max(0, start_reward - pad)
+            end_frame = min(n_frames - 1, end_reward + pad)
+            if start_frame < end_frame:
+                selected_pair = (start_reward, end_reward, start_frame, end_frame)
+                break
+
+        if selected_pair is None:
             print(
-                f"[plot_between_reward_chain] Degenerate frame range "
-                f"[{start_frame}, {end_frame}] for fly {f_idx}; skipping."
+                f"[plot_between_reward_chain] No valid between-reward frame ranges "
+                f"found after trying all unused intervals for fly {f_idx}, "
+                f"training {trn_index + 1}, bucket {bucket_index + 1}."
             )
             return
+
+        start_reward, end_reward, start_frame, end_frame = selected_pair
+        used_pairs.add((start_reward, end_reward))
 
         # --- Prepare arena / floor and overlays ---------------------------------
         plt.figure(figsize=(12, 8))
