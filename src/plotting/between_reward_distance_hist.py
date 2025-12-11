@@ -17,6 +17,12 @@ class BetweenRewardDistanceHistogramConfig:
     out_file: str
     bins: int = 30  # could make this configurable later if desired
     xmax: float | None = None
+    # If True, y-axis is proportion of segments instead of raw counts
+    normalize: bool = False
+    # If True, pool distances across all trainings into a single histogram
+    pool_trainings: bool = False
+    # Optional label describing which subset of flies was used (e.g. "top 20% SLI")
+    subset_label: str | None = None
 
 
 class BetweenRewardDistanceHistogramPlotter:
@@ -92,17 +98,25 @@ class BetweenRewardDistanceHistogramPlotter:
             )
             return
 
-        n_trn = len(self.trns)
+        # Optionally pool all trainings into a single distribution
+        if self.cfg.pool_trainings:
+            pooled = np.concatenate([d for d in dists_by_trn if d.size > 0])
+            dists_by_trn = [pooled]
+            trn_labels = ["all trainings combined"]
+        else:
+            trn_labels = [t.name() for t in self.trns]
+
+        n_trn = len(dists_by_trn)
         fig, axes = plt.subplots(
             1,
             n_trn,
-            figsize=(4.0 * n_trn, 4.0),
+            figsize=(4.0 * n_trn if n_trn > 1 else 6.5, 4.0),
             squeeze=False,
             sharey=True,
         )
         axes = axes[0]
 
-        for idx, (ax, dists, t) in enumerate(zip(axes, dists_by_trn, self.trns)):
+        for idx, (ax, dists, label) in enumerate(zip(axes, dists_by_trn, trn_labels)):
             if dists.size == 0:
                 ax.set_axis_off()
                 ax.text(0.5, 0.5, "no data", ha="center", va="center")
@@ -115,7 +129,7 @@ class BetweenRewardDistanceHistogramPlotter:
                 dropped = orig_n - dists.size
                 if dropped > 0:
                     print(
-                        f"[btw-rwd-dists] {t.name()}: "
+                        f"[btw-rwd-dists] {label}: "
                         f"dropped {dropped} segments above {self.cfg.xmax} mm"
                     )
 
@@ -124,18 +138,39 @@ class BetweenRewardDistanceHistogramPlotter:
                 ax.text(0.5, 0.5, "no data ≤ cutoff", ha="center", va="center")
                 continue
 
-            # Basic histogram; bins could be made configurable via opts later
-            ax.hist(dists, bins=self.cfg.bins)
+            # Histogram; either raw counts or normalized to proportions
+            if self.cfg.normalize:
+                counts, bin_edges = np.histogram(
+                    dists,
+                    bins=self.cfg.bins,
+                )
+                total = counts.sum()
+                if total == 0:
+                    ax.set_axis_off()
+                    ax.text(0.5, 0.5, "no data", ha="center", va="center")
+                    continue
+                proportions = counts / total
+                bin_widths = np.diff(bin_edges)
+                ax.bar(bin_edges[:-1], proportions, width=bin_widths, align="edge")
+            else:
+                ax.hist(dists, bins=self.cfg.bins)
 
             if self.cfg.xmax is not None:
                 ax.set_xlim(0, self.cfg.xmax)
 
-            ax.set_title(t.name())
+            ax.set_title(label)
             ax.set_xlabel("distance between rewards (mm)")
             if idx == 0:
-                ax.set_ylabel("# between-reward segments")
+                if self.cfg.normalize:
+                    ax.set_ylabel("proportion of\nbetween-reward segments")
+                else:
+                    ax.set_ylabel("# between-reward segments")
 
-        fig.suptitle("Between-reward distances per training (experimental flies only)")
+        base_title = "Between-reward distances (experimental flies only)"
+        if self.cfg.subset_label:
+            fig.suptitle(f"{base_title}\n{self.cfg.subset_label}")
+        else:
+            fig.suptitle(base_title)
         fig.tight_layout()
 
         # Use your existing helper so imageFormat is respected

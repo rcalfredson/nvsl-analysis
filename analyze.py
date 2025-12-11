@@ -452,6 +452,31 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--btw-rwd-dist-normalize",
+    action="store_true",
+    help=(
+        "Normalize between-reward distance histograms so the y-axis shows "
+        "the proportion of segments per bin instead of raw counts."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-dist-pool-trainings",
+    action="store_true",
+    help=(
+        "Pool between-reward distances across all trainings into a single "
+        "histogram instead of plotting one panel per training."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-dist-top-sli",
+    action="store_true",
+    help=(
+        "When plotting between-reward distance histograms, restrict to flies "
+        "in the top SLI fraction (see --best-worst-sli, --best-worst-fraction, "
+        "and --best-worst-trn). By default, all flies are included."
+    ),
+)
+g.add_argument(
     "--lg-turn-plots",
     choices=("all_types", "turn_plus_1"),
     help="Generate large turn trajectory plot. Two modes are supported: 'all_types' includes all"
@@ -5058,16 +5083,6 @@ def postAnalyze(vas):
     if va.circle:
         plotTlenDist(vas, gis, gls, "combined")
 
-        if getattr(opts, "btw_rwd_dist_hist", False):
-            br_cfg = BetweenRewardDistanceHistogramConfig(
-                out_file=DIST_BTWN_REWARDS_IMG_FILE,
-                bins=30,
-                xmax=getattr(opts, "btw_rwd_dist_max", None),
-            )
-            br_plotter = BetweenRewardDistanceHistogramPlotter(
-                vas=vas, opts=opts, gls=gls, customizer=customizer, cfg=br_cfg
-            )
-            br_plotter.plot_histograms()
     if opts.turn_dir:
         turn_dir_plotter = TurnDirectionalityPlotter(vas, gls, customizer, opts)
         turn_dir_plotter.plot_turn_directionality()
@@ -5627,6 +5642,40 @@ def postAnalyze(vas):
     if opts.circle:
         plotAngularVelocity(vas, opts, gls)
         plotTurnRadiusHist(vas, gls, opts.yoked)
+
+    if va.circle and getattr(opts, "btw_rwd_dist_hist", False):
+        # Use all flies by default
+        vas_for_hist = vas
+
+        if getattr(opts, "btw_rwd_dist_top_sli", False):
+            if saved_top is None:
+                print(
+                    "[btw_rwd_dists] WARNING: --btw-rwd-dist-top-sli requested "
+                    "but no top-SLI group is available; falling back to all flies."
+                )
+            else:
+                vas_for_hist = [vas[i] for i in saved_top]
+                print(
+                    "[btw_rwd_dists] restricting histograms to "
+                    f"{len(vas_for_hist)} top-SLI flies"
+                )
+
+        if opts.best_worst_fraction:
+            subset_label = f"Restricted to top {100*opts.best_worst_fraction:.1f}% SLI flies"
+        else:
+            subset_label = None
+        br_cfg = BetweenRewardDistanceHistogramConfig(
+            out_file=DIST_BTWN_REWARDS_IMG_FILE,
+            bins=30,
+            xmax=getattr(opts, "btw_rwd_dist_max", None),
+            normalize=getattr(opts, "btw_rwd_dist_normalize", False),
+            pool_trainings=getattr(opts, "btw_rwd_dist_pool_trainings", False),
+            subset_label=subset_label
+        )
+        br_plotter = BetweenRewardDistanceHistogramPlotter(
+            vas=vas_for_hist, opts=opts, gls=gls, customizer=customizer, cfg=br_cfg
+        )
+        br_plotter.plot_histograms()
 
 
 def frmStat(n):
