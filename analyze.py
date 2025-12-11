@@ -93,6 +93,10 @@ from src.analysis.sli_tools import (
 )
 from src.analysis.training import Training
 from src.analysis.trajectory import Trajectory
+from src.plotting.between_reward_distance_hist import (
+    BetweenRewardDistanceHistogramPlotter,
+    BetweenRewardDistanceHistogramConfig,
+)
 from src.plotting.turn_directionality_plotter import TurnDirectionalityPlotter
 from src.plotting.turn_prob_dist_plotter import TurnProbabilityByDistancePlotter
 from src.utils.debug_fly_groups import init_fly_group_logging, log_fly_group
@@ -136,6 +140,7 @@ REWARD_PI_DIFF_IMG_FILE = "imgs/reward_pi_diff__%s_min_buckets.png"
 REWARD_PI_POST_IMG_FILE = "imgs/reward_pi_post__%s_min_buckets.png"
 REWARD_PI_POST_DIFF_IMG_FILE = "imgs/reward_pi_post_diff__%s_min_buckets.png"
 DIST_BTWN_REWARDS_LABEL = "mean dist. between calc. rewards%s"
+DIST_BTWN_REWARDS_IMG_FILE = "imgs/btw_rwd_dists.png"
 PSC_LABEL = "%% in circle\n(%s, %.1f-cm radius)"
 TURN_IMG_FILE = "imgs/%s%s_turn%s%s__%%s_min_buckets.png"
 PSC_CONC_IMG_FILE = "imgs/pref_slide_conc__%s_min_buckets.png"
@@ -426,6 +431,24 @@ g.add_argument(
     help=(
         "Random seed for between-reward trajectory selection (optional). "
         "If omitted, a random interval is chosen each run."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-dist-hist",
+    action="store_true",
+    help=(
+        "Plot histograms of distances traveled between consecutive rewards, "
+        "pooled across experimental flies and separated by training."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-dist-max",
+    type=float,
+    default=None,
+    help=(
+        "Maximum distance (mm) to include in the between-reward distance "
+        "histograms. Distances beyond this value are discarded for plotting. "
+        "By default, the full range is shown."
     ),
 )
 g.add_argument(
@@ -5034,6 +5057,17 @@ def postAnalyze(vas):
         outside_circle_plotter.plot_distributions(normalized=opts.outside_circle_norm)
     if va.circle:
         plotTlenDist(vas, gis, gls, "combined")
+
+        if getattr(opts, "btw_rwd_dist_hist", False):
+            br_cfg = BetweenRewardDistanceHistogramConfig(
+                out_file=DIST_BTWN_REWARDS_IMG_FILE,
+                bins=30,
+                xmax=getattr(opts, "btw_rwd_dist_max", None),
+            )
+            br_plotter = BetweenRewardDistanceHistogramPlotter(
+                vas=vas, opts=opts, gls=gls, customizer=customizer, cfg=br_cfg
+            )
+            br_plotter.plot_histograms()
     if opts.turn_dir:
         turn_dir_plotter = TurnDirectionalityPlotter(vas, gls, customizer, opts)
         turn_dir_plotter.plot_turn_directionality()
