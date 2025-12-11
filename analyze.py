@@ -477,6 +477,15 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--btw-rwd-dist-ymax",
+    type=float,
+    default=None,
+    help=(
+        "Set a fixed maximum for the y-axis in between-reward distance "
+        "histograms. By default, matplotlib chooses the y-axis scale."
+    ),
+)
+g.add_argument(
     "--lg-turn-plots",
     choices=("all_types", "turn_plus_1"),
     help="Generate large turn trajectory plot. Two modes are supported: 'all_types' includes all"
@@ -5660,17 +5669,19 @@ def postAnalyze(vas):
                     f"{len(vas_for_hist)} top-SLI flies"
                 )
 
-        if opts.best_worst_fraction:
-            subset_label = f"Restricted to top {100*opts.best_worst_fraction:.1f}% SLI flies"
-        else:
-            subset_label = None
+        subset_label = None
+        if getattr(opts, "btw_rwd_dist_top_sli", False) and saved_top is not None:
+            frac = float(getattr(opts, "best_worst_fraction", 0.1))
+            subset_label = f"Restricted to top {100*frac:.1f}% SLI flies"
+
         br_cfg = BetweenRewardDistanceHistogramConfig(
             out_file=DIST_BTWN_REWARDS_IMG_FILE,
             bins=30,
             xmax=getattr(opts, "btw_rwd_dist_max", None),
             normalize=getattr(opts, "btw_rwd_dist_normalize", False),
             pool_trainings=getattr(opts, "btw_rwd_dist_pool_trainings", False),
-            subset_label=subset_label
+            subset_label=subset_label,
+            ymax=getattr(opts, "btw_rwd_dist_ymax", None),
         )
         br_plotter = BetweenRewardDistanceHistogramPlotter(
             vas=vas_for_hist, opts=opts, gls=gls, customizer=customizer, cfg=br_cfg

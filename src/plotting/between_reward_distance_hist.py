@@ -23,6 +23,7 @@ class BetweenRewardDistanceHistogramConfig:
     pool_trainings: bool = False
     # Optional label describing which subset of flies was used (e.g. "top 20% SLI")
     subset_label: str | None = None
+    ymax: float | None = None
 
 
 class BetweenRewardDistanceHistogramPlotter:
@@ -157,6 +158,9 @@ class BetweenRewardDistanceHistogramPlotter:
 
             if self.cfg.xmax is not None:
                 ax.set_xlim(0, self.cfg.xmax)
+
+            if self.cfg.ymax is not None:
+                ax.set_ylim(top=self.cfg.ymax)
 
             ax.set_title(label)
             ax.set_xlabel("distance between rewards (mm)")
