@@ -161,10 +161,10 @@ def _fast_slow_indices_from_sli_T1_first(
     return fast_idx, slow_idx
 
 
-def _ensure_sync_med_dist(va, min_no_contact_s=None):
+def _ensure_sync_med_dist(va):
     if not hasattr(va, "syncMedDist") or va.syncMedDist is None:
         if hasattr(va, "bySyncBucketMedDist"):
-            va.bySyncBucketMedDist(min_no_contact_s=min_no_contact_s)
+            va.bySyncBucketMedDist()
         else:
             print("[correlations] WARNING: no syncMedDist and no bySyncBucketMedDist()")
 
@@ -558,8 +558,6 @@ def plot_cross_fly_correlations(
     total_reward_vals = []
     pre_coverage_vals = []
 
-    min_no_contact_s = getattr(opts, "min_no_contact_s", None)
-
     for va in vas:
         # --- Reward per distance (final bucket of training_idx) ---
         if _ensure_rewards_per_distance(va):
@@ -573,7 +571,7 @@ def plot_cross_fly_correlations(
             rpd_val = np.nan
 
         # --- Median distance to reward during training ---
-        _ensure_sync_med_dist(va, min_no_contact_s=min_no_contact_s)
+        _ensure_sync_med_dist(va)
         if hasattr(va, "syncMedDist") and training_idx < len(va.syncMedDist):
             med_vec = np.asarray(va.syncMedDist[training_idx].get("exp", []), float)
             med_train = np.nanmedian(med_vec) if med_vec.size else np.nan

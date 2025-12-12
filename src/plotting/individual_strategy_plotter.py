@@ -51,19 +51,21 @@ def select_distance_bin_near_5mm(vas, target_mm: float = TARGET_DIST_MM) -> floa
     Choose the distance bin (in mm) that is closest to `target_mm`, based on
     the keys in va.turn_prob_by_distance. We assume all vas share the same bins.
     """
+    if not vas:
+        raise ValueError("select_distance_bin_near_5mm(): got empty vas list")
     distances = np.array(sorted(vas[0].turn_prob_by_distance.keys()), dtype=float)
     idx = int(np.argmin(np.abs(distances - target_mm)))
     chosen = float(distances[idx])
     return chosen
 
 
-def ensure_sync_med_dist(va, min_no_contact_s=None):
+def ensure_sync_med_dist(va):
     """
     Ensure va.syncMedDist exists and is populated. Call this once per va
     before we try to read from it.
     """
     if not hasattr(va, "syncMedDist") or va.syncMedDist is None:
-        va.bySyncBucketMedDist(min_no_contact_s=min_no_contact_s)
+        va.bySyncBucketMedDist()
 
 
 def extract_sharp_turn_away_timecourse(va, chosen_dist, direction_idx: int = 0):
@@ -106,7 +108,6 @@ def gather_sharp_turn_away_matrix(vas, chosen_dist):
 def extract_median_distance_bucket_series(
     va,
     training_idx: int,
-    min_no_contact_s=None,
 ) -> np.ndarray:
     """
     Return array of shape (n_buckets,) with:
@@ -115,10 +116,10 @@ def extract_median_distance_bucket_series(
 
     Uses va.syncMedDist structure created by bySyncBucketMedDist().
     """
-    ensure_sync_med_dist(va, min_no_contact_s=min_no_contact_s)
+    ensure_sync_med_dist(va)
 
     if training_idx >= len(va.syncMedDist):
-        return np.array([])
+        return np.array([], dtype=float)
 
     med_dict = va.syncMedDist[training_idx]
     exp_vals = np.asarray(med_dict.get("exp", []), dtype=float)
@@ -136,7 +137,6 @@ def extract_median_distance_bucket_series(
 def gather_median_distance_matrix(
     vas,
     training_idx: int,
-    min_no_contact_s=None,
 ) -> np.ndarray:
     """
     Build a matrix of shape (n_videos, n_buckets) with exp−yoked median distance
@@ -150,7 +150,6 @@ def gather_median_distance_matrix(
         vals = extract_median_distance_bucket_series(
             va,
             training_idx=training_idx,
-            min_no_contact_s=min_no_contact_s,
         )
         series.append(vals)
         max_len = max(max_len, vals.size)
@@ -888,7 +887,6 @@ def plot_individual_strategy_overlays(
     # ------------------------------------------------------------------ #
 
     training_idx = getattr(opts, "best_worst_trn", 1) - 1
-    min_no_contact_s = getattr(opts, "min_no_contact_s", None)
 
     if not all(hasattr(va, "bySyncBucketMedDist") for va in vas):
         _warn("bySyncBucketMedDist unavailable — skipping median-distance overlays.")
@@ -897,7 +895,6 @@ def plot_individual_strategy_overlays(
             mdist_matrix = gather_median_distance_matrix(
                 vas,
                 training_idx=training_idx,
-                min_no_contact_s=min_no_contact_s,
             )
 
             if mdist_matrix.size == 0:

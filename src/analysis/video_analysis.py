@@ -1915,14 +1915,13 @@ class VideoAnalysis:
                 self._append(self.bySB2, adb[f], f, n=n if self.opts.ol else n - 1)
         self.buckets = np.array(self.buckets)
 
-    # --------------- new median-based distance method ----------------
-    def bySyncBucketMedDist(self, min_no_contact_s=None):
+    def bySyncBucketMedDist(self):
         """
-        For each sync-bucket, compute the median of per-frame
-        distances to the reward-circle center, optionally filtering out
-        brief no-contact bouts as in cleanNonContactMask().
-        Results in self.syncMedDist: a list (per training) of dicts
-        with 'exp' and optionally 'ctrl' keys mapping to median distances.
+        For each sync-bucket, compute the median of per-frame distances to the
+        reward-circle center.
+
+        Results in self.syncMedDist: a list (per training) of dicts with 'exp' and
+        optionally 'ctrl' keys mapping to median distances.
         """
         df = self._numRewardsMsg(True, silent=True)
         self.syncMedDist = []
@@ -1932,11 +1931,13 @@ class VideoAnalysis:
             fi, n_buckets, _ = self._syncBucket(trn, df)
             n_buckets = int(n_buckets)
             this_training = {}
+
             if fi is None:
                 for fly_key in ("exp", "ctrl"):
                     this_training[fly_key] = [np.nan for _ in range(n_buckets)]
                 self.syncMedDist.append(this_training)
                 continue
+
             starts = [int(fi + k * df) for k in range(int(n_buckets))]
             ends = [s + df for s in starts]
             # la guards against partial buckets
@@ -1946,15 +1947,12 @@ class VideoAnalysis:
             for fly_key, traj in (("exp", self.trx[0]),) + (
                 (("ctrl", self.trx[1]),) if len(self.trx) > 1 else ()
             ):
-                # precompute mask if requested
-                if min_no_contact_s is not None:
-                    mask = traj.cleanNonContactMask(min_no_contact_s)
-
                 # find correct reward‐circle center for this fly
                 fly_idx = 0 if fly_key == "exp" else 1
                 if self.trx[fly_idx]._bad:
                     this_training[fly_key] = [np.nan] * n_buckets
                     continue
+
                 cx, cy, _ = trn.circles(fly_idx)[0]
 
                 med_vals = []
@@ -1965,13 +1963,10 @@ class VideoAnalysis:
                         med_vals.append(np.nan)
                         continue
 
-                    # pick valid frame indices
-                    if min_no_contact_s is not None:
-                        idxs = np.nonzero(mask[s:e])[0] + s
-                    else:
-                        idxs = np.arange(s, e)
+                    idxs = np.arange(s, e)
                     xs = traj.x[idxs]
                     ys = traj.y[idxs]
+
                     # per-frame distances
                     ds = np.hypot(xs - cx, ys - cy)
                     if ds.size == 0:
