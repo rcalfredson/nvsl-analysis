@@ -1915,6 +1915,118 @@ class VideoAnalysis:
                 self._append(self.bySB2, adb[f], f, n=n if self.opts.ol else n - 1)
         self.buckets = np.array(self.buckets)
 
+    def bySyncBucketCOM(self, relative_to_reward=True, store_mag=True):
+        """
+        For each sync bucket, compute the center-of-mass (mean x,y) of the fly's
+        positions in that bucket.
+
+        Results in self.syncCOM: a list (per training) of dicts with 'exp' and
+        optionally 'ctrl' keys mapping to a list (per bucket) of (x, y) tuples.
+
+        If relative_to_reward=True, the returned (x, y) are offsets from the
+        reward-circle center (cx, cy) for that fly/training/bucket.
+
+        If store_mag=True, also stores self.syncCOMMag with the magnitude per
+        bucket (sqrt(x^2+y^2)) in the same structure as syncMedDist.
+        """
+        df = self._numRewardsMsg(True, silent=True)
+        self.syncCOM = []
+        if store_mag:
+            self.syncCOMMag = []
+
+        for trn in self.trns:
+            fi, n_buckets, _ = self._syncBucket(trn, df)
+            n_buckets = int(n_buckets)
+
+            this_training = {}
+            this_training_mag = {} if store_mag else None
+
+            if fi is None:
+                for fly_key in ("exp", "ctrl"):
+                    this_training[fly_key] = [
+                        (np.nan, np.nan) for _ in range(n_buckets)
+                    ]
+                    if store_mag:
+                        this_training_mag[fly_key] = [np.nan for _ in range(n_buckets)]
+                self.syncCOM.append(this_training)
+                if store_mag:
+                    self.syncCOMMag.append(this_training_mag)
+                continue
+
+            starts = [int(fi + k * df) for k in range(n_buckets)]
+            ends = [s + df for s in starts]
+            la = min(trn.stop, int(trn.start + n_buckets * df))
+            buckets = [(s, e) for s, e in zip(starts, ends) if e <= la]
+
+            for fly_key, traj in (("exp", self.trx[0]),) + (
+                (("ctrl", self.trx[1]),) if len(self.trx) > 1 else ()
+            ):
+                fly_idx = 0 if fly_key == "exp" else 1
+                if self.trx[fly_idx]._bad:
+                    this_training[fly_key] = [(np.nan, np.nan)] * n_buckets
+                    if store_mag:
+                        this_training_mag[fly_key] = [np.nan] * n_buckets
+                    continue
+
+                # reward-circle center (in px) for this fly
+                cx, cy, _ = trn.circles(fly_idx)[0]
+
+                # px -> mm scale used elsewhere
+                px_per_mm = self.xf.fctr * self.ct.pxPerMmFloor()
+
+                com_vals = []
+                mag_vals = [] if store_mag else None
+
+                for s, e in buckets:
+                    b_idx = len(com_vals)
+
+                    if self.is_excluded_pair(fly_idx, trn.n - 1, b_idx):
+                        com_vals.append((np.nan, np.nan))
+                        if store_mag:
+                            mag_vals.append(np.nan)
+                        continue
+
+                    idxs = np.arange(s, e)
+
+                    if idxs.size == 0:
+                        com_vals.append((np.nan, np.nan))
+                        if store_mag:
+                            mag_vals.append(np.nan)
+                        continue
+
+                    xs = traj.x[idxs]
+                    ys = traj.y[idxs]
+
+                    # COM in px
+                    mx = np.nanmean(xs)
+                    my = np.nanmean(ys)
+
+                    if relative_to_reward:
+                        mx -= cx
+                        my -= cy
+
+                    # convert to mm
+                    mx_mm = mx / px_per_mm
+                    my_mm = my / px_per_mm
+
+                    com_vals.append((mx_mm, my_mm))
+                    if store_mag:
+                        mag_vals.append(np.hypot(mx_mm, my_mm))
+
+                missing = n_buckets - len(com_vals)
+                if missing > 0:
+                    com_vals.extend([(np.nan, np.nan)] * missing)
+                    if store_mag:
+                        mag_vals.extend([np.nan] * missing)
+
+                this_training[fly_key] = com_vals
+                if store_mag:
+                    this_training_mag[fly_key] = mag_vals
+
+            self.syncCOM.append(this_training)
+            if store_mag:
+                self.syncCOMMag.append(this_training_mag)
+
     def bySyncBucketMedDist(self):
         """
         For each sync-bucket, compute the median of per-frame distances to the
