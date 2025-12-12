@@ -304,12 +304,13 @@ class BetweenRewardPolarOccupancyPlotter:
                         dy_raw = yg - cy
                         dy = -dy_raw if self.cfg.flip_y else dy_raw
 
-                        theta = np.arctan2(dy, dx)  # [-pi, pi]
+                        theta_up = np.arctan2(dx, dy)  # 0 = up, +90 = right, -90 = left
+                        theta_up = (theta_up + np.pi) % (2 * np.pi) - np.pi  # [-pi, pi]
 
                         # pooled
-                        pooled_by_trn[t_idx].extend(theta.tolist())
+                        pooled_by_trn[t_idx].extend(theta_up.tolist())
                         # per-fly
-                        per_fly_by_trn[(fly_key, t_idx)].extend(theta.tolist())
+                        per_fly_by_trn[(fly_key, t_idx)].extend(theta_up.tolist())
 
                     # ---- debug emission (separate from plot data collection) ----
                     if (want_debug_global or want_debug_per_fly) and debug_windows:
@@ -346,10 +347,11 @@ class BetweenRewardPolarOccupancyPlotter:
                             dx = xg - cx
                             dy_raw = yg - cy
                             dy = -dy_raw if self.cfg.flip_y else dy_raw
-                            theta = np.arctan2(dy, dx)
+                            theta_up = np.arctan2(dx, dy)
+                            theta_up = (theta_up + np.pi) % (2 * np.pi) - np.pi
 
                             for fm, x, y, ddx, ddy_raw_i, ddy_i, th in zip(
-                                idx, xg, yg, dx, dy_raw, dy, theta
+                                idx, xg, yg, dx, dy_raw, dy, theta_up
                             ):
                                 th_0_2pi = float((th + 2 * np.pi) % (2 * np.pi))
                                 th_deg = float(np.degrees(th))
