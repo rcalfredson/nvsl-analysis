@@ -97,6 +97,10 @@ from src.plotting.between_reward_distance_hist import (
     BetweenRewardDistanceHistogramPlotter,
     BetweenRewardDistanceHistogramConfig,
 )
+from src.plotting.between_reward_polar_occupancy import (
+    BetweenRewardPolarOccupancyPlotter,
+    BetweenRewardPolarOccupancyConfig,
+)
 from src.plotting.turn_directionality_plotter import TurnDirectionalityPlotter
 from src.plotting.turn_prob_dist_plotter import TurnProbabilityByDistancePlotter
 from src.utils.debug_fly_groups import init_fly_group_logging, log_fly_group
@@ -141,6 +145,7 @@ REWARD_PI_POST_IMG_FILE = "imgs/reward_pi_post__%s_min_buckets.png"
 REWARD_PI_POST_DIFF_IMG_FILE = "imgs/reward_pi_post_diff__%s_min_buckets.png"
 DIST_BTWN_REWARDS_LABEL = "mean dist. between calc. rewards%s"
 DIST_BTWN_REWARDS_IMG_FILE = "imgs/btw_rwd_dists.png"
+BTW_RWD_POLAR_IMG_FILE = "imgs/btw_rwd_polar.png"
 PSC_LABEL = "%% in circle\n(%s, %.1f-cm radius)"
 TURN_IMG_FILE = "imgs/%s%s_turn%s%s__%%s_min_buckets.png"
 PSC_CONC_IMG_FILE = "imgs/pref_slide_conc__%s_min_buckets.png"
@@ -484,6 +489,140 @@ g.add_argument(
         "Set a fixed maximum for the y-axis in between-reward distance "
         "histograms. By default, matplotlib chooses the y-axis scale."
     ),
+)
+g.add_argument(
+    "--btw-rwd-polar",
+    action="store_true",
+    help=(
+        "Plot a polar angular occupancy histogram of fly positions between "
+        "consecutive rewards, centered on the reward circle. Data are pooled "
+        "across experimental flies."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-polar-bins",
+    type=int,
+    default=36,
+    help="Number of angular sectors for --btw-rwd-polar. Default: %(default)s",
+)
+g.add_argument(
+    "--btw-rwd-polar-pool-trainings",
+    action="store_true",
+    help="Pool between-reward positions across all trainings into a single polar plot.",
+)
+g.add_argument(
+    "--btw-rwd-polar-top-sli",
+    action="store_true",
+    help=(
+        "When plotting --btw-rwd-polar, restrict to flies in the top SLI fraction "
+        "(see --best-worst-sli, --best-worst-fraction, and --best-worst-trn). "
+        "By default, all flies are included."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-polar-rmax",
+    type=float,
+    default=None,
+    help=(
+        "Optional fixed maximum radial axis for --btw-rwd-polar (useful to keep "
+        "scales consistent across groups). Default: auto."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-polar-no-flip-y",
+    action="store_true",
+    help=(
+        "Disable flipping the image Y axis when computing angles. "
+        "By default, Y is flipped so angles match an 'up is positive' convention."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-polar-debug",
+    action="store_true",
+    help="Enable debug outputs for --btw-rwd-polar (writes per-frame angle rows if --btw-rwd-polar-debug-out is set).",
+)
+g.add_argument(
+    "--btw-rwd-polar-debug-out",
+    type=str,
+    default=None,
+    help="TSV path for --btw-rwd-polar debug rows (e.g. imgs/btw_rwd_polar_debug.tsv). Default: disabled.",
+)
+g.add_argument(
+    "--btw-rwd-polar-debug-max-rows",
+    type=int,
+    default=20000,
+    help="Max number of rows to write to --btw-rwd-polar-debug-out. Default: %(default)s",
+)
+g.add_argument(
+    "--btw-rwd-polar-debug-stride",
+    type=int,
+    default=1,
+    help="Write every Nth frame to the debug TSV (1=every frame). Default: %(default)s",
+)
+g.add_argument(
+    "--btw-rwd-polar-only-walking",
+    action="store_true",
+    help=(
+        "When computing --btw-rwd-polar, include only frames where the fly is walking "
+        "(according to Trajectory.walking)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-polar-per-fly",
+    action="store_true",
+    help="Also write per-fly polar occupancy plots (one figure per fly, with one subplot per training).",
+)
+g.add_argument(
+    "--btw-rwd-polar-per-fly-out-dir",
+    type=str,
+    default="imgs/btw_rwd_polar_per_fly",
+    help="Output directory for --btw-rwd-polar-per-fly. Default: %(default)s",
+)
+g.add_argument(
+    "--btw-rwd-polar-per-fly-max",
+    type=int,
+    default=None,
+    help="Optional cap on number of per-fly plots to write (useful for quick debugging). Default: no cap.",
+)
+g.add_argument(
+    "--btw-rwd-polar-debug-per-fly",
+    action="store_true",
+    help="Write per-fly debug TSVs for --btw-rwd-polar (one TSV per fly).",
+)
+g.add_argument(
+    "--btw-rwd-polar-debug-per-fly-out-dir",
+    type=str,
+    default="imgs/btw_rwd_polar_debug_per_fly",
+    help="Output directory for --btw-rwd-polar-debug-per-fly TSVs. Default: %(default)s",
+)
+g.add_argument(
+    "--btw-rwd-polar-debug-sample-mode",
+    choices=("first", "random_windows"),
+    default="first",
+    help=(
+        "Sampling mode for debug TSV rows. "
+        "'first' writes rows in encounter order until capped; "
+        "'random_windows' samples fixed-length windows across the video deterministically. "
+        "Default: %(default)s"
+    ),
+)
+g.add_argument(
+    "--btw-rwd-polar-debug-num-windows",
+    type=int,
+    default=50,
+    help="Number of debug windows per fly per training when using random_windows. Default: %(default)s",
+)
+g.add_argument(
+    "--btw-rwd-polar-debug-window-len",
+    type=int,
+    default=50,
+    help="Window length (frames) for random_windows debug sampling. Default: %(default)s",
+)
+g.add_argument(
+    "--btw-rwd-polar-debug-seed",
+    type=int,
+    default=0,
+    help="Base seed for deterministic debug sampling (random windows). Default: %(default)s",
 )
 g.add_argument(
     "--lg-turn-plots",
@@ -5687,6 +5826,74 @@ def postAnalyze(vas):
             vas=vas_for_hist, opts=opts, gls=gls, customizer=customizer, cfg=br_cfg
         )
         br_plotter.plot_histograms()
+    if getattr(opts, "btw_rwd_polar", False) and any(getattr(v, "circle", None) for v in vas):
+        vas_for_polar = vas
+
+        if getattr(opts, "btw_rwd_polar_top_sli", False):
+            if saved_top is None:
+                print(
+                    "[btw_rwd_polar] WARNING: --btw-rwd-polar-top-sli requested "
+                    "but no top-SLI group is available; falling back to all flies."
+                )
+            else:
+                vas_for_polar = [vas[i] for i in saved_top]
+                print(
+                    "[btw_rwd_polar] restricting polar plot to "
+                    f"{len(vas_for_polar)} top-SLI flies"
+                )
+
+        top_sli = bool(getattr(opts, "btw_rwd_polar_top_sli", False) and saved_top is not None)
+        pool_trn = bool(getattr(opts, "btw_rwd_polar_pool_trainings", False))
+
+        subset_label = None
+        if top_sli:
+            frac = float(getattr(opts, "best_worst_fraction", 0.1))
+            subset_label = f"Restricted to top {100*frac:.1f}% SLI flies"
+
+        def _btw_rwd_polar_outfile(*, top_sli: bool, pool_trainings: bool) -> str:
+            base, ext = os.path.splitext(BTW_RWD_POLAR_IMG_FILE)  # "imgs/btw_rwd_polar", ".png"
+            tag = "top_sli" if top_sli else "all"
+            pool_tag = "__pooled_trn" if pool_trainings else ""
+            return f"{base}__{tag}{pool_tag}{ext}"
+        polar_cfg = BetweenRewardPolarOccupancyConfig(
+            out_file=_btw_rwd_polar_outfile(top_sli=top_sli, pool_trainings=pool_trn),
+            bins=int(getattr(opts, "btw_rwd_polar_bins", 36)),
+            normalize=True,
+            pool_trainings=pool_trn,
+            subset_label=subset_label,
+            flip_y=not getattr(opts, "btw_rwd_polar_no_flip_y", False),
+            rmax=getattr(opts, "btw_rwd_polar_rmax", None),
+            per_fly=bool(getattr(opts, "btw_rwd_polar_per_fly", False)),
+            per_fly_out_dir=str(
+                getattr(
+                    opts, "btw_rwd_polar_per_fly_out_dir", "imgs/btw_rwd_polar_per_fly"
+                )
+            ),
+            max_per_fly_plots=getattr(opts, "btw_rwd_polar_per_fly_max", None),
+            only_walking=bool(getattr(opts, "btw_rwd_polar_only_walking", False)),
+            debug=bool(getattr(opts, "btw_rwd_polar_debug", False)),
+            debug_out_tsv=getattr(opts, "btw_rwd_polar_debug_out", None),
+            debug_max_rows=int(getattr(opts, "btw_rwd_polar_debug_max_rows", 20000)),
+            debug_stride=int(getattr(opts, "btw_rwd_polar_debug_stride", 1)),
+            debug_per_fly=bool(getattr(opts, "btw_rwd_polar_debug_per_fly", False)),
+            debug_per_fly_out_dir=str(
+                getattr(
+                    opts,
+                    "btw_rwd_polar_debug_per_fly_out_dir",
+                    "imgs/btw_rwd_polar_debug_per_fly",
+                )
+            ),
+            debug_sample_mode=str(
+                getattr(opts, "btw_rwd_polar_debug_sample_mode", "first")
+            ),
+            debug_num_windows=int(getattr(opts, "btw_rwd_polar_debug_num_windows", 50)),
+            debug_window_len=int(getattr(opts, "btw_rwd_polar_debug_window_len", 50)),
+            debug_seed=int(getattr(opts, "btw_rwd_polar_debug_seed", 0)),
+        )
+        polar_plotter = BetweenRewardPolarOccupancyPlotter(
+            vas=vas_for_polar, opts=opts, gls=gls, customizer=customizer, cfg=polar_cfg
+        )
+        polar_plotter.plot()
 
 
 def frmStat(n):
