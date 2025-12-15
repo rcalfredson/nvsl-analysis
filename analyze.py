@@ -135,6 +135,7 @@ CONTACT_EVENT_PCT_TIME_IMG_FILE = "imgs/%s_%s_pct_time__%%s_min_buckets.png"
 CONTACT_EVENT_DURATION_IMG_FILE = "imgs/%s_%s_contact_duration__%%s_min_buckets.png"
 DIST_BTWN_REWARDS_FILE = "imgs/dist_btwn_%srewards__%%s_min_buckets.png"
 MED_DIST_TO_REWARD_FILE = "imgs/med_dist_to_rwd_ctr%s__%%s_min_buckets.png"
+COM_MAG_TO_REWARD_FILE = "imgs/com_mag_to_reward%s__%%s_min_buckets.png"
 DIST_BTWN_REWARDS_HIST_FILE = "imgs/trajectory_len_dist%s.png"
 MAX_DIST_REWARDS_FILE = "imgs/max_dist_from_center__%s_min_buckets.png"
 CONTACTLESS_RWDS_IMG_FILE = "imgs/contactless_rewards_%s__%%s_min_buckets.png"
@@ -1277,6 +1278,10 @@ def headerForType(va, tp, calc):
         return "\nmedian distance to reward circle center"
     elif tp == "meddist_csv":
         return '\n"median distance to reward circle center, by sync bucket (exp and yoked control), by training"'
+    elif tp == "commag":
+        return "\nCOM magnitude from reward center"
+    elif tp == "commag_csv":
+        return '\n"COM magnitude from reward center, by sync bucket (exp and yoked control), by training"'
     elif (
         tp
         in (
@@ -1501,6 +1506,7 @@ def fliesForType(va, tp, calc=None):
             "spd",
             "stp",
             "meddist",
+            "commag",
             "agarose",
             "agarose_per_rwd",
             "agarose_pct_edge",
@@ -1574,6 +1580,7 @@ def bucketLenForType(tp):
             "dbr",
             "meddist",
             "meddist_exp_min_yok",
+            "commag",
             "rpid",
             "rpd",
             "rpd_exp_min_yok",
@@ -1782,6 +1789,17 @@ def columnNamesForType(va, tp, calc, n):
             for b in range(1, n_buckets + 1):
                 names.append(f"{f}_b{b}")
         return names
+    elif tp == "commag":
+        df = va._numRewardsMsg(True, silent=True)
+        _, n_buckets, _ = va._syncBucket(va.trns[0], df)
+
+        flies = [flyDesc(0)] + ([flyDesc(1)] if len(va.flies) > 1 else [])
+        names = []
+        for f in flies:
+            for b in range(1, n_buckets + 1):
+                names.append(f"{f}_b{b}")
+        return names
+
     elif tp == "ppi":
         return ("post %s min" % bl,)
     elif tp in ("rpi", "bysb2"):
@@ -2367,6 +2385,16 @@ def vaVarForType(va, tp, calc):
                     flat.append(v)
         # writeStats expects a list-like of rows for CSV-style types
         return [flat]
+    elif tp == "commag":
+        data = []
+        has_ctrl = len(va.flies) > 1
+        flies = ["exp"] + (["ctrl"] if has_ctrl else [])
+        for trn_dict in getattr(va, "syncCOMMag", []):
+            row = []
+            for fkey in flies:
+                row.extend(trn_dict.get(fkey, []))
+            data.append(row)
+        return np.array(data) if data else np.zeros((len(va.trns), 0))
     elif tp == "dbr_no_contact_csv":
         return [va.contactless_trajectory_lengths[opts.wall_orientation]["csv"]]
     elif tp == "max_ctr_d_no_contact_csv":
@@ -2553,6 +2581,7 @@ def paired_slice(start, end, reverse=True):
 METRIC_PALETTES = {
     "sli": paired_slice(0, 2),
     "rpd": paired_slice(2, 4),
+    "commag": paired_slice(6, 8),
     "meddist": paired_slice(8, 10),
 }
 
@@ -2563,6 +2592,8 @@ def get_palette(tp):
         return METRIC_PALETTES["sli"]
     elif tp in ("rpd", "rpd_exp_min_yok"):
         return METRIC_PALETTES["rpd"]
+    elif tp in ("commag",):
+        return METRIC_PALETTES["commag"]
     elif tp in ("meddist", "meddist_exp_min_yok"):
         return METRIC_PALETTES["meddist"]
     else:
@@ -2665,6 +2696,7 @@ def plotRewards(
     visit_dur = "_dur" in tp
     rpd = tp == "rpd"
     meddist = tp == "meddist"
+    commag = tp == "commag"
     agarose_dual = tp == "agarose_dual_circle"
     auc_to_csv = r_diff or rpd
     psc = tp in ("psc_conc", "psc_shift")
@@ -2760,11 +2792,20 @@ def plotRewards(
         True if not opts.hidePltTests else False
     )  # p values between first and last buckets
     showPT = not P if not opts.hidePltTests else False  # p values between trainings
-    if rpi or rpd or diff_tp or meddist or agarose_dual:
+    if rpi or rpd or diff_tp or meddist or commag or agarose_dual:
         showPFL = False
         showPT = False
     showSS = not P  # speed stats
-    if "_dur" in tp or psc or num_events or meddist or rpi or rpd or agarose_dual:
+    if (
+        "_dur" in tp
+        or psc
+        or num_events
+        or meddist
+        or commag
+        or rpi
+        or rpd
+        or agarose_dual
+    ):
         showSS = False
     useAxLimsForStatsVerticalAlignment = (
         circle
@@ -2775,6 +2816,7 @@ def plotRewards(
         or psc
         or rpd
         or meddist
+        or commag
         or agarose_dual
     )
     useDynamicAxisLims = (
@@ -2783,6 +2825,7 @@ def plotRewards(
         or visit_dur
         or psc
         or meddist
+        or commag
         or rpd
         or diff_tp
         or agarose_dual
@@ -2796,6 +2839,7 @@ def plotRewards(
         or "dbr" in tp
         or rpd
         or meddist
+        or commag
         or "no_contact" in tp
         or diff_tp
     )
@@ -2823,6 +2867,7 @@ def plotRewards(
         ylim = [0, 10]
     elif tp == "meddist_exp_min_yok":
         ylim = [-0.5, 0.5]
+
     elif tp == "agarose_dual_circle":
         ylim = [0, 1]
     elif tp == "dbr_no_contact":
@@ -2880,6 +2925,7 @@ def plotRewards(
             "rpd_exp_min_yok",
             "meddist",
             "meddist_exp_min_yok",
+            "commag",
         ):
             exp_color, yok_color = palette[0], palette[1]
             mc = exp_color if f == 0 else yok_color
@@ -3447,6 +3493,7 @@ def plotRewards(
                         agarose_dual_circle="dual-circle agarose avoidance ratio",
                         meddist="median dist. to reward\ncircle center [mm]",
                         meddist_exp_min_yok="med. dist. to center [mm]\n$(\\text{exp} - \\text{yok})$",
+                        commag="COM mag. from reward center [mm]",
                     )
                     if opts.prefCircleSlideRad:
                         ylabels["psc_conc"] = PSC_LABEL % (
@@ -3637,6 +3684,7 @@ def plotRewards(
         agarose_dual_circle=AGAROSE_AVOID_IMG_FILE % "",
         meddist=MED_DIST_TO_REWARD_FILE % "",
         meddist_exp_min_yok=MED_DIST_TO_REWARD_FILE % "_exp_min_yok",
+        commag=COM_MAG_TO_REWARD_FILE % "",
     )
 
     if opts.turn:
@@ -5273,6 +5321,7 @@ def postAnalyze(vas):
             "dbr",
             "meddist",
             "meddist_exp_min_yok",
+            "commag",
         )
     )
     if opts.circle:
@@ -5633,7 +5682,7 @@ def postAnalyze(vas):
                         lb = lb - 1
                     else:
                         break
-        elif tp in ("meddist", "meddist_exp_min_yok", "rpd_exp_min_yok"):
+        elif tp in ("meddist", "meddist_exp_min_yok", "rpd_exp_min_yok", "commag"):
             plotRewards(
                 va,
                 tp,
