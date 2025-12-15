@@ -3,9 +3,7 @@ from io import StringIO
 from typing import Dict, Tuple, List
 
 PI_TITLE = "__calculated__ reward PI by bucket"
-COM_TITLE = (
-    "median COM-to-center distance, by sync bucket (exp and yoked control), by training"
-)
+MEDDIST_TITLE = "median distance to reward circle center, by sync bucket (exp and yoked control), by training"
 RPD_TITLE = "rewards per distance traveled [m⁻¹]"
 NUM_RWD_TITLE = "number __calculated__ rewards by sync bucket"
 
@@ -24,16 +22,14 @@ def load_four_tables(csv_path: str) -> Dict[str, pd.DataFrame]:
     with open(csv_path, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
-    titles = [PI_TITLE, COM_TITLE, RPD_TITLE, NUM_RWD_TITLE]
+    titles = [PI_TITLE, MEDDIST_TITLE, RPD_TITLE, NUM_RWD_TITLE]
     idx = {t: i for t in titles for i, line in enumerate(lines) if t in line}
     return {t: _extract_table(lines, i) for t, i in idx.items()}
 
 
-def build_mapping(
-    reward_pi_cols: List[str], com_cols: List[str]
-) -> Dict[str, Tuple[str, str, str]]:
+def build_mapping(reward_pi_cols: List[str]) -> Dict[str, Tuple[str, str, str]]:
     """
-    Auto-map Reward PI SB columns to the corresponding COM/RPD/NUM_RWD bucket columns.
+    Auto-map Reward PI SB columns to the corresponding MEDDIST/RPD/NUM_RWD bucket columns.
     Rules:
       - 'first SB' → b1
       - 'last SB'  → b5
@@ -68,11 +64,11 @@ def build_mapping(
                 target = f"yok {bucket}" if T == 1 else f"yok {bucket}.{T-1}"
 
         # Map to the three versions of the column in the merged table
-        com_target = target
+        meddist_target = target
         rpd_target = f"{target}_rpd"
         numrwd_target = f"{target}_numrwd"
 
-        mapping[col] = (com_target, rpd_target, numrwd_target)
+        mapping[col] = (meddist_target, rpd_target, numrwd_target)
 
     return mapping
 
@@ -80,25 +76,27 @@ def build_mapping(
 def check_nan_alignment(csv_path: str):
     tables = load_four_tables(csv_path)
     pi = tables[PI_TITLE]
-    com = tables[COM_TITLE]
+    meddist = tables[MEDDIST_TITLE]
     rpd = tables[RPD_TITLE]
     num_rwd = tables[NUM_RWD_TITLE]
 
     # Build mapping from Reward PI column names
     pi_cols = [c for c in pi.columns if "SB" in c]
-    col_map = build_mapping(pi_cols, com.columns.tolist())
+    col_map = build_mapping(pi_cols)
 
     # Align rows by (video, fly)
-    merged = pi.merge(com, on=["video", "fly"], suffixes=("_pi", "_com"))
+    merged = pi.merge(meddist, on=["video", "fly"], suffixes=("_pi", "_meddist"))
     merged = merged.merge(rpd, on=["video", "fly"], suffixes=("", "_rpd"))
     merged = merged.merge(num_rwd, on=["video", "fly"], suffixes=("", "_numrwd"))
 
     inconsistencies = []
 
     # --- Pass 1: cross-table row-wise NaN mismatches
-    for pi_col, (com_col, rpd_col, numrwd_col) in col_map.items():
+    for pi_col, (meddist_col, rpd_col, numrwd_col) in col_map.items():
         # Sanity: ensure targets exist
-        missing = [x for x in (com_col, rpd_col, numrwd_col) if x not in merged.columns]
+        missing = [
+            x for x in (meddist_col, rpd_col, numrwd_col) if x not in merged.columns
+        ]
         if missing:
             inconsistencies.append(
                 ("__MISSING_COL__", None, pi_col, tuple(missing), None)
@@ -108,7 +106,7 @@ def check_nan_alignment(csv_path: str):
         for _, row in merged.iterrows():
             pattern = (
                 pd.isna(row[pi_col]),
-                pd.isna(row[com_col]),
+                pd.isna(row[meddist_col]),
                 pd.isna(row[rpd_col]),
                 pd.isna(row[numrwd_col]),
             )
@@ -118,7 +116,7 @@ def check_nan_alignment(csv_path: str):
                         row["video"],
                         row["fly"],
                         pi_col,
-                        (com_col, rpd_col, numrwd_col),
+                        (meddist_col, rpd_col, numrwd_col),
                         pattern,
                     )
                 )
@@ -132,7 +130,7 @@ def check_nan_alignment(csv_path: str):
 
             counts = {}
             for tbl_name, tbl in zip(
-                ["PI", "COM", "RPD", "NUM_RWD"], [pi, com, rpd, num_rwd]
+                ["PI", "MEDDIST", "RPD", "NUM_RWD"], [pi, meddist, rpd, num_rwd]
             ):
                 if exp_col in tbl.columns and yok_col in tbl.columns:
                     both_non_nan = tbl[[exp_col, yok_col]].dropna().shape[0]

@@ -147,7 +147,7 @@ def flatten_auc_entries(va, tp):
         for auc_entry in va.saved_auc[tp]:
             if tp == "rpid":  # exp - yoked; only one value per training
                 row.extend([auc_entry["exp"]])
-            else:  # rpd or com
+            else:  # rpd or meddist
                 row.extend([auc_entry["exp"], auc_entry["ctrl"]])
     return [row]
 

@@ -29,6 +29,6 @@ MIDLINE_XING2 = True
 SPEED_ON_BOTTOM = True  # whether to measure speed only on bottom
 VBA = False
 
-SAVE_AUC_TYPES = {"rpid", "rpd", "com"}
+SAVE_AUC_TYPES = {"rpid", "rpd", "meddist"}
 
 _RDP_PKG = False

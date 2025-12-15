@@ -1273,10 +1273,10 @@ def headerForType(va, tp, calc):
         )
     elif tp in ("nr", "nr_all", "nrc"):
         return "\nnumber %s rewards by sync bucket:" % cVsA_l(calc, tp == "nrc")
-    elif tp == "com":
-        return "distance from trajectory COM to reward circle center"
-    elif tp == "com_csv":
-        return '\n"median COM-to-center distance, by sync bucket (exp and yoked control), by training"'
+    elif tp == "meddist":
+        return "\nmedian distance to reward circle center"
+    elif tp == "meddist_csv":
+        return '\n"median distance to reward circle center, by sync bucket (exp and yoked control), by training"'
     elif (
         tp
         in (
@@ -1436,7 +1436,7 @@ def headerForType(va, tp, calc):
         return f'\n"% time in slide circle ({which}), experimental fly only, by sync bucket:"'
     elif tp == "rpd_auc_csv":
         return '\n"AUC of rewards per distance (exp and yoked control), by training:"'
-    elif tp == "com_auc_csv":
+    elif tp == "meddist_auc_csv":
         return '\n"AUC of median distance to rwd. circle center (exp and yoked control), by training:"'
     elif tp == "rpid_auc_csv":
         return '\n"AUC of reward PI difference (exp - yoked), by training"'
@@ -1500,7 +1500,7 @@ def fliesForType(va, tp, calc=None):
             "bysb2",
             "spd",
             "stp",
-            "com",
+            "meddist",
             "agarose",
             "agarose_per_rwd",
             "agarose_pct_edge",
@@ -1572,8 +1572,8 @@ def bucketLenForType(tp):
             "boundary",
             "wall",
             "dbr",
-            "com",
-            "com_exp_min_yok",
+            "meddist",
+            "meddist_exp_min_yok",
             "rpid",
             "rpd",
             "rpd_exp_min_yok",
@@ -1774,7 +1774,7 @@ def columnNamesForType(va, tp, calc, n):
             return [f"{flyDesc(f)} fly" for f in range(len(va.trx))]
         bl = " %s min" % bl
         return fiNe(bl, 0) + fiNe(bl, 1) if calc else fiNe(bl)
-    elif tp == "com":
+    elif tp == "meddist":
         n_buckets = len(va.syncMedDist[0]["exp"])
         flies = [flyDesc(0)] + ([flyDesc(1)] if len(va.flies) > 1 else [])
         names = []
@@ -1856,7 +1856,7 @@ def columnNamesForType(va, tp, calc, n):
             "wall",
             "rpipd",
             "dbr",
-            "com",
+            "meddist",
             "dbr_no_contact",
             "max_ctr_d_no_contact",
             "psc_conc",
@@ -1909,7 +1909,7 @@ def columnNamesForType(va, tp, calc, n):
     elif tp in (
         "nr_all",
         "rpd",
-        "com_csv",
+        "meddist_csv",
         "agarose_pct_edge",
         "agarose_pct_ctr",
         "boundary_pct_edge",
@@ -1952,7 +1952,7 @@ def columnNamesForType(va, tp, calc, n):
             extendedPost=False,
             intersperseExpYok=True,
         )
-    elif tp in ("rpd_auc_csv", "com_auc_csv"):
+    elif tp in ("rpd_auc_csv", "meddist_auc_csv"):
         # One AUC per training, per fly (exp / ctrl if yoked available)
         col_blocks = []
         has_ctrl = len(va.flies) > 1
@@ -2323,8 +2323,8 @@ def vaVarForType(va, tp, calc):
             data.append(row)
 
         return np.array(data)
-    elif tp in ("com", "com_exp_min_yok"):
-        # flatten syncCOMDist into (n_trns, n_flies * n_buckets)
+    elif tp in ("meddist", "meddist_exp_min_yok"):
+        # flatten syncMedDist into (n_trns, n_flies * n_buckets)
         data = []
         has_ctrl = len(va.flies) > 1
         flies = ["exp"] + (["ctrl"] if has_ctrl else [])
@@ -2334,7 +2334,7 @@ def vaVarForType(va, tp, calc):
                 row.extend(trn_dict[fkey])
             data.append(row)
         return np.array(data)
-    elif tp == "com_csv":
+    elif tp == "meddist_csv":
         # Flatten across trainings in the same order as column names:
         # for each training: [exp b1..bN, (ctrl b1..bN if exists)]
         flat = []
@@ -2449,7 +2449,7 @@ def vaVarForType(va, tp, calc):
             return va.boundary_events[tp]
         if "ctr" in tp or "edge" in tp:
             return va.boundary_events[tp]
-    elif tp in ("rpd_auc_csv", "com_auc_csv", "rpid_auc_csv"):
+    elif tp in ("rpd_auc_csv", "meddist_auc_csv", "rpid_auc_csv"):
         return flatten_auc_entries(va, tp.replace("_auc_csv", ""))
     else:
         raise ArgumentError(tp)
@@ -2553,7 +2553,7 @@ def paired_slice(start, end, reverse=True):
 METRIC_PALETTES = {
     "sli": paired_slice(0, 2),
     "rpd": paired_slice(2, 4),
-    "com": paired_slice(8, 10),
+    "meddist": paired_slice(8, 10),
 }
 
 
@@ -2563,8 +2563,8 @@ def get_palette(tp):
         return METRIC_PALETTES["sli"]
     elif tp in ("rpd", "rpd_exp_min_yok"):
         return METRIC_PALETTES["rpd"]
-    elif tp in ("com", "com_exp_min_yok"):
-        return METRIC_PALETTES["com"]
+    elif tp in ("meddist", "meddist_exp_min_yok"):
+        return METRIC_PALETTES["meddist"]
     else:
         return FLY_COLS
 
@@ -2664,7 +2664,7 @@ def plotRewards(
     bnd_turn = "_turn" in tp
     visit_dur = "_dur" in tp
     rpd = tp == "rpd"
-    com = tp == "com"
+    meddist = tp == "meddist"
     agarose_dual = tp == "agarose_dual_circle"
     auc_to_csv = r_diff or rpd
     psc = tp in ("psc_conc", "psc_shift")
@@ -2760,11 +2760,11 @@ def plotRewards(
         True if not opts.hidePltTests else False
     )  # p values between first and last buckets
     showPT = not P if not opts.hidePltTests else False  # p values between trainings
-    if rpi or rpd or diff_tp or com or agarose_dual:
+    if rpi or rpd or diff_tp or meddist or agarose_dual:
         showPFL = False
         showPT = False
     showSS = not P  # speed stats
-    if "_dur" in tp or psc or num_events or com or rpi or rpd or agarose_dual:
+    if "_dur" in tp or psc or num_events or meddist or rpi or rpd or agarose_dual:
         showSS = False
     useAxLimsForStatsVerticalAlignment = (
         circle
@@ -2774,7 +2774,7 @@ def plotRewards(
         or visit_dur
         or psc
         or rpd
-        or com
+        or meddist
         or agarose_dual
     )
     useDynamicAxisLims = (
@@ -2782,7 +2782,7 @@ def plotRewards(
         or num_events
         or visit_dur
         or psc
-        or com
+        or meddist
         or rpd
         or diff_tp
         or agarose_dual
@@ -2795,11 +2795,11 @@ def plotRewards(
         or bnd_turn
         or "dbr" in tp
         or rpd
-        or com
+        or meddist
         or "no_contact" in tp
         or diff_tp
     )
-    hideAUCCumulative = diff_tp or com or rpd or agarose_dual
+    hideAUCCumulative = diff_tp or meddist or rpd or agarose_dual
     legend = None
     if showSS and vas:
         speed, stpFr = (
@@ -2819,9 +2819,9 @@ def plotRewards(
         ylim = [0, 120]
     elif tp == "rpd_exp_min_yok":
         ylim = [-0.5, 0.5]
-    elif tp == "com":
+    elif tp == "meddist":
         ylim = [0, 10]
-    elif tp == "com_exp_min_yok":
+    elif tp == "meddist_exp_min_yok":
         ylim = [-0.5, 0.5]
     elif tp == "agarose_dual_circle":
         ylim = [0, 1]
@@ -2873,7 +2873,14 @@ def plotRewards(
             axs = axs[None]
     mci_min, mci_max = None, None
     for f in fs:
-        if tp in ("rpid", "rpipd", "rpd", "rpd_exp_min_yok", "com", "com_exp_min_yok"):
+        if tp in (
+            "rpid",
+            "rpipd",
+            "rpd",
+            "rpd_exp_min_yok",
+            "meddist",
+            "meddist_exp_min_yok",
+        ):
             exp_color, yok_color = palette[0], palette[1]
             mc = exp_color if f == 0 else yok_color
         else:
@@ -3438,8 +3445,8 @@ def plotRewards(
                         rpd="rewards per distance $[m^{-1}]$",
                         rpd_exp_min_yok="rewards per distance $[m^{-1}]$\n$(\\text{exp} - \\text{yok})$",
                         agarose_dual_circle="dual-circle agarose avoidance ratio",
-                        com="median dist. to reward\ncircle center [mm]",
-                        com_exp_min_yok="med. dist. to center [mm]\n$(\\text{exp} - \\text{yok})$",
+                        meddist="median dist. to reward\ncircle center [mm]",
+                        meddist_exp_min_yok="med. dist. to center [mm]\n$(\\text{exp} - \\text{yok})$",
                     )
                     if opts.prefCircleSlideRad:
                         ylabels["psc_conc"] = PSC_LABEL % (
@@ -3628,8 +3635,8 @@ def plotRewards(
         rpd=RPD_IMG_FILE % "",
         rpd_exp_min_yok=RPD_IMG_FILE % "_exp_min_yok",
         agarose_dual_circle=AGAROSE_AVOID_IMG_FILE % "",
-        com=MED_DIST_TO_REWARD_FILE % "",
-        com_exp_min_yok=MED_DIST_TO_REWARD_FILE % "_exp_min_yok",
+        meddist=MED_DIST_TO_REWARD_FILE % "",
+        meddist_exp_min_yok=MED_DIST_TO_REWARD_FILE % "_exp_min_yok",
     )
 
     if opts.turn:
@@ -5264,8 +5271,8 @@ def postAnalyze(vas):
             "stp",
             "rpm",
             "dbr",
-            "com",
-            "com_exp_min_yok",
+            "meddist",
+            "meddist_exp_min_yok",
         )
     )
     if opts.circle:
@@ -5626,7 +5633,7 @@ def postAnalyze(vas):
                         lb = lb - 1
                     else:
                         break
-        elif tp in ("com", "com_exp_min_yok", "rpd_exp_min_yok"):
+        elif tp in ("meddist", "meddist_exp_min_yok", "rpd_exp_min_yok"):
             plotRewards(
                 va,
                 tp,
@@ -5826,7 +5833,9 @@ def postAnalyze(vas):
             vas=vas_for_hist, opts=opts, gls=gls, customizer=customizer, cfg=br_cfg
         )
         br_plotter.plot_histograms()
-    if getattr(opts, "btw_rwd_polar", False) and any(getattr(v, "circle", None) for v in vas):
+    if getattr(opts, "btw_rwd_polar", False) and any(
+        getattr(v, "circle", None) for v in vas
+    ):
         vas_for_polar = vas
 
         if getattr(opts, "btw_rwd_polar_top_sli", False):
@@ -5842,7 +5851,9 @@ def postAnalyze(vas):
                     f"{len(vas_for_polar)} top-SLI flies"
                 )
 
-        top_sli = bool(getattr(opts, "btw_rwd_polar_top_sli", False) and saved_top is not None)
+        top_sli = bool(
+            getattr(opts, "btw_rwd_polar_top_sli", False) and saved_top is not None
+        )
         pool_trn = bool(getattr(opts, "btw_rwd_polar_pool_trainings", False))
 
         subset_label = None
@@ -5851,10 +5862,13 @@ def postAnalyze(vas):
             subset_label = f"Restricted to top {100*frac:.1f}% SLI flies"
 
         def _btw_rwd_polar_outfile(*, top_sli: bool, pool_trainings: bool) -> str:
-            base, ext = os.path.splitext(BTW_RWD_POLAR_IMG_FILE)  # "imgs/btw_rwd_polar", ".png"
+            base, ext = os.path.splitext(
+                BTW_RWD_POLAR_IMG_FILE
+            )  # "imgs/btw_rwd_polar", ".png"
             tag = "top_sli" if top_sli else "all"
             pool_tag = "__pooled_trn" if pool_trainings else ""
             return f"{base}__{tag}{pool_tag}{ext}"
+
         polar_cfg = BetweenRewardPolarOccupancyConfig(
             out_file=_btw_rwd_polar_outfile(top_sli=top_sli, pool_trainings=pool_trn),
             bins=int(getattr(opts, "btw_rwd_polar_bins", 36)),
@@ -5959,7 +5973,7 @@ def writeStats(vas, sf):
     print("\nwriting %s..." % STATS_FILE)
 
     def should_apply_pairwise_exclusion(va, tp, col_index=None):
-        if tp in ("com_auc_csv", "rpd_auc_csv", "rpid_auc_csv"):
+        if tp in ("meddist_auc_csv", "rpd_auc_csv", "rpid_auc_csv"):
             return False
         if col_index is not None:
             # Skip pairwise exclusion for the first pair in specific tables
@@ -6099,9 +6113,9 @@ def writeStats(vas, sf):
         # duplicateColumnsAcrossTrns() do the per-training expansion.
 
     if hasattr(va, "syncMedDist") and va.syncMedDist:
-        analysis_types += ("com_csv",)
-        if "com" in SAVE_AUC_TYPES:
-            analysis_types += ("com_auc_csv",)
+        analysis_types += ("meddist_csv",)
+        if "meddist" in SAVE_AUC_TYPES:
+            analysis_types += ("meddist_auc_csv",)
             analysis_types_with_training_number_columns.append(analysis_types[-1])
 
     if opts.rpd:
