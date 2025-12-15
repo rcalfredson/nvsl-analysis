@@ -1581,6 +1581,7 @@ def bucketLenForType(tp):
             "meddist",
             "meddist_exp_min_yok",
             "commag",
+            "commag_exp_min_yok",
             "rpid",
             "rpd",
             "rpd_exp_min_yok",
@@ -2385,7 +2386,7 @@ def vaVarForType(va, tp, calc):
                     flat.append(v)
         # writeStats expects a list-like of rows for CSV-style types
         return [flat]
-    elif tp == "commag":
+    elif tp in ("commag", "commag_exp_min_yok"):
         data = []
         has_ctrl = len(va.flies) > 1
         flies = ["exp"] + (["ctrl"] if has_ctrl else [])
@@ -2592,7 +2593,7 @@ def get_palette(tp):
         return METRIC_PALETTES["sli"]
     elif tp in ("rpd", "rpd_exp_min_yok"):
         return METRIC_PALETTES["rpd"]
-    elif tp in ("commag",):
+    elif tp in ("commag", "commag_exp_min_yok"):
         return METRIC_PALETTES["commag"]
     elif tp in ("meddist", "meddist_exp_min_yok"):
         return METRIC_PALETTES["meddist"]
@@ -3493,7 +3494,9 @@ def plotRewards(
                         agarose_dual_circle="dual-circle agarose avoidance ratio",
                         meddist="median dist. to reward\ncircle center [mm]",
                         meddist_exp_min_yok="med. dist. to center [mm]\n$(\\text{exp} - \\text{yok})$",
-                        commag="COM mag. from reward center [mm]",
+                        commag="COM dist. to circle center [mm]",
+                        commag_exp_min_yok="COM dist. to circle center [mm]\n"
+                        "$(\\text{exp} - \\text{yok})$"
                     )
                     if opts.prefCircleSlideRad:
                         ylabels["psc_conc"] = PSC_LABEL % (
@@ -3685,6 +3688,7 @@ def plotRewards(
         meddist=MED_DIST_TO_REWARD_FILE % "",
         meddist_exp_min_yok=MED_DIST_TO_REWARD_FILE % "_exp_min_yok",
         commag=COM_MAG_TO_REWARD_FILE % "",
+        commag_exp_min_yok=COM_MAG_TO_REWARD_FILE % "_exp_min_yok"
     )
 
     if opts.turn:
@@ -5322,6 +5326,7 @@ def postAnalyze(vas):
             "meddist",
             "meddist_exp_min_yok",
             "commag",
+            "commag_exp_min_yok",
         )
     )
     if opts.circle:
@@ -5682,7 +5687,13 @@ def postAnalyze(vas):
                         lb = lb - 1
                     else:
                         break
-        elif tp in ("meddist", "meddist_exp_min_yok", "rpd_exp_min_yok", "commag"):
+        elif tp in (
+            "meddist",
+            "meddist_exp_min_yok",
+            "rpd_exp_min_yok",
+            "commag",
+            "commag_exp_min_yok",
+        ):
             plotRewards(
                 va,
                 tp,
