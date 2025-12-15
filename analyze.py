@@ -79,6 +79,7 @@ from src.utils.constants import (
     ST,
 )
 from src.analysis.motion import CircularMotionDetector
+from src.exporting.com_sli_bundle import export_com_sli_bundle
 from src.plotting.cross_fly_correlations import plot_cross_fly_correlations
 from src.plotting.individual_strategy_plotter import plot_individual_strategy_overlays
 from src.plotting.outside_circle_duration_plotter import OutsideCircleDurationPlotter
@@ -1099,6 +1100,19 @@ g.add_argument(
         "Export per-fly data underlying the individual strategy overlays "
         "to a TSV file for reuse in standalone plotting / statistics"
     ),
+)
+g.add_argument(
+    "--export-com-sli-bundle",
+    type=str,
+    default=None,
+    help="Write an .npz bundle with per-video SLI and COM magnitude time-series "
+    "for this run's vas (used for cross-run top-SLI COM plots).",
+)
+g.add_argument(
+    "--export-group-label",
+    type=str,
+    default=None,
+    help="Optional label stored in the exported bundle (overrides groupLabels/group index).",
 )
 
 g = p.add_argument_group('rt-trx "debug"')
@@ -3496,7 +3510,7 @@ def plotRewards(
                         meddist_exp_min_yok="med. dist. to center [mm]\n$(\\text{exp} - \\text{yok})$",
                         commag="COM dist. to circle center [mm]",
                         commag_exp_min_yok="COM dist. to circle center [mm]\n"
-                        "$(\\text{exp} - \\text{yok})$"
+                        "$(\\text{exp} - \\text{yok})$",
                     )
                     if opts.prefCircleSlideRad:
                         ylabels["psc_conc"] = PSC_LABEL % (
@@ -3688,7 +3702,7 @@ def plotRewards(
         meddist=MED_DIST_TO_REWARD_FILE % "",
         meddist_exp_min_yok=MED_DIST_TO_REWARD_FILE % "_exp_min_yok",
         commag=COM_MAG_TO_REWARD_FILE % "",
-        commag_exp_min_yok=COM_MAG_TO_REWARD_FILE % "_exp_min_yok"
+        commag_exp_min_yok=COM_MAG_TO_REWARD_FILE % "_exp_min_yok",
     )
 
     if opts.turn:
@@ -5271,6 +5285,9 @@ def postAnalyze(vas):
     ng = gis.max() + 1
     if gls and len(gls) != ng:
         error("numbers of groups and group labels differ")
+
+    if getattr(opts, "export_com_sli_bundle", None):
+        export_com_sli_bundle(vas, opts, gls, opts.export_com_sli_bundle)
 
     using_sli_set_op = bool(getattr(opts, "sli_set_op", None))
     if opts.wall:
