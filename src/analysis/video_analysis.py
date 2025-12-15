@@ -192,6 +192,7 @@ class VideoAnalysis:
             self.bySyncBucket2()  # pass True to get maximum distance reached
             self.byPostBucket()
             self.bySyncBucketMedDist()
+            self.bySyncBucketCOM(relative_to_reward=True, store_mag=True)
             self.byReward()
             self.byTraining()
             if opts.plotTrx:
@@ -1915,39 +1916,39 @@ class VideoAnalysis:
                 self._append(self.bySB2, adb[f], f, n=n if self.opts.ol else n - 1)
         self.buckets = np.array(self.buckets)
 
-    def bySyncBucketCOM(self, relative_to_reward=True, store_mag=True):
-        """
-        For each sync bucket, compute the center-of-mass (mean x,y) of the fly's
-        positions in that bucket.
-
-        Results in self.syncCOM: a list (per training) of dicts with 'exp' and
-        optionally 'ctrl' keys mapping to a list (per bucket) of (x, y) tuples.
-
-        If relative_to_reward=True, the returned (x, y) are offsets from the
-        reward-circle center (cx, cy) for that fly/training/bucket.
-
-        If store_mag=True, also stores self.syncCOMMag with the magnitude per
-        bucket (sqrt(x^2+y^2)) in the same structure as syncMedDist.
-        """
+    def bySyncBucketCOM(self, relative_to_reward=True, store_mag=True, verbose=False):
+        if verbose:
+            rel = "relative to reward center" if relative_to_reward else "absolute"
+            print(f"\nCOM magnitude by sync bucket (mm) [{rel}]:")
         df = self._numRewardsMsg(True, silent=True)
+
         self.syncCOM = []
         if store_mag:
             self.syncCOMMag = []
 
+        n_flies = 2 if len(self.trx) > 1 else 1
+        fly_keys = ("exp", "ctrl")  # storage keys (stable)
+
         for trn in self.trns:
             fi, n_buckets, _ = self._syncBucket(trn, df)
-            n_buckets = int(n_buckets)
+            n_buckets = int(n_buckets or 0)
 
             this_training = {}
             this_training_mag = {} if store_mag else None
 
+            if verbose:
+                print(trn.name())
+
             if fi is None:
-                for fly_key in ("exp", "ctrl"):
-                    this_training[fly_key] = [
-                        (np.nan, np.nan) for _ in range(n_buckets)
-                    ]
+                # No full buckets → store NaNs, print "no full bucket" in consistent style
+                for fly_idx in range(n_flies):
+                    fly_key = fly_keys[fly_idx]
+                    this_training[fly_key] = [(np.nan, np.nan)] * n_buckets
                     if store_mag:
-                        this_training_mag[fly_key] = [np.nan for _ in range(n_buckets)]
+                        this_training_mag[fly_key] = [np.nan] * n_buckets
+                        if verbose:
+                            self._printBucketVals([], f=fly_idx, msg=flyDesc(fly_idx), prec=3)
+
                 self.syncCOM.append(this_training)
                 if store_mag:
                     self.syncCOMMag.append(this_training_mag)
@@ -1958,20 +1959,19 @@ class VideoAnalysis:
             la = min(trn.stop, int(trn.start + n_buckets * df))
             buckets = [(s, e) for s, e in zip(starts, ends) if e <= la]
 
-            for fly_key, traj in (("exp", self.trx[0]),) + (
-                (("ctrl", self.trx[1]),) if len(self.trx) > 1 else ()
-            ):
-                fly_idx = 0 if fly_key == "exp" else 1
-                if self.trx[fly_idx]._bad:
+            for fly_idx in range(n_flies):
+                fly_key = fly_keys[fly_idx]
+                traj = self.trx[fly_idx]
+
+                if traj._bad:
                     this_training[fly_key] = [(np.nan, np.nan)] * n_buckets
                     if store_mag:
                         this_training_mag[fly_key] = [np.nan] * n_buckets
+                        if verbose:
+                            print(f"  {flyDesc(fly_idx)}: bad trajectory")
                     continue
 
-                # reward-circle center (in px) for this fly
                 cx, cy, _ = trn.circles(fly_idx)[0]
-
-                # px -> mm scale used elsewhere
                 px_per_mm = self.xf.fctr * self.ct.pxPerMmFloor()
 
                 com_vals = []
@@ -1987,7 +1987,6 @@ class VideoAnalysis:
                         continue
 
                     idxs = np.arange(s, e)
-
                     if idxs.size == 0:
                         com_vals.append((np.nan, np.nan))
                         if store_mag:
@@ -1997,7 +1996,6 @@ class VideoAnalysis:
                     xs = traj.x[idxs]
                     ys = traj.y[idxs]
 
-                    # COM in px
                     mx = np.nanmean(xs)
                     my = np.nanmean(ys)
 
@@ -2005,7 +2003,6 @@ class VideoAnalysis:
                         mx -= cx
                         my -= cy
 
-                    # convert to mm
                     mx_mm = mx / px_per_mm
                     my_mm = my / px_per_mm
 
@@ -2022,6 +2019,8 @@ class VideoAnalysis:
                 this_training[fly_key] = com_vals
                 if store_mag:
                     this_training_mag[fly_key] = mag_vals
+                    if verbose:
+                        self._printBucketVals(mag_vals, f=fly_idx, msg=flyDesc(fly_idx), prec=3)
 
             self.syncCOM.append(this_training)
             if store_mag:
