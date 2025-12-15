@@ -627,6 +627,14 @@ g.add_argument(
     help="Base seed for deterministic debug sampling (random windows). Default: %(default)s",
 )
 g.add_argument(
+    "--com-per-segment",
+    action="store_true",
+    help=(
+        "Compute COM per between-reward segment and average segment COM vectors "
+        "within each sync bucket (instead of computing COM over all points in the bucket)."
+    ),
+)
+g.add_argument(
     "--lg-turn-plots",
     choices=("all_types", "turn_plus_1"),
     help="Generate large turn trajectory plot. Two modes are supported: 'all_types' includes all"

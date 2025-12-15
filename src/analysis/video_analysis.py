@@ -192,7 +192,11 @@ class VideoAnalysis:
             self.bySyncBucket2()  # pass True to get maximum distance reached
             self.byPostBucket()
             self.bySyncBucketMedDist()
-            self.bySyncBucketCOM(relative_to_reward=True, store_mag=True)
+            self.bySyncBucketCOM(
+                relative_to_reward=True,
+                store_mag=True,
+                per_segment=bool(getattr(opts, "com_per_segment", False)),
+            )
             self.byReward()
             self.byTraining()
             if opts.plotTrx:
@@ -1916,7 +1920,9 @@ class VideoAnalysis:
                 self._append(self.bySB2, adb[f], f, n=n if self.opts.ol else n - 1)
         self.buckets = np.array(self.buckets)
 
-    def bySyncBucketCOM(self, relative_to_reward=True, store_mag=True, verbose=False):
+    def bySyncBucketCOM(
+        self, relative_to_reward=True, store_mag=True, verbose=False, per_segment=False
+    ):
         if verbose:
             rel = "relative to reward center" if relative_to_reward else "absolute"
             print(f"\nCOM magnitude by sync bucket (mm) [{rel}]:")
@@ -1947,7 +1953,9 @@ class VideoAnalysis:
                     if store_mag:
                         this_training_mag[fly_key] = [np.nan] * n_buckets
                         if verbose:
-                            self._printBucketVals([], f=fly_idx, msg=flyDesc(fly_idx), prec=3)
+                            self._printBucketVals(
+                                [], f=fly_idx, msg=flyDesc(fly_idx), prec=3
+                            )
 
                 self.syncCOM.append(this_training)
                 if store_mag:
@@ -1977,38 +1985,112 @@ class VideoAnalysis:
                 com_vals = []
                 mag_vals = [] if store_mag else None
 
-                for s, e in buckets:
-                    b_idx = len(com_vals)
-
-                    if self.is_excluded_pair(fly_idx, trn.n - 1, b_idx):
-                        com_vals.append((np.nan, np.nan))
+                if per_segment:
+                    on = self._getOn(trn, False, f=fly_idx)
+                    if on is None or len(on) < 2:
+                        if verbose:
+                            print(
+                                f"  {flyDesc(fly_idx)}: insufficient rewards for segments"
+                            )
+                        this_training[fly_key] = [(np.nan, np.nan)] * n_buckets
                         if store_mag:
-                            mag_vals.append(np.nan)
+                            this_training_mag[fly_key] = [np.nan] * n_buckets
                         continue
 
-                    idxs = np.arange(s, e)
-                    if idxs.size == 0:
-                        com_vals.append((np.nan, np.nan))
+                    # collect per-segment COM vectors per bucket
+                    seg_vecs = [
+                        [] for _ in range(n_buckets)
+                    ]  # each entry: list of (mx_mm, my_mm)
+
+                    for i in range(len(on) - 1):
+                        s = int(on[i])
+                        e = int(on[i + 1])
+                        if e <= s + 1:
+                            continue
+
+                        b_idx = int((s - fi) // df)
+                        if b_idx < 0 or b_idx >= n_buckets:
+                            continue
+
+                        if self.is_excluded_pair(fly_idx, trn.n - 1, b_idx):
+                            continue
+
+                        xs = traj.x[s:e]
+                        ys = traj.y[s:e]
+
+                        if xs.size == 0:
+                            continue
+
+                        mx = np.nanmean(xs)
+                        my = np.nanmean(ys)
+
+                        if not (np.isfinite(mx) and np.isfinite(my)):
+                            continue
+
+                        if relative_to_reward:
+                            mx -= cx
+                            my -= cy
+
+                        mx_mm = mx / px_per_mm
+                        my_mm = my / px_per_mm
+                        seg_vecs[b_idx].append((mx_mm, my_mm))
+
+                    # average per-segment vectors within each bucket
+                    com_vals = []
+                    mag_vals = [] if store_mag else None
+                    for b_idx in range(n_buckets):
+                        vs = seg_vecs[b_idx]
+                        if not vs:
+                            com_vals.append((np.nan, np.nan))
+                            if store_mag:
+                                mag_vals.append(np.nan)
+                            continue
+
+                        v = np.asarray(vs, dtype=float)
+                        mx_mm = np.nanmean(v[:, 0])
+                        my_mm = np.nanmean(v[:, 1])
+                        com_vals.append((mx_mm, my_mm))
                         if store_mag:
-                            mag_vals.append(np.nan)
-                        continue
+                            mag_vals.append(np.hypot(mx_mm, my_mm))
+                else:
+                    for s, e in buckets:
+                        b_idx = len(com_vals)
 
-                    xs = traj.x[idxs]
-                    ys = traj.y[idxs]
+                        if self.is_excluded_pair(fly_idx, trn.n - 1, b_idx):
+                            com_vals.append((np.nan, np.nan))
+                            if store_mag:
+                                mag_vals.append(np.nan)
+                            continue
 
-                    mx = np.nanmean(xs)
-                    my = np.nanmean(ys)
+                        idxs = np.arange(s, e)
+                        if idxs.size == 0:
+                            com_vals.append((np.nan, np.nan))
+                            if store_mag:
+                                mag_vals.append(np.nan)
+                            continue
 
-                    if relative_to_reward:
-                        mx -= cx
-                        my -= cy
+                        xs = traj.x[idxs]
+                        ys = traj.y[idxs]
 
-                    mx_mm = mx / px_per_mm
-                    my_mm = my / px_per_mm
+                        mx = np.nanmean(xs)
+                        my = np.nanmean(ys)
 
-                    com_vals.append((mx_mm, my_mm))
-                    if store_mag:
-                        mag_vals.append(np.hypot(mx_mm, my_mm))
+                        if not (np.isfinite(mx) and np.isfinite(my)):
+                            com_vals.append((np.nan, np.nan))
+                            if store_mag:
+                                mag_vals.append(np.nan)
+                            continue
+
+                        if relative_to_reward:
+                            mx -= cx
+                            my -= cy
+
+                        mx_mm = mx / px_per_mm
+                        my_mm = my / px_per_mm
+
+                        com_vals.append((mx_mm, my_mm))
+                        if store_mag:
+                            mag_vals.append(np.hypot(mx_mm, my_mm))
 
                 missing = n_buckets - len(com_vals)
                 if missing > 0:
@@ -2020,7 +2102,9 @@ class VideoAnalysis:
                 if store_mag:
                     this_training_mag[fly_key] = mag_vals
                     if verbose:
-                        self._printBucketVals(mag_vals, f=fly_idx, msg=flyDesc(fly_idx), prec=3)
+                        self._printBucketVals(
+                            mag_vals, f=fly_idx, msg=flyDesc(fly_idx), prec=3
+                        )
 
             self.syncCOM.append(this_training)
             if store_mag:
