@@ -627,6 +627,12 @@ g.add_argument(
     help="Base seed for deterministic debug sampling (random windows). Default: %(default)s",
 )
 g.add_argument(
+    "--btw-rwd-polar-seg-majority-out",
+    type=str,
+    default=None,
+    help="Write a TSV of between-reward segments whose frames fall most into target angular bins (e.g. 45/315 deg).",
+)
+g.add_argument(
     "--com-per-segment",
     action="store_true",
     help=(
@@ -5988,6 +5994,7 @@ def postAnalyze(vas):
             debug_num_windows=int(getattr(opts, "btw_rwd_polar_debug_num_windows", 50)),
             debug_window_len=int(getattr(opts, "btw_rwd_polar_debug_window_len", 50)),
             debug_seed=int(getattr(opts, "btw_rwd_polar_debug_seed", 0)),
+            seg_majority_out_tsv=getattr(opts, "btw_rwd_polar_seg_majority_out", None)
         )
         polar_plotter = BetweenRewardPolarOccupancyPlotter(
             vas=vas_for_polar, opts=opts, gls=gls, customizer=customizer, cfg=polar_cfg

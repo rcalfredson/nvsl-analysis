@@ -53,6 +53,15 @@ class BetweenRewardPolarOccupancyConfig:
     debug_window_len: int = 50
     debug_seed: int = 0
 
+    # --- segment-level bin attribution (for chasing peaks) ---
+    seg_majority_out_tsv: str | None = (
+        None  # e.g., "imgs/btw_rwd_polar_seg_majority.tsv"
+    )
+    seg_majority_target_degs: tuple[float, ...] = (45.0, 315.0)
+    seg_majority_thresh: float = 0.5  # "majority of frames"
+    seg_majority_min_frames: int = 20  # ignore tiny segments
+    seg_majority_max_rows: int = 50000  # safety cap
+
 
 class BetweenRewardPolarOccupancyPlotter:
     """
@@ -158,6 +167,18 @@ class BetweenRewardPolarOccupancyPlotter:
                 out.append((seg_i, s, e))
         return out
 
+    def _bin_centers_deg_0_360(self, bin_edges: np.ndarray) -> np.ndarray:
+        centers = (bin_edges[:-1] + bin_edges[1:]) / 2.0
+        deg = (np.degrees(centers) + 360.0) % 360.0
+        return deg
+
+    def _closest_bin_idx_for_deg(
+        self, bin_center_degs: np.ndarray, target_deg: float
+    ) -> int:
+        # circular distance on [0, 360)
+        d = np.abs(((bin_center_degs - target_deg + 180.0) % 360.0) - 180.0)
+        return int(np.argmin(d))
+
     # ---------- data collection ----------
 
     def _collect_angles(
@@ -176,6 +197,20 @@ class BetweenRewardPolarOccupancyPlotter:
         n_trn = len(self.trns)
         pooled_by_trn: list[list[float]] = [[] for _ in range(n_trn)]
         per_fly_by_trn: dict[tuple[str, int], list[float]] = defaultdict(list)
+
+        # segment-majority output (optional)
+        want_seg_majority = bool(self.cfg.seg_majority_out_tsv)
+        seg_rows: list[list[object]] = []
+        seg_written = 0
+
+        # bin geometry must match plotting
+        bin_edges = np.linspace(-np.pi, np.pi, int(self.cfg.bins) + 1)
+        bin_center_degs = self._bin_centers_deg_0_360(bin_edges)
+        target_degs = tuple(float(x) for x in (self.cfg.seg_majority_target_degs or ()))
+        target_bin_idxs = {
+            deg: self._closest_bin_idx_for_deg(bin_center_degs, deg)
+            for deg in target_degs
+        }
 
         debug_rows_global: list[list[object]] = []
         debug_written_global = 0
@@ -306,6 +341,48 @@ class BetweenRewardPolarOccupancyPlotter:
 
                         theta_up = np.arctan2(dx, dy)  # 0 = up, +90 = right, -90 = left
                         theta_up = (theta_up + np.pi) % (2 * np.pi) - np.pi  # [-pi, pi]
+
+                        # --- segment-majority attribution (optional) ---
+                        if (
+                            want_seg_majority
+                            and seg_written < int(self.cfg.seg_majority_max_rows)
+                            and theta_up.size >= int(self.cfg.seg_majority_min_frames)
+                            and target_bin_idxs
+                        ):
+                            # Use same binning convention as the plot
+                            b = (
+                                np.digitize(theta_up, bin_edges, right=False) - 1
+                            )  # [0..bins-1]
+                            b = np.clip(b, 0, len(bin_edges) - 2)
+                            counts = np.bincount(b, minlength=len(bin_edges) - 1)
+                            total = int(theta_up.size)
+
+                            for target_deg, bidx in target_bin_idxs.items():
+                                c = int(counts[bidx])
+                                frac = (c / total) if total else 0.0
+                                if frac >= float(self.cfg.seg_majority_thresh):
+                                    seg_rows.append(
+                                        [
+                                            va_fn,
+                                            va_f,
+                                            t_idx,
+                                            trn.name(),
+                                            f,  # fly_role
+                                            int(i),  # seg_i
+                                            int(s),  # start_frame
+                                            int(e),  # end_frame
+                                            total,  # n_frames_used
+                                            float(target_deg),
+                                            float(bin_center_degs[bidx]),
+                                            c,
+                                            float(frac),
+                                        ]
+                                    )
+                                    seg_written += 1
+                                    if seg_written >= int(
+                                        self.cfg.seg_majority_max_rows
+                                    ):
+                                        break
 
                         # pooled
                         pooled_by_trn[t_idx].extend(theta_up.tolist())
@@ -451,6 +528,33 @@ class BetweenRewardPolarOccupancyPlotter:
             print(
                 f"[btw_rwd_polar][debug] wrote {len(per_fly_debug_rows)} per-fly TSV(s) to "
                 f"{self.cfg.debug_per_fly_out_dir}"
+            )
+
+        if want_seg_majority and seg_rows:
+            out_path = str(self.cfg.seg_majority_out_tsv)
+            os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+            with open(out_path, "w", newline="") as fp:
+                w = csv.writer(fp, delimiter="\t")
+                w.writerow(
+                    [
+                        "video_id",
+                        "fly_num",
+                        "t_idx",
+                        "training",
+                        "fly_role",
+                        "seg_i",
+                        "start_frame",
+                        "end_frame",
+                        "n_frames_used",
+                        "target_deg",
+                        "bin_center_deg",
+                        "count_in_bin",
+                        "frac_in_bin",
+                    ]
+                )
+                w.writerows(seg_rows)
+            print(
+                f"[btw_rwd_polar][seg_majority] wrote {len(seg_rows)} rows to {out_path}"
             )
 
         pooled_arrays = [np.asarray(vals, dtype=float) for vals in pooled_by_trn]
