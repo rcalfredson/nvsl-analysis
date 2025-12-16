@@ -196,6 +196,9 @@ class VideoAnalysis:
                 relative_to_reward=True,
                 store_mag=True,
                 per_segment=bool(getattr(opts, "com_per_segment", False)),
+                per_segment_min_meddist_mm=getattr(
+                    opts, "com_per_segment_min_meddist_mm", 1.5
+                ),
             )
             self.byReward()
             self.byTraining()
@@ -1921,7 +1924,12 @@ class VideoAnalysis:
         self.buckets = np.array(self.buckets)
 
     def bySyncBucketCOM(
-        self, relative_to_reward=True, store_mag=True, verbose=False, per_segment=False
+        self,
+        relative_to_reward=True,
+        store_mag=True,
+        verbose=False,
+        per_segment=False,
+        per_segment_min_meddist_mm=None,
     ):
         if verbose:
             rel = "relative to reward center" if relative_to_reward else "absolute"
@@ -2002,6 +2010,11 @@ class VideoAnalysis:
                         [] for _ in range(n_buckets)
                     ]  # each entry: list of (mx_mm, my_mm)
 
+                    min_med_mm = per_segment_min_meddist_mm
+                    if min_med_mm is None:
+                        min_med_mm = 0.0
+                    min_med_px = float(min_med_mm) * px_per_mm
+
                     for i in range(len(on) - 1):
                         s = int(on[i])
                         e = int(on[i + 1])
@@ -2019,6 +2032,16 @@ class VideoAnalysis:
                         ys = traj.y[s:e]
 
                         if xs.size == 0:
+                            continue
+
+                        # Filter: ignore segments too close to center (median_dist <= threshold)
+                        dx = xs - cx
+                        dy = ys - cy
+                        d = np.hypot(dx, dy)
+                        med_d = np.nanmedian(d)
+                        if not np.isfinite(med_d):
+                            continue
+                        if med_d <= min_med_px:
                             continue
 
                         mx = np.nanmean(xs)

@@ -641,6 +641,16 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--com-per-segment-min-meddist-mm",
+    type=float,
+    default=1.5,
+    help=(
+        "When using --com-per-segment, ignore between-reward segments whose median "
+        "distance to the reward center is <= this threshold (mm). "
+        "Default: %(default)s mm. Use 0 to disable filtering."
+    ),
+)
+g.add_argument(
     "--lg-turn-plots",
     choices=("all_types", "turn_plus_1"),
     help="Generate large turn trajectory plot. Two modes are supported: 'all_types' includes all"
@@ -5994,7 +6004,7 @@ def postAnalyze(vas):
             debug_num_windows=int(getattr(opts, "btw_rwd_polar_debug_num_windows", 50)),
             debug_window_len=int(getattr(opts, "btw_rwd_polar_debug_window_len", 50)),
             debug_seed=int(getattr(opts, "btw_rwd_polar_debug_seed", 0)),
-            seg_majority_out_tsv=getattr(opts, "btw_rwd_polar_seg_majority_out", None)
+            seg_majority_out_tsv=getattr(opts, "btw_rwd_polar_seg_majority_out", None),
         )
         polar_plotter = BetweenRewardPolarOccupancyPlotter(
             vas=vas_for_polar, opts=opts, gls=gls, customizer=customizer, cfg=polar_cfg
