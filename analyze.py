@@ -1138,6 +1138,11 @@ g.add_argument(
     default=None,
     help="Optional label stored in the exported bundle (overrides groupLabels/group index).",
 )
+g.add_argument(
+    "--com-sli-debug",
+    action="store_true",
+    help="Emit comprehensive debug summaries for COM+SLI export/plot pipeline.",
+)
 
 g = p.add_argument_group('rt-trx "debug"')
 g.add_argument(

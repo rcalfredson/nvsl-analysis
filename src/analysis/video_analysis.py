@@ -30,6 +30,18 @@ from src.utils.common import (
     skipMsg,
 )
 from src.utils.constants import (
+    COMR_OK,
+    COMR_NO_FULL_BUCKETS,
+    COMR_BAD_TRAJ,
+    COMR_EXCLUDED_PAIR,
+    COMR_EMPTY_BUCKET,
+    COMR_NAN_MEAN,
+    COMR_INSUFF_REWARDS,
+    COMR_INCOMPLETE_BUCKET,
+    COMR_SEG_TOO_SHORT,
+    COMR_SEG_MEDDIST_NAN,
+    COMR_SEG_MEDDIST_FILTER,
+    COMR_SEG_MEAN_NAN,
     CONTACT_BUFFER_OFFSETS,
     MIDLINE_BOUNDARY_DIST,
     AGAROSE_BOUNDARY_DIST,
@@ -1940,6 +1952,14 @@ class VideoAnalysis:
         if store_mag:
             self.syncCOMMag = []
 
+        if getattr(self.opts, "com_sli_debug", False):
+            self.syncCOMMag_reason = (
+                []
+            )  # list[training] -> dict fly_key -> list[int reason per bucket]
+            self.syncCOMMag_detail = (
+                []
+            )  # list[training] -> dict fly_key -> list[dict or None per bucket]
+
         n_flies = 2 if len(self.trx) > 1 else 1
         fly_keys = ("exp", "ctrl")  # storage keys (stable)
 
@@ -1949,6 +1969,12 @@ class VideoAnalysis:
 
             this_training = {}
             this_training_mag = {} if store_mag else None
+            this_training_reason = (
+                {} if getattr(self.opts, "com_sli_debug", False) else None
+            )
+            this_training_detail = (
+                {} if getattr(self.opts, "com_sli_debug", False) else None
+            )
 
             if verbose:
                 print(trn.name())
@@ -1964,16 +1990,25 @@ class VideoAnalysis:
                             self._printBucketVals(
                                 [], f=fly_idx, msg=flyDesc(fly_idx), prec=3
                             )
+                    if getattr(self.opts, "com_sli_debug", False):
+                        this_training_reason[fly_key] = [
+                            COMR_NO_FULL_BUCKETS
+                        ] * n_buckets
+                        this_training_detail[fly_key] = [
+                            {"why": "no_full_buckets"} for _ in range(n_buckets)
+                        ]
 
                 self.syncCOM.append(this_training)
                 if store_mag:
                     self.syncCOMMag.append(this_training_mag)
+                if getattr(self.opts, "com_sli_debug", False):
+                    self.syncCOMMag_reason.append(this_training_reason)
+                    self.syncCOMMag_detail.append(this_training_detail)
                 continue
 
             starts = [int(fi + k * df) for k in range(n_buckets)]
+            complete = [(trn.stop - s) >= df for s in starts]
             ends = [s + df for s in starts]
-            la = min(trn.stop, int(trn.start + n_buckets * df))
-            buckets = [(s, e) for s, e in zip(starts, ends) if e <= la]
 
             for fly_idx in range(n_flies):
                 fly_key = fly_keys[fly_idx]
@@ -1985,6 +2020,11 @@ class VideoAnalysis:
                         this_training_mag[fly_key] = [np.nan] * n_buckets
                         if verbose:
                             print(f"  {flyDesc(fly_idx)}: bad trajectory")
+                    if getattr(self.opts, "com_sli_debug", False):
+                        this_training_reason[fly_key] = [COMR_BAD_TRAJ] * n_buckets
+                        this_training_detail[fly_key] = [
+                            {"why": "bad_traj"} for _ in range(n_buckets)
+                        ]
                     continue
 
                 cx, cy, _ = trn.circles(fly_idx)[0]
@@ -2003,12 +2043,34 @@ class VideoAnalysis:
                         this_training[fly_key] = [(np.nan, np.nan)] * n_buckets
                         if store_mag:
                             this_training_mag[fly_key] = [np.nan] * n_buckets
+
+                        if getattr(self.opts, "com_sli_debug", False):
+                            this_training_reason[fly_key] = [
+                                COMR_INSUFF_REWARDS
+                            ] * n_buckets
+                            this_training_detail[fly_key] = [
+                                {"why": "insufficient_rewards"}
+                                for _ in range(n_buckets)
+                            ]
                         continue
 
                     # collect per-segment COM vectors per bucket
                     seg_vecs = [
                         [] for _ in range(n_buckets)
                     ]  # each entry: list of (mx_mm, my_mm)
+
+                    bucket_stats = [
+                        dict(
+                            n_segments_total=0,
+                            n_segments_used=0,
+                            n_excluded_pair=0,
+                            n_too_short=0,
+                            n_meddist_nan=0,
+                            n_meddist_filtered=0,
+                            n_mean_nan=0,
+                        )
+                        for _ in range(n_buckets)
+                    ]
 
                     min_med_mm = per_segment_min_meddist_mm
                     if min_med_mm is None:
@@ -2019,14 +2081,25 @@ class VideoAnalysis:
                         s = int(on[i])
                         e = int(on[i + 1])
                         if e <= s + 1:
+                            b_idx = int((s - fi) // df)
+                            if 0 <= b_idx < n_buckets and complete[b_idx]:
+                                bucket_stats[b_idx]["n_too_short"] += 1
+                                bucket_stats[b_idx]["n_segments_total"] += 1
                             continue
 
                         b_idx = int((s - fi) // df)
                         if b_idx < 0 or b_idx >= n_buckets:
                             continue
-
-                        if self.is_excluded_pair(fly_idx, trn.n - 1, b_idx):
+                        if not complete[b_idx]:
                             continue
+
+                        bucket_stats[b_idx]["n_segments_total"] += 1
+
+                        # if self.is_excluded_pair(fly_idx, trn.n - 1, b_idx):
+                        #     print(f'skipping excluded pair, {self.fn}, fly {self.f}, trn {trn.n}')
+                        #     input()
+                        #     bucket_stats[b_idx]["n_excluded_pair"] += 1
+                        #     continue
 
                         xs = traj.x[s:e]
                         ys = traj.y[s:e]
@@ -2040,14 +2113,17 @@ class VideoAnalysis:
                         d = np.hypot(dx, dy)
                         med_d = np.nanmedian(d)
                         if not np.isfinite(med_d):
+                            bucket_stats[b_idx]["n_meddist_nan"] += 1
                             continue
                         if med_d <= min_med_px:
+                            bucket_stats[b_idx]["n_meddist_filtered"] += 1
                             continue
 
                         mx = np.nanmean(xs)
                         my = np.nanmean(ys)
 
                         if not (np.isfinite(mx) and np.isfinite(my)):
+                            bucket_stats[b_idx]["n_mean_nan"] += 1
                             continue
 
                         if relative_to_reward:
@@ -2056,52 +2132,132 @@ class VideoAnalysis:
 
                         mx_mm = mx / px_per_mm
                         my_mm = my / px_per_mm
+                        bucket_stats[b_idx]["n_segments_used"] += 1
                         seg_vecs[b_idx].append((mx_mm, my_mm))
 
-                    # average per-segment vectors within each bucket
+                    # average per-segment vectors within each bucket + produce reasons/details
                     com_vals = []
                     mag_vals = [] if store_mag else None
+                    reasons = []
+                    details = []
                     for b_idx in range(n_buckets):
-                        vs = seg_vecs[b_idx]
-                        if not vs:
+                        st = bucket_stats[b_idx]
+
+                        if not complete[b_idx]:
                             com_vals.append((np.nan, np.nan))
                             if store_mag:
                                 mag_vals.append(np.nan)
+                            reasons.append(COMR_INCOMPLETE_BUCKET)
+                            details.append(
+                                {
+                                    "why": "incomplete_bucket",
+                                    "bucket": int(b_idx),
+                                    "bucket_start": int(starts[b_idx]),
+                                    "df": int(df),
+                                    "trn_stop": int(trn.stop),
+                                }
+                            )
                             continue
 
-                        v = np.asarray(vs, dtype=float)
-                        mx_mm = np.nanmean(v[:, 0])
-                        my_mm = np.nanmean(v[:, 1])
-                        com_vals.append((mx_mm, my_mm))
-                        if store_mag:
-                            mag_vals.append(np.hypot(mx_mm, my_mm))
+                        if seg_vecs[b_idx]:
+                            v = np.asarray(seg_vecs[b_idx], dtype=float)
+                            mx_mm = np.nanmean(v[:, 0])
+                            my_mm = np.nanmean(v[:, 1])
+                            com_vals.append((mx_mm, my_mm))
+                            if store_mag:
+                                mag_vals.append(np.hypot(mx_mm, my_mm))
+                            reasons.append(COMR_OK)
+                        else:
+                            com_vals.append((np.nan, np.nan))
+                            if store_mag:
+                                mag_vals.append(np.nan)
+
+                            # prioritize "strongest" failure signal
+                            if st["n_segments_total"] == 0:
+                                reason = COMR_EMPTY_BUCKET
+                            elif st["n_meddist_filtered"] > 0:
+                                reason = COMR_SEG_MEDDIST_FILTER
+                            elif st["n_meddist_nan"] > 0:
+                                reason = COMR_SEG_MEDDIST_NAN
+                            elif st["n_mean_nan"] > 0:
+                                reason = COMR_SEG_MEAN_NAN
+                            elif st["n_excluded_pair"] > 0:
+                                reason = COMR_EXCLUDED_PAIR
+                            else:
+                                reason = COMR_SEG_TOO_SHORT
+
+                            reasons.append(reason)
+                        details.append(
+                            {
+                                "why": "per_segment",
+                                "bucket": int(b_idx),
+                                "min_med_mm": float(min_med_mm),
+                                **st,
+                            }
+                        )
                 else:
-                    for s, e in buckets:
-                        b_idx = len(com_vals)
-
-                        if self.is_excluded_pair(fly_idx, trn.n - 1, b_idx):
-                            com_vals.append((np.nan, np.nan))
-                            if store_mag:
-                                mag_vals.append(np.nan)
+                    reasons = [
+                        COMR_INCOMPLETE_BUCKET if not ok else COMR_EMPTY_BUCKET
+                        for ok in complete
+                    ]
+                    details = [
+                        (
+                            {
+                                "why": "incomplete_bucket",
+                                "bucket_start": int(s),
+                                "df": int(df),
+                                "trn_stop": int(trn.stop),
+                            }
+                            if not ok
+                            else {"why": "unfilled_complete_bucket"}
+                        )
+                        for ok, s in zip(complete, starts)
+                    ]
+                    com_vals = [(np.nan, np.nan)] * n_buckets
+                    mag_vals = [np.nan] * n_buckets if store_mag else None
+                    for b_idx, (s, e) in enumerate(zip(starts, ends)):
+                        if not complete[b_idx]:
                             continue
+                        # default
+                        r = COMR_OK
+                        det = {"s": int(s), "e": int(e), "n_frames": int(e - s)}
+
+                        # if self.is_excluded_pair(fly_idx, trn.n - 1, b_idx):
+                        #     r = COMR_EXCLUDED_PAIR
+                        #     det["why"] = "is_excluded_pair"
+                        #     com_vals.append((np.nan, np.nan))
+                        #     if store_mag:
+                        #         mag_vals.append(np.nan)
+                        #     reasons.append(r)
+                        #     details.append(det)
+                        #     continue
 
                         idxs = np.arange(s, e)
                         if idxs.size == 0:
-                            com_vals.append((np.nan, np.nan))
+                            r = COMR_EMPTY_BUCKET
+                            det["why"] = "empty_idxs"
+                            com_vals[b_idx] = (np.nan, np.nan)
                             if store_mag:
-                                mag_vals.append(np.nan)
+                                mag_vals[b_idx] = np.nan
+                            reasons[b_idx] = r
+                            details[b_idx].update(det)
                             continue
 
                         xs = traj.x[idxs]
                         ys = traj.y[idxs]
-
                         mx = np.nanmean(xs)
                         my = np.nanmean(ys)
 
                         if not (np.isfinite(mx) and np.isfinite(my)):
-                            com_vals.append((np.nan, np.nan))
+                            r = COMR_NAN_MEAN
+                            det["why"] = "nanmean_not_finite"
+                            det["finite_x"] = int(np.isfinite(xs).sum())
+                            det["finite_y"] = int(np.isfinite(ys).sum())
+                            com_vals[b_idx] = (np.nan, np.nan)
                             if store_mag:
-                                mag_vals.append(np.nan)
+                                mag_vals[b_idx] = np.nan
+                            reasons[b_idx] = r
+                            details[b_idx].update(det)
                             continue
 
                         if relative_to_reward:
@@ -2111,15 +2267,11 @@ class VideoAnalysis:
                         mx_mm = mx / px_per_mm
                         my_mm = my / px_per_mm
 
-                        com_vals.append((mx_mm, my_mm))
+                        com_vals[b_idx] = (mx_mm, my_mm)
                         if store_mag:
-                            mag_vals.append(np.hypot(mx_mm, my_mm))
-
-                missing = n_buckets - len(com_vals)
-                if missing > 0:
-                    com_vals.extend([(np.nan, np.nan)] * missing)
-                    if store_mag:
-                        mag_vals.extend([np.nan] * missing)
+                            mag_vals[b_idx] = np.hypot(mx_mm, my_mm)
+                        reasons[b_idx] = r
+                        details[b_idx].update(det)
 
                 this_training[fly_key] = com_vals
                 if store_mag:
@@ -2128,10 +2280,16 @@ class VideoAnalysis:
                         self._printBucketVals(
                             mag_vals, f=fly_idx, msg=flyDesc(fly_idx), prec=3
                         )
+                if getattr(self.opts, "com_sli_debug", False):
+                    this_training_reason[fly_key] = reasons
+                    this_training_detail[fly_key] = details
 
             self.syncCOM.append(this_training)
             if store_mag:
                 self.syncCOMMag.append(this_training_mag)
+            if getattr(self.opts, "com_sli_debug", False):
+                self.syncCOMMag_reason.append(this_training_reason)
+                self.syncCOMMag_detail.append(this_training_detail)
 
     def bySyncBucketMedDist(self):
         """

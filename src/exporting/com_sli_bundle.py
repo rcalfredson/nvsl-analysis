@@ -115,6 +115,31 @@ def export_com_sli_bundle(vas, opts, gls, out_fn):
     # Extract COM magnitude arrays
     commag_exp, commag_ctrl = _extract_commag_arrays(vas_ok)
 
+    if getattr(opts, "com_sli_debug", False):
+        print(
+            f"[export][com-sli-debug] group={group_label} "
+            f"n_videos={len(vas_ok)} n_trains={commag_exp.shape[1]} nb={commag_exp.shape[2]} out={out_fn}"
+        )
+
+        for vi, va in enumerate(vas_ok):
+            vid = getattr(va, "fn", f"va_{vi}")
+            has = hasattr(va, "syncCOMMag") and (va.syncCOMMag is not None)
+            ntr = len(va.syncCOMMag) if has else 0
+
+            fin_counts = [
+                int(np.isfinite(commag_exp[vi, ti, :]).sum())
+                for ti in range(commag_exp.shape[1])
+            ]
+
+            sli_i = (
+                float(sli[vi]) if (vi < len(sli) and np.isfinite(sli[vi])) else np.nan
+            )
+
+            print(
+                f"[export][com-sli-debug] video={vid} has_syncCOMMag={has} "
+                f"n_trains={ntr} finite_exp_per_trn={fin_counts} sli={sli_i:g}"
+            )
+
     # Metadata
     try:
         # bucketLenForType returns (bl, blf)

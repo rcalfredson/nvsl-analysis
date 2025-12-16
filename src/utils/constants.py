@@ -32,3 +32,19 @@ VBA = False
 SAVE_AUC_TYPES = {"rpid", "rpd", "meddist"}
 
 _RDP_PKG = False
+
+# Reason codes for why COM bucket became NaN (or was never computed)
+COMR_OK = 0
+COMR_NO_FULL_BUCKETS = 1
+COMR_BAD_TRAJ = 2
+COMR_EXCLUDED_PAIR = 3
+COMR_EMPTY_BUCKET = 4
+COMR_NAN_MEAN = 5
+COMR_INCOMPLETE_BUCKET = 6
+
+# per-segment-specific
+COMR_INSUFF_REWARDS = 10
+COMR_SEG_TOO_SHORT = 11
+COMR_SEG_MEDDIST_NAN = 12
+COMR_SEG_MEDDIST_FILTER = 13
+COMR_SEG_MEAN_NAN = 14
