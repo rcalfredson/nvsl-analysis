@@ -47,16 +47,16 @@ def _extract_commag_arrays(vas):
     return commag_exp, commag_ctrl
 
 
-def _compute_sli_from_rpid(vas, opts):
+def _compute_sli_scalar_and_timeseries_from_rpid(vas, opts):
     """
-    Computes per-video SLI scalar using the same logic flags as elsewhere:
-      - sli_training_idx from --best-worst-trn (default behavior)
-      - average over buckets if --sli-use-training-mean
+    Returns:
+      sli_scalar: (n_videos,) float   # used for top/bottom filtering
+      sli_ts:     (n_videos, n_trains, nb) float  # exp-ctrl per bucket (plotted)
     """
     from analyze import compute_sli_per_fly, trnsForType, typeCalc, vaVarForType
 
     if len(vas) == 0:
-        return np.array([], dtype=float)
+        return np.array([], dtype=float), np.empty((0, 0, 0), dtype=float)
 
     va0 = vas[0]
     tp, calc = typeCalc("rpid")
@@ -71,14 +71,17 @@ def _compute_sli_from_rpid(vas, opts):
     nb = a.shape[2] // n_flies
     raw_4 = a.reshape((n_videos, n_trains, n_flies, nb))
 
+    # FULL time-series SLI to plot:
+    # (exp - ctrl) at every bucket, every training, every video
+    sli_ts = raw_4[:, :, 0, :] - raw_4[:, :, 1, :]
+
+    # Scalar SLI for filtering:
     sli_training_idx = getattr(opts, "best_worst_trn", 1) - 1
     use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
-
-    sli = compute_sli_per_fly(
+    sli_scalar = compute_sli_per_fly(
         raw_4, sli_training_idx, bucket_idx=None, average_over_buckets=use_training_mean
     )
-    # Ensure it's a flat float array
-    return np.asarray(sli, dtype=float)
+    return np.asarray(sli_scalar, dtype=float), np.asarray(sli_ts, dtype=float)
 
 
 def export_com_sli_bundle(vas, opts, gls, out_fn):
@@ -105,15 +108,19 @@ def export_com_sli_bundle(vas, opts, gls, out_fn):
     va0 = vas_ok[0]
     group_label = _safe_group_label(opts, gls)
 
+    # Extract COM magnitude arrays
+    commag_exp, commag_ctrl = _extract_commag_arrays(vas_ok)
+
     # Compute SLI
     try:
-        sli = _compute_sli_from_rpid(vas_ok, opts)
+        sli, sli_ts = _compute_sli_scalar_and_timeseries_from_rpid(vas_ok, opts)
     except Exception as e:
         print(f"[export] WARNING: failed to compute SLI for bundle: {e}")
         sli = np.full((len(vas_ok),), np.nan, dtype=float)
-
-    # Extract COM magnitude arrays
-    commag_exp, commag_ctrl = _extract_commag_arrays(vas_ok)
+        # infer n_trains/nb from commag arrays after they are computed (or set empty)
+        sli_ts = np.full(
+            (len(vas_ok), commag_exp.shape[1], commag_exp.shape[2]), np.nan, dtype=float
+        )
 
     if getattr(opts, "com_sli_debug", False):
         print(
@@ -165,6 +172,7 @@ def export_com_sli_bundle(vas, opts, gls, out_fn):
     np.savez_compressed(
         out_fn,
         sli=sli,
+        sli_ts=sli_ts,
         commag_exp=commag_exp,
         commag_ctrl=commag_ctrl,
         group_label=np.array(group_label, dtype=object),

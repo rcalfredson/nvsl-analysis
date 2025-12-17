@@ -10,6 +10,7 @@ def main():
     p.add_argument(
         "--bundles", required=True, help="Comma-separated list of .npz bundles."
     )
+    p.add_argument("--metric", default="commag", choices=["commag", "sli"])
     p.add_argument(
         "--labels",
         default=None,
@@ -62,6 +63,7 @@ def main():
         sli_extremes=args.sli_extremes,
         sli_fraction=args.sli_fraction,
         opts=opts,
+        metric=args.metric,
     )
 
 

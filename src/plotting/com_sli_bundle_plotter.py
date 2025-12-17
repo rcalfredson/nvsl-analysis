@@ -43,6 +43,12 @@ def _load_bundle(path):
     out["bucket_len_min"] = float(_as_scalar(out["bucket_len_min"]))
     out["sli_training_idx"] = int(_as_scalar(out["sli_training_idx"]))
     out["sli_use_training_mean"] = bool(_as_scalar(out["sli_use_training_mean"]))
+
+    # Look for optional keys
+    opt = ["sli_ts"]
+    for k in opt:
+        if k in d.files:
+            out[k] = d[k]
     return out
 
 
@@ -118,9 +124,10 @@ def plot_com_sli_bundles(
     sli_extremes=None,  # None | "top" | "bottom" | "both"
     sli_fraction=0.2,
     opts=None,
+    metric="commag",
 ):
     """
-    Plot COM magnitude vs sync bucket from one or more exported bundles.
+    Plot COM magnitude or SLI vs sync bucket from one or more exported bundles.
 
     - Each bundle is a “group” (regular / antennae-removed / PFN-silenced, etc).
     - Lines are mean over videos; shaded region is CI.
@@ -137,6 +144,18 @@ def plot_com_sli_bundles(
     ng = len(bundles)
     if ng == 0:
         raise ValueError("No bundles provided")
+
+    if metric == "commag":
+        series_key = "commag_exp"
+    elif metric == "sli":
+        if any("sli_ts" not in b for b in bundles):
+            raise ValueError("One or more bundles are missing sli_ts; re-export them.")
+        series_key = "sli_ts"
+        include_ctrl = False
+    else:
+        raise ValueError(
+            "Invalid metric specified; supported options are 'commag' and 'sli'."
+        )
 
     if labels is not None:
         if len(labels) != ng:
@@ -158,10 +177,10 @@ def plot_com_sli_bundles(
     blf = _fmt_bucket_len(bl)
 
     # training names: require consistent length; content may vary slightly
-    n_trains = bundles[0]["commag_exp"].shape[1]
-    if any(b["commag_exp"].shape[1] != n_trains for b in bundles):
+    n_trains = bundles[0][series_key].shape[1]
+    if any(b[series_key].shape[1] != n_trains for b in bundles):
         raise ValueError(
-            "Bundles disagree on number of trainings (commag_exp.shape[1])."
+            f"Bundles disagree on number of trainings ({series_key}.shape[1])."
         )
 
     # optional training limit
@@ -169,10 +188,10 @@ def plot_com_sli_bundles(
         n_trains = min(n_trains, int(num_trainings))
 
     # nb
-    nb = bundles[0]["commag_exp"].shape[2]
-    if any(b["commag_exp"].shape[2] != nb for b in bundles):
+    nb = bundles[0][series_key].shape[2]
+    if any(b[series_key].shape[2] != nb for b in bundles):
         raise ValueError(
-            "Bundles disagree on number of sync buckets (commag_exp.shape[2])."
+            f"Bundles disagree on number of sync buckets ({series_key}.shape[2])."
         )
 
     # x positions: end points in minutes, matching plotRewards() for non-post
@@ -259,7 +278,7 @@ def plot_com_sli_bundles(
             if sel_idx.size == 0:
                 continue
 
-            exp = np.asarray(b["commag_exp"], dtype=float)[sel_idx, ti, :]
+            exp = np.asarray(b[series_key], dtype=float)[sel_idx, ti, :]
             mci = _mean_ci_over_videos(exp)
 
             # update global min/max for dynamic y-lims
@@ -342,8 +361,13 @@ def plot_com_sli_bundles(
 
         plt.title(maybe_sentence_case(title))
         plt.xlabel(maybe_sentence_case(f"end points [min] of {blf} min sync buckets"))
+
+        if metric == "commag":
+            y_label = "COM dist. to circle center [mm]"
+        elif metric == "sli":
+            y_label = "SLI"
         if ti == 0:
-            plt.ylabel(maybe_sentence_case("COM dist. to circle center [mm]"))
+            plt.ylabel(maybe_sentence_case(y_label))
         plt.axhline(color="k")
         plt.xlim(0, xs[-1])
 
