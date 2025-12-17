@@ -425,6 +425,10 @@ class VideoAnalysis:
         # where we accumulate bytes removed when verbose
         removal_log = collections.defaultdict(dict)
 
+        keep_wall_regions_for_polar = bool(
+            getattr(self.opts, "btw_rwd_polar_exclude_wall_contact", False)
+        )
+
         # ─────────────────────────────────────────────────────────────
         # 3.  Walk through every trajectory
         # ─────────────────────────────────────────────────────────────
@@ -460,7 +464,22 @@ class VideoAnalysis:
 
                         # ─── normal branches (wall / boundary / agarose …) ───
                         if boundary_tp != "circle":
-                            _prune(leaf, delete_turn_here, path, removal_log)
+                            # If requested, preserve boundary_contact_regions only for wall/all/edge
+                            if (
+                                keep_wall_regions_for_polar
+                                and boundary_tp == "wall"
+                                and boundary_orientation == "all"
+                                and ellipse_ref_pt == "edge"
+                            ):
+                                # prune everything except boundary_contact_regions
+                                saved = None
+                                if "boundary_contact_regions" in leaf:
+                                    saved = leaf["boundary_contact_regions"]
+                                _prune(leaf, delete_turn_here, path, removal_log)
+                                if saved is not None:
+                                    leaf["boundary_contact_regions"] = saved
+                            else:
+                                _prune(leaf, delete_turn_here, path, removal_log)
                             continue
 
                         # ─── circle branch: one more level for each radius ───

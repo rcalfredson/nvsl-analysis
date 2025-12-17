@@ -539,6 +539,14 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--btw-rwd-polar-exclude-wall-contact",
+    action="store_true",
+    help=(
+        "When computing --btw-rwd-polar, omit frames that fall within detected "
+        "wall-contact regions (requires wall-contact analysis; will auto-enable --wall)."
+    ),
+)
+g.add_argument(
     "--btw-rwd-polar-debug",
     action="store_true",
     help="Enable debug outputs for --btw-rwd-polar (writes per-frame angle rows if --btw-rwd-polar-debug-out is set).",
@@ -5991,6 +5999,9 @@ def postAnalyze(vas):
             ),
             max_per_fly_plots=getattr(opts, "btw_rwd_polar_per_fly_max", None),
             only_walking=bool(getattr(opts, "btw_rwd_polar_only_walking", False)),
+            exclude_wall_contact=bool(
+                getattr(opts, "btw_rwd_polar_exclude_wall_contact", False)
+            ),
             debug=bool(getattr(opts, "btw_rwd_polar_debug", False)),
             debug_out_tsv=getattr(opts, "btw_rwd_polar_debug_out", None),
             debug_max_rows=int(getattr(opts, "btw_rwd_polar_debug_max_rows", 20000)),
@@ -7034,6 +7045,14 @@ if __name__ == "__main__":
         opts.turn.remove("circle")
     else:
         opts.cTurnAnlyz = False
+
+    # If polar wants wall-contact exclusion, we must compute wall contact
+    if getattr(opts, "btw_rwd_polar_exclude_wall_contact", False):
+        if not getattr(opts, "wall", False):
+            print(
+                "[btw_rwd_polar] enabling --wall because --btw-rwd-polar-exclude-wall-contact was set"
+            )
+            opts.wall = True
 
     if opts.turn_prob_by_dist:
         opts.turn_prob_by_dist = parse_distances(opts.turn_prob_by_dist)

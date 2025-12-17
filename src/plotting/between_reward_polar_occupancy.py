@@ -32,6 +32,7 @@ class BetweenRewardPolarOccupancyConfig:
 
     # --- behavior filtering ---
     only_walking: bool = False
+    exclude_wall_contact: bool = False
 
     # --- granularity ---
     per_fly: bool = False
@@ -220,6 +221,9 @@ class BetweenRewardPolarOccupancyPlotter:
         per_fly_debug_rows: dict[str, list[list[object]]] = defaultdict(list)
         per_fly_written: dict[str, int] = defaultdict(int)
 
+        missing_wall_regions = 0
+        checked_wall_regions = 0
+
         def emit_debug_row(
             *,
             row: list[object],
@@ -273,6 +277,18 @@ class BetweenRewardPolarOccupancyPlotter:
                     if getattr(trj, "_bad", False):
                         continue
 
+                    wall_regions = None
+                    if self.cfg.exclude_wall_contact:
+                        try:
+                            wall_regions = trj.boundary_event_stats["wall"]["all"][
+                                "edge"
+                            ]["boundary_contact_regions"]
+                        except (KeyError, TypeError, AttributeError):
+                            wall_regions = None
+                        checked_wall_regions += 1
+                        if wall_regions is None:
+                            missing_wall_regions += 1
+
                     cx, cy, _ = trn.circles(f)[0]
 
                     # Per-fly key: VA identity + actual fly index
@@ -318,6 +334,24 @@ class BetweenRewardPolarOccupancyPlotter:
                             if w.shape != good.shape:
                                 continue
                             good &= w
+
+                        if self.cfg.exclude_wall_contact and wall_regions:
+                            # frames s..e-1; build a boolean "in_contact" then exclude them
+                            in_contact = np.zeros(e - s, dtype=bool)
+
+                            # wall_regions is a list of slices in absolute frame coords
+                            for sl in wall_regions:
+                                # robustly get start/stop for slice
+                                a = 0 if sl.start is None else int(sl.start)
+                                b = 0 if sl.stop is None else int(sl.stop)
+
+                                # intersect with [s, e)
+                                aa = max(a, s)
+                                bb = min(b, e)
+                                if bb > aa:
+                                    in_contact[(aa - s) : (bb - s)] = True
+
+                            good &= ~in_contact
 
                         if not np.any(good):
                             continue
@@ -406,6 +440,23 @@ class BetweenRewardPolarOccupancyPlotter:
                                 if w.shape != good.shape:
                                     continue
                                 good &= w
+
+                            if self.cfg.exclude_wall_contact and wall_regions:
+                                # frames s_win..e_win-1; build a boolean "in_contact" then exclude them
+                                in_contact = np.zeros(e_win - s_win, dtype=bool)
+
+                                # wall_regions is a list of slices in absolute frame coords
+                                for sl in wall_regions:
+                                    # robustly get start/stop for slice
+                                    a = 0 if sl.start is None else int(sl.start)
+                                    b = 0 if sl.stop is None else int(sl.stop)
+
+                                    # intersect with [s_win, e_win)
+                                    aa = max(a, s_win)
+                                    bb = min(b, e_win)
+                                    if bb > aa:
+                                        in_contact[(aa - s_win) : (bb - s_win)] = True
+                                good &= ~in_contact
 
                             if not np.any(good):
                                 continue
@@ -579,6 +630,13 @@ class BetweenRewardPolarOccupancyPlotter:
             print("[btw_rwd_polar] per-fly sample counts (top 10):")
             for fk, n in sizes[:10]:
                 print(f"  {fk}: {n}")
+
+        if self.cfg.exclude_wall_contact and missing_wall_regions:
+            print(
+                f"[btw_rwd_polar] WARNING: requested wall-contact exclusion, but wall-contact "
+                f"regions were missing for {missing_wall_regions}/{checked_wall_regions} "
+                f"(va,training,fly) combinations. Those cases were plotted without exclusion."
+            )
         return pooled_arrays, per_fly_arrays
 
     # ---------- plotting helpers ----------
