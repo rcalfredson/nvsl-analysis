@@ -236,6 +236,8 @@ class VideoAnalysis:
                 CT.large2,
             ):
                 self.analyzeAgaroseDualCircleAvoidance()
+            if getattr(opts, "wall", None):
+                self.bySyncBucketWallContactPct()
         for opt, evt_name in (
             ("wall", "wall_contact"),
             ("agarose", "agarose_contact"),
@@ -1954,6 +1956,92 @@ class VideoAnalysis:
                 self._printBucketVals(adb[f], f, msg=flyDesc(f), prec=1)
                 self._append(self.bySB2, adb[f], f, n=n if self.opts.ol else n - 1)
         self.buckets = np.array(self.buckets)
+
+    def bySyncBucketWallContactPct(self, verbose: bool = False):
+        """
+        For each training sync bucket, compute fraction of frames where the fly
+        is in contact with the wall.
+
+        Stores:
+          self.syncWallPct: list (per training) of dicts with keys 'exp' and optionally 'ctrl',
+                            each mapping to a list[float] of length nb (NaN if unavailable)
+        Assumes wall contact analysis has already run (runBoundaryContactAnalyses()).
+        """
+        if verbose:
+            print("\n% time contacting wall by sync bucket:")
+
+        df = self._numRewardsMsg(True, silent=True)
+
+        self.syncWallPct = []
+
+        n_flies = min(len(self.trx), 2)
+        fly_keys = ("exp", "ctrl")
+
+        for trn in self.trns:
+            fi, n_buckets, _ = self._syncBucket(trn, df)
+            n_buckets = int(n_buckets or 0)
+
+            this_training = {}
+
+            if verbose:
+                print(trn.name())
+
+            # If no full buckets, keep consistent structure (NaNs)
+            if fi is None or n_buckets == 0:
+                for fly_idx in range(n_flies):
+                    this_training[fly_keys[fly_idx]] = [np.nan] * n_buckets
+                    if verbose:
+                        print(f"  {flyDesc(fly_idx)}: no full buckets")
+                self.syncWallPct.append(this_training)
+                continue
+
+            starts = [int(fi + k * df) for k in range(n_buckets)]
+            complete = [(trn.stop - s) >= df for s in starts]
+            ends = [s + df for s in starts]
+
+            for fly_idx in range(n_flies):
+                fly_key = fly_keys[fly_idx]
+                traj = self.trx[fly_idx]
+
+                # bad trajectory → all NaN
+                if getattr(traj, "_bad", False) or traj.bad():
+                    this_training[fly_key] = [np.nan] * n_buckets
+                    if verbose:
+                        print(f"  {flyDesc(fly_idx)}: bad trajectory")
+                    continue
+
+                mask = self._extract_wall_contact_mask(traj)
+                if mask is None:
+                    # wall not computed or cleaned → NaNs
+                    this_training[fly_key] = [np.nan] * n_buckets
+                    if verbose:
+                        print(f"  {flyDesc(fly_idx)}: no wall contact mask")
+                    continue
+
+                # Compute per bucket fraction
+                vals = [np.nan] * n_buckets
+                n_mask = int(mask.shape[0])
+
+                for b_idx, (s, e) in enumerate(zip(starts, ends)):
+                    if not complete[b_idx]:
+                        continue
+
+                    # Clamp to mask bounds defensively
+                    s2 = max(0, min(int(s), n_mask))
+                    e2 = max(0, min(int(e), n_mask))
+                    if e2 <= s2:
+                        continue
+
+                    # fraction of frames contacting wall
+                    vals[b_idx] = float(mask[s2:e2].mean())
+
+                this_training[fly_key] = vals
+
+                if verbose:
+                    disp = [v * 100 if np.isfinite(v) else np.nan for v in vals]
+                    self._printBucketVals(disp, f=fly_idx, msg=flyDesc(fly_idx), prec=1)
+
+            self.syncWallPct.append(this_training)
 
     def bySyncBucketCOM(
         self,
@@ -3695,6 +3783,23 @@ class VideoAnalysis:
                 self.boundary_event_durations = {evt_name: array_to_save}
             else:
                 self.boundary_event_durations[evt_name] = array_to_save
+
+    def _extract_wall_contact_mask(self, traj):
+        """
+        Returns a boolean array aligned to video frames indicating wall contact,
+        or None if unavailable.
+        """
+        try:
+            leaf = traj.boundary_event_stats["wall"]["all"]["edge"]
+        except Exception:
+            return None
+        m = leaf.get("boundary_contact", None)
+        if m is None:
+            return None
+        m = np.asarray(m)
+        if m.ndim != 1:
+            return None
+        return m.astype(bool, copy=False)
 
     def contactEventsBySyncBucket(self, evt_name):
         """

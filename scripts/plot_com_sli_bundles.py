@@ -10,7 +10,7 @@ def main():
     p.add_argument(
         "--bundles", required=True, help="Comma-separated list of .npz bundles."
     )
-    p.add_argument("--metric", default="commag", choices=["commag", "sli"])
+    p.add_argument("--metric", default="commag", choices=["commag", "sli", "wallpct"])
     p.add_argument(
         "--labels",
         default=None,

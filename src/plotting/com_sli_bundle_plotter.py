@@ -22,8 +22,6 @@ def _load_bundle(path):
     # required keys
     req = [
         "sli",
-        "commag_exp",
-        "commag_ctrl",
         "group_label",
         "bucket_len_min",
         "training_names",
@@ -45,7 +43,7 @@ def _load_bundle(path):
     out["sli_use_training_mean"] = bool(_as_scalar(out["sli_use_training_mean"]))
 
     # Look for optional keys
-    opt = ["sli_ts"]
+    opt = ["sli_ts", "commag_exp", "commag_ctrl", "wallpct_exp", "wallpct_ctrl"]
     for k in opt:
         if k in d.files:
             out[k] = d[k]
@@ -149,15 +147,27 @@ def plot_com_sli_bundles(
 
     if metric == "commag":
         series_key = "commag_exp"
+        need_keys = ["commag_exp"]
     elif metric == "sli":
         if any("sli_ts" not in b for b in bundles):
             raise ValueError("One or more bundles are missing sli_ts; re-export them.")
         series_key = "sli_ts"
+        need_keys = ["sli_ts"]
         include_ctrl = False
+    elif metric == "wallpct":
+        series_key = "wallpct_exp"
+        need_keys = ["wallpct_exp"]
     else:
         raise ValueError(
-            "Invalid metric specified; supported options are 'commag' and 'sli'."
+            "Invalid metric specified; supported: 'commag', 'sli', 'wallpct'."
         )
+
+    for b in bundles:
+        missing = [k for k in need_keys if k not in b]
+        if missing:
+            raise ValueError(
+                f"Bundle {b.get('path', '<unknown>')} is missing keys for metric={metric}: {missing}"
+            )
 
     if labels is not None:
         if len(labels) != ng:
@@ -217,7 +227,7 @@ def plot_com_sli_bundles(
         axs = np.array([axs])
 
     # Track global y-lims (like dynamic behavior in plotRewards)
-    ylim = [-1.0, 1.0]
+    ylim = [0.0, 100.0] if metric == "wallpct" else [-1.0, 1.0]
     mci_min, mci_max = None, None
 
     # If "both" mode, we effectively double “groups” per bundle.
@@ -297,6 +307,11 @@ def plot_com_sli_bundles(
                     else max(mci_max, np.nanmax(mci[2, :]))
                 )
 
+            if metric == "wallpct":
+                mci = mci.copy()
+                mci[0, :] *= 100.0
+                mci[1, :] *= 100.0
+                mci[2, :] *= 100.0
             ys = mci[0, :]
             fin = np.isfinite(ys)
             ls = linestyles[gi % len(linestyles)]
@@ -333,8 +348,22 @@ def plot_com_sli_bundles(
 
             # ctrl overlay (optional)
             if include_ctrl:
-                ctrl = np.asarray(b["commag_ctrl"], dtype=float)[sel_idx, ti, :]
+                ctrl_key = "commag_ctrl" if metric == "commag" else "wallpct_ctrl"
+                if ctrl_key not in b:
+                    continue
+                ctrl_arr = np.asarray(b[ctrl_key], dtype=float)
+                if ctrl_arr.shape[0] != len(b["sli"]):
+                    print(
+                        f"[plot] WARNING: {b['path']} {ctrl_key} shape mismatch; skipping ctrl overlay"
+                    )
+                    continue
+                ctrl = ctrl_arr[sel_idx, ti, :]
                 mci_c = _mean_ci_over_videos(ctrl)
+                if metric == "wallpct":
+                    mci_c = mci_c.copy()
+                    mci_c[0, :] *= 100.0
+                    mci_c[1, :] *= 100.0
+                    mci_c[2, :] *= 100.0
                 ys_c = mci_c[0, :]
                 fin_c = np.isfinite(ys_c)
                 if fin_c.any():
@@ -368,6 +397,8 @@ def plot_com_sli_bundles(
             y_label = "COM dist. to circle center [mm]"
         elif metric == "sli":
             y_label = "SLI"
+        elif metric == "wallpct":
+            y_label = "% time on wall"
         if ti == 0:
             plt.ylabel(maybe_sentence_case(y_label))
         plt.axhline(color="k")

@@ -81,6 +81,7 @@ from src.utils.constants import (
 )
 from src.analysis.motion import CircularMotionDetector
 from src.exporting.com_sli_bundle import export_com_sli_bundle
+from src.exporting.wallpct_sli_bundle import export_wallpct_sli_bundle
 from src.plotting.cross_fly_correlations import plot_cross_fly_correlations
 from src.plotting.individual_strategy_plotter import plot_individual_strategy_overlays
 from src.plotting.outside_circle_duration_plotter import OutsideCircleDurationPlotter
@@ -1141,6 +1142,13 @@ g.add_argument(
     "for this run's vas (used for cross-run top-SLI COM plots).",
 )
 g.add_argument(
+    "--export-wallpct-sli-bundle",
+    type=str,
+    default=None,
+    help="Write an .npz bundle with per-video SLI and % time contacting wall "
+    "per sync bucket (used for cross-run plots with optional SLI filtering).",
+)
+g.add_argument(
     "--export-group-label",
     type=str,
     default=None,
@@ -1628,6 +1636,7 @@ def bucketLenForType(tp):
             "boundary_pct_ctr",
             "boundary",
             "wall",
+            "wallpct",
             "dbr",
             "meddist",
             "meddist_exp_min_yok",
@@ -5326,6 +5335,9 @@ def postAnalyze(vas):
     if getattr(opts, "export_com_sli_bundle", None):
         export_com_sli_bundle(vas, opts, gls, opts.export_com_sli_bundle)
 
+    if getattr(opts, "export_wallpct_sli_bundle", None):
+        export_wallpct_sli_bundle(vas, opts, gls, opts.export_wallpct_sli_bundle)
+
     using_sli_set_op = bool(getattr(opts, "sli_set_op", None))
     if opts.wall:
         plotTlenDist(vas, gis, gls, "contactless")
@@ -7051,6 +7063,14 @@ if __name__ == "__main__":
         if getattr(opts, "wall", None) is None:
             print(
                 f"[btw_rwd_polar] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} because --btw-rwd-polar-exclude-wall-contact was set"
+            )
+            opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
+    if getattr(opts, "export_wallpct_sli_bundle", None):
+        if getattr(opts, "wall", None) is None:
+            print(
+                f"[wallpct] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
+                "because --export-wallpct-sli-bundle was set"
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 
