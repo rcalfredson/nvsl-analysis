@@ -380,6 +380,7 @@ class VideoAnalysis:
             "near_contact",
             "boundary_contact_regions",
             "near_contact_regions",
+            "boundary_touch_by_direction",
             "contact_start_idxs",
             "near_contact_start_idxs",
             "closest_boundary_indices",
