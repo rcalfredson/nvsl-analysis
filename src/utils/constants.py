@@ -13,6 +13,9 @@ CONTACT_BUFFER_OFFSETS = {
     "agarose": {"min": 0.5, "max": 0.6},
     "boundary": {"min": 0.0, "max": 0.1},
 }
+WALL_CONTACT_DEFAULT_THRESH_STR = (
+    f"{CONTACT_BUFFER_OFFSETS['wall']['min']}|{CONTACT_BUFFER_OFFSETS['wall']['max']}"
+)
 AGAROSE_BOUNDARY_DIST = 3
 MIDLINE_BOUNDARY_DIST = 4
 HEATMAP_DIV = 2

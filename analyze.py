@@ -77,6 +77,7 @@ from src.utils.constants import (
     SAVE_AUC_TYPES,
     SPEED_ON_BOTTOM,
     ST,
+    WALL_CONTACT_DEFAULT_THRESH_STR,
 )
 from src.analysis.motion import CircularMotionDetector
 from src.exporting.com_sli_bundle import export_com_sli_bundle
@@ -352,8 +353,7 @@ g.add_argument(
     f" {CONTACT_BUFFER_OFFSETS['wall']['min']}mm and"
     f" {CONTACT_BUFFER_OFFSETS['wall']['max']}mm).",
     default=None,
-    const=f"{CONTACT_BUFFER_OFFSETS['wall']['min']}|"
-    f"{CONTACT_BUFFER_OFFSETS['wall']['max']}",
+    const=WALL_CONTACT_DEFAULT_THRESH_STR,
 )
 g.add_argument(
     "--wall_orientation",
@@ -7048,11 +7048,11 @@ if __name__ == "__main__":
 
     # If polar wants wall-contact exclusion, we must compute wall contact
     if getattr(opts, "btw_rwd_polar_exclude_wall_contact", False):
-        if not getattr(opts, "wall", False):
+        if getattr(opts, "wall", None) is None:
             print(
-                "[btw_rwd_polar] enabling --wall because --btw-rwd-polar-exclude-wall-contact was set"
+                f"[btw_rwd_polar] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} because --btw-rwd-polar-exclude-wall-contact was set"
             )
-            opts.wall = True
+            opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 
     if opts.turn_prob_by_dist:
         opts.turn_prob_by_dist = parse_distances(opts.turn_prob_by_dist)
