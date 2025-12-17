@@ -82,12 +82,14 @@ def _select_sli_extremes(sli, fraction, which):
             np.array([], dtype=int),
         )
 
-    k = max(1, int(round(fraction * finite.sum())))
+    # Match pandas select_extremes(): k based on total n (incl NaNs)
+    k = max(1, int(n * fraction))
     finite_idx = np.flatnonzero(finite)
+    k_eff = min(k, finite_idx.size)
     order = finite_idx[np.argsort(sli[finite_idx])]
 
-    bottom = order[:k].tolist()
-    top = order[-k:].tolist()
+    bottom = order[:k_eff].tolist()
+    top = order[-k_eff:].tolist()
 
     if which == "bottom":
         idx = np.array(bottom, dtype=int)
