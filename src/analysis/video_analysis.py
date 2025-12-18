@@ -38,10 +38,12 @@ from src.utils.constants import (
     COMR_NAN_MEAN,
     COMR_INSUFF_REWARDS,
     COMR_INCOMPLETE_BUCKET,
+    COMR_WALL_CONTACT,
     COMR_SEG_TOO_SHORT,
     COMR_SEG_MEDDIST_NAN,
     COMR_SEG_MEDDIST_FILTER,
     COMR_SEG_MEAN_NAN,
+    COMR_SEG_WALL_CONTACT_FILTER,
     CONTACT_BUFFER_OFFSETS,
     MIDLINE_BOUNDARY_DIST,
     AGAROSE_BOUNDARY_DIST,
@@ -2071,6 +2073,9 @@ class VideoAnalysis:
         n_flies = 2 if len(self.trx) > 1 else 1
         fly_keys = ("exp", "ctrl")  # storage keys (stable)
 
+        exclude_wall = bool(getattr(self.opts, "com_exclude_wall_contact", False))
+        warned_missing_wc = False
+
         for trn in self.trns:
             fi, n_buckets, _ = self._syncBucket(trn, df)
             n_buckets = int(n_buckets or 0)
@@ -2138,6 +2143,21 @@ class VideoAnalysis:
                 cx, cy, _ = trn.circles(fly_idx)[0]
                 px_per_mm = self.xf.fctr * self.ct.pxPerMmFloor()
 
+                wc = None
+                if exclude_wall:
+                    try:
+                        wc = traj.boundary_event_stats["wall"]["all"]["edge"][
+                            "boundary_contact"
+                        ]
+                    except Exception:
+                        wc = None
+                        if not warned_missing_wc:
+                            print(
+                                "[com] warning: can't load wall-contact data; "
+                                "--com-exclude-wall-contact will be ignored for this video."
+                            )
+                            warned_missing_wc = True
+
                 com_vals = []
                 mag_vals = [] if store_mag else None
 
@@ -2175,6 +2195,7 @@ class VideoAnalysis:
                             n_too_short=0,
                             n_meddist_nan=0,
                             n_meddist_filtered=0,
+                            n_wall_contact_filtered=0,
                             n_mean_nan=0,
                         )
                         for _ in range(n_buckets)
@@ -2208,6 +2229,14 @@ class VideoAnalysis:
                         #     input()
                         #     bucket_stats[b_idx]["n_excluded_pair"] += 1
                         #     continue
+
+                        if exclude_wall and wc is not None:
+                            # guard for bounds, and allow wc to be shorter than x/y in weird cases
+                            s2 = max(0, min(s, len(wc)))
+                            e2 = max(0, min(e, len(wc)))
+                            if e2 > s2 and np.any(wc[s2:e2]):
+                                bucket_stats[b_idx]["n_wall_contact_filtered"] += 1
+                                continue
 
                         xs = traj.x[s:e]
                         ys = traj.y[s:e]
@@ -2283,6 +2312,8 @@ class VideoAnalysis:
                             # prioritize "strongest" failure signal
                             if st["n_segments_total"] == 0:
                                 reason = COMR_EMPTY_BUCKET
+                            elif st["n_wall_contact_filtered"] > 0:
+                                reason = COMR_SEG_WALL_CONTACT_FILTER
                             elif st["n_meddist_filtered"] > 0:
                                 reason = COMR_SEG_MEDDIST_FILTER
                             elif st["n_meddist_nan"] > 0:
@@ -2339,6 +2370,19 @@ class VideoAnalysis:
                         #     reasons.append(r)
                         #     details.append(det)
                         #     continue
+
+                        if exclude_wall and wc is not None:
+                            s2 = max(0, min(s, len(wc)))
+                            e2 = max(0, min(e, len(wc)))
+                            if e2 > s2 and np.any(wc[s2:e2]):
+                                r = COMR_WALL_CONTACT
+                                det["why"] = "wall_contact_in_bucket"
+                                com_vals[b_idx] = (np.nan, np.nan)
+                                if store_mag:
+                                    mag_vals[b_idx] = np.nan
+                                reasons[b_idx] = r
+                                details[b_idx].update(det)
+                                continue
 
                         idxs = np.arange(s, e)
                         if idxs.size == 0:

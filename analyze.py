@@ -660,6 +660,16 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--com-exclude-wall-contact",
+    action="store_true",
+    help=(
+        "Exclude wall-contact-contaminated data from COM calculation. "
+        "For --com-per-segment: drop any between-reward segment that contains "
+        "a wall-contact frame. For bucket-level COM: mark the bucket NaN if it "
+        "contains any wall-contact frame."
+    ),
+)
+g.add_argument(
     "--lg-turn-plots",
     choices=("all_types", "turn_plus_1"),
     help="Generate large turn trajectory plot. Two modes are supported: 'all_types' includes all"
@@ -7071,6 +7081,14 @@ if __name__ == "__main__":
             print(
                 f"[wallpct] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
                 "because --export-wallpct-sli-bundle was set"
+            )
+            opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
+    if getattr(opts, "com_exclude_wall_contact", False):
+        if getattr(opts, "wall", None) is None:
+            print(
+                f"[com] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
+                "because --com-exclude-wall-contact was set"
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 
