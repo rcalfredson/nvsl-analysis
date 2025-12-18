@@ -1,6 +1,7 @@
 # standard libraries
 import collections
 import csv
+from dataclasses import dataclass
 import gc
 from multiprocessing.pool import ThreadPool
 import os
@@ -9,6 +10,7 @@ import re
 import sys
 import textwrap
 import timeit
+from typing import Iterator, Optional, Dict, Any
 
 # third-party libraries
 import cv2
@@ -41,6 +43,8 @@ from src.utils.constants import (
     COMR_WALL_CONTACT,
     COMR_SEG_TOO_SHORT,
     COMR_SEG_MEDDIST_NAN,
+    COMR_SEG_EMPTY_XY,
+    COMR_SEG_ALL_NAN_X_OR_Y,
     COMR_SEG_MEDDIST_FILTER,
     COMR_SEG_MEAN_NAN,
     COMR_SEG_WALL_CONTACT_FILTER,
@@ -98,6 +102,19 @@ TRX_IMG_FILE = "imgs/%s__t%d.png"
 per_va_processing_times = []
 per_bnd_processing_times = []
 per_lgt_processing_times = []
+
+
+@dataclass(frozen=True)
+class BetweenRewardSegmentCOM:
+    b_idx: int
+    s: int
+    e: int
+    mx_mm: float
+    my_mm: float
+    mag_mm: float
+    med_d_mm: float
+    detail: Optional[Dict[str, Any]] = None
+    why: Optional[str] = None  # None means "used"; else describes skip reason
 
 
 # analysis of a single video
@@ -2045,6 +2062,152 @@ class VideoAnalysis:
 
             self.syncWallPct.append(this_training)
 
+    def _iter_between_reward_segment_com(
+        self,
+        trn,
+        fly_idx: int,
+        *,
+        fi: int,
+        df: int,
+        n_buckets: int,
+        complete: list[bool],
+        relative_to_reward: bool,
+        per_segment_min_meddist_mm: float,
+        exclude_wall: bool,
+        wc=None,
+        debug: bool = False,
+        yield_skips: bool = False,
+    ) -> "Iterator[BetweenRewardSegmentCOM]":
+        """
+        Yield per-between-reward-segment COM vectors (in mm) assigned to sync buckets.
+
+        Bucketing is based on the *start frame* of the segment:
+            b_idx = int((s - fi) // df)
+
+        Filters (matching bySyncBucketCOM(per_segment=True)):
+          - segment length must be >= 2 frames (e > s + 1)
+          - bucket must be complete
+          - optional wall-contact exclusion (any wc[s:e] == True)
+          - optional median-distance filter (meddist_mm > threshold)
+          - mean x/y must be finite
+        """
+        traj = self.trx[fly_idx]
+        on = self._getOn(trn, False, f=fly_idx)
+        if on is None or len(on) < 2:
+            return
+
+        cx, cy, _ = trn.circles(fly_idx)[0]
+        px_per_mm = self.xf.fctr * self.ct.pxPerMmFloor()
+
+        # threshold in px for direct comparison with dx/dy in px
+        min_med_mm = float(per_segment_min_meddist_mm or 0.0)
+        min_med_px = min_med_mm * px_per_mm
+
+        def _detail_dict(
+            i: int, s: int, e: int, b_idx: int
+        ) -> Optional[Dict[str, Any]]:
+            if not debug:
+                return None
+            return {
+                "i": int(i),
+                "s": int(s),
+                "e": int(e),
+                "b_idx": int(b_idx),
+                "n_frames": int(e - s),
+            }
+
+        def _make_skip(
+            i: int, s: int, e: int, b_idx: int, why: str
+        ) -> BetweenRewardSegmentCOM:
+            return BetweenRewardSegmentCOM(
+                b_idx=b_idx,
+                s=s,
+                e=e,
+                mx_mm=float("nan"),
+                my_mm=float("nan"),
+                mag_mm=float("nan"),
+                med_d_mm=float("nan"),
+                detail=_detail_dict(i, s, e, b_idx),
+                why=why,
+            )
+
+        for i in range(len(on) - 1):
+            s = int(on[i])
+            e = int(on[i + 1])
+
+            b_idx = int((s - fi) // df)
+            if b_idx < 0 or b_idx >= n_buckets:
+                continue
+            if not complete[b_idx]:
+                continue
+
+            # too short
+            if e <= s + 1:
+                if yield_skips:
+                    yield _make_skip(i, s, e, b_idx, "too_short")
+                continue
+
+            # wall-contact filter
+            if exclude_wall and wc is not None:
+                s2 = max(0, min(s, len(wc)))
+                e2 = max(0, min(e, len(wc)))
+                if e2 > s2 and np.any(wc[s2:e2]):
+                    if yield_skips:
+                        yield _make_skip(i, s, e, b_idx, "wall_contact")
+                    continue
+
+            xs = traj.x[s:e]
+            ys = traj.y[s:e]
+            if xs.size == 0:
+                if yield_skips:
+                    yield _make_skip(i, s, e, b_idx, "empty_xy")
+                continue
+            if not np.isfinite(xs).any() or not np.isfinite(ys).any():
+                if yield_skips:
+                    yield _make_skip(i, s, e, b_idx, "all_nan_x_or_y")
+                continue
+
+            dx = xs - cx
+            dy = ys - cy
+            d = np.hypot(dx, dy)
+            med_d = np.nanmedian(d)
+            if not np.isfinite(med_d):
+                if yield_skips:
+                    yield _make_skip(i, s, e, b_idx, "meddist_nan")
+                continue
+            if med_d <= min_med_px:
+                if yield_skips:
+                    yield _make_skip(i, s, e, b_idx, "meddist_filtered")
+                continue
+
+            mx = np.nanmean(xs)
+            my = np.nanmean(ys)
+            if not (np.isfinite(mx) and np.isfinite(my)):
+                if yield_skips:
+                    yield _make_skip(i, s, e, b_idx, "mean_nan")
+                continue
+
+            if relative_to_reward:
+                mx -= cx
+                my -= cy
+
+            mx_mm = mx / px_per_mm
+            my_mm = my / px_per_mm
+            mag_mm = float(np.hypot(mx_mm, my_mm))
+            med_d_mm = float(med_d / px_per_mm)
+
+            yield BetweenRewardSegmentCOM(
+                b_idx=b_idx,
+                s=s,
+                e=e,
+                mx_mm=float(mx_mm),
+                my_mm=float(my_mm),
+                mag_mm=mag_mm,
+                med_d_mm=med_d_mm,
+                detail=_detail_dict(i, s, e, b_idx),
+                why=None,
+            )
+
     def bySyncBucketCOM(
         self,
         relative_to_reward=True,
@@ -2196,6 +2359,8 @@ class VideoAnalysis:
                             n_meddist_nan=0,
                             n_meddist_filtered=0,
                             n_wall_contact_filtered=0,
+                            n_empty_xy=0,
+                            n_all_nan_x_or_y=0,
                             n_mean_nan=0,
                         )
                         for _ in range(n_buckets)
@@ -2204,73 +2369,44 @@ class VideoAnalysis:
                     min_med_mm = per_segment_min_meddist_mm
                     if min_med_mm is None:
                         min_med_mm = 0.0
-                    min_med_px = float(min_med_mm) * px_per_mm
 
-                    for i in range(len(on) - 1):
-                        s = int(on[i])
-                        e = int(on[i + 1])
-                        if e <= s + 1:
-                            b_idx = int((s - fi) // df)
-                            if 0 <= b_idx < n_buckets and complete[b_idx]:
-                                bucket_stats[b_idx]["n_too_short"] += 1
-                                bucket_stats[b_idx]["n_segments_total"] += 1
-                            continue
-
-                        b_idx = int((s - fi) // df)
-                        if b_idx < 0 or b_idx >= n_buckets:
-                            continue
-                        if not complete[b_idx]:
-                            continue
-
+                    for seg in self._iter_between_reward_segment_com(
+                        trn,
+                        fly_idx,
+                        fi=int(fi),
+                        df=int(df),
+                        n_buckets=int(n_buckets),
+                        complete=complete,
+                        relative_to_reward=relative_to_reward,
+                        per_segment_min_meddist_mm=float(min_med_mm),
+                        exclude_wall=exclude_wall,
+                        wc=wc,
+                        debug=bool(getattr(self.opts, "com_sli_debug", False)),
+                        yield_skips=True,
+                    ):
+                        b_idx = seg.b_idx
                         bucket_stats[b_idx]["n_segments_total"] += 1
 
-                        # if self.is_excluded_pair(fly_idx, trn.n - 1, b_idx):
-                        #     print(f'skipping excluded pair, {self.fn}, fly {self.f}, trn {trn.n}')
-                        #     input()
-                        #     bucket_stats[b_idx]["n_excluded_pair"] += 1
-                        #     continue
-
-                        if exclude_wall and wc is not None:
-                            # guard for bounds, and allow wc to be shorter than x/y in weird cases
-                            s2 = max(0, min(s, len(wc)))
-                            e2 = max(0, min(e, len(wc)))
-                            if e2 > s2 and np.any(wc[s2:e2]):
+                        if seg.why is None:
+                            bucket_stats[b_idx]["n_segments_used"] += 1
+                            seg_vecs[b_idx].append((seg.mx_mm, seg.my_mm))
+                        else:
+                            if seg.why == "too_short":
+                                bucket_stats[b_idx]["n_too_short"] += 1
+                            elif seg.why == "wall_contact":
                                 bucket_stats[b_idx]["n_wall_contact_filtered"] += 1
-                                continue
-
-                        xs = traj.x[s:e]
-                        ys = traj.y[s:e]
-
-                        if xs.size == 0:
-                            continue
-
-                        # Filter: ignore segments too close to center (median_dist <= threshold)
-                        dx = xs - cx
-                        dy = ys - cy
-                        d = np.hypot(dx, dy)
-                        med_d = np.nanmedian(d)
-                        if not np.isfinite(med_d):
-                            bucket_stats[b_idx]["n_meddist_nan"] += 1
-                            continue
-                        if med_d <= min_med_px:
-                            bucket_stats[b_idx]["n_meddist_filtered"] += 1
-                            continue
-
-                        mx = np.nanmean(xs)
-                        my = np.nanmean(ys)
-
-                        if not (np.isfinite(mx) and np.isfinite(my)):
-                            bucket_stats[b_idx]["n_mean_nan"] += 1
-                            continue
-
-                        if relative_to_reward:
-                            mx -= cx
-                            my -= cy
-
-                        mx_mm = mx / px_per_mm
-                        my_mm = my / px_per_mm
-                        bucket_stats[b_idx]["n_segments_used"] += 1
-                        seg_vecs[b_idx].append((mx_mm, my_mm))
+                            elif seg.why == "meddist_nan":
+                                bucket_stats[b_idx]["n_meddist_nan"] += 1
+                            elif seg.why == "meddist_filtered":
+                                bucket_stats[b_idx]["n_meddist_filtered"] += 1
+                            elif seg.why == "all_nan_x_or_y":
+                                bucket_stats[b_idx]["n_all_nan_x_or_y"] += 1
+                            elif seg.why == "empty_xy":
+                                bucket_stats[b_idx]["n_empty_xy"] += 1
+                            elif seg.why == "mean_nan":
+                                bucket_stats[b_idx]["n_mean_nan"] += 1
+                            else:
+                                pass
 
                     # average per-segment vectors within each bucket + produce reasons/details
                     com_vals = []
@@ -2318,6 +2454,10 @@ class VideoAnalysis:
                                 reason = COMR_SEG_MEDDIST_FILTER
                             elif st["n_meddist_nan"] > 0:
                                 reason = COMR_SEG_MEDDIST_NAN
+                            elif st["n_all_nan_x_or_y"] > 0:
+                                reason = COMR_SEG_ALL_NAN_X_OR_Y
+                            elif st["n_empty_xy"] > 0:
+                                reason = COMR_SEG_EMPTY_XY
                             elif st["n_mean_nan"] > 0:
                                 reason = COMR_SEG_MEAN_NAN
                             elif st["n_excluded_pair"] > 0:
