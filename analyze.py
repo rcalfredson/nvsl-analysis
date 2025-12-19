@@ -96,6 +96,10 @@ from src.analysis.sli_tools import (
 )
 from src.analysis.training import Training
 from src.analysis.trajectory import Trajectory
+from src.plotting.between_reward_com_mag_hist import (
+    BetweenRewardCOMMagHistogramPlotter,
+    BetweenRewardCOMMagHistogramConfig,
+)
 from src.plotting.between_reward_distance_hist import (
     BetweenRewardDistanceHistogramPlotter,
     BetweenRewardDistanceHistogramConfig,
@@ -149,6 +153,7 @@ REWARD_PI_POST_IMG_FILE = "imgs/reward_pi_post__%s_min_buckets.png"
 REWARD_PI_POST_DIFF_IMG_FILE = "imgs/reward_pi_post_diff__%s_min_buckets.png"
 DIST_BTWN_REWARDS_LABEL = "mean dist. between calc. rewards%s"
 DIST_BTWN_REWARDS_IMG_FILE = "imgs/btw_rwd_dists.png"
+BTW_RWD_COM_MAG_HIST_IMG_FILE = "imgs/btw_rwd_com_mag_hist.png"
 BTW_RWD_POLAR_IMG_FILE = "imgs/btw_rwd_polar.png"
 PSC_LABEL = "%% in circle\n(%s, %.1f-cm radius)"
 TURN_IMG_FILE = "imgs/%s%s_turn%s%s__%%s_min_buckets.png"
@@ -490,6 +495,58 @@ g.add_argument(
     default=None,
     help=(
         "Set a fixed maximum for the y-axis in between-reward distance "
+        "histograms. By default, matplotlib chooses the y-axis scale."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-com-mag-hist",
+    action="store_true",
+    help=(
+        "Plot histograms of per-between-reward-segment COM magnitude (mm), "
+        "pooled across experimental flies and separated by training."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-com-mag-max",
+    type=float,
+    default=None,
+    help=(
+        "Maximum COM magnitude (mm) to include in the between-reward COM-magnitude "
+        "histograms. Values beyond this are discarded for plotting. "
+        "By default, the full range is shown."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-com-mag-normalize",
+    action="store_true",
+    help=(
+        "Normalize between-reward COM-magnitude histograms so the y-axis shows "
+        "the proportion of segments per bin instead of raw counts."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-com-mag-pool-trainings",
+    action="store_true",
+    help=(
+        "Pool between-reward COM magnitudes across all trainings into a single "
+        "histogram instead of plotting one panel per training."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-com-mag-top-sli",
+    action="store_true",
+    help=(
+        "When plotting between-reward COM-magnitude histograms, restrict to flies "
+        "in the top SLI fraction (see --best-worst-sli, --best-worst-fraction, "
+        "and --best-worst-trn). By default, all flies are included."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-com-mag-ymax",
+    type=float,
+    default=None,
+    help=(
+        "Set a fixed maximum for the y-axis in between-reward COM-magnitude "
         "histograms. By default, matplotlib chooses the y-axis scale."
     ),
 )
@@ -5969,6 +6026,42 @@ def postAnalyze(vas):
             vas=vas_for_hist, opts=opts, gls=gls, customizer=customizer, cfg=br_cfg
         )
         br_plotter.plot_histograms()
+    if getattr(opts, "btw_rwd_com_mag_hist", False) and any(
+        getattr(v, "circle", None) for v in vas
+    ):
+        vas_for_hist = vas
+
+        if getattr(opts, "btw_rwd_com_mag_top_sli", False):
+            if saved_top is None:
+                print(
+                    "[btw_rwd_com_mag] WARNING: --btw-rwd-com-mag-top-sli requested "
+                    "but no top-SLI group is available; falling back to all flies."
+                )
+            else:
+                vas_for_hist = [vas[i] for i in saved_top]
+                print(
+                    "[btw_rwd_com_mag] restricting histograms to "
+                    f"{len(vas_for_hist)} top-SLI flies"
+                )
+
+        subset_label = None
+        if getattr(opts, "btw_rwd_com_mag_top_sli", False) and saved_top is not None:
+            frac = float(getattr(opts, "best_worst_fraction", 0.1))
+            subset_label = f"Restricted to top {100*frac:.1f}% SLI flies"
+
+        cfg = BetweenRewardCOMMagHistogramConfig(
+            out_file=BTW_RWD_COM_MAG_HIST_IMG_FILE,
+            bins=30,
+            xmax=getattr(opts, "btw_rwd_com_mag_max", None),
+            normalize=getattr(opts, "btw_rwd_com_mag_normalize", False),
+            pool_trainings=getattr(opts, "btw_rwd_com_mag_pool_trainings", False),
+            subset_label=subset_label,
+            ymax=getattr(opts, "btw_rwd_com_mag_ymax", None),
+        )
+        plotter = BetweenRewardCOMMagHistogramPlotter(
+            vas=vas_for_hist, opts=opts, gls=gls, customizer=customizer, cfg=cfg
+        )
+        plotter.plot_histograms()
     if getattr(opts, "btw_rwd_polar", False) and any(
         getattr(v, "circle", None) for v in vas
     ):

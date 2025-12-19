@@ -450,6 +450,15 @@ class VideoAnalysis:
             getattr(self.opts, "btw_rwd_polar_exclude_wall_contact", False)
         )
 
+        keep_wall_regions_for_btw_rwd_com_mag = bool(
+            getattr(self.opts, "btw_rwd_com_mag_hist", False)
+            and getattr(self.opts, "com_exclude_wall_contact", False)
+        )
+
+        keep_wall_regions = (
+            keep_wall_regions_for_polar or keep_wall_regions_for_btw_rwd_com_mag
+        )
+
         # ─────────────────────────────────────────────────────────────
         # 3.  Walk through every trajectory
         # ─────────────────────────────────────────────────────────────
@@ -487,7 +496,7 @@ class VideoAnalysis:
                         if boundary_tp != "circle":
                             # If requested, preserve boundary_contact_regions only for wall/all/edge
                             if (
-                                keep_wall_regions_for_polar
+                                keep_wall_regions
                                 and boundary_tp == "wall"
                                 and boundary_orientation == "all"
                                 and ellipse_ref_pt == "edge"
@@ -2149,8 +2158,9 @@ class VideoAnalysis:
 
             # wall-contact filter
             if exclude_wall and wc is not None:
-                s2 = max(0, min(s, len(wc)))
-                e2 = max(0, min(e, len(wc)))
+                # wc is assumed to be windowed so index (frame - fi) is valid (e.g. [fi, fi+n_win))
+                s2 = max(0, min(s - fi, len(wc)))
+                e2 = max(0, min(e - fi, len(wc)))
                 if e2 > s2 and np.any(wc[s2:e2]):
                     if yield_skips:
                         yield _make_skip(i, s, e, b_idx, "wall_contact")
@@ -2186,7 +2196,6 @@ class VideoAnalysis:
                 if yield_skips:
                     yield _make_skip(i, s, e, b_idx, "mean_nan")
                 continue
-
             if relative_to_reward:
                 mx -= cx
                 my -= cy
@@ -2286,6 +2295,11 @@ class VideoAnalysis:
             complete = [(trn.stop - s) >= df for s in starts]
             ends = [s + df for s in starts]
 
+            # We'll treat wc as windowed to [fi, fi + n_win), where n_win = n_buckets * df
+            fi_i = int(fi)
+            df_i = int(df)
+            n_win = int(max(0, n_buckets * df_i))
+
             for fly_idx in range(n_flies):
                 fly_key = fly_keys[fly_idx]
                 traj = self.trx[fly_idx]
@@ -2309,9 +2323,24 @@ class VideoAnalysis:
                 wc = None
                 if exclude_wall:
                     try:
-                        wc = traj.boundary_event_stats["wall"]["all"]["edge"][
-                            "boundary_contact"
-                        ]
+                        leaf = traj.boundary_event_stats["wall"]["all"]["edge"]
+                        regions = leaf.get("boundary_contact_regions", None)
+
+                        if regions is not None:
+                            # Build per-frame mask windowed to [fi, fi+n_win)
+                            wc = np.zeros(n_win, dtype=bool)
+                            win_start = fi_i
+                            win_end = fi_i + n_win
+                            for a, b in regions:
+                                s = max(int(a), win_start)
+                                e = min(int(b), win_end)
+                                if e > s:
+                                    wc[s - win_start : e - win_start] = True
+                        else:
+                            # Fallback: window the full per-frame boolean if available
+                            bc = leaf.get("boundary_contact", None)
+                            if bc is not None and n_win > 0:
+                                wc = np.asarray(bc[fi_i : fi_i + n_win], dtype=bool)
                     except Exception:
                         wc = None
                         if not warned_missing_wc:
@@ -2512,8 +2541,9 @@ class VideoAnalysis:
                         #     continue
 
                         if exclude_wall and wc is not None:
-                            s2 = max(0, min(s, len(wc)))
-                            e2 = max(0, min(e, len(wc)))
+                            # wc is windowed to [fi, fi+n_win)
+                            s2 = max(0, min(int(s) - fi_i, len(wc)))
+                            e2 = max(0, min(int(e) - fi_i, len(wc)))
                             if e2 > s2 and np.any(wc[s2:e2]):
                                 r = COMR_WALL_CONTACT
                                 det["why"] = "wall_contact_in_bucket"
