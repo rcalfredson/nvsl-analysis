@@ -584,6 +584,41 @@ g.add_argument(
     help="Number of angular sectors for --btw-rwd-polar. Default: %(default)s",
 )
 g.add_argument(
+    "--btw-rwd-polar-2d",
+    action="store_true",
+    help=(
+        "Plot a 2D polar occupancy heatmap (theta x radius) instead of the "
+        "1D angular histogram. Each angular wedge is subdivided into radial bins, "
+        "and magnitude is shown via a color scale."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-polar-r-bins",
+    type=int,
+    default=12,
+    help=("Number of radial bins for --btw-rwd-polar-2d. Default: %(default)s"),
+)
+g.add_argument(
+    "--btw-rwd-polar-r-max",
+    type=float,
+    default=None,
+    help=(
+        "Optional fixed maximum radius (mm) for --btw-rwd-polar-2d binning and axis. "
+        "Default: auto (derived from data, e.g. robust percentile)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-polar-2d-normalize",
+    choices=("global", "per_theta", "none"),
+    default="global",
+    help=(
+        "Normalization scheme for --btw-rwd-polar-2d. "
+        "'global' normalizes counts by total frames (probability mass); "
+        "'per_theta' normalizes each angular sector independently; "
+        "'none' plots raw counts. Default: %(default)s"
+    ),
+)
+g.add_argument(
     "--btw-rwd-polar-pool-trainings",
     action="store_true",
     help="Pool between-reward positions across all trainings into a single polar plot.",
@@ -6130,6 +6165,13 @@ def postAnalyze(vas):
             subset_label=subset_label,
             flip_y=not getattr(opts, "btw_rwd_polar_no_flip_y", False),
             rmax=getattr(opts, "btw_rwd_polar_rmax", None),
+            # --- 2D theta x r mode (plumbing) ---
+            mode=("theta_r" if getattr(opts, "btw_rwd_polar_2d", False) else "theta"),
+            r_bins=int(getattr(opts, "btw_rwd_polar_r_bins", 12)),
+            r_max=getattr(opts, "btw_rwd_polar_r_max", None),
+            theta_r_normalize=str(
+                getattr(opts, "btw_rwd_polar_2d_normalize", "global")
+            ),
             per_fly=bool(getattr(opts, "btw_rwd_polar_per_fly", False)),
             per_fly_out_dir=str(
                 getattr(

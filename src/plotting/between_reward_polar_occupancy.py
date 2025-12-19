@@ -24,6 +24,21 @@ class BetweenRewardPolarOccupancyConfig:
     pool_trainings: bool = False
     subset_label: str | None = None
 
+    # --- plot mode ---
+    # "theta": 1D angular histogram
+    # "theta_r": 2D heatmap (theta x radius)
+    mode: str = "theta"
+
+    # --- 2D (theta x r) heatmap params ---
+    r_bins: int = 12
+    # Max radius (mm) for binning/axis in 2D mode; if None, auto-derived from data.
+    r_max: float | None = None
+    # Normalization for 2D mode:
+    # - "global": divide by total samples
+    # - "per_theta": normalize within each theta sector
+    # - "none": raw counts
+    theta_r_normalize: str = "global"
+
     # Coordinate convention: for image coords (y down), flip_y=True makes "up" positive.
     flip_y: bool = True
 
