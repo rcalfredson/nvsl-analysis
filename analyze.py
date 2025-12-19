@@ -455,6 +455,15 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--btw-rwd-dist-export-hist",
+    type=str,
+    default=None,
+    help=(
+        "Export binned histogram data (counts + bin edges) for between-reward distances "
+        "as a compressed .npz file. Intended for later overlay plotting across groups."
+    ),
+)
+g.add_argument(
     "--btw-rwd-dist-max",
     type=float,
     default=None,
@@ -504,6 +513,15 @@ g.add_argument(
     help=(
         "Plot histograms of per-between-reward-segment COM magnitude (mm), "
         "pooled across experimental flies and separated by training."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-com-mag-export-hist",
+    type=str,
+    default=None,
+    help=(
+        "Export binned histogram data (counts + bin edges) for between-reward COM magnitudes "
+        "as a compressed .npz file. Intended for later overlay plotting across groups."
     ),
 )
 g.add_argument(
@@ -6025,6 +6043,9 @@ def postAnalyze(vas):
         br_plotter = BetweenRewardDistanceHistogramPlotter(
             vas=vas_for_hist, opts=opts, gls=gls, customizer=customizer, cfg=br_cfg
         )
+        out_npz = getattr(opts, "btw_rwd_dist_export_hist", None)
+        if out_npz:
+            br_plotter.export_histograms_npz(out_npz)
         br_plotter.plot_histograms()
     if getattr(opts, "btw_rwd_com_mag_hist", False) and any(
         getattr(v, "circle", None) for v in vas
@@ -6061,6 +6082,9 @@ def postAnalyze(vas):
         plotter = BetweenRewardCOMMagHistogramPlotter(
             vas=vas_for_hist, opts=opts, gls=gls, customizer=customizer, cfg=cfg
         )
+        out_npz = getattr(opts, "btw_rwd_com_mag_export_hist", None)
+        if out_npz:
+            plotter.export_histograms_npz(out_npz)
         plotter.plot_histograms()
     if getattr(opts, "btw_rwd_polar", False) and any(
         getattr(v, "circle", None) for v in vas
