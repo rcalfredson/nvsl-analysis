@@ -59,6 +59,11 @@ class BetweenRewardPolarOccupancyConfig:
     per_fly: bool = False
     per_fly_out_dir: str = "imgs/btw_rwd_polar_per_fly"
     max_per_fly_plots: int | None = None  # optional cap
+    # How to aggregate across flies:
+    # - "frames": current behavior (each frame equal weight)
+    # - "flies": average per-fly normalized distributions (each fly equal weight)
+    aggregate: str = "frames"
+    min_frames_per_fly: int = 0
 
     # --- debug ---
     debug: bool = False
@@ -202,6 +207,26 @@ class BetweenRewardPolarOccupancyPlotter:
         return int(np.argmin(d))
 
     # ---------- data collection ----------
+    def _fly_keys(self, per_fly_by_trn: dict[tuple[str, int], np.ndarray]) -> list[str]:
+        return sorted({fk for (fk, _t) in per_fly_by_trn.keys()})
+
+    def _is_fly_aggregate(self) -> bool:
+        return str(getattr(self.cfg, "aggregate", "frames") or "frames") == "flies"
+
+    def _pool_per_fly_by_trn(
+        self, per_fly_by_trn: dict[tuple[str, int], np.ndarray]
+    ) -> dict[tuple[str, int], np.ndarray]:
+        """
+        If cfg.pool_trainings: collapse all trainings into t_idx=0 per fly.
+        Else: return as-is.
+        """
+        if not bool(getattr(self.cfg, "pool_trainings", False)):
+            return per_fly_by_trn
+        out: dict[tuple[str, int], list[float]] = defaultdict(list)
+        for (fk, t_idx), arr in per_fly_by_trn.items():
+            if arr.size:
+                out[(fk, 0)].extend(arr.tolist())
+        return {k: np.asarray(v, dtype=float) for k, v in out.items()}
 
     def _mm_per_unit(self, va, used_template: bool) -> float:
         px_per_mm_floor = float(va.ct.pxPerMmFloor())
@@ -791,6 +816,7 @@ class BetweenRewardPolarOccupancyPlotter:
     def _plot_theta_hist_multi_training(
         self,
         thetas_by_trn: list[np.ndarray],
+        per_fly_thetas_by_trn: dict[tuple[str, int], np.ndarray] | None,
         trn_labels: list[str],
         out_file: str,
         title: str,
@@ -803,11 +829,17 @@ class BetweenRewardPolarOccupancyPlotter:
         if not any(th.size for th in thetas_by_trn):
             return False
 
+        # Optional pooling: for frames-aggregate we can just concatenate.
+        # For fly-aggregate, we need to pool per-fly arrays too.
+        per_fly_mode = self._is_fly_aggregate()
+
         # Optionally pool all trainings into a single distribution (for this call)
         if self.cfg.pool_trainings:
             pooled = np.concatenate([th for th in thetas_by_trn if th.size > 0])
             thetas_by_trn = [pooled]
             trn_labels = ["all trainings combined"]
+            if per_fly_mode and per_fly_thetas_by_trn is not None:
+                per_fly_thetas_by_trn = self._pool_per_fly_by_trn(per_fly_thetas_by_trn)
 
         n_trn = len(thetas_by_trn)
         fig, axes = plt.subplots(
@@ -824,20 +856,54 @@ class BetweenRewardPolarOccupancyPlotter:
         widths = np.diff(bin_edges)
 
         any_plotted = False
-        for ax, th, label in zip(axes, thetas_by_trn, trn_labels):
+        for t_idx, (ax, th, label) in enumerate(zip(axes, thetas_by_trn, trn_labels)):
             if th.size == 0:
                 ax.set_axis_off()
                 ax.text(0.5, 0.5, "no data", ha="center", va="center")
                 continue
 
-            counts, _ = np.histogram(th, bins=bin_edges)
-            total = counts.sum()
-            if total == 0:
-                ax.set_axis_off()
-                ax.text(0.5, 0.5, "no data", ha="center", va="center")
-                continue
+            if not per_fly_mode:
+                counts, _ = np.histogram(th, bins=bin_edges)
+                total = counts.sum()
+                if total == 0:
+                    ax.set_axis_off()
+                    ax.text(0.5, 0.5, "no data", ha="center", va="center")
+                    continue
+                vals = counts / total if self.cfg.normalize else counts
+            else:
+                # Each fly contributes one normalized histogram (then mean across flies).
+                if per_fly_thetas_by_trn is None:
+                    ax.set_axis_off()
+                    ax.text(0.5, 0.5, "no per-fly data", ha="center", va="center")
+                    continue
 
-            vals = counts / total if self.cfg.normalize else counts
+                fly_keys = self._fly_keys(per_fly_thetas_by_trn)
+                fly_hists: list[np.ndarray] = []
+
+                for fk in fly_keys:
+                    th_f = per_fly_thetas_by_trn.get((fk, t_idx), np.asarray([], float))
+                    if th_f.size == 0:
+                        continue
+                    if th_f.size < int(getattr(self.cfg, "min_frames_per_fly", 0) or 0):
+                        continue
+
+                    c_f, _ = np.histogram(th_f, bins=bin_edges)
+                    s_f = float(c_f.sum())
+                    if s_f <= 0:
+                        continue
+
+                    if bool(getattr(self.cfg, "normalize", True)):
+                        fly_hists.append(c_f / s_f)
+                    else:
+                        # If normalize=False, "flies" mode becomes "mean counts per fly"
+                        fly_hists.append(c_f.astype(float))
+
+                if not fly_hists:
+                    ax.set_axis_off()
+                    ax.text(0.5, 0.5, "no data", ha="center", va="center")
+                    continue
+
+                vals = np.mean(np.stack(fly_hists, axis=0), axis=0)
             ax.bar(bin_centers, vals, width=widths, align="center")
 
             # display convention (does not change histogram bins)
@@ -864,6 +930,8 @@ class BetweenRewardPolarOccupancyPlotter:
         self,
         thetas_by_trn: list[np.ndarray],
         rs_by_trn: list[np.ndarray],
+        per_fly_theta_by_trn: dict[tuple[str, int], np.ndarray] | None,
+        per_fly_r_by_trn: dict[tuple[str, int], np.ndarray] | None,
         trn_labels: list[str],
         out_file: str,
         title: str,
@@ -876,6 +944,9 @@ class BetweenRewardPolarOccupancyPlotter:
         if not any(th.size for th in thetas_by_trn):
             return False
 
+        per_fly_mode = self._is_fly_aggregate()
+        norm_mode = str(self.cfg.theta_r_normalize or "global")
+
         # Optionally pool all trainings into a single distribution (for this call)
         if self.cfg.pool_trainings:
             pooled_th = np.concatenate([th for th in thetas_by_trn if th.size > 0])
@@ -883,6 +954,13 @@ class BetweenRewardPolarOccupancyPlotter:
             thetas_by_trn = [pooled_th]
             rs_by_trn = [pooled_r]
             trn_labels = ["all trainings combined"]
+            if (
+                per_fly_mode
+                and per_fly_theta_by_trn is not None
+                and per_fly_r_by_trn is not None
+            ):
+                per_fly_theta_by_trn = self._pool_per_fly_by_trn(per_fly_theta_by_trn)
+                per_fly_r_by_trn = self._pool_per_fly_by_trn(per_fly_r_by_trn)
 
         n_trn = len(thetas_by_trn)
         fig, axes = plt.subplots(
@@ -921,31 +999,76 @@ class BetweenRewardPolarOccupancyPlotter:
         H_by_ax: list[tuple[plt.Axes, np.ndarray, str]] = []
         vmax = 0.0
 
-        for ax, th, rr, label in zip(axes, thetas_by_trn, rs_by_trn, trn_labels):
+        for t_idx, (ax, th, rr, label) in enumerate(
+            zip(axes, thetas_by_trn, rs_by_trn, trn_labels)
+        ):
             if th.size == 0 or rr.size == 0:
                 ax.set_axis_off()
                 ax.text(0.5, 0.5, "no data", ha="center", va="center")
                 continue
 
-            # Defensive: ensure aligned lengths
-            n = min(th.size, rr.size)
-            th = th[:n]
-            rr = rr[:n]
+            if not per_fly_mode:
+                # Defensive: ensure aligned lengths
+                n = min(th.size, rr.size)
+                th2 = th[:n]
+                rr2 = rr[:n]
 
-            H, _te, _re = np.histogram2d(th, rr, bins=[theta_edges, r_edges])
+                H, _te, _re = np.histogram2d(th2, rr2, bins=[theta_edges, r_edges])
 
-            norm_mode = str(self.cfg.theta_r_normalize or "global")
-            if norm_mode == "global":
-                s = float(H.sum())
-                if s > 0:
-                    H = H / s
-            elif norm_mode == "per_theta":
-                denom = H.sum(axis=1, keepdims=True)
-                with np.errstate(invalid="ignore", divide="ignore"):
-                    H = np.where(denom > 0, H / denom, 0.0)
+                if norm_mode == "global":
+                    s = float(H.sum())
+                    if s > 0:
+                        H = H / s
+                elif norm_mode == "per_theta":
+                    denom = H.sum(axis=1, keepdims=True)
+                    with np.errstate(invalid="ignore", divide="ignore"):
+                        H = np.where(denom > 0, H / denom, 0.0)
+                else:
+                    # "none": raw counts
+                    pass
             else:
-                # "none": raw counts
-                pass
+                if per_fly_theta_by_trn is None or per_fly_r_by_trn is None:
+                    ax.set_axis_off()
+                    ax.text(0.5, 0.5, "no per-fly data", ha="center", va="center")
+                    continue
+
+                fly_keys = self._fly_keys(per_fly_theta_by_trn)
+                fly_Hs: list[np.ndarray] = []
+
+                for fk in fly_keys:
+                    th_f = per_fly_theta_by_trn.get((fk, t_idx), np.asarray([], float))
+                    rr_f = per_fly_r_by_trn.get((fk, t_idx), np.asarray([], float))
+                    n = min(th_f.size, rr_f.size)
+                    if n == 0:
+                        continue
+                    if n < int(getattr(self.cfg, "min_frames_per_fly", 0) or 0):
+                        continue
+                    th_f = th_f[:n]
+                    rr_f = rr_f[:n]
+
+                    Hf, _tw, _re = np.histogram2d(
+                        th_f, rr_f, bins=[theta_edges, r_edges]
+                    )
+
+                    # Apply same normalization mode, but within-fly.
+                    if norm_mode == "global":
+                        s = float(Hf.sum())
+                        if s > 0:
+                            Hf = Hf / s
+                    elif norm_mode == "per_theta":
+                        denom = Hf.sum(axis=1, keepdims=True)
+                        with np.errstate(invalid="ignore", divide="ignore"):
+                            Hf = np.where(denom > 0, Hf / denom, 0.0)
+                    else:
+                        # "none": interpret as mean counts per fly
+                        pass
+                    fly_Hs.append(Hf.astype(float))
+
+                if not fly_Hs:
+                    ax.set_axis_off()
+                    ax.text(0.5, 0.5, "no data", ha="center", va="center")
+                    continue
+                H = np.mean(np.stack(fly_Hs, axis=0), axis=0)
 
             H_by_ax.append((ax, H, label))
             if H.size:
@@ -1062,6 +1185,10 @@ class BetweenRewardPolarOccupancyPlotter:
         base_title_1d = "Between-reward angular occupancy (around reward center)"
         base_title_2d = "Between-reward occupancy heatmap (theta x radius around reward center; radius in mm)"
         subtitle = self.cfg.subset_label
+        if self._is_fly_aggregate():
+            subtitle = (
+                subtitle + " | " if subtitle else ""
+            ) + "fly-averaged (per-fly normalized)"
 
         pooled_theta_by_trn, pooled_r_by_trn, per_fly_theta_by_trn, per_fly_r_by_trn = (
             self._collect_theta_r()
@@ -1081,6 +1208,7 @@ class BetweenRewardPolarOccupancyPlotter:
             )
             ok_1d = self._plot_theta_hist_multi_training(
                 thetas_by_trn=pooled_theta_by_trn,
+                per_fly_thetas_by_trn=per_fly_theta_by_trn,
                 trn_labels=trn_labels,
                 out_file=out_1d,
                 title=base_title_1d,
@@ -1099,6 +1227,8 @@ class BetweenRewardPolarOccupancyPlotter:
             ok_2d = self._plot_theta_r_heatmap_multi_training(
                 thetas_by_trn=pooled_theta_by_trn,
                 rs_by_trn=pooled_r_by_trn,
+                per_fly_theta_by_trn=per_fly_theta_by_trn,
+                per_fly_r_by_trn=per_fly_r_by_trn,
                 trn_labels=trn_labels,
                 out_file=out_2d,
                 title=base_title_2d,

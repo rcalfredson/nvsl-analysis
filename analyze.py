@@ -627,6 +627,25 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--btw-rwd-polar-aggregate",
+    choices=("frames", "flies"),
+    default="frames",
+    help=(
+        "Aggregation across flies. "
+        "'frames' weights each frame equally (default). "
+        "'flies' averages per-fly normalized distributions so each fly has equal weight."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-polar-min-frames-per-fly",
+    type=int,
+    default=0,
+    help=(
+        "When --btw-rwd-polar-aggregate=flies, require at least this many samples "
+        "per (fly, training) after filters (walking/wall) to include that fly."
+    ),
+)
+g.add_argument(
     "--btw-rwd-polar-pool-trainings",
     action="store_true",
     help="Pool between-reward positions across all trainings into a single polar plot.",
@@ -6175,6 +6194,12 @@ def postAnalyze(vas):
             bins=int(getattr(opts, "btw_rwd_polar_bins", 36)),
             normalize=True,
             pool_trainings=pool_trn,
+            aggregate=str(
+                getattr(opts, "btw_rwd_polar_aggregate", "frames") or "frames"
+            ),
+            min_frames_per_fly=int(
+                getattr(opts, "btw_rwd_polar_min_frames_per_fly", 0) or 0
+            ),
             subset_label=subset_label,
             flip_y=not getattr(opts, "btw_rwd_polar_no_flip_y", False),
             rmax=getattr(opts, "btw_rwd_polar_rmax", None),
