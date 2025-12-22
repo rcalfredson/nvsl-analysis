@@ -43,6 +43,11 @@ class BetweenRewardPolarOccupancyConfig:
     # Coordinate convention: for image coords (y down), flip_y=True makes "up" positive.
     flip_y: bool = True
 
+    # --- geometry normalization ---
+    # If True: mirror coordinate frame using VideoAnalysis.mirror() so that
+    # right-column (va_f==1) large/large2 data overlays with left-column data.
+    mirror: bool = True
+
     # Optional: stabilize radial scale across plots if desired
     rmax: float | None = None
 
@@ -197,6 +202,14 @@ class BetweenRewardPolarOccupancyPlotter:
         return int(np.argmin(d))
 
     # ---------- data collection ----------
+
+    def _mm_per_unit(self, va, used_template: bool) -> float:
+        px_per_mm_floor = float(va.ct.pxPerMmFloor())
+        if used_template:
+            return 1.0 / px_per_mm_floor if px_per_mm_floor > 0 else 1.0
+        fctr = float(getattr(va.xf, "fctr", 1.0) or 1.0)
+        px_per_mm = px_per_mm_floor * fctr
+        return 1.0 / px_per_mm if px_per_mm > 0 else 1.0
 
     def _collect_theta_r(
         self,
@@ -409,13 +422,20 @@ class BetweenRewardPolarOccupancyPlotter:
                             xg = xs[good]
                             yg = ys[good]
 
-                        dx = xg - cx
-                        dy_raw = yg - cy
+                        xg2, yg2, cx2, cy2, used_template = (
+                            self._maybe_mirror_xy_center(va, x=xg, y=yg, cx=cx, cy=cy)
+                        )
+                        dx = xg2 - cx2
+                        dy_raw = yg2 - cy2
                         dy = -dy_raw if self.cfg.flip_y else dy_raw
 
                         theta_up = np.arctan2(dx, dy)  # 0 = up, +90 = right, -90 = left
                         theta_up = (theta_up + np.pi) % (2 * np.pi) - np.pi  # [-pi, pi]
-                        r = np.sqrt(dx * dx + dy * dy) * mm_per_px
+
+                        # choose scale based on coordinate space
+                        mm_per_unit = self._mm_per_unit(va, used_template)
+
+                        r = np.sqrt(dx * dx + dy * dy) * mm_per_unit
 
                         # --- segment-majority attribution (optional) ---
                         if (
@@ -515,11 +535,20 @@ class BetweenRewardPolarOccupancyPlotter:
                                 xg = xs[good]
                                 yg = ys[good]
 
-                            dx = xg - cx
-                            dy_raw = yg - cy
+                            xg2, yg2, cx2, cy2, used_template = (
+                                self._maybe_mirror_xy_center(
+                                    va, x=xg, y=yg, cx=cx, cy=cy
+                                )
+                            )
+                            dx = xg2 - cx2
+                            dy_raw = yg2 - cy2
                             dy = -dy_raw if self.cfg.flip_y else dy_raw
+
                             theta_up = np.arctan2(dx, dy)
                             theta_up = (theta_up + np.pi) % (2 * np.pi) - np.pi
+
+                            # choose scale based on coordinate space
+                            mm_per_unit = self._mm_per_unit(va, used_template)
 
                             for fm, x, y, ddx, ddy_raw_i, ddy_i, th in zip(
                                 idx, xg, yg, dx, dy_raw, dy, theta_up
@@ -546,7 +575,7 @@ class BetweenRewardPolarOccupancyPlotter:
                                         float(ddy_i),
                                         float(
                                             np.sqrt(ddx * ddx + ddy_i * ddy_i)
-                                            * mm_per_px
+                                            * mm_per_unit
                                         ),
                                         float(th),
                                         th_0_2pi,
@@ -700,6 +729,62 @@ class BetweenRewardPolarOccupancyPlotter:
             per_fly_theta_arrays,
             per_fly_r_arrays,
         )
+
+    def _maybe_mirror_xy_center(
+        self, va: "VideoAnalysis", *, x: np.ndarray, y: np.ndarray, cx: float, cy: float
+    ) -> tuple[np.ndarray, np.ndarray, float, float, bool]:
+        """
+        If cfg.mirror:
+          - convert frame coords -> template coords (shift to TL using f=va.f, noMirr=True)
+          - mirror in template coords using va.mirror()
+          - return (x2,y2,cx2,cy2, used_template=True)
+
+        Else: return inputs and used_template=False
+        """
+        if not bool(getattr(self.cfg, "mirror", False)):
+            return x, y, cx, cy, False
+
+        # Need Xformer to map frame->template
+        xf = getattr(va, "xf", None)
+        if xf is None or not getattr(xf, "initialized", lambda: False)():
+            # Fall back safely: no conversion, no mirroring
+            if getattr(self.cfg, "debug", False):
+                print(
+                    "[btw_rwd_polar] WARNING: cfg.mirror=True but va.xf not initialized; skipping mirroring"
+                )
+            return x, y, cx, cy, False
+
+        # Chamber index for shifting into TL template coords
+        va_f = getattr(va, "f", None)
+
+        if getattr(self.cfg, "debug", False) and va.ct in (CT.large, CT.large2):
+            ef = getattr(va, "ef", None)
+            if va_f is not None and ef is not None:
+                if int(va_f) != int(ef):
+                    print(
+                        f"[btw_rwd_polar] NOTE: va.f ({va_f}) != va.ef ({ef}) for {getattr(va, 'fn', '')}; "
+                        "mirroring uses va.ef"
+                    )
+
+        # Frame -> template (shift to TL), but do NOT mirror here (va.mirror owns that)
+        xt, yt = xf.f2t(
+            np.asarray(x, dtype=float), np.asarray(y, dtype=float), f=va_f, noMirr=True
+        )
+        cxt, cyt = xf.f2t(
+            np.asarray([cx], dtype=float),
+            np.asarray([cy], dtype=float),
+            f=va_f,
+            noMirr=True,
+        )
+
+        xy_m = va.mirror([np.asarray(xt, dtype=float), np.asarray(yt, dtype=float)])
+        cxcy_m = va.mirror([np.asarray(cxt, dtype=float), np.asarray(cyt, dtype=float)])
+
+        x2 = np.asarray(xy_m[0], dtype=float)
+        y2 = np.asarray(xy_m[1], dtype=float)
+        cx2 = float(np.asarray(cxcy_m[0], dtype=float)[0])
+        cy2 = float(np.asarray(cxcy_m[1], dtype=float)[0])
+        return x2, y2, cx2, cy2, True
 
     # ---------- plotting helpers ----------
 
