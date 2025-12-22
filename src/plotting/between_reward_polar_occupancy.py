@@ -976,7 +976,7 @@ class BetweenRewardPolarOccupancyPlotter:
 
             yticklabels = ax.get_yticklabels()
             if yticklabels:
-                for t in yticklabels[:-1]:
+                for t in yticklabels:
                     t.set_color("white")
 
         # One shared colorbar, in its own axes so it never overlaps the polar plots.
