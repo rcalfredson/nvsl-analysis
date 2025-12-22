@@ -1052,6 +1052,10 @@ class BetweenRewardPolarOccupancyPlotter:
             f"[btw_rwd_polar] wrote {written} per-fly plot(s) to {self.cfg.per_fly_out_dir}"
         )
 
+    def _outfile_with_suffix(self, suffix: str) -> str:
+        base, ext = os.path.splitext(self.cfg.out_file)
+        return f"{base}{suffix}{ext}"
+
     # ---------- main entry ----------
 
     def plot(self) -> None:
@@ -1065,36 +1069,62 @@ class BetweenRewardPolarOccupancyPlotter:
 
         trn_labels = [t.name() for t in self.trns]
 
-        if str(self.cfg.mode or "theta") == "theta_r":
-            ok = self._plot_theta_r_heatmap_multi_training(
-                thetas_by_trn=pooled_theta_by_trn,
-                rs_by_trn=pooled_r_by_trn,
-                trn_labels=trn_labels,
-                out_file=self.cfg.out_file,
-                title=base_title_2d,
-                subtitle=subtitle,
+        mode = str(self.cfg.mode or "theta")
+
+        wrote_any = False
+
+        if mode in ("theta", "both"):
+            out_1d = (
+                self.cfg.out_file
+                if mode == "theta"
+                else self._outfile_with_suffix("__theta")
             )
-        else:
-            ok = self._plot_theta_hist_multi_training(
+            ok_1d = self._plot_theta_hist_multi_training(
                 thetas_by_trn=pooled_theta_by_trn,
                 trn_labels=trn_labels,
-                out_file=self.cfg.out_file,
+                out_file=out_1d,
                 title=base_title_1d,
                 subtitle=subtitle,
             )
-        if not ok:
+            if ok_1d:
+                print(f"[btw_rwd_polar] wrote {out_1d}")
+                wrote_any = True
+
+        if mode in ("theta_r", "both"):
+            out_2d = (
+                self.cfg.out_file
+                if mode == "theta_r"
+                else self._outfile_with_suffix("__theta_r")
+            )
+            ok_2d = self._plot_theta_r_heatmap_multi_training(
+                thetas_by_trn=pooled_theta_by_trn,
+                rs_by_trn=pooled_r_by_trn,
+                trn_labels=trn_labels,
+                out_file=out_2d,
+                title=base_title_2d,
+                subtitle=subtitle,
+            )
+            if ok_2d:
+                print(f"[btw_rwd_polar] wrote {out_2d}")
+                wrote_any = True
+
+        if not wrote_any:
             print(
                 "[btw_rwd_polar] no between-reward position data found; skipping plot."
             )
             return
 
-        print(f"[btw_rwd_polar] wrote {self.cfg.out_file}")
-
         # optional per-fly plots
         if self.cfg.per_fly:
-            # For now, keep per-fly behavior in 1D mode only.
-            if str(self.cfg.mode or "theta") == "theta_r":
+            # keep per-fly behavior in 1D mode only
+            if mode == "theta_r":
                 print(
                     "[btw_rwd_polar] NOTE: per-fly plots currently render 1D histograms only."
                 )
-            self._plot_per_fly(per_fly_theta_by_trn)
+            else:
+                # mode == theta or both: output per-fly 1D
+                if mode == "both":
+                    print(
+                        "[btw_rwd_polar] NOTE: per-fly plots render 1D histograms only (even when --both is used)."
+                    )
+                self._plot_per_fly(per_fly_theta_by_trn)

@@ -593,6 +593,14 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--btw-rwd-polar-both",
+    action="store_true",
+    help=(
+        "Generate both the 1D angular histogram and the 2D theta×radius heatmap "
+        "in a single run (writes two figures)."
+    ),
+)
+g.add_argument(
     "--btw-rwd-polar-r-bins",
     type=int,
     default=12,
@@ -6149,6 +6157,11 @@ def postAnalyze(vas):
             frac = float(getattr(opts, "best_worst_fraction", 0.1))
             subset_label = f"Restricted to top {100*frac:.1f}% SLI flies"
 
+        do_both = bool(getattr(opts, "btw_rwd_polar_both", False))
+        do_2d = bool(getattr(opts, "btw_rwd_polar_2d", False))
+
+        mode = "both" if do_both else ("theta_r" if do_2d else "theta")
+
         def _btw_rwd_polar_outfile(*, top_sli: bool, pool_trainings: bool) -> str:
             base, ext = os.path.splitext(
                 BTW_RWD_POLAR_IMG_FILE
@@ -6166,7 +6179,7 @@ def postAnalyze(vas):
             flip_y=not getattr(opts, "btw_rwd_polar_no_flip_y", False),
             rmax=getattr(opts, "btw_rwd_polar_rmax", None),
             # --- 2D theta x r mode (plumbing) ---
-            mode=("theta_r" if getattr(opts, "btw_rwd_polar_2d", False) else "theta"),
+            mode=mode,
             r_bins=int(getattr(opts, "btw_rwd_polar_r_bins", 12)),
             r_max=getattr(opts, "btw_rwd_polar_r_max", None),
             theta_r_normalize=str(
