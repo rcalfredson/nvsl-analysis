@@ -1140,36 +1140,43 @@ class BetweenRewardPolarOccupancyPlotter:
         fly_keys = sorted({fk for (fk, _t) in per_fly_by_trn.keys()})
         written = 0
 
-        for fk in fly_keys:
-            if (
-                self.cfg.max_per_fly_plots is not None
-                and written >= self.cfg.max_per_fly_plots
-            ):
-                break
+        prev_agg = self.cfg.aggregate
+        self.cfg.aggregate = "frames"
 
-            thetas_by_trn = [
-                per_fly_by_trn.get((fk, t_idx), np.asarray([], dtype=float))
-                for t_idx in range(self.n_trn)
-            ]
-            trn_labels = [t.name() for t in self.trns]
+        try:
+            for fk in fly_keys:
+                if (
+                    self.cfg.max_per_fly_plots is not None
+                    and written >= self.cfg.max_per_fly_plots
+                ):
+                    break
 
-            out_fn = f"btw_rwd_polar__{self._safe_filename(fk)}.png"
-            out_path = os.path.join(self.cfg.per_fly_out_dir, out_fn)
+                thetas_by_trn = [
+                    per_fly_by_trn.get((fk, t_idx), np.asarray([], dtype=float))
+                    for t_idx in range(self.n_trn)
+                ]
+                trn_labels = [t.name() for t in self.trns]
 
-            title = "Between-reward angular occupancy (around reward center)"
-            subtitle = fk
-            if self.cfg.subset_label:
-                subtitle = f"{fk} | {self.cfg.subset_label}"
+                out_fn = f"btw_rwd_polar__{self._safe_filename(fk)}.png"
+                out_path = os.path.join(self.cfg.per_fly_out_dir, out_fn)
 
-            ok = self._plot_theta_hist_multi_training(
-                thetas_by_trn=thetas_by_trn,
-                trn_labels=trn_labels,
-                out_file=out_path,
-                title=title,
-                subtitle=subtitle,
-            )
-            if ok:
-                written += 1
+                title = "Between-reward angular occupancy (around reward center)"
+                subtitle = fk
+                if self.cfg.subset_label:
+                    subtitle = f"{fk} | {self.cfg.subset_label}"
+
+                ok = self._plot_theta_hist_multi_training(
+                    thetas_by_trn=thetas_by_trn,
+                    per_fly_thetas_by_trn=None,
+                    trn_labels=trn_labels,
+                    out_file=out_path,
+                    title=title,
+                    subtitle=subtitle,
+                )
+                if ok:
+                    written += 1
+        finally:
+            self.cfg.aggregate = prev_agg
 
         print(
             f"[btw_rwd_polar] wrote {written} per-fly plot(s) to {self.cfg.per_fly_out_dir}"
