@@ -33,6 +33,7 @@ class BetweenRewardPolarOccupancyConfig:
     r_bins: int = 12
     # Max radius (mm) for binning/axis in 2D mode; if None, auto-derived from data.
     r_max: float | None = None
+    r_tick_step: float = 5.0
     # Normalization for 2D mode:
     # - "global": divide by total samples
     # - "per_theta": normalize within each theta sector
@@ -197,22 +198,33 @@ class BetweenRewardPolarOccupancyPlotter:
 
     # ---------- data collection ----------
 
-    def _collect_angles(
+    def _collect_theta_r(
         self,
-    ) -> tuple[list[np.ndarray], dict[tuple[str, int], np.ndarray]]:
+    ) -> tuple[
+        list[np.ndarray],
+        list[np.ndarray],
+        dict[tuple[str, int], np.ndarray],
+        dict[tuple[str, int], np.ndarray],
+    ]:
         """
-        Returns:
-            pooled_by_trn:
-                list length n_trainings, each an array of angles (radians)
-                pooled across all included VAs/flies.
+        Collect (theta, r) samples for between-reward segments.
 
-            per_fly_by_trn:
-                dict keyed by (fly_key, t_idx) -> array of angles (radians),
-                where fly_key is a stable identifier for that VA+fly.
+        Returns:
+            pooled_theta_by_trn:
+                list length n_trainings, each an array of theta (radians)
+            pooled_r_by_trn:
+                list length n_trainings, each an array of radius (mm)
+            per_fly_theta_by_trn:
+                dict keyed by (fly_key, t_idx) -> array of theta
+            per_fly_r_by_trn:
+                dict keyed by (fly_key, t_idx) -> array of radius
         """
         n_trn = len(self.trns)
-        pooled_by_trn: list[list[float]] = [[] for _ in range(n_trn)]
-        per_fly_by_trn: dict[tuple[str, int], list[float]] = defaultdict(list)
+        pooled_theta_by_trn: list[list[float]] = [[] for _ in range(n_trn)]
+        pooled_r_by_trn: list[list[float]] = [[] for _ in range(n_trn)]
+
+        per_fly_theta_by_trn: dict[tuple[str, int], list[float]] = defaultdict(list)
+        per_fly_r_by_trn: dict[tuple[str, int], list[float]] = defaultdict(list)
 
         # segment-majority output (optional)
         want_seg_majority = bool(self.cfg.seg_majority_out_tsv)
@@ -271,6 +283,19 @@ class BetweenRewardPolarOccupancyPlotter:
             va_fn = getattr(va, "fn", "")
             va_f = getattr(va, "f", "")
             va_id = f"{va_fn}__{va_f}".strip("_") or str(id(va))
+
+            try:
+                px_per_mm = float(va.ct.pxPerMmFloor() * va.xf.fctr)
+            except Exception:
+                px_per_mm = 0.0
+
+            mm_per_px = 1.0 / px_per_mm if px_per_mm > 0 else 1.0
+
+            if px_per_mm <= 0 and self.cfg.debug:
+                print(
+                    f"[btw_rwd_polar] WARNING: non-positive px_per_mm for {va_fn}; leaving r in pixels"
+                )
+
             if len(va.trns) != n_trn:
                 if self.cfg.debug:
                     print(
@@ -390,6 +415,7 @@ class BetweenRewardPolarOccupancyPlotter:
 
                         theta_up = np.arctan2(dx, dy)  # 0 = up, +90 = right, -90 = left
                         theta_up = (theta_up + np.pi) % (2 * np.pi) - np.pi  # [-pi, pi]
+                        r = np.sqrt(dx * dx + dy * dy) * mm_per_px
 
                         # --- segment-majority attribution (optional) ---
                         if (
@@ -434,9 +460,11 @@ class BetweenRewardPolarOccupancyPlotter:
                                         break
 
                         # pooled
-                        pooled_by_trn[t_idx].extend(theta_up.tolist())
+                        pooled_theta_by_trn[t_idx].extend(theta_up.tolist())
+                        pooled_r_by_trn[t_idx].extend(r.tolist())
                         # per-fly
-                        per_fly_by_trn[(fly_key, t_idx)].extend(theta_up.tolist())
+                        per_fly_theta_by_trn[(fly_key, t_idx)].extend(theta_up.tolist())
+                        per_fly_r_by_trn[(fly_key, t_idx)].extend(r.tolist())
 
                     # ---- debug emission (separate from plot data collection) ----
                     if (want_debug_global or want_debug_per_fly) and debug_windows:
@@ -516,6 +544,10 @@ class BetweenRewardPolarOccupancyPlotter:
                                         float(ddx),
                                         float(ddy_raw_i),
                                         float(ddy_i),
+                                        float(
+                                            np.sqrt(ddx * ddx + ddy_i * ddy_i)
+                                            * mm_per_px
+                                        ),
                                         float(th),
                                         th_0_2pi,
                                         th_deg,
@@ -544,6 +576,7 @@ class BetweenRewardPolarOccupancyPlotter:
                         "dx",
                         "dy_raw",
                         "dy_used",
+                        "r_used",
                         "theta_rad",
                         "theta_0_2pi",
                         "theta_deg",
@@ -583,6 +616,7 @@ class BetweenRewardPolarOccupancyPlotter:
                             "dx",
                             "dy_raw",
                             "dy_used",
+                            "r_used",
                             "theta_rad",
                             "theta_0_2pi",
                             "theta_deg",
@@ -623,21 +657,29 @@ class BetweenRewardPolarOccupancyPlotter:
                 f"[btw_rwd_polar][seg_majority] wrote {len(seg_rows)} rows to {out_path}"
             )
 
-        pooled_arrays = [np.asarray(vals, dtype=float) for vals in pooled_by_trn]
-        per_fly_arrays = {
-            k: np.asarray(v, dtype=float) for k, v in per_fly_by_trn.items()
+        pooled_theta_arrays = [
+            np.asarray(vals, dtype=float) for vals in pooled_theta_by_trn
+        ]
+        pooled_r_arrays = [np.asarray(vals, dtype=float) for vals in pooled_r_by_trn]
+
+        per_fly_theta_arrays = {
+            k: np.asarray(v, dtype=float) for k, v in per_fly_theta_by_trn.items()
         }
+        per_fly_r_arrays = {
+            k: np.asarray(v, dtype=float) for k, v in per_fly_r_by_trn.items()
+        }
+
         if self.cfg.per_fly:
             sizes = sorted(
                 (
                     (
                         fk,
                         sum(
-                            len(per_fly_by_trn.get((fk, t), np.array([])))
+                            len(per_fly_theta_by_trn.get((fk, t), []))
                             for t in range(n_trn)
                         ),
                     )
-                    for fk in sorted({k[0] for k in per_fly_by_trn.keys()})
+                    for fk in sorted({k[0] for k in per_fly_theta_by_trn.keys()})
                 ),
                 key=lambda x: x[1],
                 reverse=True,
@@ -652,11 +694,16 @@ class BetweenRewardPolarOccupancyPlotter:
                 f"regions were missing for {missing_wall_regions}/{checked_wall_regions} "
                 f"(va,training,fly) combinations. Those cases were plotted without exclusion."
             )
-        return pooled_arrays, per_fly_arrays
+        return (
+            pooled_theta_arrays,
+            pooled_r_arrays,
+            per_fly_theta_arrays,
+            per_fly_r_arrays,
+        )
 
     # ---------- plotting helpers ----------
 
-    def _plot_multi_training(
+    def _plot_theta_hist_multi_training(
         self,
         thetas_by_trn: list[np.ndarray],
         trn_labels: list[str],
@@ -728,6 +775,149 @@ class BetweenRewardPolarOccupancyPlotter:
         plt.close(fig)
         return any_plotted
 
+    def _plot_theta_r_heatmap_multi_training(
+        self,
+        thetas_by_trn: list[np.ndarray],
+        rs_by_trn: list[np.ndarray],
+        trn_labels: list[str],
+        out_file: str,
+        title: str,
+        subtitle: str | None = None,
+    ) -> bool:
+        """
+        Plot one polar heatmap per training (subplots), where color encodes
+        occupancy in (theta, r) bins.
+        """
+        if not any(th.size for th in thetas_by_trn):
+            return False
+
+        # Optionally pool all trainings into a single distribution (for this call)
+        if self.cfg.pool_trainings:
+            pooled_th = np.concatenate([th for th in thetas_by_trn if th.size > 0])
+            pooled_r = np.concatenate([rr for rr in rs_by_trn if rr.size > 0])
+            thetas_by_trn = [pooled_th]
+            rs_by_trn = [pooled_r]
+            trn_labels = ["all trainings combined"]
+
+        n_trn = len(thetas_by_trn)
+        fig, axes = plt.subplots(
+            1,
+            n_trn,
+            figsize=(4.6 * n_trn if n_trn > 1 else 7.2, 5.2),
+            squeeze=False,
+            subplot_kw={"projection": "polar"},
+        )
+        axes = axes[0]
+
+        theta_edges = np.linspace(-np.pi, np.pi, int(self.cfg.bins) + 1)
+        n_r_bins = int(self.cfg.r_bins)
+
+        # If user didn't fix r_max, choose a robust max across all data in this call.
+        r_max = self.cfg.r_max
+        if r_max is None:
+            all_r = (
+                np.concatenate([rr for rr in rs_by_trn if rr.size > 0])
+                if any(rr.size for rr in rs_by_trn)
+                else np.asarray([], dtype=float)
+            )
+            if all_r.size > 0:
+                # robust to outliers
+                r_max = float(np.nanpercentile(all_r, 99.0))
+            else:
+                r_max = 1.0
+        # avoid degenerate
+        r_max = max(float(r_max), 1e-9)
+
+        r_edges = np.linspace(0.0, r_max, n_r_bins + 1)
+
+        # Share color scale across subplots for comparability:
+        # compute all H first to get a global vmax, then render with common vmin/vmax.
+        any_plotted = False
+        H_by_ax: list[tuple[plt.Axes, np.ndarray, str]] = []
+        vmax = 0.0
+
+        for ax, th, rr, label in zip(axes, thetas_by_trn, rs_by_trn, trn_labels):
+            if th.size == 0 or rr.size == 0:
+                ax.set_axis_off()
+                ax.text(0.5, 0.5, "no data", ha="center", va="center")
+                continue
+
+            # Defensive: ensure aligned lengths
+            n = min(th.size, rr.size)
+            th = th[:n]
+            rr = rr[:n]
+
+            H, _te, _re = np.histogram2d(th, rr, bins=[theta_edges, r_edges])
+
+            norm_mode = str(self.cfg.theta_r_normalize or "global")
+            if norm_mode == "global":
+                s = float(H.sum())
+                if s > 0:
+                    H = H / s
+            elif norm_mode == "per_theta":
+                denom = H.sum(axis=1, keepdims=True)
+                with np.errstate(invalid="ignore", divide="ignore"):
+                    H = np.where(denom > 0, H / denom, 0.0)
+            else:
+                # "none": raw counts
+                pass
+
+            H_by_ax.append((ax, H, label))
+            if H.size:
+                vmax = max(vmax, float(np.nanmax(H)))
+            any_plotted = True
+
+        if not any_plotted:
+            plt.close(fig)
+            return False
+
+        # Avoid degenerate color scales (e.g., all zeros)
+        vmax = max(float(vmax), 1e-12)
+
+        TH, RR = np.meshgrid(theta_edges, r_edges, indexing="ij")
+        meshes = []
+        for ax, H, label in H_by_ax:
+            m = ax.pcolormesh(TH, RR, H, shading="auto", vmin=0.0, vmax=vmax)
+            meshes.append(m)
+            ax.set_theta_zero_location("N")
+            ax.set_theta_direction(-1)
+            ax.set_rmax(r_max)
+            step = float(self.cfg.r_tick_step)  # mm
+            if step > 0:
+                ticks = np.arange(step, r_max + 1e-9, step)
+                if ticks.size:
+                    ax.set_rticks(ticks)
+            ax.set_title(label)
+
+            yticklabels = ax.get_yticklabels()
+            if yticklabels:
+                for t in yticklabels[:-1]:
+                    t.set_color("white")
+
+        # One shared colorbar, in its own axes so it never overlaps the polar plots.
+        if meshes:
+            # Reserve space on the right for the colorbar
+            fig.subplots_adjust(right=0.86)
+            # [left, bottom, width height] in figure coordinates
+            cax = fig.add_axes([0.88, 0.17, 0.03, 0.66])
+            cb = fig.colorbar(meshes[-1], cax=cax)
+            if str(self.cfg.theta_r_normalize or "global") == "none":
+                cb.set_label("frame count")
+            elif str(self.cfg.theta_r_normalize or "global") == "per_theta":
+                cb.set_label("fraction within theta sector")
+            else:
+                cb.set_label("fraction of frames")
+
+        fig.subplots_adjust(top=0.84)
+
+        fig.text(0.5, 0.97, title, ha="center", va="top")
+        if subtitle:
+            fig.text(0.5, 0.935, subtitle, ha="center", va="top")
+
+        writeImage(out_file, format=self.opts.imageFormat)
+        plt.close(fig)
+        return True
+
     def _safe_filename(self, s: str) -> str:
         """Make a string safe-ish for filenames."""
         return "".join(c if c.isalnum() or c in ("-", "_", ".") else "_" for c in s)
@@ -763,7 +953,7 @@ class BetweenRewardPolarOccupancyPlotter:
             if self.cfg.subset_label:
                 subtitle = f"{fk} | {self.cfg.subset_label}"
 
-            ok = self._plot_multi_training(
+            ok = self._plot_theta_hist_multi_training(
                 thetas_by_trn=thetas_by_trn,
                 trn_labels=trn_labels,
                 out_file=out_path,
@@ -780,20 +970,33 @@ class BetweenRewardPolarOccupancyPlotter:
     # ---------- main entry ----------
 
     def plot(self) -> None:
-        pooled_by_trn, per_fly_by_trn = self._collect_angles()
-
-        base_title = "Between-reward angular occupancy (around reward center)"
+        base_title_1d = "Between-reward angular occupancy (around reward center)"
+        base_title_2d = "Between-reward occupancy heatmap (theta x radius around reward center; radius in mm)"
         subtitle = self.cfg.subset_label
 
-        # pooled plot (existing behavior)
-        trn_labels = [t.name() for t in self.trns]
-        ok = self._plot_multi_training(
-            thetas_by_trn=pooled_by_trn,
-            trn_labels=trn_labels,
-            out_file=self.cfg.out_file,
-            title=base_title,
-            subtitle=subtitle,
+        pooled_theta_by_trn, pooled_r_by_trn, per_fly_theta_by_trn, per_fly_r_by_trn = (
+            self._collect_theta_r()
         )
+
+        trn_labels = [t.name() for t in self.trns]
+
+        if str(self.cfg.mode or "theta") == "theta_r":
+            ok = self._plot_theta_r_heatmap_multi_training(
+                thetas_by_trn=pooled_theta_by_trn,
+                rs_by_trn=pooled_r_by_trn,
+                trn_labels=trn_labels,
+                out_file=self.cfg.out_file,
+                title=base_title_2d,
+                subtitle=subtitle,
+            )
+        else:
+            ok = self._plot_theta_hist_multi_training(
+                thetas_by_trn=pooled_theta_by_trn,
+                trn_labels=trn_labels,
+                out_file=self.cfg.out_file,
+                title=base_title_1d,
+                subtitle=subtitle,
+            )
         if not ok:
             print(
                 "[btw_rwd_polar] no between-reward position data found; skipping plot."
@@ -804,4 +1007,9 @@ class BetweenRewardPolarOccupancyPlotter:
 
         # optional per-fly plots
         if self.cfg.per_fly:
-            self._plot_per_fly(per_fly_by_trn)
+            # For now, keep per-fly behavior in 1D mode only.
+            if str(self.cfg.mode or "theta") == "theta_r":
+                print(
+                    "[btw_rwd_polar] NOTE: per-fly plots currently render 1D histograms only."
+                )
+            self._plot_per_fly(per_fly_theta_by_trn)
