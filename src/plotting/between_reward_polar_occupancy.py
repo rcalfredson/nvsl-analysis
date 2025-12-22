@@ -7,7 +7,7 @@ import csv
 from dataclasses import dataclass
 import hashlib
 import os
-from typing import Sequence
+from typing import Optional, Sequence
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -278,6 +278,33 @@ class BetweenRewardPolarOccupancyPlotter:
             for deg in target_degs
         }
 
+        def _slice_start_stop(sl) -> tuple[int, int]:
+            """
+            Robustly convert a slice-like object to (start, stop) ints.
+            Treat None as 0 (matches prior behavior, but now centralized).
+            """
+            a = 0 if getattr(sl, "start", None) is None else int(sl.start)
+            b = 0 if getattr(sl, "stop", None) is None else int(sl.stop)
+            return a, b
+
+        def _any_overlap_with_wall_regions(
+            wall_regions: Optional[Sequence[slice]], s: int, e: int
+        ) -> bool:
+            """
+            Return True if ANY wall-contact region overlaps [s, e).
+            This implements segment-wise exclusion semantics.
+            """
+            if not wall_regions:
+                return False
+            s = int(s)
+            e = int(e)
+            for sl in wall_regions:
+                a, b = _slice_start_stop(sl)
+                # overlap is max(start) < min(stop)
+                if min(b, e) > max(a, s):
+                    return True
+            return False
+
         debug_rows_global: list[list[object]] = []
         debug_written_global = 0
         want_debug_global = bool(self.cfg.debug and self.cfg.debug_out_tsv)
@@ -402,6 +429,14 @@ class BetweenRewardPolarOccupancyPlotter:
                         if e <= s + 1:
                             continue
 
+                        # Segment-wise wall-contact exclusion:
+                        # If any wall-contact overlaps this segment, drop it entirely.
+                        if (
+                            self.cfg.exclude_wall_contact
+                            and _any_overlap_with_wall_regions(wall_regions, s, e)
+                        ):
+                            continue
+
                         xs = trj.x[s:e]
                         ys = trj.y[s:e]
                         good = np.isfinite(xs) & np.isfinite(ys)
@@ -412,24 +447,6 @@ class BetweenRewardPolarOccupancyPlotter:
                             if w.shape != good.shape:
                                 continue
                             good &= w
-
-                        if self.cfg.exclude_wall_contact and wall_regions:
-                            # frames s..e-1; build a boolean "in_contact" then exclude them
-                            in_contact = np.zeros(e - s, dtype=bool)
-
-                            # wall_regions is a list of slices in absolute frame coords
-                            for sl in wall_regions:
-                                # robustly get start/stop for slice
-                                a = 0 if sl.start is None else int(sl.start)
-                                b = 0 if sl.stop is None else int(sl.stop)
-
-                                # intersect with [s, e)
-                                aa = max(a, s)
-                                bb = min(b, e)
-                                if bb > aa:
-                                    in_contact[(aa - s) : (bb - s)] = True
-
-                            good &= ~in_contact
 
                         if not np.any(good):
                             continue
@@ -519,6 +536,15 @@ class BetweenRewardPolarOccupancyPlotter:
                             if e_win <= s_win + 1:
                                 continue
 
+                            # drop any window that intersects wall-contact.
+                            if (
+                                self.cfg.exclude_wall_contact
+                                and _any_overlap_with_wall_regions(
+                                    wall_regions, s_win, e_win
+                                )
+                            ):
+                                continue
+
                             xs = trj.x[s_win:e_win]
                             ys = trj.y[s_win:e_win]
                             good = np.isfinite(xs) & np.isfinite(ys)
@@ -528,23 +554,6 @@ class BetweenRewardPolarOccupancyPlotter:
                                 if w.shape != good.shape:
                                     continue
                                 good &= w
-
-                            if self.cfg.exclude_wall_contact and wall_regions:
-                                # frames s_win..e_win-1; build a boolean "in_contact" then exclude them
-                                in_contact = np.zeros(e_win - s_win, dtype=bool)
-
-                                # wall_regions is a list of slices in absolute frame coords
-                                for sl in wall_regions:
-                                    # robustly get start/stop for slice
-                                    a = 0 if sl.start is None else int(sl.start)
-                                    b = 0 if sl.stop is None else int(sl.stop)
-
-                                    # intersect with [s_win, e_win)
-                                    aa = max(a, s_win)
-                                    bb = min(b, e_win)
-                                    if bb > aa:
-                                        in_contact[(aa - s_win) : (bb - s_win)] = True
-                                good &= ~in_contact
 
                             if not np.any(good):
                                 continue
@@ -1116,7 +1125,7 @@ class BetweenRewardPolarOccupancyPlotter:
             else:
                 cb.set_label("fraction of frames")
 
-        fig.subplots_adjust(top=0.84)
+        fig.subplots_adjust(top=0.79)
 
         fig.text(0.5, 0.97, title, ha="center", va="top")
         if subtitle:
@@ -1193,9 +1202,7 @@ class BetweenRewardPolarOccupancyPlotter:
         base_title_2d = "Between-reward occupancy heatmap (theta x radius around reward center; radius in mm)"
         subtitle = self.cfg.subset_label
         if self._is_fly_aggregate():
-            subtitle = (
-                subtitle + " | " if subtitle else ""
-            ) + "fly-averaged (per-fly normalized)"
+            subtitle = (subtitle + " | " if subtitle else "") + "(per-fly normalized)"
 
         pooled_theta_by_trn, pooled_r_by_trn, per_fly_theta_by_trn, per_fly_r_by_trn = (
             self._collect_theta_r()
