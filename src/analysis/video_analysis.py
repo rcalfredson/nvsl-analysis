@@ -250,6 +250,8 @@ class VideoAnalysis:
                 self._aggregate_slide_circle_metrics()
             if opts.rpd:
                 self._rewards_per_distance()
+            if getattr(opts, "turnback_dual_circle", False):
+                self.analyzeRewardTurnbackDualCircle()
             if getattr(opts, "agarose_dual_circle", False) and self.ct in (
                 CT.large,
                 CT.large2,
@@ -990,6 +992,127 @@ class VideoAnalysis:
         )
         for trj in self.trx:
             trj._calcOutsideCirclePeriods()
+
+    def analyzeRewardTurnbackDualCircle(
+        self, inner_delta_mm: float | None = None, outer_delta_mm: float | None = None
+    ):
+        """
+        Dual-circle 'turn-back' metric around reward circle, aggregated by sync bucket.
+
+        For each sync bucket, we compute:
+            ratio[t, f, b] =
+                (# episodes for fly f whose start frame falls in bucket b and that
+                 re-enter the inner circle before ever leaving the outer circle)
+                /
+                (# all such episodes whose start frame falls in bucket b)
+
+        Episode definition (per training):
+          - Start: first frame after an in_inner True-> False transition (exit inner).
+          - End: first frame of either:
+              * re-enter inner (success), or
+              * leave outer (failure), or
+              * training end (failure)
+
+        Results are stored in:
+            self.reward_turnback_dual_circle_counts = {
+                "turnback": np.ndarray,  # shape (n_trn, n_flies, n_sb)
+                "total":    np.ndarray,  # same shape
+                "ratio":    np.ndarray,  # float, NaN where total == 0
+            }
+        """
+        # Only meaningful when reward circles exist
+        if not getattr(self, "circle", False):
+            return
+
+        # options / defaults
+        if inner_delta_mm is None:
+            inner_delta_mm = float(
+                getattr(self.opts, "turnback_inner_delta_mm", 0.0) or 0.0
+            )
+        if outer_delta_mm is None:
+            outer_delta_mm = float(
+                getattr(self.opts, "turnback_outer_delta_mm", 2.0) or 2.0
+            )
+
+        min_outside_frames = int(
+            getattr(self.opts, "turnback_min_outside_frames", 1) or 1
+        )
+        border_width_mm = float(
+            getattr(self.opts, "turnback_border_width_mm", 0.1) or 0.1
+        )
+        debug = bool(getattr(self.opts, "turnback_dual_circle_debug", False))
+
+        sync_ranges = getattr(self, "sync_bucket_ranges", None)
+        if sync_ranges is None:
+            raise RuntimeError(
+                "sync_bucket_ranges is not defined. "
+                "Make sure bySyncBucket() has been called before "
+                "analyzeRewardTurnbackDualCircle()."
+            )
+
+        n_trn = len(sync_ranges)
+        n_flies = len(self.trx)
+        max_nb = max((len(br) for br in sync_ranges), default=0)
+
+        if max_nb == 0:
+            self.reward_turnback_dual_circle_counts = {
+                "turnback": np.zeros((n_trn, n_flies, 0), dtype=int),
+                "total": np.zeros((n_trn, n_flies, 0), dtype=int),
+                "ratio": np.zeros((n_trn, n_flies, 0), dtype=float),
+            }
+            return
+
+        turn_counts = np.zeros((n_trn, n_flies, max_nb), dtype=int)
+        total_counts = np.zeros((n_trn, n_flies, max_nb), dtype=int)
+
+        for t_idx, bucket_ranges in enumerate(sync_ranges):
+            if not bucket_ranges:
+                continue
+            if t_idx >= len(self.trns):
+                continue
+
+            trn = self.trns[t_idx]
+            if trn is None or not trn.isCircle():
+                continue
+
+            # Per-fly episode detection for this training, then bin by sync bucket
+            for fi, trj in enumerate(self.trx):
+                if not self.noyc and fi != 0:
+                    continue
+
+                if getattr(trj, "_bad", False):
+                    continue
+
+                episodes = trj.reward_turnback_dual_circle_episodes_for_training(
+                    trn=trn,
+                    inner_delta_mm=inner_delta_mm,
+                    outer_delta_mm=outer_delta_mm,
+                    min_outside_frames=min_outside_frames,
+                    border_width_mm=border_width_mm,
+                    debug=debug,
+                )
+                if not episodes:
+                    continue
+
+                for ep in episodes:
+                    entry = int(ep["start"])
+                    turns_back = bool(ep.get("turns_back", False))
+
+                    # find which bucket this entry belongs to within this training
+                    for b_idx, (sb_start, sb_stop) in enumerate(bucket_ranges):
+                        if sb_start <= entry < sb_stop:
+                            total_counts[t_idx, fi, b_idx] += 1
+                            if turns_back:
+                                turn_counts[t_idx, fi, b_idx] += 1
+                            break
+        ratio = np.full_like(turn_counts, np.nan, dtype=float)
+        np.divide(turn_counts, total_counts, out=ratio, where=(total_counts > 0))
+
+        self.reward_turnback_dual_circle_counts = {
+            "turnback": turn_counts,
+            "total": total_counts,
+            "ratio": ratio,
+        }
 
     def analyzeAgaroseDualCircleAvoidance(self, delta_mm=None):
         """

@@ -911,6 +911,40 @@ g.add_argument(
     help="extra radius (in mm) added around agarose wells to define outer circle",
 )
 g.add_argument(
+    "--turnback-dual-circle",
+    action="store_true",
+    help="analyze dual-circle reward turn-back metric",
+)
+g.add_argument(
+    "--turnback-inner-delta-mm",
+    type=float,
+    default=0.0,
+    help="inner padding (mm) added to reward-circle radius for turnback metric",
+)
+g.add_argument(
+    "--turnback-outer-delta-mm",
+    type=float,
+    default=2.0,
+    help="outer padding (mm) added to reward-circle radius for turnback metric",
+)
+g.add_argument(
+    "--turnback-min-outside-frames",
+    type=int,
+    default=1,
+    help="minimum frames outside inner circle to count a turnback episode",
+)
+g.add_argument(
+    "--turnback-border-width-mm",
+    type=float,
+    default=0.1,
+    help="border thickness (mm) used for in-circle classification in turnback metric",
+)
+g.add_argument(
+    "--turnback-dual-circle-debug",
+    action="store_true",
+    help="print debug info for turnback dual-circle episodes",
+)
+g.add_argument(
     "--rc_turn_tests",
     help="which test(s) to apply for group comparisons of distance from reward circle"
     " at the start/end of turns. Choices: t-test ('t') and/or Mann-Whitney U test"

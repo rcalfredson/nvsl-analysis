@@ -521,6 +521,177 @@ class Trajectory:
                 fn = CALC_REWARDS_IMG_FILE % ("ctrl" if ctrl else "post", self.f + 1)
                 writeImage(fn, img)
 
+    def reward_turnback_dual_circle_episodes_for_training(
+        self,
+        *,
+        trn,
+        inner_delta_mm: float = 0.0,
+        outer_delta_mm: float = 2.0,
+        min_outside_frames: int = 1,
+        border_width_mm: float = 0.1,
+        debug: bool = False,
+    ) -> list[dict]:
+        """
+        Return dual-circle 'turn-back' episodes around reward circle for one training.
+
+        Episode starts when exiting inner circle, ends when re-entering inner (success)
+        or leaving outer (failure) or reaching training end (failure).
+        """
+        episodes: list[dict] = []
+
+        if not self.va:
+            return episodes
+        if not trn or not trn.isCircle():
+            return episodes
+
+        cs = trn.circles(self.f)
+        if not cs:
+            return episodes
+
+        cx, cy, r_px = cs[0]
+        if cx is None or cy is None or r_px is None:
+            return episodes
+        if np.isnan(cx) or np.isnan(cy) or np.isnan(r_px):
+            return episodes
+
+        # mm -> px conversion in the same coordinate space as x/y
+        fctr = float(getattr(self.va.xf, "fctr", 1.0) or 1.0)
+        px_per_mm = float(self.va.ct.pxPerMmFloor()) * fctr
+        inner_r_px = float(r_px) + float(inner_delta_mm) * px_per_mm
+        outer_r_px = float(r_px) + float(outer_delta_mm) * px_per_mm
+        if outer_r_px <= inner_r_px:
+            return episodes
+
+        border_width_px = float(border_width_mm) * px_per_mm
+
+        # training frame bounds
+        t0 = int(trn.start)
+        t1 = int(trn.stop)
+        if t1 <= t0 + 1:
+            return episodes
+
+        xs = self.x[t0:t1]
+        ys = self.y[t0:t1]
+        good = np.isfinite(xs) & np.isfinite(ys)
+
+        in_inner = np.zeros(t1 - t0, dtype=bool)
+        in_outer = np.zeros(t1 - t0, dtype=bool)
+
+        if np.any(good):
+            inner_state = self.calc_in_circle(
+                xs[good], ys[good], cx, cy, inner_r_px, border_width_px=border_width_px
+            )
+            outer_state = self.calc_in_circle(
+                xs[good], ys[good], cx, cy, outer_r_px, border_width_px=border_width_px
+            )
+            in_inner[good] = inner_state > 0
+            in_outer[good] = outer_state > 0
+
+        # transitions in_inner: True->False is exit; False->True is re-entry
+        prev = in_inner[:-1]
+        curr = in_inner[1:]
+        exit_idxs = np.where(prev & (~curr))[0] + 1
+        enter_idxs = np.where((~prev) & curr)[0] + 1
+
+        if debug:
+            print(
+                f"{flyDesc(self.f)} {trn.sname()}: "
+                f"inner_r={inner_r_px:.2f}px outer_r={outer_r_px:.2f}px "
+                f"exits={len(exit_idxs)} enters={len(enter_idxs)}"
+            )
+
+        enter_ptr = 0
+        dropped_too_short = 0
+        dropped_empty_window = 0
+        for ex in exit_idxs:
+            while enter_ptr < len(enter_idxs) and enter_idxs[enter_ptr] <= ex:
+                enter_ptr += 1
+            next_enter = enter_idxs[enter_ptr] if enter_ptr < len(enter_idxs) else None
+
+            search_stop = next_enter if next_enter is not None else (t1 - t0)
+            if search_stop <= ex:
+                dropped_empty_window += 1
+                continue
+            if (search_stop - ex) < int(min_outside_frames):
+                dropped_too_short += 1
+                continue
+
+            outer_violation_rel = np.where(~in_outer[ex:search_stop])[0]
+            if outer_violation_rel.size > 0:
+                vio = ex + int(outer_violation_rel[0])
+                episodes.append(
+                    {
+                        "start": int(t0 + ex),
+                        "stop": int(t0 + vio + 1),
+                        "turns_back": False,
+                        "end_reason": "exit_outer",
+                    }
+                )
+                continue
+
+            if next_enter is not None:
+                episodes.append(
+                    {
+                        "start": int(t0 + ex),
+                        "stop": int(t0 + next_enter),
+                        "turns_back": True,
+                        "end_reason": "reenter_inner",
+                    }
+                )
+            else:
+                episodes.append(
+                    {
+                        "start": int(t0 + ex),
+                        "stop": int(t1),
+                        "turns_back": False,
+                        "end_reason": "trn_end",
+                    }
+                )
+
+        if debug:
+            n_ep = len(episodes)
+            n_turn = sum(1 for ep in episodes if ep.get("turns_back"))
+            # count reasons
+            reasons = {}
+            for ep in episodes:
+                r = ep.get("end_reason", "unknown")
+                reasons[r] = reasons.get(r, 0) + 1
+
+            # durations in frames (stop is exclusive by your convention)
+            durs = [
+                int(ep["stop"]) - int(ep["start"])
+                for ep in episodes
+                if "start" in ep and "stop" in ep
+            ]
+            if durs:
+                dmin, dmed, dmax = (
+                    int(np.min(durs)),
+                    int(np.median(durs)),
+                    int(np.max(durs)),
+                )
+            else:
+                dmin = dmed = dmax = 0
+
+            print(
+                f"{flyDesc(self.f)} {trn.sname()}: "
+                f"episodes={n_ep} turnbacks={n_turn} "
+                f"reasons={reasons} "
+                f"dropped(short={dropped_too_short}, empty={dropped_empty_window}) "
+                f"dur(fr) min/med/max={dmin}/{dmed}/{dmax}"
+            )
+
+            # optional: print a few example episodes (first 5)
+            show = 5
+            for i, ep in enumerate(episodes[:show]):
+                s_rel = int(ep["start"]) - t0
+                e_rel = int(ep["stop"]) - t0
+                dur = e_rel - s_rel
+                print(
+                    f"  ep{i}: start={s_rel} stop={e_rel} dur={dur} "
+                    f"turns_back={bool(ep.get('turns_back'))} end_reason={ep.get('end_reason')}"
+                )
+        return episodes
+
     def calc_agarose_dual_circle_episodes(self, delta_mm=0.5, debug=False):
         """
         Identify 'dual-circle' agarose avoidance episodes for this fly.
