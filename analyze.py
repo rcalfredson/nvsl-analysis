@@ -627,6 +627,16 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--btw-rwd-polar-2d-vmax",
+    type=float,
+    default=None,
+    help=(
+        "Optional fixed upper limit for the 2D polar heatmap color scale "
+        "(useful to keep scales consistent across groups/runs). "
+        "Default: auto (max across subplots in this run)."
+    ),
+)
+g.add_argument(
     "--btw-rwd-polar-aggregate",
     choices=("frames", "flies"),
     default="frames",
@@ -6210,6 +6220,7 @@ def postAnalyze(vas):
             theta_r_normalize=str(
                 getattr(opts, "btw_rwd_polar_2d_normalize", "global")
             ),
+            theta_r_vmax=getattr(opts, "btw_rwd_polar_2d_vmax", None),
             per_fly=bool(getattr(opts, "btw_rwd_polar_per_fly", False)),
             per_fly_out_dir=str(
                 getattr(

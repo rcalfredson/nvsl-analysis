@@ -39,6 +39,9 @@ class BetweenRewardPolarOccupancyConfig:
     # - "per_theta": normalize within each theta sector
     # - "none": raw counts
     theta_r_normalize: str = "global"
+    # Optional fixed upper limit for the 2D color scale.
+    # If None, use the max value across subplots in this call.
+    theta_r_vmax: float | None = None
 
     # Coordinate convention: for image coords (y down), flip_y=True makes "up" positive.
     flip_y: bool = True
@@ -1088,8 +1091,18 @@ class BetweenRewardPolarOccupancyPlotter:
             plt.close(fig)
             return False
 
-        # Avoid degenerate color scales (e.g., all zeros)
-        vmax = max(float(vmax), 1e-12)
+        # Optional user override for consistent cross-run comparisons.
+        # If provided, it wins.
+        user_vmax = getattr(self.cfg, "theta_r_vmax", None)
+        if user_vmax is not None:
+            try:
+                vmax = float(user_vmax)
+            except Exception:
+                vmax = 0.0
+
+        # Avoid degenerate/invalid color scales (e.g., all zeros, NaN, negative).
+        if not np.isfinite(vmax) or vmax <= 0:
+            vmax = 1e-12
 
         TH, RR = np.meshgrid(theta_edges, r_edges, indexing="ij")
         meshes = []
