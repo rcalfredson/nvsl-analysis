@@ -106,7 +106,7 @@ def _ensure_rewards_per_distance(va) -> bool:
 
 def _ensure_reward_pi_pre(va) -> bool:
     """
-    Make sure va.rewardPIPre exists (pre-training reward PI).
+    Make sure va.rewardPIPre exists (pre-session reward PI).
     """
     if getattr(va, "rewardPIPre", None) is None:
         if hasattr(va, "calcRewardsPre"):
@@ -369,7 +369,7 @@ def plot_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow(
     """
     Correlation plot:
 
-        X = pre-training reward PI (exp − yoked)
+        X = pre-session reward PI (exp − yoked)
         Y = reward PI at T1, first sync bucket (exp − yoked)
 
     All flies are shown, color-coded by membership:
@@ -423,10 +423,10 @@ def plot_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow(
     fig, ax = plt.subplots(figsize=(5.5, 4.5))
     ax.scatter(x_f, y_f, c=point_colors, alpha=0.85)
 
-    ax.set_xlabel("\nBPI\n(exp - yok, pre-training)")
+    ax.set_xlabel("\nBPI\n(exp - yok, pre training)")
     ax.set_ylabel("SLI\n(T1, first sync bucket)")
     ax.set_title(
-        f"Pre-training vs early reward preference\n"
+        f"Pre session vs early reward preference\n"
         f"(fast vs slow learners, top/bottom {frac * 100:.0f}% SLI)"
     )
 
@@ -510,12 +510,12 @@ def plot_cross_fly_correlations(
 
       1) SLI_final vs reward-per-distance (final bucket of chosen training)
       2) SLI_final vs median distance to reward during chosen training
-      3) Pre-training reward PI (exp − yoked) vs SLI_final
-      3b) Pre-training floor exploration vs SLI at T1, first sync bucket
-      3c) Pre-training floor exploration vs SLI_final
+      3) Pre-session reward PI (exp − yoked) vs SLI_final
+      3b) Pre-session floor exploration vs SLI at T1, first sync bucket
+      3c) Pre-session floor exploration vs SLI_final
       4) Reward PI (T1, first sync bucket, exp − yoked) vs total rewards
          in that same bucket (experimental fly)
-      5) Pre-training reward PI (exp − yoked) vs T1 first-bucket reward PI:
+      5) Pre-session reward PI (exp − yoked) vs T1 first-bucket reward PI:
            a) all learners
            b) fast learners only
            c) fast vs slow learners (top and bottom percentile of early SLI)
@@ -578,7 +578,7 @@ def plot_cross_fly_correlations(
         else:
             med_train = np.nan
 
-        # --- Pre-training reward preference index (exp − yoked) ---
+        # --- Pre-session reward preference index (exp − yoked) ---
         if _ensure_reward_pi_pre(va):
             pre_arr = np.asarray(getattr(va, "rewardPIPre", []), float)
             if pre_arr.size == 0:
@@ -592,7 +592,7 @@ def plot_cross_fly_correlations(
         else:
             pre_diff = np.nan
 
-        # --- Pre-training floor exploration (experimental fly only) ---
+        # --- Pre-session floor exploration (experimental fly only) ---
         coverage = np.nan
         try:
             if not hasattr(va, "preFloorExploredFrac"):
@@ -689,25 +689,25 @@ def plot_cross_fly_correlations(
         customizer=customizer,
     )
 
-    # --- Plot 3: Pre-training reward PI (exp − yoked) vs SLI_final ---
+    # --- Plot 3: Pre-session reward PI (exp − yoked) vs SLI_final ---
     _scatter_with_corr(
         x=pre_pi_diff_vals,
         y=sli_vals,
         title="Baseline PI vs SLI",
-        x_label="Baseline PI\n(exp − yok, pre-training)",
+        x_label="Baseline PI\n(exp − yok, pre session)",
         y_label=x_label_sli,
         cfg=cfg,
         filename="corr_pre_reward_pi_vs_sli",
         customizer=customizer,
     )
 
-    # --- Plot 3b: Pre-training exploration vs SLI at T1, first sync bucket ---
+    # --- Plot 3b: Pre-session exploration vs SLI at T1, first sync bucket ---
     if reward_pi_training_vals is not None:
         _scatter_with_corr(
             x=pre_coverage_vals,
             y=reward_pi_training_vals,
-            title="Pre-training exploration vs early SLI",
-            x_label="Fraction of floor explored during pre-training\n(exp fly)",
+            title="Pre-session exploration vs early SLI",
+            x_label="Fraction of floor explored during pre session\n(exp fly)",
             y_label="SLI (T1, first sync bucket)",
             cfg=cfg,
             filename="corr_pre_floor_exploration_vs_sli_T1_first",
@@ -716,15 +716,15 @@ def plot_cross_fly_correlations(
     else:
         print(
             "[correlations] WARNING: missing reward_pi_training_vals; "
-            "skipping pre-training exploration vs early SLI plot"
+            "skipping pre-session exploration vs early SLI plot"
         )
 
-    # --- Plot 3c: Pre-training exploration vs SLI_final (training {trn_label_idx}) ---
+    # --- Plot 3c: Pre-session exploration vs SLI_final (training {trn_label_idx}) ---
     _scatter_with_corr(
         x=pre_coverage_vals,
         y=sli_vals,
-        title="Pre-training exploration vs SLI",
-        x_label="Fraction of floor explored during pre-training\n(exp fly)",
+        title="Pre-session exploration vs SLI",
+        x_label="Fraction of floor explored during pre session\n(exp fly)",
         y_label=x_label_sli,
         cfg=cfg,
         filename="corr_pre_floor_exploration_vs_sli_final",
@@ -744,7 +744,7 @@ def plot_cross_fly_correlations(
             customizer=customizer,
         )
 
-        # --- Plot 5a: Pre-training PI vs T1 first-bucket PI (all learners) ---
+        # --- Plot 5a: Pre-session PI vs T1 first-bucket PI (all learners) ---
         _scatter_with_corr(
             x=pre_pi_diff_vals,
             y=reward_pi_training_vals,
@@ -781,7 +781,7 @@ def plot_cross_fly_correlations(
                 "skipping fast-only pre-vs-early PI correlation"
             )
 
-        # --- Plot 5c: Pre-training vs T1 first-bucket PI (fast vs slow) ---
+        # --- Plot 5c: Pre-session vs T1 first-bucket PI (fast vs slow) ---
         frac = getattr(opts, "best_worst_fraction", 0.2)
         fast_idx_fs, slow_idx_fs = _fast_slow_indices_from_sli_T1_first(
             reward_pi_training_vals, frac
