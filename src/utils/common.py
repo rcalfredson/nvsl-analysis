@@ -65,6 +65,48 @@ def propagate_nans(array):
     return array
 
 
+def dual_circle_ratio_to_rows(va, *, counts_attr: str, tp_label: str) -> np.ndarray:
+    df = va._numRewardsMsg(True, silent=True)
+    try:
+        _, target_nb, _ = va._syncBucket(va.trns[0], df)
+    except Exception:
+        target_nb = 0
+
+    n_trn = len(va.trns)
+    n_flies = len(va.flies)
+
+    counts = getattr(va, counts_attr, None)
+    ratio = None if counts is None else counts.get("ratio", None)
+
+    if ratio is None or getattr(ratio, "size", 0) == 0:
+        if target_nb == 0:
+            return np.zeros((n_trn, 0))
+        ratio = np.full((n_trn, n_flies, target_nb), np.nan, dtype=float)
+    else:
+        if ratio.ndim != 3:
+            raise RuntimeError(
+                f"{tp_label}: expected 3D ratio, got shape {ratio.shape}"
+            )
+        _, _, nb_cur = ratio.shape
+        if target_nb == 0:
+            ratio = np.empty((n_trn, n_flies, 0), dtype=float)
+        elif nb_cur != target_nb:
+            ratio_fixed = np.full((n_trn, n_flies, target_nb), np.nan, dtype=float)
+            copy_len = min(nb_cur, target_nb)
+            ratio_fixed[:, :, :copy_len] = ratio[:, :, :copy_len]
+            ratio = ratio_fixed
+
+    data = []
+    for t_idx in range(n_trn):
+        row = []
+        for f in range(n_flies):
+            if ratio.shape[2] > 0:
+                row.extend(ratio[t_idx, f, :])
+        data.append(row)
+
+    return np.array(data)
+
+
 def areaUnderCurve(a):
     """
     Calculates the area under the curve (AUC) for each row in the input array, handling missing

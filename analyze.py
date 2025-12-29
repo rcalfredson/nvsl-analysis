@@ -52,6 +52,7 @@ from statsmodels.stats.multitest import multipletests
 
 # custom modules and functions
 from src.utils.common import (
+    dual_circle_ratio_to_rows,
     areaUnderCurve,
     CT,
     cVsA_l,
@@ -165,6 +166,7 @@ CONTACTLESS_RWDS_LABEL = "proportion contactless rewards, %s walls"
 REWARDS_IMG_FILE = "imgs/rewards__%s_min_buckets.png"
 RPD_IMG_FILE = "imgs/rewards_per_dist%s__%%s_min_buckets.png"
 AGAROSE_AVOID_IMG_FILE = "imgs/agarose_avoid%s__%%s_min_buckets.png"
+TURNBACK_TURN_IMG_FILE = "imgs/rwd_circle_turnback%s__%%s_min_buckets.png"
 RUN_LENGTHS_IMG_FILE = "imgs/run_lengths.png"
 TURN_ANGLES_IMG_FILE = "imgs/turn_angles.png"
 HEATMAPS_IMG_FILE = "imgs/heatmaps%s.png"
@@ -1597,6 +1599,8 @@ def headerForType(va, tp, calc):
         return "\nagarose contact events per reward:"
     elif tp == "agarose_dual_circle":
         return "\ndual-circle agarose avoidance ratio by sync bucket:"
+    elif tp == "turnback_dual_circle":
+        return "\ndual-circle reward turnback ratio by sync bucket:"
     elif tp == "rpd":
         return "\nrewards per distance traveled [m⁻¹]:"
     elif tp == "ppi":
@@ -1769,6 +1773,7 @@ def fliesForType(va, tp, calc=None):
             "psc_shift",
             "rpd",
             "agarose_dual_circle",
+            "turnback_dual_circle",
         )
         or "r_no_contact" in tp
         or "dbr" in tp
@@ -1840,6 +1845,7 @@ def bucketLenForType(tp):
             "psc_conc",
             "psc_shift",
             "agarose_dual_circle",
+            "turnback_dual_circle",
         )
         or "_turn" in tp
         or "r_no_contact" in tp
@@ -2131,6 +2137,8 @@ def columnNamesForType(va, tp, calc, n):
             "max_ctr_d_no_contact",
             "psc_conc",
             "psc_shift",
+            "agarose_dual_circle",
+            "turnback_dual_circle",
         )
         or "_turn" in tp
         or "r_no_contact" in tp
@@ -2184,7 +2192,6 @@ def columnNamesForType(va, tp, calc, n):
         "agarose_pct_ctr",
         "boundary_pct_edge",
         "boundary_pct_ctr",
-        "agarose_dual_circle",
     ):
         # Use T1 to define the base block; writer will duplicate across trainings.
         df = va._numRewardsMsg(True, silent=True)
@@ -2533,66 +2540,15 @@ def vaVarForType(va, tp, calc):
     elif tp in ("rpd", "rpd_exp_min_yok"):
         return va.rwdsPerDist
     elif tp == "agarose_dual_circle":
-        # Return dual-circle agarose avoidance ratio flattened as
-        # (n_trns, n_flies * n_buckets), with per-VA padding/trimming so that
-        # all VAs share the same column layout.
-
-        # Column layout is defined by columnNamesForType(), which uses
-        # _numRewardsMsg() + _syncBucket() on T1 to obtain n_buckets.
-
-        # --- Determine canonical number of sync buckets from T1 ---
-        df = va._numRewardsMsg(True, silent=True)
-        try:
-            _, target_nb, _ = va._syncBucket(va.trns[0], df)
-        except Exception:
-            target_nb = 0
-
-        n_trn = len(va.trns)
-        n_flies = len(va.flies)
-
-        counts = getattr(va, "agarose_dual_circle_counts", None)
-
-        if (
-            counts is None
-            or "ratio" not in counts
-            or counts["ratio"] is None
-            or counts["ratio"].size == 0
-        ):
-            # No analysis (e.g. not a large chamber, or no episodes).
-            # Still return correctly sized NaN rows so aggregation works.
-            if target_nb == 0:
-                return np.zeros((n_trn, 0))
-            ratio = np.full((n_trn, n_flies, target_nb), np.nan, dtype=float)
-        else:
-            ratio = counts["ratio"]
-            # ratio shape is (n_trn, n_flies, nb_cur)
-            if ratio.ndim != 3:
-                raise RuntimeError(
-                    f"agarose_dual_circle: expected 3D ratio, got shape {ratio.shape}"
-                )
-            _, _, nb_cur = ratio.shape
-
-            # Pad/trim along bucket axis to match target_nb (like _row() in
-            # _aggregate_slide_circle_metrics).
-            if target_nb == 0:
-                # Columns will be 0-wide for this tp; keep shapes consistent.
-                ratio = np.empty((n_trn, n_flies, 0), dtype=float)
-            elif nb_cur != target_nb:
-                ratio_fixed = np.full((n_trn, n_flies, target_nb), np.nan, dtype=float)
-                copy_len = min(nb_cur, target_nb)
-                ratio_fixed[:, :, :copy_len] = ratio[:, :, :copy_len]
-                ratio = ratio_fixed
-
-        # --- Flatten (training, fly, bucket) → (training, fly * bucket) ---
-        data = []
-        for t_idx in range(n_trn):
-            row = []
-            for f in range(n_flies):
-                if ratio.shape[2] > 0:
-                    row.extend(ratio[t_idx, f, :])
-            data.append(row)
-
-        return np.array(data)
+        return dual_circle_ratio_to_rows(
+            va, counts_attr="agarose_dual_circle_counts", tp_label="agarose_dual_circle"
+        )
+    elif tp == "turnback_dual_circle":
+        return dual_circle_ratio_to_rows(
+            va,
+            counts_attr="reward_turnback_dual_circle_counts",
+            tp_label="turnback_dual_circle",
+        )
     elif tp in ("meddist", "meddist_exp_min_yok"):
         # flatten syncMedDist into (n_trns, n_flies * n_buckets)
         data = []
@@ -2950,6 +2906,7 @@ def plotRewards(
     meddist = tp == "meddist"
     commag = tp == "commag"
     agarose_dual = tp == "agarose_dual_circle"
+    turnback_dual = tp == "turnback_dual_circle"
     auc_to_csv = r_diff or rpd
     psc = tp in ("psc_conc", "psc_shift")
     pcm, turn_rad, pivot = tp == "pcm", tp == "turn", tp == "pivot"
@@ -3044,7 +3001,7 @@ def plotRewards(
         True if not opts.hidePltTests else False
     )  # p values between first and last buckets
     showPT = not P if not opts.hidePltTests else False  # p values between trainings
-    if rpi or rpd or diff_tp or meddist or commag or agarose_dual:
+    if rpi or rpd or diff_tp or meddist or commag or agarose_dual or turnback_dual:
         showPFL = False
         showPT = False
     showSS = not P  # speed stats
@@ -3057,6 +3014,7 @@ def plotRewards(
         or rpi
         or rpd
         or agarose_dual
+        or turnback_dual
     ):
         showSS = False
     useAxLimsForStatsVerticalAlignment = (
@@ -3070,6 +3028,7 @@ def plotRewards(
         or meddist
         or commag
         or agarose_dual
+        or turnback_dual
     )
     useDynamicAxisLims = (
         circle
@@ -3081,6 +3040,7 @@ def plotRewards(
         or rpd
         or diff_tp
         or agarose_dual
+        or turnback_dual
     )
     useMidPlotAUCVerticalAlignment = (
         circle
@@ -3095,7 +3055,7 @@ def plotRewards(
         or "no_contact" in tp
         or diff_tp
     )
-    hideAUCCumulative = diff_tp or meddist or rpd or agarose_dual
+    hideAUCCumulative = diff_tp or meddist or rpd or agarose_dual or turnback_dual
     legend = None
     if showSS and vas:
         speed, stpFr = (
@@ -3120,7 +3080,7 @@ def plotRewards(
     elif tp == "meddist_exp_min_yok":
         ylim = [-0.5, 0.5]
 
-    elif tp == "agarose_dual_circle":
+    elif agarose_dual or turnback_dual:
         ylim = [0, 1]
     elif tp == "dbr_no_contact":
         ylim = [0, 150]
@@ -3743,6 +3703,7 @@ def plotRewards(
                         rpd="rewards per distance $[m^{-1}]$",
                         rpd_exp_min_yok="rewards per distance $[m^{-1}]$\n$(\\text{exp} - \\text{yok})$",
                         agarose_dual_circle="dual-circle agarose avoidance ratio",
+                        turnback_dual_circle="dual-circle reward turnback ratio",
                         meddist="median dist. to reward\ncircle center [mm]",
                         meddist_exp_min_yok="med. dist. to center [mm]\n$(\\text{exp} - \\text{yok})$",
                         commag="COM dist. to circle center [mm]",
@@ -3936,6 +3897,7 @@ def plotRewards(
         rpd=RPD_IMG_FILE % "",
         rpd_exp_min_yok=RPD_IMG_FILE % "_exp_min_yok",
         agarose_dual_circle=AGAROSE_AVOID_IMG_FILE % "",
+        turnback_dual_circle=TURNBACK_TURN_IMG_FILE % "",
         meddist=MED_DIST_TO_REWARD_FILE % "",
         meddist_exp_min_yok=MED_DIST_TO_REWARD_FILE % "_exp_min_yok",
         commag=COM_MAG_TO_REWARD_FILE % "",
@@ -5600,6 +5562,8 @@ def postAnalyze(vas):
             tcs += ("rpd_exp_min_yok-c",)
     if getattr(opts, "agarose_dual_circle", False):
         tcs += ("agarose_dual_circle",)
+    if getattr(opts, "turnback_dual_circle", False):
+        tcs += ("turnback_dual_circle",)
     if not va.noyc and not va.choice:
         tcs += ("rpid", "rpipd")
     for opt in ("wall", "agarose", "boundary", "turn"):
@@ -5886,6 +5850,7 @@ def postAnalyze(vas):
                     "wall",
                     "max_ctr_d_no_contact",
                     "agarose_dual_circle",
+                    "turnback_dual_circle",
                 )
                 or "r_no_contact_" in tp
                 or "_turn" in tp
@@ -5972,6 +5937,7 @@ def postAnalyze(vas):
             "agarose_pct_edge",
             "agarose_pct_ctr",
             "agarose_dual_circle",
+            "turnback_dual_circle"
         ):
             for i, t in enumerate(trns):
                 last_bkt = nb

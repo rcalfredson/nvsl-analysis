@@ -1077,9 +1077,6 @@ class VideoAnalysis:
 
             # Per-fly episode detection for this training, then bin by sync bucket
             for fi, trj in enumerate(self.trx):
-                if not self.noyc and fi != 0:
-                    continue
-
                 if getattr(trj, "_bad", False):
                     continue
 
