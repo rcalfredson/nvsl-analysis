@@ -1269,6 +1269,28 @@ g.add_argument(
     % OPTS_HM,
 )
 g.add_argument(
+    "--pltHmVmax",
+    dest="hm_vmax",
+    type=str,
+    default=None,
+    help=(
+        "Override heatmap colorbar vmax. "
+        "Provide one value to apply to both rows, or two as 'main,post'. "
+        "Example: --pltHmVmax 0.03,0.01"
+    ),
+)
+g.add_argument(
+    "--pltHmVmin",
+    dest="hm_vmin",
+    type=str,
+    default=None,
+    help=(
+        "Override heatmap colorbar vmin (log floor). "
+        "Provide one value to apply to both rows, or two as 'main,post'. "
+        "Example: --pltHmVmin 1e-4,2e-4"
+    ),
+)
+g.add_argument(
     "--bg",
     dest="bg",
     type=float,
@@ -4091,6 +4113,20 @@ def plotRdpStats(vas, gls, tpTa=True):
     writeImage(TURN_ANGLES_IMG_FILE if tpTa else RUN_LENGTHS_IMG_FILE)
 
 
+def _parse_hm_bounds_arg(
+    s: str | None, flag_name: str
+) -> tuple[float | None, float | None]:
+    if not s:
+        return (None, None)
+    parts = [p.strip() for p in s.split(",") if p.strip() != ""]
+    if len(parts) == 1:
+        v = float(parts[0])
+        return (v, v)
+    if len(parts) == 2:
+        return (float(parts[0]), float(parts[1]))
+    raise ValueError(f"{flag_name} expects 'v' or 'v1,v2', got: {s!r}")
+
+
 # plot heatmaps
 def plotHeatmaps(vas):
     if max(va.gidx for va in vas) > 0:
@@ -4122,6 +4158,22 @@ def plotHeatmaps(vas):
         right=0.95,
     )
     cbar_ax = []
+
+    # Optional per-row vmax override: (main_row, post_row)
+    try:
+        hm_vmax_main, hm_vmax_post = _parse_hm_bounds_arg(
+            getattr(opts, "hm_vmax", None), "--pltHmVmax"
+        )
+    except Exception as e:
+        raise ValueError(f"Invalid --pltHmVmax: {e}") from e
+
+    try:
+        hm_vmin_main, hm_vmin_post = _parse_hm_bounds_arg(
+            getattr(opts, "hm_vmin", None), "--pltHmVmin"
+        )
+    except Exception as e:
+        raise ValueError(f"Invalid --pltHmVmin: {e}") from e
+
     for pst in (0, 1):
 
         def hm(va):
@@ -4141,8 +4193,37 @@ def plotHeatmaps(vas):
             mpms.append(mpm)
             nfs.append(len(mps))
             vmins.append(np.amin(mpm[mpm > 0]))
-        vmin, vmax = np.amin(vmins), np.amax(mpms)
-        vmin1 = 0 if lin else vmin / (vmax / vmin) ** 0.05  # .9*vmin not bad either
+        # vmin, vmax = np.amin(vmins), np.amax(mpms)
+        vmin = np.amin(vmins)
+        vmax_computed = float(np.amax(mpms))
+
+        vmax_override = hm_vmax_post if pst else hm_vmax_main
+        vmax_used = float(vmax_override) if vmax_override is not None else vmax_computed
+
+        # Emit what we found/used to allow maxima to be collected across groups.
+        row_name = "post" if pst else "main"
+
+        if lin:
+            vmin1_default = 0.0
+        else:
+            vmin1_default = vmin / (vmax_used / vmin) ** 0.05
+
+        # override vmin1 if provided (per row)
+        vmin1_override = hm_vmin_post if pst else hm_vmin_main
+        vmin1_used = (
+            float(vmin1_override) if vmin1_override is not None else vmin1_default
+        )
+
+        if not lin and vmax_used <= vmin1_used:
+            raise ValueError(
+                f"Heatmap vmax ({vmax_used}) must be > vmin ({vmin1_used}) for log scaling "
+                f"(row={row_name})"
+            )
+        print(
+            f"[heatmaps v2] row={row_name} "
+            f"vmin_used={vmin1_used:.6g} vmax_used={vmax_used:.6g} "
+            f"(vmin_default={vmin1_default:.6g} vmax_computed={vmax_computed:.6g})"
+        )
         for i, t in enumerate(trns):
             imgs1 = []
             gs1 = mpl.gridspec.GridSpecFromSubplotSpec(
@@ -4163,7 +4244,8 @@ def plotHeatmaps(vas):
             )
             for f in flies:
                 mp = mpms[i * nf + f]
-                mp = np.maximum(mp, vmin1)
+                if not lin:
+                    mp = np.maximum(mp, vmin1_used)
                 if f == 0:
                     ttln = "n=%d" % nfs[i * nf + f]
                 img = cv2.resize(
@@ -4182,9 +4264,13 @@ def plotHeatmaps(vas):
                         xticklabels=False,
                         yticklabels=False,
                         cmap=cmap,
-                        vmax=vmax,
-                        vmin=vmin1,
-                        norm=None if lin else mpl.colors.LogNorm(),
+                        vmax=vmax_used,
+                        vmin=vmin1_used,
+                        norm=(
+                            None
+                            if lin
+                            else mpl.colors.LogNorm(vmin=vmin1_used, vmax=vmax_used)
+                        ),
                         cbar=i == 0 and f == 0,
                         cbar_kws=(
                             None
@@ -4203,12 +4289,14 @@ def plotHeatmaps(vas):
                         mp,
                         alpha=alpha,
                         cmap=cmap,
+                        vmin=(vmin1_used if lin else None),
+                        vmax=(vmax_used if lin else None),
                         norm=(
                             None
                             if lin
                             else mpl.colors.LogNorm(
-                                vmax=vmax,
-                                vmin=vmin1,
+                                vmax=vmax_used,
+                                vmin=vmin1_used,
                             )
                         ),
                         extent=[0, mp.shape[1], mp.shape[0], 0],
@@ -5937,7 +6025,7 @@ def postAnalyze(vas):
             "agarose_pct_edge",
             "agarose_pct_ctr",
             "agarose_dual_circle",
-            "turnback_dual_circle"
+            "turnback_dual_circle",
         ):
             for i, t in enumerate(trns):
                 last_bkt = nb
