@@ -457,8 +457,15 @@ class VideoAnalysis:
             and getattr(self.opts, "com_exclude_wall_contact", False)
         )
 
+        keep_wall_regions_for_btw_rwd_dist = bool(
+            getattr(self.opts, "btw_rwd_dist_hist", False)
+            and getattr(self.opts, "btw_rwd_dist_exclude_wall_contact", False)
+        )
+
         keep_wall_regions = (
-            keep_wall_regions_for_polar or keep_wall_regions_for_btw_rwd_com_mag
+            keep_wall_regions_for_polar
+            or keep_wall_regions_for_btw_rwd_com_mag
+            or keep_wall_regions_for_btw_rwd_dist
         )
 
         # ─────────────────────────────────────────────────────────────
