@@ -7427,6 +7427,15 @@ if __name__ == "__main__":
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 
+    # If between-reward distance hist wants wall-contact exclusion, we must compute wall contact
+    if getattr(opts, "btw_rwd_dist_exclude_wall_contact", False):
+        if getattr(opts, "wall", None) is None:
+            print(
+                f"[btw_rwd_dist_hist] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
+                "because --btw-rwd-dist-exclude-wall-contact was set"
+            )
+            opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
     if opts.turn_prob_by_dist:
         opts.turn_prob_by_dist = parse_distances(opts.turn_prob_by_dist)
     if opts.outside_circle_radii:
