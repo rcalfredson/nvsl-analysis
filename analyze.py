@@ -551,6 +551,31 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--btw-rwd-com-mag-per-fly",
+    action="store_true",
+    help=(
+        "Compute between-reward COM-magnitude histograms per fly first, then average "
+        "across flies (prevents overweighting flies/videos with many segments)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-com-mag-ci",
+    action="store_true",
+    help=(
+        "When using --btw-rwd-com-mag-per-fly, draw per-bin confidence intervals "
+        "across flies."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-com-mag-ci-conf",
+    type=float,
+    default=0.95,
+    help=(
+        "Confidence level for --btw-rwd-com-mag-ci (default: %(default)s). "
+        "Only used with --btw-rwd-com-mag-per-fly."
+    ),
+)
+g.add_argument(
     "--btw-rwd-com-mag-export-hist",
     type=str,
     default=None,
@@ -6277,6 +6302,9 @@ def postAnalyze(vas):
             pool_trainings=getattr(opts, "btw_rwd_com_mag_pool_trainings", False),
             subset_label=subset_label,
             ymax=getattr(opts, "btw_rwd_com_mag_ymax", None),
+            per_fly=getattr(opts, "btw_rwd_com_mag_per_fly", False),
+            ci=getattr(opts, "btw_rwd_com_mag_ci", False),
+            ci_conf=float(getattr(opts, "btw_rwd_com_mag_ci_conf", 0.95)),
         )
         plotter = BetweenRewardCOMMagHistogramPlotter(
             vas=vas_for_hist, opts=opts, gls=gls, customizer=customizer, cfg=cfg
