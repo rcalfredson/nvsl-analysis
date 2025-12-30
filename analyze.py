@@ -510,6 +510,39 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--btw-rwd-dist-exclude-wall-contact",
+    action="store_true",
+    help=(
+        "Exclude between-reward segments that overlap any wall-contact region "
+        "(segment-wise exclusion) before computing distance histograms."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-dist-per-fly",
+    action="store_true",
+    help=(
+        "Compute between-reward distance histograms per fly first, then average "
+        "across flies (prevents overweighting flies/videos with many segments)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-dist-ci",
+    action="store_true",
+    help=(
+        "When using --btw-rwd-dist-per-fly, draw per-bin confidence intervals "
+        "across flies."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-dist-ci-conf",
+    type=float,
+    default=0.95,
+    help=(
+        "Confidence level for --btw-rwd-dist-ci (default: %(default)s). "
+        "Only used with --btw-rwd-dist-per-fly."
+    ),
+)
+g.add_argument(
     "--btw-rwd-com-mag-hist",
     action="store_true",
     help=(
@@ -6199,6 +6232,12 @@ def postAnalyze(vas):
             pool_trainings=getattr(opts, "btw_rwd_dist_pool_trainings", False),
             subset_label=subset_label,
             ymax=getattr(opts, "btw_rwd_dist_ymax", None),
+            exclude_wall_contact=getattr(
+                opts, "btw_rwd_dist_exclude_wall_contact", False
+            ),
+            per_fly=getattr(opts, "btw_rwd_dist_per_fly", False),
+            ci=getattr(opts, "btw_rwd_dist_ci", False),
+            ci_conf=float(getattr(opts, "btw_rwd_dist_ci_conf", 0.95)),
         )
         br_plotter = BetweenRewardDistanceHistogramPlotter(
             vas=vas_for_hist, opts=opts, gls=gls, customizer=customizer, cfg=br_cfg

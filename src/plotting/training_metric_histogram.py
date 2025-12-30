@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 
 from src.plotting.plot_customizer import PlotCustomizer
 from src.utils.common import writeImage
+from src.utils.util import meanConfInt
 
 
 @dataclass
@@ -22,6 +23,12 @@ class TrainingMetricHistogramConfig:
     pool_trainings: bool = False
     subset_label: str | None = None
     ymax: float | None = None
+    # If True: compute histograms per fly first, then aggregate across flies.
+    # This avoid overweighting flies/videos with many segments.
+    per_fly: bool = False
+    # If True and (per_fly=True): compute per-bin confidence intervals across flies.
+    ci: bool = False
+    ci_conf: float = 0.95
 
 
 class TrainingMetricHistogramPlotter:
@@ -79,6 +86,15 @@ class TrainingMetricHistogramPlotter:
     def _collect_values_by_training(self) -> list[np.ndarray]:
         raise NotImplementedError
 
+    def _collect_values_by_training_per_fly(self) -> list[list[np.ndarray]]:
+        """
+        Return a list of length n_training, where each element is a list of 1D arrays,
+        one per fly (or per VideoAnalysis unit), containing raw values for that training.
+
+        Subclasses should override this when cfg.per_fly is enabled.
+        """
+        raise NotImplementedError
+
     def _effective_xmax(self, vals_by_panel: list[np.ndarray]) -> float | None:
         """
         Determine a deterministic xmax to use for bin edges.
@@ -112,16 +128,56 @@ class TrainingMetricHistogramPlotter:
         """
         Compute binned histograms for each panel (training or pooled).
 
+        Two modes:
+          (A): pooled mode (cfg.per_fly=False): identical to the original behavior.
+               Returns pooled counts (or pooled proportions if normalize=True).
+
+          (B): per-fly mode (cfg.per_fly=True): computes per-fly histograms first,
+               then aggregates across flies.
+               If cfg.ci=True, returns per-bin mean + confidence interval across flies.
+
         Returns a dict with:
           - panel_labels: list[str]
-          - counts: np.ndarray shape (n_panels, bins)
           - bin_edges: np.ndarray shape (n_panels, bins+1)
           - n_raw, n_used, n_dropped: np.ndarray shape (n_panels,)
           - meta: dict
+        Plus either:
+          - counts (pooled mode): np.ndarray shape (n_panels, bins)
+        Or:
+          - mean, ci_lo, ci_hi, n_units (per-fly mode): np.ndarray shapes (n_panels, bins, )
         """
-        vals_by_trn = self._collect_values_by_training()
+        if self.cfg.per_fly:
+            vals_by_trn_by_fly = self._collect_values_by_training_per_fly()
+            if not any(len(vlist) for vlist in vals_by_trn_by_fly):
+                return {
+                    "panel_labels": [],
+                    "bin_edges": np.zeros((0, self.cfg.bins + 1), dtype=float),
+                    "mean": np.zeros((0, self.cfg.bins), dtype=float),
+                    "ci_lo": np.zeros((0, self.cfg.bins), dtype=float),
+                    "ci_hi": np.zeros((0, self.cfg.bins), dtype=float),
+                    "n_units": np.zeros((0, self.cfg.bins), dtype=int),
+                    "n_raw": np.zeros((0,), dtype=int),
+                    "n_used": np.zeros((0,), dtype=int),
+                    "n_dropped": np.zeros((0,), dtype=int),
+                    "meta": {
+                        "log_tag": self.log_tag,
+                        "x_label": self.x_label,
+                        "base_title": self.base_title,
+                        "bins": int(self.cfg.bins),
+                        "xmax_user": self.cfg.xmax,
+                        "xmax_effective": None,
+                        "pool_trainings": bool(self.cfg.pool_trainings),
+                        "subset_label": self.cfg.subset_label,
+                        "per_fly": True,
+                        "ci": bool(self.cfg.ci),
+                        "ci_conf": float(self.cfg.ci_conf),
+                        "generated_utc": datetime.now(timezone.utc).isoformat(),
+                    },
+                }
+        else:
+            vals_by_trn = self._collect_values_by_training()
 
-        if not any(len(v) for v in vals_by_trn):
+        if not self.cfg.per_fly and not any(len(v) for v in vals_by_trn):
             return {
                 "panel_labels": [],
                 "counts": np.zeros((0, self.cfg.bins), dtype=int),
@@ -138,19 +194,51 @@ class TrainingMetricHistogramPlotter:
                     "xmax_effective": None,
                     "pool_trainings": bool(self.cfg.pool_trainings),
                     "subset_label": self.cfg.subset_label,
+                    "per_fly": False,
+                    "ci": False,
+                    "ci_conf": float(self.cfg.ci_conf),
                     "generated_utc": datetime.now(timezone.utc).isoformat(),
                 },
             }
 
-        if self.cfg.pool_trainings:
-            pooled = np.concatenate([v for v in vals_by_trn if v.size > 0])
-            vals_by_panel = [pooled]
-            panel_labels = ["all trainings combined"]
-        else:
-            vals_by_panel = vals_by_trn
-            panel_labels = self._training_labels(len(vals_by_trn))
+        if self.cfg.per_fly:
+            if self.cfg.pool_trainings:
+                # Two possibilities:
+                #  (1) Subclass already pooled per-fly across trainings and returned a single panel.
+                #  (2) Subclass returned per-training lists; pool by treating each (fly, training)
+                #      distribution as its own unit.
+                if len(vals_by_trn_by_fly) == 1:
+                    vals_by_panel_by_fly = vals_by_trn_by_fly
+                else:
+                    pooled_units: list[np.ndarray] = []
+                    for vlist in vals_by_trn_by_fly:
+                        pooled_units.extend(vlist)
+                    vals_by_panel_by_fly = [pooled_units]
+                panel_labels = ["all trainings combined"]
+            else:
+                vals_by_panel_by_fly = vals_by_trn_by_fly
+                panel_labels = self._training_labels(len(vals_by_trn_by_fly))
 
-        eff_xmax = self._effective_xmax(vals_by_panel)
+            # Determine eff_xmax across all values
+            all_panels_flat: list[np.ndarray] = []
+            for vlist in vals_by_panel_by_fly:
+                for v in vlist:
+                    if v is None:
+                        continue
+                    vv = np.asarray(v, dtype=float)
+                    vv = vv[np.isfinite(vv)]
+                    if vv.size:
+                        all_panels_flat.append(vv)
+            eff_xmax = self._effective_xmax(all_panels_flat)
+        else:
+            if self.cfg.pool_trainings:
+                pooled = np.concatenate([v for v in vals_by_trn if v.size > 0])
+                vals_by_panel = [pooled]
+                panel_labels = ["all trainings combined"]
+            else:
+                vals_by_panel = vals_by_trn
+                panel_labels = self._training_labels(len(vals_by_trn))
+            eff_xmax = self._effective_xmax(vals_by_panel)
 
         # Guard against degenerate histogram ranges (e.g., all values == 0 → xmax == 0)
         # np.histogram(..., range=(0, 0)) is problematic, so fall back to data-driven bins.
@@ -163,48 +251,155 @@ class TrainingMetricHistogramPlotter:
         n_used_list: list[int] = []
         n_dropped_list: list[int] = []
 
-        for vals, label in zip(vals_by_panel, panel_labels):
-            if vals is None or vals.size == 0:
-                counts_list.append(np.zeros((self.cfg.bins,), dtype=int))
-                hi = float(eff_xmax) if eff_xmax is not None else 1.0
-                edges_list.append(np.linspace(0, hi, self.cfg.bins + 1, dtype=float))
-                n_raw_list.append(0)
-                n_used_list.append(0)
-                n_dropped_list.append(0)
-                continue
-            vals = np.asarray(vals, dtype=float)
-            vals = vals[np.isfinite(vals)]
-            n_raw = int(vals.size)
+        mean_list: list[np.ndarray] = []
+        lo_list: list[np.ndarray] = []
+        hi_list: list[np.ndarray] = []
+        n_units_list: list[np.ndarray] = []
 
-            if eff_xmax is not None:
-                vals = vals[vals <= eff_xmax]
-            n_used = int(vals.size)
-            n_dropped = int(n_raw - n_used)
+        # for vals, label in zip(vals_by_panel, panel_labels):
+        if self.cfg.per_fly:
+            for vlist, label in zip(vals_by_panel_by_fly, panel_labels):
+                # Flatten for raw segment counting / xmax filtering diagnostics
+                raw_all = []
+                for v in vlist:
+                    if v is None:
+                        continue
+                    vv = np.asarray(v, dtype=float)
+                    vv = vv[np.isfinite(vv)]
+                    if vv.size:
+                        raw_all.append(vv)
+                if not raw_all:
+                    # No data: still emit deterministic edges
+                    hi = float(eff_xmax) if eff_xmax is not None else 1.0
+                    edges = np.linspace(0, hi, self.cfg.bins + 1, dtype=float)
+                    edges_list.append(edges)
+                    mean_list.append(np.full((self.cfg.bins,), np.nan, dtype=float))
+                    lo_list.append(np.full((self.cfg.bins,), np.nan, dtype=float))
+                    hi_list.append(np.full((self.cfg.bins,), np.nan, dtype=float))
+                    n_units_list.append(np.zeros((self.cfg.bins,), dtype=int))
+                    n_raw_list.append(0)
+                    n_used_list.append(0)
+                    n_dropped_list.append(0)
+                    continue
 
-            if n_used == 0:
-                counts = np.zeros((self.cfg.bins,), dtype=int)
-                hi = float(eff_xmax) if eff_xmax is not None else 1.0
-                edges = np.linspace(0, hi, self.cfg.bins + 1, dtype=float)
-            else:
+                flat = np.concatenate(raw_all, axis=0)
+                n_raw = int(flat.size)
                 if eff_xmax is not None:
-                    # Enforce shared edges via an explicit range.
-                    counts, edges = np.histogram(
-                        vals, bins=self.cfg.bins, range=(0.0, float(eff_xmax))
+                    flat_used = flat[flat <= eff_xmax]
+                else:
+                    flat_used = flat
+
+                n_used = int(flat_used.size)
+                n_dropped = int(n_raw - n_used)
+
+                # Shared edges per panel
+                if eff_xmax is not None:
+                    edges = np.linspace(
+                        0.0, float(eff_xmax), self.cfg.bins + 1, dtype=float
                     )
                 else:
-                    # Fallback: data-driven edges (will likely not align across groups).
-                    counts, edges = np.histogram(vals, bins=self.cfg.bins)
+                    # Data-driven edges per panel (may not align across groups)
+                    edges = np.histogram_bin_edges(flat_used, bins=self.cfg.bins)
+                edges_list.append(edges.astype(float, copy=False))
 
-            counts_list.append(counts.astype(int, copy=False))
-            edges_list.append(edges.astype(float, copy=False))
-            n_raw_list.append(n_raw)
-            n_used_list.append(n_used)
-            n_dropped_list.append(n_dropped)
+                # Per-fly histograms
+                fly_hists: list[np.ndarray] = []
+                for v in vlist:
+                    if v is None:
+                        continue
+                    vv = np.asarray(v, dtype=float)
+                    vv = vv[np.isfinite(vv)]
+                    if vv.size == 0:
+                        continue
+                    if eff_xmax is not None:
+                        vv = vv[vv <= eff_xmax]
+                    if vv.size == 0:
+                        continue
+                    c, _ = np.histogram(vv, bins=edges)
+                    c = c.astype(float, copy=False)
+                    if self.cfg.normalize:
+                        tot = float(np.sum(c))
+                        if tot > 0:
+                            c = c / tot
+                        else:
+                            c[:] = np.nan
+                    fly_hists.append(c)
+                if not fly_hists:
+                    mean = np.full((self.cfg.bins,), np.nan, dtype=float)
+                    lo = np.full((self.cfg.bins,), np.nan, dtype=float)
+                    hi = np.full((self.cfg.bins,), np.nan, dtype=float)
+                    n_units = np.zeros((self.cfg.bins,), dtype=int)
+                else:
+                    M = np.stack(fly_hists, axis=0)  # (n_units, bins)
+                    mean = np.full((self.cfg.bins,), np.nan, dtype=float)
+                    lo = np.full((self.cfg.bins), np.nan, dtype=float)
+                    hi = np.full((self.cfg.bins), np.nan, dtype=float)
+                    n_units = np.zeros((self.cfg.bins,), dtype=int)
+                    for j in range(self.cfg.bins):
+                        m, lo_j, hi_j, n_j = meanConfInt(
+                            M[:, j], conf=float(self.cfg.ci_conf)
+                        )
+                        mean[j] = float(m)
+                        lo[j] = float(lo_j)
+                        hi[j] = float(hi_j)
+                        n_units[j] = int(n_j)
+                mean_list.append(mean)
+                lo_list.append(lo)
+                hi_list.append(hi)
+                n_units_list.append(n_units)
+                n_raw_list.append(n_raw)
+                n_used_list.append(n_used)
+                n_dropped_list.append(n_dropped)
 
-            if n_dropped > 0 and self.cfg.xmax is not None:
-                print(
-                    f"[{self.log_tag}] {label}: dropped {n_dropped} values above {self.cfg.xmax}"
-                )
+                if n_dropped > 0 and self.cfg.xmax is not None:
+                    print(
+                        f"[{self.log_tag}] {label}: dropped {n_dropped} values above {self.cfg.xmax}"
+                    )
+        else:
+            for vals, label in zip(vals_by_panel, panel_labels):
+                if vals is None or vals.size == 0:
+                    counts_list.append(np.zeros((self.cfg.bins,), dtype=int))
+                    hi = float(eff_xmax) if eff_xmax is not None else 1.0
+                    edges_list.append(
+                        np.linspace(0, hi, self.cfg.bins + 1, dtype=float)
+                    )
+                    n_raw_list.append(0)
+                    n_used_list.append(0)
+                    n_dropped_list.append(0)
+                    continue
+                vals = np.asarray(vals, dtype=float)
+                vals = vals[np.isfinite(vals)]
+                n_raw = int(vals.size)
+
+                if eff_xmax is not None:
+                    vals = vals[vals <= eff_xmax]
+                n_used = int(vals.size)
+                n_dropped = int(n_raw - n_used)
+
+                if n_used == 0:
+                    counts = np.zeros((self.cfg.bins,), dtype=int)
+                    hi = float(eff_xmax) if eff_xmax is not None else 1.0
+                    edges = np.linspace(0, hi, self.cfg.bins + 1, dtype=float)
+                else:
+                    if eff_xmax is not None:
+                        # Enforce shared edges via an explicit range.
+                        counts, edges = np.histogram(
+                            vals, bins=self.cfg.bins, range=(0.0, float(eff_xmax))
+                        )
+                    else:
+                        # Fallback: data-driven edges (will likely not align across groups).
+                        counts, edges = np.histogram(vals, bins=self.cfg.bins)
+
+                counts_list.append(counts.astype(int, copy=False))
+                edges_list.append(edges.astype(float, copy=False))
+                n_raw_list.append(n_raw)
+                n_used_list.append(n_used)
+                n_dropped_list.append(n_dropped)
+
+                if n_dropped > 0 and self.cfg.xmax is not None:
+                    print(
+                        f"[{self.log_tag}] {label}: dropped {n_dropped} values above {self.cfg.xmax}"
+                    )
 
         counts_arr = (
             np.stack(counts_list, axis=0)
@@ -217,6 +412,28 @@ class TrainingMetricHistogramPlotter:
             else np.zeros((0, self.cfg.bins + 1), dtype=float)
         )
 
+        if self.cfg.per_fly:
+            mean_arr = (
+                np.stack(mean_list, axis=0)
+                if mean_list
+                else np.zeros((0, self.cfg.bins), dtype=float)
+            )
+            lo_arr = (
+                np.stack(lo_list, axis=0)
+                if lo_list
+                else np.zeros((0, self.cfg.bins), dtype=float)
+            )
+            hi_arr = (
+                np.stack(hi_list, axis=0)
+                if hi_list
+                else np.zeros((0, self.cfg.bins), dtype=float)
+            )
+            n_units_arr = (
+                np.stack(n_units_list, axis=0)
+                if n_units_list
+                else np.zeros((0, self.cfg.bins), dtype=int)
+            )
+
         meta = {
             "log_tag": self.log_tag,
             "x_label": self.x_label,
@@ -226,10 +443,13 @@ class TrainingMetricHistogramPlotter:
             "xmax_effective": eff_xmax,
             "pool_trainings": bool(self.cfg.pool_trainings),
             "subset_label": self.cfg.subset_label,
+            "per_fly": bool(self.cfg.per_fly),
+            "ci": bool(self.cfg.ci),
+            "ci_conf": float(self.cfg.ci_conf),
             "generated_utc": datetime.now(timezone.utc).isoformat(),
         }
 
-        return {
+        out = {
             "panel_labels": panel_labels,
             "counts": counts_arr,
             "bin_edges": edges_arr,
@@ -238,6 +458,18 @@ class TrainingMetricHistogramPlotter:
             "n_dropped": np.asarray(n_dropped_list, dtype=int),
             "meta": meta,
         }
+        if self.cfg.per_fly:
+            out.update(
+                {
+                    "mean": mean_arr,
+                    "ci_lo": lo_arr,
+                    "ci_hi": hi_arr,
+                    "n_units": n_units_arr,
+                }
+            )
+        else:
+            out["counts"] = counts_arr
+        return out
 
     def export_histograms_npz(self, out_npz: str) -> None:
         data = self.compute_histograms()
@@ -254,11 +486,17 @@ class TrainingMetricHistogramPlotter:
         np.savez_compressed(
             out_npz,
             panel_labels=np.asarray(data["panel_labels"], dtype=object),
-            counts=data["counts"],
             bin_edges=data["bin_edges"],
             n_raw=data["n_raw"],
             n_used=data["n_used"],
             n_dropped=data["n_dropped"],
+            # pooled-mode payload
+            counts=data.get("counts", None),
+            # per-fly-mode payload
+            mean=data.get("mean", None),
+            ci_lo=data.get("ci_lo", None),
+            ci_hi=data.get("ci_hi", None),
+            n_units=data.get("n_units", None),
             meta_json=json.dumps(data["meta"], sort_keys=True),
         )
         print(f"[{self.log_tag}] wrote histogram export {out_npz}")
@@ -266,7 +504,6 @@ class TrainingMetricHistogramPlotter:
     def plot_histograms(self) -> None:
         data = self.compute_histograms()
         panel_labels: list[str] = data["panel_labels"]
-        counts_arr: np.ndarray = data["counts"]
         edges_arr: np.ndarray = data["bin_edges"]
         if not panel_labels:
             print(f"[{self.log_tag}] no data found; skipping plot.")
@@ -283,26 +520,43 @@ class TrainingMetricHistogramPlotter:
         axes = axes[0]
 
         for idx, (ax, label) in enumerate(zip(axes, panel_labels)):
-            counts = counts_arr[idx]
             edges = edges_arr[idx]
-
-            if counts.sum() == 0:
-                ax.set_axis_off()
-                ax.text(0.5, 0.5, "no data", ha="center", va="center")
-                continue
 
             bin_widths = np.diff(edges)
             lefts = edges[:-1]
-            if self.cfg.normalize:
-                total = counts.sum()
-                if total == 0:
+            centers = lefts + 0.5 * bin_widths
+
+            if self.cfg.per_fly:
+                y = np.asarray(data["mean"][idx], dtype=float)
+                if not np.any(np.isfinite(y)):
                     ax.set_axis_off()
                     ax.text(0.5, 0.5, "no data", ha="center", va="center")
                     continue
-                y = counts / total
                 ax.bar(lefts, y, width=bin_widths, align="edge")
+                if self.cfg.ci:
+                    lo = np.asarray(data["ci_lo"][idx], dtype=float)
+                    hi = np.asarray(data["ci_hi"][idx], dtype=float)
+                    # yerr expects non-negative deltas
+                    yerr = np.vstack([y - lo, hi - y])
+                    # Protect against NaNs so matplotlib doesn't complain
+                    yerr = np.where(np.isfinite(yerr), yerr, 0)
+                    ax.errorbar(centers, y, yerr=yerr, fmt="none", capsize=2)
             else:
-                ax.bar(lefts, counts, width=bin_widths, align="edge")
+                counts = np.asarray(data["counts"][idx], dtype=float)
+                if np.sum(counts) == 0:
+                    ax.set_axis_off()
+                    ax.text(0.5, 0.5, "no data", ha="center", va="center")
+                    continue
+                if self.cfg.normalize:
+                    total = float(np.sum(counts))
+                    if total == 0:
+                        ax.set_axis_off()
+                        ax.text(0.5, 0.5, "no data", ha="center", va="center")
+                        continue
+                    y = counts / total
+                    ax.bar(lefts, y, width=bin_widths, align="edge")
+                else:
+                    ax.bar(lefts, counts, width=bin_widths, align="edge")
 
             # Keep xlim consistent with effective edges
             if edges.size >= 2:
@@ -313,9 +567,16 @@ class TrainingMetricHistogramPlotter:
             ax.set_title(label)
             ax.set_xlabel(self.x_label)
             if idx == 0:
-                ax.set_ylabel(
-                    "proportion of segments" if self.cfg.normalize else "# segments"
-                )
+                if self.cfg.per_fly:
+                    ax.set_ylabel(
+                        "mean proportion of segments (per fly)"
+                        if self.cfg.normalize
+                        else "mean # segments (per fly)"
+                    )
+                else:
+                    ax.set_ylabel(
+                        "proportion of segments" if self.cfg.normalize else "# segments"
+                    )
         title = self.base_title
         if self.cfg.subset_label:
             title = f"{title}\n{self.cfg.subset_label}"

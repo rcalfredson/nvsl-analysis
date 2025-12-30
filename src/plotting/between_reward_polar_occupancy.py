@@ -13,7 +13,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from src.plotting.plot_customizer import PlotCustomizer
-from src.utils.common import writeImage
+from src.utils.common import CT, writeImage
 
 
 @dataclass
