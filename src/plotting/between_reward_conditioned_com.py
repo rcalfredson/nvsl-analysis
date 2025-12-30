@@ -6,10 +6,10 @@ from typing import Optional, Sequence
 import numpy as np
 import matplotlib.pyplot as plt
 
+import src.utils.util as util
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.wall_contact_utils import build_wall_contact_mask_for_window
-from src.utils.common import writeImage
-from src.utils.util import meanConfInt
+from src.utils.common import maybe_sentence_case, writeImage
 
 
 @dataclass
@@ -342,7 +342,7 @@ class BetweenRewardConditionedCOMPlotter:
         n_units = np.zeros((B,), dtype=int)
 
         for j in range(B):
-            m, lo_j, hi_j, n_j = meanConfInt(Y[:, j], conf=float(self.cfg.ci_conf))
+            m, lo_j, hi_j, n_j = util.meanConfInt(Y[:, j], conf=float(self.cfg.ci_conf))
             mean[j] = float(m)
             lo[j] = float(lo_j)
             hi[j] = float(hi_j)
@@ -386,40 +386,97 @@ class BetweenRewardConditionedCOMPlotter:
             ax.set_axis_off()
             ax.text(0.5, 0.5, "no data", ha="center", va="center")
         else:
-            ax.plot(x, y, marker="o", linewidth=1.5)
+            # Styling cues from plot_com_sli_bundles / plotRewards-esque plots
+            color = "C0"
+            fin = np.isfinite(y) & np.isfinite(x)
 
-            # error bars (non-negative deltas)
-            yerr = np.vstack([y - lo, hi - y])
-            yerr = np.where(np.isfinite(yerr), yerr, 0)
-            ax.errorbar(x, y, yerr=yerr, fmt="none", capsize=2, ecolor="0.2")
-
-            ax.set_xlabel(
-                "Distance from reward center [mm]\n(binned by trajectory statistic)"
+            ax.plot(
+                x[fin],
+                y[fin],
+                color=color,
+                marker="o",
+                ms=3,
+                mec=color,
+                linewidth=2,
+                linestyle="-",
             )
-            ax.set_ylabel("Mean COM magnitude per fly [mm]")
+
+            # CI shading (instead of error bars)
+            fin_ci = fin & np.isfinite(lo) & np.isfinite(hi)
+            if fin_ci.any():
+                ax.fill_between(
+                    x[fin_ci],
+                    lo[fin_ci],
+                    hi[fin_ci],
+                    color=color,
+                    alpha=0.15,
+                )
+
+            # Labels in the same “sentence-case” convention
+            ax.set_xlabel(
+                maybe_sentence_case("distance from reward center [mm] (binned)")
+            )
+            ax.set_ylabel(
+                maybe_sentence_case("mean COM dist. to circle center per fly [mm]")
+            )
+
+            # x-lims align to bin span (centers are inside, but this keeps it tidy)
+            try:
+                edges = np.asarray(data["x_edges"], dtype=float)
+                if edges.size >= 2 and np.all(np.isfinite(edges[[0, -1]])):
+                    ax.set_xlim(float(edges[0]), float(edges[-1]))
+            except Exception:
+                pass
+
+            # y-lims: 0-based; dynamic top unless user fixed it
             ax.set_ylim(bottom=0)
             if self.cfg.ymax is not None:
                 ax.set_ylim(top=float(self.cfg.ymax))
+            else:
+                y_top = np.nanmax(hi) if np.isfinite(np.nanmax(hi)) else np.nanmax(y)
+                if np.isfinite(y_top):
+                    ax.set_ylim(top=float(y_top) * 1.10)
 
-            # light annotation: how many flies contributed per bin
-            # (kept minimal so it doesn't clutter; can be upgraded later)
+            # n labels per bin (small, lightly offset)
+            ylim0, ylim1 = ax.get_ylim()
+            y_off = 0.04 * (ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 0.0
             for xi, yi, ni in zip(x, y, n_units):
-                if np.isfinite(yi) and ni > 0:
-                    ax.text(xi, yi, f" {ni}", fontsize=7, va="center")
+                if np.isfinite(xi) and np.isfinite(yi) and int(ni) > 0:
+                    util.pltText(
+                        xi,
+                        yi + y_off,
+                        f"{int(ni)}",
+                        ha="center",
+                        size=self.customizer.in_plot_font_size,
+                        color=".2",
+                    )
 
-        title = "Between-reward COM magnitude vs distance-from-reward"
-        subtitle_parts = []
-        subtitle_parts.append(f"Training {int(self.cfg.training_index) + 1}")
-        if int(self.cfg.skip_first_sync_buckets) > 0:
-            subtitle_parts.append(
-                f"skip first {int(self.cfg.skip_first_sync_buckets)} bucket(s)"
+            # Title + small annotation (closer to bundle plotter style)
+            ax.set_title(
+                maybe_sentence_case(
+                    "between-reward COM magnitude vs distance-from-reward"
+                )
             )
-        subtitle_parts.append(f"binned by: {self.cfg.cond_stat}")
-        if self.cfg.subset_label:
-            subtitle_parts.append(self.cfg.subset_label)
-        fig.suptitle(title + "\n" + " | ".join(subtitle_parts))
-
-        fig.tight_layout()
+            parts = [f"T{int(self.cfg.training_index) + 1}"]
+            if int(self.cfg.skip_first_sync_buckets) > 0:
+                parts.append(
+                    f"skip first {int(self.cfg.skip_first_sync_buckets)} bucket(s)"
+                )
+            parts.append(f"binned by {str(self.cfg.cond_stat)} dist")
+            if self.cfg.subset_label:
+                parts.append(str(self.cfg.subset_label))
+            fig.text(
+                0.02,
+                0.98,
+                " | ".join(parts),
+                ha="left",
+                va="top",
+                fontsize=self.customizer.in_plot_font_size,
+                color="0",
+            )
+        if self.customizer.font_size_customized:
+            self.customizer.adjust_padding_proportionally()
+        fig.tight_layout(rect=(0, 0, 1, 0.95))
         writeImage(self.cfg.out_file, format=self.opts.imageFormat)
         plt.close(fig)
         print(f"[{self.log_tag}] wrote {self.cfg.out_file}")
