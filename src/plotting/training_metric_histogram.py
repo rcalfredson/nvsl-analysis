@@ -214,7 +214,7 @@ class TrainingMetricHistogramPlotter:
                     for vlist in vals_by_trn_by_fly:
                         pooled_units.extend(vlist)
                     vals_by_panel_by_fly = [pooled_units]
-                panel_labels = ["all trainings combined"]
+                panel_labels = ["All trainings combined"]
             else:
                 vals_by_panel_by_fly = vals_by_trn_by_fly
                 panel_labels = self._training_labels(len(vals_by_trn_by_fly))
@@ -234,7 +234,7 @@ class TrainingMetricHistogramPlotter:
             if self.cfg.pool_trainings:
                 pooled = np.concatenate([v for v in vals_by_trn if v.size > 0])
                 vals_by_panel = [pooled]
-                panel_labels = ["all trainings combined"]
+                panel_labels = ["All trainings combined"]
             else:
                 vals_by_panel = vals_by_trn
                 panel_labels = self._training_labels(len(vals_by_trn))
@@ -540,7 +540,16 @@ class TrainingMetricHistogramPlotter:
                     yerr = np.vstack([y - lo, hi - y])
                     # Protect against NaNs so matplotlib doesn't complain
                     yerr = np.where(np.isfinite(yerr), yerr, 0)
-                    ax.errorbar(centers, y, yerr=yerr, fmt="none", capsize=2)
+                    ax.errorbar(
+                        centers,
+                        y,
+                        yerr=yerr,
+                        fmt="none",
+                        capsize=2,
+                        ecolor="0.2",
+                        elinewidth=1.0,
+                        zorder=3,
+                    )
             else:
                 counts = np.asarray(data["counts"][idx], dtype=float)
                 if np.sum(counts) == 0:
@@ -561,6 +570,7 @@ class TrainingMetricHistogramPlotter:
             # Keep xlim consistent with effective edges
             if edges.size >= 2:
                 ax.set_xlim(float(edges[0]), float(edges[-1]))
+            ax.set_ylim(bottom=0)
             if self.cfg.ymax is not None:
                 ax.set_ylim(top=self.cfg.ymax)
 
@@ -569,13 +579,13 @@ class TrainingMetricHistogramPlotter:
             if idx == 0:
                 if self.cfg.per_fly:
                     ax.set_ylabel(
-                        "mean proportion of segments (per fly)"
+                        "Proportion"
                         if self.cfg.normalize
-                        else "mean # segments (per fly)"
+                        else "Mean # segments (per fly)"
                     )
                 else:
                     ax.set_ylabel(
-                        "proportion of segments" if self.cfg.normalize else "# segments"
+                        "Proportion" if self.cfg.normalize else "# segments"
                     )
         title = self.base_title
         if self.cfg.subset_label:

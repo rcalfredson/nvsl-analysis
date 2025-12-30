@@ -43,8 +43,8 @@ class BetweenRewardDistanceHistogramPlotter(TrainingMetricHistogramPlotter):
             customizer=customizer,
             cfg=cfg,
             log_tag="btw_rwd_dists",
-            x_label="distance between rewards (mm)",
-            base_title="Between-reward distances (experimental flies only)",
+            x_label="Distance traveled between rewards (mm)",
+            base_title="Lengths of between-rewards trajectories",
         )
 
     # ---------- helpers ----------
