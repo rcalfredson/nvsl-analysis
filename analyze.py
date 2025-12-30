@@ -101,6 +101,10 @@ from src.plotting.between_reward_com_mag_hist import (
     BetweenRewardCOMMagHistogramPlotter,
     BetweenRewardCOMMagHistogramConfig,
 )
+from src.plotting.between_reward_conditioned_com import (
+    BetweenRewardConditionedCOMConfig,
+    BetweenRewardConditionedCOMPlotter,
+)
 from src.plotting.between_reward_distance_hist import (
     BetweenRewardDistanceHistogramPlotter,
     BetweenRewardDistanceHistogramConfig,
@@ -155,6 +159,7 @@ REWARD_PI_POST_DIFF_IMG_FILE = "imgs/reward_pi_post_diff__%s_min_buckets.png"
 DIST_BTWN_REWARDS_LABEL = "mean dist. between calc. rewards%s"
 DIST_BTWN_REWARDS_IMG_FILE = "imgs/btw_rwd_dists.png"
 BTW_RWD_COM_MAG_HIST_IMG_FILE = "imgs/btw_rwd_com_mag_hist.png"
+BTW_RWD_DIST_BINNED_COM_IMG_FILE = "imgs/btw_rwd_dist_binned_com.png"
 BTW_RWD_POLAR_IMG_FILE = "imgs/btw_rwd_polar.png"
 PSC_LABEL = "%% in circle\n(%s, %.1f-cm radius)"
 TURN_IMG_FILE = "imgs/%s%s_turn%s%s__%%s_min_buckets.png"
@@ -626,6 +631,88 @@ g.add_argument(
     help=(
         "Set a fixed maximum for the y-axis in between-reward COM-magnitude "
         "histograms. By default, matplotlib chooses the y-axis scale."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com",
+    action="store_true",
+    help=(
+        "Plot between-reward COM magnitude as a function of "
+        "distance-from-reward (binned by per-segment median or max distance)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com-trn",
+    type=int,
+    default=2,
+    help=(
+        "Which training to analyze for --btw-rwd-conditioned-com (1-based). "
+        "Default: %(default)s (Training 2)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com-skip-first-sync-buckets",
+    type=int,
+    default=0,
+    help=(
+        "Exclude the first K sync buckets of the selected training from the distance-binned COM analysis. "
+        "Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com-use-reward-exclusion-mask",
+    action="store_true",
+    help=(
+        "Use VideoAnalysis.reward_exclusion_mask to mark some sync buckets incomplete in the distance-binned COM analysis. "
+        "If not set, all included buckets are treated as complete."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com-cond",
+    choices=("median", "max"),
+    default="median",
+    help=(
+        "Distance statistic for distance-from-reward binning. "
+        "'median' uses per-segment median distance; 'max' uses per-segment max distance. "
+        "Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com-xbin",
+    type=float,
+    default=2.0,
+    help="Bin width (mm) for distance-from-reward binning axis. Default: %(default)s.",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com-xmin",
+    type=float,
+    default=0.0,
+    help="Minimum x (mm) for distance bins. Default: %(default)s.",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com-xmax",
+    type=float,
+    default=20.0,
+    help="Maximum x (mm) for distance bins. Default: %(default)s.",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com-ci-conf",
+    type=float,
+    default=0.95,
+    help="Confidence level for distance-binned COM error bars. Default: %(default)s.",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com-ymax",
+    type=float,
+    default=None,
+    help="Optional fixed y-axis max for distance-binned COM plot.",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com-top-sli",
+    action="store_true",
+    help=(
+        "Restrict distance-binned COM analysis to flies in the top SLI fraction "
+        "(see --best-worst-sli, --best-worst-fraction, --best-worst-trn)."
     ),
 )
 g.add_argument(
@@ -6313,6 +6400,62 @@ def postAnalyze(vas):
         if out_npz:
             plotter.export_histograms_npz(out_npz)
         plotter.plot_histograms()
+
+    # ---------------- Distance-binned between-reward COM ----------------
+    if getattr(opts, "btw_rwd_conditioned_com", False) and any(
+        getattr(v, "circle", None) for v in vas
+    ):
+        vas_for_plot = vas
+
+        # Optional: mirror the "top SLI" restriction behavior used by other plotters.
+        if getattr(opts, "btw_rwd_conditioned_com_top_sli", False):
+            if saved_top is None:
+                print(
+                    "[btw_rwd_dist_binned_com] WARNING: --btw-rwd-conditioned-com-top-sli requested "
+                    "but no top-SLI group is available; falling back to all flies."
+                )
+            else:
+                vas_for_plot = [vas[i] for i in saved_top]
+                print(
+                    "[btw_rwd_dist_binned_com] restricting distance-binned COM to "
+                    f"{len(vas_for_plot)} top-SLI flies"
+                )
+
+        subset_label = None
+        if (
+            getattr(opts, "btw_rwd_conditioned_com_top_sli", False)
+            and saved_top is not None
+        ):
+            frac = float(getattr(opts, "best_worst_fraction", 0.1))
+            subset_label = f"Restricted to top {100*frac:.1f}% SLI flies"
+
+        # Training index (user is 1-based; internal is 0-based)
+        trn_1based = int(getattr(opts, "btw_rwd_conditioned_com_trn", 2))
+        t_idx = max(0, trn_1based - 1)
+
+        cfg = BetweenRewardConditionedCOMConfig(
+            out_file=BTW_RWD_DIST_BINNED_COM_IMG_FILE,
+            training_index=t_idx,
+            skip_first_sync_buckets=int(
+                getattr(opts, "btw_rwd_conditioned_com_skip_first_sync_buckets", 0)
+            ),
+            use_reward_exclusion_mask=bool(
+                getattr(
+                    opts, "btw_rwd_conditioned_com_use_reward_exclusion_mask", False
+                )
+            ),
+            cond_stat=str(getattr(opts, "btw_rwd_conditioned_com_cond", "median")),
+            x_bin_width_mm=float(getattr(opts, "btw_rwd_conditioned_com_xbin", 2.0)),
+            x_min_mm=float(getattr(opts, "btw_rwd_conditioned_com_xmin", 0.0)),
+            x_max_mm=float(getattr(opts, "btw_rwd_conditioned_com_xmax", 20.0)),
+            ci_conf=float(getattr(opts, "btw_rwd_conditioned_com_ci_conf", 0.95)),
+            ymax=getattr(opts, "btw_rwd_conditioned_com_ymax", None),
+            subset_label=subset_label,
+        )
+        plotter = BetweenRewardConditionedCOMPlotter(
+            vas=vas_for_plot, opts=opts, gls=gls, customizer=customizer, cfg=cfg
+        )
+        plotter.plot()
     if getattr(opts, "btw_rwd_polar", False) and any(
         getattr(v, "circle", None) for v in vas
     ):
@@ -7452,6 +7595,14 @@ if __name__ == "__main__":
             print(
                 f"[com] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
                 "because --com-exclude-wall-contact was set"
+            )
+            opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
+    if getattr(opts, "btw_rwd_conditioned_com", False):
+        if getattr(opts, "wall", None) is None:
+            print(
+                f"[btw_rwd_dist_binned_com] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
+                "because --btw-rwd-conditioned-com was passed"
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 

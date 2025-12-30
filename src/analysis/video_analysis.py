@@ -113,6 +113,9 @@ class BetweenRewardSegmentCOM:
     my_mm: float
     mag_mm: float
     med_d_mm: float
+    # Optional: max distance from reward center during segment (mm)
+    # Filled when requested; otherwise NaN for backward compatibility.
+    max_d_mm: float = float("nan")
     detail: Optional[Dict[str, Any]] = None
     why: Optional[str] = None  # None means "used"; else describes skip reason
 
@@ -462,10 +465,15 @@ class VideoAnalysis:
             and getattr(self.opts, "btw_rwd_dist_exclude_wall_contact", False)
         )
 
+        keep_wall_regions_for_btw_rwd_conditioned_com = bool(
+            getattr(self.opts, "btw_rwd_conditioned_com", False)
+        )
+
         keep_wall_regions = (
             keep_wall_regions_for_polar
             or keep_wall_regions_for_btw_rwd_com_mag
             or keep_wall_regions_for_btw_rwd_dist
+            or keep_wall_regions_for_btw_rwd_conditioned_com
         )
 
         # ─────────────────────────────────────────────────────────────
@@ -2211,6 +2219,7 @@ class VideoAnalysis:
         per_segment_min_meddist_mm: float,
         exclude_wall: bool,
         wc=None,
+        dist_stats: tuple[str, ...] = ("median",),
         debug: bool = False,
         yield_skips: bool = False,
     ) -> "Iterator[BetweenRewardSegmentCOM]":
@@ -2227,6 +2236,10 @@ class VideoAnalysis:
           - optional median-distance filter (meddist_mm > threshold)
           - mean x/y must be finite
         """
+        # Normalize requested distance stats
+        ds = tuple(str(x).lower().strip() for x in (dist_stats or ()))
+        need_max = ("max" in ds) or ("maxdist" in ds) or ("max_d" in ds)
+
         traj = self.trx[fly_idx]
         on = self._getOn(trn, False, f=fly_idx)
         if on is None or len(on) < 2:
@@ -2263,6 +2276,7 @@ class VideoAnalysis:
                 my_mm=float("nan"),
                 mag_mm=float("nan"),
                 med_d_mm=float("nan"),
+                max_d_mm=float("nan"),
                 detail=_detail_dict(i, s, e, b_idx),
                 why=why,
             )
@@ -2307,6 +2321,7 @@ class VideoAnalysis:
             dx = xs - cx
             dy = ys - cy
             d = np.hypot(dx, dy)
+            # Median distance (used for filtering; also exported as med_d_mm)
             med_d = np.nanmedian(d)
             if not np.isfinite(med_d):
                 if yield_skips:
@@ -2316,6 +2331,12 @@ class VideoAnalysis:
                 if yield_skips:
                     yield _make_skip(i, s, e, b_idx, "meddist_filtered")
                 continue
+
+            # Optional max distance (only computed when requested)
+            if need_max:
+                max_d = np.nanmax(d)
+            else:
+                max_d = float("nan")
 
             mx = np.nanmean(xs)
             my = np.nanmean(ys)
@@ -2331,6 +2352,7 @@ class VideoAnalysis:
             my_mm = my / px_per_mm
             mag_mm = float(np.hypot(mx_mm, my_mm))
             med_d_mm = float(med_d / px_per_mm)
+            max_d_mm = float(max_d / px_per_mm) if np.isfinite(max_d) else float("nan")
 
             yield BetweenRewardSegmentCOM(
                 b_idx=b_idx,
@@ -2340,6 +2362,7 @@ class VideoAnalysis:
                 my_mm=float(my_mm),
                 mag_mm=mag_mm,
                 med_d_mm=med_d_mm,
+                max_d_mm=max_d_mm,
                 detail=_detail_dict(i, s, e, b_idx),
                 why=None,
             )
