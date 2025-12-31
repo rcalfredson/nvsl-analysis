@@ -56,6 +56,89 @@ class BetweenRewardConditionedCOMConfig:
     subset_label: str | None = None
 
 
+@dataclass(frozen=True)
+class BetweenRewardConditionedCOMResult:
+    """
+    Portable result object for distance-binned between-reward COM analysis.
+
+    Intended use:
+        - Stage A: compute once per group (slow), save_npz(...)
+        - Stage B: load multiple cached results, plot side-by-side (fast)
+    """
+
+    x_edges: np.ndarray
+    x_centers: np.ndarray
+    mean: np.ndarray
+    ci_lo: np.ndarray
+    ci_hi: np.ndarray
+    n_units: np.ndarray
+    meta: dict
+
+    def validate(self) -> None:
+        x_edges = np.asarray(self.x_edges, dtype=float)
+        x_centers = np.asarray(self.x_centers, dtype=float)
+        mean = np.asarray(self.mean, dtype=float)
+        ci_lo = np.asarray(self.ci_lo, dtype=float)
+        ci_hi = np.asarray(self.ci_hi, dtype=float)
+        n_units = np.asarray(self.n_units, dtype=int)
+
+        if x_edges.ndim != 1 or x_edges.size < 2:
+            raise ValueError("x_edges must be 1D with at least 2 entries")
+        B = int(x_edges.size - 1)
+        if x_centers.ndim != 1 or x_centers.size != B:
+            raise ValueError(f"x_centers must be 1D with length {B}")
+        for name, arr in (
+            ("mean", mean),
+            ("ci_lo", ci_lo),
+            ("ci_hi", ci_hi),
+        ):
+            if arr.ndim != 1 or arr.size != B:
+                raise ValueError(f"{name} must be 1D with length {B}")
+        if n_units.ndim != 1 or n_units.size != B:
+            raise ValueError(f"n_units must be 1D with length {B}")
+
+    def save_npz(self, path: str) -> None:
+        """
+        Save the result to a compressed NPZ. `meta` is stored as an object array.
+        """
+        self.validate()
+        np.savez_compressed(
+            path,
+            x_edges=np.asarray(self.x_edges, dtype=float),
+            x_centers=np.asarray(self.x_centers, dtype=float),
+            mean=np.asarray(self.mean, dtype=float),
+            ci_lo=np.asarray(self.ci_lo, dtype=float),
+            ci_hi=np.asarray(self.ci_hi, dtype=float),
+            n_units=np.asarray(self.n_units, dtype=int),
+            meta=np.array([self.meta], dtype=object),
+        )
+
+    @staticmethod
+    def load_npz(path: str) -> BetweenRewardConditionedCOMResult:
+        """
+        Load a result saved via save_npz(...).
+        """
+        z = np.load(path, allow_pickle=True)
+        meta = {}
+        if "meta" in z:
+            try:
+                meta_obj = z["meta"]
+                meta = meta_obj.item() if hasattr(meta_obj, "item") else {}
+            except Exception:
+                meta = {}
+        res = BetweenRewardConditionedCOMResult(
+            x_edges=np.asarray(z["x_edges"], dtype=float),
+            x_centers=np.asarray(z["x_centers"], dtype=float),
+            mean=np.asarray(z["mean"], dtype=float),
+            ci_lo=np.asarray(z["ci_lo"], dtype=float),
+            ci_hi=np.asarray(z["ci_hi"], dtype=float),
+            n_units=np.asarray(z["n_units"], dtype=int),
+            meta=dict(meta) if isinstance(meta, dict) else {},
+        )
+        res.validate()
+        return res
+
+
 class BetweenRewardConditionedCOMPlotter:
     """
     Plot conditioned between-reward COM magnitude vs. a trajectory-level distance statistic.
@@ -368,6 +451,21 @@ class BetweenRewardConditionedCOMPlotter:
                 "n_fly_units": int(Y.shape[0]),
             },
         }
+
+    def compute_result(self) -> BetweenRewardConditionedCOMResult:
+        """
+        Return a portable result object suitable for caching/export.
+        """
+        d = self.compute_summary()
+        return BetweenRewardConditionedCOMResult(
+            x_edges=np.asarray(d["x_edges"], dtype=float),
+            x_centers=np.asarray(d["x_centers"], dtype=float),
+            mean=np.asarray(d["mean"], dtype=float),
+            ci_lo=np.asarray(d["ci_lo"], dtype=float),
+            ci_hi=np.asarray(d["ci_hi"], dtype=float),
+            n_units=np.asarray(d["n_units"], dtype=int),
+            meta=dict(d.get("meta", {})),
+        )
 
     def plot(self) -> None:
         """
