@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Sequence
+from typing import Sequence
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -371,7 +371,7 @@ class BetweenRewardConditionedCOMPlotter:
 
     def plot(self) -> None:
         """
-        Plot mean ± CI across flies as a function of distance bins.
+        Plot mean ± CI across flies as a function of distance bins (histogram-style bars)
         """
         data = self.compute_summary()
         x = np.asarray(data["x_centers"], dtype=float)
@@ -386,30 +386,37 @@ class BetweenRewardConditionedCOMPlotter:
             ax.set_axis_off()
             ax.text(0.5, 0.5, "no data", ha="center", va="center")
         else:
-            # Styling cues from plot_com_sli_bundles / plotRewards-esque plots
+            # Histogram-like bars: one bar per distance bin (height = mean over flies)
             color = "C0"
-            fin = np.isfinite(y) & np.isfinite(x)
+            edges = np.asarray(data["x_edges"], dtype=float)
+            widths = edges[1:] - edges[:-1]
 
-            ax.plot(
+            fin = np.isfinite(y) & np.isfinite(x) & np.isfinite(widths)
+
+            ax.bar(
                 x[fin],
                 y[fin],
+                width=0.92 * widths[fin],
+                align="center",
                 color=color,
-                marker="o",
-                ms=3,
-                mec=color,
-                linewidth=2,
-                linestyle="-",
+                alpha=0.75,
+                edgecolor=color,
+                linewidth=0.8,
             )
 
-            # CI shading (instead of error bars)
+            # CI as asymmetric error bars derived from (lo, hi)
             fin_ci = fin & np.isfinite(lo) & np.isfinite(hi)
             if fin_ci.any():
-                ax.fill_between(
+                yerr = np.vstack([y[fin_ci] - lo[fin_ci], hi[fin_ci] - y[fin_ci]])
+                ax.errorbar(
                     x[fin_ci],
-                    lo[fin_ci],
-                    hi[fin_ci],
-                    color=color,
-                    alpha=0.15,
+                    y[fin_ci],
+                    yerr=yerr,
+                    fmt="none",
+                    ecolor=color,
+                    elinewidth=1.2,
+                    capsize=2.5,
+                    alpha=0.9,
                 )
 
             # Labels in the same “sentence-case” convention
@@ -421,12 +428,8 @@ class BetweenRewardConditionedCOMPlotter:
             )
 
             # x-lims align to bin span (centers are inside, but this keeps it tidy)
-            try:
-                edges = np.asarray(data["x_edges"], dtype=float)
-                if edges.size >= 2 and np.all(np.isfinite(edges[[0, -1]])):
-                    ax.set_xlim(float(edges[0]), float(edges[-1]))
-            except Exception:
-                pass
+            if edges.size >= 2 and np.all(np.isfinite(edges[[0, -1]])):
+                ax.set_xlim(float(edges[0]), float(edges[-1]))
 
             # y-lims: 0-based; dynamic top unless user fixed it
             ax.set_ylim(bottom=0)
