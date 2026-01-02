@@ -697,7 +697,7 @@ def plot_btw_rwd_conditioned_com_overlay(
         )
 
     # y-offset for n-labels are computed after y-lims are known.
-    pending_nlabels: list[tuple[float, float, int]] = []
+    pending_nlabels: list[tuple[int, int, float, float, int]] = []  # (gi, j, x, y_top, n)
 
     any_data = False
     if len(labels) != len(results):
@@ -705,6 +705,7 @@ def plot_btw_rwd_conditioned_com_overlay(
             f"[{log_tag}] WARNING: labels/results length mismatch; truncating to min."
         )
     drawn = np.zeros((n_groups, B), dtype=bool)
+    occupied_top = np.full((n_groups, B), -np.inf, dtype=float)
     for gi, (res, lab) in enumerate(pairs):
         res.validate()
 
@@ -750,9 +751,15 @@ def plot_btw_rwd_conditioned_com_overlay(
 
         # Queue n-labels per bar (place after we know y-lims)
         # Store tuples: (x_pos, y_val, n)
-        for xb, yb, nb in zip(x_bar[fin], y[fin], n_units[fin]):
-            if np.isfinite(xb) and np.isfinite(yb) and int(nb) > 0:
-                pending_nlabels.append((float(xb), float(yb), int(nb)))
+        idxs = np.where(fin)[0]
+        for j in idxs:
+            xb = float(x_bar[j])
+            yb = float(y[j])
+            nb = int(n_units[j])
+            if nb <= 0 or not (np.isfinite(xb) and np.isfinite(yb)):
+                continue
+            hib = float(hi[j]) if np.isfinite(hi[j]) else yb
+            pending_nlabels.append((gi, int(j), xb, hib, nb))
 
         fin_ci = fin & np.isfinite(lo) & np.isfinite(hi)
         if fin_ci.any():
@@ -797,15 +804,17 @@ def plot_btw_rwd_conditioned_com_overlay(
         if pending_nlabels:
             ylim0, ylim1 = ax.get_ylim()
             y_off = 0.04 * (ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 0.0
-            for xb, yb, nb in pending_nlabels:
+            for gi, j, xb, y_top, nb in pending_nlabels:
+                y_lab = float(y_top + y_off)
                 util.pltText(
                     xb,
-                    yb + y_off,
-                    f"{int(nb)}",
+                    y_lab,
+                    f"{nb}",
                     ha="center",
                     size=customizer.in_plot_font_size,
                     color=".2",
                 )
+                occupied_top[gi, j] = max(occupied_top[gi, j], y_lab)
 
         # ---------- t-tests + bracket+stars annotations ----------
         # Only attempt if requested.
@@ -879,13 +888,10 @@ def plot_btw_rwd_conditioned_com_overlay(
                         if np.isfinite(rb.ci_hi[j])
                         else float(rb.mean[j])
                     )
-                    y0 = np.nanmax([ya, yb])
-                    if (
-                        not np.isfinite(xa)
-                        or not np.isfinite(xb)
-                        or not np.isfinite(y0)
-                    ):
-                        continue
+                    # y0 = np.nanmax([ya, yb])
+                    y_occ_a = occupied_top[ia, j]
+                    y_occ_b = occupied_top[ib, j]
+                    y0 = np.nanmax([ya, yb, y_occ_a, y_occ_b])
 
                     y_br = float(y0 + pad)
                     _draw_bracket(ax, xa, xb, y_br, h, stars)
