@@ -104,6 +104,8 @@ from src.plotting.between_reward_com_mag_hist import (
 from src.plotting.between_reward_conditioned_com import (
     BetweenRewardConditionedCOMConfig,
     BetweenRewardConditionedCOMPlotter,
+    BetweenRewardConditionedCOMResult,
+    plot_btw_rwd_conditioned_com_overlay,
 )
 from src.plotting.between_reward_distance_hist import (
     BetweenRewardDistanceHistogramPlotter,
@@ -713,6 +715,36 @@ g.add_argument(
     help=(
         "Restrict distance-binned COM analysis to flies in the top SLI fraction "
         "(see --best-worst-sli, --best-worst-fraction, --best-worst-trn)."
+    ),
+)
+
+# ---- caching/export for distance-binned COM ----
+g.add_argument(
+    "--btw-rwd-conditioned-com-export-npz",
+    type=str,
+    default=None,
+    help=(
+        "Save a cached NPZ of the distance-binned between-reward COM result. "
+        "This only applies when computing from raw data (i.e., without --btw-rwd-conditioned-com-import-npz)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com-import-npz",
+    type=str,
+    action="append",
+    default=None,
+    help=(
+        "Load cached NPZ result(s) instead of computing from raw data, and plot an overlay. "
+        "Repeatable. Format: LABEL:PATH (e.g., 'regular_flat:out/regular_flat.npz')."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com-import-out",
+    type=str,
+    default=None,
+    help=(
+        "Output image path when using --btw-rwd-conditioned-com-import-npz. "
+        "Default: same as the normal plot output file."
     ),
 )
 g.add_argument(
@@ -6405,6 +6437,64 @@ def postAnalyze(vas):
     if getattr(opts, "btw_rwd_conditioned_com", False) and any(
         getattr(v, "circle", None) for v in vas
     ):
+        # If user provided cached results, plot overlay and skip computation.
+        import_specs = getattr(opts, "btw_rwd_conditioned_com_import_npz", None)
+        if import_specs:
+            labels: list[str] = []
+            paths: list[str] = []
+            for spec in import_specs:
+                spec = str(spec)
+                if ":" not in spec:
+                    print(
+                        "[btw_rwd_dist_binned_com] WARNING: ignoring --btw-rwd-conditioned-com-import-npz "
+                        f"entry without LABEL:PATH format: {spec!r}"
+                    )
+                    continue
+                lab, pth = spec.split(":", 1)
+                lab = lab.strip()
+                pth = pth.strip()
+                if not lab or not pth:
+                    print(
+                        "[btw_rwd_dist_binned_com] WARNING: ignoring malformed import spec: "
+                        f"{spec!r}"
+                    )
+                    continue
+                labels.append(lab)
+                paths.append(pth)
+
+            loaded_results: list[BetweenRewardConditionedCOMResult] = []
+            loaded_labels: list[str] = []
+            if not paths:
+                print(
+                    "[btw_rwd_dist_binned_com] WARNING: no valid cached NPZ specs; falling back to computation."
+                )
+            else:
+                for lab, pth in zip(labels, paths):
+                    try:
+                        res = BetweenRewardConditionedCOMResult.load_npz(pth)
+                    except Exception as e:
+                        print(
+                            "[btw_rwd_dist_binned_com] WARNING: failed to load cached NPZ "
+                            f"({lab!r} at {pth!r}): {e}"
+                        )
+                        continue
+                    loaded_results.append(res)
+                    loaded_labels.append(lab)
+
+            if loaded_results:
+                out_file = getattr(opts, "btw_rwd_conditioned_com_import_out", None)
+                if not out_file:
+                    out_file = BTW_RWD_DIST_BINNED_COM_IMG_FILE
+                plot_btw_rwd_conditioned_com_overlay(
+                    results=loaded_results,
+                    labels=loaded_labels,
+                    out_file=str(out_file),
+                    opts=opts,
+                    customizer=customizer,
+                    log_tag="btw_rwd_dist_binned_com",
+                )
+                return
+
         vas_for_plot = vas
 
         # Optional: mirror the "top SLI" restriction behavior used by other plotters.
@@ -6456,6 +6546,19 @@ def postAnalyze(vas):
             vas=vas_for_plot, opts=opts, gls=gls, customizer=customizer, cfg=cfg
         )
         plotter.plot()
+
+        # Optional: export cached NPZ
+        exp_path = getattr(opts, "btw_rwd_conditioned_com_export_npz", None)
+        if exp_path:
+            try:
+                res = plotter.compute_result()
+                res.save_npz(str(exp_path))
+                print(f"[btw_rwd_dist_binned_com] wrote cached NPZ: {str(exp_path)}")
+            except Exception as e:
+                print(
+                    "[btw_rwd_dist_binned_com] WARNING: failed to export cached NPZ "
+                    f"to {str(exp_path)!r}: {e}"
+                )
     if getattr(opts, "btw_rwd_polar", False) and any(
         getattr(v, "circle", None) for v in vas
     ):

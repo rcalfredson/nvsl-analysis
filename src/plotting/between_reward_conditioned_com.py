@@ -581,3 +581,156 @@ class BetweenRewardConditionedCOMPlotter:
         writeImage(self.cfg.out_file, format=self.opts.imageFormat)
         plt.close(fig)
         print(f"[{self.log_tag}] wrote {self.cfg.out_file}")
+
+
+def plot_btw_rwd_conditioned_com_overlay(
+    *,
+    results: Sequence[BetweenRewardConditionedCOMResult],
+    labels: Sequence[str],
+    out_file: str,
+    opts,
+    customizer: PlotCustomizer,
+    log_tag: str = "btw_rwd_dist_binned_com",
+) -> None:
+    """
+    Plot multiple cached BetweenRewardConditionedCOMResult objects as grouped bars.
+
+    For each distance bin, draw one bar per group side-by-side (plus CI).
+    Intended for fast 'Stage B' plotting from NPZ caches.
+    """
+    if not results:
+        raise ValueError("No results provided")
+
+    # Use first result's x-axis as reference
+    ref = results[0]
+    ref.validate()
+    x = np.asarray(ref.x_centers, dtype=float)
+    edges = np.asarray(ref.x_edges, dtype=float)
+    widths = edges[1:] - edges[:-1]
+    B = int(x.size)
+
+    fig, ax = plt.subplots(1, 1, figsize=(6.8, 4.2))
+
+    # --- grouped bars geometry ---
+    pairs = list(zip(results, labels))
+    n_groups = len(pairs)
+    if n_groups == 0:
+        raise ValueError("No results provided")
+    # Keep bars within each bin: total footprint is frac * bin_width
+    frac = 0.86
+    bar_w = frac * widths / max(1, n_groups)
+
+    # y-offset for n-labels are computed after y-lims are known.
+    pending_nlabels: list[tuple[float, float, int]] = []
+
+    any_data = False
+    if len(labels) != len(results):
+        print(
+            f"[{log_tag}] WARNING: labels/results length mismatch; truncating to min."
+        )
+    for i, (res, lab) in enumerate(pairs):
+        res.validate()
+
+        x2 = np.asarray(res.x_centers, dtype=float)
+        edges2 = np.asarray(res.x_edges, dtype=float)
+        if x2.shape != x.shape or not np.allclose(x2, x, equal_nan=True):
+            print(
+                f"[{log_tag}] WARNING: x_centers mismatch for {lab!r}; grouped bars may be misaligned."
+            )
+        if edges2.shape != edges.shape or not np.allclose(
+            edges2, edges, equal_nan=True
+        ):
+            raise ValueError(
+                f"[{log_tag}] x_edges mismatch for {lab!r}; cannot group bars safely."
+            )
+
+        y = np.asarray(res.mean, dtype=float)
+        lo = np.asarray(res.ci_lo, dtype=float)
+        hi = np.asarray(res.ci_hi, dtype=float)
+        n_units = np.asarray(res.n_units, dtype=int)
+
+        # Per-group bar centers: shift within each bin
+        # Example: for 3 groups, offsets are [-1, 0, +1] * bar_w, centered
+        offset = (i - (n_groups - 1) / 2.0) * bar_w
+        x_bar = x + offset
+
+        fin = np.isfinite(x_bar) & np.isfinite(y) & np.isfinite(widths)
+        if not fin.any():
+            continue
+        any_data = True
+
+        ax.bar(
+            x_bar[fin],
+            y[fin],
+            width=bar_w[fin],
+            align="center",
+            alpha=0.75,
+            linewidth=0.8,
+            label=str(lab),
+        )
+
+        # Queue n-labels per bar (place after we know y-lims)
+        # Store tuples: (x_pos, y_val, n)
+        for xb, yb, nb in zip(x_bar[fin], y[fin], n_units[fin]):
+            if np.isfinite(xb) and np.isfinite(yb) and int(nb) > 0:
+                pending_nlabels.append((float(xb), float(yb), int(nb)))
+
+        fin_ci = fin & np.isfinite(lo) & np.isfinite(hi)
+        if fin_ci.any():
+            yerr = np.vstack([y[fin_ci] - lo[fin_ci], hi[fin_ci] - y[fin_ci]])
+            ax.errorbar(
+                x_bar[fin_ci],
+                y[fin_ci],
+                yerr=yerr,
+                fmt="none",
+                elinewidth=1.1,
+                capsize=2.0,
+                alpha=0.9,
+            )
+    if not any_data:
+        ax.set_axis_off()
+        ax.text(0.5, 0.5, "no data", ha="center", va="center")
+    else:
+        ax.set_xlabel(maybe_sentence_case("distance from reward circle [mm] (binned)"))
+        ax.set_ylabel(
+            maybe_sentence_case("mean COM dist. to circle center per fly [mm]")
+        )
+
+        # Match "bin span" x-lims like in base plot
+        if edges.size >= 2 and np.all(np.isfinite(edges[[0, -1]])):
+            ax.set_xlim(float(edges[0]), float(edges[-1]))
+
+        ax.set_ylim(bottom=0)
+        ax.legend(loc="best", fontsize=customizer.in_plot_font_size)
+        ax.set_title(
+            maybe_sentence_case("between-reward COM magnitude vs distance-from-reward")
+        )
+
+        # Optional fixed ymax
+        ymax = getattr(opts, "btw_rwd_conditioned_com_ymax", None)
+        if ymax is not None:
+            try:
+                ax.set_ylim(top=float(ymax))
+            except Exception:
+                pass
+
+        # Place queued n-labels
+        if pending_nlabels:
+            ylim0, ylim1 = ax.get_ylim()
+            y_off = 0.04 * (ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 0.0
+            for xb, yb, nb in pending_nlabels:
+                util.pltText(
+                    xb,
+                    yb + y_off,
+                    f"{int(nb)}",
+                    ha="center",
+                    size=customizer.in_plot_font_size,
+                    color=".2",
+                )
+
+    if customizer.font_size_customized:
+        customizer.adjust_padding_proportionally()
+    fig.tight_layout(rect=(0, 0, 1, 1))
+    writeImage(out_file, format=opts.imageFormat)
+    plt.close(fig)
+    print(f"[{log_tag}] wrote {out_file}")
