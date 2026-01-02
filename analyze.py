@@ -757,6 +757,41 @@ g.add_argument(
     ),
 )
 
+# ---- debug exports: identify top fly-units + top segments per bin ----
+g.add_argument(
+    "--btw-rwd-conditioned-com-top-fly-units-out",
+    type=str,
+    default=None,
+    help=(
+        "Optional TSV debug export: for each distance bin, list the fly-units with the "
+        "largest per-fly mean COM magnitudes contributing to that bin. "
+        "Columns include video_id (basename), fly_idx, role_idx, fly_role, bin, mean_com_mm, n_segments."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com-top-fly-units-k",
+    type=int,
+    default=5,
+    help="How many fly-units to list per bin in --btw-rwd-conditioned-com-top-fly-units-out. Default: %(default)s.",
+)
+
+g.add_argument(
+    "--btw-rwd-conditioned-com-top-segs-out",
+    type=str,
+    default=None,
+    help=(
+        "Optional TSV debug export: for each distance bin, list the highest-COM segments "
+        "(global across all fly-units) that landed in that bin. "
+        "Includes video_id (basename), fly_idx, role_idx, fly_role, frame range s:e, and segment stats."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com-top-segs-k",
+    type=int,
+    default=25,
+    help="How many segments to list per bin in --btw-rwd-conditioned-com-top-segs-out. Default: %(default)s.",
+)
+
 # --- t-tests for distance-binned COM ---
 g.add_argument(
     "--btw-rwd-conditioned-com-ttest-ind",

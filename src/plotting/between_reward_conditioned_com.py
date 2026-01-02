@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from typing import Sequence
 
 import numpy as np
@@ -174,6 +175,25 @@ class BetweenRewardConditionedCOMPlotter:
         self.cfg = cfg
         self.log_tag = "btw_rwd_dist_binned_com"
 
+    # ---------------------------- utility ----------------------------
+    def _video_base(self, va: "VideoAnalysis") -> str:
+        fn = getattr(va, "fn", None)
+        if fn:
+            try:
+                return os.path.splitext(os.path.basename(str(fn)))[0]
+            except Exception:
+                pass
+        return f"va_{id(va)}"
+
+    def _fly_role_idx(self, va: "VideoAnalysis", fly_idx: int) -> int:
+        try:
+            return int(list(getattr(va, "flies", [])).index(fly_idx))
+        except Exception:
+            return 0
+
+    def _fly_role_name(self, role_idx: int) -> str:
+        return "exp" if int(role_idx) == 0 else "yok"
+
     # ---------------------------- bucket windowing ----------------------------
 
     def _sync_bucket_window(
@@ -279,6 +299,118 @@ class BetweenRewardConditionedCOMPlotter:
         if cs in ("max", "maxdist", "max_d"):
             return float(getattr(seg, "max_d_mm", np.nan))
         raise ValueError(f"Unknown cond_stat={self.cfg.cond_stat!r}")
+
+    def _collect_segments_by_bin(self) -> tuple[np.ndarray, list[list[dict]]]:
+        """
+        Returns (edges, segs_by_bin) where segs_by_bin[j] is a list of dict rows, each describing
+        one segment that landed in distance bin j, included the fly-unit identity fields:
+            video_id, fly_idx, role_idx, fly_role
+        plus segment fields:
+            s, e, mag_mm, cond_x_mm, med_d_mm, max_d_mm
+        """
+        edges = self._x_edges()
+        B = int(max(1, edges.size - 1))
+
+        exclude_wall = bool(getattr(self.opts, "com_exclude_wall_contact", False))
+        min_med_mm = float(
+            getattr(self.opts, "com_per_segment_min_meddist_mm", 0.0) or 0.0
+        )
+        warned_missing_wc = [False]
+
+        segs_by_bin: list[list[dict]] = [[] for _ in range(B)]
+
+        t_idx = int(self.cfg.training_index)
+        for va in self.vas:
+            if getattr(va, "_skipped", False):
+                continue
+            if getattr(va, "trx", None) is None or len(va.trx) == 0:
+                continue
+            if va.trx[0].bad():
+                continue
+
+            trns = getattr(va, "trns", [])
+            if t_idx < 0 or t_idx >= len(trns):
+                continue
+            trn = trns[t_idx]
+
+            video_id = self._video_base(va)
+
+            for f in va.flies:
+                if not va.noyc and f != 0:
+                    continue
+
+                role_idx = self._fly_role_idx(va, f)
+                fly_role = self._fly_role_name(role_idx)
+
+                fi, df, n_buckets, complete = self._sync_bucket_window(
+                    va,
+                    trn,
+                    t_idx=t_idx,
+                    f=f,
+                    skip_first=int(self.cfg.skip_first_sync_buckets),
+                    use_exclusion_mask=bool(self.cfg.use_reward_exclusion_mask),
+                )
+                if n_buckets <= 0:
+                    continue
+
+                n_frames = int(max(1, n_buckets * df))
+                wc = build_wall_contact_mask_for_window(
+                    va,
+                    f,
+                    fi=fi,
+                    n_frames=n_frames,
+                    enabled=exclude_wall,
+                    warned_missing_wc=warned_missing_wc,
+                    log_tag=self.log_tag,
+                )
+
+                cs = str(self.cfg.cond_stat or "median").lower().strip()
+                if cs in ("max", "maxdist", "max_d"):
+                    dist_stats = ("median", "max")
+                else:
+                    dist_stats = ("median",)
+
+                for seg in va._iter_between_reward_segment_com(
+                    trn,
+                    f,
+                    fi=fi,
+                    df=df,
+                    n_buckets=n_buckets,
+                    complete=complete,
+                    relative_to_reward=True,
+                    per_segment_min_meddist_mm=min_med_mm,
+                    exclude_wall=exclude_wall,
+                    wc=wc,
+                    dist_stats=dist_stats,
+                    debug=False,
+                    yield_skips=False,
+                ):
+                    x = self._cond_value_for_segment(seg)
+                    y = float(getattr(seg, "mag_mm", np.nan))
+                    if not (np.isfinite(x) and np.isfinite(y)):
+                        continue
+
+                    j = int(np.searchsorted(edges, x, side="right") - 1)
+                    if j < 0 or j >= B:
+                        continue
+
+                    row = dict(
+                        video_id=str(video_id),
+                        fly_idx=int(f),
+                        role_idx=int(role_idx),
+                        fly_role=str(fly_role),
+                        training_index=int(self.cfg.training_index),
+                        bin_lo_mm=float(edges[j]),
+                        bin_hi_mm=float(edges[j + 1]),
+                        cond_x_mm=float(x),
+                        mag_mm=float(y),
+                        med_d_mm=float(getattr(seg, "med_d_mm", np.nan)),
+                        max_d_mm=float(getattr(seg, "max_d_mm", np.nan)),
+                        s=int(getattr(seg, "s", -1)),
+                        e=int(getattr(seg, "e", -1)),
+                    )
+                    segs_by_bin[j].append(row)
+        return edges, segs_by_bin
 
     # ---------------------------- core computation ----------------------------
 
@@ -604,6 +736,222 @@ class BetweenRewardConditionedCOMPlotter:
                 )
         print(f"[{self.log_tag}] wrote walk TSV: {path}")
 
+    def _write_top_fly_units_tsv(self, path: str, *, k: int = 5) -> None:
+        edges, segs_by_bin = self._collect_segments_by_bin()
+        B = int(max(1, edges.size - 1))
+        k = int(max(1, k))
+
+        util.ensureDir(path)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(
+                "\t".join(
+                    [
+                        "bin_lo_mm",
+                        "bin_hi_mm",
+                        "x_center_mm",
+                        "rank_in_bin",
+                        "mean_com_mm_per_fly",
+                        "n_segments_in_bin",
+                        "video_id",
+                        "fly_idx",
+                        "role_idx",
+                        "fly_role",
+                        "training_index",
+                        "cond_stat",
+                        "skip_first_sync_buckets",
+                        "exclude_wall_contact",
+                        "min_meddist_mm",
+                    ]
+                )
+                + "\n"
+            )
+
+            for j in range(B):
+                rows = segs_by_bin[j]
+                if not rows:
+                    continue
+
+                # group by fly-unit identity
+                groups: dict[tuple[str, int, int], list[float]] = {}
+                for r in rows:
+                    key = (str(r["video_id"]), int(r["fly_idx"]), int(r["role_idx"]))
+                    groups.setdefault(key, []).append(float(r["mag_mm"]))
+
+                scored: list[tuple[float, int, str, int, int, str]] = []
+                for (vid, fly_idx, role_idx), mags in groups.items():
+                    mags = [m for m in mags if np.isfinite(m)]
+                    if not mags:
+                        continue
+                    mean_mag = float(np.mean(mags))
+                    scored.append(
+                        (
+                            mean_mag,
+                            int(len(mags)),
+                            str(vid),
+                            int(fly_idx),
+                            int(role_idx),
+                            "exp" if int(role_idx) == 0 else "yok",
+                        )
+                    )
+                if not scored:
+                    continue
+
+                scored.sort(key=lambda t: t[0], reverse=True)
+                top = scored[:k]
+                x_center = float(0.5 * (edges[j] + edges[j + 1]))
+
+                for rank, (
+                    mean_mag,
+                    n_seg,
+                    vid,
+                    fly_idx,
+                    role_idx,
+                    fly_role,
+                ) in enumerate(top, start=1):
+                    f.write(
+                        "\t".join(
+                            map(
+                                str,
+                                [
+                                    float(edges[j]),
+                                    float(edges[j + 1]),
+                                    x_center,
+                                    int(rank),
+                                    float(mean_mag),
+                                    int(n_seg),
+                                    str(vid),
+                                    int(fly_idx),
+                                    int(role_idx),
+                                    str(fly_role),
+                                    int(self.cfg.training_index),
+                                    str(self.cfg.cond_stat),
+                                    int(self.cfg.skip_first_sync_buckets),
+                                    int(
+                                        bool(
+                                            getattr(
+                                                self.opts,
+                                                "com_exclude_wall_contact",
+                                                False,
+                                            )
+                                        )
+                                    ),
+                                    float(
+                                        getattr(
+                                            self.opts,
+                                            "com_per_segment_min_meddist_mm",
+                                            0.0,
+                                        )
+                                        or 0.0
+                                    ),
+                                ],
+                            )
+                        )
+                        + "\n"
+                    )
+        print(f"[{self.log_tag}] wrote top fly-units TSV: {path}")
+
+    def _write_top_segments_tsv(self, path: str, *, k: int = 25) -> None:
+        edges, segs_by_bin = self._collect_segments_by_bin()
+        B = int(max(1, edges.size - 1))
+        k = int(max(1, k))
+
+        util.ensureDir(path)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(
+                "\t".join(
+                    [
+                        "bin_lo_mm",
+                        "bin_hi_mm",
+                        "x_center_mm",
+                        "rank_in_bin",
+                        "mag_mm",
+                        "cond_x_mm",
+                        "med_d_mm",
+                        "max_d_mm",
+                        "s",
+                        "e",
+                        "video_id",
+                        "fly_idx",
+                        "role_idx",
+                        "fly_role",
+                        "training_index",
+                        "cond_stat",
+                        "skip_first_sync_buckets",
+                        "exclude_wall_contact",
+                        "min_meddist_mm",
+                    ]
+                )
+                + "\n"
+            )
+
+            for j in range(B):
+                rows = segs_by_bin[j]
+                if not rows:
+                    continue
+
+                rows2 = []
+                for r in rows:
+                    m = float(r.get('mag_mm', np.nan))
+                    if np.isfinite(m):
+                        rows2.append(r)
+                if not rows2:
+                    continue
+
+                rows2.sort(key=lambda r: float(r["mag_mm"]), reverse=True)
+                top = rows2[:k]
+                x_center = float(0.5 * (edges[j] + edges[j + 1]))
+
+                for rank, r in enumerate(top, start=1):
+                    med = float(r.get("med_d_mm", np.nan))
+                    med_out = med if np.isfinite(med) else "nan"
+                    max = float(r.get("max_d_mm", np.nan))
+                    max_out = max if np.isfinite(max) else "nan"
+                    f.write(
+                        "\t".join(
+                            map(
+                                str,
+                                [
+                                    float(edges[j]),
+                                    float(edges[j + 1]),
+                                    x_center,
+                                    int(rank),
+                                    float(r["mag_mm"]),
+                                    float(r["cond_x_mm"]),
+                                    med_out,
+                                    max_out,
+                                    int(r["s"]),
+                                    int(r["e"]),
+                                    str(r["video_id"]),
+                                    int(r["fly_idx"]),
+                                    int(r["role_idx"]),
+                                    str(r["fly_role"]),
+                                    int(r["training_index"]),
+                                    str(self.cfg.cond_stat),
+                                    int(self.cfg.skip_first_sync_buckets),
+                                    int(
+                                        bool(
+                                            getattr(
+                                                self.opts,
+                                                "com_exclude_wall_contact",
+                                                False,
+                                            )
+                                        )
+                                    ),
+                                    float(
+                                        getattr(
+                                            self.opts,
+                                            "com_per_segment_min_meddist_mm",
+                                            0.0,
+                                        )
+                                        or 0.0
+                                    ),
+                                ],
+                            )
+                        )
+                        + "\n"
+                    )
+        print(f"[{self.log_tag}] wrote top segments TSV: {path}")
+
     def compute_summary(self) -> dict:
         """
         Returns dict with:
@@ -818,6 +1166,31 @@ class BetweenRewardConditionedCOMPlotter:
                 self._write_walk_tsv(str(walk_path))
             except Exception as e:
                 print(f"[{self.log_tag}] WARNING: failed to write walk TSV: {e}")
+
+        # --- optional debug exports: who/what is driving large COM bins? ---
+        top_fly_path = getattr(
+            self.opts, "btw_rwd_conditioned_com_top_fly_units_out", None
+        )
+        if top_fly_path:
+            k = int(
+                getattr(self.opts, "btw_rwd_conditioned_com_top_fly_units_k", 5) or 5
+            )
+            try:
+                self._write_top_fly_units_tsv(str(top_fly_path), k=k)
+            except Exception as e:
+                print(
+                    f"[{self.log_tag}] WARNING: failed to write top-fly-units TSV: {e}"
+                )
+
+        top_seg_path = getattr(self.opts, "btw_rwd_conditioned_com_top_segs_out", None)
+        if top_seg_path:
+            k = int(getattr(self.opts, "btw_rwd_conditioned_com_top_segs_k", 25) or 25)
+            try:
+                self._write_top_segments_tsv(str(top_seg_path), k=k)
+            except Exception as e:
+                print(
+                    f"[{self.log_tag}] WARNING: failed to write top-segments TSV: {e}"
+                )
 
 
 def plot_btw_rwd_conditioned_com_overlay(
