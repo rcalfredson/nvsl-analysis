@@ -747,6 +747,29 @@ g.add_argument(
         "Default: same as the normal plot output file."
     ),
 )
+
+# --- t-tests for distance-binned COM ---
+g.add_argument(
+    "--btw-rwd-conditioned-com-ttest-ind",
+    action="append",
+    default=None,
+    help=(
+        "Add unpaired t-test bracket+stars per x-bin for group pair LABELA:LABELB. "
+        "Repeatable."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com-ttest-min-n",
+    type=int,
+    default=2,
+    help="Min per-bin n per group to run t-test. Default: %(default)s.",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com-ttest-correct",
+    choices=("none", "bonferroni", "fdr_bh"),
+    default="none",
+    help="Multiple-comparisons correction across bins for each requested pair. Default: %(default)s.",
+)
 g.add_argument(
     "--btw-rwd-polar",
     action="store_true",

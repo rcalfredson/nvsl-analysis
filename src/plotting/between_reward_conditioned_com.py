@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import src.utils.util as util
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.wall_contact_utils import build_wall_contact_mask_for_window
-from src.utils.common import maybe_sentence_case, writeImage
+from src.utils.common import maybe_sentence_case, ttest_ind, writeImage
 
 
 @dataclass
@@ -73,6 +73,7 @@ class BetweenRewardConditionedCOMResult:
     ci_hi: np.ndarray
     n_units: np.ndarray
     meta: dict
+    per_unit: np.ndarray | None = None  # (N_units, B) NaN where no data
 
     def validate(self) -> None:
         x_edges = np.asarray(self.x_edges, dtype=float)
@@ -96,14 +97,17 @@ class BetweenRewardConditionedCOMResult:
                 raise ValueError(f"{name} must be 1D with length {B}")
         if n_units.ndim != 1 or n_units.size != B:
             raise ValueError(f"n_units must be 1D with length {B}")
+        if self.per_unit is not None:
+            pu = np.asarray(self.per_unit, dtype=float)
+            if pu.ndim != 2 or pu.shape[1] != B:
+                raise ValueError(f"per_unit must be 2D with shape (N, {B})")
 
     def save_npz(self, path: str) -> None:
         """
         Save the result to a compressed NPZ. `meta` is stored as an object array.
         """
         self.validate()
-        np.savez_compressed(
-            path,
+        kwargs = dict(
             x_edges=np.asarray(self.x_edges, dtype=float),
             x_centers=np.asarray(self.x_centers, dtype=float),
             mean=np.asarray(self.mean, dtype=float),
@@ -112,6 +116,9 @@ class BetweenRewardConditionedCOMResult:
             n_units=np.asarray(self.n_units, dtype=int),
             meta=np.array([self.meta], dtype=object),
         )
+        if self.per_unit is not None:
+            kwargs["per_unit"] = np.asarray(self.per_unit, dtype=float)
+        np.savez_compressed(path, **kwargs)
 
     @staticmethod
     def load_npz(path: str) -> BetweenRewardConditionedCOMResult:
@@ -126,6 +133,9 @@ class BetweenRewardConditionedCOMResult:
                 meta = meta_obj.item() if hasattr(meta_obj, "item") else {}
             except Exception:
                 meta = {}
+        per_unit = None
+        if "per_unit" in z:
+            per_unit = np.asarray(z["per_unit"], dtype=float)
         res = BetweenRewardConditionedCOMResult(
             x_edges=np.asarray(z["x_edges"], dtype=float),
             x_centers=np.asarray(z["x_centers"], dtype=float),
@@ -134,6 +144,7 @@ class BetweenRewardConditionedCOMResult:
             ci_hi=np.asarray(z["ci_hi"], dtype=float),
             n_units=np.asarray(z["n_units"], dtype=int),
             meta=dict(meta) if isinstance(meta, dict) else {},
+            per_unit=per_unit,
         )
         res.validate()
         return res
@@ -457,6 +468,14 @@ class BetweenRewardConditionedCOMPlotter:
         Return a portable result object suitable for caching/export.
         """
         d = self.compute_summary()
+        per_unit = None
+        try:
+            per_fly = self._collect_per_fly_binned_means()
+            if per_fly:
+                per_unit = np.stack(per_fly, axis=0)
+        except Exception:
+            per_unit = None
+
         return BetweenRewardConditionedCOMResult(
             x_edges=np.asarray(d["x_edges"], dtype=float),
             x_centers=np.asarray(d["x_centers"], dtype=float),
@@ -465,6 +484,7 @@ class BetweenRewardConditionedCOMPlotter:
             ci_hi=np.asarray(d["ci_hi"], dtype=float),
             n_units=np.asarray(d["n_units"], dtype=int),
             meta=dict(d.get("meta", {})),
+            per_unit=per_unit,
         )
 
     def plot(self) -> None:
@@ -620,6 +640,62 @@ def plot_btw_rwd_conditioned_com_overlay(
     frac = 0.86
     bar_w = frac * widths / max(1, n_groups)
 
+    # ---------- t-test config / parsing ----------
+    # Map labels to indices
+    label_to_idx = {str(lab): i for i, (_, lab) in enumerate(pairs)}
+
+    # Parse requested pairs for independent t-tests to show on plot
+    pair_specs = getattr(opts, "btw_rwd_conditioned_com_ttest_ind", None) or []
+    pairs_req: list[tuple[str, str]] = []
+    for spec in pair_specs:
+        spec = str(spec)
+        if ":" not in spec:
+            print(f"[{log_tag}] WARNING: bad ttest spec {spec!r} (expected A:B)")
+            continue
+        a, b = [s.strip() for s in spec.split(":", 1)]
+        if a in label_to_idx and b in label_to_idx and a != b:
+            pairs_req.append((a, b))
+        else:
+            print(f"[{log_tag}] WARNING: unknown/invalid ttest labels in {spec!r}")
+
+    def _maybe_correct_pvals(pvals: np.ndarray) -> np.ndarray:
+        """
+        Apply a correction across bins for a single pair.
+        """
+        corr = str(getattr(opts, "btw_rwd_conditioned_com_ttest_correct", "none"))
+        p = np.asarray(pvals, dtype=float).copy()
+        fin = np.isfinite(p)
+        m = int(fin.sum())
+        if m <= 0 or corr == "none":
+            return p
+        if corr == "bonferroni":
+            p[fin] = np.minimum(1.0, p[fin] * float(m))
+            return p
+        if corr == "fdr_bh":
+            # Benjamini-Hochberg (simple implementation)
+            idx = np.where(fin)[0]
+            pv = p[idx]
+            order = np.argsort(pv)
+            pv_sorted = pv[order]
+            q = pv_sorted * float(m) / (np.arange(1, m + 1))
+            # enforce monotonicity
+            q = np.minimum.accumulate(q[::-1])[::-1]
+            out = p.copy()
+            out[idx[order]] = np.minimum(1.0, q)
+            return out
+        return p
+
+    def _draw_bracket(ax, x1: float, x2: float, y: float, h: float, text: str) -> None:
+        ax.plot([x1, x1, x2, x2], [y, y + h, y + h, y], linewidth=1.0, clip_on=False)
+        ax.text(
+            (x1 + x2) / 2.0,
+            y + h,
+            text,
+            ha="center",
+            va="bottom",
+            fontsize=customizer.in_plot_font_size,
+        )
+
     # y-offset for n-labels are computed after y-lims are known.
     pending_nlabels: list[tuple[float, float, int]] = []
 
@@ -628,7 +704,8 @@ def plot_btw_rwd_conditioned_com_overlay(
         print(
             f"[{log_tag}] WARNING: labels/results length mismatch; truncating to min."
         )
-    for i, (res, lab) in enumerate(pairs):
+    drawn = np.zeros((n_groups, B), dtype=bool)
+    for gi, (res, lab) in enumerate(pairs):
         res.validate()
 
         x2 = np.asarray(res.x_centers, dtype=float)
@@ -651,13 +728,15 @@ def plot_btw_rwd_conditioned_com_overlay(
 
         # Per-group bar centers: shift within each bin
         # Example: for 3 groups, offsets are [-1, 0, +1] * bar_w, centered
-        offset = (i - (n_groups - 1) / 2.0) * bar_w
+        offset = (gi - (n_groups - 1) / 2.0) * bar_w
         x_bar = x + offset
 
         fin = np.isfinite(x_bar) & np.isfinite(y) & np.isfinite(widths)
         if not fin.any():
             continue
         any_data = True
+
+        drawn[gi, fin] = True
 
         ax.bar(
             x_bar[fin],
@@ -727,6 +806,96 @@ def plot_btw_rwd_conditioned_com_overlay(
                     size=customizer.in_plot_font_size,
                     color=".2",
                 )
+
+        # ---------- t-tests + bracket+stars annotations ----------
+        # Only attempt if requested.
+        if pairs_req:
+            min_n = int(getattr(opts, "btw_rwd_conditioned_com_ttest_min_n", 2))
+
+            # Place brackets above the larger CI bound of the two compared bars.
+            # Track the highest annotation so we can expand y-lims if needed.
+            ylim0, ylim1 = ax.get_ylim()
+            y_span = (ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 1.0
+            h = 0.02 * y_span
+            pad = 0.03 * y_span
+            max_annot_y = float("-inf")
+
+            # Precompute per-group x-offset per bin for quick lookup
+            # offset_i is a vector (B,) because bar_w is vector (B,)
+            offsets = []
+            for gi in range(n_groups):
+                offsets.append((gi - (n_groups - 1) / 2.0) * bar_w)
+
+            for a, b in pairs_req:
+                ia, ib = label_to_idx[a], label_to_idx[b]
+                ra, rb = pairs[ia][0], pairs[ib][0]
+                if ra.per_unit is None or rb.per_unit is None:
+                    print(
+                        f"[{log_tag}] WARNING: missing per_unit in cached NPZ for {a!r} or {b!r}; cannot t-test."
+                    )
+                    continue
+
+                A = np.asarray(ra.per_unit, dtype=float)
+                Bv = np.asarray(rb.per_unit, dtype=float)
+                if A.ndim != 2 or Bv.ndim != 2 or A.shape[1] != B or Bv.shape[1] != B:
+                    print(
+                        f"[{log_tag}] WARNING: per_unit shape mismatch for {a!r} or {b!r}; cannot t-test."
+                    )
+                    continue
+
+                pvals = np.full((B,), np.nan, dtype=float)
+                for j in range(B):
+                    _, p, na, nb, _ = ttest_ind(
+                        A[:, j], Bv[:, j], min_n=min_n, silent=True
+                    )
+                    pvals[j] = p
+                p_use = _maybe_correct_pvals(pvals)
+
+                # draw per-bin brackets if we have finite y and p
+                for j in range(B):
+                    if not (drawn[ia, j] and drawn[ib, j]):
+                        continue
+                    if not np.isfinite(p_use[j]):
+                        continue
+
+                    stars = util.p2stars(p_use[j], nanR=None)
+                    if stars is None:
+                        continue
+                    if stars.startswith("ns"):
+                        continue  # only annotate significant by default
+
+                    # bar x-positions in this bin
+                    xa = float(x[j] + offsets[ia][j])
+                    xb = float(x[j] + offsets[ib][j])
+
+                    # y baseline: above the higher CI bound (or mean if CI missing)
+                    ya = (
+                        float(ra.ci_hi[j])
+                        if np.isfinite(ra.ci_hi[j])
+                        else float(ra.mean[j])
+                    )
+                    yb = (
+                        float(rb.ci_hi[j])
+                        if np.isfinite(rb.ci_hi[j])
+                        else float(rb.mean[j])
+                    )
+                    y0 = np.nanmax([ya, yb])
+                    if (
+                        not np.isfinite(xa)
+                        or not np.isfinite(xb)
+                        or not np.isfinite(y0)
+                    ):
+                        continue
+
+                    y_br = float(y0 + pad)
+                    _draw_bracket(ax, xa, xb, y_br, h, stars)
+                    max_annot_y = max(max_annot_y, y_br + h)
+
+            # expand ylim if needed
+            if np.isfinite(max_annot_y):
+                ylim0, ylim1 = ax.get_ylim()
+                if max_annot_y > ylim1:
+                    ax.set_ylim(top=max_annot_y * 1.05)
 
     if customizer.font_size_customized:
         customizer.adjust_padding_proportionally()
