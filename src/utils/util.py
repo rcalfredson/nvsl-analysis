@@ -188,6 +188,18 @@ def isfile(*fp):
     return checkIsfile(*fp, noError=True)
 
 
+def ensureDir(path: str) -> None:
+    """
+    Ensure that the parent directory of `path` exists.
+
+    Intended for file paths. If `path` has no parent component,
+    this is a no-op.
+    """
+    parent = os.path.dirname(os.path.abspath(path))
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+
+
 # returns anonymous object with the given attributes (dictionary)
 # note: cannot be pickled
 def anonObj(attrs=None):

@@ -392,6 +392,218 @@ class BetweenRewardConditionedCOMPlotter:
 
         return per_fly_vectors
 
+    def _collect_per_fly_binned_walk_fracs(self) -> list[np.ndarray]:
+        """
+        For each fly unit, compute a (B,) vector where each entry is:
+
+            mean(walking_fraction) over segments whose cond_stat falls into x-bin j,
+
+        where walking_fraction for a segment is mean(traj.walking[s:e]).
+        NaN for bins with no segments.
+        """
+        edges = self._x_edges()
+        B = int(max(1, edges.size - 1))
+
+        exclude_wall = bool(getattr(self.opts, "com_exclude_wall_contact", False))
+        min_med_mm = float(
+            getattr(self.opts, "com_per_segment_min_meddist_mm", 0.0) or 0.0
+        )
+        warned_missing_wc = [False]
+
+        per_fly_vectors: list[np.ndarray] = []
+
+        t_idx = int(self.cfg.training_index)
+        for va in self.vas:
+            if getattr(va, "_skipped", False):
+                continue
+            if getattr(va, "trx", None) is None or len(va.trx) == 0:
+                continue
+            if va.trx[0].bad():
+                continue
+            trns = getattr(va, "trns", [])
+            if t_idx < 0 or t_idx >= len(trns):
+                continue
+            trn = trns[t_idx]
+
+            for f in va.flies:
+                if not va.noyc and f != 0:
+                    continue
+                fi, df, n_buckets, complete = self._sync_bucket_window(
+                    va,
+                    trn,
+                    t_idx=t_idx,
+                    f=f,
+                    skip_first=int(self.cfg.skip_first_sync_buckets),
+                    use_exclusion_mask=bool(self.cfg.use_reward_exclusion_mask),
+                )
+                if n_buckets <= 0:
+                    continue
+
+                n_frames = int(max(1, n_buckets * df))
+                wc = build_wall_contact_mask_for_window(
+                    va,
+                    f,
+                    fi=fi,
+                    n_frames=n_frames,
+                    enabled=exclude_wall,
+                    warned_missing_wc=warned_missing_wc,
+                    log_tag=self.log_tag,
+                )
+
+                traj = va.trx[f]
+                walking = getattr(traj, "walking", None)
+                if walking is None:
+                    # No walking array; skip this fly for this debug export.
+                    continue
+
+                bin_vals: list[list[float]] = [[] for _ in range(B)]
+
+                cs = str(self.cfg.cond_stat or "median").lower().strip()
+                if cs in ("max", "maxdist", "max_d"):
+                    dist_stats = ("median", "max")
+                else:
+                    dist_stats = ("median",)
+
+                for seg in va._iter_between_reward_segment_com(
+                    trn,
+                    f,
+                    fi=fi,
+                    df=df,
+                    n_buckets=n_buckets,
+                    complete=complete,
+                    relative_to_reward=True,
+                    per_segment_min_meddist_mm=min_med_mm,
+                    exclude_wall=exclude_wall,
+                    wc=wc,
+                    dist_stats=dist_stats,
+                    debug=False,
+                    yield_skips=False,
+                ):
+                    x = self._cond_value_for_segment(seg)
+                    if not np.isfinite(x):
+                        continue
+
+                    s = int(getattr(seg, "s", -1))
+                    e = int(getattr(seg, "e", -1))
+                    if e <= s + 1:
+                        continue
+
+                    # Clamp to walking array bounds
+                    s2 = max(0, min(s, len(walking)))
+                    e2 = max(0, min(e, len(walking)))
+                    if e2 <= s2:
+                        continue
+
+                    wseg = np.asarray(walking[s2:e2], dtype=float)
+                    wseg = wseg[np.isfinite(wseg)]
+                    if wseg.size == 0:
+                        continue
+
+                    walk_frac = float(
+                        np.mean(wseg > 0)
+                    )  # robust if walking is bool or 0/1
+
+                    j = int(np.searchsorted(edges, x, side="right") - 1)
+                    if j < 0 or j >= B:
+                        continue
+                    bin_vals[j].append(walk_frac)
+
+                vec = np.full((B,), np.nan, dtype=float)
+                for j in range(B):
+                    if not bin_vals[j]:
+                        continue
+                    vv = np.asarray(bin_vals[j], dtype=float)
+                    vv = vv[np.isfinite(vv)]
+                    if vv.size == 0:
+                        continue
+                    vec[j] = float(np.nanmean(vv))
+
+                if np.any(np.isfinite(vec)):
+                    per_fly_vectors.append(vec)
+
+        return per_fly_vectors
+
+    def _write_walk_tsv(self, path: str) -> None:
+        edges = self._x_edges()
+        centers = 0.5 * (edges[:-1] + edges[1:])
+        B = int(max(1, edges.size - 1))
+
+        per_fly = self._collect_per_fly_binned_walk_fracs()
+        if not per_fly:
+            print(f"[{self.log_tag}] walk TSV: no data (no flies with walking[])")
+            return
+
+        Y = np.stack(per_fly, axis=0)  # (N, B)
+
+        mean = np.full((B,), np.nan, dtype=float)
+        lo = np.full((B,), np.nan, dtype=float)
+        hi = np.full((B,), np.nan, dtype=float)
+        n_units = np.zeros((B,), dtype=int)
+
+        for j in range(B):
+            m, lo_j, hi_j, n_j = util.meanConfInt(Y[:, j], conf=float(self.cfg.ci_conf))
+            mean[j] = float(m)
+            lo[j] = float(lo_j)
+            hi[j] = float(hi_j)
+            n_units[j] = int(n_j)
+
+        util.ensureDir(path)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(
+                "\t".join(
+                    [
+                        "bin_lo_mm",
+                        "bin_hi_mm",
+                        "x_center_mm",
+                        "mean_walk_frac",
+                        "ci_lo",
+                        "ci_hi",
+                        "n_units",
+                        "training_index",
+                        "cond_stat",
+                        "skip_first_sync_buckets",
+                        "exclude_wall_contact",
+                        "min_meddist_mm",
+                    ]
+                )
+                + "\n"
+            )
+            for j in range(B):
+                f.write(
+                    "\t".join(
+                        map(
+                            str,
+                            [
+                                float(edges[j]),
+                                float(edges[j + 1]),
+                                float(centers[j]),
+                                float(mean[j]) if np.isfinite(mean[j]) else "nan",
+                                float(lo[j]) if np.isfinite(lo[j]) else "nan",
+                                float(hi[j]) if np.isfinite(hi[j]) else "nan",
+                                int(n_units[j]),
+                                int(self.cfg.training_index),
+                                str(self.cfg.cond_stat),
+                                int(self.cfg.skip_first_sync_buckets),
+                                int(
+                                    bool(
+                                        getattr(
+                                            self.opts, "com_exclude_wall_contact", False
+                                        )
+                                    )
+                                ),
+                                float(
+                                    getattr(
+                                        self.opts, "com_per_segment_min_meddist_mm", 0.0
+                                    )
+                                    or 0.0
+                                ),
+                            ],
+                        )
+                    )
+                    + "\n"
+                )
+        print(f"[{self.log_tag}] wrote walk TSV: {path}")
+
     def compute_summary(self) -> dict:
         """
         Returns dict with:
@@ -574,9 +786,7 @@ class BetweenRewardConditionedCOMPlotter:
 
             # Title + small annotation (closer to bundle plotter style)
             ax.set_title(
-                maybe_sentence_case(
-                    "between-reward COM magnitude vs distance-from-reward"
-                )
+                maybe_sentence_case("Between-reward skewedness vs distance from reward")
             )
             parts = [f"T{int(self.cfg.training_index) + 1}"]
             if int(self.cfg.skip_first_sync_buckets) > 0:
@@ -601,6 +811,13 @@ class BetweenRewardConditionedCOMPlotter:
         writeImage(self.cfg.out_file, format=self.opts.imageFormat)
         plt.close(fig)
         print(f"[{self.log_tag}] wrote {self.cfg.out_file}")
+
+        walk_path = getattr(self.opts, "btw_rwd_conditioned_com_walk_stats_out", None)
+        if walk_path:
+            try:
+                self._write_walk_tsv(str(walk_path))
+            except Exception as e:
+                print(f"[{self.log_tag}] WARNING: failed to write walk TSV: {e}")
 
 
 def plot_btw_rwd_conditioned_com_overlay(
@@ -685,8 +902,25 @@ def plot_btw_rwd_conditioned_com_overlay(
             return out
         return p
 
-    def _draw_bracket(ax, x1: float, x2: float, y: float, h: float, text: str) -> None:
-        ax.plot([x1, x1, x2, x2], [y, y + h, y + h, y], linewidth=1.0, clip_on=False)
+    def _draw_bracket(
+        ax,
+        x1: float,
+        x2: float,
+        y: float,
+        h: float,
+        text: str,
+        *,
+        color: str = "0.15",  # dark gray
+        lw: float = 1.0,
+    ) -> None:
+        ax.plot(
+            [x1, x1, x2, x2],
+            [y, y + h, y + h, y],
+            linewidth=lw,
+            color=color,
+            clip_on=False,
+            zorder=10,
+        )
         ax.text(
             (x1 + x2) / 2.0,
             y + h,
@@ -694,10 +928,14 @@ def plot_btw_rwd_conditioned_com_overlay(
             ha="center",
             va="bottom",
             fontsize=customizer.in_plot_font_size,
+            color=color,
+            zorder=11,
         )
 
     # y-offset for n-labels are computed after y-lims are known.
-    pending_nlabels: list[tuple[int, int, float, float, int]] = []  # (gi, j, x, y_top, n)
+    pending_nlabels: list[tuple[int, int, float, float, int]] = (
+        []
+    )  # (gi, j, x, y_top, n)
 
     any_data = False
     if len(labels) != len(results):
@@ -788,9 +1026,7 @@ def plot_btw_rwd_conditioned_com_overlay(
 
         ax.set_ylim(bottom=0)
         ax.legend(loc="best", fontsize=customizer.in_plot_font_size)
-        ax.set_title(
-            maybe_sentence_case("between-reward COM magnitude vs distance-from-reward")
-        )
+        ax.set_title(maybe_sentence_case("between-reward COM vs distance-from-reward"))
 
         # Optional fixed ymax
         ymax = getattr(opts, "btw_rwd_conditioned_com_ymax", None)

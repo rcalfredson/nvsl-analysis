@@ -747,6 +747,15 @@ g.add_argument(
         "Default: same as the normal plot output file."
     ),
 )
+g.add_argument(
+    "--btw-rwd-conditioned-com-walk-stats-out",
+    type=str,
+    default=None,
+    help=(
+        "Optional TSV debug export: per-distance-bin walking proportion (mean over flies, with CI), "
+        "computed from Trajectory.walking over each between-reward segment's frames."
+    ),
+)
 
 # --- t-tests for distance-binned COM ---
 g.add_argument(
