@@ -185,12 +185,6 @@ class BetweenRewardConditionedCOMPlotter:
                 pass
         return f"va_{id(va)}"
 
-    def _fly_role_idx(self, va: "VideoAnalysis", fly_idx: int) -> int:
-        try:
-            return int(list(getattr(va, "flies", [])).index(fly_idx))
-        except Exception:
-            return 0
-
     def _fly_role_name(self, role_idx: int) -> str:
         return "exp" if int(role_idx) == 0 else "yok"
 
@@ -335,18 +329,19 @@ class BetweenRewardConditionedCOMPlotter:
 
             video_id = self._video_base(va)
 
-            for f in va.flies:
-                if not va.noyc and f != 0:
+            cell_idx = int(getattr(va, "f", -1))
+
+            for role_idx, trx_idx in enumerate(va.flies):
+                if not va.noyc and role_idx != 0:
                     continue
 
-                role_idx = self._fly_role_idx(va, f)
                 fly_role = self._fly_role_name(role_idx)
 
                 fi, df, n_buckets, complete = self._sync_bucket_window(
                     va,
                     trn,
                     t_idx=t_idx,
-                    f=f,
+                    f=trx_idx,
                     skip_first=int(self.cfg.skip_first_sync_buckets),
                     use_exclusion_mask=bool(self.cfg.use_reward_exclusion_mask),
                 )
@@ -356,7 +351,7 @@ class BetweenRewardConditionedCOMPlotter:
                 n_frames = int(max(1, n_buckets * df))
                 wc = build_wall_contact_mask_for_window(
                     va,
-                    f,
+                    trx_idx,
                     fi=fi,
                     n_frames=n_frames,
                     enabled=exclude_wall,
@@ -372,7 +367,7 @@ class BetweenRewardConditionedCOMPlotter:
 
                 for seg in va._iter_between_reward_segment_com(
                     trn,
-                    f,
+                    trx_idx,
                     fi=fi,
                     df=df,
                     n_buckets=n_buckets,
@@ -396,7 +391,7 @@ class BetweenRewardConditionedCOMPlotter:
 
                     row = dict(
                         video_id=str(video_id),
-                        fly_idx=int(f),
+                        fly_idx=cell_idx,
                         role_idx=int(role_idx),
                         fly_role=str(fly_role),
                         training_index=int(self.cfg.training_index),
@@ -446,16 +441,16 @@ class BetweenRewardConditionedCOMPlotter:
                 continue
             trn = trns[t_idx]
 
-            for f in va.flies:
+            for role_idx, trx_idx in enumerate(va.flies):
                 # experimental-only in exp+yoked
-                if not va.noyc and f != 0:
+                if not va.noyc and role_idx != 0:
                     continue
 
                 fi, df, n_buckets, complete = self._sync_bucket_window(
                     va,
                     trn,
                     t_idx=t_idx,
-                    f=f,
+                    f=trx_idx,
                     skip_first=int(self.cfg.skip_first_sync_buckets),
                     use_exclusion_mask=bool(self.cfg.use_reward_exclusion_mask),
                 )
@@ -465,7 +460,7 @@ class BetweenRewardConditionedCOMPlotter:
                 n_frames = int(max(1, n_buckets * df))
                 wc = build_wall_contact_mask_for_window(
                     va,
-                    f,
+                    trx_idx,
                     fi=fi,
                     n_frames=n_frames,
                     enabled=exclude_wall,
@@ -484,7 +479,7 @@ class BetweenRewardConditionedCOMPlotter:
 
                 for seg in va._iter_between_reward_segment_com(
                     trn,
-                    f,
+                    trx_idx,
                     fi=fi,
                     df=df,
                     n_buckets=n_buckets,
@@ -557,14 +552,14 @@ class BetweenRewardConditionedCOMPlotter:
                 continue
             trn = trns[t_idx]
 
-            for f in va.flies:
-                if not va.noyc and f != 0:
+            for role_idx, trx_idx in enumerate(va.flies):
+                if not va.noyc and role_idx != 0:
                     continue
                 fi, df, n_buckets, complete = self._sync_bucket_window(
                     va,
                     trn,
                     t_idx=t_idx,
-                    f=f,
+                    f=trx_idx,
                     skip_first=int(self.cfg.skip_first_sync_buckets),
                     use_exclusion_mask=bool(self.cfg.use_reward_exclusion_mask),
                 )
@@ -574,7 +569,7 @@ class BetweenRewardConditionedCOMPlotter:
                 n_frames = int(max(1, n_buckets * df))
                 wc = build_wall_contact_mask_for_window(
                     va,
-                    f,
+                    trx_idx,
                     fi=fi,
                     n_frames=n_frames,
                     enabled=exclude_wall,
@@ -582,7 +577,7 @@ class BetweenRewardConditionedCOMPlotter:
                     log_tag=self.log_tag,
                 )
 
-                traj = va.trx[f]
+                traj = va.trx[trx_idx]
                 walking = getattr(traj, "walking", None)
                 if walking is None:
                     # No walking array; skip this fly for this debug export.
@@ -598,7 +593,7 @@ class BetweenRewardConditionedCOMPlotter:
 
                 for seg in va._iter_between_reward_segment_com(
                     trn,
-                    f,
+                    trx_idx,
                     fi=fi,
                     df=df,
                     n_buckets=n_buckets,
@@ -891,7 +886,7 @@ class BetweenRewardConditionedCOMPlotter:
 
                 rows2 = []
                 for r in rows:
-                    m = float(r.get('mag_mm', np.nan))
+                    m = float(r.get("mag_mm", np.nan))
                     if np.isfinite(m):
                         rows2.append(r)
                 if not rows2:
@@ -904,8 +899,8 @@ class BetweenRewardConditionedCOMPlotter:
                 for rank, r in enumerate(top, start=1):
                     med = float(r.get("med_d_mm", np.nan))
                     med_out = med if np.isfinite(med) else "nan"
-                    max = float(r.get("max_d_mm", np.nan))
-                    max_out = max if np.isfinite(max) else "nan"
+                    max_d = float(r.get("max_d_mm", np.nan))
+                    max_out = max_d if np.isfinite(max_d) else "nan"
                     f.write(
                         "\t".join(
                             map(

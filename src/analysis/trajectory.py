@@ -1556,7 +1556,7 @@ class Trajectory:
             boundary_orientation = self.opts.wall_orientation
         else:
             boundary_orientation = "tb"
-        stats = self.boundary_event_stats[boundary_tp][boundary_orientation]
+        stats = self.boundary_event_stats[boundary_tp][boundary_orientation]["edge"]
         dists = stats["dist_to_boundary"]
         if evt_type == "contact":
             contact = stats["boundary_contact"]
