@@ -2219,6 +2219,9 @@ class VideoAnalysis:
         per_segment_min_meddist_mm: float,
         exclude_wall: bool,
         wc=None,
+        exclude_nonwalk: bool = False,
+        nonwalk_mask=None,
+        min_walk_frames: int = 2,
         dist_stats: tuple[str, ...] = ("median",),
         debug: bool = False,
         yield_skips: bool = False,
@@ -2233,6 +2236,9 @@ class VideoAnalysis:
           - segment length must be >= 2 frames (e > s + 1)
           - bucket must be complete
           - optional wall-contact exclusion (any wc[s:e] == True)
+          - optional non-walking frame exclusion:
+              - drop frames where nonwalk_mask==True (mask is windowed to [fi, fi+n_win))
+              - require at least min_walk_frames remaining
           - optional median-distance filter (meddist_mm > threshold)
           - mean x/y must be finite
         """
@@ -2313,10 +2319,57 @@ class VideoAnalysis:
                 if yield_skips:
                     yield _make_skip(i, s, e, b_idx, "empty_xy")
                 continue
-            if not np.isfinite(xs).any() or not np.isfinite(ys).any():
+
+            # Optional: drop non-walking frames *within* the segment
+            if exclude_nonwalk and nonwalk_mask is not None:
+                # nonwalk_mask is window-aligned: index by (frame - fi)
+                s2 = max(0, min(s - fi, len(nonwalk_mask)))
+                e2 = max(0, min(e - fi, len(nonwalk_mask)))
+                if e2 > s2:
+                    keep = ~np.asarray(
+                        nonwalk_mask[s2:e2], dtype=bool
+                    )  # keep walking frames
+                else:
+                    keep = None
+
+                if keep is not None:
+                    # Align keep length to xs/ys length in case of clamping
+                    L = int(min(xs.size, keep.size))
+                    if L <= 0:
+                        if yield_skips:
+                            yield _make_skip(i, s, e, b_idx, "nonwalk_empty")
+                        continue
+                    xs = xs[:L]
+                    ys = ys[:L]
+                    keep = keep[:L]
+
+                    # also require finite xy (nan-safe ops are used, but if everything is
+                    # NaN after masking, bail)
+                    if keep.any():
+                        xs = xs[keep]
+                        ys = ys[keep]
+                    else:
+                        xs = xs[:0]
+                        ys = ys[:0]
+
+                    if xs.size < int((max(1, min_walk_frames))):
+                        if yield_skips:
+                            yield _make_skip(i, s, e, b_idx, "too_few_walk_frames")
+                        continue
+
+            # After optional filtering, require some finite data
+            if xs.size == 0:
                 if yield_skips:
-                    yield _make_skip(i, s, e, b_idx, "all_nan_x_or_y")
+                    yield _make_skip(i, s, e, b_idx, "empty_after_nonwalk")
                 continue
+            fin_xy = np.isfinite(xs) and np.isfinite(ys)
+            if not fin_xy.any():
+                if yield_skips:
+                    yield _make_skip(i, s, e, b_idx, "all_nan_xy")
+                continue
+
+            xs = xs[fin_xy]
+            ys = ys[fin_xy]
 
             dx = xs - cx
             dy = ys - cy

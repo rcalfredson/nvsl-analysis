@@ -188,6 +188,36 @@ class BetweenRewardConditionedCOMPlotter:
     def _fly_role_name(self, role_idx: int) -> str:
         return "exp" if int(role_idx) == 0 else "yok"
 
+    # ---------------------------- behavior masking ----------------------------
+
+    def _build_nonwalk_mask(self, va, trx_idx, fi, n_frames):
+        exclude_nonwalk = bool(
+            getattr(
+                self.opts, "btw_rwd_conditioned_com_exclude_nonwalking_frames", False
+            )
+        )
+
+        nonwalk_mask = None
+        if exclude_nonwalk:
+            traj = va.trx[trx_idx]
+            walking = getattr(traj, "walking", None)
+            if walking is None:
+                # No walking info; safest is to behave like "can't apply mask"
+                # (either warn once, or just treat as disabled for this fly).
+                nonwalk_mask = None
+            else:
+                # window is [fi, fi+n_frames)
+                s0 = max(0, min(int(fi), len(walking)))
+                e0 = max(0, min(int(fi + n_frames), len(walking)))
+                # If window exceeds array, pad missing with "exclude" to be conservative.
+                wwin = np.zeros((n_frames,), dtype=bool)
+                if e0 > s0:
+                    wseg = np.asarray(walking[s0:e0], dtype=float)
+                    wseg = np.where(np.isfinite(wseg), wseg, 0.0)
+                    wwin[: len(wseg)] = wseg > 0
+                nonwalk_mask = ~wwin
+        return nonwalk_mask
+
     # ---------------------------- bucket windowing ----------------------------
 
     def _sync_bucket_window(
@@ -311,6 +341,15 @@ class BetweenRewardConditionedCOMPlotter:
         )
         warned_missing_wc = [False]
 
+        exclude_nonwalk = bool(
+            getattr(
+                self.opts, "btw_rwd_conditioned_com_exclude_nonwalking_frames", False
+            )
+        )
+        min_walk_frames = int(
+            getattr(self.opts, "btw_rwd_conditioned_com_min_walk_frames", 2) or 2
+        )
+
         segs_by_bin: list[list[dict]] = [[] for _ in range(B)]
 
         t_idx = int(self.cfg.training_index)
@@ -359,6 +398,8 @@ class BetweenRewardConditionedCOMPlotter:
                     log_tag=self.log_tag,
                 )
 
+                nonwalk_mask = self._build_nonwalk_mask(va, trx_idx, fi, n_frames)
+
                 cs = str(self.cfg.cond_stat or "median").lower().strip()
                 if cs in ("max", "maxdist", "max_d"):
                     dist_stats = ("median", "max")
@@ -375,6 +416,9 @@ class BetweenRewardConditionedCOMPlotter:
                     relative_to_reward=True,
                     per_segment_min_meddist_mm=min_med_mm,
                     exclude_wall=exclude_wall,
+                    exclude_nonwalk=exclude_nonwalk,
+                    nonwalk_mask=nonwalk_mask,
+                    min_walk_frames=min_walk_frames,
                     wc=wc,
                     dist_stats=dist_stats,
                     debug=False,
@@ -468,6 +512,20 @@ class BetweenRewardConditionedCOMPlotter:
                     log_tag=self.log_tag,
                 )
 
+                nonwalk_mask = self._build_nonwalk_mask(va, trx_idx, fi, n_frames)
+
+                exclude_nonwalk = bool(
+                    getattr(
+                        self.opts,
+                        "btw_rwd_conditioned_com_exclude_nonwalking_frames",
+                        False,
+                    )
+                )
+                min_walk_frames = int(
+                    getattr(self.opts, "btw_rwd_conditioned_com_min_walk_frames", 2)
+                    or 2
+                )
+
                 # Collect segment COM magnitudes into bins by conditioning stat
                 bin_vals: list[list[float]] = [[] for _ in range(B)]
 
@@ -488,6 +546,9 @@ class BetweenRewardConditionedCOMPlotter:
                     per_segment_min_meddist_mm=min_med_mm,
                     exclude_wall=exclude_wall,
                     wc=wc,
+                    exclude_nonwalk=exclude_nonwalk,
+                    nonwalk_mask=nonwalk_mask,
+                    min_walk_frames=min_walk_frames,
                     dist_stats=dist_stats,
                     debug=False,
                     yield_skips=False,
@@ -947,20 +1008,14 @@ class BetweenRewardConditionedCOMPlotter:
                     )
         print(f"[{self.log_tag}] wrote top segments TSV: {path}")
 
-    def compute_summary(self) -> dict:
-        """
-        Returns dict with:
-            - x_edges, x_centers
-            - mean, ci_lo, ci_hi, n_units
-            - meta
-        """
+    def _compute_from_per_fly(self) -> tuple[dict, np.ndarray | None]:
         edges = self._x_edges()
         centers = 0.5 * (edges[:-1] + edges[1:])
         B = int(max(1, edges.size - 1))
 
         per_fly = self._collect_per_fly_binned_means()
         if not per_fly:
-            return {
+            summary = {
                 "x_edges": edges,
                 "x_centers": centers,
                 "mean": np.full((B,), np.nan, dtype=float),
@@ -982,6 +1037,7 @@ class BetweenRewardConditionedCOMPlotter:
                     "n_fly_units": 0,
                 },
             }
+            return summary, None
 
         Y = np.stack(per_fly, axis=0)  # (N, B)
 
@@ -997,7 +1053,7 @@ class BetweenRewardConditionedCOMPlotter:
             hi[j] = float(hi_j)
             n_units[j] = int(n_j)
 
-        return {
+        summary = {
             "x_edges": edges,
             "x_centers": centers,
             "mean": mean,
@@ -1017,19 +1073,23 @@ class BetweenRewardConditionedCOMPlotter:
                 "n_fly_units": int(Y.shape[0]),
             },
         }
+        return summary, Y
+
+    def compute_summary(self) -> dict:
+        """
+        Returns dict with:
+            - x_edges, x_centers
+            - mean, ci_lo, ci_hi, n_units
+            - meta
+        """
+        d, _Y = self._compute_from_per_fly()
+        return d
 
     def compute_result(self) -> BetweenRewardConditionedCOMResult:
         """
         Return a portable result object suitable for caching/export.
         """
-        d = self.compute_summary()
-        per_unit = None
-        try:
-            per_fly = self._collect_per_fly_binned_means()
-            if per_fly:
-                per_unit = np.stack(per_fly, axis=0)
-        except Exception:
-            per_unit = None
+        d, Y = self._compute_from_per_fly()
 
         return BetweenRewardConditionedCOMResult(
             x_edges=np.asarray(d["x_edges"], dtype=float),
@@ -1039,7 +1099,7 @@ class BetweenRewardConditionedCOMPlotter:
             ci_hi=np.asarray(d["ci_hi"], dtype=float),
             n_units=np.asarray(d["n_units"], dtype=int),
             meta=dict(d.get("meta", {})),
-            per_unit=per_unit,
+            per_unit=(np.asarray(Y, dtype=float) if Y is not None else None),
         )
 
     def plot(self) -> None:
@@ -1281,6 +1341,8 @@ def plot_btw_rwd_conditioned_com_overlay(
         color: str = "0.15",  # dark gray
         lw: float = 1.0,
     ) -> None:
+        if x2 < x1:
+            x1, x2 = x2, x1
         ax.plot(
             [x1, x1, x2, x2],
             [y, y + h, y + h, y],

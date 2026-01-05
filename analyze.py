@@ -717,6 +717,24 @@ g.add_argument(
         "(see --best-worst-sli, --best-worst-fraction, --best-worst-trn)."
     ),
 )
+g.add_argument(
+    "--btw-rwd-conditioned-com-exclude-nonwalking-frames",
+    action="store_true",
+    help=(
+        "Framewise exclusion: within each between-reward segment, exclude frames where "
+        "Trajectory.walking is False before computing segment COM magnitude and distance stats."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com-min-walk-frames",
+    type=int,
+    default=2,
+    help=(
+        "When --btw-rwd-conditioned-com-exclude-nonwalking-frames is set, require at least "
+        "this many walking frames in a segment after masking; otherwise drop the segment. "
+        "Default: %(default)s."
+    ),
+)
 
 # ---- caching/export for distance-binned COM ----
 g.add_argument(
