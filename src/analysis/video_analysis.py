@@ -2362,7 +2362,7 @@ class VideoAnalysis:
                 if yield_skips:
                     yield _make_skip(i, s, e, b_idx, "empty_after_nonwalk")
                 continue
-            fin_xy = np.isfinite(xs) and np.isfinite(ys)
+            fin_xy = np.isfinite(xs) & np.isfinite(ys)
             if not fin_xy.any():
                 if yield_skips:
                     yield _make_skip(i, s, e, b_idx, "all_nan_xy")
