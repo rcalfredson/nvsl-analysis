@@ -832,6 +832,59 @@ g.add_argument(
     default="none",
     help="Multiple-comparisons correction across bins for each requested pair. Default: %(default)s.",
 )
+
+# ---- Reward return distance (RRD) ----
+g.add_argument(
+    "--reward-return-distance",
+    action="store_true",
+    help=(
+        "Compute Reward Return Distance (RRD): episodes start when entering a "
+        "return circle around the reward and end on reward entry or return exit; "
+        "aggregate entry/success counts and success distance stats by sync bucket."
+    ),
+)
+g.add_argument(
+    "--rrd-return-delta-mm",
+    type=float,
+    default=6.0,
+    help="Return-circle radius offset from reward circle (mm). Default: %(default)s.",
+)
+g.add_argument(
+    "--rrd-reward-delta-mm",
+    type=float,
+    default=0.0,
+    help="Optional reward-circle radius offset (mm). Default: %(default)s.",
+)
+g.add_argument(
+    "--rrd-min-inside-return-frames",
+    type=int,
+    default=1,
+    help=(
+        "Minimum number of consecutive frames the fly must remain inside the return circle "
+        "after entry for an episode to be counted. Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--rrd-border-width-mm",
+    type=float,
+    default=0.1,
+    help="Border width for in-circle classification (mm). Default: %(default)s.",
+)
+g.add_argument(
+    "--rrd-exclude-wall-contact",
+    action="store_true",
+    help=(
+        "If set: treat episodes with wall-contact overlap before reward entry as "
+        "non-success (success=False, end_reason='dropped_wall'), and exclude them "
+        "from success stats."
+    ),
+)
+g.add_argument(
+    "--rrd-debug",
+    action="store_true",
+    help="Print debug summaries and a few example episodes per training/fly.",
+)
+
 g.add_argument(
     "--btw-rwd-polar",
     action="store_true",
@@ -7786,20 +7839,21 @@ if __name__ == "__main__":
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 
-    if getattr(opts, "btw_rwd_conditioned_com", False):
-        if getattr(opts, "wall", None) is None:
-            print(
-                f"[btw_rwd_dist_binned_com] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
-                "because --btw-rwd-conditioned-com was passed"
-            )
-            opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
-
     # If between-reward distance hist wants wall-contact exclusion, we must compute wall contact
     if getattr(opts, "btw_rwd_dist_exclude_wall_contact", False):
         if getattr(opts, "wall", None) is None:
             print(
                 f"[btw_rwd_dist_hist] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
                 "because --btw-rwd-dist-exclude-wall-contact was set"
+            )
+            opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
+    # If RRD wants wall-contact exclusion, we must compute wall contact
+    if getattr(opts, "rrd_exclude_wall_contact", False):
+        if getattr(opts, "wall", None) is None:
+            print(
+                f"[rrd] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
+                "because --rrd-exclude-wall-contact was set"
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 

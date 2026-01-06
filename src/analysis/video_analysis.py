@@ -469,6 +469,12 @@ class VideoAnalysis:
 
         keep_wall_regions_for_btw_rwd_conditioned_com = bool(
             getattr(self.opts, "btw_rwd_conditioned_com", False)
+            and getattr(self.opts, "com_exclude_wall_contact", False)
+        )
+
+        keep_wall_regions_for_rrd = bool(
+            getattr(self.opts, "reward_return_distance", False)
+            and getattr(self.opts, "rrd_exclude_wall_contact", False)
         )
 
         keep_wall_regions = (
@@ -476,6 +482,7 @@ class VideoAnalysis:
             or keep_wall_regions_for_btw_rwd_com_mag
             or keep_wall_regions_for_btw_rwd_dist
             or keep_wall_regions_for_btw_rwd_conditioned_com
+            or keep_wall_regions_for_rrd
         )
 
         # ─────────────────────────────────────────────────────────────
