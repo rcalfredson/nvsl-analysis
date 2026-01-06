@@ -174,6 +174,7 @@ REWARDS_IMG_FILE = "imgs/rewards__%s_min_buckets.png"
 RPD_IMG_FILE = "imgs/rewards_per_dist%s__%%s_min_buckets.png"
 AGAROSE_AVOID_IMG_FILE = "imgs/agarose_avoid%s__%%s_min_buckets.png"
 TURNBACK_TURN_IMG_FILE = "imgs/rwd_circle_turnback%s__%%s_min_buckets.png"
+RRD_MEAN_DIST_IMG_FILE = "imgs/reward_return_dist__%s_min_buckets.png"
 RUN_LENGTHS_IMG_FILE = "imgs/run_lengths.png"
 TURN_ANGLES_IMG_FILE = "imgs/turn_angles.png"
 HEATMAPS_IMG_FILE = "imgs/heatmaps%s.png"
@@ -1871,6 +1872,8 @@ def headerForType(va, tp, calc):
         return "\nCOM magnitude from reward center"
     elif tp == "commag_csv":
         return '\n"COM magnitude from reward center, by sync bucket (exp and yoked control), by training"'
+    elif tp == "rrd_mean_dist":
+        return "\nreward return distance (mean success path length) [mm]"
     elif (
         tp
         in (
@@ -2111,6 +2114,7 @@ def fliesForType(va, tp, calc=None):
             "rpd",
             "agarose_dual_circle",
             "turnback_dual_circle",
+            "rrd_mean_dist",
         )
         or "r_no_contact" in tp
         or "dbr" in tp
@@ -2183,6 +2187,7 @@ def bucketLenForType(tp):
             "psc_shift",
             "agarose_dual_circle",
             "turnback_dual_circle",
+            "rrd_mean_dist",
         )
         or "_turn" in tp
         or "r_no_contact" in tp
@@ -2476,6 +2481,7 @@ def columnNamesForType(va, tp, calc, n):
             "psc_shift",
             "agarose_dual_circle",
             "turnback_dual_circle",
+            "rrd_mean_dist",
         )
         or "_turn" in tp
         or "r_no_contact" in tp
@@ -2886,6 +2892,16 @@ def vaVarForType(va, tp, calc):
             counts_attr="reward_turnback_dual_circle_counts",
             tp_label="turnback_dual_circle",
         )
+    elif tp == "rrd_mean_dist":
+        data = []
+        has_ctrl = len(va.flies) > 1
+        flies = ["exp"] + (["ctrl"] if has_ctrl else [])
+        for trn_dict in getattr(va, "rrdMeanDistByBktMm", []):
+            row = []
+            for fkey in flies:
+                row.extend(trn_dict.get(fkey, []))
+            data.append(row)
+        return np.array(data) if data else np.zeros((len(va.trns), 0))
     elif tp in ("meddist", "meddist_exp_min_yok"):
         # flatten syncMedDist into (n_trns, n_flies * n_buckets)
         data = []
@@ -3244,6 +3260,7 @@ def plotRewards(
     commag = tp == "commag"
     agarose_dual = tp == "agarose_dual_circle"
     turnback_dual = tp == "turnback_dual_circle"
+    rrd_mean_dist = tp == "rrd_mean_dist"
     auc_to_csv = r_diff or rpd
     psc = tp in ("psc_conc", "psc_shift")
     pcm, turn_rad, pivot = tp == "pcm", tp == "turn", tp == "pivot"
@@ -3338,7 +3355,16 @@ def plotRewards(
         True if not opts.hidePltTests else False
     )  # p values between first and last buckets
     showPT = not P if not opts.hidePltTests else False  # p values between trainings
-    if rpi or rpd or diff_tp or meddist or commag or agarose_dual or turnback_dual:
+    if (
+        rpi
+        or rpd
+        or diff_tp
+        or meddist
+        or commag
+        or agarose_dual
+        or turnback_dual
+        or rrd_mean_dist
+    ):
         showPFL = False
         showPT = False
     showSS = not P  # speed stats
@@ -3352,6 +3378,7 @@ def plotRewards(
         or rpd
         or agarose_dual
         or turnback_dual
+        or rrd_mean_dist
     ):
         showSS = False
     useAxLimsForStatsVerticalAlignment = (
@@ -3366,6 +3393,7 @@ def plotRewards(
         or commag
         or agarose_dual
         or turnback_dual
+        or rrd_mean_dist
     )
     useDynamicAxisLims = (
         circle
@@ -3378,6 +3406,7 @@ def plotRewards(
         or diff_tp
         or agarose_dual
         or turnback_dual
+        or rrd_mean_dist
     )
     useMidPlotAUCVerticalAlignment = (
         circle
@@ -3392,7 +3421,9 @@ def plotRewards(
         or "no_contact" in tp
         or diff_tp
     )
-    hideAUCCumulative = diff_tp or meddist or rpd or agarose_dual or turnback_dual
+    hideAUCCumulative = (
+        diff_tp or meddist or rpd or agarose_dual or turnback_dual or rrd_mean_dist
+    )
     legend = None
     if showSS and vas:
         speed, stpFr = (
@@ -3416,9 +3447,10 @@ def plotRewards(
         ylim = [0, 10]
     elif tp == "meddist_exp_min_yok":
         ylim = [-0.5, 0.5]
-
     elif agarose_dual or turnback_dual:
         ylim = [0, 1]
+    elif rrd_mean_dist:
+        ylim = [0, 50]
     elif tp == "dbr_no_contact":
         ylim = [0, 150]
     elif tp == "max_ctr_d_no_contact":
@@ -4041,6 +4073,7 @@ def plotRewards(
                         rpd_exp_min_yok="rewards per distance $[m^{-1}]$\n$(\\text{exp} - \\text{yok})$",
                         agarose_dual_circle="dual-circle agarose avoidance ratio",
                         turnback_dual_circle="dual-circle reward turnback ratio",
+                        rrd_mean_dist="Reward return distance [mm]",
                         meddist="median dist. to reward\ncircle center [mm]",
                         meddist_exp_min_yok="med. dist. to center [mm]\n$(\\text{exp} - \\text{yok})$",
                         commag="COM dist. to circle center [mm]",
@@ -4235,6 +4268,7 @@ def plotRewards(
         rpd_exp_min_yok=RPD_IMG_FILE % "_exp_min_yok",
         agarose_dual_circle=AGAROSE_AVOID_IMG_FILE % "",
         turnback_dual_circle=TURNBACK_TURN_IMG_FILE % "",
+        rrd_mean_dist=RRD_MEAN_DIST_IMG_FILE,
         meddist=MED_DIST_TO_REWARD_FILE % "",
         meddist_exp_min_yok=MED_DIST_TO_REWARD_FILE % "_exp_min_yok",
         commag=COM_MAG_TO_REWARD_FILE % "",
@@ -5967,6 +6001,8 @@ def postAnalyze(vas):
         tcs += ("agarose_dual_circle",)
     if getattr(opts, "turnback_dual_circle", False):
         tcs += ("turnback_dual_circle",)
+    if getattr(opts, "reward_return_distance", False):
+        tcs += ("rrd_mean_dist",)
     if not va.noyc and not va.choice:
         tcs += ("rpid", "rpipd")
     for opt in ("wall", "agarose", "boundary", "turn"):
@@ -6318,6 +6354,7 @@ def postAnalyze(vas):
             "rpd_exp_min_yok",
             "commag",
             "commag_exp_min_yok",
+            "rrd_mean_dist",
         ):
             plotRewards(
                 va,

@@ -1062,33 +1062,39 @@ class VideoAnalysis:
                 "analyzeRewardReturnDistance()."
             )
 
+        df = self._numRewardsMsg(True, silent=True)
+        try:
+            _, target_nb, _ = self._syncBucket(self.trns[0], df)
+        except Exception:
+            target_nb = 0
+
         n_trn = len(sync_ranges)
         n_flies = len(self.trx)
-        max_nb = max((len(br) for br in sync_ranges), default=0)
 
         px_per_mm = self.xf.fctr * self.ct.pxPerMmFloor()
         if px_per_mm <= 0:
             raise RuntimeError("[rrd] px_per_mm must be > 0")
 
-        if max_nb == 0:
+        if target_nb == 0:
             self.reward_return_distance = {
                 "entry_count": np.zeros((n_trn, n_flies, 0), dtype=int),
                 "success_count": np.zeros((n_trn, n_flies, 0), dtype=int),
                 "success_rate": np.zeros((n_trn, n_flies, 0), dtype=float),
-                "dist_mean_px": np.zeros((n_trn, n_flies, 0), dtype=float),
-                "dist_median_px": np.zeros((n_trn, n_flies, 0), dtype=float),
+                "dist_mean_mm": np.zeros((n_trn, n_flies, 0), dtype=float),
+                "dist_median_mm": np.zeros((n_trn, n_flies, 0), dtype=float),
             }
             self.rrdMeanDistByBktMm = []
             return
 
-        entry_count = np.zeros((n_trn, n_flies, max_nb), dtype=int)
-        success_count = np.zeros((n_trn, n_flies, max_nb), dtype=int)
-        dist_sum_mm = np.zeros((n_trn, n_flies, max_nb), dtype=float)
+        entry_count = np.zeros((n_trn, n_flies, target_nb), dtype=int)
+        success_count = np.zeros((n_trn, n_flies, target_nb), dtype=int)
+        dist_sum_mm = np.zeros((n_trn, n_flies, target_nb), dtype=float)
 
         # For median, we need per-bin lists. Keep it local and build arrays at end.
         # Shape: [t][f][b] -> list[float]
         dist_lists_mm: list[list[list[list[float]]]] = [
-            [[[] for _ in range(max_nb)] for _ in range(n_flies)] for _ in range(n_trn)
+            [[[] for _ in range(target_nb)] for _ in range(n_flies)]
+            for _ in range(n_trn)
         ]
 
         warned_missing_wc = False
@@ -1145,7 +1151,7 @@ class VideoAnalysis:
                         if sb_start <= start < sb_stop:
                             b_idx_hit = b_idx
                             break
-                    if b_idx_hit is None:
+                    if b_idx_hit is None or b_idx_hit >= target_nb:
                         continue
 
                     entry_count[t_idx, fi, b_idx_hit] += 1
@@ -1173,7 +1179,7 @@ class VideoAnalysis:
         dist_median_mm = np.full_like(dist_sum_mm, np.nan, dtype=float)
         for t_idx in range(n_trn):
             for fi in range(n_flies):
-                for b_idx in range(max_nb):
+                for b_idx in range(target_nb):
                     vals = dist_lists_mm[t_idx][fi][b_idx]
                     if vals:
                         dist_median_mm[t_idx, fi, b_idx] = float(np.median(vals))
