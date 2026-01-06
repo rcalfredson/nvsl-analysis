@@ -1054,6 +1054,17 @@ class VideoAnalysis:
         )
         debug = bool(getattr(self.opts, "rrd_debug", False))
 
+        debug_pause_over_mm = getattr(self.opts, "rrd_debug_pause_over_mm", None)
+        debug_pause_over_mm = (
+            None
+            if debug_pause_over_mm in (None, "", False)
+            else float(debug_pause_over_mm)
+        )
+
+        debug_pause_mode = str(
+            getattr(self.opts, "rrd_debug_pause_mode", "input") or "input"
+        ).strip().lower()
+
         sync_ranges = getattr(self, "sync_bucket_ranges", None)
         if sync_ranges is None:
             raise RuntimeError(
@@ -1139,6 +1150,8 @@ class VideoAnalysis:
                     exclude_wall_contact=exclude_wall_contact,
                     wall_contact_regions=wall_regions,
                     debug=debug,
+                    debug_pause_over_mm=debug_pause_over_mm,
+                    debug_pause_mode=debug_pause_mode,
                 )
                 if not episodes:
                     continue

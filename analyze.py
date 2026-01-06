@@ -885,6 +885,30 @@ g.add_argument(
     action="store_true",
     help="Print debug summaries and a few example episodes per training/fly.",
 )
+g.add_argument(
+    "--rrd-debug-pause-over-mm",
+    type=float,
+    default=None,
+    help=(
+        "In --rrd-debug mode, pause execution when a SUCCESS RRD episode has "
+        "distance traveled greater than this cutoff (in mm). "
+        "Useful for inspecting anomalously long return paths. "
+        "Default: disabled."
+    ),
+)
+
+g.add_argument(
+    "--rrd-debug-pause-mode",
+    choices=("input", "pdb"),
+    default="input",
+    help=(
+        "Pause mechanism used when --rrd-debug-pause-over-mm is triggered. "
+        "'input' waits for Enter (safe for most runs); "
+        "'pdb' drops into the Python debugger. "
+        "Note: in non-interactive runs (no stdin), the pause is skipped (prints and continues). "
+        "Default: %(default)s."
+    ),
+)
 
 g.add_argument(
     "--btw-rwd-polar",

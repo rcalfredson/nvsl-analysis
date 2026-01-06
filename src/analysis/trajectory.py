@@ -532,6 +532,8 @@ class Trajectory:
         exclude_wall_contact: bool = False,
         wall_contact_regions=None,  # Optional[Sequence[slice]]
         debug: bool = False,
+        debug_pause_over_mm: float | None = None,
+        debug_pause_mode: str = "input",
     ) -> list[dict]:
         """
         Return 'reward return distance' episodes for one training.
@@ -580,6 +582,8 @@ class Trajectory:
             return episodes
         if np.isnan(cx) or np.isnan(cy) or np.isnan(r_px):
             return episodes
+        
+        debug_pause_mode = (debug_pause_mode or "input").strip().lower()
 
         # mm -> px conversion in the same coordinate space as x/y
         fctr = float(getattr(self.va.xf, "fctr", 1.0) or 1.0)
@@ -736,6 +740,41 @@ class Trajectory:
 
             # compute distance traveled along path
             dist = float(self.distTrav(s_abs, k_abs))
+
+            if debug and debug_pause_over_mm is not None:
+                # dist is in px (per your current implementation)
+                dist_mm = dist / px_per_mm if px_per_mm > 0 else float("inf")
+
+                if dist_mm > float(debug_pause_over_mm):
+                    msg = (
+                        f"[rrd][PAUSE] {flyDesc(self.f)} {trn.sname()} "
+                        f"dist={dist_mm:.2f}mm ({dist:.2f}px) > cutoff={float(debug_pause_over_mm):.2f}mm | "
+                        f"start_abs={s_abs} reward_abs={k_abs} dur={k_abs - s_abs} "
+                        f"(t0={t0}, t1={t1}, s_rel={s_rel}, k_rel={k_rel})"
+                    )
+                    print(msg)
+
+                    # Choose pause mechanism
+                    if debug_pause_mode == "pdb":
+                        try:
+                            import pdb
+
+                            pdb.set_trace()
+                        except Exception as e:
+                            print(
+                                f"[rrd][PAUSE] pdb failed ({e}); falling back to input()."
+                            )
+                            try:
+                                input("[rrd] Press Enter to continue...")
+                            except EOFError:
+                                print("[rrd][PAUSE] No stdin available; continuing.")
+                    else:
+                        # Default: input-based pause (works without attaching a debugger)
+                        try:
+                            input("[rrd] Press Enter to continue...")
+                        except EOFError:
+                            # Non-interactive runs (cluster/log-only): don’t hang forever
+                            print("[rrd][PAUSE] No stdin available; continuing.")
 
             episodes.append(
                 {
