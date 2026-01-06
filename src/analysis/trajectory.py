@@ -521,6 +521,294 @@ class Trajectory:
                 fn = CALC_REWARDS_IMG_FILE % ("ctrl" if ctrl else "post", self.f + 1)
                 writeImage(fn, img)
 
+    def reward_return_distance_episodes_for_training(
+        self,
+        *,
+        trn,
+        return_delta_mm: float = 6.0,
+        reward_delta_mm: float = 0.0,
+        min_inside_return_frames: int = 1,
+        border_width_mm: float = 0.1,
+        exclude_wall_contact: bool = False,
+        wall_contact_regions=None,  # Optional[Sequence[slice]]
+        debug: bool = False,
+    ) -> list[dict]:
+        """
+        Return 'reward return distance' episodes for one training.
+
+        Concept:
+          - Define a "return circle" concentric with the reward circle:
+                r_return = r_reward + return_delta_mm
+          - An episode starts when the fly ENTERS the return circle (False->True).
+          - The episode ends at the earlier of:
+                * ENTER reward circle (success)
+                * EXIT return circle (failure)
+                * training end (failure)
+
+        We report distance traveled, from return-entry to reward-entry, for SUCCESS episodes
+        by default (those reaching reward before leaving return).
+
+        Optional exclusion:
+          - If exclude_wall_contact=True, drop SUCCESS episodes if ANY wall-contact region
+            overlaps the window [start, reward_entry).
+
+        Returns:
+          List[dict], each like:
+            {
+              "start": int,          # absolute frame index (return-circle entry)
+              "stop": int,           # absolute frame index (end marker; reward entry or return exit or trn_end)
+              "reward_entry": int|None,
+              "success": bool,
+              "end_reason": str,     # "enter_reward" | "exit_return" | "trn_end" | "dropped_wall"
+              "dist": float|None,    # distance traveled (success only)
+              "dropped_wall": bool,  # True iff exclude_wall_contact is enabled and wall overlap occurs before reward entry
+            }
+        """
+        episodes: list[dict] = []
+
+        if not self.va:
+            return episodes
+        if not trn or not trn.isCircle():
+            return episodes
+
+        cs = trn.circles(self.f)
+        if not cs:
+            return episodes
+
+        cx, cy, r_px = cs[0]
+        if cx is None or cy is None or r_px is None:
+            return episodes
+        if np.isnan(cx) or np.isnan(cy) or np.isnan(r_px):
+            return episodes
+
+        # mm -> px conversion in the same coordinate space as x/y
+        fctr = float(getattr(self.va.xf, "fctr", 1.0) or 1.0)
+        px_per_mm = float(self.va.ct.pxPerMmFloor()) * fctr
+
+        reward_r_px = float(r_px) + float(reward_delta_mm) * px_per_mm
+        return_r_px = float(r_px) + float(return_delta_mm) * px_per_mm
+        if return_r_px <= reward_r_px:
+            return episodes
+
+        border_width_px = float(border_width_mm) * px_per_mm
+
+        # training frame bounds
+        t0 = int(trn.start)
+        t1 = int(trn.stop)
+        if t1 <= t0 + 1:
+            return episodes
+
+        xs = self.x[t0:t1]
+        ys = self.y[t0:t1]
+        good = np.isfinite(xs) & np.isfinite(ys)
+
+        in_return = np.zeros(t1 - t0, dtype=bool)
+        in_reward = np.zeros(t1 - t0, dtype=bool)
+
+        if np.any(good):
+            return_state = self.calc_in_circle(
+                xs[good], ys[good], cx, cy, return_r_px, border_width_px=border_width_px
+            )
+            reward_state = self.calc_in_circle(
+                xs[good], ys[good], cx, cy, reward_r_px, border_width_px=border_width_px
+            )
+            in_return[good] = return_state > 0
+            in_reward[good] = reward_state > 0
+
+        # transitions
+        prev_r = in_return[:-1]
+        curr_r = in_return[1:]
+        enter_return_idxs = np.where((~prev_r) & curr_r)[0] + 1  # False->True
+
+        # precompute reward-entry indices (False->True)
+        prev_rw = in_reward[:-1]
+        curr_rw = in_reward[1:]
+        enter_reward_idxs = np.where((~prev_rw) & curr_rw)[0] + 1
+
+        if debug:
+            print(
+                f"{flyDesc(self.f)} {trn.sname()}: "
+                f"reward_r={reward_r_px:.2f}px return_r={return_r_px:.2f}px "
+                f"enter_return={len(enter_return_idxs)} enter_reward={len(enter_reward_idxs)}"
+            )
+
+        # helper for wall overlap
+        def _slice_start_stop(sl) -> tuple[int, int]:
+            a = 0 if getattr(sl, "start", None) is None else int(sl.start)
+            b = 0 if getattr(sl, "stop", None) is None else int(sl.stop)
+            return a, b
+
+        def _any_wall_overlap(s_abs: int, e_abs: int) -> bool:
+            if not wall_contact_regions:
+                return False
+            s_abs = int(s_abs)
+            e_abs = int(e_abs)
+            for sl in wall_contact_regions:
+                a, b = _slice_start_stop(sl)
+                if min(b, e_abs) > max(a, s_abs):
+                    return True
+            return False
+
+        dropped_too_short = 0
+        dropped_empty_window = 0
+        dropped_wall = 0
+        n_success = 0
+
+        # pointer over reward-entry indices for efficiency
+        rw_ptr = 0
+
+        for s_rel in enter_return_idxs:
+            # enforce minimum inside-return duration: require return remains True for >= N frames
+            # We interpret "inside" as [s_rel, s_rel+N) all True. If near end, it fails.
+            N = (
+                int(min_inside_return_frames)
+                if min_inside_return_frames is not None
+                else 1
+            )
+            if N < 1:
+                N = 1
+            if s_rel + N > (t1 - t0):
+                dropped_too_short += 1
+                continue
+            if not np.all(in_return[s_rel : s_rel + N]):
+                dropped_too_short += 1
+                continue
+
+            # find end of this return-circle "visit": first index >= s_rel where in_return becomes False
+            # (search within [s_rel, end))
+            off = np.where(~in_return[s_rel:])[0]
+            if off.size > 0:
+                e_rel = s_rel + int(off[0])  # first False
+            else:
+                e_rel = t1 - t0  # persists to end
+
+            if e_rel <= s_rel:
+                dropped_empty_window += 1
+                continue
+
+            # advance reward-entry point to first reward entry after s_rel
+            while (
+                rw_ptr < len(enter_reward_idxs) and enter_reward_idxs[rw_ptr] <= s_rel
+            ):
+                rw_ptr += 1
+
+            # success if first reward entry occurs before leaving return circle
+            k_rel = None
+            if rw_ptr < len(enter_reward_idxs):
+                cand = int(enter_reward_idxs[rw_ptr])
+                if cand < e_rel:
+                    k_rel = cand
+
+            s_abs = int(t0 + s_rel)
+
+            if k_rel is None:
+                # failure: exited return without reward entry
+                episodes.append(
+                    {
+                        "start": s_abs,
+                        "stop": int(t0 + e_rel),
+                        "reward_entry": None,
+                        "success": False,
+                        "end_reason": "exit_return" if e_rel < (t1 - t0) else "trn_end",
+                        "dist": None,
+                    }
+                )
+                continue
+
+            # success window is [s_abs, k_abs)
+            k_abs = int(t0 + k_rel)
+
+            if exclude_wall_contact and wall_contact_regions:
+                if _any_wall_overlap(s_abs, k_abs):
+                    dropped_wall += 1
+                    episodes.append(
+                        {
+                            "start": s_abs,
+                            "stop": k_abs,
+                            "reward_entry": k_abs,
+                            "success": False,
+                            "end_reason": "dropped_wall",
+                            "dist": None,
+                            "dropped_wall": True,
+                        }
+                    )
+                    continue
+
+            # compute distance traveled along path
+            dist = float(self.distTrav(s_abs, k_abs))
+
+            episodes.append(
+                {
+                    "start": s_abs,
+                    "stop": k_abs,
+                    "reward_entry": k_abs,
+                    "success": True,
+                    "end_reason": "enter_reward",
+                    "dist": dist,
+                    "dropped_wall": False,
+                }
+            )
+            n_success += 1
+
+        if debug:
+            # summarize durations and distance for kept (non-dropped) successes
+            dists = [
+                ep["dist"]
+                for ep in episodes
+                if ep.get("success") and ep.get("dist") is not None
+            ]
+            if dists:
+                dmin, dmed, dmax = (
+                    float(np.min(dists)),
+                    float(np.median(dists)),
+                    float(np.max(dists)),
+                )
+            else:
+                dmin = dmed = dmax = 0.0
+
+            reasons = {}
+            for ep in episodes:
+                r = ep.get("end_reason", "unknown")
+                reasons[r] = reasons.get(r, 0) + 1
+
+            print(
+                f"{flyDesc(self.f)} {trn.sname()}: "
+                f"episodes={len(episodes)} successes={n_success} "
+                f"reasons={reasons} "
+                f"dropped(short={dropped_too_short}, empty={dropped_empty_window}, wall={dropped_wall}) "
+                f"dist(px) min/med/max={dmin:.2f}/{dmed:.2f}/{dmax:.2f}"
+            )
+
+            # optional: show first few successes
+            show = 5
+            shown = 0
+            for i, ep in enumerate(episodes):
+                if not ep.get("success"):
+                    continue
+                if ep.get("dist") is None:
+                    continue
+                s_abs = int(ep["start"])
+                k_abs = (
+                    int(ep["reward_entry"])
+                    if ep.get("reward_entry") is not None
+                    else -1
+                )
+                stop_abs = int(ep.get("stop", -1))
+                s_rel = s_abs - t0
+                k_rel = k_abs - t0 if k_abs >= 0 else -1
+                dur = k_abs - s_abs if k_abs >= 0 else -1
+                print(
+                    f"  succ{i}: "
+                    f"start_rel={s_rel} reward_rel={k_rel} dur={dur} "
+                    f"start_abs={s_abs} reward_abs={k_abs} stop_abs={stop_abs} "
+                    f"dist={float(ep['dist']):.2f}px"
+                )
+
+                shown += 1
+                if shown >= show:
+                    break
+        return episodes
+
     def reward_turnback_dual_circle_episodes_for_training(
         self,
         *,

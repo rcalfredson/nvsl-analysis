@@ -255,6 +255,8 @@ class VideoAnalysis:
                 self._rewards_per_distance()
             if getattr(opts, "turnback_dual_circle", False):
                 self.analyzeRewardTurnbackDualCircle()
+            if getattr(opts, "reward_return_distance", False):
+                self.analyzeRewardReturnDistance()
             if getattr(opts, "agarose_dual_circle", False) and self.ct in (
                 CT.large,
                 CT.large2,
@@ -1007,6 +1009,167 @@ class VideoAnalysis:
         )
         for trj in self.trx:
             trj._calcOutsideCirclePeriods()
+
+    def analyzeRewardReturnDistance(
+        self, return_delta_mm: float | None = None, reward_delta_mm: float | None = None
+    ):
+        """
+        Reward Return Distance (RRD) metric around reward circle, aggregated by sync bucket.
+
+        For each sync bucket, we compute (per training, fly, sync bucket):
+          - entry_count: number of return-circle entry episodes whose start frame falls in the bucket
+          - success_count: number of those that reach reward before leaving return circle
+                           without touching the wall first
+          - success_rate: success_count / entry_count (NaN where entry_count == 0)
+          - dist_mean_px: mean path distance traveled from return-entry to reward_entry over successes
+          - dist_median_px: median distance over successes (optional but handy)
+        """
+        # Only meaningful when reward circles exist
+        if not getattr(self, "circle", False):
+            return
+
+        # options / defaults
+        if return_delta_mm is None:
+            return_delta_mm = float(
+                getattr(self.opts, "rrd_return_delta_mm", 6.0) or 6.0
+            )
+        if reward_delta_mm is None:
+            reward_delta_mm = float(
+                getattr(self.opts, "rrd_reward_delta_mm", 0.0) or 0.0
+            )
+
+        min_inside_return_frames = int(
+            getattr(self.opts, "rrd_min_inside_return_frames", 1) or 1
+        )
+        border_width_mm = float(getattr(self.opts, "rrd_border_width_mm", 0.1) or 0.1)
+        exclude_wall_contact = bool(
+            getattr(self.opts, "rrd_exclude_wall_contact", False)
+        )
+        debug = bool(getattr(self.opts, "rrd_debug", False))
+
+        sync_ranges = getattr(self, "sync_bucket_ranges", None)
+        if sync_ranges is None:
+            raise RuntimeError(
+                "sync_bucket_ranges is not defined. "
+                "Make sure bySyncBucket() has been called before "
+                "analyzeRewardReturnDistance()."
+            )
+
+        n_trn = len(sync_ranges)
+        n_flies = len(self.trx)
+        max_nb = max((len(br) for br in sync_ranges), default=0)
+
+        if max_nb == 0:
+            self.reward_return_distance = {
+                "entry_count": np.zeros((n_trn, n_flies, 0), dtype=int),
+                "success_count": np.zeros((n_trn, n_flies, 0), dtype=int),
+                "success_rate": np.zeros((n_trn, n_flies, 0), dtype=float),
+                "dist_mean_px": np.zeros((n_trn, n_flies, 0), dtype=float),
+                "dist_median_px": np.zeros((n_trn, n_flies, 0), dtype=float),
+            }
+            return
+
+        entry_count = np.zeros((n_trn, n_flies, max_nb), dtype=int)
+        success_count = np.zeros((n_trn, n_flies, max_nb), dtype=int)
+        dist_sum = np.zeros((n_trn, n_flies, max_nb), dtype=float)
+
+        # For median, we need per-bin lists. Keep it local and build arrays at end.
+        # Shape: [t][f][b] -> list[float]
+        dist_lists: list[list[list[list[float]]]] = [
+            [[[] for _ in range(max_nb)] for _ in range(n_flies)] for _ in range(n_trn)
+        ]
+
+        warned_missing_wc = False
+
+        for t_idx, bucket_ranges in enumerate(sync_ranges):
+            if not bucket_ranges:
+                continue
+            if t_idx >= len(self.trns):
+                continue
+
+            trn = self.trns[t_idx]
+            if trn is None or not trn.isCircle():
+                continue
+
+            for fi, trj in enumerate(self.trx):
+                if getattr(trj, "_bad", False):
+                    continue
+
+                wall_regions = None
+                if exclude_wall_contact:
+                    try:
+                        wall_regions = trj.boundary_event_stats["wall"]["all"][
+                            "edge"
+                        ].get("boundary_contact_regions", None)
+                    except Exception:
+                        wall_regions = None
+                        if not warned_missing_wc:
+                            print(
+                                "[rrd] warning: --rrd-exclude-wall-contact was set, but "
+                                "wall boundary_contact_regions were not available for at "
+                                "least one trajectory. Proceeding without wall exclusion "
+                                "for those cases."
+                            )
+                            warned_missing_wc = True
+
+                episodes = trj.reward_return_distance_episodes_for_training(
+                    trn=trn,
+                    return_delta_mm=return_delta_mm,
+                    reward_delta_mm=reward_delta_mm,
+                    min_inside_return_frames=min_inside_return_frames,
+                    border_width_mm=border_width_mm,
+                    exclude_wall_contact=exclude_wall_contact,
+                    wall_contact_regions=wall_regions,
+                    debug=debug,
+                )
+                if not episodes:
+                    continue
+
+                for ep in episodes:
+                    start = int(ep["start"])
+                    # bin by start frame into this training's sync buckets
+                    b_idx_hit = None
+                    for b_idx, (sb_start, sb_stop) in enumerate(bucket_ranges):
+                        if sb_start <= start < sb_stop:
+                            b_idx_hit = b_idx
+                            break
+                    if b_idx_hit is None:
+                        continue
+
+                    entry_count[t_idx, fi, b_idx_hit] += 1
+
+                    # "kept success" means we have a distance value (i.e., success and,
+                    # if enabled, not wall-dropped)
+                    dist = ep.get("dist", None)
+                    if dist is None:
+                        continue
+
+                    success_count[t_idx, fi, b_idx_hit] += 1
+                    dist_f = float(dist)
+                    dist_sum[t_idx, fi, b_idx_hit] += dist_f
+                    dist_lists[t_idx][fi][b_idx_hit].append(dist_f)
+
+        success_rate = np.full_like(entry_count, np.nan, dtype=float)
+        np.divide(success_count, entry_count, out=success_rate, where=(entry_count > 0))
+
+        dist_mean_px = np.full_like(dist_sum, np.nan, dtype=float)
+        np.divide(dist_sum, success_count, out=dist_mean_px, where=(success_count > 0))
+
+        dist_median_px = np.full_like(dist_sum, np.nan, dtype=float)
+        for t_idx in range(n_trn):
+            for fi in range(n_flies):
+                for b_idx in range(max_nb):
+                    vals = dist_lists[t_idx][fi][b_idx]
+                    if vals:
+                        dist_median_px[t_idx, fi, b_idx] = float(np.median(vals))
+
+        self.reward_return_distance = {
+            "entry_count": entry_count,
+            "success_count": success_count,
+            "success_rate": success_rate,
+            "dist_mean_px": dist_mean_px,
+            "dist_median_px": dist_median_px,
+        }
 
     def analyzeRewardTurnbackDualCircle(
         self, inner_delta_mm: float | None = None, outer_delta_mm: float | None = None
