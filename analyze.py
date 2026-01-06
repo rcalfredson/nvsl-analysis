@@ -3474,7 +3474,7 @@ def plotRewards(
     elif agarose_dual or turnback_dual:
         ylim = [0, 1]
     elif rrd_mean_dist:
-        ylim = [0, 50]
+        ylim = [0, 20]
     elif tp == "dbr_no_contact":
         ylim = [0, 150]
     elif tp == "max_ctr_d_no_contact":

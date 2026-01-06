@@ -582,7 +582,7 @@ class Trajectory:
             return episodes
         if np.isnan(cx) or np.isnan(cy) or np.isnan(r_px):
             return episodes
-        
+
         debug_pause_mode = (debug_pause_mode or "input").strip().lower()
 
         # mm -> px conversion in the same coordinate space as x/y
@@ -738,8 +738,42 @@ class Trajectory:
                     )
                     continue
 
-            # compute distance traveled along path
-            dist = float(self.distTrav(s_abs, k_abs))
+            # compute distance traveled along path, restricted to walking frames
+            # (sum only step i->i+1 where both endpoints are walking and finite)
+            if not hasattr(self, "walking") or self.walking is None:
+                # Fallback
+                dist = float(self.distTrav(s_abs, k_abs))
+            else:
+                if k_abs <= s_abs + 1:
+                    dist = 0.0
+                else:
+                    xs_w = self.x[s_abs:k_abs]
+                    ys_w = self.y[s_abs:k_abs]
+                    w = self.walking[s_abs:k_abs]
+
+                    w = np.asarray(w, dtype=bool)
+
+                    finite = np.isfinite(xs_w) & np.isfinite(ys_w)
+                    if xs_w.size < 2:
+                        dist = 0.0
+                    else:
+                        dx = np.diff(xs_w)
+                        dy = np.diff(ys_w)
+
+                        # step i corresponds to transition (i -> i+1)
+                        step_ok = w[:-1] & w[1:] & finite[:-1] & finite[1:]
+
+                        if np.any(step_ok):
+                            dist = float(
+                                np.sum(
+                                    np.sqrt(
+                                        dx[step_ok] * dx[step_ok]
+                                        + dy[step_ok] * dy[step_ok]
+                                    )
+                                )
+                            )
+                        else:
+                            dist = 0.0
 
             if debug and debug_pause_over_mm is not None:
                 # dist is in px (per your current implementation)
