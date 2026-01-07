@@ -910,6 +910,43 @@ g.add_argument(
     ),
 )
 
+rrd = p.add_argument_group("Reward Return Distance (RRD) segment plots")
+
+rrd.add_argument(
+    "--rrd-seg-plots",
+    action="store_true",
+    help="Write debug plots of reward-return trajectory segments for a chosen training/bucket.",
+)
+rrd.add_argument(
+    "--rrd-seg-trn",
+    type=int,
+    default=None,
+    help="1-based training index for --rrd-seg-plots.",
+)
+rrd.add_argument(
+    "--rrd-seg-bkt",
+    type=int,
+    default=None,
+    help="1-based sync bucket index for --rrd-seg-plots.",
+)
+rrd.add_argument(
+    "--rrd-seg-num",
+    type=int,
+    default=1,
+    help="Max number of segments to plot per fly (default: 1).",
+)
+rrd.add_argument(
+    "--rrd-seg-seed",
+    type=int,
+    default=None,
+    help="Random seed for choosing segments (default: random).",
+)
+rrd.add_argument(
+    "--rrd-seg-include-failures",
+    action="store_true",
+    help="Include failure episodes (exit_return/trn_end/dropped_wall) in plotted segments.",
+)
+
 g.add_argument(
     "--btw-rwd-polar",
     action="store_true",

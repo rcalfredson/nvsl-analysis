@@ -2,6 +2,7 @@ import math
 from math import sin, cos
 import os
 import random
+from typing import Optional, Tuple
 
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
@@ -23,6 +24,33 @@ class EventChainPlotter:
         # track which between-reward intervals have already been plotted
         # key: (trn_index, bucket_index) -> set of (start_reward, end_reward)
         self._used_between_reward_pairs = {}
+        self._used_reward_return_episodes = {}
+
+    def _get_bucket_range(
+        self, *, trn_index: int, bucket_index: int
+    ) -> Optional[Tuple[int, int]]:
+        """
+        Return (start, stop) absolute frame indices for a (training, bucket) pair.
+
+        Prefers va.sync_bucket_ranges[t][b] = (start, stop) if available.
+        Falls back to va.buckets[t] boundaries like [b0, b1, ..., bN].
+        """
+        sync_ranges = getattr(self.va, "sync_bucket_ranges", None)
+        if sync_ranges is not None:
+            if trn_index < 0 or trn_index >= len(sync_ranges):
+                return None
+            ranges = sync_ranges[trn_index] or []
+            if bucket_index < 0 or bucket_index >= len(ranges):
+                return None
+            sb_start, sb_stop = ranges[bucket_index]
+            return int(sb_start), int(sb_stop)
+
+        if not hasattr(self.va, "buckets") or trn_index >= len(self.va.buckets):
+            return None
+        buckets = self.va.buckets[trn_index]
+        if bucket_index < 0 or bucket_index >= len(buckets) - 1:
+            return None
+        return int(buckets[bucket_index]), int(buckets[bucket_index + 1])
 
     def draw_custom_arrowhead(
         self,
@@ -940,6 +968,355 @@ class EventChainPlotter:
         )
         output_dir = os.path.dirname(output_path)
         os.makedirs(output_dir, exist_ok=True)
+
+        fig.subplots_adjust(left=0.04, right=0.98, top=0.9, bottom=0.20, wspace=0.01, hspace=0.25)
+        writeImage(output_path, format=image_format)
+        plt.close(fig)
+
+    def plot_reward_return_chain(
+        self,
+        trn_index: int,
+        bucket_index: int,
+        *,
+        return_delta_mm: float,
+        reward_delta_mm: float,
+        min_inside_return_frames: int = 1,
+        border_width_mm: float = 0.1,
+        exclude_wall_contact: bool = False,
+        seed: Optional[int] = None,
+        image_format: Optional[str] = None,
+        role_idx: Optional[int] = None,
+        num_examples: int = 1,
+        include_failures: bool = False,
+        pad_frames: int = 5,
+    ) -> None:
+        """
+        Plot one or more reward-return trajectory segments for this fly, sampled
+        within the specified training and sync bucket.
+
+        A plotted segment spans:
+          start_frame = (return-entry start) - pad_frames
+          end_frame   = (reward_entry if success else episode stop) + pad_frames
+
+        Parameters mirror Trajectory.reward_return_distance_episodes_for_training().
+        """
+        image_format = image_format or self.image_format
+        num_examples = max(1, int(num_examples))
+        pad_frames = max(0, int(pad_frames))
+
+        if trn_index < 0 or trn_index >= len(getattr(self.va, "trns", [])):
+            print(
+                f"[plot_reward_return_chain] Invalid trn_index={trn_index}; "
+                f"valid range is 0..{len(self.va.trns) - 1}"
+            )
+            return
+
+        trn = self.va.trns[trn_index]
+        if trn is None or not trn.isCircle():
+            print(f"[plot_reward_return_chain] Training {trn_index + 1} is not a circle.")
+            return
+
+        bucket_range = self._get_bucket_range(trn_index=trn_index, bucket_index=bucket_index)
+        if bucket_range is None:
+            print(
+                f"[plot_reward_return_chain] Invalid bucket_index={bucket_index} "
+                f"for trn_index={trn_index}."
+            )
+            return
+        bkt_start, bkt_end = bucket_range
+
+        # wall-contact regions (optional)
+        wall_regions = None
+        if exclude_wall_contact:
+            try:
+                wall_regions = self.trj.boundary_event_stats["wall"]["all"]["edge"].get(
+                    "boundary_contact_regions", None
+                )
+            except Exception:
+                wall_regions = None
+
+        episodes = self.trj.reward_return_distance_episodes_for_training(
+            trn=trn,
+            return_delta_mm=return_delta_mm,
+            reward_delta_mm=reward_delta_mm,
+            min_inside_return_frames=min_inside_return_frames,
+            border_width_mm=border_width_mm,
+            exclude_wall_contact=exclude_wall_contact,
+            wall_contact_regions=wall_regions,
+            debug=False,
+        )
+        if not episodes:
+            print(
+                f"[plot_reward_return_chain] No reward-return episodes for fly {self.trj.f}, "
+                f"training {trn_index + 1}."
+            )
+            return
+
+        # filter by bucket (episode start must fall inside bucket)
+        eps_in_bucket = []
+        for ep in episodes:
+            s = int(ep["start"])
+            if bkt_start <= s < bkt_end:
+                if include_failures or ep.get("dist", None) is not None:
+                    eps_in_bucket.append(ep)
+
+        if not eps_in_bucket:
+            mode = "incl failures" if include_failures else "success-only"
+            print(
+                f"[plot_reward_return_chain] No reward-return episodes in bucket "
+                f"{bucket_index + 1} ({mode}) for fly {self.trj.f}, trn {trn_index + 1}."
+            )
+            return
+
+        key = (trn_index, bucket_index)
+        used = self._used_reward_return_episodes.setdefault(key, set())
+
+        def _ep_key(ep) -> Tuple[int, int, str]:
+            return (int(ep["start"]), int(ep.get("stop", -1)), str(ep.get("end_reason", "")))
+
+        candidates = [ep for ep in eps_in_bucket if _ep_key(ep) not in used]
+        if not candidates:
+            print(
+                f"[plot_reward_return_chain] All reward-return episodes already used "
+                f"for fly {self.trj.f}, trn {trn_index + 1}, bucket {bucket_index + 1}."
+            )
+            return
+
+        rng = random.Random(seed) if seed is not None else random
+        rng.shuffle(candidates)
+
+        n_frames = len(self.x)
+        selected = []
+        for ep in candidates:
+            s_abs = int(ep["start"])
+            end_abs = int(ep["reward_entry"]) if ep.get("reward_entry") is not None else int(ep["stop"])
+            start_frame = max(0, s_abs - pad_frames)
+            end_frame = min(n_frames - 1, end_abs + pad_frames)
+            if start_frame < end_frame:
+                selected.append((ep, start_frame, end_frame, end_abs))
+                used.add(_ep_key(ep))
+                if len(selected) >= num_examples:
+                    break
+
+        if not selected:
+            print(
+                f"[plot_reward_return_chain] No valid frame ranges after padding for fly {self.trj.f}, "
+                f"trn {trn_index + 1}, bucket {bucket_index + 1}."
+            )
+            return
+
+        # Arena geometry (shared)
+        floor_coords = list(
+            self.va.ct.floor(self.va.xf, f=self.va.nef * (self.trj.f) + self.va.ef)
+        )
+        top_left, bottom_right = floor_coords[0], floor_coords[1]
+
+        contact_buffer_mm = CONTACT_BUFFER_OFFSETS["wall"]["max"]
+        contact_buffer_px = self.va.ct.pxPerMmFloor() * self.va.xf.fctr * contact_buffer_mm
+
+        reward_circle = None
+        try:
+            reward_circle = trn.circles(self.trj.f)[0]
+        except Exception:
+            reward_circle = None
+
+        # return circle radius computation (px in same space as x/y)
+        px_per_mm = float(self.va.ct.pxPerMmFloor()) * float(getattr(self.va.xf, "fctr", 1.0) or 1.0)
+        return_circle = None
+        if reward_circle is not None:
+            rcx, rcy, rcr = reward_circle
+            return_circle = (rcx, rcy, float(rcr) + float(return_delta_mm) * px_per_mm)
+            reward_circle = (rcx, rcy, float(rcr) + float(reward_delta_mm) * px_per_mm)
+
+        padding_x = (bottom_right[0] - top_left[0]) * 0.1
+        padding_y = (top_left[1] - bottom_right[1]) * 0.1
+
+        n_examples = len(selected)
+        n_cols = min(5, n_examples)
+        n_rows = int(math.ceil(n_examples / n_cols))
+
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(4 * n_cols, 8 * n_rows))
+        axes = np.atleast_1d(axes).ravel()
+
+        big_arrow_kwargs = {"length": 3.0, "linewidth": 2.0}
+
+        for idx, (ep, start_frame, end_frame, end_abs) in enumerate(selected):
+            ax = axes[idx]
+            plt.sca(ax)
+
+            # Floor box
+            rect = patches.FancyBboxPatch(
+                (top_left[0], top_left[1]),
+                bottom_right[0] - top_left[0],
+                bottom_right[1] - top_left[1],
+                boxstyle="round,pad=0.05,rounding_size=2",
+                linewidth=1,
+                edgecolor="black",
+                facecolor="none",
+                zorder=2,
+            )
+            ax.add_patch(rect)
+
+            # Sidewall contact region
+            self._draw_sidewall_contact_region(
+                lower_left_x=top_left[0],
+                lower_left_y=top_left[1],
+                top_left=top_left,
+                bottom_right=bottom_right,
+                contact_buffer_px=contact_buffer_px,
+            )
+
+            # Reward + Return circle overlays
+            if reward_circle is not None:
+                rcx, rcy, rcr = reward_circle
+                ax.add_patch(
+                    plt.Circle(
+                        (rcx, rcy),
+                        rcr,
+                        color="lightgray",
+                        fill=False,
+                        linestyle="-",
+                        linewidth=1.5,
+                        zorder=3,
+                        label="Reward circle",
+                    )
+                )
+            if return_circle is not None:
+                rx, ry, rr = return_circle
+                ax.add_patch(
+                    plt.Circle(
+                        (rx, ry),
+                        rr,
+                        color="lightgray",
+                        fill=False,
+                        linestyle="--",
+                        linewidth=1.2,
+                        zorder=3,
+                        label="Return circle",
+                    )
+                )
+
+            ax.set_aspect("equal", adjustable="box")
+            ax.axis("off")
+            ax.set_xlim(top_left[0] - padding_x, bottom_right[0] + padding_x)
+            ax.set_ylim(bottom_right[1] - padding_y, top_left[1] + padding_y)
+
+            # Base trajectory line + arrows
+            last_arrow_idx = None
+            arrow_interval = 3
+
+            for i in range(start_frame, end_frame):
+                if (
+                    np.isnan(self.x[i]) or np.isnan(self.y[i]) or
+                    np.isnan(self.x[i + 1]) or np.isnan(self.y[i + 1])
+                ):
+                    continue
+
+                x_start, x_end = self.x[i], self.x[i + 1]
+                y_start, y_end = self.y[i], self.y[i + 1]
+
+                x_start = max(min(x_start, bottom_right[0]), top_left[0])
+                x_end = max(min(x_end, bottom_right[0]), top_left[0])
+
+                ax.plot([x_start, x_end], [y_start, y_end], linewidth=0.75, zorder=3)
+
+                if getattr(self.trj, "walking", None) is not None:
+                    if not self.trj.walking[i + 1]:
+                        continue
+
+                speed = np.hypot(x_end - x_start, y_end - y_start)
+                last_arrow_idx = self._draw_arrow_for_speed(
+                    i,
+                    x_start,
+                    x_end,
+                    y_start,
+                    y_end,
+                    last_arrow_idx,
+                    arrow_interval,
+                    speed,
+                    arrow_kwargs=big_arrow_kwargs,
+                )
+
+            # Mark episode start (return-entry) and endpoint
+            s_abs = int(ep["start"])
+            s_ok = 0 <= s_abs < len(self.x)
+            e_ok = 0 <= end_abs < len(self.x)
+
+            if s_ok:
+                ax.plot(
+                    self.x[s_abs],
+                    self.y[s_abs],
+                    marker="o",
+                    markersize=6,
+                    zorder=4,
+                    label="Return entry (start)",
+                )
+
+            success = bool(ep.get("success", False)) and ep.get("reward_entry") is not None
+            if e_ok:
+                ax.plot(
+                    self.x[end_abs],
+                    self.y[end_abs],
+                    marker="o",
+                    markersize=6,
+                    zorder=4,
+                    label="Reward entry (end)" if success else "Episode end (exit/trn_end)",
+                )
+
+            # Title per subplot
+            end_reason = str(ep.get("end_reason", ""))
+            ax.set_title(
+                f"seg {idx + 1}: frames {start_frame}-{end_frame}\n"
+                f"start {s_abs} → end {end_abs} ({end_reason})",
+                fontsize=9,
+            )
+
+            if idx == 0:
+                handles, labels = ax.get_legend_handles_labels()
+                if handles:
+                    ax.legend(
+                        handles=handles,
+                        labels=labels,
+                        loc="lower center",
+                        bbox_to_anchor=(0.7, -0.15),
+                        fancybox=True,
+                        shadow=True,
+                        ncol=2,
+                        fontsize=8,
+                    )
+
+        for ax in axes[n_examples:]:
+            ax.axis("off")
+
+        # output filename + title
+        video_id = os.path.splitext(os.path.basename(self.va.fn))[0]
+        fly_idx = self.va.f
+
+        if role_idx is None:
+            try:
+                role_idx = self.va.flies.index(fly_idx)
+            except Exception:
+                role_idx = 0
+
+        seed_str = f"{seed}" if seed is not None else "rand"
+        fly_role = "exp" if role_idx == 0 else "yok"
+
+        mode = "succ+fail" if include_failures else "succ"
+        fig.suptitle(
+            "Reward-return trajectories\n"
+            f"{video_id}, fly {fly_idx}, {fly_role}\n"
+            f"trn {trn_index + 1}, bucket {bucket_index + 1} ({mode})",
+            fontsize=12,
+        )
+
+        output_path = (
+            f"imgs/reward_return_distance/"
+            f"{video_id}__fly{fly_idx}_role{role_idx}_"
+            f"trn{trn_index + 1}_bkt{bucket_index + 1}_"
+            f"N{n_examples}_seed{seed_str}_{mode}."
+            f"{image_format}"
+        )
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
         fig.subplots_adjust(left=0.04, right=0.98, top=0.9, bottom=0.20, wspace=0.01, hspace=0.25)
         writeImage(output_path, format=image_format)
