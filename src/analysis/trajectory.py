@@ -531,6 +531,7 @@ class Trajectory:
         border_width_mm: float = 0.1,
         exclude_wall_contact: bool = False,
         wall_contact_regions=None,  # Optional[Sequence[slice]]
+        min_walking_frac: float | None = 0.6,
         debug: bool = False,
         debug_pause_over_mm: float | None = None,
         debug_pause_mode: str = "input",
@@ -538,32 +539,24 @@ class Trajectory:
         """
         Return 'reward return distance' episodes for one training.
 
-        Concept:
-          - Define a "return circle" concentric with the reward circle:
-                r_return = r_reward + return_delta_mm
-          - An episode starts when the fly ENTERS the return circle (False->True).
-          - The episode ends at the earlier of:
-                * ENTER reward circle (success)
-                * EXIT return circle (failure)
-                * training end (failure)
-
-        We report distance traveled, from return-entry to reward-entry, for SUCCESS episodes
-        by default (those reaching reward before leaving return).
-
-        Optional exclusion:
-          - If exclude_wall_contact=True, drop SUCCESS episodes if ANY wall-contact region
-            overlaps the window [start, reward_entry).
+        Change vs previous behavior:
+        - Distance is computed from all finite frames in the success window [start, reward_entry),
+            not just walking frames.
+        - Optionally drop success episodes if the fraction of walking frames in the success
+            window is below `min_walking_frac` (e.g. 0.6). This is a QC filter.
 
         Returns:
-          List[dict], each like:
+        List[dict], each like:
             {
-              "start": int,          # absolute frame index (return-circle entry)
-              "stop": int,           # absolute frame index (end marker; reward entry or return exit or trn_end)
-              "reward_entry": int|None,
-              "success": bool,
-              "end_reason": str,     # "enter_reward" | "exit_return" | "trn_end" | "dropped_wall"
-              "dist": float|None,    # distance traveled (success only)
-              "dropped_wall": bool,  # True iff exclude_wall_contact is enabled and wall overlap occurs before reward entry
+            "start": int,
+            "stop": int,
+            "reward_entry": int|None,
+            "success": bool,
+            "end_reason": str,  # "enter_reward" | "exit_return" | "trn_end" | "dropped_wall" | "dropped_low_walking"
+            "dist": float|None,
+            "dropped_wall": bool,
+            "dropped_low_walking": bool,
+            "walking_frac": float|None,
             }
         """
         episodes: list[dict] = []
@@ -585,7 +578,6 @@ class Trajectory:
 
         debug_pause_mode = (debug_pause_mode or "input").strip().lower()
 
-        # mm -> px conversion in the same coordinate space as x/y
         fctr = float(getattr(self.va.xf, "fctr", 1.0) or 1.0)
         px_per_mm = float(self.va.ct.pxPerMmFloor()) * fctr
 
@@ -596,7 +588,6 @@ class Trajectory:
 
         border_width_px = float(border_width_mm) * px_per_mm
 
-        # training frame bounds
         t0 = int(trn.start)
         t1 = int(trn.stop)
         if t1 <= t0 + 1:
@@ -619,12 +610,10 @@ class Trajectory:
             in_return[good] = return_state > 0
             in_reward[good] = reward_state > 0
 
-        # transitions
         prev_r = in_return[:-1]
         curr_r = in_return[1:]
-        enter_return_idxs = np.where((~prev_r) & curr_r)[0] + 1  # False->True
+        enter_return_idxs = np.where((~prev_r) & curr_r)[0] + 1
 
-        # precompute reward-entry indices (False->True)
         prev_rw = in_reward[:-1]
         curr_rw = in_reward[1:]
         enter_reward_idxs = np.where((~prev_rw) & curr_rw)[0] + 1
@@ -636,7 +625,6 @@ class Trajectory:
                 f"enter_return={len(enter_return_idxs)} enter_reward={len(enter_reward_idxs)}"
             )
 
-        # helper for wall overlap
         def _slice_start_stop(sl) -> tuple[int, int]:
             a = 0 if getattr(sl, "start", None) is None else int(sl.start)
             b = 0 if getattr(sl, "stop", None) is None else int(sl.stop)
@@ -653,17 +641,30 @@ class Trajectory:
                     return True
             return False
 
+        def _path_dist_px(xw: np.ndarray, yw: np.ndarray) -> float:
+            if xw.size < 2:
+                return 0.0
+            finite = np.isfinite(xw) & np.isfinite(yw)
+            if not np.any(finite):
+                return 0.0
+            dx = np.diff(xw)
+            dy = np.diff(yw)
+            step_ok = finite[:-1] & finite[1:]
+            if not np.any(step_ok):
+                return 0.0
+            return float(
+                np.sum(np.sqrt(dx[step_ok] * dx[step_ok] + dy[step_ok] * dy[step_ok]))
+            )
+
         dropped_too_short = 0
         dropped_empty_window = 0
         dropped_wall = 0
+        dropped_low_walking = 0
         n_success = 0
 
-        # pointer over reward-entry indices for efficiency
         rw_ptr = 0
 
         for s_rel in enter_return_idxs:
-            # enforce minimum inside-return duration: require return remains True for >= N frames
-            # We interpret "inside" as [s_rel, s_rel+N) all True. If near end, it fails.
             N = (
                 int(min_inside_return_frames)
                 if min_inside_return_frames is not None
@@ -678,25 +679,21 @@ class Trajectory:
                 dropped_too_short += 1
                 continue
 
-            # find end of this return-circle "visit": first index >= s_rel where in_return becomes False
-            # (search within [s_rel, end))
             off = np.where(~in_return[s_rel:])[0]
             if off.size > 0:
-                e_rel = s_rel + int(off[0])  # first False
+                e_rel = s_rel + int(off[0])
             else:
-                e_rel = t1 - t0  # persists to end
+                e_rel = t1 - t0
 
             if e_rel <= s_rel:
                 dropped_empty_window += 1
                 continue
 
-            # advance reward-entry point to first reward entry after s_rel
             while (
                 rw_ptr < len(enter_reward_idxs) and enter_reward_idxs[rw_ptr] <= s_rel
             ):
                 rw_ptr += 1
 
-            # success if first reward entry occurs before leaving return circle
             k_rel = None
             if rw_ptr < len(enter_reward_idxs):
                 cand = int(enter_reward_idxs[rw_ptr])
@@ -706,7 +703,6 @@ class Trajectory:
             s_abs = int(t0 + s_rel)
 
             if k_rel is None:
-                # failure: exited return without reward entry
                 episodes.append(
                     {
                         "start": s_abs,
@@ -715,11 +711,13 @@ class Trajectory:
                         "success": False,
                         "end_reason": "exit_return" if e_rel < (t1 - t0) else "trn_end",
                         "dist": None,
+                        "dropped_wall": False,
+                        "dropped_low_walking": False,
+                        "walking_frac": None,
                     }
                 )
                 continue
 
-            # success window is [s_abs, k_abs)
             k_abs = int(t0 + k_rel)
 
             if exclude_wall_contact and wall_contact_regions:
@@ -734,61 +732,61 @@ class Trajectory:
                             "end_reason": "dropped_wall",
                             "dist": None,
                             "dropped_wall": True,
+                            "dropped_low_walking": False,
+                            "walking_frac": None,
                         }
                     )
                     continue
 
-            # compute distance traveled along path, restricted to walking frames
-            # (sum only step i->i+1 where both endpoints are walking and finite)
-            if not hasattr(self, "walking") or self.walking is None:
-                # Fallback
-                dist = float(self.distTrav(s_abs, k_abs))
-            else:
-                if k_abs <= s_abs + 1:
-                    dist = 0.0
+            # QC: walking fraction over the success window
+            walking_frac = None
+            if hasattr(self, "walking") and self.walking is not None and k_abs > s_abs:
+                xw = np.asarray(self.x[s_abs:k_abs])
+                yw = np.asarray(self.y[s_abs:k_abs])
+                w = np.asarray(self.walking[s_abs:k_abs], dtype=bool)
+                finite = np.isfinite(xw) & np.isfinite(yw)
+                denom = int(np.sum(finite))
+                if denom > 0:
+                    walking_frac = float(np.sum(w & finite)) / float(denom)
                 else:
-                    xs_w = self.x[s_abs:k_abs]
-                    ys_w = self.y[s_abs:k_abs]
-                    w = self.walking[s_abs:k_abs]
+                    walking_frac = 0.0
 
-                    w = np.asarray(w, dtype=bool)
+                if min_walking_frac is not None and walking_frac < float(
+                    min_walking_frac
+                ):
+                    dropped_low_walking += 1
+                    episodes.append(
+                        {
+                            "start": s_abs,
+                            "stop": k_abs,
+                            "reward_entry": k_abs,
+                            "success": False,
+                            "end_reason": "dropped_low_walking",
+                            "dist": None,
+                            "dropped_wall": False,
+                            "dropped_low_walking": True,
+                            "walking_frac": walking_frac,
+                        }
+                    )
+                    continue
 
-                    finite = np.isfinite(xs_w) & np.isfinite(ys_w)
-                    if xs_w.size < 2:
-                        dist = 0.0
-                    else:
-                        dx = np.diff(xs_w)
-                        dy = np.diff(ys_w)
-
-                        # step i corresponds to transition (i -> i+1)
-                        step_ok = w[:-1] & w[1:] & finite[:-1] & finite[1:]
-
-                        if np.any(step_ok):
-                            dist = float(
-                                np.sum(
-                                    np.sqrt(
-                                        dx[step_ok] * dx[step_ok]
-                                        + dy[step_ok] * dy[step_ok]
-                                    )
-                                )
-                            )
-                        else:
-                            dist = 0.0
+            # distance over all finite steps (no walking gating)
+            if k_abs <= s_abs + 1:
+                dist = 0.0
+            else:
+                dist = _path_dist_px(
+                    np.asarray(self.x[s_abs:k_abs]), np.asarray(self.y[s_abs:k_abs])
+                )
 
             if debug and debug_pause_over_mm is not None:
-                # dist is in px (per your current implementation)
                 dist_mm = dist / px_per_mm if px_per_mm > 0 else float("inf")
-
                 if dist_mm > float(debug_pause_over_mm):
                     msg = (
                         f"[rrd][PAUSE] {flyDesc(self.f)} {trn.sname()} "
                         f"dist={dist_mm:.2f}mm ({dist:.2f}px) > cutoff={float(debug_pause_over_mm):.2f}mm | "
-                        f"start_abs={s_abs} reward_abs={k_abs} dur={k_abs - s_abs} "
-                        f"(t0={t0}, t1={t1}, s_rel={s_rel}, k_rel={k_rel})"
+                        f"start_abs={s_abs} reward_abs={k_abs} dur={k_abs - s_abs}"
                     )
                     print(msg)
-
-                    # Choose pause mechanism
                     if debug_pause_mode == "pdb":
                         try:
                             import pdb
@@ -803,11 +801,9 @@ class Trajectory:
                             except EOFError:
                                 print("[rrd][PAUSE] No stdin available; continuing.")
                     else:
-                        # Default: input-based pause (works without attaching a debugger)
                         try:
                             input("[rrd] Press Enter to continue...")
                         except EOFError:
-                            # Non-interactive runs (cluster/log-only): don’t hang forever
                             print("[rrd][PAUSE] No stdin available; continuing.")
 
             episodes.append(
@@ -819,12 +815,13 @@ class Trajectory:
                     "end_reason": "enter_reward",
                     "dist": dist,
                     "dropped_wall": False,
+                    "dropped_low_walking": False,
+                    "walking_frac": walking_frac,
                 }
             )
             n_success += 1
 
         if debug:
-            # summarize durations and distance for kept (non-dropped) successes
             dists = [
                 ep["dist"]
                 for ep in episodes
@@ -846,40 +843,12 @@ class Trajectory:
 
             print(
                 f"{flyDesc(self.f)} {trn.sname()}: "
-                f"episodes={len(episodes)} successes={n_success} "
-                f"reasons={reasons} "
-                f"dropped(short={dropped_too_short}, empty={dropped_empty_window}, wall={dropped_wall}) "
+                f"episodes={len(episodes)} successes={n_success} reasons={reasons} "
+                f"dropped(short={dropped_too_short}, empty={dropped_empty_window}, "
+                f"wall={dropped_wall}, low_walk={dropped_low_walking}) "
                 f"dist(px) min/med/max={dmin:.2f}/{dmed:.2f}/{dmax:.2f}"
             )
 
-            # optional: show first few successes
-            show = 5
-            shown = 0
-            for i, ep in enumerate(episodes):
-                if not ep.get("success"):
-                    continue
-                if ep.get("dist") is None:
-                    continue
-                s_abs = int(ep["start"])
-                k_abs = (
-                    int(ep["reward_entry"])
-                    if ep.get("reward_entry") is not None
-                    else -1
-                )
-                stop_abs = int(ep.get("stop", -1))
-                s_rel = s_abs - t0
-                k_rel = k_abs - t0 if k_abs >= 0 else -1
-                dur = k_abs - s_abs if k_abs >= 0 else -1
-                print(
-                    f"  succ{i}: "
-                    f"start_rel={s_rel} reward_rel={k_rel} dur={dur} "
-                    f"start_abs={s_abs} reward_abs={k_abs} stop_abs={stop_abs} "
-                    f"dist={float(ep['dist']):.2f}px"
-                )
-
-                shown += 1
-                if shown >= show:
-                    break
         return episodes
 
     def reward_turnback_dual_circle_episodes_for_training(
