@@ -2248,6 +2248,7 @@ def bucketLenForType(tp):
             "psc_shift",
             "agarose_dual_circle",
             "turnback_dual_circle",
+            "turnback_dual_circle_exp_min_yok",
             "rrd_mean_dist",
         )
         or "_turn" in tp
@@ -2947,7 +2948,10 @@ def vaVarForType(va, tp, calc):
         return dual_circle_ratio_to_rows(
             va, counts_attr="agarose_dual_circle_counts", tp_label="agarose_dual_circle"
         )
-    elif tp == "turnback_dual_circle":
+    elif tp in (
+        "turnback_dual_circle",
+        "turnback_dual_circle_exp_min_yok",
+    ):
         return dual_circle_ratio_to_rows(
             va,
             counts_attr="reward_turnback_dual_circle_counts",
@@ -3507,6 +3511,8 @@ def plotRewards(
     elif tp == "meddist":
         ylim = [0, 10]
     elif tp == "meddist_exp_min_yok":
+        ylim = [-0.5, 0.5]
+    elif tp == "turnback_dual_circle_exp_min_yok":
         ylim = [-0.5, 0.5]
     elif agarose_dual or turnback_dual:
         ylim = [0, 1]
@@ -4134,6 +4140,7 @@ def plotRewards(
                         rpd_exp_min_yok="rewards per distance $[m^{-1}]$\n$(\\text{exp} - \\text{yok})$",
                         agarose_dual_circle="dual-circle agarose avoidance ratio",
                         turnback_dual_circle="dual-circle reward turnback ratio",
+                        turnback_dual_circle_exp_min_yok="dual-circle reward turnback ratio\n$(\\text{exp} - \\text{yok})$",
                         rrd_mean_dist="Reward return distance [mm]",
                         meddist="median dist. to reward\ncircle center [mm]",
                         meddist_exp_min_yok="med. dist. to center [mm]\n$(\\text{exp} - \\text{yok})$",
@@ -4329,6 +4336,7 @@ def plotRewards(
         rpd_exp_min_yok=RPD_IMG_FILE % "_exp_min_yok",
         agarose_dual_circle=AGAROSE_AVOID_IMG_FILE % "",
         turnback_dual_circle=TURNBACK_TURN_IMG_FILE % "",
+        turnback_dual_circle_exp_min_yok=TURNBACK_TURN_IMG_FILE % "_exp_min_yok",
         rrd_mean_dist=RRD_MEAN_DIST_IMG_FILE,
         meddist=MED_DIST_TO_REWARD_FILE % "",
         meddist_exp_min_yok=MED_DIST_TO_REWARD_FILE % "_exp_min_yok",
@@ -6062,6 +6070,11 @@ def postAnalyze(vas):
         tcs += ("agarose_dual_circle",)
     if getattr(opts, "turnback_dual_circle", False):
         tcs += ("turnback_dual_circle",)
+
+        # Only meaningful when exp+yoked are both present.
+        # (mirrors the pattern used for rpd_exp_min_yok-c, etc.)
+        if (not va.noyc) and (len(va.flies) > 1):
+            tcs += ("turnback_dual_circle_exp_min_yok",)
     if getattr(opts, "reward_return_distance", False):
         tcs += ("rrd_mean_dist",)
     if not va.noyc and not va.choice:
@@ -6415,6 +6428,7 @@ def postAnalyze(vas):
             "rpd_exp_min_yok",
             "commag",
             "commag_exp_min_yok",
+            "turnback_dual_circle_exp_min_yok",
             "rrd_mean_dist",
         ):
             plotRewards(
