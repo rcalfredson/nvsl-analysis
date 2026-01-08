@@ -2247,6 +2247,7 @@ def bucketLenForType(tp):
             "psc_conc",
             "psc_shift",
             "agarose_dual_circle",
+            "agarose_dual_circle_exp_min_yok",
             "turnback_dual_circle",
             "turnback_dual_circle_exp_min_yok",
             "rrd_mean_dist",
@@ -2944,7 +2945,7 @@ def vaVarForType(va, tp, calc):
         return va.avgDistancesByBkt
     elif tp in ("rpd", "rpd_exp_min_yok"):
         return va.rwdsPerDist
-    elif tp == "agarose_dual_circle":
+    elif tp in ("agarose_dual_circle", "agarose_dual_circle_exp_min_yok"):
         return dual_circle_ratio_to_rows(
             va, counts_attr="agarose_dual_circle_counts", tp_label="agarose_dual_circle"
         )
@@ -3511,6 +3512,8 @@ def plotRewards(
     elif tp == "meddist":
         ylim = [0, 10]
     elif tp == "meddist_exp_min_yok":
+        ylim = [-0.5, 0.5]
+    elif tp == "agarose_dual_circle_exp_min_yok":
         ylim = [-0.5, 0.5]
     elif tp == "turnback_dual_circle_exp_min_yok":
         ylim = [-0.5, 0.5]
@@ -4139,6 +4142,7 @@ def plotRewards(
                         rpd="rewards per distance $[m^{-1}]$",
                         rpd_exp_min_yok="rewards per distance $[m^{-1}]$\n$(\\text{exp} - \\text{yok})$",
                         agarose_dual_circle="dual-circle agarose avoidance ratio",
+                        agarose_dual_circle_exp_min_yok="dual-circle agarose avoidance ratio\n$(\\text{exp} - \\text{yok})$",
                         turnback_dual_circle="dual-circle reward turnback ratio",
                         turnback_dual_circle_exp_min_yok="dual-circle reward turnback ratio\n$(\\text{exp} - \\text{yok})$",
                         rrd_mean_dist="Reward return distance [mm]",
@@ -4335,6 +4339,7 @@ def plotRewards(
         rpd=RPD_IMG_FILE % "",
         rpd_exp_min_yok=RPD_IMG_FILE % "_exp_min_yok",
         agarose_dual_circle=AGAROSE_AVOID_IMG_FILE % "",
+        agarose_dual_circle_exp_min_yok=AGAROSE_AVOID_IMG_FILE % "_exp_min_yok",
         turnback_dual_circle=TURNBACK_TURN_IMG_FILE % "",
         turnback_dual_circle_exp_min_yok=TURNBACK_TURN_IMG_FILE % "_exp_min_yok",
         rrd_mean_dist=RRD_MEAN_DIST_IMG_FILE,
@@ -6068,11 +6073,14 @@ def postAnalyze(vas):
             tcs += ("rpd_exp_min_yok-c",)
     if getattr(opts, "agarose_dual_circle", False):
         tcs += ("agarose_dual_circle",)
+
+        # Only meaningful when exp+yoked are both present
+        if (not va.noyc) and (len(va.flies) > 1):
+            tcs += ("agarose_dual_circle_exp_min_yok",)
     if getattr(opts, "turnback_dual_circle", False):
         tcs += ("turnback_dual_circle",)
 
-        # Only meaningful when exp+yoked are both present.
-        # (mirrors the pattern used for rpd_exp_min_yok-c, etc.)
+        # Only meaningful when exp+yoked are both present
         if (not va.noyc) and (len(va.flies) > 1):
             tcs += ("turnback_dual_circle_exp_min_yok",)
     if getattr(opts, "reward_return_distance", False):
@@ -6428,6 +6436,7 @@ def postAnalyze(vas):
             "rpd_exp_min_yok",
             "commag",
             "commag_exp_min_yok",
+            "agarose_dual_circle_exp_min_yok",
             "turnback_dual_circle_exp_min_yok",
             "rrd_mean_dist",
         ):
