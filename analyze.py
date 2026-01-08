@@ -1737,7 +1737,7 @@ g.add_argument(
     "--export-wallpct-sli-bundle",
     type=str,
     default=None,
-    help="Write an .npz bundle with per-video SLI and % time contacting wall "
+    help="Write an .npz bundle with per-video SLI and %% time contacting wall "
     "per sync bucket (used for cross-run plots with optional SLI filtering).",
 )
 g.add_argument(
@@ -1834,7 +1834,6 @@ g.add_argument(
     help="write MATLAB file (see yanglab Wiki for fields)",
 )
 g.add_argument("--play", dest="play", action="store_true", help="play annotated video")
-p.parse_args()
 
 opts = p.parse_args()
 if opts.timeit:
