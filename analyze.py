@@ -462,8 +462,8 @@ g.add_argument(
     default=None,
     help=(
         "If set, only sample between-reward segments whose total distance traveled "
-        "is <= this threshold (in mm). Distance is computed over the plotted frame "
-        "window (reward-to-reward plus padding)."
+        "is <= this threshold (in mm). Distance is computed over the reward-to-reward "
+        "interval itself (excluding any plot padding)."
     ),
 )
 g.add_argument(

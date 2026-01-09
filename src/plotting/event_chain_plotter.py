@@ -744,10 +744,12 @@ class EventChainPlotter:
             px_per_mm = None
 
         def _segment_dist_mm(start_reward: int, end_reward: int) -> float:
-            # Use the same plotted window for distance, so the threshold matches
-            # what you actually see.
-            start_frame = max(0, start_reward - pad)
-            end_frame = min(n_frames - 1, end_reward + pad)
+            # Distance over the between-reward interval itself (no padding).
+            # This matches the semantic "segment length" rather than the plotted window.
+            start_frame = max(0, int(start_reward))
+            end_frame = min(n_frames - 1, int(end_reward))
+            if end_frame <= start_frame:
+                return np.nan
             d_px = self.trj.distTrav(start_frame, end_frame)
             if px_per_mm is None or not np.isfinite(d_px):
                 return np.nan
