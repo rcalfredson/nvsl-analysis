@@ -86,7 +86,7 @@ from src.exporting.wallpct_sli_bundle import export_wallpct_sli_bundle
 from src.plotting.cross_fly_correlations import plot_cross_fly_correlations
 from src.plotting.individual_strategy_plotter import plot_individual_strategy_overlays
 from src.plotting.outside_circle_duration_plotter import OutsideCircleDurationPlotter
-from src.utils.parsers import parse_distances
+from src.utils.parsers import parse_distances, parse_training_selector
 from src.plotting.plot import plotAngularVelocity, plotTurnRadiusHist
 from src.plotting.plot_customizer import PlotCustomizer
 from src.analysis.sli_tools import (
@@ -544,6 +544,12 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--btw-rwd-dist-trainings",
+    type=parse_training_selector,
+    default=None,
+    help='Subset of trainings to plot (1-based). Examples: "1", "1,3", "2-4", "1,3-5". Ignored if --btw-rwd-dist-pool-trainings is set.',
+)
+g.add_argument(
     "--btw-rwd-dist-top-sli",
     action="store_true",
     help=(
@@ -661,6 +667,12 @@ g.add_argument(
         "Pool between-reward COM magnitudes across all trainings into a single "
         "histogram instead of plotting one panel per training."
     ),
+)
+g.add_argument(
+    "--btw-rwd-com-mag-trainings",
+    type=parse_training_selector,
+    default=None,
+    help='Subset of trainings to plot (1-based). Examples: "1", "1,3", "2-4", "1,3-5". Ignored if --btw-rwd-com-mag-pool-trainings is set.',
 )
 g.add_argument(
     "--btw-rwd-com-mag-top-sli",
@@ -6684,6 +6696,7 @@ def postAnalyze(vas):
             per_fly=getattr(opts, "btw_rwd_dist_per_fly", False),
             ci=getattr(opts, "btw_rwd_dist_ci", False),
             ci_conf=float(getattr(opts, "btw_rwd_dist_ci_conf", 0.95)),
+            trainings=getattr(opts, "btw_rwd_dist_trainings", None),
         )
         br_plotter = BetweenRewardDistanceHistogramPlotter(
             vas=vas_for_hist, opts=opts, gls=gls, customizer=customizer, cfg=br_cfg
@@ -6726,6 +6739,7 @@ def postAnalyze(vas):
             per_fly=getattr(opts, "btw_rwd_com_mag_per_fly", False),
             ci=getattr(opts, "btw_rwd_com_mag_ci", False),
             ci_conf=float(getattr(opts, "btw_rwd_com_mag_ci_conf", 0.95)),
+            trainings=getattr(opts, "btw_rwd_com_mag_trainings", None),
         )
         plotter = BetweenRewardCOMMagHistogramPlotter(
             vas=vas_for_hist, opts=opts, gls=gls, customizer=customizer, cfg=cfg
