@@ -623,6 +623,11 @@ class EventChainPlotter:
         image_format=None,
         role_idx=None,
         num_examples=1,
+        max_dist_mm: float | None = None,
+        short_strict: bool = False,
+        zoom: bool = False,
+        zoom_radius_mm: float | None = None,
+        zoom_radius_mult: float = 3.0,
     ):
         """
         Plot one or more between-reward trajectory segments for this fly, sampled
@@ -729,14 +734,52 @@ class EventChainPlotter:
             return
 
         rng = random.Random(seed) if seed is not None else random
-        rng.shuffle(candidate_pairs)
 
         pad = 5
         n_frames = len(self.x)
 
+        # Conversion: px -> mm for floor coords
+        px_per_mm = self.va.ct.pxPerMmFloor() * self.va.xf.fctr
+        if not np.isfinite(px_per_mm) or px_per_mm <= 0:
+            px_per_mm = None
+
+        def _segment_dist_mm(start_reward: int, end_reward: int) -> float:
+            # Use the same plotted window for distance, so the threshold matches
+            # what you actually see.
+            start_frame = max(0, start_reward - pad)
+            end_frame = min(n_frames - 1, end_reward + pad)
+            d_px = self.trj.distTrav(start_frame, end_frame)
+            if px_per_mm is None or not np.isfinite(d_px):
+                return np.nan
+            return float(d_px) / float(px_per_mm)
+
+        filtered_pairs = candidate_pairs
+        if max_dist_mm is not None:
+            max_dist_mm = float(max_dist_mm)
+            tmp = []
+            for p in candidate_pairs:
+                dmm = _segment_dist_mm(p[0], p[1])
+                if np.isfinite(dmm) and dmm <= max_dist_mm:
+                    tmp.append(p)
+
+            if not tmp:
+                msg = (
+                    f"[plot_between_reward_chain] No between-reward segments under "
+                    f"{max_dist_mm:g} mm for fly {f_idx}, trn {trn_index + 1}, "
+                    f"bucket {bucket_index + 1} (candidates={len(candidate_pairs)})."
+                )
+                if short_strict:
+                    print(msg + " short_strict=True; skipping.")
+                    return
+                print(msg + " Falling back to full candidate pool.")
+            else:
+                filtered_pairs = tmp
+
+        rng.shuffle(filtered_pairs)
+
         # --- Select up to num_examples valid segments ---------------------------
         selected_segments = []
-        for start_reward, end_reward in candidate_pairs:
+        for start_reward, end_reward in filtered_pairs:
             start_frame = max(0, start_reward - pad)
             end_frame = min(n_frames - 1, end_reward + pad)
             if start_frame < end_frame:
@@ -792,11 +835,37 @@ class EventChainPlotter:
         fig, axes = plt.subplots(n_rows, n_cols, figsize=(4 * n_cols, 8 * n_rows))
         axes = np.atleast_1d(axes).ravel()
 
-        # Use slightly bigger arrows for this plot
-        big_arrow_kwargs = {
+        # Arrow styles
+        arrow_kwargs_default = {
             "length": 3.0,
             "linewidth": 2.0,
         }
+        arrow_kwargs_zoomed = {
+            "length": 1.5,
+            "linewidth": 1.0,
+        }
+
+        def _choose_arrow_kwargs_for_view(x0, x1, y0, y1) -> dict:
+            """
+            Choose arrow style based on how zoomed-in the current viewport is.
+            Uses the effective window size (after clamping) relative to the full floor size.
+            """
+            floor_w = float(abs(bottom_right[0] - top_left[0]))
+            floor_h = float(abs(top_left[1] - bottom_right[1]))
+            if floor_w <= 0 or floor_h <= 0:
+                return arrow_kwargs_default
+
+            win_w = float(abs(x1 - x0))
+            win_h = float(abs(y1 - y0))
+            frac = max(win_w / floor_w, win_h / floor_h)
+
+            # "Big enough zoom" == sufficiently tight viewport (close-up).
+            return arrow_kwargs_zoomed if frac <= 0.60 else arrow_kwargs_default
+
+        def _ylim_is_inverted_for_full_view() -> bool:
+            yA = bottom_right[1] - padding_y
+            yB = top_left[1] + padding_y
+            return yA > yB  # Matplotlib interprets this as an inverted y-axis
 
         # --- Plot each selected segment in its own subplot ----------------------
         for idx, (start_reward, end_reward, start_frame, end_frame) in enumerate(
@@ -844,8 +913,86 @@ class EventChainPlotter:
 
             ax.set_aspect("equal", adjustable="box")
             ax.axis("off")
-            ax.set_xlim(top_left[0] - padding_x, bottom_right[0] + padding_x)
-            ax.set_ylim(bottom_right[1] - padding_y, top_left[1] + padding_y)
+
+            if zoom and reward_circle is not None and px_per_mm is not None:
+                rcx, rcy, rcr = reward_circle
+
+                if zoom_radius_mm is not None:
+                    win_rad_px = float(zoom_radius_mm) * float(px_per_mm)
+                else:
+                    win_rad_px = float(rcr) * float(zoom_radius_mult)
+
+                # Safety floor: avoid absurdly tiny windows
+                win_rad_px = max(win_rad_px, float(rcr) * 1.25)
+
+                # Clamp to floor rectangle so we don't zoom outside the arena too much
+                floor_y_min = min(top_left[1], bottom_right[1])
+                floor_y_max = max(top_left[1], bottom_right[1])
+                y0 = max(floor_y_min, rcy - win_rad_px)
+                y1 = min(floor_y_max, rcy + win_rad_px)
+
+                floor_x_min = min(top_left[0], bottom_right[0])
+                floor_x_max = max(top_left[0], bottom_right[0])
+                x0 = max(floor_x_min, rcx - win_rad_px)
+                x1 = min(floor_x_max, rcx + win_rad_px)
+
+                # If clamping collapsed the window, fall back to full view
+                if (x1 - x0) < 5 or (y1 - y0) < 5:
+                    ax.set_xlim(top_left[0] - padding_x, bottom_right[0] + padding_x)
+                    ax.set_ylim(bottom_right[1] - padding_y, top_left[1] + padding_y)
+                else:
+                    ax.set_xlim(x0, x1)
+                    if _ylim_is_inverted_for_full_view():
+                        ax.set_ylim(y1, y0)
+                    else:
+                        ax.set_ylim(y0, y1)
+
+                eps = 0.01
+                ax.add_patch(
+                    patches.Rectangle(
+                        (2 * eps, 2 * eps),
+                        1 - 4 * eps,
+                        1 - 4 * eps,
+                        transform=ax.transAxes,
+                        fill=False,
+                        linewidth=1.0,
+                        linestyle="--",
+                        edgecolor="0.6",  # neutral gray
+                        zorder=10,
+                    )
+                )
+                ax.text(
+                    0.03,
+                    0.97,
+                    "zoom",
+                    transform=ax.transAxes,
+                    ha="left",
+                    va="top",
+                    fontsize=8,
+                    color="0.35",
+                    zorder=11,
+                    bbox=dict(
+                        boxstyle="round,pad=0.15",
+                        facecolor="white",
+                        edgecolor="none",
+                        alpha=0.7,
+                    ),
+                )
+
+            else:
+                ax.set_xlim(top_left[0] - padding_x, bottom_right[0] + padding_x)
+                ax.set_ylim(bottom_right[1] - padding_y, top_left[1] + padding_y)
+
+            if (
+                zoom
+                and reward_circle is not None
+                and px_per_mm is not None
+                and (x1 - x0) > 5
+                and (y1 - y0) > 5
+            ):
+                arrow_kwargs = _choose_arrow_kwargs_for_view(x0, x1, y0, y1)
+            else:
+                arrow_kwargs = arrow_kwargs_default
 
             # Base trajectory line + arrows
             last_arrow_idx = None
@@ -888,7 +1035,7 @@ class EventChainPlotter:
                     last_arrow_idx,
                     arrow_interval,
                     speed,
-                    arrow_kwargs=big_arrow_kwargs,
+                    arrow_kwargs=arrow_kwargs,
                 )
 
             # Mark the two reward frames themselves
@@ -914,9 +1061,17 @@ class EventChainPlotter:
             )
 
             # Per-subplot title: just the varying info
+            dmm = (
+                _segment_dist_mm(start_reward, end_reward)
+                if max_dist_mm is not None
+                else None
+            )
+            dist_line = (
+                f"\ndist {dmm:.2f} mm" if dmm is not None and np.isfinite(dmm) else ""
+            )
             ax.set_title(
                 f"seg {idx + 1}: frames {start_frame}-{end_frame}\n"
-                f"rewards {start_reward}->{end_reward}",
+                f"rewards {start_reward}->{end_reward}{dist_line}",
                 fontsize=9,
             )
 
@@ -959,17 +1114,28 @@ class EventChainPlotter:
         )
         fig.suptitle(global_title, fontsize=12)
 
+        short_str = f"_maxd{max_dist_mm:g}mm" if max_dist_mm is not None else ""
+        zoom_str = ""
+        if zoom:
+            if zoom_radius_mm is not None:
+                zoom_str = f"_zoom{zoom_radius_mm:g}mm"
+            else:
+                zoom_str = f"_zoomx{zoom_radius_mult:g}"
+
         output_path = (
             f"imgs/between_rewards/"
             f"{video_id}__fly{fly_idx}_role{role_idx}_"
             f"trn{trn_index + 1}_bkt{bucket_index + 1}_"
-            f"N{n_examples}_seed{seed_str}."
+            f"N{n_examples}_seed{seed_str}"
+            f"{short_str}{zoom_str}."
             f"{image_format}"
         )
         output_dir = os.path.dirname(output_path)
         os.makedirs(output_dir, exist_ok=True)
 
-        fig.subplots_adjust(left=0.04, right=0.98, top=0.9, bottom=0.20, wspace=0.01, hspace=0.25)
+        fig.subplots_adjust(
+            left=0.04, right=0.98, top=0.9, bottom=0.20, wspace=0.01, hspace=0.25
+        )
         writeImage(output_path, format=image_format)
         plt.close(fig)
 
@@ -1013,10 +1179,14 @@ class EventChainPlotter:
 
         trn = self.va.trns[trn_index]
         if trn is None or not trn.isCircle():
-            print(f"[plot_reward_return_chain] Training {trn_index + 1} is not a circle.")
+            print(
+                f"[plot_reward_return_chain] Training {trn_index + 1} is not a circle."
+            )
             return
 
-        bucket_range = self._get_bucket_range(trn_index=trn_index, bucket_index=bucket_index)
+        bucket_range = self._get_bucket_range(
+            trn_index=trn_index, bucket_index=bucket_index
+        )
         if bucket_range is None:
             print(
                 f"[plot_reward_return_chain] Invalid bucket_index={bucket_index} "
@@ -1072,7 +1242,11 @@ class EventChainPlotter:
         used = self._used_reward_return_episodes.setdefault(key, set())
 
         def _ep_key(ep) -> Tuple[int, int, str]:
-            return (int(ep["start"]), int(ep.get("stop", -1)), str(ep.get("end_reason", "")))
+            return (
+                int(ep["start"]),
+                int(ep.get("stop", -1)),
+                str(ep.get("end_reason", "")),
+            )
 
         candidates = [ep for ep in eps_in_bucket if _ep_key(ep) not in used]
         if not candidates:
@@ -1089,7 +1263,11 @@ class EventChainPlotter:
         selected = []
         for ep in candidates:
             s_abs = int(ep["start"])
-            end_abs = int(ep["reward_entry"]) if ep.get("reward_entry") is not None else int(ep["stop"])
+            end_abs = (
+                int(ep["reward_entry"])
+                if ep.get("reward_entry") is not None
+                else int(ep["stop"])
+            )
             start_frame = max(0, s_abs - pad_frames)
             end_frame = min(n_frames - 1, end_abs + pad_frames)
             if start_frame < end_frame:
@@ -1112,7 +1290,9 @@ class EventChainPlotter:
         top_left, bottom_right = floor_coords[0], floor_coords[1]
 
         contact_buffer_mm = CONTACT_BUFFER_OFFSETS["wall"]["max"]
-        contact_buffer_px = self.va.ct.pxPerMmFloor() * self.va.xf.fctr * contact_buffer_mm
+        contact_buffer_px = (
+            self.va.ct.pxPerMmFloor() * self.va.xf.fctr * contact_buffer_mm
+        )
 
         reward_circle = None
         try:
@@ -1121,7 +1301,9 @@ class EventChainPlotter:
             reward_circle = None
 
         # return circle radius computation (px in same space as x/y)
-        px_per_mm = float(self.va.ct.pxPerMmFloor()) * float(getattr(self.va.xf, "fctr", 1.0) or 1.0)
+        px_per_mm = float(self.va.ct.pxPerMmFloor()) * float(
+            getattr(self.va.xf, "fctr", 1.0) or 1.0
+        )
         return_circle = None
         if reward_circle is not None:
             rcx, rcy, rcr = reward_circle
@@ -1207,8 +1389,10 @@ class EventChainPlotter:
 
             for i in range(start_frame, end_frame):
                 if (
-                    np.isnan(self.x[i]) or np.isnan(self.y[i]) or
-                    np.isnan(self.x[i + 1]) or np.isnan(self.y[i + 1])
+                    np.isnan(self.x[i])
+                    or np.isnan(self.y[i])
+                    or np.isnan(self.x[i + 1])
+                    or np.isnan(self.y[i + 1])
                 ):
                     continue
 
@@ -1252,7 +1436,9 @@ class EventChainPlotter:
                     label="Return entry (start)",
                 )
 
-            success = bool(ep.get("success", False)) and ep.get("reward_entry") is not None
+            success = (
+                bool(ep.get("success", False)) and ep.get("reward_entry") is not None
+            )
             if e_ok:
                 ax.plot(
                     self.x[end_abs],
@@ -1260,7 +1446,11 @@ class EventChainPlotter:
                     marker="o",
                     markersize=6,
                     zorder=4,
-                    label="Reward entry (end)" if success else "Episode end (exit/trn_end)",
+                    label=(
+                        "Reward entry (end)"
+                        if success
+                        else "Episode end (exit/trn_end)"
+                    ),
                 )
 
             # Title per subplot
@@ -1318,7 +1508,9 @@ class EventChainPlotter:
         )
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-        fig.subplots_adjust(left=0.04, right=0.98, top=0.9, bottom=0.20, wspace=0.01, hspace=0.25)
+        fig.subplots_adjust(
+            left=0.04, right=0.98, top=0.9, bottom=0.20, wspace=0.01, hspace=0.25
+        )
         writeImage(output_path, format=image_format)
         plt.close(fig)
 

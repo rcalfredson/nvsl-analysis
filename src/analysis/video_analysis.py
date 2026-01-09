@@ -349,6 +349,13 @@ class VideoAnalysis:
                     image_format=opts.imageFormat,
                     role_idx=role_idx,
                     num_examples=num_examples,
+                    max_dist_mm=getattr(opts, "btw_rwd_max_dist_mm", None),
+                    short_strict=bool(getattr(opts, "btw_rwd_short_strict", False)),
+                    zoom=bool(getattr(opts, "btw_rwd_zoom", False)),
+                    zoom_radius_mm=getattr(opts, "btw_rwd_zoom_radius_mm", None),
+                    zoom_radius_mult=float(
+                        getattr(opts, "btw_rwd_zoom_radius_mult", 3.0) or 3.0
+                    ),
                 )
         if needs_tp:
             turn_prob_dist_collator = VATurnProbabilityDistanceCollator(self, opts)
@@ -1046,7 +1053,9 @@ class VideoAnalysis:
         # Use the same parameter defaults as analyzeRewardReturnDistance()
         return_delta_mm = float(getattr(opts, "rrd_return_delta_mm", 6.0) or 6.0)
         reward_delta_mm = float(getattr(opts, "rrd_reward_delta_mm", 0.0) or 0.0)
-        min_inside_return_frames = int(getattr(opts, "rrd_min_inside_return_frames", 1) or 1)
+        min_inside_return_frames = int(
+            getattr(opts, "rrd_min_inside_return_frames", 1) or 1
+        )
         border_width_mm = float(getattr(opts, "rrd_border_width_mm", 0.1) or 0.1)
         exclude_wall_contact = bool(getattr(opts, "rrd_exclude_wall_contact", False))
 
@@ -1125,9 +1134,11 @@ class VideoAnalysis:
             else float(debug_pause_over_mm)
         )
 
-        debug_pause_mode = str(
-            getattr(self.opts, "rrd_debug_pause_mode", "input") or "input"
-        ).strip().lower()
+        debug_pause_mode = (
+            str(getattr(self.opts, "rrd_debug_pause_mode", "input") or "input")
+            .strip()
+            .lower()
+        )
 
         sync_ranges = getattr(self, "sync_bucket_ranges", None)
         if sync_ranges is None:

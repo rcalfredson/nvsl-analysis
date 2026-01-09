@@ -457,6 +457,50 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--btw-rwd-max-dist-mm",
+    type=float,
+    default=None,
+    help=(
+        "If set, only sample between-reward segments whose total distance traveled "
+        "is <= this threshold (in mm). Distance is computed over the plotted frame "
+        "window (reward-to-reward plus padding)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-short-strict",
+    action="store_true",
+    help=(
+        "If --btw-rwd-max-dist-mm yields no candidates, do NOT fall back to the full "
+        "pool; instead skip plotting for that fly/bucket."
+    ),
+)
+
+g.add_argument(
+    "--btw-rwd-zoom",
+    action="store_true",
+    help=(
+        "If set, zoom axes around the reward circle instead of showing the full floor."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-zoom-radius-mm",
+    type=float,
+    default=None,
+    help=(
+        "Zoom window radius in mm around reward circle center. If omitted, a default "
+        "is derived from the reward radius (see --btw-rwd-zoom-radius-mult)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-zoom-radius-mult",
+    type=float,
+    default=3.0,
+    help=(
+        "If --btw-rwd-zoom-radius-mm is not set, zoom window radius is "
+        "(reward_radius * this multiplier). Default: %(default)s."
+    ),
+)
+g.add_argument(
     "--btw-rwd-dist-hist",
     action="store_true",
     help=(
