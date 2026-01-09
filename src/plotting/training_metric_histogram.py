@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Any, Sequence
 import json
 from datetime import datetime, timezone
 
@@ -29,6 +29,9 @@ class TrainingMetricHistogramConfig:
     # If True and (per_fly=True): compute per-bin confidence intervals across flies.
     ci: bool = False
     ci_conf: float = 0.95
+    # Trainings to include when pool_trainings=False.
+    # Using 1-based indexing (training 1 == first training).
+    trainings: Sequence[int] | None = None
 
 
 class TrainingMetricHistogramPlotter:
@@ -60,6 +63,57 @@ class TrainingMetricHistogramPlotter:
         self.log_tag = log_tag
         self.x_label = x_label
         self.base_title = base_title
+
+    def _selected_training_indices(
+        self, n_panels: int
+    ) -> tuple[list[int] | None, dict[str, Any]]:
+        """
+        Return (keep, info):
+        - keep is a sorted list of 0-based indices to keep, or None to keep all.
+        - info contains:
+            trainings_user: list[int] | None (1-based as provided)
+            trainings_effective: list[int] | None (1-based after bounds filtering)
+            trainings_ignored: bool
+            trainings_dropped_out_of_range: list[int] (1-based)
+        """
+        info = {
+            "trainings_user": list(self.cfg.trainings) if self.cfg.trainings else None,
+            "trainings_effective": None,
+            "trainings_ignored": False,
+            "trainings_dropped_out_of_range": [],
+        }
+
+        t = self.cfg.trainings
+        if not t:
+            return None, info
+
+        if self.cfg.pool_trainings:
+            # decision: ignore in pooled mode
+            info["trainings_ignored"] = True
+            return None, info
+
+        keep: list[int] = []
+        seen: set[int] = set()
+        dropped: list[int] = []
+
+        for x in t:
+            try:
+                idx0 = int(x) - 1  # 1-based -> 0-based
+            except Exception:
+                continue
+            if idx0 < 0 or idx0 >= n_panels:
+                dropped.append(int(x))
+                continue
+            if idx0 not in seen:
+                keep.append(idx0)
+                seen.add(idx0)
+
+        keep.sort()
+        dropped = sorted(set(dropped))
+        info["trainings_dropped_out_of_range"] = dropped
+        info["trainings_effective"] = [i + 1 for i in keep]  # back to 1-based
+
+        return keep if keep else [], info
 
     def _training_labels(self, n_trn: int) -> list[str]:
         """
@@ -146,6 +200,7 @@ class TrainingMetricHistogramPlotter:
         Or:
           - mean, ci_lo, ci_hi, n_units (per-fly mode): np.ndarray shapes (n_panels, bins, )
         """
+        sel_info = {}
         if self.cfg.per_fly:
             vals_by_trn_by_fly = self._collect_values_by_training_per_fly()
             if not any(len(vlist) for vlist in vals_by_trn_by_fly):
@@ -217,7 +272,54 @@ class TrainingMetricHistogramPlotter:
                 panel_labels = ["All trainings combined"]
             else:
                 vals_by_panel_by_fly = vals_by_trn_by_fly
-                panel_labels = self._training_labels(len(vals_by_trn_by_fly))
+                panel_labels = self._training_labels(len(vals_by_panel_by_fly))
+
+                keep, sel_info = self._selected_training_indices(
+                    len(vals_by_panel_by_fly)
+                )
+                if keep is not None:
+                    if not keep:
+                        # nothing selected: return empty payload (consistent with your "no data" style)
+                        return {
+                            "panel_labels": [],
+                            "bin_edges": np.zeros((0, self.cfg.bins + 1), dtype=float),
+                            "mean": np.zeros((0, self.cfg.bins), dtype=float),
+                            "ci_lo": np.zeros((0, self.cfg.bins), dtype=float),
+                            "ci_hi": np.zeros((0, self.cfg.bins), dtype=float),
+                            "n_units": np.zeros((0, self.cfg.bins), dtype=int),
+                            "n_raw": np.zeros((0,), dtype=int),
+                            "n_used": np.zeros((0,), dtype=int),
+                            "n_dropped": np.zeros((0,), dtype=int),
+                            "meta": {
+                                "log_tag": self.log_tag,
+                                "x_label": self.x_label,
+                                "base_title": self.base_title,
+                                "bins": int(self.cfg.bins),
+                                "xmax_user": self.cfg.xmax,
+                                "xmax_effective": None,
+                                "pool_trainings": bool(self.cfg.pool_trainings),
+                                **sel_info,
+                                "subset_label": self.cfg.subset_label,
+                                "per_fly": True,
+                                "ci": bool(self.cfg.ci),
+                                "ci_conf": float(self.cfg.ci_conf),
+                                "generated_utc": datetime.now(timezone.utc).isoformat(),
+                            },
+                        }
+
+                    vals_by_panel_by_fly = [vals_by_panel_by_fly[i] for i in keep]
+                    panel_labels = [panel_labels[i] for i in keep]
+
+                # optional warnings (one-liners)
+                if sel_info.get("trainings_ignored", False):
+                    print(
+                        f"[{self.log_tag}] NOTE: cfg.trainings ignored because pool_trainings=True"
+                    )
+                dropped = sel_info.get("trainings_dropped_out_of_range") or []
+                if dropped:
+                    print(
+                        f"[{self.log_tag}] NOTE: dropped out-of-range trainings: {dropped}"
+                    )
 
             # Determine eff_xmax across all values
             all_panels_flat: list[np.ndarray] = []
@@ -235,9 +337,53 @@ class TrainingMetricHistogramPlotter:
                 pooled = np.concatenate([v for v in vals_by_trn if v.size > 0])
                 vals_by_panel = [pooled]
                 panel_labels = ["All trainings combined"]
+                keep, sel_info = self._selected_training_indices(
+                    len(vals_by_panel)
+                )  # will ignore
             else:
                 vals_by_panel = vals_by_trn
                 panel_labels = self._training_labels(len(vals_by_trn))
+
+                keep, sel_info = self._selected_training_indices(len(vals_by_panel))
+                if keep is not None:
+                    if not keep:
+                        return {
+                            "panel_labels": [],
+                            "counts": np.zeros((0, self.cfg.bins), dtype=int),
+                            "bin_edges": np.zeros((0, self.cfg.bins + 1), dtype=float),
+                            "n_raw": np.zeros((0,), dtype=int),
+                            "n_used": np.zeros((0,), dtype=int),
+                            "n_dropped": np.zeros((0,), dtype=int),
+                            "meta": {
+                                "log_tag": self.log_tag,
+                                "x_label": self.x_label,
+                                "base_title": self.base_title,
+                                "bins": int(self.cfg.bins),
+                                "xmax_user": self.cfg.xmax,
+                                "xmax_effective": None,
+                                "pool_trainings": bool(self.cfg.pool_trainings),
+                                **sel_info,
+                                "subset_label": self.cfg.subset_label,
+                                "per_fly": False,
+                                "ci": False,
+                                "ci_conf": float(self.cfg.ci_conf),
+                                "generated_utc": datetime.now(timezone.utc).isoformat(),
+                            },
+                        }
+
+                    vals_by_panel = [vals_by_panel[i] for i in keep]
+                    panel_labels = [panel_labels[i] for i in keep]
+
+            if sel_info.get("trainings_ignored", False):
+                print(
+                    f"[{self.log_tag}] NOTE: cfg.trainings ignored because pool_trainings=True"
+                )
+            dropped = sel_info.get("trainings_dropped_out_of_range") or []
+            if dropped:
+                print(
+                    f"[{self.log_tag}] NOTE: dropped out-of-range trainings: {dropped}"
+                )
+
             eff_xmax = self._effective_xmax(vals_by_panel)
 
         # Guard against degenerate histogram ranges (e.g., all values == 0 → xmax == 0)
@@ -442,6 +588,7 @@ class TrainingMetricHistogramPlotter:
             "xmax_user": self.cfg.xmax,
             "xmax_effective": eff_xmax,
             "pool_trainings": bool(self.cfg.pool_trainings),
+            **sel_info,
             "subset_label": self.cfg.subset_label,
             "per_fly": bool(self.cfg.per_fly),
             "ci": bool(self.cfg.ci),
@@ -584,9 +731,7 @@ class TrainingMetricHistogramPlotter:
                         else "Mean # segments (per fly)"
                     )
                 else:
-                    ax.set_ylabel(
-                        "Proportion" if self.cfg.normalize else "# segments"
-                    )
+                    ax.set_ylabel("Proportion" if self.cfg.normalize else "# segments")
         title = self.base_title
         if self.cfg.subset_label:
             title = f"{title}\n{self.cfg.subset_label}"
