@@ -82,6 +82,7 @@ from src.utils.constants import (
 )
 from src.analysis.motion import CircularMotionDetector
 from src.exporting.com_sli_bundle import export_com_sli_bundle
+from src.exporting.turnback_sli_bundle import export_turnback_sli_bundle
 from src.exporting.wallpct_sli_bundle import export_wallpct_sli_bundle
 from src.plotting.cross_fly_correlations import plot_cross_fly_correlations
 from src.plotting.individual_strategy_plotter import plot_individual_strategy_overlays
@@ -1788,6 +1789,20 @@ g.add_argument(
     default=None,
     help="Write an .npz bundle with per-video SLI and COM magnitude time-series "
     "for this run's vas (used for cross-run top-SLI COM plots).",
+)
+g.add_argument(
+    "--export-turnback-sli-bundle",
+    type=str,
+    default=None,
+    help="Write a .npz bundle with turnback dual-circle ratio + SLI for multi-group overlays.",
+)
+g.add_argument(
+    "--turnback-sli-debug",
+    action="store_true",
+    help=(
+        "Debug export of turnback+SLI bundle: print inferred bucket plan, "
+        "per-video presence/shape check, and finite counts."
+    ),
 )
 g.add_argument(
     "--export-wallpct-sli-bundle",
@@ -6056,6 +6071,9 @@ def postAnalyze(vas):
 
     if getattr(opts, "export_wallpct_sli_bundle", None):
         export_wallpct_sli_bundle(vas, opts, gls, opts.export_wallpct_sli_bundle)
+
+    if getattr(opts, "export_turnback_sli_bundle", None):
+        export_turnback_sli_bundle(vas, opts, gls, opts.export_turnback_sli_bundle)
 
     using_sli_set_op = bool(getattr(opts, "sli_set_op", None))
     if opts.wall:

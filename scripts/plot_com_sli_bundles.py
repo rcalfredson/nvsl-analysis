@@ -10,7 +10,15 @@ def main():
     p.add_argument(
         "--bundles", required=True, help="Comma-separated list of .npz bundles."
     )
-    p.add_argument("--metric", default="commag", choices=["commag", "sli", "wallpct"])
+    p.add_argument(
+        "--metric", default="commag", choices=["commag", "sli", "turnback", "wallpct"]
+    )
+    p.add_argument(
+        "--turnback-mode",
+        default="exp",
+        choices=["exp", "ctrl", "exp_minus_ctrl"],
+        help="For metric=turnback: which curve to plot.",
+    )
     p.add_argument(
         "--labels",
         default=None,
@@ -64,6 +72,7 @@ def main():
         sli_fraction=args.sli_fraction,
         opts=opts,
         metric=args.metric,
+        turnback_mode=args.turnback_mode,
     )
 
 
