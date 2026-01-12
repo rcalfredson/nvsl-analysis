@@ -42,10 +42,13 @@ def _load_bundle(path):
     out["sli_training_idx"] = int(_as_scalar(out["sli_training_idx"]))
     out["sli_use_training_mean"] = bool(_as_scalar(out["sli_use_training_mean"]))
 
-    # Look for optional keys
-    opt = ["sli_ts", "commag_exp", "commag_ctrl", "wallpct_exp", "wallpct_ctrl"]
-    for k in opt:
-        if k in d.files:
+    # Look for optional keys by prefix
+    for k in d.files:
+        if k in out:
+            continue
+        if k.startswith(("commag_", "wallpct_", "turnback_", "sli_")) or k in (
+            "sli_ts",
+        ):
             out[k] = d[k]
     return out
 
@@ -125,6 +128,7 @@ def plot_com_sli_bundles(
     sli_fraction=0.2,
     opts=None,
     metric="commag",
+    turnback_mode="exp",  # exp | ctrl | exp_minus_ctrl
 ):
     """
     Plot COM magnitude or SLI vs sync bucket from one or more exported bundles.
@@ -154,6 +158,20 @@ def plot_com_sli_bundles(
         series_key = "sli_ts"
         need_keys = ["sli_ts"]
         include_ctrl = False
+    elif metric == "turnback":
+        if turnback_mode == "exp":
+            series_key = "turnback_ratio_exp"
+            need_keys = ["turnback_ratio_exp"]
+        elif turnback_mode == "ctrl":
+            series_key = "turnback_ratio_ctrl"
+            need_keys = ["turnback_ratio_ctrl"]
+            include_ctrl = False
+        elif turnback_mode == "exp_minus_ctrl":
+            series_key = "turnback_ratio_exp"
+            need_keys = ["turnback_ratio_exp", "turnback_ratio_ctrl"]
+            include_ctrl = False
+        else:
+            raise ValueError(f"Unknown turnback_mode={turnback_mode!r}")
     elif metric == "wallpct":
         series_key = "wallpct_exp"
         need_keys = ["wallpct_exp"]
@@ -161,6 +179,16 @@ def plot_com_sli_bundles(
         raise ValueError(
             "Invalid metric specified; supported: 'commag', 'sli', 'wallpct'."
         )
+
+    def _series_for_bundle(b):
+        """
+        Return array shaped (n_videos, n_trains, nb) for the requested plot.
+        """
+        if metric == "turnback" and turnback_mode == "exp_minus_ctrl":
+            exp_arr = np.asarray(b["turnback_ratio_exp"], dtype=float)
+            ctrl_arr = np.asarray(b["turnback_ratio_ctrl"], dtype=float)
+            return exp_arr - ctrl_arr
+        return np.asarray(b[series_key], dtype=float)
 
     for b in bundles:
         missing = [k for k in need_keys if k not in b]
@@ -189,8 +217,9 @@ def plot_com_sli_bundles(
     blf = _fmt_bucket_len(bl)
 
     # training names: require consistent length; content may vary slightly
-    n_trains = bundles[0][series_key].shape[1]
-    if any(b[series_key].shape[1] != n_trains for b in bundles):
+    s0 = _series_for_bundle(bundles[0])
+    n_trains = s0.shape[1]
+    if any(_series_for_bundle(b).shape[1] != n_trains for b in bundles):
         raise ValueError(
             f"Bundles disagree on number of trainings ({series_key}.shape[1])."
         )
@@ -200,8 +229,8 @@ def plot_com_sli_bundles(
         n_trains = min(n_trains, int(num_trainings))
 
     # nb
-    nb = bundles[0][series_key].shape[2]
-    if any(b[series_key].shape[2] != nb for b in bundles):
+    nb = s0.shape[2]
+    if any(_series_for_bundle(b).shape[2] != nb for b in bundles):
         raise ValueError(
             f"Bundles disagree on number of sync buckets ({series_key}.shape[2])."
         )
@@ -227,7 +256,11 @@ def plot_com_sli_bundles(
         axs = np.array([axs])
 
     # Track global y-lims (like dynamic behavior in plotRewards)
-    ylim = [0.0, 100.0] if metric == "wallpct" else [-1.0, 1.0]
+    ylim = [-1.0, 1.0]
+    if metric == "wallpct":
+        ylim = [0.0, 100.0]
+    elif metric == "turnback":
+        ylim = [-0.5, 0.5] if turnback_mode == "exp_minus_ctrl" else [0.0, 0.5]
     mci_min, mci_max = None, None
 
     # If "both" mode, we effectively double “groups” per bundle.
@@ -290,7 +323,8 @@ def plot_com_sli_bundles(
             if sel_idx.size == 0:
                 continue
 
-            exp = np.asarray(b[series_key], dtype=float)[sel_idx, ti, :]
+            series = _series_for_bundle(b)
+            exp = series[sel_idx, ti, :]
             mci = _mean_ci_over_videos(exp)
 
             # update global min/max for dynamic y-lims
@@ -348,7 +382,13 @@ def plot_com_sli_bundles(
 
             # ctrl overlay (optional)
             if include_ctrl:
-                ctrl_key = "commag_ctrl" if metric == "commag" else "wallpct_ctrl"
+                ctrl_key = (
+                    "commag_ctrl"
+                    if metric == "commag"
+                    else (
+                        "wallpct_ctrl" if metric == "wallpct" else "turnback_ratio_ctrl"
+                    )
+                )
                 if ctrl_key not in b:
                     continue
                 ctrl_arr = np.asarray(b[ctrl_key], dtype=float)
@@ -397,6 +437,13 @@ def plot_com_sli_bundles(
             y_label = "COM dist. to circle center [mm]"
         elif metric == "sli":
             y_label = "SLI"
+        elif metric == "turnback":
+            if turnback_mode == "exp_minus_ctrl":
+                y_label = "Dual-circle turnback (exp - yoked)"
+            elif turnback_mode == "ctrl":
+                y_label = "Dual-circle turnback (yoked)"
+            else:
+                y_label = "Dual-circle turnback ratio"
         elif metric == "wallpct":
             y_label = "% time on wall"
         if ti == 0:
