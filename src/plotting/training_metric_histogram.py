@@ -211,6 +211,7 @@ class TrainingMetricHistogramPlotter:
                     "ci_lo": np.zeros((0, self.cfg.bins), dtype=float),
                     "ci_hi": np.zeros((0, self.cfg.bins), dtype=float),
                     "n_units": np.zeros((0, self.cfg.bins), dtype=int),
+                    "n_units_panel": np.zeros((0,), dtype=int),
                     "n_raw": np.zeros((0,), dtype=int),
                     "n_used": np.zeros((0,), dtype=int),
                     "n_dropped": np.zeros((0,), dtype=int),
@@ -287,6 +288,7 @@ class TrainingMetricHistogramPlotter:
                             "ci_lo": np.zeros((0, self.cfg.bins), dtype=float),
                             "ci_hi": np.zeros((0, self.cfg.bins), dtype=float),
                             "n_units": np.zeros((0, self.cfg.bins), dtype=int),
+                            "n_units_panel": np.zeros((0,), dtype=int),
                             "n_raw": np.zeros((0,), dtype=int),
                             "n_used": np.zeros((0,), dtype=int),
                             "n_dropped": np.zeros((0,), dtype=int),
@@ -401,6 +403,7 @@ class TrainingMetricHistogramPlotter:
         lo_list: list[np.ndarray] = []
         hi_list: list[np.ndarray] = []
         n_units_list: list[np.ndarray] = []
+        n_units_panel_list: list[int] = []
 
         # for vals, label in zip(vals_by_panel, panel_labels):
         if self.cfg.per_fly:
@@ -426,6 +429,7 @@ class TrainingMetricHistogramPlotter:
                     n_raw_list.append(0)
                     n_used_list.append(0)
                     n_dropped_list.append(0)
+                    n_units_panel_list.append(0)
                     continue
 
                 flat = np.concatenate(raw_all, axis=0)
@@ -470,6 +474,7 @@ class TrainingMetricHistogramPlotter:
                         else:
                             c[:] = np.nan
                     fly_hists.append(c)
+                n_units_panel_list.append(len(fly_hists))
                 if not fly_hists:
                     mean = np.full((self.cfg.bins,), np.nan, dtype=float)
                     lo = np.full((self.cfg.bins,), np.nan, dtype=float)
@@ -585,6 +590,7 @@ class TrainingMetricHistogramPlotter:
             "x_label": self.x_label,
             "base_title": self.base_title,
             "bins": int(self.cfg.bins),
+            "normalize": bool(self.cfg.normalize),
             "xmax_user": self.cfg.xmax,
             "xmax_effective": eff_xmax,
             "pool_trainings": bool(self.cfg.pool_trainings),
@@ -612,6 +618,7 @@ class TrainingMetricHistogramPlotter:
                     "ci_lo": lo_arr,
                     "ci_hi": hi_arr,
                     "n_units": n_units_arr,
+                    "n_units_panel": np.asarray(n_units_panel_list, dtype=int),
                 }
             )
         else:
@@ -638,12 +645,13 @@ class TrainingMetricHistogramPlotter:
             n_used=data["n_used"],
             n_dropped=data["n_dropped"],
             # pooled-mode payload
-            counts=data.get("counts", None),
+            counts=None if self.cfg.per_fly else data.get("counts", None),
             # per-fly-mode payload
             mean=data.get("mean", None),
             ci_lo=data.get("ci_lo", None),
             ci_hi=data.get("ci_hi", None),
             n_units=data.get("n_units", None),
+            n_units_panel=data.get("n_units_panel", None),
             meta_json=json.dumps(data["meta"], sort_keys=True),
         )
         print(f"[{self.log_tag}] wrote histogram export {out_npz}")

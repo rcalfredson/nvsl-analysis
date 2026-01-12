@@ -69,6 +69,7 @@ def main() -> None:
     fig = plot_overlays(
         hists,
         mode=args.mode,
+        layout="grouped" if args.mode == "pdf" else "overlay",
         title=args.title,
         xlabel=args.xlabel,
         ylabel=args.ylabel,
