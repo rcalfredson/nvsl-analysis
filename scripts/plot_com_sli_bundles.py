@@ -11,13 +11,15 @@ def main():
         "--bundles", required=True, help="Comma-separated list of .npz bundles."
     )
     p.add_argument(
-        "--metric", default="commag", choices=["commag", "sli", "turnback", "wallpct"]
+        "--metric",
+        default="commag",
+        choices=["commag", "sli", "turnback", "agarose", "wallpct"],
     )
     p.add_argument(
         "--turnback-mode",
         default="exp",
         choices=["exp", "ctrl", "exp_minus_ctrl"],
-        help="For metric=turnback: which curve to plot.",
+        help="For metric in {turnback, agarose}: which curve to plot.",
     )
     p.add_argument(
         "--labels",
