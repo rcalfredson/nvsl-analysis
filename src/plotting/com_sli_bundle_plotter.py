@@ -1,12 +1,19 @@
 import os
 import warnings
 from types import SimpleNamespace
+from collections import defaultdict
 
 import numpy as np
 import matplotlib.pyplot as plt
 
 import src.utils.util as util
-from src.utils.common import maybe_sentence_case, pch, writeImage
+from src.utils.common import (
+    maybe_sentence_case,
+    pch,
+    writeImage,
+    ttest_ind,
+    pick_non_overlapping_y,
+)
 from src.plotting.plot_customizer import PlotCustomizer
 
 
@@ -46,9 +53,9 @@ def _load_bundle(path):
     for k in d.files:
         if k in out:
             continue
-        if k.startswith(("commag_", "wallpct_", "turnback_", "sli_")) or k in (
-            "sli_ts",
-        ):
+        if k.startswith(
+            ("commag_", "wallpct_", "turnback_", "agarose_", "sli_")
+        ) or k in ("sli_ts",):
             out[k] = d[k]
     return out
 
@@ -172,6 +179,20 @@ def plot_com_sli_bundles(
             include_ctrl = False
         else:
             raise ValueError(f"Unknown turnback_mode={turnback_mode!r}")
+    elif metric == "agarose":
+        if turnback_mode == "exp":
+            series_key = "agarose_ratio_exp"
+            need_keys = ["agarose_ratio_exp"]
+        elif turnback_mode == "ctrl":
+            series_key = "agarose_ratio_ctrl"
+            need_keys = ["agarose_ratio_ctrl"]
+            include_ctrl = False
+        elif turnback_mode == "exp_minus_ctrl":
+            series_key = "agarose_ratio_exp"
+            need_keys = ["agarose_ratio_exp", "agarose_ratio_ctrl"]
+            include_ctrl = False
+        else:
+            raise ValueError(f"Unknown mode={turnback_mode!r} for metric=agarose")
     elif metric == "wallpct":
         series_key = "wallpct_exp"
         need_keys = ["wallpct_exp"]
@@ -187,6 +208,10 @@ def plot_com_sli_bundles(
         if metric == "turnback" and turnback_mode == "exp_minus_ctrl":
             exp_arr = np.asarray(b["turnback_ratio_exp"], dtype=float)
             ctrl_arr = np.asarray(b["turnback_ratio_ctrl"], dtype=float)
+            return exp_arr - ctrl_arr
+        if metric == "agarose" and turnback_mode == "exp_minus_ctrl":
+            exp_arr = np.asarray(b["agarose_ratio_exp"], dtype=float)
+            ctrl_arr = np.asarray(b["agarose_ratio_ctrl"], dtype=float)
             return exp_arr - ctrl_arr
         return np.asarray(b[series_key], dtype=float)
 
@@ -234,6 +259,11 @@ def plot_com_sli_bundles(
         raise ValueError(
             f"Bundles disagree on number of sync buckets ({series_key}.shape[2])."
         )
+    nb = s0.shape[2]
+    if nb == 0:
+        raise ValueError(
+            f"{series_key} has 0 buckets; check bundle export / data presence."
+        )
 
     # x positions: end points in minutes, matching plotRewards() for non-post
     xs = (np.arange(nb) + 1) * bl
@@ -261,6 +291,9 @@ def plot_com_sli_bundles(
         ylim = [0.0, 100.0]
     elif metric == "turnback":
         ylim = [-0.5, 0.5] if turnback_mode == "exp_minus_ctrl" else [0.0, 0.5]
+    elif metric == "agarose":
+        # ratio is 0..1; exp-minus-ctrl can go negative
+        ylim = [-0.5, 0.5] if turnback_mode == "exp_minus_ctrl" else [0.0, 1.0]
     mci_min, mci_max = None, None
 
     # If "both" mode, we effectively double “groups” per bundle.
@@ -310,6 +343,10 @@ def plot_com_sli_bundles(
         ax = axs[ti]
         plt.sca(ax)
 
+        # Per(training,bucket) label registry so stars can avoid overlapping
+        # with existing text (n labels and other stars).
+        lbls = defaultdict(list)  # key: bucket index -> list of text-ish objs
+
         # choose a training title from first bundle (best effort)
         try:
             tnames0 = bundles[0]["training_names"]
@@ -317,7 +354,14 @@ def plot_com_sli_bundles(
         except Exception:
             title = f"training {ti+1}"
 
-        # Each bundle is a “group”
+        # For 2-group t-tests, collect per-bucket mean and raw values
+        do_ttests = ng == 2
+        means_by_group = [None] * ng  # each: (nb,) float
+        vals_by_group = [
+            None
+        ] * ng  # each: (nb,) list[np.ndarray] (finite per-bucket samples)
+
+        # Each bundle is a "group"
         for gi, b in enumerate(bundles):
             sel_idx, both_labels, gid = selections[gi]
             if sel_idx.size == 0:
@@ -346,6 +390,18 @@ def plot_com_sli_bundles(
                 mci[0, :] *= 100.0
                 mci[1, :] *= 100.0
                 mci[2, :] *= 100.0
+
+            # For t-tests we compare what we're plotting (wallpct is scaled by 100)
+            if do_ttests:
+                exp_for_test = np.asarray(exp, dtype=float)
+                if metric == "wallpct":
+                    exp_for_test = exp_for_test * 100.0
+                # Store finite samples per bucket
+                vals_by_group[gi] = [
+                    exp_for_test[np.isfinite(exp_for_test[:, bj]), bj]
+                    for bj in range(exp_for_test.shape[1])
+                ]
+                means_by_group[gi] = np.asarray(mci[0, :], dtype=float)
             ys = mci[0, :]
             fin = np.isfinite(ys)
             ls = linestyles[gi % len(linestyles)]
@@ -371,7 +427,7 @@ def plot_com_sli_bundles(
             # optionally show n per bucket (like plotRewards)
             for bj, n in enumerate(mci[3, :]):
                 if n > 0 and np.isfinite(ys[bj]):
-                    util.pltText(
+                    txt = util.pltText(
                         xs[bj],
                         ys[bj] + 0.04 * (ylim[1] - ylim[0]),
                         f"{int(n)}",
@@ -379,17 +435,24 @@ def plot_com_sli_bundles(
                         size=customizer.in_plot_font_size,
                         color=".2",
                     )
+                    # register for overlap avoidance
+                    txt._y_ = float(ys[bj])
+                    txt._final_y_ = float(ys[bj] + 0.04 * (ylim[1] - ylim[0]))
+                    lbls[bj].append(txt)
 
             # ctrl overlay (optional)
             if include_ctrl:
-                ctrl_key = (
-                    "commag_ctrl"
-                    if metric == "commag"
-                    else (
-                        "wallpct_ctrl" if metric == "wallpct" else "turnback_ratio_ctrl"
-                    )
-                )
-                if ctrl_key not in b:
+                if metric == "commag":
+                    ctrl_key = "commag_ctrl"
+                elif metric == "wallpct":
+                    ctrl_key = "wallpct_ctrl"
+                elif metric == "turnback":
+                    ctrl_key = "turnback_ratio_ctrl"
+                elif metric == "agarose":
+                    ctrl_key = "agarose_ratio_ctrl"
+                else:
+                    ctrl_key = None
+                if ctrl_key is None:
                     continue
                 ctrl_arr = np.asarray(b[ctrl_key], dtype=float)
                 if ctrl_arr.shape[0] != len(b["sli"]):
@@ -430,6 +493,70 @@ def plot_com_sli_bundles(
                             alpha=0.12,
                         )
 
+        # ---- Two-group t-tests + star annotations (plotRewards-style) ----
+        if (
+            do_ttests
+            and all(m is not None for m in means_by_group)
+            and all(v is not None for v in vals_by_group)
+        ):
+            m0 = means_by_group[0]
+            m1 = means_by_group[1]
+            for bj in range(nb):
+                x0 = vals_by_group[0][bj]
+                x1 = vals_by_group[1][bj]
+
+                # Require some data on both sides
+                if x0.size < 2 or x1.size < 2:
+                    continue
+
+                try:
+                    _t, p = ttest_ind(x0, x1)[:2]
+                except Exception:
+                    continue
+
+                stars = util.p2stars(p, nanR="")
+
+                # Choose anchor near the higher mean of the two groups at this bucket
+                if not (np.isfinite(m0[bj]) or np.isfinite(m1[bj])):
+                    continue
+                anchor_y = np.nanmax([m0[bj], m1[bj]])
+
+                # Avoid y-collisions with existing labels at this bucket
+                txts_here = lbls.get(bj, [])
+                avoid_ys = [
+                    (t._final_y_ if hasattr(t, "_final_y_") else t._y_)
+                    for t in txts_here
+                    if hasattr(t, "_final_y_") or hasattr(t, "_y_")
+                ]
+                if np.isfinite(anchor_y):
+                    avoid_ys.append(float(anchor_y))
+
+                # plotRewards-style base y: above the anchor, but choose below if near top margin
+                span = ylim[1] - ylim[0]
+                base_y_for_star = float(anchor_y) + 0.04 * span
+                prefer = "above"
+                margin = 0.05 * (ylim[1] - ylim[0])
+                if base_y_for_star + 0.15 * (ylim[1] - ylim[0]) > ylim[1] - margin:
+                    prefer = "below"
+
+                ys_star, va_align = pick_non_overlapping_y(
+                    base_y_for_star, avoid_ys, ylim, prefer=prefer
+                )
+
+                txt = util.pltText(
+                    xs[bj],
+                    ys_star,
+                    stars,
+                    ha="center",
+                    va=va_align,
+                    size=customizer.in_plot_font_size,
+                    color="0",
+                    weight="bold",
+                )
+                txt._y_ = float(anchor_y)
+                txt._final_y_ = float(ys_star)
+                lbls[bj].append(txt)
+
         plt.title(maybe_sentence_case(title))
         plt.xlabel(maybe_sentence_case(f"end points [min] of {blf} min sync buckets"))
 
@@ -444,6 +571,13 @@ def plot_com_sli_bundles(
                 y_label = "Dual-circle turnback (yoked)"
             else:
                 y_label = "Dual-circle turnback ratio"
+        elif metric == "agarose":
+            if turnback_mode == "exp_minus_ctrl":
+                y_label = "Agarose avoidance (exp - yoked)"
+            elif turnback_mode == "ctrl":
+                y_label = "Agarose avoidance (yoked)"
+            else:
+                y_label = "Agarose avoidance ratio"
         elif metric == "wallpct":
             y_label = "% time on wall"
         if ti == 0:

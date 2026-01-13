@@ -81,6 +81,7 @@ from src.utils.constants import (
     WALL_CONTACT_DEFAULT_THRESH_STR,
 )
 from src.analysis.motion import CircularMotionDetector
+from src.exporting.agarose_sli_bundle import export_agarose_sli_bundle
 from src.exporting.com_sli_bundle import export_com_sli_bundle
 from src.exporting.turnback_sli_bundle import export_turnback_sli_bundle
 from src.exporting.wallpct_sli_bundle import export_wallpct_sli_bundle
@@ -1801,6 +1802,20 @@ g.add_argument(
     action="store_true",
     help=(
         "Debug export of turnback+SLI bundle: print inferred bucket plan, "
+        "per-video presence/shape check, and finite counts."
+    ),
+)
+g.add_argument(
+    "--export-agarose-sli-bundle",
+    type=str,
+    default=None,
+    help="Write an .npz bundle with agarose dual-circle avoidance ratio + SLI for multi-group overlays.",
+)
+g.add_argument(
+    "--agarose-sli-debug",
+    action="store_true",
+    help=(
+        "Debug export of agarose+SLI bundle: print inferred bucket plan, "
         "per-video presence/shape check, and finite counts."
     ),
 )
@@ -6074,6 +6089,9 @@ def postAnalyze(vas):
 
     if getattr(opts, "export_turnback_sli_bundle", None):
         export_turnback_sli_bundle(vas, opts, gls, opts.export_turnback_sli_bundle)
+
+    if getattr(opts, "export_agarose_sli_bundle", None):
+        export_agarose_sli_bundle(vas, opts, gls, opts.export_agarose_sli_bundle)
 
     using_sli_set_op = bool(getattr(opts, "sli_set_op", None))
     if opts.wall:
