@@ -10,6 +10,7 @@ from src.plotting.training_metric_histogram import (
     TrainingMetricHistogramConfig,
     TrainingMetricHistogramPlotter,
 )
+from src.plotting.wall_contact_utils import build_wall_contact_mask_for_window
 
 
 @dataclass
@@ -62,35 +63,17 @@ class BetweenRewardCOMMagHistogramPlotter(TrainingMetricHistogramPlotter):
         """
         if not exclude_wall:
             return None
-        wc = None
         fi = int(trn.start)
         df = int(max(1, trn.stop - trn.start))
-        try:
-            leaf = va.trx[f].boundary_event_stats["wall"]["all"]["edge"]
-            regions = leaf.get("boundary_contact_regions", None)
-            if regions is not None:
-                # Build per-frame mask for just this training window [fi, fi+df)
-                wc = np.zeros(df, dtype=bool)
-                for a, b in regions:
-                    s = max(int(a), fi)
-                    e = min(int(b), fi + df)
-                    if e > s:
-                        wc[s - fi : e - fi] = True
-            else:
-                bc = leaf.get("boundary_contact", None)
-                if bc is not None:
-                    wc = np.asarray(bc[fi : fi + df], dtype=bool)
-                else:
-                    wc = None
-        except Exception:
-            wc = None
-            if not warned_missing_wc[0]:
-                print(
-                    "[btw_rwd_com_mag] warning: can't load wall-contact data; "
-                    "--com-exclude-wall-contact will be ignored for some videos."
-                )
-                warned_missing_wc[0] = True
-        return wc
+        return build_wall_contact_mask_for_window(
+            va,
+            f,
+            fi=fi,
+            n_frames=df,
+            enabled=True,
+            warned_missing_wc=warned_missing_wc,
+            log_tag="btw_rwd_com_mag",
+        )
 
     def _collect_values_by_training(self) -> list[np.ndarray]:
         n_trn = self._n_trainings()

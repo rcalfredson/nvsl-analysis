@@ -20,7 +20,17 @@ import pylru
 import scipy.io as sio
 
 # custom modules and functions
+import src.analysis.boundary_contact as boundary_contact
 from src.analysis.boundary_contact import runBoundaryContactAnalyses
+from src.caching.wall_contact_cache import (
+    apply_wall_payload_to_trj,
+    build_wall_cache_spec,
+    extract_wall_payload_from_trj,
+    load_wall_cache_npz,
+    manifest_matches,
+    save_wall_cache_npz,
+    _sha256_file,
+)
 from src.utils.common import (
     CT,
     Xformer,
@@ -77,6 +87,7 @@ from src.analysis.trajectory import Trajectory
 from src.analysis.training import Training
 from src.plotting.event_chain_plotter import EventChainPlotter
 from src.plotting.trx_plotter import TrxPlotter
+from src.plotting.wall_contact_utils import build_wall_contact_mask_for_window
 import src.utils.util as util
 from src.utils.util import (
     ArgumentError,
@@ -1594,6 +1605,118 @@ class VideoAnalysis:
                     "wall": 0,
                 }[bnd_tp]
 
+        # --- wall-contact cache (load) ----
+        cache_hit = False
+        cached_wall_per_fly = None
+        cached_wall_orientations = None
+        cache_spec = None
+
+        wall_requested = bool(getattr(self.opts, "wall", None))
+
+        # If wall-only and we have a cache hit, we can skip boundary contact compute entirely
+        other_boundary_requested = bool(
+            getattr(self.opts, "agarose", None)
+            or getattr(self.opts, "boundary", None)
+            or getattr(self.opts, "turn", None)
+            or getattr(self.opts, "turn_prob_by_dist", False)
+            or getattr(self.opts, "excl_wall_for_spd", False)
+        )
+
+        wall_only_fastpath = (
+            wall_requested
+            and not other_boundary_requested
+            and not getattr(self.opts, "bnd_ct_plots", False)
+            and not getattr(self.opts, "wall_debug", False)
+        )
+
+        if wall_requested and getattr(self.opts, "wall_cache", True):
+            try:
+                # Code identity: hash the compiled boundary_contact extension currently in use
+                boundary_contact_binary_path = boundary_contact.__file__
+                boundary_contact_binary_sha256 = _sha256_file(
+                    boundary_contact_binary_path
+                )
+
+                # Inputs identity: start with video identity (basename + size + mtime)
+                # Keeping basename instead of full path reduces false misses across mountpoints.
+                video_fn = getattr(self, "fn", None)
+
+                if video_fn is None:
+                    raise RuntimeError(
+                        "Could not locate video filename on VideoAnalysis instance for caching"
+                    )
+
+                st = os.stat(video_fn)
+                input_identities = {
+                    "video": {
+                        "basename": os.path.basename(video_fn),
+                        "size": int(st.st_size),
+                        "mtime": float(st.st_mtime),
+                    }
+                }
+
+                ct_name = getattr(self.ct, "name", str(self.ct))
+                thresholds_wall = thresholds["wall"]
+                offset_wall = float(self.boundary_contact_offsets["wall"])
+
+                cache_spec = build_wall_cache_spec(
+                    video_fn=video_fn,
+                    cache_dir=getattr(self.opts, "wall_cache_dir", None),
+                    ct_name=ct_name,
+                    wall_orientation=getattr(self.opts, "wall_orientation", "all"),
+                    thresholds_wall=thresholds_wall,
+                    offset_wall=offset_wall,
+                    boundary_contact_binary_path=boundary_contact_binary_path,
+                    boundary_contact_binary_sha256=boundary_contact_binary_sha256,
+                    input_identities=input_identities,
+                )
+
+                if (
+                    not getattr(self.opts, "wall_cache_refresh", False)
+                ) and os.path.exists(cache_spec.npz_path):
+                    manifest, per_fly, wall_orients = load_wall_cache_npz(
+                        cache_spec.npz_path
+                    )
+                    ok, reason = manifest_matches(
+                        cache_spec.expected_manifest, manifest
+                    )
+                    if ok:
+                        cache_hit = True
+                        cached_wall_per_fly = per_fly
+                        cached_wall_orientations = wall_orients
+                        print(
+                            f"[wall-cache] hit: {os.path.basename(cache_spec.npz_path)}"
+                        )
+                    else:
+                        if getattr(self.opts, "wall_debug", False):
+                            print(f"[wall-cache] miss: {reason}")
+
+            except Exception as e:
+                # Non-fatal: fall back to compute path
+                if getattr(self.opts, "wall_debug", False):
+                    print(f"[wall-cache] disabled due to error: {e!r}")
+
+        if cache_hit and wall_only_fastpath:
+            warned_missing = False
+            for trj in self.trx:
+                if trj.bad():
+                    continue
+                f = int(getattr(trj, "f", 0))
+                if cached_wall_per_fly is None or f not in cached_wall_per_fly:
+                    if not warned_missing:
+                        print(
+                            "[wall-cache] warning: cache hit but missing payload for at least one fly, falling back to compute"
+                        )
+                        warned_missing = True
+                    cache_hit = False
+                    break
+                apply_wall_payload_to_trj(trj, cached_wall_per_fly[f])
+
+            if cache_hit:
+                if cached_wall_orientations is not None:
+                    self.wall_orientations = cached_wall_orientations
+                return
+
         if (
             self.opts.bnd_ct_plots
             or self.opts.wall_debug
@@ -1660,6 +1783,45 @@ class VideoAnalysis:
                         setattr(self, k, res[k])
                     else:
                         setattr(self.trx[i], k, res[k])
+
+        # ---- wall-contact cache (apply / save) ----
+        if cache_hit and cached_wall_per_fly is not None:
+            # Ensure cached wall results win, even if Cython computed wall internally.
+            for trj in self.trx:
+                if trj.bad():
+                    continue
+                f = int(getattr(trj, "f", 0))
+                if f in cached_wall_per_fly:
+                    apply_wall_payload_to_trj(trj, cached_wall_per_fly[f])
+            if cached_wall_orientations is not None:
+                self.wall_orientations = cached_wall_orientations
+
+        elif wall_requested and getattr(self.opts, "wall_cache", True):
+            # Cache miss: write cache unless readonly or we couldn't build a cache_spec
+            if (
+                not getattr(self.opts, "wall_cache_readonly", False)
+            ) and cache_spec is not None:
+                try:
+                    per_fly_payload = {}
+                    for trj in self.trx:
+                        if trj.bad():
+                            continue
+                        f = int(getattr(trj, "f", 0))
+                        per_fly_payload[f] = extract_wall_payload_from_trj(trj)
+
+                    wall_orients = getattr(self, "wall_orientations", None)
+                    save_wall_cache_npz(
+                        cache_spec.npz_path,
+                        cache_spec.expected_manifest,
+                        wall_orientations=wall_orients,
+                        per_fly_payload=per_fly_payload,
+                    )
+                    print(
+                        f"[wall-cache] wrote: {os.path.basename(cache_spec.npz_path)}"
+                    )
+                except Exception as e:
+                    if getattr(self.opts, "wall_debug", False):
+                        print(f"[wall-cache] write failed: {e!r}")
 
             if self.opts.timeit:
                 per_bnd_processing_times.append(timeit.default_timer() - bnd_start_t)
@@ -2738,7 +2900,7 @@ class VideoAnalysis:
         fly_keys = ("exp", "ctrl")  # storage keys (stable)
 
         exclude_wall = bool(getattr(self.opts, "com_exclude_wall_contact", False))
-        warned_missing_wc = False
+        warned_missing_wc = [False]
 
         for trn in self.trns:
             fi, n_buckets, _ = self._syncBucket(trn, df)
@@ -2812,35 +2974,15 @@ class VideoAnalysis:
                 cx, cy, _ = trn.circles(fly_idx)[0]
                 px_per_mm = self.xf.fctr * self.ct.pxPerMmFloor()
 
-                wc = None
-                if exclude_wall:
-                    try:
-                        leaf = traj.boundary_event_stats["wall"]["all"]["edge"]
-                        regions = leaf.get("boundary_contact_regions", None)
-
-                        if regions is not None:
-                            # Build per-frame mask windowed to [fi, fi+n_win)
-                            wc = np.zeros(n_win, dtype=bool)
-                            win_start = fi_i
-                            win_end = fi_i + n_win
-                            for a, b in regions:
-                                s = max(int(a), win_start)
-                                e = min(int(b), win_end)
-                                if e > s:
-                                    wc[s - win_start : e - win_start] = True
-                        else:
-                            # Fallback: window the full per-frame boolean if available
-                            bc = leaf.get("boundary_contact", None)
-                            if bc is not None and n_win > 0:
-                                wc = np.asarray(bc[fi_i : fi_i + n_win], dtype=bool)
-                    except Exception:
-                        wc = None
-                        if not warned_missing_wc:
-                            print(
-                                "[com] warning: can't load wall-contact data; "
-                                "--com-exclude-wall-contact will be ignored for this video."
-                            )
-                            warned_missing_wc = True
+                wc = build_wall_contact_mask_for_window(
+                    self,
+                    traj.f,
+                    fi=int(fi_i),
+                    n_frames=int(n_win),
+                    enabled=bool(exclude_wall),
+                    warned_missing_wc=warned_missing_wc,
+                    log_tag="com",
+                )
 
                 com_vals = []
                 mag_vals = [] if store_mag else None

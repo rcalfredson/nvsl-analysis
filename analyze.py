@@ -373,6 +373,37 @@ g.add_argument(
     default=None,
     const=WALL_CONTACT_DEFAULT_THRESH_STR,
 )
+
+# ---- wall-contact caching ----
+g.add_argument(
+    "--wall-cache",
+    action=argparse.BooleanOptionalAction,
+    default=True,
+    help=(
+        "Cache wall-contact detection results on disk (next to the video) and "
+        "reuse them on subsequent runs when code + parameters match. "
+        "Use --no-wall-cache to disable."
+    ),
+)
+g.add_argument(
+    "--wall-cache-dir",
+    type=str,
+    default=None,
+    help=(
+        "Optional override for where wall-contact cache files are stored. "
+        "If not set, defaults to <video_dir>/.nvsl_cache."
+    ),
+)
+g.add_argument(
+    "--wall-cache-refresh",
+    action="store_true",
+    help="Force recomputation of wall-contact results and overwrite any existing cache entry.",
+)
+g.add_argument(
+    "--wall-cache-readonly",
+    action="store_true",
+    help="Use cache if available, but never write or update cache files.",
+)
 g.add_argument(
     "--wall_orientation",
     choices=("lr", "tb", "all", "agarose_adj"),
