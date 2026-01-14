@@ -260,6 +260,10 @@ def plot_fast_vs_strong_scatter(
         - Strong-only (strong & not fast)
         - Overlap (fast & strong)
         - Unclassified (neither)
+
+    Also computes (descriptive) Pearson correlations for:
+        - Fast group, including overlap points
+        - Strong group, including overlap points
     """
     x = np.asarray(sli_T1_first, float)
     y = np.asarray(sli_T2_last, float)
@@ -291,6 +295,29 @@ def plot_fast_vs_strong_scatter(
         else:
             classes.append("other")
 
+    classes_arr = np.asarray(classes, dtype=object)
+
+    def _corr_from_class_mask(m: np.ndarray) -> tuple[float, float, int] | None:
+        """
+        Compute Pearson (r, p) on the *plotted* points selected by mask `m`.
+        Returns (r, p, n) or None if fewer than 3 points.
+        """
+        m = np.asarray(m, dtype=bool)
+        n = int(np.sum(m))
+        if n < 3:
+            return None
+        r, p = pearsonr(x_f[m], y_f[m])
+        return float(r), float(p), n
+
+    # Correlations: include overlap in both fast and strong groups
+    # NOTE: correlations are plotted on plotted points (finite x/y) only
+    corr_fast_incl_overlap = _corr_from_class_mask(
+        (classes_arr == "fast") | (classes_arr == "overlap")
+    )
+    corr_strong_incl_overlap = _corr_from_class_mask(
+        (classes_arr == "strong") | (classes_arr == "overlap")
+    )
+
     # Colors (simple, can be refined)
     color_map = {
         "overlap": "#cc0000",  # red
@@ -307,6 +334,43 @@ def plot_fast_vs_strong_scatter(
     ax.set_xlabel("SLI (T1, first sync bucket)")
     ax.set_ylabel("SLI (T2, last sync bucket)")
     ax.set_title(f"Fast vs Strong Learners (top {frac*100:.0f}% each)")
+
+    # Create extra vertical headroom for the text block
+    # (keeps annotation from overlapping datapoints)
+    x_min, x_max = float(np.nanmin(x_f)), float(np.nanmax(x_f))
+    y_min, y_max = float(np.nanmin(y_f)), float(np.nanmax(y_f))
+    x_rng = x_max - x_min
+    y_rng = y_max - y_min
+    if not np.isfinite(x_rng) or x_rng <= 0:
+        x_rng = 1.0
+    if not np.isfinite(y_rng) or y_rng <= 0:
+        y_rng = 1.0
+
+    top_pad = 0.25 * y_rng
+    ax.set_ylim(y_min, y_max + top_pad)
+
+    # Display descriptive correlations (fast/strong each including overlap)
+    lines = []
+    if corr_fast_incl_overlap is not None:
+        r_f, p_f, n_f = corr_fast_incl_overlap
+        lines.append(f"Fast (incl overlap):  r = {r_f:.3f}, p = {p_f:.3g} (n={n_f})")
+    else:
+        lines.append("Fast (incl overlap):  r = n/a")
+
+    if corr_strong_incl_overlap is not None:
+        r_s, p_s, n_s = corr_strong_incl_overlap
+        lines.append(f"Strong (incl overlap): r = {r_s:.3f}, p = {p_s:.3g} (n={n_s})")
+    else:
+        lines.append("Strong (incl overlap): r = n/a")
+
+    ax.text(
+        x_min + 0.02 * x_rng,
+        y_max + 0.90 * top_pad,
+        "\n".join(lines),
+        va="top",
+        ha="left",
+        fontsize=10,
+    )
 
     # Legend
     handles = [
@@ -748,7 +812,7 @@ def plot_cross_fly_correlations(
         _scatter_with_corr(
             x=pre_pi_diff_vals,
             y=reward_pi_training_vals,
-            title="Baseline PI vs early SLI (all learners)",
+            title="Baseline PI vs early SLI",
             x_label="Baseline PI\n(exp - yok, pre-training)",
             y_label="SLI\n(T1, first sync bucket)",
             cfg=cfg,
