@@ -321,12 +321,16 @@ cdef class RewardCircleAnchoredTurnFinder:
         # and calculating histograms for turn distances.
         if trj.bad():
             self.initialize_invalid_trajectory_data(trj.f)
+            self._ensure_lg_turn_start_buffers(trj.f, i)
             return
 
         self.set_circle_data(trj, i)
         exits = in_range(trj.ex[0], trn_range[0], trn_range[1])
         entries = in_range(trj.en[0], trn_range[0], trn_range[1])
         self.initialize_lg_turn_dists(trj.f, len(exits))
+        
+        # Prep sparse storage for accepted turns in this fly/range
+        self._ensure_lg_turn_start_buffers(trj.f, i)
 
         # Initialize rejection reasons for this timeframe
         # Each trajectory (`trj.f`) will have its own sublist for each timeframe's exits
@@ -603,6 +607,41 @@ cdef class RewardCircleAnchoredTurnFinder:
         self.lg_turn_dists[f].start.push_back(vector[double](length, nan("")))
         self.lg_turn_dists[f].end.push_back(vector[double](length, nan("")))
 
+    cdef void _ensure_lg_turn_start_buffers(self, int fly_idx, int range_idx):
+        """
+        Ensure va.lg_turn_start_frames / va.lg_turn_start_dists_mm exist and have
+        an empty list slot for [fly_idx][range_idx].
+        """
+        cdef list frames_all
+        cdef list dists_all
+        cdef list frames_fly
+        cdef list dists_fly
+
+        if not hasattr(self.va, "lg_turn_start_frames"):
+            self.va.lg_turn_start_frames = []
+        if not hasattr(self.va, "lg_turn_start_dists_mm"):
+            self.va.lg_turn_start_dists_mm = []
+
+        frames_all = self.va.lg_turn_start_frames
+        dists_all = self.va.lg_turn_start_dists_mm
+
+        while len(frames_all) <= fly_idx:
+            frames_all.append([])
+        while len(dists_all) <= fly_idx:
+            dists_all.append([])
+
+        frames_fly = frames_all[fly_idx]
+        dists_fly = dists_all[fly_idx]
+
+        while len(frames_fly) <= range_idx:
+            frames_fly.append([])
+        while len(dists_fly) <= range_idx:
+            dists_fly.append([])
+
+        # Reset for this run/range (avoid accidental accumulation if re-called)
+        frames_fly[range_idx] = []
+        dists_fly[range_idx] = []
+
     cdef double calc_turn_to_exit_ratio(self, trj, trn_idx):
         # Calculates the ratio of exits from the reward circle that were followed by a large
         # turn.
@@ -660,6 +699,7 @@ cdef class RewardCircleAnchoredTurnFinder:
 
         cdef int turn_st_idx = -1
         cdef int turn_end_idx = -1
+        cdef double start_dist_mm
         cdef double cw_ang_del_sum = 0.0
         cdef double ccw_ang_del_sum = 0.0
         cdef double displacement
@@ -823,9 +863,12 @@ cdef class RewardCircleAnchoredTurnFinder:
             print(f"Displacement = {displacement:.2f}, Distance Traveled = {dist_trav:.2f}")
             input()
 
-        self.lg_turn_dists[trj.f].start[trn_idx][circle_exit_idx] = compute_distance_or_nan(
-            self.circle_ctr[0], self.circle_ctr[1], self.x_view[turn_st_idx], self.y_view[turn_st_idx]
+        start_dist_mm = compute_distance_or_nan(
+            self.circle_ctr[0], self.circle_ctr[1],
+            self.x_view[turn_st_idx], self.y_view[turn_st_idx]
         ) / (trj.pxPerMmFloor * self.va.xf.fctr)
+
+        self.lg_turn_dists[trj.f].start[trn_idx][circle_exit_idx] = start_dist_mm
 
         self.lg_turn_dists[trj.f].end[trn_idx][circle_exit_idx] = compute_distance_or_nan(
             self.circle_ctr[0], self.circle_ctr[1], self.x_view[turn_end_idx], self.y_view[turn_end_idx]
@@ -833,6 +876,8 @@ cdef class RewardCircleAnchoredTurnFinder:
 
         self.indices_of_turns.append((turn_st_idx, turn_end_idx))
         self.turn_circle_index_mapping.append(circle_exit_idx)
+        self.va.lg_turn_start_frames[trj.f][trn_idx].append(int(turn_st_idx))
+        self.va.lg_turn_start_dists_mm[trj.f][trn_idx].append(float(start_dist_mm))
 
     cdef inline double walking_fraction(self, int start_idx, int end_idx):
         cdef int k
