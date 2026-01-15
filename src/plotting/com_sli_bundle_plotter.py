@@ -54,7 +54,7 @@ def _load_bundle(path):
         if k in out:
             continue
         if k.startswith(
-            ("commag_", "wallpct_", "turnback_", "agarose_", "sli_")
+            ("commag_", "wallpct_", "turnback_", "agarose_", "lgturn_", "sli_")
         ) or k in ("sli_ts",):
             out[k] = d[k]
     return out
@@ -196,9 +196,12 @@ def plot_com_sli_bundles(
     elif metric == "wallpct":
         series_key = "wallpct_exp"
         need_keys = ["wallpct_exp"]
+    elif metric == "lgturn_startdist":
+        series_key = "lgturn_startdist_exp"
+        need_keys = ["lgturn_startdist_exp"]
     else:
         raise ValueError(
-            "Invalid metric specified; supported: 'commag', 'sli', 'wallpct'."
+            "Invalid metric specified; supported: 'commag', 'sli', 'turnback', 'agarose', 'wallpct', 'lgturn_startdist'."
         )
 
     def _series_for_bundle(b):
@@ -294,6 +297,8 @@ def plot_com_sli_bundles(
     elif metric == "agarose":
         # ratio is 0..1; exp-minus-ctrl can go negative
         ylim = [-0.5, 0.5] if turnback_mode == "exp_minus_ctrl" else [0.0, 1.0]
+    elif metric == "lgturn_startdist":
+        ylim = [0.0, 12.0]
     mci_min, mci_max = None, None
 
     # If "both" mode, we effectively double “groups” per bundle.
@@ -450,6 +455,8 @@ def plot_com_sli_bundles(
                     ctrl_key = "turnback_ratio_ctrl"
                 elif metric == "agarose":
                     ctrl_key = "agarose_ratio_ctrl"
+                elif metric == "lgturn_startdist":
+                    ctrl_key = "lgturn_startdist_ctrl"
                 else:
                     ctrl_key = None
                 if ctrl_key is None:
@@ -580,6 +587,8 @@ def plot_com_sli_bundles(
                 y_label = "Agarose avoidance ratio"
         elif metric == "wallpct":
             y_label = "% time on wall"
+        elif metric == "lgturn_startdist":
+            y_label = "Large-turn start dist. to circle center [mm]"
         if ti == 0:
             plt.ylabel(maybe_sentence_case(y_label))
         plt.axhline(color="k")

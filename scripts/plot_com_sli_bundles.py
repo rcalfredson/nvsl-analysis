@@ -13,7 +13,7 @@ def main():
     p.add_argument(
         "--metric",
         default="commag",
-        choices=["commag", "sli", "turnback", "agarose", "wallpct"],
+        choices=["commag", "sli", "turnback", "agarose", "wallpct", "lgturn_startdist"],
     )
     p.add_argument(
         "--turnback-mode",
