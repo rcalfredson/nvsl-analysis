@@ -79,6 +79,7 @@ cdef class RewardCircleAnchoredTurnFinder:
     cdef bint collect_exit_events
     cdef double weaving_max_outside_mm
     cdef double tangent_thresh_deg
+    cdef double weaving_tangent_flip_buffer_deg
     cdef double backward_frac_thresh
 
     def __cinit__(
