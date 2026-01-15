@@ -320,6 +320,8 @@ class VideoAnalysis:
                 getattr(opts, "dump_large_turn_exits", False),
             )
             turn_finder.calcLargeTurnsAfterCircleExit()
+            # Compute sync-bucket metric
+            self.bySyncBucketMeanLgTurnStartDist()
             if getattr(opts, "dump_large_turn_exits", False):
                 save_large_turn_exit_table(
                     self, "per_fly_turn_exit_tables/", per_fly=True
@@ -3246,6 +3248,114 @@ class VideoAnalysis:
             if getattr(self.opts, "com_sli_debug", False):
                 self.syncCOMMag_reason.append(this_training_reason)
                 self.syncCOMMag_detail.append(this_training_detail)
+
+    def bySyncBucketMeanLgTurnStartDist(self):
+        """
+        For each sync bucket, compute the mean distance (mm) from reward-circle center
+        at which an accepted large turn starts.
+
+        Results:
+            self.syncMeanLgTurnStartDist: list (per training) of dicts with 'exp' and
+                optionally 'ctrl' keys mapping to per-bucket means.
+            self.syncMeanLgTurnStartDistN: same shape, but counts per bucket.
+        """
+        df = self._numRewardsMsg(True, silent=True)
+
+        self.syncMeanLgTurnStartDist = []
+        self.syncMeanLgTurnStartDistN = []
+
+        # Guard: large-turn analysis must have run
+        if not hasattr(self, "lg_turn_start_frames") or not hasattr(
+            self, "lg_turn_start_dists_mm"
+        ):
+            for trn in self.trns:
+                fi, n_buckets, _ = self._syncBucket(trn, df)
+                n_buckets = int(n_buckets)
+                self.syncMeanLgTurnStartDist.append({"exp": [np.nan] * n_buckets})
+                self.syncMeanLgTurnStartDistN.append({"exp": [0] * n_buckets})
+            return
+
+        for trn in self.trns:
+            fi, n_buckets, _ = self._syncBucket(trn, df)
+            n_buckets = int(n_buckets)
+
+            this_training = {}
+            this_training_n = {}
+
+            fly_keys = ("exp", "ctrl") if len(self.trx) > 1 else ("exp",)
+            if fi is None:
+                for fly_key in fly_keys:
+                    this_training[fly_key] = [np.nan for _ in range(n_buckets)]
+                    this_training_n[fly_key] = [0 for _ in range(n_buckets)]
+                self.syncMeanLgTurnStartDist.append(this_training)
+                self.syncMeanLgTurnStartDistN.append(this_training_n)
+                continue
+
+            # la guards against partial buckets (same pattern as bySyncBucketMedDist)
+            la = min(trn.stop, int(trn.start + n_buckets * df))
+
+            for fly_key, traj in (("exp", self.trx[0]),) + (
+                (("ctrl", self.trx[1]),) if ("ctrl" in fly_keys) else ()
+            ):
+                fly_idx = 0 if fly_key == "exp" else 1
+
+                if traj._bad:
+                    this_training[fly_key] = [np.nan] * n_buckets
+                    this_training_n[fly_key] = [0] * n_buckets
+                    continue
+
+                # Map training -> trn_ranges index:
+                # trn_ranges: [pre=0] + trainings(1..N)
+                # trn.n is typically 1..N, so range_idx = trn.n
+                range_idx = trn.n
+
+                frames = []
+                dists = []
+                if fly_idx < len(self.lg_turn_start_frames):
+                    if range_idx < len(self.lg_turn_start_frames[fly_idx]):
+                        frames = self.lg_turn_start_frames[fly_idx][range_idx] or []
+                        dists = self.lg_turn_start_dists_mm[fly_idx][range_idx] or []
+
+                # Exclusion mask per bucket for this fly/training
+                excluded = [
+                    self.is_excluded_pair(fly_idx, trn.n - 1, b_idx)
+                    for b_idx in range(n_buckets)
+                ]
+
+                sums = np.zeros(n_buckets, dtype=float)
+                counts = np.zeros(n_buckets, dtype=int)
+
+                for fm, dist_mm in zip(frames, dists):
+                    if fm < fi or fm >= la:
+                        continue
+                    b_idx = int((fm - fi) // df)
+                    if b_idx < 0 or b_idx >= n_buckets:
+                        continue
+                    if excluded[b_idx]:
+                        continue
+                    if dist_mm is None or np.isnan(dist_mm):
+                        continue
+                    sums[b_idx] += float(dist_mm)
+                    counts[b_idx] += 1
+
+                means = []
+                ns = []
+                for b_idx in range(n_buckets):
+                    if excluded[b_idx]:
+                        means.append(np.nan)
+                        ns.append(0)
+                    elif counts[b_idx] == 0:
+                        means.append(np.nan)
+                        ns.append(0)
+                    else:
+                        means.append(sums[b_idx] / counts[b_idx])
+                        ns.append(int(counts[b_idx]))
+
+                this_training[fly_key] = means
+                this_training_n[fly_key] = ns
+
+            self.syncMeanLgTurnStartDist.append(this_training)
+            self.syncMeanLgTurnStartDistN.append(this_training_n)
 
     def bySyncBucketMedDist(self):
         """
