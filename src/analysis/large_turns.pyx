@@ -834,6 +834,16 @@ cdef class RewardCircleAnchoredTurnFinder:
         self.indices_of_turns.append((turn_st_idx, turn_end_idx))
         self.turn_circle_index_mapping.append(circle_exit_idx)
 
+    cdef inline double walking_fraction(self, int start_idx, int end_idx):
+        cdef int k
+        cdef int n = end_idx - start_idx
+        cdef int count_true = 0
+        if n <= 0:
+            return 0.0
+        for k in range(start_idx, end_idx):
+            count_true += self.walking_view[k]
+        return count_true / <double> n
+
     cdef bint too_little_walking(self, int turn_st_idx, int turn_end_idx):
         # Determines if the proportion of frames identified as 'walking' between the start and
         # end indices of a turn is below a threshold.
@@ -1003,6 +1013,8 @@ cdef class RewardCircleAnchoredTurnFinder:
         cdef int reentry_frame = -1
         cdef bint reached_reentry = False
         cdef int eff_end_idx
+        cdef bint weaving_geom_ok = False
+        cdef bint weaving_motion_ok = False
 
         # For exit index k, we assume:
         #   entries[k]     = entry *before* the exit
@@ -1027,6 +1039,9 @@ cdef class RewardCircleAnchoredTurnFinder:
         cdef double max_outside_mm = 0.0
         cdef double angle_to_tangent_deg = nan("")
         cdef double frac_backward = 0.0
+        cdef double px_per_mm = 0.0
+        cdef double dist_trav_mm = 0.0
+        cdef double walk_frac = 0.0
         cdef bint is_weaving = False
         cdef bint is_backward = False
         cdef object reason
@@ -1044,6 +1059,8 @@ cdef class RewardCircleAnchoredTurnFinder:
                     frac_backward,
                     is_weaving,
                     is_backward,
+                    weaving_geom_ok,
+                    weaving_motion_ok,
                 ) = self.classify_weaving_and_backward_for_segment(
                     trj, event_start_idx, eff_end_idx
                 )
@@ -1052,6 +1069,16 @@ cdef class RewardCircleAnchoredTurnFinder:
                     reason = "weaving"
                 elif is_backward:
                     reason = "backward_walking"
+                elif weaving_geom_ok and (not weaving_motion_ok):
+                    px_per_mm = trj.pxPerMmFloor * self.va.xf.fctr
+                    dist_trav_mm = self.distTrav(event_start_idx, eff_end_idx) / px_per_mm
+                    walk_frac = self.walking_fraction(event_start_idx, eff_end_idx)
+                    if dist_trav_mm < 1.0:
+                        reason = "low_displacement"
+                    elif walk_frac < 0.30:
+                        reason = "too_little_walking"
+                    else:
+                        reason = "small_angle_reentry"
                 else:
                     reason = "small_angle_reentry"
 
@@ -1330,7 +1357,10 @@ cdef class RewardCircleAnchoredTurnFinder:
         Classify a single exit→re-entry segment as weaving and/or backward walking.
 
         Returns:
-            (max_outside_mm, angle_to_tangent_deg, frac_backward, is_weaving, is_backward)
+            (max_outside_mm, angle_to_tangent_deg, frac_backward,
+             is_weaving, is_backward,
+             weaving_geom_ok, weaving_motion_ok
+             )
         """
         cdef int n_frames = len(self.x_view)
         cdef int k
@@ -1350,6 +1380,12 @@ cdef class RewardCircleAnchoredTurnFinder:
 
         cdef double v_norm, vx, vx_hat, vy, vy_hat, hx, hy, dot
 
+        cdef double dist_trav_px
+        cdef double dist_trav_mm = 0.0
+        cdef double walk_frac = 0.0
+        cdef bint weaving_motion_ok = True
+        cdef bint weaving_geom_ok = False
+
         cdef bint tangent_side_ok = True
         cdef double flip_buf_deg
         cdef double sign_eps
@@ -1360,7 +1396,7 @@ cdef class RewardCircleAnchoredTurnFinder:
         if end_idx >= n_frames:
             end_idx = n_frames - 1
         if end_idx <= start_idx:
-            return (max_outside_mm, angle_to_tangent_deg, frac_backward, False, False)
+            return (max_outside_mm, angle_to_tangent_deg, frac_backward, False, False, False, False)
 
         px_per_mm = trj.pxPerMmFloor * self.va.xf.fctr
         rad_mm = self.circle_rad / px_per_mm
@@ -1422,10 +1458,19 @@ cdef class RewardCircleAnchoredTurnFinder:
             trj, start_idx, end_idx, sign_eps
         )
 
+        # --- 2c) Motion-quality gates (for weaving acceptance only)
+        # Match large-turn standards:
+        #   - min distance traveled: 1.0 mm
+        #   - min walking fraction: 0.30
+        dist_trav_px = self.distTrav(start_idx, end_idx)
+        dist_trav_mm = dist_trav_px / px_per_mm
+        walk_frac = self.walking_fraction(start_idx, end_idx)
+        weaving_motion_ok = (dist_trav_mm >= 1.0) and (walk_frac >= 0.30)
+
         # --- 3) Backward walking fraction (velocity opposite heading)
         n_steps = end_idx - start_idx
         if n_steps <= 0:
-            return (max_outside_mm, angle_to_tangent_deg, frac_backward, False, False)
+            return (max_outside_mm, angle_to_tangent_deg, frac_backward, False, False, False, False)
 
         for k in range(start_idx, end_idx):
             vx = self.x_view[k + 1] - self.x_view[k]
@@ -1445,11 +1490,20 @@ cdef class RewardCircleAnchoredTurnFinder:
         frac_backward = backward_count / <double> n_steps
 
         # --- 4) Apply thresholds
-        cdef bint is_weaving = (
+        weaving_geom_ok = (
             max_outside_mm <= self.weaving_max_outside_mm
             and angle_to_tangent_deg <= self.tangent_thresh_deg
             and tangent_side_ok
         )
+        cdef bint is_weaving = weaving_geom_ok and weaving_motion_ok
         cdef bint is_backward = (frac_backward >= self.backward_frac_thresh)
 
-        return (max_outside_mm, angle_to_tangent_deg, frac_backward, is_weaving, is_backward)
+        return (
+            max_outside_mm,
+            angle_to_tangent_deg,
+            frac_backward,
+            is_weaving,
+            is_backward,
+            weaving_geom_ok,
+            weaving_motion_ok
+        )
