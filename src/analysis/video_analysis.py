@@ -3265,49 +3265,47 @@ class VideoAnalysis:
         self.syncMeanLgTurnStartDistN = []
 
         # Guard: large-turn analysis must have run
-        if not hasattr(self, "lg_turn_start_frames") or not hasattr(
-            self, "lg_turn_start_dists_mm"
-        ):
+        if not hasattr(self, "lg_turn_start_frames") or not hasattr(self, "lg_turn_start_dists_mm"):
             for trn in self.trns:
                 fi, n_buckets, _ = self._syncBucket(trn, df)
-                n_buckets = int(n_buckets)
+                n_buckets = int(n_buckets or 0)
                 self.syncMeanLgTurnStartDist.append({"exp": [np.nan] * n_buckets})
                 self.syncMeanLgTurnStartDistN.append({"exp": [0] * n_buckets})
             return
 
         for trn in self.trns:
             fi, n_buckets, _ = self._syncBucket(trn, df)
-            n_buckets = int(n_buckets)
+            n_buckets = int(n_buckets or 0)
 
             this_training = {}
             this_training_n = {}
 
             fly_keys = ("exp", "ctrl") if len(self.trx) > 1 else ("exp",)
-            if fi is None:
+
+            # If no buckets, keep consistent structure
+            if fi is None or n_buckets == 0:
                 for fly_key in fly_keys:
-                    this_training[fly_key] = [np.nan for _ in range(n_buckets)]
-                    this_training_n[fly_key] = [0 for _ in range(n_buckets)]
+                    this_training[fly_key] = [np.nan] * n_buckets
+                    this_training_n[fly_key] = [0] * n_buckets
                 self.syncMeanLgTurnStartDist.append(this_training)
                 self.syncMeanLgTurnStartDistN.append(this_training_n)
                 continue
 
-            # la guards against partial buckets (same pattern as bySyncBucketMedDist)
-            la = min(trn.stop, int(trn.start + n_buckets * df))
+            # Bucket boundaries + "full bucket" mask (wallpct-style)
+            starts = [int(fi + k * df) for k in range(n_buckets)]
+            complete = [(trn.stop - s) >= df for s in starts]
 
             for fly_key, traj in (("exp", self.trx[0]),) + (
                 (("ctrl", self.trx[1]),) if ("ctrl" in fly_keys) else ()
             ):
                 fly_idx = 0 if fly_key == "exp" else 1
 
-                if traj._bad:
+                if getattr(traj, "_bad", False) or traj.bad():
                     this_training[fly_key] = [np.nan] * n_buckets
                     this_training_n[fly_key] = [0] * n_buckets
                     continue
 
-                # Map training -> trn_ranges index:
-                # trn_ranges: [pre=0] + trainings(1..N)
-                # trn.n is typically 1..N, so range_idx = trn.n
-                range_idx = trn.n
+                range_idx = trn.n  # trn_ranges index (0=pre, 1..N=trainings)
 
                 frames = []
                 dists = []
@@ -3316,40 +3314,32 @@ class VideoAnalysis:
                         frames = self.lg_turn_start_frames[fly_idx][range_idx] or []
                         dists = self.lg_turn_start_dists_mm[fly_idx][range_idx] or []
 
-                # Exclusion mask per bucket for this fly/training
-                excluded = [
-                    self.is_excluded_pair(fly_idx, trn.n - 1, b_idx)
-                    for b_idx in range(n_buckets)
-                ]
-
                 sums = np.zeros(n_buckets, dtype=float)
                 counts = np.zeros(n_buckets, dtype=int)
 
                 for fm, dist_mm in zip(frames, dists):
-                    if fm < fi or fm >= la:
+                    if dist_mm is None or np.isnan(dist_mm):
                         continue
+                    if fm < fi or fm >= trn.stop:
+                        continue
+
                     b_idx = int((fm - fi) // df)
                     if b_idx < 0 or b_idx >= n_buckets:
                         continue
-                    if excluded[b_idx]:
-                        continue
-                    if dist_mm is None or np.isnan(dist_mm):
-                        continue
+                    if not complete[b_idx]:
+                        continue  # NEW: do not include events in incomplete trailing buckets
+
                     sums[b_idx] += float(dist_mm)
                     counts[b_idx] += 1
 
-                means = []
-                ns = []
+                means = [np.nan] * n_buckets
+                ns = [0] * n_buckets
                 for b_idx in range(n_buckets):
-                    if excluded[b_idx]:
-                        means.append(np.nan)
-                        ns.append(0)
-                    elif counts[b_idx] == 0:
-                        means.append(np.nan)
-                        ns.append(0)
-                    else:
-                        means.append(sums[b_idx] / counts[b_idx])
-                        ns.append(int(counts[b_idx]))
+                    if not complete[b_idx]:
+                        continue  # keep NaN/0 for incomplete buckets
+                    if counts[b_idx] > 0:
+                        means[b_idx] = sums[b_idx] / counts[b_idx]
+                        ns[b_idx] = int(counts[b_idx])
 
                 this_training[fly_key] = means
                 this_training_n[fly_key] = ns
