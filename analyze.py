@@ -83,6 +83,7 @@ from src.utils.constants import (
 from src.analysis.motion import CircularMotionDetector
 from src.exporting.agarose_sli_bundle import export_agarose_sli_bundle
 from src.exporting.com_sli_bundle import export_com_sli_bundle
+from src.exporting.lgturn_startdist_sli_bundle import export_lgturn_startdist_sli_bundle
 from src.exporting.turnback_sli_bundle import export_turnback_sli_bundle
 from src.exporting.wallpct_sli_bundle import export_wallpct_sli_bundle
 from src.plotting.cross_fly_correlations import plot_cross_fly_correlations
@@ -1827,6 +1828,20 @@ g.add_argument(
     type=str,
     default=None,
     help="Write a .npz bundle with turnback dual-circle ratio + SLI for multi-group overlays.",
+)
+g.add_argument(
+    "--export-lgturn-startdist-sli-bundle",
+    type=str,
+    default=None,
+    help="Write an .npz bundle with sync-bucket mean large-turn start distance + SLI for multi-group overlays.",
+)
+g.add_argument(
+    "--lgturn-startdist-sli-debug",
+    action="store_true",
+    help=(
+        "Debug export of large-turn-startdist+SLI bundle: print inferred bucket plan, "
+        "per-video presence/shape check, and finite counts."
+    ),
 )
 g.add_argument(
     "--turnback-sli-debug",
@@ -6120,6 +6135,11 @@ def postAnalyze(vas):
 
     if getattr(opts, "export_turnback_sli_bundle", None):
         export_turnback_sli_bundle(vas, opts, gls, opts.export_turnback_sli_bundle)
+
+    if getattr(opts, "export_lgturn_startdist_sli_bundle", None):
+        export_lgturn_startdist_sli_bundle(
+            vas, opts, gls, opts.export_lgturn_startdist_sli_bundle
+        )
 
     if getattr(opts, "export_agarose_sli_bundle", None):
         export_agarose_sli_bundle(vas, opts, gls, opts.export_agarose_sli_bundle)
