@@ -19,6 +19,15 @@ from src.utils.common_cython cimport (
     sign,
 )
 
+# ---- helpers (module scope) ----
+cdef inline int _sign_with_deadband(double x, double eps):
+    if x > eps:
+        return 1
+    elif x < -eps:
+        return -1
+    else:
+        return 0
+
 cdef struct TurnData:
     # A structure to store start and end points of turns within a time division.
     #
@@ -83,6 +92,7 @@ cdef class RewardCircleAnchoredTurnFinder:
         bint collect_exit_events=False,
         double weaving_max_outside_mm=1.5,
         double tangent_thresh_deg=30.0,
+        double weaving_tangent_flip_buffer_deg=5.0,
         double backward_frac_thresh=0.6
     ):
         # Initializes the RewardCircleAnchoredTurnFinder with required parameters.
@@ -111,6 +121,7 @@ cdef class RewardCircleAnchoredTurnFinder:
         # High-performing learning strategy parameters
         self.weaving_max_outside_mm = weaving_max_outside_mm
         self.tangent_thresh_deg = tangent_thresh_deg
+        self.weaving_tangent_flip_buffer_deg = weaving_tangent_flip_buffer_deg
         self.backward_frac_thresh = backward_frac_thresh
 
     def calcLargeTurnsAfterCircleExit(self):
@@ -1260,6 +1271,53 @@ cdef class RewardCircleAnchoredTurnFinder:
             prev_total + total_exits,
         )
 
+    cdef bint heading_tangent_side_consistent_for_segment(
+        self,
+        trj,
+        int start_idx,
+        int end_idx,
+        double sign_eps
+    ):
+        """
+        Returns True iff the sign of (heading · tangent_unit) stays consistent over
+        the segment, ignoring frames where abs(dot) <= sign_eps (near 90°).
+        """
+        cdef int k
+        cdef double dx, dy, tx, ty, t_norm
+        cdef double heading_rad, hx, hy
+        cdef double dot_ht, cos_raw
+        cdef int side_ref = 0
+        cdef int side_cur
+
+        for k in range(start_idx, end_idx + 1):
+            dx = self.x_view[k] - self.circle_ctr[0]
+            dy = self.y_view[k] - self.circle_ctr[1]
+
+            # Tangent vector (CCW): (-dy, dx)
+            tx = -dy
+            ty = dx
+            t_norm = sqrt(tx * tx + ty * ty)
+            if t_norm <= 1e-12:
+                continue
+
+            heading_rad = trj.theta[k] * PI / 180.0
+            hx = sin(heading_rad)
+            hy = -cos(heading_rad)
+
+            dot_ht = hx * tx + hy * ty
+            cos_raw = dot_ht / t_norm  # hx,hy is unit; divide by |t|
+
+            side_cur = _sign_with_deadband(cos_raw, sign_eps)
+            if side_cur == 0:
+                continue
+
+            if side_ref == 0:
+                side_ref = side_cur
+            elif side_cur != side_ref:
+                return False
+        
+        # If we never got a confident sign (all near 90°), treat as consistent.
+        return True
 
     cdef tuple classify_weaving_and_backward_for_segment(
         self,
@@ -1290,6 +1348,10 @@ cdef class RewardCircleAnchoredTurnFinder:
         cdef double heading_rad, tangent_angle, diff_rad
 
         cdef double v_norm, vx, vx_hat, vy, vy_hat, hx, hy, dot
+
+        cdef bint tangent_side_ok = True
+        cdef double flip_buf_deg
+        cdef double sign_eps
 
         # Clamp indices defensively
         if start_idx < 0:
@@ -1347,6 +1409,17 @@ cdef class RewardCircleAnchoredTurnFinder:
         else:
             angle_to_tangent_deg = nan("")
 
+        # --- 2b) Heading-to-tangent side consistency over the whole segment
+        # Define deadband around 90° to avoid dot sign flicker.
+        flip_buf_deg = self.weaving_tangent_flip_buffer_deg
+        sign_eps = sin(flip_buf_deg * PI / 180.0) # dot threshold equivalent to (90° ± flip_buf_deg)
+        if sign_eps < 0:
+            sign_eps = -sign_eps
+        if sign_eps > 1.0:
+            sign_eps = 1.0
+        tangent_side_ok = self.heading_tangent_side_consistent_for_segment(
+            trj, start_idx, end_idx, sign_eps
+        )
 
         # --- 3) Backward walking fraction (velocity opposite heading)
         n_steps = end_idx - start_idx
@@ -1374,6 +1447,7 @@ cdef class RewardCircleAnchoredTurnFinder:
         cdef bint is_weaving = (
             max_outside_mm <= self.weaving_max_outside_mm
             and angle_to_tangent_deg <= self.tangent_thresh_deg
+            and tangent_side_ok
         )
         cdef bint is_backward = (frac_backward >= self.backward_frac_thresh)
 
