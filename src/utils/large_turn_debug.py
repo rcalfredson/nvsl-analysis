@@ -134,7 +134,8 @@ def make_large_turn_exit_table(va, *, include_video_name=True, include_fly_index
         "turn_end_idx",
         "reject_reason",
         "reject_turn_start_idx",
-        "reject_turn_end_idx" "reentry_frame",
+        "reject_turn_end_idx",
+        "reentry_frame",
         "strategy_weaving",
         "strategy_backward_walking",
         "max_outside_mm",
@@ -162,8 +163,9 @@ def save_large_turn_exit_table(va, out_path, *, per_fly=False):
 
     if per_fly:
         out_path.mkdir(parents=True, exist_ok=True)
-        for fly_idx, fly_records in enumerate(va.lg_turn_exit_events):
-            df_fly = make_large_turn_exit_table(va).query("fly == @fly_idx")
+        df = make_large_turn_exit_table(va)
+        for fly_idx in df["fly"].unique():
+            df_fly = df.query("fly == @fly_idx")
             df_fly.to_csv(
                 out_path
                 / f"{os.path.basename(va.fn)}_f{va.f}_{fly_idx:02d}_turn_exit_events.csv",
