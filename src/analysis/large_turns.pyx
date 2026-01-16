@@ -28,6 +28,84 @@ cdef inline int _sign_with_deadband(double x, double eps):
     else:
         return 0
 
+cdef inline bint _next_valid_angle_pair(
+    trj,
+    int fm_i,                       # current "lower-1"; we will advance from here
+    double min_turn_speed_px,
+    int* lower_i_out,               # returns lower frame index (fm_i)
+    int* upper_i_out,               # returns upper frame index (upper_index)
+):
+    """
+    Find the next pair (lower_i, upper_i) such that:
+      - lower_i advances at least once from input fm_i
+      - speed at (lower_i + 1) is >= threshold
+      - upper_i is the next index >= (lower_i + 1) such that speed at (upper_i + 1) is >= threshold
+
+    Mirrors current run_turn_search behavior.
+
+    Returns 1 is a valid pair is found, else 0. 
+    """
+    cdef int n_sp = len(trj.sp)
+    cdef int lower_i
+    cdef int upper_i
+
+    while True:
+        fm_i += 1
+        lower_i = fm_i
+
+        # Need (lower_i + 2) < n_sp because we will access sp[lower_i+1] and sp[upper_i+1]
+        if lower_i + 2 >= n_sp:
+            return 0
+
+        # Skip if the "next step" speed is too low
+        if trj.sp[lower_i + 1] < min_turn_speed_px:
+            continue
+
+        upper_i = lower_i + 1
+        while (upper_i + 1) < n_sp and trj.sp[upper_i + 1] < min_turn_speed_px:
+            upper_i += 1
+
+        if upper_i + 1 >= n_sp:
+            return 0
+
+        lower_i_out[0] = lower_i
+        upper_i_out[0] = upper_i
+        return 1
+
+cdef inline void _update_angle_sums_and_initial_frames(
+    trj,
+    int lower_i,
+    int upper_i,
+    vector[double] &angle_deltas,
+    double* cw_sum,
+    double* ccw_sum,
+    int* cw_initial_frame,
+    int* ccw_initial_frame,
+):
+    """
+    Shared: compute signed angle delta between theta[lower_i] and theta[upper_i],
+    push into angle_deltas, and update cw/ccw sums + initial frames.
+    """
+    cdef double theta_1 = trj.theta[lower_i] * PI / 180.0
+    cdef double theta_2 = trj.theta[upper_i] * PI / 180.0
+    cdef double angle_delta = angleDiff(theta_2, theta_1, absVal=False, useRadians=True)
+    cdef double angle_delta_degrees = angle_delta * (180.0 / PI)
+    cdef double abs_angle_delta = fabs(angle_delta_degrees)
+
+    angle_deltas.push_back(angle_delta_degrees)
+
+    # Detect initial CW/CCW "start" frames when a sufficiently large step occurs
+    if abs_angle_delta >= 18.0:
+        if sign(angle_delta_degrees) > 0 and cw_initial_frame[0] == -1:
+            cw_initial_frame[0] = lower_i
+        elif sign(angle_delta_degrees) < 0 and ccw_initial_frame[0] == -1:
+            ccw_initial_frame[0] = lower_i
+    
+    if cw_initial_frame[0] != -1:
+        cw_sum[0] += angle_delta_degrees
+    if ccw_initial_frame[0] != -1:
+        ccw_sum[0] += angle_delta_degrees
+
 cdef struct TurnData:
     # A structure to store start and end points of turns within a time division.
     #
@@ -699,6 +777,9 @@ cdef class RewardCircleAnchoredTurnFinder:
 
         cdef int turn_st_idx = -1
         cdef int turn_end_idx = -1
+        cdef int lower_i
+        cdef int upper_i
+        cdef bint ok
         cdef double start_dist_mm
         cdef double cw_ang_del_sum = 0.0
         cdef double ccw_ang_del_sum = 0.0
@@ -721,32 +802,18 @@ cdef class RewardCircleAnchoredTurnFinder:
         if debug and debug_frame_range_low <= circle_exit_frame <= debug_frame_range_high:
             print(f"starting turn search for frame {circle_exit_frame}")
         while True:
-            fm_i += 1
-
-            if fm_i + 2 >= len(trj.sp):
-                return  # Exit if we exceed trajectory length
-
-            # Use the new helper function to check the speed threshold
-            if self.check_speed_threshold(
-                fm_i + 1, trj, debug, debug_frame_range_low, debug_frame_range_high
-            ):
-                if debug and debug_frame_range_low <= (fm_i + 1) <= debug_frame_range_high:
-                    print(f"continuing; frame {fm_i + 1} below speed threshold")
-                continue
-
-            upper_index = fm_i + 1
-            while (
-                upper_index + 1 < len(trj.sp) and
-                self.check_speed_threshold(
-                    upper_index + 1, trj, debug, debug_frame_range_low, debug_frame_range_high
-                )
-            ):
-                if debug and debug_frame_range_low <= upper_index <= debug_frame_range_high:
-                    print(f"frame {upper_index} - speed too low. Skipping.")
-                upper_index += 1
-
-            if upper_index >= len(trj.sp):
+            ok = _next_valid_angle_pair(
+                trj,
+                fm_i,
+                self.min_turn_speed_px,
+                &lower_i,
+                &upper_i,
+            )
+            if not ok:
                 return
+            
+            fm_i = lower_i
+            upper_index = upper_i
 
             if self.check_exit_condition(
                 upper_index,
@@ -765,22 +832,28 @@ cdef class RewardCircleAnchoredTurnFinder:
             ):
                 return
 
-            self.update_angle_and_sums(
-                fm_i, upper_index, trj, angle_deltas, &cw_ang_del_sum, &ccw_ang_del_sum,
-                &cw_initial_frame, &ccw_initial_frame, debug, debug_frame_range_low, debug_frame_range_high
+            _update_angle_sums_and_initial_frames(
+                trj,
+                fm_i,
+                upper_index,
+                angle_deltas,
+                &cw_ang_del_sum,
+                &ccw_ang_del_sum,
+                &cw_initial_frame,
+                &ccw_initial_frame,
             )
 
-            if not threshold_crossed and fabs(cw_ang_del_sum) >= 90 and sign(cw_ang_del_sum) > 0:
+            if (not threshold_crossed) and fabs(cw_ang_del_sum) >= 90 and sign(cw_ang_del_sum) > 0:
                 turn_st_idx = cw_initial_frame
-                turn_direction = 1  # CW turn
+                turn_direction = 1
                 threshold_crossed = True
                 if debug and debug_frame_range_low <= fm_i <= debug_frame_range_high:
                     print(f"Threshold crossed at frame {fm_i}, CW Turn Start Index = {turn_st_idx}")
                 break
-
-            if not threshold_crossed and fabs(ccw_ang_del_sum) >= 90 and sign(ccw_ang_del_sum) < 0:
+            
+            if (not threshold_crossed) and fabs(ccw_ang_del_sum) >= 90 and sign(ccw_ang_del_sum) < 0:
                 turn_st_idx = ccw_initial_frame
-                turn_direction = -1  # CCW turn
+                turn_direction = -1
                 threshold_crossed = True
                 if debug and debug_frame_range_low <= fm_i <= debug_frame_range_high:
                     print(f"Threshold crossed at frame {fm_i}, CCW Turn Start Index = {turn_st_idx}")
