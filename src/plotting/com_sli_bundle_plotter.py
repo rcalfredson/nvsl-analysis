@@ -298,7 +298,7 @@ def plot_com_sli_bundles(
         # ratio is 0..1; exp-minus-ctrl can go negative
         ylim = [-0.5, 0.5] if turnback_mode == "exp_minus_ctrl" else [0.0, 1.0]
     elif metric == "lgturn_startdist":
-        ylim = [0.0, 12.0]
+        ylim = [0.0, 6.0]
     mci_min, mci_max = None, None
 
     # If "both" mode, we effectively double “groups” per bundle.
