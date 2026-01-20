@@ -54,7 +54,15 @@ def _load_bundle(path):
         if k in out:
             continue
         if k.startswith(
-            ("commag_", "wallpct_", "turnback_", "agarose_", "lgturn_", "sli_")
+            (
+                "commag_",
+                "wallpct_",
+                "turnback_",
+                "agarose_",
+                "lgturn_",
+                "reward_lgturn_",
+                "sli_",
+            )
         ) or k in ("sli_ts",):
             out[k] = d[k]
     return out
@@ -199,9 +207,25 @@ def plot_com_sli_bundles(
     elif metric == "lgturn_startdist":
         series_key = "lgturn_startdist_exp"
         need_keys = ["lgturn_startdist_exp"]
+    elif metric == "reward_lgturn_pathlen":
+        if turnback_mode == "exp":
+            series_key = "reward_lgturn_pathlen_exp"
+            need_keys = ["reward_lgturn_pathlen_exp"]
+        elif turnback_mode == "ctrl":
+            series_key = "reward_lgturn_pathlen_ctrl"
+            need_keys = ["reward_lgturn_pathlen_ctrl"]
+            include_ctrl = False
+        elif turnback_mode == "exp_minus_ctrl":
+            series_key = "reward_lgturn_pathlen_exp"
+            need_keys = ["reward_lgturn_pathlen_exp", "reward_lgturn_pathlen_ctrl"]
+            include_ctrl = False
+        else:
+            raise ValueError(
+                f"Unknown mode={turnback_mode!r} for metric=reward_lgturn_pathlen"
+            )
     else:
         raise ValueError(
-            "Invalid metric specified; supported: 'commag', 'sli', 'turnback', 'agarose', 'wallpct', 'lgturn_startdist'."
+            "Invalid metric specified; supported: 'commag', 'sli', 'turnback', 'agarose', 'wallpct', 'lgturn_startdist', 'reward_lgturn_pathlen'."
         )
 
     def _series_for_bundle(b):
@@ -215,6 +239,10 @@ def plot_com_sli_bundles(
         if metric == "agarose" and turnback_mode == "exp_minus_ctrl":
             exp_arr = np.asarray(b["agarose_ratio_exp"], dtype=float)
             ctrl_arr = np.asarray(b["agarose_ratio_ctrl"], dtype=float)
+            return exp_arr - ctrl_arr
+        if metric == "reward_lgturn_pathlen" and turnback_mode == "exp_minus_ctrl":
+            exp_arr = np.asarray(b["reward_lgturn_pathlen_exp"], dtype=float)
+            ctrl_arr = np.asarray(b["reward_lgturn_pathlen_ctrl"], dtype=float)
             return exp_arr - ctrl_arr
         return np.asarray(b[series_key], dtype=float)
 
@@ -299,6 +327,8 @@ def plot_com_sli_bundles(
         ylim = [-0.5, 0.5] if turnback_mode == "exp_minus_ctrl" else [0.0, 1.0]
     elif metric == "lgturn_startdist":
         ylim = [0.0, 6.0]
+    elif metric == "reward_lgturn_pathlen":
+        ylim = [-3.0, 4.0] if turnback_mode == "exp_minus_ctrl" else [0.0, 8.0]
     mci_min, mci_max = None, None
 
     # If "both" mode, we effectively double “groups” per bundle.
@@ -457,6 +487,8 @@ def plot_com_sli_bundles(
                     ctrl_key = "agarose_ratio_ctrl"
                 elif metric == "lgturn_startdist":
                     ctrl_key = "lgturn_startdist_ctrl"
+                elif metric == "reward_lgturn_pathlen":
+                    ctrl_key = "reward_lgturn_pathlen_ctrl"
                 else:
                     ctrl_key = None
                 if ctrl_key is None:
@@ -589,6 +621,12 @@ def plot_com_sli_bundles(
             y_label = "% time on wall"
         elif metric == "lgturn_startdist":
             y_label = "Large-turn start dist. to circle center [mm]"
+        elif metric == "reward_lgturn_pathlen":
+            y_label = "Path length from reward to large-turn start [mm]"
+            if turnback_mode == "exp_minus_ctrl":
+                y_label += "\n(exp - yoked)"
+            elif turnback_mode == "ctrl":
+                y_label += "\n(yoked)"
         if ti == 0:
             plt.ylabel(maybe_sentence_case(y_label))
         plt.axhline(color="k")
