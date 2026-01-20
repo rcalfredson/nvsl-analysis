@@ -81,7 +81,10 @@ from src.analysis.ellipse_to_boundary_dist import (
     VaDataContainer,
     WALL_ORIENTATION_FOR_TURN,
 )
-from src.analysis.large_turns import RewardCircleAnchoredTurnFinder
+from src.analysis.large_turns import (
+    RewardAnchoredTurnFinder,
+    RewardCircleAnchoredTurnFinder,
+)
 from src.analysis.motion import CircularMotionDetector, DataCombiner
 from src.analysis.trajectory import Trajectory
 from src.analysis.training import Training
@@ -195,7 +198,7 @@ class VideoAnalysis:
         if needs_tp:
             opts.chooseOrientations = True
 
-        if (opts.cTurnAnlyz or opts.outside_circle_radii) and not opts.wall:
+        if (opts.cTurnAnlyz or opts.rTurnAnlyz or opts.outside_circle_radii) and not opts.wall:
             setattr(
                 opts,
                 "wall",
@@ -328,6 +331,20 @@ class VideoAnalysis:
                 )
             if opts.timeit:
                 per_lgt_processing_times.append(timeit.default_timer() - lg_turn_start)
+        if getattr(opts, "rTurnAnlyz", False):
+            if opts.timeit:
+                r_turn_start = timeit.default_timer()
+
+            return_turn_finder = RewardAnchoredTurnFinder(self, opts.min_turn_speed)
+            return_turn_finder.calcLargeTurnsAfterReward()
+            if getattr(opts, "reward_turn_debug", False):
+                self.debugRewardLgTurns()
+
+            # Compute per-sync-bucket summaries
+            self.bySyncBucketMeanRewardLgTurnPathLen()
+
+            if opts.timeit:
+                per_lgt_processing_times.append(timeit.default_timer() - r_turn_start)
         if (
             getattr(opts, "btw_rwd_plots", False)
             and getattr(opts, "btw_rwd_trn", None) is not None
@@ -3249,6 +3266,201 @@ class VideoAnalysis:
                 self.syncCOMMag_reason.append(this_training_reason)
                 self.syncCOMMag_detail.append(this_training_detail)
 
+    def debugRewardLgTurns(self, max_examples_per_trn: int = 5):
+        if not hasattr(self, "reward_lgturn_pathlen_mm") or not hasattr(
+            self, "reward_lgturn_turn_start_frame"
+        ):
+            print("[reward-turn-debug] missing reward-anchored outputs")
+            return
+
+        for trn_i, trn in enumerate(self.trns):
+            on = np.asarray(self._getOn(trn, calc=False, f=0), dtype=int)
+            if on.size == 0:
+                print(f"[reward-turn-debug] {trn.name()}: no rewards")
+                continue
+
+            window_ends = np.r_[on[1:], trn.stop]
+
+            print(f"\n[reward-turn-debug] {trn.name()}  n_rewards={len(on)}")
+            for fly_idx, fly_key in (
+                ((0, "exp"), (1, "ctrl")) if len(self.trx) > 1 else ((0, "exp"),)
+            ):
+                if (
+                    fly_idx >= len(self.trx)
+                    or getattr(self.trx[fly_idx], "_bad", False)
+                    or self.trx[fly_idx].bad()
+                ):
+                    print(f"  {fly_key}: bad trajectory")
+                    continue
+
+                vals = (
+                    self.reward_lgturn_pathlen_mm[fly_idx][trn_i]
+                    if trn_i < len(self.reward_lgturn_pathlen_mm[fly_idx])
+                    else []
+                )
+                sts = (
+                    self.reward_lgturn_turn_start_frame[fly_idx][trn_i]
+                    if trn_i < len(self.reward_lgturn_turn_start_frame[fly_idx])
+                    else []
+                )
+
+                n_eff = min(len(on), len(vals), len(sts))
+                finite_mask = np.isfinite(np.asarray(vals[:n_eff], dtype=float))
+                n_found = int(finite_mask.sum())
+
+                print(f"  {fly_key}: turns_found={n_found}/{n_eff}")
+
+                # show a few found examples
+                shown = 0
+                for j in range(n_eff):
+                    if not finite_mask[j]:
+                        continue
+                    rf = int(on[j])
+                    we = int(window_ends[j])
+                    ts = int(sts[j]) if sts[j] is not None else -1
+                    v = float(vals[j])
+
+                    # invariant checks
+                    if not (rf < ts < we):
+                        print(
+                            f"    WARNING: window violation at reward_idx={j}: rf={rf} ts={ts} we={we}"
+                        )
+                    if v < 0:
+                        print(f"    WARNING: negative path_len at reward_idx={j}: {v}")
+
+                    print(
+                        f"    reward_idx={j} rf={rf} we={we} turn_st={ts} L_mm={v:.3f}"
+                    )
+                    shown += 1
+                    if shown >= max_examples_per_trn:
+                        break
+
+    def bySyncBucketMeanRewardLgTurnPathLen(self):
+        """
+        For each sync bucket, compute the mean path length (mm) from a real reward
+        (LED on frame) until the start of the first accepted large turn within that
+        reward -> next-reward window.
+
+        Uses:
+            self.reward_lgturn_pathlen_mm[fly_idx][trn_i]  (aligned to real rewards)
+
+        Stores:
+            self.syncMeanRewardLgTurnPathLen: list (per training) of dicts with keys 'exp' and
+                optionally 'ctrl', each mapping to per-bucket means (mm).
+            self.syncMeanRewardLgTurnPathLenN: same shape, but counts of rewards-with-turn per bucket.
+            self.syncNumRewardsPerBucket: list (per training) of per-bucket reward counts (shared schedule).
+        """
+        df = self._numRewardsMsg(True, silent=True)
+
+        self.syncMeanRewardLgTurnPathLen = []
+        self.syncMeanRewardLgTurnPathLenN = []
+        self.syncNumRewardsPerBucket = []
+
+        # Guard: reward-anchored analysis must have run
+        if not hasattr(self, "reward_lgturn_pathlen_mm"):
+            for trn in self.trns:
+                fi, n_buckets, _ = self._syncBucket(trn, df)
+                n_buckets = int(n_buckets or 0)
+                self.syncMeanRewardLgTurnPathLen.append({"exp": [np.nan] * n_buckets})
+                self.syncMeanRewardLgTurnPathLenN.append({"exp": [0] * n_buckets})
+                self.syncNumRewardsPerBucket.append([0] * n_buckets)
+            return
+
+        fly_keys = ("exp", "ctrl") if len(self.trx) > 1 else ("exp",)
+
+        for trn_i, trn in enumerate(self.trns):
+            fi, n_buckets, _ = self._syncBucket(trn, df)
+            n_buckets = int(n_buckets or 0)
+
+            this_training = {}
+            this_training_n = {}
+
+            # Shared reward schedule for this training
+            on = np.asarray(self._getOn(trn, calc=False, f=0), dtype=int)
+
+            # If no buckets, keep consistent structure
+            if fi is None or n_buckets == 0:
+                for fly_key in fly_keys:
+                    this_training[fly_key] = [np.nan] * n_buckets
+                    this_training_n[fly_key] = [0] * n_buckets
+                self.syncMeanRewardLgTurnPathLen.append(this_training)
+                self.syncMeanRewardLgTurnPathLenN.append(this_training_n)
+                self.syncNumRewardsPerBucket.append([0] * n_buckets)
+                continue
+
+            # Bucket boundaries + "full bucket" mask
+            starts = [int(fi + k * df) for k in range(n_buckets)]
+            complete = [(trn.stop - s) >= df for s in starts]
+
+            # Reward counts per bucket (shared across flies)
+            rewards_per_bucket = [0] * n_buckets
+            for rf in on:
+                if rf < fi or rf >= trn.stop:
+                    continue
+                b_idx = int((rf - fi) // df)
+                if b_idx < 0 or b_idx >= n_buckets:
+                    continue
+                if not complete[b_idx]:
+                    continue
+                rewards_per_bucket[b_idx] += 1
+
+            # Per-fly binning of path length values
+            for fly_key, traj in (("exp", self.trx[0]),) + (
+                (("ctrl", self.trx[1]),) if ("ctrl" in fly_keys) else ()
+            ):
+                fly_idx = 0 if fly_key == "exp" else 1
+
+                if getattr(traj, "_bad", False) or traj.bad():
+                    this_training[fly_key] = [np.nan] * n_buckets
+                    this_training_n[fly_key] = [0] * n_buckets
+                    continue
+
+                # Fetch reward-aligned values (may be empty if analysis skipped for this fly)
+                vals = []
+                if fly_idx < len(self.reward_lgturn_pathlen_mm):
+                    per_fly = self.reward_lgturn_pathlen_mm[fly_idx]
+                    if trn_i < len(per_fly):
+                        vals = per_fly[trn_i] or []
+
+                # If lengths don't align, be defensive and only iterate the overlap
+                n_eff = min(len(on), len(vals))
+
+                sums = np.zeros(n_buckets, dtype=float)
+                counts = np.zeros(n_buckets, dtype=int)
+
+                for j in range(n_eff):
+                    rf = int(on[j])
+                    v = vals[j]
+
+                    if rf < fi or rf >= trn.stop:
+                        continue
+                    b_idx = int((rf - fi) // df)
+                    if b_idx < 0 or b_idx >= n_buckets:
+                        continue
+                    if not complete[b_idx]:
+                        continue
+                    if v is None or np.isnan(v):
+                        continue
+
+                    sums[b_idx] += float(v)
+                    counts[b_idx] += 1
+
+                means = [np.nan] * n_buckets
+                ns = [0] * n_buckets
+                for b_idx in range(n_buckets):
+                    if not complete[b_idx]:
+                        continue
+                    if counts[b_idx] > 0:
+                        means[b_idx] = sums[b_idx] / counts[b_idx]
+                        ns[b_idx] = int(counts[b_idx])
+
+                this_training[fly_key] = means
+                this_training_n[fly_key] = ns
+
+            self.syncMeanRewardLgTurnPathLen.append(this_training)
+            self.syncMeanRewardLgTurnPathLenN.append(this_training_n)
+            self.syncNumRewardsPerBucket.append(rewards_per_bucket)
+
     def bySyncBucketMeanLgTurnStartDist(self):
         """
         For each sync bucket, compute the mean distance (mm) from reward-circle center
@@ -3265,7 +3477,9 @@ class VideoAnalysis:
         self.syncMeanLgTurnStartDistN = []
 
         # Guard: large-turn analysis must have run
-        if not hasattr(self, "lg_turn_start_frames") or not hasattr(self, "lg_turn_start_dists_mm"):
+        if not hasattr(self, "lg_turn_start_frames") or not hasattr(
+            self, "lg_turn_start_dists_mm"
+        ):
             for trn in self.trns:
                 fi, n_buckets, _ = self._syncBucket(trn, df)
                 n_buckets = int(n_buckets or 0)

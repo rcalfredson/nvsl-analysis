@@ -28,6 +28,21 @@ cdef inline int _sign_with_deadband(double x, double eps):
     else:
         return 0
 
+cdef inline bint _reward_window_ended(
+    int upper_index,
+    int window_end,
+    int n_sp,
+    vector[bint] &wall_contact,
+):
+    # Stop if we reach the reward window end, run out of frames, or hit wall.
+    if upper_index >= window_end:
+        return 1
+    if upper_index + 2 >= n_sp:
+        return 1
+    if wall_contact.size() > 0 and wall_contact[upper_index]:
+        return 1
+    return 0
+
 cdef inline bint _next_valid_angle_pair(
     trj,
     int fm_i,                       # current "lower-1"; we will advance from here
@@ -130,6 +145,206 @@ cdef struct HistData:
     #   points of turns.
     vector[pair[vector[double], vector[double]]] start
     vector[pair[vector[double], vector[double]]] end
+
+cdef class RewardAnchoredTurnFinder:
+    cdef object va
+    cdef double[:] x_view
+    cdef double[:] y_view
+    cdef double[:] d_view
+    cdef bint[:] walking_view
+    cdef vector[bint] wall_contact
+    cdef double min_turn_speed
+    cdef double min_turn_speed_px
+
+    def __cinit__(self, object va, double min_turn_speed):
+        self.va = va
+        self.min_turn_speed = min_turn_speed
+
+    def calcLargeTurnsAfterReward(self):
+        """
+        For each training and each fly, for each real reward (LED on frame),
+        attempt to find the first accepted large turn within [reward, next_reward)
+        and record the path length (mm) from reward to turn start.
+        """
+        # Layout (Python lists on va):
+        #   va.reward_lgturn_pathlen_mm[fly_idx][trn_i] -> list len n_rewards (NaN if none)
+        #   va.reward_lgturn_turn_start_frame[fly_idx][trn_i] -> list len n_rewards (None if none)
+        if not hasattr(self.va, "reward_lgturn_pathlen_mm"):
+            self.va.reward_lgturn_pathlen_mm = []
+        if not hasattr(self.va, "reward_lgturn_turn_start_frame"):
+            self.va.reward_lgturn_turn_start_frame = []
+
+        # Ensure per-fly slots exist
+        while len(self.va.reward_lgturn_pathlen_mm) < len(self.va.trx):
+            self.va.reward_lgturn_pathlen_mm.append([])
+        while len(self.va.reward_lgturn_turn_start_frame) < len(self.va.trx):
+            self.va.reward_lgturn_turn_start_frame.append([])
+
+        for trj in self.va.trx:
+            self.getTurnsForTrj(trj)
+
+    cdef void getTurnsForTrj(self, trj):
+        cdef int trn_i
+
+        if trj.bad():
+            # Fill structure with empty training lists for consistency
+            for trn_i in range(len(self.va.trns)):
+                self._ensure_reward_buffers(trj.f, trn_i, 0)
+            return
+
+        # Views and thresholds
+        self.wall_contact = trj.boundary_event_stats['wall']['all']['edge']['boundary_contact']
+        self.x_view = trj.x
+        self.y_view = trj.y
+        self.d_view = trj.d
+        self.walking_view = trj.walking.astype(np.int32)
+        self.min_turn_speed_px = self.min_turn_speed * trj.pxPerMmFloor * self.va.xf.fctr
+
+        for trn_i in range(len(self.va.trns)):
+            self.getTurnsForTraining(trj, trn_i)
+
+    cdef void _ensure_reward_buffers(self, int fly_idx, int trn_i, int n_rewards):
+        cdef list per_fly_mm
+        cdef list per_fly_st
+
+        per_fly_mm = self.va.reward_lgturn_pathlen_mm[fly_idx]
+        per_fly_st = self.va.reward_lgturn_turn_start_frame[fly_idx]
+
+        while len(per_fly_mm) <= trn_i:
+            per_fly_mm.append([])
+        while len(per_fly_st) <= trn_i:
+            per_fly_st.append([])
+
+        # Initialize aligned-to-reward lists (NaN / None) for this training
+        per_fly_mm[trn_i] = [nan("")] * n_rewards
+        per_fly_st[trn_i] = [None] * n_rewards
+
+    cdef void getTurnsForTraining(self, trj, int trn_i):
+        cdef object trn = self.va.trns[trn_i]
+        cdef np.ndarray on
+        cdef int n_rewards
+        cdef int ri
+        cdef int reward_frame
+        cdef int window_end
+
+        # Real rewards for this fly/training
+        on = np.asarray(self.va._getOn(trn, calc=False, f=0), dtype=np.int64)
+        n_rewards = <int> on.shape[0]
+
+        self._ensure_reward_buffers(trj.f, trn_i, n_rewards)
+
+        if n_rewards == 0:
+            return
+
+        for ri in range(n_rewards):
+            reward_frame = <int> on[ri]
+            if ri + 1 < n_rewards:
+                window_end = <int> on[ri + 1]
+            else:
+                window_end = <int> trn.stop
+
+            # Attempt to find first accepted large turn in this reward window
+            self.run_turn_search_reward(trj, trn_i, ri, reward_frame, window_end)
+
+    cdef void run_turn_search_reward(
+        self,
+        trj,
+        int trn_i,
+        int reward_idx,
+        int reward_frame,
+        int window_end,
+    ):
+        cdef int turn_st_idx = -1
+        cdef int turn_end_idx = -1
+        cdef int lower_i, upper_i
+        cdef bint ok
+        cdef bint threshold_crossed = False
+        cdef int cw_initial_frame = -1
+        cdef int ccw_initial_frame = -1
+        cdef double cw_ang_del_sum = 0.0
+        cdef double ccw_ang_del_sum = 0.0
+        cdef int fm_i = reward_frame
+        cdef vector[double] angle_deltas = vector[double]()
+        cdef double dist_threshold_px = 1.0 * trj.pxPerMmFloor * self.va.xf.fctr
+        cdef double px_per_mm = trj.pxPerMmFloor * self.va.xf.fctr
+        cdef int n_sp = len(trj.sp)
+
+        # Scan forward until we either find a large turn or we exit the reward window
+        while True:
+            ok = _next_valid_angle_pair(
+                trj,
+                fm_i,
+                self.min_turn_speed_px,
+                &lower_i,
+                &upper_i,
+            )
+            if not ok:
+                return
+
+            fm_i = lower_i
+
+            # Stop if the window ends / wall contact / trajectory end
+            if _reward_window_ended(upper_i, window_end, n_sp, self.wall_contact):
+                return
+
+            _update_angle_sums_and_initial_frames(
+                trj,
+                lower_i,
+                upper_i,
+                angle_deltas,
+                &cw_ang_del_sum,
+                &ccw_ang_del_sum,
+                &cw_initial_frame,
+                &ccw_initial_frame,
+            )
+
+            if (not threshold_crossed) and fabs(cw_ang_del_sum) >= 90 and sign(cw_ang_del_sum) > 0:
+                turn_st_idx = cw_initial_frame
+                threshold_crossed = True
+                turn_end_idx = upper_i  # SET_TURN_END_AT_90_DEG behavior
+                break
+            if (not threshold_crossed) and fabs(ccw_ang_del_sum) >= 90 and sign(ccw_ang_del_sum) < 0:
+                turn_st_idx = ccw_initial_frame
+                threshold_crossed = True
+                turn_end_idx = upper_i
+                break
+
+        if turn_st_idx == -1 or turn_end_idx == -1:
+            return
+
+        # Motion-quality gates (match standards for reward circle exit-anchored large turns)
+        if self.distTrav(turn_st_idx, turn_end_idx) < dist_threshold_px:
+            return
+        if self.too_little_walking(turn_st_idx, turn_end_idx):
+            return
+
+        # Record path length since reward at turn start (mm)
+        cdef double path_len_mm = self.distTrav(reward_frame, turn_st_idx) / px_per_mm
+
+        self.va.reward_lgturn_pathlen_mm[trj.f][trn_i][reward_idx] = float(path_len_mm)
+        self.va.reward_lgturn_turn_start_frame[trj.f][trn_i][reward_idx] = int(turn_st_idx)
+
+    cdef double distTrav(self, int i1, int i2):
+        cdef double result = 0.0
+        cdef int i
+        if i2 <= i1:
+            return 0.0
+        for i in range(i1, i2):
+            result += self.d_view[i]
+        return result
+
+    cdef inline double walking_fraction(self, int start_idx, int end_idx):
+        cdef int k
+        cdef int n = end_idx - start_idx
+        cdef int count_true = 0
+        if n <= 0:
+            return 0.0
+        for k in range(start_idx, end_idx):
+            count_true += self.walking_view[k]
+        return count_true / <double> n
+
+    cdef bint too_little_walking(self, int turn_st_idx, int turn_end_idx):
+        return self.walking_fraction(turn_st_idx, turn_end_idx) < 0.30
 
 cdef class RewardCircleAnchoredTurnFinder:
     cdef object va
@@ -976,13 +1191,7 @@ cdef class RewardCircleAnchoredTurnFinder:
         # - bint
         #     True if the proportion of 'walking' frames is less than 30%, indicating
         #     insufficient walking activity to constitute a significant turn. Otherwise, False.
-        cdef int count_true = 0
-        cdef int idx
-
-        for idx in range(turn_st_idx, turn_end_idx):
-            count_true += self.walking_view[idx]
-
-        return count_true / (turn_end_idx - turn_st_idx) < 0.30
+        return self.walking_fraction(turn_st_idx, turn_end_idx) < 0.30
 
     cdef check_exit_condition(
         self,

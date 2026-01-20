@@ -1320,8 +1320,9 @@ g.add_argument(
 g.add_argument(
     "--turn",
     help="detect turn events as a subset of boundary-contact events with respect either"
-    " to the wall, to the plastic/agarose boundary, or the reward circle",
-    choices=("agarose", "boundary", "circle", "wall"),
+    " to the wall, to the plastic/agarose boundary, or the reward circle (circle) / "
+    "LED reward times (reward)",
+    choices=("agarose", "boundary", "circle", "reward", "wall"),
     nargs="+",
 )
 g.add_argument(
@@ -1921,6 +1922,9 @@ g.add_argument(
         "with an accepted large turn."
     ),
 )
+g.add_argument('--reward-turn-debug',
+               action='store_true',
+               help="Sanity check reward-anchored large turns: print a few windows and validate bounds.")
 g.add_argument("--timeit", action="store_true", help="log stats of processing times")
 
 g = p.add_argument_group("specialized files and player")
@@ -8079,6 +8083,12 @@ if __name__ == "__main__":
         opts.turn.remove("circle")
     else:
         opts.cTurnAnlyz = False
+
+    if opts.turn and "reward" in opts.turn:
+        opts.rTurnAnlyz = True
+        opts.turn.remove("reward")
+    else:
+        opts.rTurnAnlyz = False
 
     # If polar wants wall-contact exclusion, we must compute wall contact
     if getattr(opts, "btw_rwd_polar_exclude_wall_contact", False):
