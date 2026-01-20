@@ -84,6 +84,9 @@ from src.analysis.motion import CircularMotionDetector
 from src.exporting.agarose_sli_bundle import export_agarose_sli_bundle
 from src.exporting.com_sli_bundle import export_com_sli_bundle
 from src.exporting.lgturn_startdist_sli_bundle import export_lgturn_startdist_sli_bundle
+from src.exporting.reward_lgturn_pathlen_sli_bundle import (
+    export_reward_lgturn_pathlen_sli_bundle,
+)
 from src.exporting.turnback_sli_bundle import export_turnback_sli_bundle
 from src.exporting.wallpct_sli_bundle import export_wallpct_sli_bundle
 from src.plotting.cross_fly_correlations import plot_cross_fly_correlations
@@ -1837,6 +1840,17 @@ g.add_argument(
     help="Write an .npz bundle with sync-bucket mean large-turn start distance + SLI for multi-group overlays.",
 )
 g.add_argument(
+    "--export-reward-lgturn-pathlen-sli-bundle",
+    type=str,
+    default=None,
+    help="Write an .npz bundle with reward-anchored large-turn path length + SLI for multi-group overlays.",
+)
+g.add_argument(
+    "--reward-lgturn-pathlen-sli-debug",
+    action="store_true",
+    help="Debug export of reward-lgturn-pathlen+SLI bundle.",
+)
+g.add_argument(
     "--lgturn-startdist-sli-debug",
     action="store_true",
     help=(
@@ -1922,9 +1936,11 @@ g.add_argument(
         "with an accepted large turn."
     ),
 )
-g.add_argument('--reward-turn-debug',
-               action='store_true',
-               help="Sanity check reward-anchored large turns: print a few windows and validate bounds.")
+g.add_argument(
+    "--reward-turn-debug",
+    action="store_true",
+    help="Sanity check reward-anchored large turns: print a few windows and validate bounds.",
+)
 g.add_argument("--timeit", action="store_true", help="log stats of processing times")
 
 g = p.add_argument_group("specialized files and player")
@@ -6143,6 +6159,11 @@ def postAnalyze(vas):
     if getattr(opts, "export_lgturn_startdist_sli_bundle", None):
         export_lgturn_startdist_sli_bundle(
             vas, opts, gls, opts.export_lgturn_startdist_sli_bundle
+        )
+
+    if getattr(opts, "export_reward_lgturn_pathlen_sli_bundle", None):
+        export_reward_lgturn_pathlen_sli_bundle(
+            vas, opts, gls, opts.export_reward_lgturn_pathlen_sli_bundle
         )
 
     if getattr(opts, "export_agarose_sli_bundle", None):
