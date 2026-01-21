@@ -21,6 +21,7 @@ def main():
             "wallpct",
             "lgturn_startdist",
             "reward_lgturn_pathlen",
+            "reward_lgturn_prevalence",
         ],
     )
     p.add_argument(

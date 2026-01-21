@@ -177,6 +177,7 @@ def plot_com_sli_bundles(
         if turnback_mode == "exp":
             series_key = "turnback_ratio_exp"
             need_keys = ["turnback_ratio_exp"]
+            include_ctrl = False
         elif turnback_mode == "ctrl":
             series_key = "turnback_ratio_ctrl"
             need_keys = ["turnback_ratio_ctrl"]
@@ -191,6 +192,7 @@ def plot_com_sli_bundles(
         if turnback_mode == "exp":
             series_key = "agarose_ratio_exp"
             need_keys = ["agarose_ratio_exp"]
+            include_ctrl = False
         elif turnback_mode == "ctrl":
             series_key = "agarose_ratio_ctrl"
             need_keys = ["agarose_ratio_ctrl"]
@@ -211,6 +213,7 @@ def plot_com_sli_bundles(
         if turnback_mode == "exp":
             series_key = "reward_lgturn_pathlen_exp"
             need_keys = ["reward_lgturn_pathlen_exp"]
+            include_ctrl = False
         elif turnback_mode == "ctrl":
             series_key = "reward_lgturn_pathlen_ctrl"
             need_keys = ["reward_lgturn_pathlen_ctrl"]
@@ -222,6 +225,29 @@ def plot_com_sli_bundles(
         else:
             raise ValueError(
                 f"Unknown mode={turnback_mode!r} for metric=reward_lgturn_pathlen"
+            )
+    elif metric == "reward_lgturn_prevalence":
+        # Prevalence = (# rewards with detect post-reward turn) / (# rewards)
+        # The underlying arrays are per-video, per-training, per-bucket.
+        if turnback_mode == "exp":
+            series_key = "reward_lgturn_pathlenN_exp"
+            need_keys = ["reward_lgturn_pathlenN_exp", "reward_lgturn_rewards"]
+            include_ctrl = False
+        elif turnback_mode == "ctrl":
+            series_key = "reward_lgturn_pathlenN_ctrl"
+            need_keys = ["reward_lgturn_pathlenN_ctrl", "reward_lgturn_rewards"]
+            include_ctrl = False
+        elif turnback_mode == "exp_minus_ctrl":
+            series_key = "reward_lgturn_pathlenN_exp"
+            need_keys = [
+                "reward_lgturn_pathlenN_exp",
+                "reward_lgturn_pathlenN_ctrl",
+                "reward_lgturn_rewards",
+            ]
+            include_ctrl = False
+        else:
+            raise ValueError(
+                f"Unknown mode={turnback_mode!r} for metric=reward_lgturn_prevalence"
             )
     else:
         raise ValueError(
@@ -244,6 +270,22 @@ def plot_com_sli_bundles(
             exp_arr = np.asarray(b["reward_lgturn_pathlen_exp"], dtype=float)
             ctrl_arr = np.asarray(b["reward_lgturn_pathlen_ctrl"], dtype=float)
             return exp_arr - ctrl_arr
+        if metric == "reward_lgturn_prevalence":
+            rewards = np.asarray(b["reward_lgturn_rewards"], dtype=float)
+            rewards_safe = np.where(rewards > 0, rewards, np.nan)
+
+            if turnback_mode == "exp":
+                turns = np.asarray(b["reward_lgturn_pathlenN_exp"], dtype=float)
+                return turns / rewards_safe
+
+            if turnback_mode == "ctrl":
+                turns = np.asarray(b["reward_lgturn_pathlenN_ctrl"], dtype=float)
+                return turns / rewards_safe
+
+            if turnback_mode == "exp_minus_ctrl":
+                turns_exp = np.asarray(b["reward_lgturn_pathlenN_exp"], dtype=float)
+                turns_ctrl = np.asarray(b["reward_lgturn_pathlenN_ctrl"], dtype=float)
+                return (turns_exp - turns_ctrl) / rewards_safe
         return np.asarray(b[series_key], dtype=float)
 
     for b in bundles:
@@ -329,6 +371,8 @@ def plot_com_sli_bundles(
         ylim = [0.0, 6.0]
     elif metric == "reward_lgturn_pathlen":
         ylim = [-3.0, 4.0] if turnback_mode == "exp_minus_ctrl" else [0.0, 8.0]
+    elif metric == "reward_lgturn_prevalence":
+        ylim = [-0.5, 0.5] if turnback_mode == "exp_minus_ctrl" else [0.0, 1.0]
     mci_min, mci_max = None, None
 
     # If "both" mode, we effectively double “groups” per bundle.
@@ -605,16 +649,16 @@ def plot_com_sli_bundles(
             y_label = "SLI"
         elif metric == "turnback":
             if turnback_mode == "exp_minus_ctrl":
-                y_label = "Dual-circle turnback (exp - yoked)"
+                y_label = "Dual-circle turnback (exp - yok)"
             elif turnback_mode == "ctrl":
-                y_label = "Dual-circle turnback (yoked)"
+                y_label = "Dual-circle turnback (yok)"
             else:
                 y_label = "Dual-circle turnback ratio"
         elif metric == "agarose":
             if turnback_mode == "exp_minus_ctrl":
-                y_label = "Agarose avoidance (exp - yoked)"
+                y_label = "Agarose avoidance (exp - yok)"
             elif turnback_mode == "ctrl":
-                y_label = "Agarose avoidance (yoked)"
+                y_label = "Agarose avoidance (yok)"
             else:
                 y_label = "Agarose avoidance ratio"
         elif metric == "wallpct":
@@ -624,9 +668,15 @@ def plot_com_sli_bundles(
         elif metric == "reward_lgturn_pathlen":
             y_label = "Path length from reward to large-turn start [mm]"
             if turnback_mode == "exp_minus_ctrl":
-                y_label += "\n(exp - yoked)"
+                y_label += "\n(exp - yok)"
             elif turnback_mode == "ctrl":
-                y_label += "\n(yoked)"
+                y_label += "\n(yok)"
+        elif metric == "reward_lgturn_prevalence":
+            y_label = "Post-reward large-turn prevalence"
+            if turnback_mode == "exp_minus_ctrl":
+                y_label += "\n(exp - yok)"
+            elif turnback_mode == "ctrl":
+                y_label += "\n(yok)"
         if ti == 0:
             plt.ylabel(maybe_sentence_case(y_label))
         plt.axhline(color="k")
