@@ -1036,6 +1036,17 @@ g.add_argument(
     ),
 )
 
+# ---- caching/export for distance-binned disttrav ----
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-export-npz",
+    type=str,
+    default=None,
+    help=(
+        "Save a cached NPZ of the distance-binned between-reward distance-traveled result. "
+        "Only applies when computing from raw data (i.e., without import mode)."
+    ),
+)
+
 # ---- Reward return distance (RRD) ----
 g.add_argument(
     "--reward-return-distance",
@@ -7065,6 +7076,22 @@ def postAnalyze(vas):
                 vas=vas_for_plot, opts=opts, gls=gls, customizer=customizer, cfg=cfg
             )
             plotter.plot()
+
+            # Optional: export cached NPZ
+            exp_path = getattr(opts, "btw_rwd_conditioned_disttrav_export_npz", None)
+            if exp_path:
+                try:
+                    res = plotter.compute_result()
+                    res.save_npz(str(exp_path))
+                    print(
+                        f"[btw_rwd_dist_binned_disttrav] wrote cached NPZ: {str(exp_path)}"
+                    )
+                except Exception as e:
+                    print(
+                        "[btw_rwd_dist_binned_disttrav] WARNING: failed to export cached NPZ "
+                        f"to {str(exp_path)!r}: {e}"
+                    )
+
         finally:
             if old_excl is _sentinel:
                 if hasattr(opts, name_excl):
