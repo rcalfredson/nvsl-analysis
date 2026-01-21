@@ -130,6 +130,9 @@ class BetweenRewardSegmentCOM:
     # Optional: max distance from reward center during segment (mm)
     # Filled when requested; otherwise NaN for backward compatibility.
     max_d_mm: float = float("nan")
+    # Optional: absolute frame index at which max distance occurs (in original video frames).
+    # Filled when max is requested; otherwise None.
+    max_d_i: int | None = None
     detail: Optional[Dict[str, Any]] = None
     why: Optional[str] = None  # None means "used"; else describes skip reason
 
@@ -198,7 +201,9 @@ class VideoAnalysis:
         if needs_tp:
             opts.chooseOrientations = True
 
-        if (opts.cTurnAnlyz or opts.rTurnAnlyz or opts.outside_circle_radii) and not opts.wall:
+        if (
+            opts.cTurnAnlyz or opts.rTurnAnlyz or opts.outside_circle_radii
+        ) and not opts.wall:
             setattr(
                 opts,
                 "wall",
@@ -2753,6 +2758,7 @@ class VideoAnalysis:
                 mag_mm=float("nan"),
                 med_d_mm=float("nan"),
                 max_d_mm=float("nan"),
+                max_d_i=None,
                 detail=_detail_dict(i, s, e, b_idx),
                 why=why,
             )
@@ -2789,6 +2795,8 @@ class VideoAnalysis:
                 if yield_skips:
                     yield _make_skip(i, s, e, b_idx, "empty_xy")
                 continue
+            # Track absolute frame indices alongside xs/ys so we can return max-distance frame.
+            idx = np.arange(s, e, dtype=int)
 
             # Optional: drop non-walking frames *within* the segment
             if exclude_nonwalk and nonwalk_mask is not None:
@@ -2811,6 +2819,7 @@ class VideoAnalysis:
                         continue
                     xs = xs[:L]
                     ys = ys[:L]
+                    idx = idx[:L]
                     keep = keep[:L]
 
                     # also require finite xy (nan-safe ops are used, but if everything is
@@ -2818,9 +2827,11 @@ class VideoAnalysis:
                     if keep.any():
                         xs = xs[keep]
                         ys = ys[keep]
+                        idx = idx[keep]
                     else:
                         xs = xs[:0]
                         ys = ys[:0]
+                        idx = idx[:0]
 
                     if xs.size < int((max(1, min_walk_frames))):
                         if yield_skips:
@@ -2840,6 +2851,7 @@ class VideoAnalysis:
 
             xs = xs[fin_xy]
             ys = ys[fin_xy]
+            idx = idx[fin_xy]
 
             dx = xs - cx
             dy = ys - cy
@@ -2857,9 +2869,18 @@ class VideoAnalysis:
 
             # Optional max distance (only computed when requested)
             if need_max:
-                max_d = np.nanmax(d)
+                # d should be finite after fin_xy, but we keep nan-safe behavior anyway.
+                # Use argmax on the surviving samples, then map back via idx[].
+                # If d has any NaN (unexpected), fall back to nanargmax semantics.
+                try:
+                    k = int(np.argmax(d))
+                except Exception:
+                    k = int(np.nanargmax(d))
+                max_d = float(d[k])
+                max_d_i = int(idx[k]) if (0 <= k < idx.size) else None
             else:
                 max_d = float("nan")
+                max_d_i = None
 
             mx = np.nanmean(xs)
             my = np.nanmean(ys)
@@ -2886,6 +2907,7 @@ class VideoAnalysis:
                 mag_mm=mag_mm,
                 med_d_mm=med_d_mm,
                 max_d_mm=max_d_mm,
+                max_d_i=max_d_i,
                 detail=_detail_dict(i, s, e, b_idx),
                 why=None,
             )

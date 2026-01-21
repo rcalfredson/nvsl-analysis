@@ -113,6 +113,10 @@ from src.plotting.between_reward_conditioned_com import (
     BetweenRewardConditionedCOMResult,
     plot_btw_rwd_conditioned_com_overlay,
 )
+from src.plotting.between_reward_conditioned_disttrav import (
+    BetweenRewardConditionedDistTravConfig,
+    BetweenRewardConditionedDistTravPlotter,
+)
 from src.plotting.between_reward_distance_hist import (
     BetweenRewardDistanceHistogramPlotter,
     BetweenRewardDistanceHistogramConfig,
@@ -168,6 +172,7 @@ DIST_BTWN_REWARDS_LABEL = "mean dist. between calc. rewards%s"
 DIST_BTWN_REWARDS_IMG_FILE = "imgs/btw_rwd_dists.png"
 BTW_RWD_COM_MAG_HIST_IMG_FILE = "imgs/btw_rwd_com_mag_hist.png"
 BTW_RWD_DIST_BINNED_COM_IMG_FILE = "imgs/btw_rwd_dist_binned_com.png"
+BTW_RWD_DIST_BINNED_DISTTRAV_IMG_FILE = "imgs/btw_rwd_dist_binned_disttrav.png"
 BTW_RWD_POLAR_IMG_FILE = "imgs/btw_rwd_polar.png"
 PSC_LABEL = "%% in circle\n(%s, %.1f-cm radius)"
 TURN_IMG_FILE = "imgs/%s%s_turn%s%s__%%s_min_buckets.png"
@@ -925,6 +930,110 @@ g.add_argument(
     choices=("none", "bonferroni", "fdr_bh"),
     default="none",
     help="Multiple-comparisons correction across bins for each requested pair. Default: %(default)s.",
+)
+
+# ---- Distance-binned between-reward distance traveled ----
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav",
+    action="store_true",
+    help=(
+        "Plot between-reward distance traveled as a function of max distance-from-reward "
+        "(binned). Produces two plots: total segment distance and tail distance (max→end)."
+    ),
+)
+
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-trn",
+    type=int,
+    default=2,
+    help=(
+        "Which training to analyze for --btw-rwd-conditioned-disttrav (1-based). "
+        "Default: %(default)s (Training 2)."
+    ),
+)
+
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-skip-first-sync-buckets",
+    type=int,
+    default=0,
+    help=(
+        "Exclude the first K sync buckets of the selected training from the distance-traveled analysis. "
+        "Default: %(default)s."
+    ),
+)
+
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-use-reward-exclusion-mask",
+    action="store_true",
+    help=(
+        "Use VideoAnalysis.reward_exclusion_mask to mark some sync buckets incomplete in the distance-traveled analysis. "
+        "If not set, all included buckets are treated as complete."
+    ),
+)
+
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-xbin",
+    type=float,
+    default=2.0,
+    help="Bin width (mm) for max-distance-from-reward axis. Default: %(default)s.",
+)
+
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-xmin",
+    type=float,
+    default=0.0,
+    help="Minimum x (mm) for distance bins. Default: %(default)s.",
+)
+
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-xmax",
+    type=float,
+    default=20.0,
+    help="Maximum x (mm) for distance bins. Default: %(default)s.",
+)
+
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-ci-conf",
+    type=float,
+    default=0.95,
+    help="Confidence level for distance-traveled error bars. Default: %(default)s.",
+)
+
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-ymax",
+    type=float,
+    default=None,
+    help="Optional fixed y-axis max for distance-traveled plots.",
+)
+
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-top-sli",
+    action="store_true",
+    help=(
+        "Restrict distance-traveled analysis to flies in the top SLI fraction "
+        "(see --best-worst-sli, --best-worst-fraction, --best-worst-trn)."
+    ),
+)
+
+# ---- walking exclusion knobs (mapped to generic opts in call site) ----
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-exclude-nonwalking-frames",
+    action="store_true",
+    help=(
+        "Framewise exclusion: within each between-reward segment, exclude frames where "
+        "Trajectory.walking is False before computing max-distance frame and distance traveled."
+    ),
+)
+
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-min-walk-frames",
+    type=int,
+    default=2,
+    help=(
+        "When --btw-rwd-conditioned-disttrav-exclude-nonwalking-frames is set, require at least "
+        "this many kept (walking+finite) frames in a segment; otherwise drop the segment. "
+        "Default: %(default)s."
+    ),
 )
 
 # ---- Reward return distance (RRD) ----
@@ -6860,6 +6969,114 @@ def postAnalyze(vas):
         if out_npz:
             plotter.export_histograms_npz(out_npz)
         plotter.plot_histograms()
+
+    _sentinel = object()
+
+    # ---------------- Distance-binned between-reward distance traveled ----------------
+    if getattr(opts, "btw_rwd_conditioned_disttrav", False) and any(
+        getattr(v, "circle", None) for v in vas
+    ):
+        name_excl = "btw_rwd_conditioned_exclude_nonwalking_frames"
+        name_minf = "btw_rwd_conditioned_min_walk_frames"
+
+        old_excl = getattr(opts, name_excl, _sentinel)
+        old_minf = getattr(opts, name_minf, _sentinel)
+
+        # map disttrav-specific flags into the generic names used by shared utilities
+        try:
+            setattr(
+                opts,
+                name_excl,
+                bool(
+                    getattr(
+                        opts,
+                        "btw_rwd_conditioned_disttrav_exclude_nonwalking_frames",
+                        False,
+                    )
+                ),
+            )
+            setattr(
+                opts,
+                name_minf,
+                int(
+                    getattr(opts, "btw_rwd_conditioned_disttrav_min_walk_frames", 2)
+                    or 2
+                ),
+            )
+
+            vas_for_plot = vas
+
+            # Mirror the "top SLI" restriction behavior used by other plotters.
+            if getattr(opts, "btw_rwd_conditioned_disttrav_top_sli", False):
+                if saved_top is None:
+                    print(
+                        "[btw_rwd_dist_binned_disttrav] WARNING: --btw-rwd-conditioned-disttrav-top-sli requested "
+                        "but no top-SLI group is available; falling back to all flies."
+                    )
+                else:
+                    vas_for_plot = [vas[i] for i in saved_top]
+                    print(
+                        "[btw_rwd_dist_binned_disttrav] restricting distance-traveled analysis to "
+                        f"{len(vas_for_plot)} top-SLI flies"
+                    )
+
+            subset_label = None
+            if (
+                getattr(opts, "btw_rwd_conditioned_disttrav_top_sli", False)
+                and saved_top is not None
+            ):
+                frac = float(getattr(opts, "best_worst_fraction", 0.1))
+                subset_label = f"Restricted to top {100*frac:.1f}% SLI flies"
+
+            # Training index (user is 1-based; internal is 0-based)
+            trn_1based = int(getattr(opts, "btw_rwd_conditioned_disttrav_trn", 2))
+            t_idx = max(0, trn_1based - 1)
+
+            cfg = BetweenRewardConditionedDistTravConfig(
+                out_file=BTW_RWD_DIST_BINNED_DISTTRAV_IMG_FILE,
+                training_index=t_idx,
+                skip_first_sync_buckets=int(
+                    getattr(
+                        opts, "btw_rwd_conditioned_disttrav_skip_first_sync_buckets", 0
+                    )
+                ),
+                use_reward_exclusion_mask=bool(
+                    getattr(
+                        opts,
+                        "btw_rwd_conditioned_disttrav_use_reward_exclusion_mask",
+                        False,
+                    )
+                ),
+                x_bin_width_mm=float(
+                    getattr(opts, "btw_rwd_conditioned_disttrav_xbin", 2.0)
+                ),
+                x_min_mm=float(getattr(opts, "btw_rwd_conditioned_disttrav_xmin", 0.0)),
+                x_max_mm=float(
+                    getattr(opts, "btw_rwd_conditioned_disttrav_xmax", 20.0)
+                ),
+                ci_conf=float(
+                    getattr(opts, "btw_rwd_conditioned_disttrav_ci_conf", 0.95)
+                ),
+                ymax=getattr(opts, "btw_rwd_conditioned_disttrav_ymax", None),
+                subset_label=subset_label,
+            )
+
+            plotter = BetweenRewardConditionedDistTravPlotter(
+                vas=vas_for_plot, opts=opts, gls=gls, customizer=customizer, cfg=cfg
+            )
+            plotter.plot()
+        finally:
+            if old_excl is _sentinel:
+                if hasattr(opts, name_excl):
+                    delattr(opts, name_excl)
+            else:
+                setattr(opts, name_excl, old_excl)
+
+            if old_minf is _sentinel:
+                if hasattr(opts, name_minf):
+                    delattr(opts, name_minf)
+            else:
+                setattr(opts, name_minf, old_minf)
 
     # ---------------- Distance-binned between-reward COM ----------------
     if getattr(opts, "btw_rwd_conditioned_com", False) and any(
