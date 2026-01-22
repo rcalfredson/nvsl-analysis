@@ -695,3 +695,205 @@ class BetweenRewardConditionedDistTravPlotter:
             ylabel="mean distance traveled per fly [mm]",
             out_file=out_tail,
         )
+
+
+def plot_btw_rwd_conditioned_disttrav_overlay(
+    *,
+    results: Sequence[BetweenRewardConditionedDistTravResult],
+    labels: Sequence[str],
+    out_file: str,
+    opts,
+    customizer: PlotCustomizer,
+    log_tag: str = "btw_rwd_dist_binned_disttrav",
+) -> None:
+    """
+    Plot multiple cached BetweenRewardConditionedDistTravResult objects as grouped bars.
+
+    Produces two images (like the single-group plotter):
+      - <out_file>_total.<ext>
+      - <out_file>_tail.<ext>
+
+    `out_file` may include an extension; if so we preserve it. Otherwise we append opts.imageFormat.
+    """
+    if not results:
+        raise ValueError("No results provided")
+    if len(results) != len(labels):
+        m = min(len(results), len(labels))
+        results = list(results)[:m]
+        labels = list(labels)[:m]
+
+    # Derive output paths
+    base = str(out_file)
+    root, ext = os.path.splitext(base)
+    if not ext:
+        ext = "." + str(getattr(opts, "imageFormat", "png")).lstrip(".")
+        root = base
+    out_total = f"{root}_total{ext}"
+    out_tail = f"{root}_tail{ext}"
+
+    # Reference x-axis
+    ref = results[0]
+    ref.validate()
+    x = np.asarray(ref.x_centers, dtype=float)
+    edges = np.asarray(ref.x_edges, dtype=float)
+    widths = edges[1:] - edges[:-1]
+
+    # Validate x_edges match across results
+    for r, lab in zip(results, labels):
+        r.validate()
+        e2 = np.asarray(r.x_edges, dtype=float)
+        if e2.shape != edges.shape or not np.allclose(e2, edges, equal_nan=True):
+            raise ValueError(
+                f"[{log_tag}] x_edges mismatch for {lab!r}; cannot overlay safely."
+            )
+
+    def _plot_one_metric(
+        *,
+        means: list[np.ndarray],
+        lo: list[np.ndarray],
+        hi: list[np.ndarray],
+        n_units: list[np.ndarray],
+        title: str,
+        ylabel: str,
+        out_path: str,
+    ) -> None:
+        fig, ax = plt.subplots(1, 1, figsize=(7.4, 4.4))
+
+        n_groups = len(means)
+        if n_groups == 0:
+            ax.set_axis_off()
+            ax.text(0.5, 0.5, "no data", ha="center", va="center")
+            writeImage(out_path, format=opts.imageFormat)
+            plt.close(fig)
+            print(f"[{log_tag}] wrote {out_path}")
+            return
+
+        # grouped bar geometry
+        frac = 0.86
+        bar_w = frac * widths / max(1, n_groups)
+
+        any_data = False
+        pending_labels: list[tuple[float, float, int]] = []  # x, y_top, n
+
+        for gi in range(n_groups):
+            y = np.asarray(means[gi], dtype=float)
+            lo_i = np.asarray(lo[gi], dtype=float)
+            hi_i = np.asarray(hi[gi], dtype=float)
+            n_i = np.asarray(n_units[gi], dtype=int)
+
+            offset = (gi - (n_groups - 1) / 2.0) * bar_w
+            xb = x + offset
+
+            fin = np.isfinite(xb) & np.isfinite(y) & np.isfinite(widths)
+            if not fin.any():
+                continue
+            any_data = True
+
+            ax.bar(
+                xb[fin],
+                y[fin],
+                width=bar_w[fin],
+                align="center",
+                alpha=0.75,
+                linewidth=0.8,
+                label=str(labels[gi]),
+            )
+
+            fin_ci = fin & np.isfinite(lo_i) & np.isfinite(hi_i)
+            if fin_ci.any():
+                yerr = np.vstack([y[fin_ci] - lo_i[fin_ci], hi_i[fin_ci] - y[fin_ci]])
+                ax.errorbar(
+                    xb[fin_ci],
+                    y[fin_ci],
+                    yerr=yerr,
+                    fmt="none",
+                    elinewidth=1.1,
+                    capsize=2.0,
+                    alpha=0.9,
+                )
+
+            # queue per-bar n labels (added after we know y-lims)
+            idxs = np.where(fin)[0]
+            for j in idxs:
+                nn = int(n_i[j])
+                if nn <= 0:
+                    continue
+                y_top = float(hi_i[j]) if np.isfinite(hi_i[j]) else float(y[j])
+                if np.isfinite(y_top):
+                    pending_labels.append((float(xb[j]), y_top, nn))
+
+        if not any_data:
+            ax.set_axis_off()
+            ax.text(0.5, 0.5, "no data", ha="center", va="center")
+        else:
+            ax.set_xlabel(
+                maybe_sentence_case("max distance from reward center [mm] (binned)")
+            )
+            ax.set_ylabel(maybe_sentence_case(ylabel))
+
+            if edges.size >= 2 and np.all(np.isfinite(edges[[0, -1]])):
+                ax.set_xlim(float(edges[0]), float(edges[-1]))
+
+            ax.set_ylim(bottom=0)
+            ymax = getattr(opts, "btw_rwd_conditioned_disttrav_ymax", None)
+            if ymax is not None:
+                try:
+                    ax.set_ylim(top=float(ymax))
+                except Exception:
+                    pass
+
+            ax.legend(loc="best", fontsize=customizer.in_plot_font_size)
+            ax.set_title(maybe_sentence_case(title))
+
+            # place n labels
+            if pending_labels:
+                ylim0, ylim1 = ax.get_ylim()
+                y_off = 0.04 * (ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 0.0
+                for xb, y_top, nn in pending_labels:
+                    util.pltText(
+                        xb,
+                        y_top + y_off,
+                        f"{nn}",
+                        ha="center",
+                        size=customizer.in_plot_font_size,
+                        color=".2",
+                    )
+
+        if customizer.font_size_customized:
+            customizer.adjust_padding_proportionally()
+        fig.tight_layout(rect=(0, 0, 1, 1))
+        writeImage(out_path, format=opts.imageFormat)
+        plt.close(fig)
+        print(f"[{log_tag}] wrote {out_path}")
+
+    # Build arrays for total
+    means_total = [np.asarray(r.mean_total, dtype=float) for r in results]
+    lo_total = [np.asarray(r.ci_lo_total, dtype=float) for r in results]
+    hi_total = [np.asarray(r.ci_hi_total, dtype=float) for r in results]
+    n_total = [np.asarray(r.n_units, dtype=int) for r in results]
+
+    _plot_one_metric(
+        means=means_total,
+        lo=lo_total,
+        hi=hi_total,
+        n_units=n_total,
+        title="between-reward distance traveled vs max distance-from-reward (total)",
+        ylabel="mean distance traveled per fly [mm]",
+        out_path=out_total,
+    )
+
+    # Build arrays for tail
+    means_tail = [np.asarray(r.mean_tail, dtype=float) for r in results]
+    lo_tail = [np.asarray(r.ci_lo_tail, dtype=float) for r in results]
+    hi_tail = [np.asarray(r.ci_hi_tail, dtype=float) for r in results]
+    n_tail = [np.asarray(r.n_units, dtype=int) for r in results]
+
+    _plot_one_metric(
+        means=means_tail,
+        lo=lo_tail,
+        hi=hi_tail,
+        n_units=n_tail,
+        title="between-reward distance traveled vs max distance-from-reward (max→end)",
+        ylabel="mean distance traveled per fly [mm]",
+        out_path=out_tail,
+    )
