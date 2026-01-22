@@ -179,6 +179,373 @@ class BetweenRewardConditionedDistTravPlotter:
         self.cfg = cfg
         self.log_tag = "btw_rwd_dist_binned_disttrav"
 
+    def _video_base(self, va: "VideoAnalysis") -> str:
+        fn = getattr(va, "fn", None)
+        if fn:
+            try:
+                return os.path.splitext(os.path.basename(str(fn)))[0]
+            except Exception:
+                pass
+        return f"va_{id(va)}"
+
+    def _fly_id(self, va: "VideoAnalysis", role_idx: int, trx_idx: int) -> int:
+        """
+        Return chamber/grid fly ID for this unit.
+
+        Typically va.f is a scalar (one per exp-only video or per exp+yok pair).
+        If va.f is sequence-like, we index by role_idx (fallback to trx_idx).
+        """
+        f = getattr(va, "f", None)
+        if f is None:
+            return -1
+
+        # sequence-like case
+        try:
+            if isinstance(f, (list, tuple, np.ndarray)):
+                if len(f) > role_idx:
+                    return int(f[role_idx])
+                if len(f) > trx_idx:
+                    return int(f[trx_idx])
+        except Exception:
+            pass
+
+        # scalar-ish fallback
+        try:
+            return int(f)
+        except Exception:
+            return -1
+
+    def _fly_role(self, role_idx: int) -> str:
+        return "exp" if int(role_idx) == 0 else "yok"
+
+    def _write_sampled_segments_tsv(self, path: str) -> None:
+        """
+        Write per-bin top-K and random-K segment examples.
+        Uses dt_total and dt_tail computed with the same masking as the metric.
+        """
+        import heapq
+
+        edges = self._x_edges()
+        centers = 0.5 * (edges[:-1] + edges[1:])
+        B = int(max(1, edges.size - 1))
+
+        top_k = int(
+            getattr(self.opts, "btw_rwd_conditioned_disttrav_segs_top_k", 10) or 10
+        )
+        rand_k = int(
+            getattr(self.opts, "btw_rwd_conditioned_disttrav_segs_rand_k", 10) or 10
+        )
+        seed = int(getattr(self.opts, "btw_rwd_conditioned_disttrav_segs_seed", 0) or 0)
+        rng = np.random.default_rng(seed)
+
+        # Heaps for top-K (min-heap): store (value, rowdict)
+        top_total = [[] for _ in range(B)]
+        top_tail = [[] for _ in range(B)]
+
+        # Reservoir samples per bin: list[dict], and seen count
+        rand = [[] for _ in range(B)]
+        seen = np.zeros((B,), dtype=int)
+
+        exclude_wall = bool(getattr(self.opts, "com_exclude_wall_contact", False))
+        min_med_mm = float(
+            getattr(self.opts, "com_per_segment_min_meddist_mm", 0.0) or 0.0
+        )
+
+        exclude_nonwalk = bool(
+            getattr(self.opts, "btw_rwd_conditioned_exclude_nonwalking_frames", False)
+        )
+        min_walk_frames = int(
+            getattr(self.opts, "btw_rwd_conditioned_min_walk_frames", 2) or 2
+        )
+
+        t_idx = int(self.cfg.training_index)
+        warned_missing_wc = [False]
+
+        for va in self.vas:
+            if getattr(va, "_skipped", False):
+                continue
+            if getattr(va, "trx", None) is None or len(va.trx) == 0:
+                continue
+            if va.trx[0].bad():
+                continue
+
+            trns = getattr(va, "trns", [])
+            if t_idx < 0 or t_idx >= len(trns):
+                continue
+            trn = trns[t_idx]
+
+            video_id = self._video_base(va)
+
+            for role_idx, trx_idx in enumerate(va.flies):
+                if not va.noyc and role_idx != 0:
+                    continue
+
+                fi, df, n_buckets, complete = sync_bucket_window(
+                    va,
+                    trn,
+                    t_idx=t_idx,
+                    f=trx_idx,
+                    skip_first=int(self.cfg.skip_first_sync_buckets),
+                    use_exclusion_mask=bool(self.cfg.use_reward_exclusion_mask),
+                )
+                if n_buckets <= 0:
+                    continue
+
+                n_frames = int(max(1, n_buckets * df))
+                wc = wall_contact_mask(
+                    self.opts,
+                    va,
+                    trx_idx,
+                    fi=fi,
+                    n_frames=n_frames,
+                    log_tag=self.log_tag,
+                    warned_missing_wc=warned_missing_wc,
+                )
+                nonwalk_mask = build_nonwalk_mask(self.opts, va, trx_idx, fi, n_frames)
+
+                traj = va.trx[trx_idx]
+                dist_stats = ("median", "max")
+                for seg in va._iter_between_reward_segment_com(
+                    trn,
+                    trx_idx,
+                    fi=fi,
+                    df=df,
+                    n_buckets=n_buckets,
+                    complete=complete,
+                    relative_to_reward=True,
+                    per_segment_min_meddist_mm=min_med_mm,
+                    exclude_wall=exclude_wall,
+                    wc=wc,
+                    exclude_nonwalk=exclude_nonwalk,
+                    nonwalk_mask=nonwalk_mask,
+                    min_walk_frames=min_walk_frames,
+                    dist_stats=dist_stats,
+                    debug=False,
+                    yield_skips=False,
+                ):
+                    x = float(getattr(seg, "max_d_mm", np.nan))
+                    if not np.isfinite(x):
+                        continue
+
+                    j = int(np.searchsorted(edges, x, side="right") - 1)
+                    if j < 0 or j >= B:
+                        continue
+
+                    s = int(getattr(seg, "s", -1))
+                    e = int(getattr(seg, "e", -1))
+                    if e <= s + 1:
+                        continue
+
+                    max_i = getattr(seg, "max_d_i", None)
+                    if max_i is None:
+                        continue
+                    max_i = int(max_i)
+
+                    dt_total = self._dist_traveled_mm_masked(
+                        va=va,
+                        traj=traj,
+                        s=s,
+                        e=e,
+                        fi=fi,
+                        nonwalk_mask=nonwalk_mask,
+                        exclude_nonwalk=exclude_nonwalk,
+                        start_override=None,
+                        min_keep_frames=min_walk_frames,
+                    )
+                    dt_tail = self._dist_traveled_mm_masked(
+                        va=va,
+                        traj=traj,
+                        s=s,
+                        e=e,
+                        fi=fi,
+                        nonwalk_mask=nonwalk_mask,
+                        exclude_nonwalk=exclude_nonwalk,
+                        start_override=max_i,
+                        min_keep_frames=min_walk_frames,
+                    )
+
+                    if not (np.isfinite(dt_total) and np.isfinite(dt_tail)):
+                        continue
+
+                    fly_id = self._fly_id(va, role_idx=role_idx, trx_idx=trx_idx)
+
+                    row = dict(
+                        bin_lo_mm=float(edges[j]),
+                        bin_hi_mm=float(edges[j + 1]),
+                        x_center_mm=float(centers[j]),
+                        dt_total_mm=float(dt_total),
+                        dt_tail_mm=float(dt_tail),
+                        max_d_mm=float(x),
+                        s=int(s),
+                        e=int(e),
+                        max_d_i=int(max_i),
+                        b_idx=int(getattr(seg, "b_idx", -1)),
+                        video_id=str(video_id),
+                        fly_id=int(fly_id),
+                        trx_idx=int(trx_idx),
+                        role_idx=int(role_idx),
+                        fly_role=str(self._fly_role(role_idx)),
+                        training_index=int(self.cfg.training_index),
+                    )
+
+                    # --- update top-K heaps
+                    def _push_top(heap, value):
+                        if not np.isfinite(value):
+                            return
+                        if len(heap) < top_k:
+                            heapq.heappush(heap, (float(value), row))
+                        else:
+                            if float(value) > heap[0][0]:
+                                heapq.heapreplace(heap, (float(value), row))
+
+                    _push_top(top_total[j], dt_total)
+                    _push_top(top_tail[j], dt_tail)
+
+                    # --- reservoir sample
+                    seen[j] += 1
+                    if rand_k > 0:
+                        if len(rand[j]) < rand_k:
+                            rand[j].append(row)
+                        else:
+                            # replace with prob rand_k/seen
+                            r = int(rng.integers(0, seen[j]))
+                            if r < rand_k:
+                                rand[j][r] = row
+        # --- write TSV
+        util.ensureDir(path)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(
+                "\t".join(
+                    [
+                        "sample_type",
+                        "rank",
+                        "bin_lo_mm",
+                        "bin_hi_mm",
+                        "x_center_mm",
+                        "dt_total_mm",
+                        "dt_tail_mm",
+                        "max_d_mm",
+                        "s",
+                        "e",
+                        "max_d_i",
+                        "b_idx",
+                        "video_id",
+                        "fly_id",
+                        "trx_idx",
+                        "role_idx",
+                        "fly_role",
+                        "training_index",
+                    ]
+                )
+                + "\n"
+            )
+
+            # top_total per bin
+            for j in range(B):
+                heap = sorted(top_total[j], key=lambda t: t[0], reverse=True)
+                for rnk, (_val, row) in enumerate(heap, start=1):
+                    f.write(
+                        "\t".join(
+                            map(
+                                str,
+                                [
+                                    "top_total",
+                                    rnk,
+                                    *[
+                                        row["bin_lo_mm"],
+                                        row["bin_hi_mm"],
+                                        row["x_center_mm"],
+                                        row["dt_total_mm"],
+                                        row["dt_tail_mm"],
+                                        row["max_d_mm"],
+                                        row["s"],
+                                        row["e"],
+                                        row["max_d_i"],
+                                        row["b_idx"],
+                                        row["video_id"],
+                                        row["fly_id"],
+                                        row["trx_idx"],
+                                        row["role_idx"],
+                                        row["fly_role"],
+                                        row["training_index"],
+                                    ],
+                                ],
+                            )
+                        )
+                        + "\n"
+                    )
+
+            # top_tail per bin
+            for j in range(B):
+                heap = sorted(top_tail[j], key=lambda t: t[0], reverse=True)
+                for rnk, (_val, row) in enumerate(heap, start=1):
+                    f.write(
+                        "\t".join(
+                            map(
+                                str,
+                                [
+                                    "top_tail",
+                                    rnk,
+                                    *[
+                                        row["bin_lo_mm"],
+                                        row["bin_hi_mm"],
+                                        row["x_center_mm"],
+                                        row["dt_total_mm"],
+                                        row["dt_tail_mm"],
+                                        row["max_d_mm"],
+                                        row["s"],
+                                        row["e"],
+                                        row["max_d_i"],
+                                        row["b_idx"],
+                                        row["video_id"],
+                                        row["fly_id"],
+                                        row["trx_idx"],
+                                        row["role_idx"],
+                                        row["fly_role"],
+                                        row["training_index"],
+                                    ],
+                                ],
+                            )
+                        )
+                        + "\n"
+                    )
+
+            # random per bin
+            for j in range(B):
+                for rnk, row in enumerate(rand[j], start=1):
+                    f.write(
+                        "\t".join(
+                            map(
+                                str,
+                                [
+                                    "random",
+                                    rnk,
+                                    *[
+                                        row["bin_lo_mm"],
+                                        row["bin_hi_mm"],
+                                        row["x_center_mm"],
+                                        row["dt_total_mm"],
+                                        row["dt_tail_mm"],
+                                        row["max_d_mm"],
+                                        row["s"],
+                                        row["e"],
+                                        row["max_d_i"],
+                                        row["b_idx"],
+                                        row["video_id"],
+                                        row["fly_id"],
+                                        row["trx_idx"],
+                                        row["role_idx"],
+                                        row["fly_role"],
+                                        row["training_index"],
+                                    ],
+                                ],
+                            )
+                        )
+                        + "\n"
+                    )
+
+        print(f"[{self.log_tag}] wrote segment-samples TSV: {path}")
+
     def _x_edges(self) -> np.ndarray:
         return make_x_edges(
             x_bin_width_mm=float(self.cfg.x_bin_width_mm),
@@ -352,6 +719,8 @@ class BetweenRewardConditionedDistTravPlotter:
         per_fly_total: list[np.ndarray] = []
         per_fly_tail: list[np.ndarray] = []
 
+        unit_info: list[dict] = []
+
         t_idx = int(self.cfg.training_index)
 
         for va in self.vas:
@@ -395,6 +764,8 @@ class BetweenRewardConditionedDistTravPlotter:
                 nonwalk_mask = build_nonwalk_mask(self.opts, va, trx_idx, fi, n_frames)
 
                 traj = va.trx[trx_idx]
+
+                fly_id = self._fly_id(va, role_idx=role_idx, trx_idx=trx_idx)
 
                 bin_vals_total: list[list[float]] = [[] for _ in range(B)]
                 bin_vals_tail: list[list[float]] = [[] for _ in range(B)]
@@ -484,6 +855,16 @@ class BetweenRewardConditionedDistTravPlotter:
                 if np.any(np.isfinite(vec_total)) or np.any(np.isfinite(vec_tail)):
                     per_fly_total.append(vec_total)
                     per_fly_tail.append(vec_tail)
+                    unit_info.append(
+                        dict(
+                            video_id=self._video_base(va),
+                            fly_id=int(fly_id),
+                            trx_idx=int(trx_idx),
+                            role_idx=int(role_idx),
+                            fly_role=str(self._fly_role(role_idx)),
+                            training_index=int(self.cfg.training_index),
+                        )
+                    )
 
         if not per_fly_total:
             meta = {
@@ -502,6 +883,7 @@ class BetweenRewardConditionedDistTravPlotter:
                 "exclude_nonwalking_frames": bool(exclude_nonwalk),
                 "min_walk_frames": int(min_walk_frames),
                 "units": "mm",
+                "unit_info": unit_info,
             }
             return np.empty((0, B), dtype=float), np.empty((0, B), dtype=float), meta
 
@@ -524,8 +906,171 @@ class BetweenRewardConditionedDistTravPlotter:
             "exclude_nonwalking_frames": bool(exclude_nonwalk),
             "min_walk_frames": int(min_walk_frames),
             "units": "mm",
+            "unit_info": unit_info,
         }
         return Y_total, Y_tail, meta
+
+    def _write_quantiles_tsv(
+        self, path: str, res: BetweenRewardConditionedDistTravResult
+    ) -> None:
+        """
+        Write per-bin distribution quantiles across fly-units for both metrics (total + tail).
+        Requires res.per_unit_total and res.per_unit_tail (present when computed from raw data).
+        """
+        if res.per_unit_total is None or res.per_unit_tail is None:
+            print(
+                f"[{self.log_tag}] quantiles TSV: missing per_unit arrays; cannot write {path}"
+            )
+            return
+
+        edges = np.asarray(res.x_edges, dtype=float)
+        centers = np.asarray(res.x_centers, dtype=float)
+
+        Yt = np.asarray(res.per_unit_total, dtype=float)  # (N, B)
+        Yh = np.asarray(res.per_unit_tail, dtype=float)  # (N, B)
+        B = int(centers.size)
+
+        # quantiles to report
+        qs = [25, 50, 75, 90, 95]
+
+        util.ensureDir(path)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(
+                "\t".join(
+                    [
+                        "bin_lo_mm",
+                        "bin_hi_mm",
+                        "x_center_mm",
+                        # totals
+                        "n_units_total",
+                        "mean_total",
+                        "ci_lo_total",
+                        "ci_hi_total",
+                        "q25_total",
+                        "median_total",
+                        "q75_total",
+                        "q90_total",
+                        "q95_total",
+                        # tail
+                        "n_units_tail",
+                        "mean_tail",
+                        "ci_lo_tail",
+                        "ci_hi_tail",
+                        "q25_tail",
+                        "median_tail",
+                        "q75_tail",
+                        "q90_tail",
+                        "q95_tail",
+                        # meta
+                        "training_index",
+                        "skip_first_sync_buckets",
+                        "exclude_wall_contact",
+                        "exclude_nonwalking_frames",
+                        "min_walk_frames",
+                    ]
+                )
+                + "\n"
+            )
+
+            for j in range(B):
+                # totals
+                col_t = Yt[:, j]
+                col_t = col_t[np.isfinite(col_t)]
+                qt = ["nan"] * len(qs)
+                if col_t.size:
+                    qt_vals = np.nanpercentile(col_t, qs)
+                    qt = [f"{float(v)}" for v in qt_vals]
+
+                # tail
+                col_h = Yh[:, j]
+                col_h = col_h[np.isfinite(col_h)]
+                qh = ["nan"] * len(qs)
+                if col_h.size:
+                    qh_vals = np.nanpercentile(col_h, qs)
+                    qh = [f"{float(v)}" for v in qh_vals]
+
+                f.write(
+                    "\t".join(
+                        map(
+                            str,
+                            [
+                                float(edges[j]),
+                                float(edges[j + 1]),
+                                float(centers[j]),
+                                int(res.n_units[j]),
+                                (
+                                    float(res.mean_total[j])
+                                    if np.isfinite(res.mean_total[j])
+                                    else "nan"
+                                ),
+                                (
+                                    float(res.ci_lo_total[j])
+                                    if np.isfinite(res.ci_lo_total[j])
+                                    else "nan"
+                                ),
+                                (
+                                    float(res.ci_hi_total[j])
+                                    if np.isfinite(res.ci_hi_total[j])
+                                    else "nan"
+                                ),
+                                qt[0],
+                                qt[1],
+                                qt[2],
+                                qt[3],
+                                qt[4],
+                                int(res.n_units[j]),
+                                (
+                                    float(res.mean_tail[j])
+                                    if np.isfinite(res.mean_tail[j])
+                                    else "nan"
+                                ),
+                                (
+                                    float(res.ci_lo_tail[j])
+                                    if np.isfinite(res.ci_lo_tail[j])
+                                    else "nan"
+                                ),
+                                (
+                                    float(res.ci_hi_tail[j])
+                                    if np.isfinite(res.ci_hi_tail[j])
+                                    else "nan"
+                                ),
+                                qh[0],
+                                qh[1],
+                                qh[2],
+                                qh[3],
+                                qh[4],
+                                int(self.cfg.training_index),
+                                int(self.cfg.skip_first_sync_buckets),
+                                int(
+                                    bool(
+                                        getattr(
+                                            self.opts, "com_exclude_wall_contact", False
+                                        )
+                                    )
+                                ),
+                                int(
+                                    bool(
+                                        getattr(
+                                            self.opts,
+                                            "btw_rwd_conditioned_exclude_nonwalking_frames",
+                                            False,
+                                        )
+                                    )
+                                ),
+                                int(
+                                    getattr(
+                                        self.opts,
+                                        "btw_rwd_conditioned_min_walk_frames",
+                                        2,
+                                    )
+                                    or 2
+                                ),
+                            ],
+                        )
+                    )
+                    + "\n"
+                )
+        print(f"[{self.log_tag}] wrote quantiles TSV: {path}")
 
     def compute_result(self) -> BetweenRewardConditionedDistTravResult:
         edges = self._x_edges()
@@ -695,6 +1240,22 @@ class BetweenRewardConditionedDistTravPlotter:
             ylabel="mean distance traveled per fly [mm]",
             out_file=out_tail,
         )
+
+        q_path = getattr(self.opts, "btw_rwd_conditioned_disttrav_quantiles_out", None)
+        if q_path:
+            try:
+                self._write_quantiles_tsv(str(q_path), res)
+            except Exception as e:
+                print(f"[{self.log_tag}] WARNING: failed to write quantiles TSV: {e}")
+
+        seg_path = getattr(self.opts, "btw_rwd_conditioned_disttrav_segs_out", None)
+        if seg_path:
+            try:
+                self._write_sampled_segments_tsv(str(seg_path))
+            except Exception as e:
+                print(
+                    f"[{self.log_tag}] WARNING: failed to write segment samples TSV: {e}"
+                )
 
 
 def plot_btw_rwd_conditioned_disttrav_overlay(
