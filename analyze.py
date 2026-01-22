@@ -116,6 +116,8 @@ from src.plotting.between_reward_conditioned_com import (
 from src.plotting.between_reward_conditioned_disttrav import (
     BetweenRewardConditionedDistTravConfig,
     BetweenRewardConditionedDistTravPlotter,
+    BetweenRewardConditionedDistTravResult,
+    plot_btw_rwd_conditioned_disttrav_overlay,
 )
 from src.plotting.between_reward_distance_hist import (
     BetweenRewardDistanceHistogramPlotter,
@@ -1045,6 +1047,66 @@ g.add_argument(
         "Save a cached NPZ of the distance-binned between-reward distance-traveled result. "
         "Only applies when computing from raw data (i.e., without import mode)."
     ),
+)
+
+# ---- cached import + overlay for distance-binned disttrav ----
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-import-npz",
+    type=str,
+    action="append",
+    default=None,
+    help=(
+        "Load cached NPZ result(s) instead of computing from raw data, and plot an overlay. "
+        "Repeatable. Format: LABEL:PATH (e.g., 'regular_flat:exports/regular_flat.npz')."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-import-out",
+    type=str,
+    default=None,
+    help=(
+        "Output image base path when using --btw-rwd-conditioned-disttrav-import-npz. "
+        "If omitted, defaults to the normal plot output base."
+    ),
+)
+
+# ---- debug exports for distance-binned disttrav ----
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-quantiles-out",
+    type=str,
+    default=None,
+    help=(
+        "Optional TSV debug export: per-bin quantiles across fly-units (q25/median/q75/q90/q95) "
+        "for both total and max→end distance traveled."
+    ),
+)
+
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-segs-out",
+    type=str,
+    default=None,
+    help=(
+        "Optional TSV debug export: top-K and random-K segment examples per x-bin, including "
+        "video_id, s:e, max_d_i, dt_total, dt_tail, etc., for lookup in the annotated player."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-segs-top-k",
+    type=int,
+    default=10,
+    help="How many top segments per bin to export (per metric). Default: %(default)s.",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-segs-rand-k",
+    type=int,
+    default=10,
+    help="How many random segments per bin to export. Default: %(default)s.",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-segs-seed",
+    type=int,
+    default=0,
+    help="RNG seed for random segment sampling. Default: %(default)s.",
 )
 
 # ---- Reward return distance (RRD) ----
@@ -6981,129 +7043,195 @@ def postAnalyze(vas):
             plotter.export_histograms_npz(out_npz)
         plotter.plot_histograms()
 
-    _sentinel = object()
-
     # ---------------- Distance-binned between-reward distance traveled ----------------
     if getattr(opts, "btw_rwd_conditioned_disttrav", False) and any(
         getattr(v, "circle", None) for v in vas
     ):
-        name_excl = "btw_rwd_conditioned_exclude_nonwalking_frames"
-        name_minf = "btw_rwd_conditioned_min_walk_frames"
+        did_import_overlay = False
 
-        old_excl = getattr(opts, name_excl, _sentinel)
-        old_minf = getattr(opts, name_minf, _sentinel)
-
-        # map disttrav-specific flags into the generic names used by shared utilities
-        try:
-            setattr(
-                opts,
-                name_excl,
-                bool(
-                    getattr(
-                        opts,
-                        "btw_rwd_conditioned_disttrav_exclude_nonwalking_frames",
-                        False,
-                    )
-                ),
-            )
-            setattr(
-                opts,
-                name_minf,
-                int(
-                    getattr(opts, "btw_rwd_conditioned_disttrav_min_walk_frames", 2)
-                    or 2
-                ),
-            )
-
-            vas_for_plot = vas
-
-            # Mirror the "top SLI" restriction behavior used by other plotters.
-            if getattr(opts, "btw_rwd_conditioned_disttrav_top_sli", False):
-                if saved_top is None:
+        import_specs = getattr(opts, "btw_rwd_conditioned_disttrav_import_npz", None)
+        if import_specs:
+            labels: list[str] = []
+            paths: list[str] = []
+            for spec in import_specs:
+                spec = str(spec)
+                if ":" not in spec:
                     print(
-                        "[btw_rwd_dist_binned_disttrav] WARNING: --btw-rwd-conditioned-disttrav-top-sli requested "
-                        "but no top-SLI group is available; falling back to all flies."
+                        "[btw_rwd_dist_binned_disttrav] WARNING: ignoring --btw-rwd-conditioned-disttrav-import-npz "
+                        f"entry without LABEL:PATH format: {spec!r}"
                     )
+                    continue
+                lab, pth = spec.split(":", 1)
+                lab = lab.strip()
+                pth = pth.strip()
+                if not lab or not pth:
+                    print(
+                        "[btw_rwd_dist_binned_disttrav] WARNING: ignoring malformed import spec: "
+                        f"{spec!r}"
+                    )
+                    continue
+                labels.append(lab)
+                paths.append(pth)
+
+            loaded_results: list[BetweenRewardConditionedDistTravResult] = []
+            loaded_labels: list[str] = []
+            if not paths:
+                print(
+                    "[btw_rwd_dist_binned_disttrav] WARNING: no valid cached NPZ specs; falling back to computation."
+                )
+            else:
+                for lab, pth in zip(labels, paths):
+                    try:
+                        res = BetweenRewardConditionedDistTravResult.load_npz(pth)
+                    except Exception as e:
+                        print(
+                            "[btw_rwd_dist_binned_disttrav] WARNING: failed to load cached NPZ "
+                            f"({lab!r} at {pth!r}): {e}"
+                        )
+                        continue
+                    loaded_results.append(res)
+                    loaded_labels.append(lab)
+            if loaded_results:
+                out_file = getattr(
+                    opts, "btw_rwd_conditioned_disttrav_import_out", None
+                )
+                if not out_file:
+                    out_file = BTW_RWD_DIST_BINNED_DISTTRAV_IMG_FILE
+                plot_btw_rwd_conditioned_disttrav_overlay(
+                    results=loaded_results,
+                    labels=loaded_labels,
+                    out_file=str(out_file),
+                    opts=opts,
+                    customizer=customizer,
+                    log_tag="btw_rwd_dist_binned_disttrav",
+                )
+                did_import_overlay = True
+
+        if not did_import_overlay:
+            _sentinel = object()
+            name_excl = "btw_rwd_conditioned_exclude_nonwalking_frames"
+            name_minf = "btw_rwd_conditioned_min_walk_frames"
+
+            old_excl = getattr(opts, name_excl, _sentinel)
+            old_minf = getattr(opts, name_minf, _sentinel)
+
+            # map disttrav-specific flags into the generic names used by shared utilities
+            try:
+                setattr(
+                    opts,
+                    name_excl,
+                    bool(
+                        getattr(
+                            opts,
+                            "btw_rwd_conditioned_disttrav_exclude_nonwalking_frames",
+                            False,
+                        )
+                    ),
+                )
+                setattr(
+                    opts,
+                    name_minf,
+                    int(
+                        getattr(opts, "btw_rwd_conditioned_disttrav_min_walk_frames", 2)
+                        or 2
+                    ),
+                )
+
+                vas_for_plot = vas
+
+                # Mirror the "top SLI" restriction behavior used by other plotters.
+                if getattr(opts, "btw_rwd_conditioned_disttrav_top_sli", False):
+                    if saved_top is None:
+                        print(
+                            "[btw_rwd_dist_binned_disttrav] WARNING: --btw-rwd-conditioned-disttrav-top-sli requested "
+                            "but no top-SLI group is available; falling back to all flies."
+                        )
+                    else:
+                        vas_for_plot = [vas[i] for i in saved_top]
+                        print(
+                            "[btw_rwd_dist_binned_disttrav] restricting distance-traveled analysis to "
+                            f"{len(vas_for_plot)} top-SLI flies"
+                        )
+
+                subset_label = None
+                if (
+                    getattr(opts, "btw_rwd_conditioned_disttrav_top_sli", False)
+                    and saved_top is not None
+                ):
+                    frac = float(getattr(opts, "best_worst_fraction", 0.1))
+                    subset_label = f"Restricted to top {100*frac:.1f}% SLI flies"
+
+                # Training index (user is 1-based; internal is 0-based)
+                trn_1based = int(getattr(opts, "btw_rwd_conditioned_disttrav_trn", 2))
+                t_idx = max(0, trn_1based - 1)
+
+                cfg = BetweenRewardConditionedDistTravConfig(
+                    out_file=BTW_RWD_DIST_BINNED_DISTTRAV_IMG_FILE,
+                    training_index=t_idx,
+                    skip_first_sync_buckets=int(
+                        getattr(
+                            opts,
+                            "btw_rwd_conditioned_disttrav_skip_first_sync_buckets",
+                            0,
+                        )
+                    ),
+                    use_reward_exclusion_mask=bool(
+                        getattr(
+                            opts,
+                            "btw_rwd_conditioned_disttrav_use_reward_exclusion_mask",
+                            False,
+                        )
+                    ),
+                    x_bin_width_mm=float(
+                        getattr(opts, "btw_rwd_conditioned_disttrav_xbin", 2.0)
+                    ),
+                    x_min_mm=float(
+                        getattr(opts, "btw_rwd_conditioned_disttrav_xmin", 0.0)
+                    ),
+                    x_max_mm=float(
+                        getattr(opts, "btw_rwd_conditioned_disttrav_xmax", 20.0)
+                    ),
+                    ci_conf=float(
+                        getattr(opts, "btw_rwd_conditioned_disttrav_ci_conf", 0.95)
+                    ),
+                    ymax=getattr(opts, "btw_rwd_conditioned_disttrav_ymax", None),
+                    subset_label=subset_label,
+                )
+
+                plotter = BetweenRewardConditionedDistTravPlotter(
+                    vas=vas_for_plot, opts=opts, gls=gls, customizer=customizer, cfg=cfg
+                )
+                plotter.plot()
+
+                # Optional: export cached NPZ
+                exp_path = getattr(
+                    opts, "btw_rwd_conditioned_disttrav_export_npz", None
+                )
+                if exp_path:
+                    try:
+                        res = plotter.compute_result()
+                        res.save_npz(str(exp_path))
+                        print(
+                            f"[btw_rwd_dist_binned_disttrav] wrote cached NPZ: {str(exp_path)}"
+                        )
+                    except Exception as e:
+                        print(
+                            "[btw_rwd_dist_binned_disttrav] WARNING: failed to export cached NPZ "
+                            f"to {str(exp_path)!r}: {e}"
+                        )
+
+            finally:
+                if old_excl is _sentinel:
+                    if hasattr(opts, name_excl):
+                        delattr(opts, name_excl)
                 else:
-                    vas_for_plot = [vas[i] for i in saved_top]
-                    print(
-                        "[btw_rwd_dist_binned_disttrav] restricting distance-traveled analysis to "
-                        f"{len(vas_for_plot)} top-SLI flies"
-                    )
+                    setattr(opts, name_excl, old_excl)
 
-            subset_label = None
-            if (
-                getattr(opts, "btw_rwd_conditioned_disttrav_top_sli", False)
-                and saved_top is not None
-            ):
-                frac = float(getattr(opts, "best_worst_fraction", 0.1))
-                subset_label = f"Restricted to top {100*frac:.1f}% SLI flies"
-
-            # Training index (user is 1-based; internal is 0-based)
-            trn_1based = int(getattr(opts, "btw_rwd_conditioned_disttrav_trn", 2))
-            t_idx = max(0, trn_1based - 1)
-
-            cfg = BetweenRewardConditionedDistTravConfig(
-                out_file=BTW_RWD_DIST_BINNED_DISTTRAV_IMG_FILE,
-                training_index=t_idx,
-                skip_first_sync_buckets=int(
-                    getattr(
-                        opts, "btw_rwd_conditioned_disttrav_skip_first_sync_buckets", 0
-                    )
-                ),
-                use_reward_exclusion_mask=bool(
-                    getattr(
-                        opts,
-                        "btw_rwd_conditioned_disttrav_use_reward_exclusion_mask",
-                        False,
-                    )
-                ),
-                x_bin_width_mm=float(
-                    getattr(opts, "btw_rwd_conditioned_disttrav_xbin", 2.0)
-                ),
-                x_min_mm=float(getattr(opts, "btw_rwd_conditioned_disttrav_xmin", 0.0)),
-                x_max_mm=float(
-                    getattr(opts, "btw_rwd_conditioned_disttrav_xmax", 20.0)
-                ),
-                ci_conf=float(
-                    getattr(opts, "btw_rwd_conditioned_disttrav_ci_conf", 0.95)
-                ),
-                ymax=getattr(opts, "btw_rwd_conditioned_disttrav_ymax", None),
-                subset_label=subset_label,
-            )
-
-            plotter = BetweenRewardConditionedDistTravPlotter(
-                vas=vas_for_plot, opts=opts, gls=gls, customizer=customizer, cfg=cfg
-            )
-            plotter.plot()
-
-            # Optional: export cached NPZ
-            exp_path = getattr(opts, "btw_rwd_conditioned_disttrav_export_npz", None)
-            if exp_path:
-                try:
-                    res = plotter.compute_result()
-                    res.save_npz(str(exp_path))
-                    print(
-                        f"[btw_rwd_dist_binned_disttrav] wrote cached NPZ: {str(exp_path)}"
-                    )
-                except Exception as e:
-                    print(
-                        "[btw_rwd_dist_binned_disttrav] WARNING: failed to export cached NPZ "
-                        f"to {str(exp_path)!r}: {e}"
-                    )
-
-        finally:
-            if old_excl is _sentinel:
-                if hasattr(opts, name_excl):
-                    delattr(opts, name_excl)
-            else:
-                setattr(opts, name_excl, old_excl)
-
-            if old_minf is _sentinel:
-                if hasattr(opts, name_minf):
-                    delattr(opts, name_minf)
-            else:
-                setattr(opts, name_minf, old_minf)
+                if old_minf is _sentinel:
+                    if hasattr(opts, name_minf):
+                        delattr(opts, name_minf)
+                else:
+                    setattr(opts, name_minf, old_minf)
 
     # ---------------- Distance-binned between-reward COM ----------------
     if getattr(opts, "btw_rwd_conditioned_com", False) and any(
