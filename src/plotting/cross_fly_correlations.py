@@ -23,6 +23,31 @@ class CorrelationPlotConfig:
     figsize: tuple = (5.5, 4.5)
 
 
+@dataclass(frozen=True)
+class SLIContext:
+    """
+    Describes what sli_values represent.
+    - training_idx: 0-based index of the training whose SLI is being used
+    - average_over_buckets: True => mean over sync buckets in that training
+                            False => last sync bucket in that training
+    """
+
+    training_idx: int
+    average_over_buckets: bool = False
+
+    def label_long(self) -> str:
+        trn = self.training_idx + 1
+        if self.average_over_buckets:
+            return f"SLI (mean over sync buckets, training {trn})"
+        return f"SLI (last sync bucket, training {trn})"
+
+    def label_short(self) -> str:
+        trn = self.training_idx + 1
+        if self.average_over_buckets:
+            return f"SLI (mean, T{trn})"
+        return f"SLI (last SB, T{trn})"
+
+
 def _compute_group_corr(
     x: np.ndarray, y: np.ndarray, idx: np.ndarray
 ) -> tuple[float, float] | None:
@@ -171,21 +196,24 @@ def _ensure_sync_med_dist(va):
 
 def summarize_fast_vs_strong(
     sli_T1_first: np.ndarray,
-    sli_T2_last: np.ndarray,
+    sli_strong: np.ndarray,
     vas,
     opts,
     frac: float = 0.2,
+    *,
+    strong_label: str = "Strong learners",
 ):
     """
     Summarize proportions of fast vs strong learners.
     - fast = top percentile of SLI at first sync bucket of T1
-    - strong = top percentile of SLI at last sync bucket of T2
+    - strong = top percentile of SLI according to `sli_strong`
+      (definition controlled upstream; label passed in for logging/printing)
 
     This version uses *separate* validity masks, so a fly with NaN in one
     bucket can still be classified in the other.
     """
     sli_T1_first = np.asarray(sli_T1_first, float)
-    sli_T2_last = np.asarray(sli_T2_last, float)
+    sli_strong = np.asarray(sli_strong, float)
 
     N_total = len(vas)
     if N_total == 0:
@@ -198,9 +226,9 @@ def summarize_fast_vs_strong(
     mask1 = np.isfinite(sli_T1_first)
     sli1 = sli_T1_first[mask1]
 
-    # --- STRONG LEARNERS (T2 last bucket) ---
-    mask2 = np.isfinite(sli_T2_last)
-    sli2 = sli_T2_last[mask2]
+    # --- STRONG LEARNERS (definition controlled upstream) ---
+    mask2 = np.isfinite(sli_strong)
+    sli2 = sli_strong[mask2]
 
     if len(sli1) == 0 or len(sli2) == 0:
         print("[correlations] WARNING: no finite SLI values for fast/strong summary")
@@ -223,7 +251,7 @@ def summarize_fast_vs_strong(
 
     print("\n=== Fast vs Strong learner summary ===")
     print(f"Fast learners:   {len(fast_global)} (k={k1}, from N={N_total})")
-    print(f"Strong learners: {len(strong_global)} (k={k2}, from N={N_total})")
+    print(f"{strong_label}: {len(strong_global)} (k={k2}, from N={N_total})")
     print(f"Overlap:         {len(overlap)}")
 
     summary = {
@@ -242,18 +270,21 @@ def summarize_fast_vs_strong(
 
 def plot_fast_vs_strong_scatter(
     sli_T1_first: np.ndarray,
-    sli_T2_last: np.ndarray,
+    sli_strong: np.ndarray,
     vas,
     fast_idx: np.ndarray,
     strong_idx: np.ndarray,
     out_dir: Path,
     frac: float,
     customizer: PlotCustomizer,
+    *,
+    strong_y_label: str,
+    strong_title_suffix: str,
 ):
     """
     Scatter plot of:
         X = SLI at T1 first sync bucket (fast learners)
-        Y = SLI at T2 final sync bucket (strong learners)
+        Y = SLI along timeframe used for strong learners (defined upstream)
 
     Points are colored by group:
         - Fast-only (fast & not strong)
@@ -266,7 +297,7 @@ def plot_fast_vs_strong_scatter(
         - Strong group, including overlap points
     """
     x = np.asarray(sli_T1_first, float)
-    y = np.asarray(sli_T2_last, float)
+    y = np.asarray(sli_strong, float)
 
     # Masks
     mask_x = np.isfinite(x)
@@ -332,8 +363,10 @@ def plot_fast_vs_strong_scatter(
     ax.scatter(x_f, y_f, c=point_colors, alpha=0.85)
 
     ax.set_xlabel("SLI (T1, first sync bucket)")
-    ax.set_ylabel("SLI (T2, last sync bucket)")
-    ax.set_title(f"Fast vs Strong Learners (top {frac*100:.0f}% each)")
+    ax.set_ylabel(strong_y_label)
+    ax.set_title(
+        f"Fast vs Strong Learners ({strong_title_suffix}, top {frac*100:.0f}% each)"
+    )
 
     # Create extra vertical headroom for the text block
     # (keeps annotation from overlapping datapoints)
@@ -568,6 +601,8 @@ def plot_cross_fly_correlations(
     reward_pi_first_bucket: Sequence[float] | None = None,
     out_dir: str | Path = "imgs/correlations",
     plot_customizer: PlotCustomizer | None = None,
+    *,
+    sli_ctx: SLIContext | None = None,
 ):
     """
     Cross-fly correlations:
@@ -612,9 +647,10 @@ def plot_cross_fly_correlations(
                 f"({reward_pi_training_vals.shape[0]} vs {len(vas)})"
             )
 
-    # Use 1-based training index in axis label
-    trn_label_idx = training_idx + 1
-    x_label_sli = f"SLI (last sync bucket, training {trn_label_idx})"
+    if sli_ctx is None:
+        sli_ctx = SLIContext(training_idx=training_idx, average_over_buckets=False)
+
+    x_label_sli = sli_ctx.label_long()
 
     rpd_vals = []
     med_train_vals = []
@@ -719,12 +755,17 @@ def plot_cross_fly_correlations(
     summary = None
     if reward_pi_training_vals is not None:
         try:
+            frac = getattr(opts, "best_worst_fraction", 0.2)
+            strong_label = (
+                f"Strong learners (top {frac*100:.1f}%, {sli_ctx.label_short()})"
+            )
             summary = summarize_fast_vs_strong(
                 sli_T1_first=reward_pi_training_vals,
-                sli_T2_last=sli_vals,
+                sli_strong=sli_vals,
                 vas=vas,
                 opts=opts,
-                frac=getattr(opts, "best_worst_fraction", 0.2),
+                frac=frac,
+                strong_label=strong_label,
             )
         except Exception as e:
             print(f"[correlations] WARNING: failed fast/strong summary: {e}")
@@ -876,11 +917,13 @@ def plot_cross_fly_correlations(
     if summary is not None:
         plot_fast_vs_strong_scatter(
             sli_T1_first=reward_pi_training_vals,
-            sli_T2_last=sli_vals,
+            sli_strong=sli_vals,
             vas=vas,
             fast_idx=summary["fast"],
             strong_idx=summary["strong"],
             out_dir=out_dir,
-            frac=getattr(opts, "best_worst_fraction", 0.2),
+            frac=frac,
             customizer=customizer,
+            strong_y_label=x_label_sli,
+            strong_title_suffix=sli_ctx.label_short(),
         )

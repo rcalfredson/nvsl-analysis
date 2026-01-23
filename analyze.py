@@ -90,7 +90,7 @@ from src.exporting.reward_lgturn_pathlen_sli_bundle import (
 from src.exporting.turnback_sli_bundle import export_turnback_sli_bundle
 from src.exporting.wallpct_sli_bundle import export_wallpct_sli_bundle
 from src.exporting.wall_contacts_per_sync_bkt import save_wall_contacts_per_sync_bkt_npz
-from src.plotting.cross_fly_correlations import plot_cross_fly_correlations
+from src.plotting.cross_fly_correlations import plot_cross_fly_correlations, SLIContext
 from src.plotting.individual_strategy_plotter import plot_individual_strategy_overlays
 from src.plotting.outside_circle_duration_plotter import OutsideCircleDurationPlotter
 from src.utils.parsers import parse_distances, parse_training_selector
@@ -6759,6 +6759,10 @@ def postAnalyze(vas):
                 )
 
             if tp == "rpid" and sli_ser is not None:
+                sli_ctx = SLIContext(
+                    training_idx=sli_training_idx,
+                    average_over_buckets=use_training_mean,
+                )
                 plot_cross_fly_correlations(
                     sli_values=sli_ser,
                     vas=vas,
@@ -6767,6 +6771,7 @@ def postAnalyze(vas):
                     reward_pi_first_bucket=reward_pi_first_bucket,
                     out_dir="imgs/correlations",
                     plot_customizer=customizer,
+                    sli_ctx=sli_ctx,
                 )
 
         a_orig = a.copy()
@@ -7121,7 +7126,9 @@ def postAnalyze(vas):
                 payloads.append(p)
 
         if not payloads:
-            print("[wall_contacts_export] WARNING: no payloads collected; not writing NPZ")
+            print(
+                "[wall_contacts_export] WARNING: no payloads collected; not writing NPZ"
+            )
         else:
             save_wall_contacts_per_sync_bkt_npz(str(out_npz), payloads)
             print(f"[wall_contacts_export] wrote combined NPZ: {out_npz}")
