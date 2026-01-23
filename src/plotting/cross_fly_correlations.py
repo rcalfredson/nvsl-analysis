@@ -96,7 +96,7 @@ def _scatter_with_corr(
 
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
-    ax.set_title(title)
+    ax.set_title(title, pad=10)
     ax.grid(False)
 
     ax.text(
@@ -107,6 +107,10 @@ def _scatter_with_corr(
         va="top",
         ha="left",
         fontsize=10,
+        zorder=5,
+        bbox=dict(
+            facecolor="white", alpha=0.80, edgecolor="none", boxstyle="round,pad=0.25"
+        ),
     )
 
     customizer.adjust_padding_proportionally()
@@ -365,7 +369,8 @@ def plot_fast_vs_strong_scatter(
     ax.set_xlabel("SLI (T1, first sync bucket)")
     ax.set_ylabel(strong_y_label)
     ax.set_title(
-        f"Fast vs Strong Learners ({strong_title_suffix}, top {frac*100:.0f}% each)"
+        f"Fast vs Strong Learners ({strong_title_suffix}, top {frac*100:.0f}% each)",
+        pad=10,
     )
 
     # Create extra vertical headroom for the text block
@@ -403,6 +408,10 @@ def plot_fast_vs_strong_scatter(
         va="top",
         ha="left",
         fontsize=10,
+        zorder=5,
+        bbox=dict(
+            facecolor="white", alpha=0.80, edgecolor="none", boxstyle="round,pad=0.25"
+        ),
     )
 
     # Legend
@@ -449,6 +458,7 @@ def plot_fast_vs_strong_scatter(
     # Optional proportional padding
     customizer.adjust_padding_proportionally()
 
+    fig.tight_layout(rect=(0, 0, 1, 0.96))
     out_path = out_dir / "scatter_fast_vs_strong.png"
     writeImage(str(out_path), format="png")
     plt.close(fig)
@@ -584,6 +594,10 @@ def plot_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow(
         va="top",
         ha="left",
         fontsize=10,
+        zorder=5,
+        bbox=dict(
+            facecolor="white", alpha=0.80, edgecolor="none", boxstyle="round,pad=0.25"
+        ),
     )
 
     customizer.adjust_padding_proportionally()
