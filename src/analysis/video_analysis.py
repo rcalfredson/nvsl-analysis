@@ -107,6 +107,7 @@ from src.utils.util import error
 from src.analysis.va_spd_calculator import VASpeedCalculator
 from src.analysis.va_turn_directionality_collator import VATurnDirectionalityCollator
 from src.analysis.va_turn_prob_dist_collator import VATurnProbabilityDistanceCollator
+from src.exporting.wall_contacts_per_sync_bkt import build_wall_contacts_per_sync_bkt_payload
 
 BACKGROUND_CHANNEL = 0  # blue (default for tracking)
 SYNC_CTRL = False  # whether to start sync buckets after control reward
@@ -284,6 +285,12 @@ class VideoAnalysis:
                 self.analyzeAgaroseDualCircleAvoidance()
             if getattr(opts, "wall", None):
                 self.bySyncBucketWallContactPct()
+        if getattr(self.opts, "export_wall_contacts_per_sync_bkt_npz", None):
+            try:
+                self.wall_contacts_per_sync_bkt_payload = build_wall_contacts_per_sync_bkt_payload(self)
+            except Exception as e:
+                if getattr(self.opts, "wall_debug", False):
+                    print(f"[wall_contacts_export] WARNING: could not build payload: {e!r}")
         for opt, evt_name in (
             ("wall", "wall_contact"),
             ("agarose", "agarose_contact"),

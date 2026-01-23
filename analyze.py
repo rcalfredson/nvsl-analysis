@@ -89,6 +89,7 @@ from src.exporting.reward_lgturn_pathlen_sli_bundle import (
 )
 from src.exporting.turnback_sli_bundle import export_turnback_sli_bundle
 from src.exporting.wallpct_sli_bundle import export_wallpct_sli_bundle
+from src.exporting.wall_contacts_per_sync_bkt import save_wall_contacts_per_sync_bkt_npz
 from src.plotting.cross_fly_correlations import plot_cross_fly_correlations
 from src.plotting.individual_strategy_plotter import plot_individual_strategy_overlays
 from src.plotting.outside_circle_duration_plotter import OutsideCircleDurationPlotter
@@ -426,6 +427,71 @@ g.add_argument(
 )
 g.add_argument(
     "--wall_eg", action="store_true", help="save example images of wall-contact events"
+)
+# ---- export for wall-contact-per-sync-bucket ----
+g.add_argument(
+    "--export-wall-contacts-per-sync-bkt-npz",
+    type=str,
+    default=None,
+    help=(
+        "Write NPZ export containing per-fly wall-contact event counts per sync bucket "
+        "for a selected training (and mean per bucket)."
+    ),
+)
+g.add_argument(
+    "--wall-contacts-trn",
+    type=int,
+    default=2,
+    help=(
+        "Which training index (1-based: 1=T1, 2=T2, ...) to export wall contact "
+        "counts for. Default: 2."
+    ),
+)
+# ---- import/plot for wall-contacts PMF per sync bucket ----
+g.add_argument(
+    "--wall-contacts-pmf-import-npz",
+    action="append",
+    default=None,
+    help=(
+        "Plot from cached NPZ exports (LABEL:PATH). "
+        "Each NPZ must contain counts_per_bucket + role_idx."
+    ),
+)
+g.add_argument(
+    "--wall-contacts-pmf-import-out",
+    type=str,
+    default=None,
+    help="Output image path (extension optional).",
+)
+g.add_argument(
+    "--wall-contacts-pmf-role",
+    type=str,
+    default="exp",
+    choices=("exp", "yok", "both"),
+    help="Which role(s) to include from each cached NPZ (default: exp).",
+)
+g.add_argument(
+    "--wall-contacts-pmf-kmax-pctl",
+    type=float,
+    default=99.0,
+    help="Percentile (pooled across groups) to set k_max (default: 99).",
+)
+g.add_argument(
+    "--wall-contacts-pmf-kmax-cap",
+    type=int,
+    default=30,
+    help="Cap k_max to avoid extreme tails (default: 30)",
+)
+g.add_argument(
+    "--wall-contacts-pmf-overflow",
+    action="store_true",
+    help="If set, last bin is 'k_max+' (counts >= k_max). Recommended.",
+)
+g.add_argument(
+    "--wall-contacts-pmf-bin-width",
+    type=int,
+    default=1,
+    help="Rebin k into ranges of this width (e.g. 5 => 0-4, 5-9, ...). Default: 1.",
 )
 g.add_argument(
     "--excl-wall-for-spd",
@@ -7043,6 +7109,85 @@ def postAnalyze(vas):
             plotter.export_histograms_npz(out_npz)
         plotter.plot_histograms()
 
+    # ---------------- Wall-contact PMF per sync bucket ----------------
+
+    # --- Export NPZ for VideoAnalysis group ---
+    out_npz = getattr(opts, "export_wall_contacts_per_sync_bkt_npz", None)
+    if out_npz:
+        payloads = []
+        for va in vas:
+            p = getattr(va, "wall_contacts_per_sync_bkt_payload", None)
+            if p is not None:
+                payloads.append(p)
+
+        if not payloads:
+            print("[wall_contacts_export] WARNING: no payloads collected; not writing NPZ")
+        else:
+            save_wall_contacts_per_sync_bkt_npz(str(out_npz), payloads)
+            print(f"[wall_contacts_export] wrote combined NPZ: {out_npz}")
+
+    # --- Plot from cached NPZ ---
+    import_specs = getattr(opts, "wall_contacts_pmf_import_npz", None)
+    if import_specs:
+        from src.plotting.wall_contacts_per_sync_bkt_pmf import (
+            WallContactsPerSyncBktResult,
+            plot_wall_contacts_pmf_overlay,
+        )
+
+        labels: list[str] = []
+        paths: list[str] = []
+        for spec in import_specs:
+            spec = str(spec)
+            if ":" not in spec:
+                print(
+                    "[wall_contacts_pmf] WARNING: ignoring --wall-contacts-pmf-import-npz entry "
+                    f"without LABEL:PATH format: {spec!r}"
+                )
+                continue
+            lab, pth = spec.split(":", 1)
+            lab = lab.strip()
+            pth = pth.strip()
+            if not lab or not pth:
+                print(
+                    "[wall_contacts_pmf] WARNING: ignoring malformed import spec: "
+                    f"{spec!r}"
+                )
+                continue
+            labels.append(lab)
+            paths.append(pth)
+
+        loaded_results: list[WallContactsPerSyncBktResult] = []
+        loaded_labels: list[str] = []
+        if not paths:
+            print("[wall_contacts_pmf] WARNING: no valid cached NPZ specs.")
+        else:
+            for lab, pth in zip(labels, paths):
+                try:
+                    res = WallContactsPerSyncBktResult.load_npz(pth)
+                except Exception as e:
+                    print(
+                        "[wall_contacts_pmf] WARNING: failed to load cached NPZ "
+                        f"({lab!r} at {pth!r}): {e}"
+                    )
+                    continue
+                loaded_results.append(res)
+                loaded_labels.append(lab)
+
+        if loaded_results:
+            out_file = getattr(opts, "wall_contacts_pmf_import_out", None)
+            if not out_file:
+                out_file = "wall_contacts_pmf"  # extension added by plotter if absent
+
+            plot_wall_contacts_pmf_overlay(
+                results=loaded_results,
+                labels=loaded_labels,
+                out_file=str(out_file),
+                opts=opts,
+                customizer=customizer,
+                log_tag="wall_contacts_pmf",
+            )
+            return
+
     # ---------------- Distance-binned between-reward distance traveled ----------------
     if getattr(opts, "btw_rwd_conditioned_disttrav", False) and any(
         getattr(v, "circle", None) for v in vas
@@ -8522,6 +8667,14 @@ if __name__ == "__main__":
             print(
                 f"[rrd] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
                 "because --rrd-exclude-wall-contact was set"
+            )
+            opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
+    if getattr(opts, "export_wall_contacts_per_sync_bkt_npz", None):
+        if getattr(opts, "wall", None) is None:
+            print(
+                f"[wall-contact] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
+                "because --export-wall-contacts-per-sync-bkt-npz was set"
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 
