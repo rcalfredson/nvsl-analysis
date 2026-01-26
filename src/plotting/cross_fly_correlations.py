@@ -353,6 +353,13 @@ def plot_fast_vs_strong_scatter(
         (classes_arr == "strong") | (classes_arr == "overlap")
     )
 
+    # Correlation across *all* plotted points (finite x/y only)
+    corr_all = None
+    n_all = int(x_f.size)
+    if n_all >= 3:
+        r_a, p_a = pearsonr(x_f, y_f)
+        corr_all = (float(r_a), float(p_a), n_all)
+
     # Colors (simple, can be refined)
     color_map = {
         "overlap": "#cc0000",  # red
@@ -384,11 +391,17 @@ def plot_fast_vs_strong_scatter(
     if not np.isfinite(y_rng) or y_rng <= 0:
         y_rng = 1.0
 
-    top_pad = 0.25 * y_rng
+    # Add headroom proportional to the number of stat lines we print.
+    top_pad = 0.25 * y_rng  # temporary; overwritten after we build `lines`
     ax.set_ylim(y_min, y_max + top_pad)
 
     # Display descriptive correlations (fast/strong each including overlap)
     lines = []
+    if corr_all is not None:
+        r_a, p_a, n_a = corr_all
+        lines.append(f"All (finite):           r = {r_a:.3f}, p = {p_a:.3g} (n={n_a})")
+    else:
+        lines.append("All (finite):           r = n/a")
     if corr_fast_incl_overlap is not None:
         r_f, p_f, n_f = corr_fast_incl_overlap
         lines.append(f"Fast (incl overlap):  r = {r_f:.3f}, p = {p_f:.3g} (n={n_f})")
@@ -400,6 +413,11 @@ def plot_fast_vs_strong_scatter(
         lines.append(f"Strong (incl overlap): r = {r_s:.3f}, p = {p_s:.3g} (n={n_s})")
     else:
         lines.append("Strong (incl overlap): r = n/a")
+
+    # Now that we know how many lines we're printing, increase headroom if needed.
+    # Keeps the textbox from crowding the point cloud near the top.
+    top_pad = max(0.25 * y_rng, (0.10 * len(lines) + 0.05) * y_rng)
+    ax.set_ylim(y_min, y_max + top_pad)
 
     ax.text(
         x_min + 0.02 * x_rng,
