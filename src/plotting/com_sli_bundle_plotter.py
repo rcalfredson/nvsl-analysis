@@ -649,11 +649,11 @@ def plot_com_sli_bundles(
             y_label = "SLI"
         elif metric == "turnback":
             if turnback_mode == "exp_minus_ctrl":
-                y_label = "Dual-circle turnback (exp - yok)"
+                y_label = "Turnback ratio (exp - yok)"
             elif turnback_mode == "ctrl":
-                y_label = "Dual-circle turnback (yok)"
+                y_label = "Turnback ratio (yok)"
             else:
-                y_label = "Dual-circle turnback ratio"
+                y_label = "Turnback ratio"
         elif metric == "agarose":
             if turnback_mode == "exp_minus_ctrl":
                 y_label = "Agarose avoidance (exp - yok)"

@@ -806,11 +806,11 @@ def plot_cross_fly_correlations(
     _scatter_with_corr(
         x=sli_vals,
         y=rpd_vals,
-        title="SLI vs rewards per distance",
+        title="Rewards per distance vs SLI",
         x_label=x_label_sli,
         y_label="rewards per distance $[m^{-1}]$\n$(\\text{exp} - \\text{yok})$",
         cfg=cfg,
-        filename="corr_sli_vs_rpd",
+        filename="corr_rpd_vs_sli",
         customizer=customizer,
     )
 

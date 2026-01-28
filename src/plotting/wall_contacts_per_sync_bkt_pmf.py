@@ -379,16 +379,14 @@ def plot_wall_contacts_pmf_overlay(
         ax.set_xticklabels(labels_xt)
 
         ax.set_xlabel(maybe_sentence_case("wall contacts per sync bucket"))
-        ax.set_ylabel(maybe_sentence_case("mean probability across flies"))
+        ax.set_ylabel(maybe_sentence_case("mean probability"))
         ax.set_ylim(bottom=0)
 
         # small amt right/left padding
         ax.set_xlim(-0.6, float(K2 - 1) + 0.6)
 
         ax.legend(loc="best", fontsize=customizer.in_plot_font_size)
-        ax.set_title(
-            maybe_sentence_case(f"wall contacts per sync bucket distribution ({role})")
-        )
+        ax.set_title(maybe_sentence_case(f"wall contacts per sync bucket ({role})"))
 
     if customizer.font_size_customized:
         customizer.adjust_padding_proportionally()
