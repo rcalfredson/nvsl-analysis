@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
+from typing import Optional, Sequence, Tuple
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -21,6 +21,8 @@ class CorrelationPlotConfig:
     dot_color: str = "#005bbb"
     alpha: float = 0.85
     figsize: tuple = (5.5, 4.5)
+    xlim: Optional[Tuple[float, float]] = None
+    ylim: Optional[Tuple[float, float]] = None
 
 
 @dataclass(frozen=True)
@@ -93,6 +95,12 @@ def _scatter_with_corr(
 
     fig, ax = plt.subplots(figsize=cfg.figsize)
     ax.scatter(x_f, y_f, color=cfg.dot_color, alpha=cfg.alpha)
+
+    # --- apply shared axis limits if provided
+    if cfg.xlim is not None:
+        ax.set_xlim(cfg.xlim)
+    if cfg.ylim is not None:
+        ax.set_ylim(cfg.ylim)
 
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
@@ -660,7 +668,11 @@ def plot_cross_fly_correlations(
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    cfg = CorrelationPlotConfig(out_dir=out_dir)
+    cfg = CorrelationPlotConfig(
+        out_dir=out_dir,
+        xlim=getattr(opts, "corr_xlim", None),
+        ylim=getattr(opts, "corr_ylim", None),
+    )
     customizer = plot_customizer or PlotCustomizer()
 
     sli_vals = np.asarray(sli_values, float)

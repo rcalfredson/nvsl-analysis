@@ -215,6 +215,43 @@ class FlyDetector:
 
 # - - -
 
+
+def _parse_float_csv(s: str | None) -> list[float]:
+    if not s:
+        return []
+    parts = [p.strip() for p in s.split(",") if p.strip() != ""]
+    return [float(p) for p in parts]
+
+
+def _parse_hm_bounds_arg(
+    s: str | None, flag_name: str
+) -> tuple[float | None, float | None]:
+    vals = _parse_float_csv(s)
+    if not vals:
+        return (None, None)
+    if len(vals) == 1:
+        return (vals[0], vals[0])
+    if len(vals) == 2:
+        return (vals[0], vals[1])
+    raise ValueError(f"{flag_name} expects 'v' or 'v1,v2', got: {s!r}")
+
+
+def _parse_axis_limits_arg(
+    s: str | None, flag_name: str
+) -> tuple[float | None, float | None]:
+    vals = _parse_float_csv(s)
+    if not vals:
+        return (None, None)
+    if len(vals) != 2:
+        raise ValueError(f"{flag_name} expects 'min,max', got: {s!r}")
+    lo, hi = vals
+    if hi <= lo:
+        raise ValueError(f"{flag_name} expects max > min, got: {s!r}")
+    return (lo, hi)
+
+
+# - - -
+
 p = argparse.ArgumentParser(description="Analyze learning experiments.")
 
 p.add_argument(
@@ -340,6 +377,26 @@ g.add_argument(
         "Restrict SLI plots (rpid/rpipd) to a composite learner group "
         "built from positive/negative SLI selections. "
         "Uses --best-worst-fraction as the cutoff."
+    ),
+)
+g.add_argument(
+    "--corr-xlim",
+    type=str,
+    default=None,
+    metavar="MIN,MAX",
+    help=(
+        "Set shared x-axis limits for correlation scatter plots as 'MIN,MAX'. "
+        "Example: --corr-xlim 0,2.2"
+    ),
+)
+g.add_argument(
+    "--corr-ylim",
+    type=str,
+    default=None,
+    metavar="MIN,MAX",
+    help=(
+        "Set shared y-axis limits for correlation scatter plots as 'MIN,MAX'. "
+        "Example: --corr-ylim 0,60"
     ),
 )
 g.add_argument(
@@ -4935,20 +4992,6 @@ def plotRdpStats(vas, gls, tpTa=True):
     writeImage(TURN_ANGLES_IMG_FILE if tpTa else RUN_LENGTHS_IMG_FILE)
 
 
-def _parse_hm_bounds_arg(
-    s: str | None, flag_name: str
-) -> tuple[float | None, float | None]:
-    if not s:
-        return (None, None)
-    parts = [p.strip() for p in s.split(",") if p.strip() != ""]
-    if len(parts) == 1:
-        v = float(parts[0])
-        return (v, v)
-    if len(parts) == 2:
-        return (float(parts[0]), float(parts[1]))
-    raise ValueError(f"{flag_name} expects 'v' or 'v1,v2', got: {s!r}")
-
-
 # plot heatmaps
 def plotHeatmaps(vas):
     if max(va.gidx for va in vas) > 0:
@@ -8689,6 +8732,22 @@ if __name__ == "__main__":
         opts.turn_prob_by_dist = parse_distances(opts.turn_prob_by_dist)
     if opts.outside_circle_radii:
         opts.outside_circle_radii = parse_distances(opts.outside_circle_radii)
+
+    try:
+        corr_xmin, corr_xmax = _parse_axis_limits_arg(
+            getattr(opts, "corr_xlim", None), "--corr-xlim"
+        )
+    except Exception as e:
+        raise ValueError(f"Invalid --corr-xlim: {e}") from e
+    opts.corr_xlim = None if corr_xmin is None else (corr_xmin, corr_xmax)
+
+    try:
+        corr_ymin, corr_ymax = _parse_axis_limits_arg(
+            getattr(opts, "corr_ylim", None), "--corr-ylim"
+        )
+    except Exception as e:
+        raise ValueError(f"Invalid --corr-ylim: {e}") from e
+    opts.corr_ylim = None if corr_ymin is None else (corr_ymin, corr_ymax)
 
     if opts.turn_prob_by_dist or opts.outside_circle_radii:
         if opts.contact_geometry == "horizontal" and not opts.turn_prob_by_dist:
