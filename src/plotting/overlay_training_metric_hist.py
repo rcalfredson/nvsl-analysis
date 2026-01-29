@@ -206,6 +206,7 @@ def plot_overlays(
     stats: bool = False,
     stats_alpha: float = 0.05,
     xmax_plot: float | None = None,
+    categorical_bin_ratio_max: float = 4.0,
 ) -> plt.Figure:
     if mode not in ("pdf", "cdf"):
         raise ValueError("mode must be 'pdf' or 'cdf'")
@@ -264,15 +265,32 @@ def plot_overlays(
         if mode == "pdf":
             widths = np.diff(e)
             centers = 0.5 * (e[:-1] + e[1:])
+
+            # Decide whether to switch to categorical spacing
+            wpos = widths[np.isfinite(widths) & (widths > 0)]
+            width_ratio = float(np.nanmax(wpos) / np.nanmin(wpos)) if wpos.size else 1.0
+            categorical_x = (layout == "grouped") and (
+                width_ratio > float(categorical_bin_ratio_max)
+            )
+
         if mode == "pdf" and layout == "grouped":
             G = max(1, len(hists))
+            B = int(centers.size)
 
-            # allocate most of each bin width to bars, leave a small gap
-            group_band = 0.95 * widths  # (n_bins,)
-            bar_w = group_band / G  # (n_bins,)
+            if categorical_x:
+                # Categorical x positions: 0,1,2... so bins have equal spacing
+                centers_x = np.arange(B, dtype=float)
 
-            # offsets per group per bin
-            gpos = (np.arange(G) - (G - 1) / 2)[:, None]
+                group_band = 0.80
+                bar_w = np.full((B,), group_band / G, dtype=float)
+            else:
+                # Proportional x positions: respect bin widths
+                centers_x = centers
+
+                group_band = 0.95 * widths
+                bar_w = group_band / G
+
+            gpos = (np.arange(G) - (G - 1) / 2.0)[:, None]  # (G,1)
             offsets = gpos * bar_w[None, :]
 
         xpos_by_group: list[np.ndarray] = []
@@ -327,7 +345,7 @@ def plot_overlays(
                     )
                 else:
                     # grouped / dodged bars
-                    x = centers + offsets[g_idx]
+                    x = centers_x + offsets[g_idx]
 
                     # record x positions for bracket drawing
                     xpos_by_group.append(np.asarray(x, float))
@@ -388,7 +406,7 @@ def plot_overlays(
                     if layout == "overlay":
                         xerr = centers
                     else:
-                        xerr = centers + offsets[g_idx]
+                        xerr = centers_x + offsets[g_idx]
                     ax.errorbar(
                         xerr[mask],
                         y[mask],
@@ -440,7 +458,7 @@ def plot_overlays(
         # ---- bin-range x tick labels for grouped PDF bars ----
         if mode == "pdf" and layout == "grouped":
             # centers/edges may have been truncated above
-            ax.set_xticks(centers)
+            ax.set_xticks(centers_x)
 
             # label bins as ranges: "0-10", "10-20", ...
             labels_xt = []
@@ -452,6 +470,9 @@ def plot_overlays(
                     labels_xt.append(f"{a:0.2f}-{b:0.2f}")
 
             ax.set_xticklabels(labels_xt, rotation=0, fontsize=8)
+
+        if mode == "pdf" and layout == "grouped" and categorical_x:
+            ax.set_xlim(-0.5, B - 0.5)
 
         if stats and mode == "pdf" and layout == "grouped":
             # require per-fly PDF inputs
@@ -473,7 +494,7 @@ def plot_overlays(
 
             annotate_grouped_bars_per_bin(
                 ax,
-                x_centers=centers,
+                x_centers=centers_x,
                 xpos_by_group=xpos_by_group,
                 per_unit_by_group=per_unit_by_group,  # type: ignore[arg-type]
                 hi_by_group=hi_by_group,
