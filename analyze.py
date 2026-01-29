@@ -551,6 +551,18 @@ g.add_argument(
     help="Rebin k into ranges of this width (e.g. 5 => 0-4, 5-9, ...). Default: 1.",
 )
 g.add_argument(
+    "--wall-contacts-pmf-stats",
+    action="store_true",
+    help="Calculate and display one-way ANOVA across groups for "
+    "wall-contact PMF per sync bucket plots, with post-hoc pairwise tests.",
+)
+g.add_argument(
+    "--wall-contacts-pmf-stats-alpha",
+    type=float,
+    default=0.05,
+    help="Alpha to use for statistical tests in wall-contact PMF per sync bucket plots.",
+)
+g.add_argument(
     "--excl-wall-for-spd",
     action="store_true",
     help="Exclude frames where wall walking is detected when calculating speed statistics.",
@@ -682,6 +694,14 @@ g.add_argument(
     help=(
         "Export binned histogram data (counts + bin edges) for between-reward distances "
         "as a compressed .npz file. Intended for later overlay plotting across groups."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-dist-nbins",
+    type=int,
+    default=30,
+    help=(
+        "Number of bins to use in the between-reward distance histograms. Default: 30."
     ),
 )
 g.add_argument(
@@ -1138,6 +1158,19 @@ g.add_argument(
         "Restrict distance-traveled analysis to flies in the top SLI fraction "
         "(see --best-worst-sli, --best-worst-fraction, --best-worst-trn)."
     ),
+)
+
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-stats",
+    action="store_true",
+    help="Calculate and display one-way ANOVA across groups for "
+    "distance-traveled plots, with post-hoc pairwise tests.",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-stats-alpha",
+    type=float,
+    default=0.05,
+    help="Alpha to use for statistical tests in distance-traveled plots.",
 )
 
 # ---- walking exclusion knobs (mapped to generic opts in call site) ----
@@ -7092,7 +7125,7 @@ def postAnalyze(vas):
 
         br_cfg = BetweenRewardDistanceHistogramConfig(
             out_file=DIST_BTWN_REWARDS_IMG_FILE,
-            bins=30,
+            bins=getattr(opts, "btw_rwd_dist_nbins", 30),
             xmax=getattr(opts, "btw_rwd_dist_max", None),
             normalize=getattr(opts, "btw_rwd_dist_normalize", False),
             pool_trainings=getattr(opts, "btw_rwd_dist_pool_trainings", False),

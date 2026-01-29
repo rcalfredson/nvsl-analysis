@@ -8,6 +8,8 @@ from dataclasses import dataclass
 import numpy as np
 import matplotlib.pyplot as plt
 
+from src.plotting.stats_bars import StatAnnotConfig, annotate_grouped_bars_per_bin
+
 
 @dataclass(frozen=True)
 class ExportedTrainingHistogram:
@@ -21,6 +23,9 @@ class ExportedTrainingHistogram:
     ci_hi: np.ndarray | None  # (n_panels, bins)
     n_units: np.ndarray | None  # (n_panels, bins) int
     n_units_panel: np.ndarray | None  # (n_panels,) int
+    per_unit_panel: (
+        np.ndarray | None
+    )  # object array length n_panels; each entry (N_panel, bins)
     bin_edges: np.ndarray  # (n_panels, bins+1)
     n_used: np.ndarray  # (n_panels,)
     meta: dict
@@ -90,6 +95,9 @@ def load_export_npz(group: str, path: str) -> ExportedTrainingHistogram:
     n_units_panel = _maybe_none_array(
         d["n_units_panel"] if "n_units_panel" in d.files else None
     )
+    per_unit_panel = _maybe_none_array(
+        d["per_unit_panel"] if "per_unit_panel" in d.files else None
+    )
     bin_edges = np.asarray(d["bin_edges"])
     n_used = np.asarray(d["n_used"])
     meta_json = d["meta_json"].item() if "meta_json" in d.files else "{}"
@@ -105,6 +113,7 @@ def load_export_npz(group: str, path: str) -> ExportedTrainingHistogram:
         ci_hi=ci_hi,
         n_units=n_units,
         n_units_panel=n_units_panel,
+        per_unit_panel=per_unit_panel,
         bin_edges=bin_edges,
         n_used=n_used,
         meta=meta,
@@ -194,6 +203,9 @@ def plot_overlays(
     xlabel: str | None = None,
     ylabel: str | None = None,
     ymax: float | None = None,
+    stats: bool = False,
+    stats_alpha: float = 0.05,
+    xmax_plot: float | None = None,
 ) -> plt.Figure:
     if mode not in ("pdf", "cdf"):
         raise ValueError("mode must be 'pdf' or 'cdf'")
@@ -236,12 +248,23 @@ def plot_overlays(
     # For a step plot, we’ll use edges and a y of length bins+1
     for p_idx, (ax, plabel) in enumerate(zip(axes, panel_labels)):
         any_data = False
+        keep_bins = None
 
         # Precompute geometry for grouped bars (PDF only)
         if mode == "pdf":
             e = np.asarray(edges[p_idx], dtype=float)
             widths = np.diff(e)
             centers = 0.5 * (e[:-1] + e[1:])
+            # --- optional plot-time truncation ---
+            if xmax_plot is not None and np.isfinite(xmax_plot):
+                # keep bins whose left edge is < xmax_plot (or whose right edge <= xmax_plot)
+                # simplest: keep bins with e[i+1] <= xmax_plot
+                keep_bins = int(np.searchsorted(e, float(xmax_plot), side="right") - 1)
+                keep_bins = max(1, min(keep_bins, len(widths)))  # clamp to [1, bins]
+
+                e = e[: keep_bins + 1]
+                widths = widths[:keep_bins]
+                centers = centers[:keep_bins]
         if mode == "pdf" and layout == "grouped":
             w0 = float(widths[0])
             if not np.allclose(widths, w0, rtol=0, atol=1e-12):
@@ -258,6 +281,11 @@ def plot_overlays(
             bar_w = group_band / G
             offsets = (np.arange(G) - (G - 1) / 2.0) * bar_w
 
+        xpos_by_group: list[np.ndarray] = []
+        per_unit_by_group: list[np.ndarray] = []
+        hi_by_group: list[np.ndarray] = []
+        group_names = [h.group for h in hists]
+
         for g_idx, h in enumerate(hists):
             y_raw = _panel_y(h, p_idx)
 
@@ -265,6 +293,10 @@ def plot_overlays(
             if h.per_fly:
                 # mean may contain NaNs for bins with no contributing units
                 y_bins = np.asarray(y_raw, dtype=float)
+
+                if keep_bins is not None:
+                    y_bins = y_bins[:keep_bins]
+
                 if not np.any(np.isfinite(y_bins)):
                     continue
                 any_data = True
@@ -285,6 +317,9 @@ def plot_overlays(
                 if mode == "pdf":
                     y_bins = counts / total
 
+                    if keep_bins is not None:
+                        y_bins = y_bins[:keep_bins]
+
             # ---- plotting ----
             if mode == "pdf":
                 if layout == "overlay":
@@ -299,6 +334,31 @@ def plot_overlays(
                 else:
                     # grouped / dodged bars
                     x = centers + offsets[g_idx]
+
+                    # record x positions for bracket drawing
+                    xpos_by_group.append(np.asarray(x, float))
+
+                    # record per-fly per-bin PDF values for stats
+                    if h.per_fly:
+                        pu_obj = getattr(h, "per_unit_panel", None)
+                        pu = None
+                        if pu_obj is not None and np.asarray(pu_obj).shape[0] > p_idx:
+                            pu = pu_obj[p_idx]
+                        if pu is None:
+                            # keep placeholder to error cleanly later if stats requested
+                            per_unit_by_group.append(None)  # type: ignore[arg-type]
+                        else:
+                            pu = np.asarray(pu, float)
+                            if keep_bins is not None:
+                                pu = pu[:, :keep_bins]
+                            per_unit_by_group.append(pu)  # (N_panel, bins)
+
+                        # baseline for brackets (top of CI if available; else bar height)
+                        if h.ci_hi is not None and h.ci_hi.shape[0] > p_idx:
+                            hi_by_group.append(np.asarray(h.ci_hi[p_idx], float))
+                        else:
+                            hi_by_group.append(np.asarray(y_bins, float))
+
                     # bar() ignores NaNs poorly; replace NaNs with 0-height bars
                     y_plot = np.where(np.isfinite(y_bins), y_bins, 0.0)
                     ax.bar(
@@ -320,6 +380,10 @@ def plot_overlays(
                     lo = np.asarray(h.ci_lo[p_idx], dtype=float)
                     hi = np.asarray(h.ci_hi[p_idx], dtype=float)
                     y = np.asarray(y_bins, dtype=float)
+
+                    if keep_bins is not None:
+                        lo = lo[:keep_bins]
+                        hi = hi[:keep_bins]
 
                     # yerr expects non-negative deltas; guard NaNs
                     mask = np.isfinite(y) & np.isfinite(lo) & np.isfinite(hi)
@@ -375,6 +439,50 @@ def plot_overlays(
 
         if ymax is not None:
             ax.set_ylim(top=float(ymax))
+
+        # ---- bin-range x tick labels for grouped PDF bars ----
+        if mode == "pdf" and layout == "grouped":
+            # centers/edges may have been truncated above
+            ax.set_xticks(centers)
+
+            # label bins as ranges: "0-10", "10-20", ...
+            labels_xt = []
+            for a, b in zip(e[:-1], e[1:]):
+                # choose formatting: ints if close, else compact float
+                if np.isclose(a, round(a)) and np.isclose(b, round(b)):
+                    labels_xt.append(f"{int(round(a))}-{int(round(b))}")
+                else:
+                    labels_xt.append(f"{a:0.2f}-{b:0.2f}")
+
+            ax.set_xticklabels(labels_xt, rotation=0, fontsize=8)
+
+        if stats and mode == "pdf" and layout == "grouped":
+            # require per-fly PDF inputs
+            if not all(h.per_fly for h in hists):
+                raise ValueError(
+                    "Stats require per_fly=True exports (one PDF per fly)."
+                )
+            if any(pu is None for pu in per_unit_by_group):
+                raise ValueError(
+                    "Stats requested but per_unit_panel missing in one or more inputs. "
+                    "Re-export with per_unit_panel enabled."
+                )
+
+            cfg_stats = StatAnnotConfig(
+                alpha=float(stats_alpha),
+                min_n_per_group=3,
+                nlabel_off_frac=0.0,  # IMPORTANT: n is in legend, not above bars
+            )
+
+            annotate_grouped_bars_per_bin(
+                ax,
+                x_centers=centers,
+                xpos_by_group=xpos_by_group,
+                per_unit_by_group=per_unit_by_group,  # type: ignore[arg-type]
+                hi_by_group=hi_by_group,
+                group_names=group_names,
+                cfg=cfg_stats,
+            )
 
         ax.legend(fontsize=8)
 

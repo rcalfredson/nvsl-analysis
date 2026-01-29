@@ -404,6 +404,7 @@ class TrainingMetricHistogramPlotter:
         hi_list: list[np.ndarray] = []
         n_units_list: list[np.ndarray] = []
         n_units_panel_list: list[int] = []
+        per_unit_panel_list: list[np.ndarray | None] = []
 
         # for vals, label in zip(vals_by_panel, panel_labels):
         if self.cfg.per_fly:
@@ -480,12 +481,14 @@ class TrainingMetricHistogramPlotter:
                     lo = np.full((self.cfg.bins,), np.nan, dtype=float)
                     hi = np.full((self.cfg.bins,), np.nan, dtype=float)
                     n_units = np.zeros((self.cfg.bins,), dtype=int)
+                    per_unit_panel_list.append(None)
                 else:
                     M = np.stack(fly_hists, axis=0)  # (n_units, bins)
                     mean = np.full((self.cfg.bins,), np.nan, dtype=float)
                     lo = np.full((self.cfg.bins), np.nan, dtype=float)
                     hi = np.full((self.cfg.bins), np.nan, dtype=float)
                     n_units = np.zeros((self.cfg.bins,), dtype=int)
+                    per_unit_panel_list.append(M)
                     for j in range(self.cfg.bins):
                         m, lo_j, hi_j, n_j = meanConfInt(
                             M[:, j], conf=float(self.cfg.ci_conf)
@@ -619,6 +622,7 @@ class TrainingMetricHistogramPlotter:
                     "ci_hi": hi_arr,
                     "n_units": n_units_arr,
                     "n_units_panel": np.asarray(n_units_panel_list, dtype=int),
+                    "per_unit_panel": np.asarray(per_unit_panel_list, dtype=object)
                 }
             )
         else:
@@ -652,6 +656,7 @@ class TrainingMetricHistogramPlotter:
             ci_hi=data.get("ci_hi", None),
             n_units=data.get("n_units", None),
             n_units_panel=data.get("n_units_panel", None),
+            per_unit_panel=data.get("per_unit_panel", None),
             meta_json=json.dumps(data["meta"], sort_keys=True),
         )
         print(f"[{self.log_tag}] wrote histogram export {out_npz}")

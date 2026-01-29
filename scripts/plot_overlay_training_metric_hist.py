@@ -40,6 +40,24 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--xlabel", default=None, help="X-axis label override.")
     p.add_argument("--ylabel", default=None, help="Y-axis label override.")
     p.add_argument("--ymax", type=float, default=None, help="Optional fixed y max.")
+    p.add_argument(
+        "--xmax-plot",
+        type=float,
+        default=None,
+        help="Truncate the plotted x-range at this value (same units as histogram x). "
+        "Bins beyond xmax are omitted (PDF grouped bars).",
+    )
+    p.add_argument(
+        "--stats",
+        action="store_true",
+        help="Add per-bin one-way ANOVA + Holm/Welch posthoc stars (per-fly PDF only).",
+    )
+    p.add_argument(
+        "--stats-alpha",
+        type=float,
+        default=0.05,
+        help="Alpha for stats (default 0.05).",
+    )
     return p.parse_args()
 
 
@@ -74,6 +92,9 @@ def main() -> None:
         xlabel=args.xlabel,
         ylabel=args.ylabel,
         ymax=args.ymax,
+        stats=args.stats,
+        stats_alpha=args.stats_alpha,
+        xmax_plot=args.xmax_plot, 
     )
     _savefig(args.out)
     plt.close(fig)

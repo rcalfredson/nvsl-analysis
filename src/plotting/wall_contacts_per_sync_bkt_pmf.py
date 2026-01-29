@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import src.utils.util as util
 from src.utils.common import maybe_sentence_case, writeImage
 from src.plotting.plot_customizer import PlotCustomizer
+from src.plotting.stats_bars import StatAnnotConfig, annotate_grouped_bars_per_bin
 
 
 @dataclass
@@ -295,6 +296,7 @@ def plot_wall_contacts_pmf_overlay(
     K = k_max + 1
 
     # --- compute group mean pmf + CI ---
+    per_unit: list[np.ndarray] = []
     means: list[np.ndarray] = []
     lo: list[np.ndarray] = []
     hi: list[np.ndarray] = []
@@ -305,6 +307,9 @@ def plot_wall_contacts_pmf_overlay(
     for c in group_counts:
         pmf = _counts_to_pmf(c, k_max=k_max, overflow=overflow)
         pmf = _rebin_pmf_2d(pmf, bin_w)
+
+        per_unit.append(np.asarray(pmf, float))  # (N, K2)
+
         m, l, h, n = _mean_and_ci_tbased(pmf)
         means.append(m)
         lo.append(l)
@@ -322,6 +327,8 @@ def plot_wall_contacts_pmf_overlay(
 
     any_data = False
 
+    xpos_by_group: list[np.ndarray] = []
+
     for gi in range(n_groups):
         y = np.asarray(means[gi], dtype=float)
         lo_i = np.asarray(lo[gi], dtype=float)
@@ -329,6 +336,7 @@ def plot_wall_contacts_pmf_overlay(
 
         offset = (gi - (n_groups - 1) / 2.0) * bar_w
         xb = x + offset
+        xpos_by_group.append(np.asarray(xb, float))
 
         fin = np.isfinite(y) & np.isfinite(xb)
         if not fin.any():
@@ -384,6 +392,26 @@ def plot_wall_contacts_pmf_overlay(
 
         # small amt right/left padding
         ax.set_xlim(-0.6, float(K2 - 1) + 0.6)
+
+        do_stats = bool(getattr(opts, "wall_contacts_pmf_stats", False))
+        alpha = float(getattr(opts, "wall_contacts_pmf_stats_alpha", 0.05) or 0.05)
+
+        if do_stats:
+            cfg_stats = StatAnnotConfig(
+                alpha=alpha,
+                min_n_per_group=3,
+                nlabel_off_frac=0.0,      # IMPORTANT: you do NOT have n labels above bars here
+                headroom_frac=0.25,
+            )
+            annotate_grouped_bars_per_bin(
+                ax,
+                x_centers=x,  # K2 bins
+                xpos_by_group=xpos_by_group,
+                per_unit_by_group=per_unit,
+                hi_by_group=hi,
+                group_names=[str(l) for l in group_labels],
+                cfg=cfg_stats,
+            )
 
         ax.legend(loc="best", fontsize=customizer.in_plot_font_size)
         ax.set_title(maybe_sentence_case(f"wall contacts per sync bucket ({role})"))

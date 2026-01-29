@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 
 import src.utils.util as util
 from src.plotting.plot_customizer import PlotCustomizer
+from src.plotting.stats_bars import StatAnnotConfig, annotate_grouped_bars_per_bin
 from src.utils.common import maybe_sentence_case, writeImage
 
 from src.plotting.between_reward_segment_binning import (
@@ -1314,6 +1315,7 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
         lo: list[np.ndarray],
         hi: list[np.ndarray],
         n_units: list[np.ndarray],
+        per_unit: list[np.ndarray | None],
         title: str,
         ylabel: str,
         out_path: str,
@@ -1335,6 +1337,7 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
 
         any_data = False
         pending_labels: list[tuple[float, float, int]] = []  # x, y_top, n
+        xpos_by_group: list[np.ndarray] = []
 
         for gi in range(n_groups):
             y = np.asarray(means[gi], dtype=float)
@@ -1344,6 +1347,7 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
 
             offset = (gi - (n_groups - 1) / 2.0) * bar_w
             xb = x + offset
+            xpos_by_group.append(np.asarray(xb, float))
 
             fin = np.isfinite(xb) & np.isfinite(y) & np.isfinite(widths)
             if not fin.any():
@@ -1403,6 +1407,26 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
                 except Exception:
                     pass
 
+            # --- stats annotations (one-way ANOVA + Holm-corrected post-hoc) ---
+            do_stats = bool(getattr(opts, "btw_rwd_conditioned_disttrav_stats", False))
+            if do_stats and not any(pu is None for pu in per_unit):
+                cfg_stats = StatAnnotConfig(
+                    alpha=float(
+                        getattr(opts, "btw_rwd_conditioned_disttrav_stats_alpha", 0.05)
+                        or 0.05
+                    ),
+                    nlabel_off_frac=0.04,  # you DO have n labels here
+                )
+                annotate_grouped_bars_per_bin(
+                    ax,
+                    x_centers=x,
+                    xpos_by_group=xpos_by_group,
+                    per_unit_by_group=[np.asarray(pu, float) for pu in per_unit],  # type: ignore[arg-type]
+                    hi_by_group=hi,
+                    group_names=[str(l) for l in labels],
+                    cfg=cfg_stats,
+                )
+
             ax.legend(loc="best", fontsize=customizer.in_plot_font_size)
             ax.set_title(maybe_sentence_case(title))
 
@@ -1428,6 +1452,7 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
         print(f"[{log_tag}] wrote {out_path}")
 
     # Build arrays for total
+    per_unit_total = [r.per_unit_total for r in results]
     means_total = [np.asarray(r.mean_total, dtype=float) for r in results]
     lo_total = [np.asarray(r.ci_lo_total, dtype=float) for r in results]
     hi_total = [np.asarray(r.ci_hi_total, dtype=float) for r in results]
@@ -1438,12 +1463,14 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
         lo=lo_total,
         hi=hi_total,
         n_units=n_total,
+        per_unit=per_unit_total,
         title="between-reward distance traveled vs max distance-from-reward (total)",
         ylabel="mean distance traveled per fly [mm]",
         out_path=out_total,
     )
 
     # Build arrays for tail
+    per_unit_tail = [r.per_unit_tail for r in results]
     means_tail = [np.asarray(r.mean_tail, dtype=float) for r in results]
     lo_tail = [np.asarray(r.ci_lo_tail, dtype=float) for r in results]
     hi_tail = [np.asarray(r.ci_hi_tail, dtype=float) for r in results]
@@ -1454,6 +1481,7 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
         lo=lo_tail,
         hi=hi_tail,
         n_units=n_tail,
+        per_unit=per_unit_tail,
         title="between-reward distance traveled vs max distance-from-reward (max→end)",
         ylabel="mean distance traveled per fly [mm]",
         out_path=out_tail,
