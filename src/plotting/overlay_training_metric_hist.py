@@ -247,39 +247,33 @@ def plot_overlays(
     edges = hists[0].bin_edges
     # For a step plot, we’ll use edges and a y of length bins+1
     for p_idx, (ax, plabel) in enumerate(zip(axes, panel_labels)):
+        e = np.asarray(edges[p_idx], dtype=float)
         any_data = False
         keep_bins = None
 
+        # --- optional plot-time truncation ---
+        if xmax_plot is not None and np.isfinite(xmax_plot):
+            # keep bins whose left edge is < xmax_plot (or whose right edge <= xmax_plot)
+            # simplest: keep bins with e[i+1] <= xmax_plot
+            keep_bins = int(np.searchsorted(e, float(xmax_plot), side="right") - 1)
+            keep_bins = max(1, min(keep_bins, len(e) - 1))  # clamp to [1, bins]
+
+            e = e[: keep_bins + 1]
+
         # Precompute geometry for grouped bars (PDF only)
         if mode == "pdf":
-            e = np.asarray(edges[p_idx], dtype=float)
             widths = np.diff(e)
             centers = 0.5 * (e[:-1] + e[1:])
-            # --- optional plot-time truncation ---
-            if xmax_plot is not None and np.isfinite(xmax_plot):
-                # keep bins whose left edge is < xmax_plot (or whose right edge <= xmax_plot)
-                # simplest: keep bins with e[i+1] <= xmax_plot
-                keep_bins = int(np.searchsorted(e, float(xmax_plot), side="right") - 1)
-                keep_bins = max(1, min(keep_bins, len(widths)))  # clamp to [1, bins]
-
-                e = e[: keep_bins + 1]
-                widths = widths[:keep_bins]
-                centers = centers[:keep_bins]
         if mode == "pdf" and layout == "grouped":
-            w0 = float(widths[0])
-            if not np.allclose(widths, w0, rtol=0, atol=1e-12):
-                raise ValueError(
-                    "layout='grouped' assumes uniform bin widths. "
-                    "Re-export with an explicit xmax so edges come from linspace, "
-                    "or switch to layout='overlay'."
-                )
-
             G = max(1, len(hists))
 
-            # allocate most of the bin width to bars, leave a little gap
-            group_band = 0.95 * w0
-            bar_w = group_band / G
-            offsets = (np.arange(G) - (G - 1) / 2.0) * bar_w
+            # allocate most of each bin width to bars, leave a small gap
+            group_band = 0.95 * widths  # (n_bins,)
+            bar_w = group_band / G  # (n_bins,)
+
+            # offsets per group per bin
+            gpos = (np.arange(G) - (G - 1) / 2)[:, None]
+            offsets = gpos * bar_w[None, :]
 
         xpos_by_group: list[np.ndarray] = []
         per_unit_by_group: list[np.ndarray] = []
@@ -326,7 +320,7 @@ def plot_overlays(
                     # current step overlay
                     y_step = np.concatenate([y_bins, [y_bins[-1]]])
                     ax.step(
-                        edges[p_idx],
+                        e,
                         y_step,
                         where="post",
                         label=f"{h.group} (n={_panel_n_label(h, p_idx)})",
@@ -337,6 +331,15 @@ def plot_overlays(
 
                     # record x positions for bracket drawing
                     xpos_by_group.append(np.asarray(x, float))
+
+                    # baseline for brackets (top of CI if available; else bar height)
+                    if h.ci_hi is not None and h.ci_hi.shape[0] > p_idx:
+                        tmp_hi = np.asarray(h.ci_hi[p_idx], float)
+                        if keep_bins is not None:
+                            tmp_hi = tmp_hi[:keep_bins]
+                        hi_by_group.append(tmp_hi)
+                    else:
+                        hi_by_group.append(np.asarray(y_bins, float))
 
                     # record per-fly per-bin PDF values for stats
                     if h.per_fly:
@@ -352,12 +355,6 @@ def plot_overlays(
                             if keep_bins is not None:
                                 pu = pu[:, :keep_bins]
                             per_unit_by_group.append(pu)  # (N_panel, bins)
-
-                        # baseline for brackets (top of CI if available; else bar height)
-                        if h.ci_hi is not None and h.ci_hi.shape[0] > p_idx:
-                            hi_by_group.append(np.asarray(h.ci_hi[p_idx], float))
-                        else:
-                            hi_by_group.append(np.asarray(y_bins, float))
 
                     # bar() ignores NaNs poorly; replace NaNs with 0-height bars
                     y_plot = np.where(np.isfinite(y_bins), y_bins, 0.0)
@@ -419,7 +416,7 @@ def plot_overlays(
 
                 y_step = np.concatenate([[0.0], cdf])
                 ax.step(
-                    edges[p_idx],
+                    e,
                     y_step,
                     where="post",
                     label=f"{h.group} (n={_panel_n_label(h, p_idx)})",

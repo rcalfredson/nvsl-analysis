@@ -119,7 +119,7 @@ def annotate_grouped_bars_per_bin(
     *,
     x_centers: np.ndarray,  # (B,)
     xpos_by_group: list[np.ndarray],  # list of (B,) x positions
-    per_unit_by_group: list[np.ndarray],  # list of (N_g, B)
+    per_unit_by_group: list[np.ndarray | None],  # list of (N_g, B)
     hi_by_group: list[np.ndarray],  # list of (B,) upper CI (or bar tops)
     group_names: list[str],
     cfg: StatAnnotConfig,
@@ -129,17 +129,26 @@ def annotate_grouped_bars_per_bin(
     y_rng0 = float(ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 1.0
     ax.set_ylim(ylim0, ylim1 + cfg.headroom_frac * y_rng0)
 
+    B = int(x_centers.size)
+    if any(x.shape[0] != B for x in xpos_by_group):
+        return
+    if any(h.shape[0] != B for h in hi_by_group):
+        return
+
     ylim0, ylim1 = ax.get_ylim()
     y_rng = float(ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 1.0
     bracket_h = cfg.bracket_h_frac * y_rng
     step = bracket_h + cfg.stack_gap_frac * y_rng
 
-    B = int(x_centers.size)
+    gidx = {name: i for i, name in enumerate(group_names)}
     for j in range(B):
         # Collect samples for this bin
         samples: list[np.ndarray] = []
         ok = True
         for pu in per_unit_by_group:
+            if pu is None:
+                ok = False
+                break
             v = np.asarray(pu[:, j], float)
             v = v[np.isfinite(v)]
             if v.size < cfg.min_n_per_group:
@@ -178,16 +187,16 @@ def annotate_grouped_bars_per_bin(
         # Optional: stack narrow first, wide last
         def _span(pair_item):
             (a, b), _p = pair_item
-            i = group_names.index(a)
-            k = group_names.index(b)
+            i = gidx[a]
+            k = gidx[b]
             return abs(float(xpos_by_group[i][j] - xpos_by_group[k][j]))
 
         sig_pairs = sorted(sig_pairs, key=_span)
 
         level = 0
         for (name_i, name_j), p in sig_pairs:
-            i = group_names.index(name_i)
-            k = group_names.index(name_j)
+            i = gidx[name_i]
+            k = gidx[name_j]
 
             x1 = float(xpos_by_group[i][j])
             x2 = float(xpos_by_group[k][j])

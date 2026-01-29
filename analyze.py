@@ -223,6 +223,11 @@ def _parse_float_csv(s: str | None) -> list[float]:
     return [float(p) for p in parts]
 
 
+def _parse_float_csv_or_none(s: str | None) -> list[float] | None:
+    vals = _parse_float_csv(s)
+    return vals if vals else None
+
+
 def _parse_hm_bounds_arg(
     s: str | None, flag_name: str
 ) -> tuple[float | None, float | None]:
@@ -702,6 +707,16 @@ g.add_argument(
     default=30,
     help=(
         "Number of bins to use in the between-reward distance histograms. Default: 30."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-dist-bin-edges",
+    type=str,
+    default=None,
+    help=(
+        "Explicit comma-separated bin edges for between-reward distance histograms "
+        '(e.g. "0,1,2,3,5,8,12,20,30,50"). '
+        "If provided, overrides --btw-rwd-dist-nbins/--btw-rwd-dist-max for bin construction."
     ),
 )
 g.add_argument(
@@ -7127,6 +7142,9 @@ def postAnalyze(vas):
             out_file=DIST_BTWN_REWARDS_IMG_FILE,
             bins=getattr(opts, "btw_rwd_dist_nbins", 30),
             xmax=getattr(opts, "btw_rwd_dist_max", None),
+            bin_edges=_parse_float_csv_or_none(
+                getattr(opts, "btw_rwd_dist_bin_edges", None)
+            ),
             normalize=getattr(opts, "btw_rwd_dist_normalize", False),
             pool_trainings=getattr(opts, "btw_rwd_dist_pool_trainings", False),
             subset_label=subset_label,

@@ -19,6 +19,7 @@ class TrainingMetricHistogramConfig:
     out_file: str
     bins: int = 30
     xmax: float | None = None
+    bin_edges: Sequence[float] | None = None
     normalize: bool = False
     pool_trainings: bool = False
     subset_label: str | None = None
@@ -178,6 +179,70 @@ class TrainingMetricHistogramPlotter:
                 mx = v_max
         return mx
 
+    def _validated_bin_edges(self) -> np.ndarray | None:
+        """
+        Validate cfg.bin_edges (if provided) and return as a 1D float array.
+
+        Requirements:
+          - 1D sequence of at least 2 values
+          - all finite
+          - strictly increasing (each edge larger than the previous)
+
+        Notes:
+          - We do NOT force edges[0] == 0.0 here, because the base plotter is generic.
+            Later, for distance metrics, you can choose to enforce 0 explicitly if desired.
+          - If you later use these edges, you should filter values to [edges[0], edges[-1]]
+            (right now compute_histograms mainly filters values above xmax).
+        """
+        be = getattr(self.cfg, "bin_edges", None)
+        if be is None:
+            return None
+
+        # Convert to a clean 1D float array
+        try:
+            seq = tuple(be)
+            try:
+                self.cfg.bin_edges = seq
+            except Exception:
+                pass
+            edges = np.asarray(seq, dtype=float).ravel()
+        except Exception as e:
+            raise ValueError(
+                f"bin_edges must be a sequence of floats (got {be!r})"
+            ) from e
+
+        if edges.ndim != 1 or edges.size < 2:
+            raise ValueError(
+                f"bin_edges must be a 1D sequence with at least 2 values; got shape={edges.shape}"
+            )
+
+        # Finite check
+        bad = ~np.isfinite(edges)
+        if np.any(bad):
+            bad_idx = np.where(bad)[0].tolist()
+            raise ValueError(
+                f"bin_edges contains non-finite values at indices {bad_idx}: {edges[bad]}"
+            )
+
+        # Strictly increasing check
+        diffs = np.diff(edges)
+        if np.any(diffs <= 0):
+            # Find first offending position for a helpful error
+            i = int(np.where(diffs <= 0)[0][0])
+            raise ValueError(
+                "bin_edges must be strictly increasing. "
+                f"Found edges[{i}]={edges[i]:.6g} and edges[{i+1}]={edges[i+1]:.6g}."
+            )
+
+        # Optional informational warning: bin_edges overrides bins/xmax behavior.
+        if getattr(self.cfg, "xmax", None) is not None:
+            print(
+                f"[{self.log_tag}] NOTE: cfg.bin_edges is set; cfg.xmax will be ignored for binning."
+            )
+        # bins is also conceptually overridden, but we'll handle that cleanly in the next step.
+
+        return edges.astype(float, copy=False)
+
     def compute_histograms(self) -> dict:
         """
         Compute binned histograms for each panel (training or pooled).
@@ -201,16 +266,25 @@ class TrainingMetricHistogramPlotter:
           - mean, ci_lo, ci_hi, n_units (per-fly mode): np.ndarray shapes (n_panels, bins, )
         """
         sel_info = {}
+        user_edges = self._validated_bin_edges()
+        bins_eff = (
+            (int(user_edges.size) - 1) if user_edges is not None else int(self.cfg.bins)
+        )
+        binning_mode = "edges" if user_edges is not None else "bins"
+        bin_edges_user = (
+            [float(x) for x in user_edges] if user_edges is not None else None
+        )
+        xmin_effective = float(user_edges[0]) if user_edges is not None else 0.0
         if self.cfg.per_fly:
             vals_by_trn_by_fly = self._collect_values_by_training_per_fly()
             if not any(len(vlist) for vlist in vals_by_trn_by_fly):
                 return {
                     "panel_labels": [],
-                    "bin_edges": np.zeros((0, self.cfg.bins + 1), dtype=float),
-                    "mean": np.zeros((0, self.cfg.bins), dtype=float),
-                    "ci_lo": np.zeros((0, self.cfg.bins), dtype=float),
-                    "ci_hi": np.zeros((0, self.cfg.bins), dtype=float),
-                    "n_units": np.zeros((0, self.cfg.bins), dtype=int),
+                    "bin_edges": np.zeros((0, bins_eff + 1), dtype=float),
+                    "mean": np.zeros((0, bins_eff), dtype=float),
+                    "ci_lo": np.zeros((0, bins_eff), dtype=float),
+                    "ci_hi": np.zeros((0, bins_eff), dtype=float),
+                    "n_units": np.zeros((0, bins_eff), dtype=int),
                     "n_units_panel": np.zeros((0,), dtype=int),
                     "n_raw": np.zeros((0,), dtype=int),
                     "n_used": np.zeros((0,), dtype=int),
@@ -219,7 +293,12 @@ class TrainingMetricHistogramPlotter:
                         "log_tag": self.log_tag,
                         "x_label": self.x_label,
                         "base_title": self.base_title,
-                        "bins": int(self.cfg.bins),
+                        "binning": binning_mode,
+                        "bins_user": int(self.cfg.bins),
+                        "bins": int(bins_eff),
+                        "bin_edges_user": bin_edges_user,
+                        "normalize": bool(self.cfg.normalize),
+                        "xmin_effective": xmin_effective,
                         "xmax_user": self.cfg.xmax,
                         "xmax_effective": None,
                         "pool_trainings": bool(self.cfg.pool_trainings),
@@ -236,8 +315,8 @@ class TrainingMetricHistogramPlotter:
         if not self.cfg.per_fly and not any(len(v) for v in vals_by_trn):
             return {
                 "panel_labels": [],
-                "counts": np.zeros((0, self.cfg.bins), dtype=int),
-                "bin_edges": np.zeros((0, self.cfg.bins + 1), dtype=float),
+                "counts": np.zeros((0, bins_eff), dtype=int),
+                "bin_edges": np.zeros((0, bins_eff + 1), dtype=float),
                 "n_raw": np.zeros((0,), dtype=int),
                 "n_used": np.zeros((0,), dtype=int),
                 "n_dropped": np.zeros((0,), dtype=int),
@@ -245,7 +324,12 @@ class TrainingMetricHistogramPlotter:
                     "log_tag": self.log_tag,
                     "x_label": self.x_label,
                     "base_title": self.base_title,
-                    "bins": int(self.cfg.bins),
+                    "binning": binning_mode,
+                    "bins_user": int(self.cfg.bins),
+                    "bins": int(bins_eff),
+                    "bin_edges_user": bin_edges_user,
+                    "normalize": bool(self.cfg.normalize),
+                    "xmin_effective": xmin_effective,
                     "xmax_user": self.cfg.xmax,
                     "xmax_effective": None,
                     "pool_trainings": bool(self.cfg.pool_trainings),
@@ -283,11 +367,11 @@ class TrainingMetricHistogramPlotter:
                         # nothing selected: return empty payload (consistent with your "no data" style)
                         return {
                             "panel_labels": [],
-                            "bin_edges": np.zeros((0, self.cfg.bins + 1), dtype=float),
-                            "mean": np.zeros((0, self.cfg.bins), dtype=float),
-                            "ci_lo": np.zeros((0, self.cfg.bins), dtype=float),
-                            "ci_hi": np.zeros((0, self.cfg.bins), dtype=float),
-                            "n_units": np.zeros((0, self.cfg.bins), dtype=int),
+                            "bin_edges": np.zeros((0, bins_eff + 1), dtype=float),
+                            "mean": np.zeros((0, bins_eff), dtype=float),
+                            "ci_lo": np.zeros((0, bins_eff), dtype=float),
+                            "ci_hi": np.zeros((0, bins_eff), dtype=float),
+                            "n_units": np.zeros((0, bins_eff), dtype=int),
                             "n_units_panel": np.zeros((0,), dtype=int),
                             "n_raw": np.zeros((0,), dtype=int),
                             "n_used": np.zeros((0,), dtype=int),
@@ -296,7 +380,12 @@ class TrainingMetricHistogramPlotter:
                                 "log_tag": self.log_tag,
                                 "x_label": self.x_label,
                                 "base_title": self.base_title,
-                                "bins": int(self.cfg.bins),
+                                "binning": binning_mode,
+                                "bins_user": int(self.cfg.bins),
+                                "bins": int(bins_eff),
+                                "normalize": bool(self.cfg.normalize),
+                                "bin_edges_user": bin_edges_user,
+                                "xmin_effective": xmin_effective,
                                 "xmax_user": self.cfg.xmax,
                                 "xmax_effective": None,
                                 "pool_trainings": bool(self.cfg.pool_trainings),
@@ -351,8 +440,8 @@ class TrainingMetricHistogramPlotter:
                     if not keep:
                         return {
                             "panel_labels": [],
-                            "counts": np.zeros((0, self.cfg.bins), dtype=int),
-                            "bin_edges": np.zeros((0, self.cfg.bins + 1), dtype=float),
+                            "counts": np.zeros((0, bins_eff), dtype=int),
+                            "bin_edges": np.zeros((0, bins_eff + 1), dtype=float),
                             "n_raw": np.zeros((0,), dtype=int),
                             "n_used": np.zeros((0,), dtype=int),
                             "n_dropped": np.zeros((0,), dtype=int),
@@ -360,7 +449,12 @@ class TrainingMetricHistogramPlotter:
                                 "log_tag": self.log_tag,
                                 "x_label": self.x_label,
                                 "base_title": self.base_title,
-                                "bins": int(self.cfg.bins),
+                                "binning": binning_mode,
+                                "bins_user": int(self.cfg.bins),
+                                "bins": int(bins_eff),
+                                "normalize": bool(self.cfg.normalize),
+                                "bin_edges_user": bin_edges_user,
+                                "xmin_effective": xmin_effective,
                                 "xmax_user": self.cfg.xmax,
                                 "xmax_effective": None,
                                 "pool_trainings": bool(self.cfg.pool_trainings),
@@ -388,10 +482,34 @@ class TrainingMetricHistogramPlotter:
 
             eff_xmax = self._effective_xmax(vals_by_panel)
 
+        # If explicit edges are provided, define "effective xmax" by the last edge.
+        # This keeps exports deterministic and avoids overlay alignment failures.
+        if user_edges is not None:
+            eff_xmax = float(user_edges[-1])
+
         # Guard against degenerate histogram ranges (e.g., all values == 0 → xmax == 0)
         # np.histogram(..., range=(0, 0)) is problematic, so fall back to data-driven bins.
         if eff_xmax is not None and eff_xmax <= 0:
             eff_xmax = None
+
+        if user_edges is not None:
+            lo_edge = float(user_edges[0])
+            hi_edge = float(user_edges[-1])
+        else:
+            lo_edge = 0.0
+            hi_edge = float(eff_xmax) if eff_xmax is not None else None
+
+        def _clip(v: np.ndarray) -> np.ndarray:
+            v = np.asarray(v, dtype=float)
+            v = v[np.isfinite(v)]
+            if v.size == 0:
+                return v
+            if hi_edge is not None:
+                v = v[(v >= lo_edge) & (v <= hi_edge)]
+            else:
+                # no upper bound known
+                v = v[v >= lo_edge]
+            return v
 
         counts_list: list[np.ndarray] = []
         edges_list: list[np.ndarray] = []
@@ -411,6 +529,8 @@ class TrainingMetricHistogramPlotter:
             for vlist, label in zip(vals_by_panel_by_fly, panel_labels):
                 # Flatten for raw segment counting / xmax filtering diagnostics
                 raw_all = []
+                used_all = []
+
                 for v in vlist:
                     if v is None:
                         continue
@@ -418,39 +538,42 @@ class TrainingMetricHistogramPlotter:
                     vv = vv[np.isfinite(vv)]
                     if vv.size:
                         raw_all.append(vv)
-                if not raw_all:
+                        vv_used = _clip(vv)
+                        if vv_used.size:
+                            used_all.append(vv_used)
+
+                if not used_all:
                     # No data: still emit deterministic edges
                     hi = float(eff_xmax) if eff_xmax is not None else 1.0
-                    edges = np.linspace(0, hi, self.cfg.bins + 1, dtype=float)
+                    if user_edges is not None:
+                        edges = user_edges
+                    else:
+                        edges = np.linspace(0, hi, bins_eff + 1, dtype=float)
                     edges_list.append(edges)
-                    mean_list.append(np.full((self.cfg.bins,), np.nan, dtype=float))
-                    lo_list.append(np.full((self.cfg.bins,), np.nan, dtype=float))
-                    hi_list.append(np.full((self.cfg.bins,), np.nan, dtype=float))
-                    n_units_list.append(np.zeros((self.cfg.bins,), dtype=int))
+                    mean_list.append(np.full((bins_eff,), np.nan, dtype=float))
+                    lo_list.append(np.full((bins_eff,), np.nan, dtype=float))
+                    hi_list.append(np.full((bins_eff,), np.nan, dtype=float))
+                    n_units_list.append(np.zeros((bins_eff,), dtype=int))
                     n_raw_list.append(0)
                     n_used_list.append(0)
                     n_dropped_list.append(0)
                     n_units_panel_list.append(0)
                     continue
 
-                flat = np.concatenate(raw_all, axis=0)
-                n_raw = int(flat.size)
-                if eff_xmax is not None:
-                    flat_used = flat[flat <= eff_xmax]
-                else:
-                    flat_used = flat
-
+                flat_raw = np.concatenate(raw_all, axis=0)  # for n_raw
+                flat_used = np.concatenate(used_all, axis=0)  # for edges / n_used
+                n_raw = int(flat_raw.size)
                 n_used = int(flat_used.size)
                 n_dropped = int(n_raw - n_used)
 
                 # Shared edges per panel
-                if eff_xmax is not None:
-                    edges = np.linspace(
-                        0.0, float(eff_xmax), self.cfg.bins + 1, dtype=float
-                    )
+                if user_edges is not None:
+                    edges = user_edges
+                elif eff_xmax is not None:
+                    edges = np.linspace(0.0, float(eff_xmax), bins_eff + 1, dtype=float)
                 else:
                     # Data-driven edges per panel (may not align across groups)
-                    edges = np.histogram_bin_edges(flat_used, bins=self.cfg.bins)
+                    edges = np.histogram_bin_edges(flat_used, bins=bins_eff)
                 edges_list.append(edges.astype(float, copy=False))
 
                 # Per-fly histograms
@@ -458,12 +581,7 @@ class TrainingMetricHistogramPlotter:
                 for v in vlist:
                     if v is None:
                         continue
-                    vv = np.asarray(v, dtype=float)
-                    vv = vv[np.isfinite(vv)]
-                    if vv.size == 0:
-                        continue
-                    if eff_xmax is not None:
-                        vv = vv[vv <= eff_xmax]
+                    vv = _clip(v)
                     if vv.size == 0:
                         continue
                     c, _ = np.histogram(vv, bins=edges)
@@ -477,19 +595,19 @@ class TrainingMetricHistogramPlotter:
                     fly_hists.append(c)
                 n_units_panel_list.append(len(fly_hists))
                 if not fly_hists:
-                    mean = np.full((self.cfg.bins,), np.nan, dtype=float)
-                    lo = np.full((self.cfg.bins,), np.nan, dtype=float)
-                    hi = np.full((self.cfg.bins,), np.nan, dtype=float)
-                    n_units = np.zeros((self.cfg.bins,), dtype=int)
+                    mean = np.full((bins_eff,), np.nan, dtype=float)
+                    lo = np.full((bins_eff,), np.nan, dtype=float)
+                    hi = np.full((bins_eff,), np.nan, dtype=float)
+                    n_units = np.zeros((bins_eff,), dtype=int)
                     per_unit_panel_list.append(None)
                 else:
                     M = np.stack(fly_hists, axis=0)  # (n_units, bins)
-                    mean = np.full((self.cfg.bins,), np.nan, dtype=float)
-                    lo = np.full((self.cfg.bins), np.nan, dtype=float)
-                    hi = np.full((self.cfg.bins), np.nan, dtype=float)
-                    n_units = np.zeros((self.cfg.bins,), dtype=int)
+                    mean = np.full((bins_eff,), np.nan, dtype=float)
+                    lo = np.full((bins_eff,), np.nan, dtype=float)
+                    hi = np.full((bins_eff,), np.nan, dtype=float)
+                    n_units = np.zeros((bins_eff,), dtype=int)
                     per_unit_panel_list.append(M)
-                    for j in range(self.cfg.bins):
+                    for j in range(bins_eff):
                         m, lo_j, hi_j, n_j = meanConfInt(
                             M[:, j], conf=float(self.cfg.ci_conf)
                         )
@@ -512,11 +630,12 @@ class TrainingMetricHistogramPlotter:
         else:
             for vals, label in zip(vals_by_panel, panel_labels):
                 if vals is None or vals.size == 0:
-                    counts_list.append(np.zeros((self.cfg.bins,), dtype=int))
+                    counts_list.append(np.zeros((bins_eff,), dtype=int))
                     hi = float(eff_xmax) if eff_xmax is not None else 1.0
-                    edges_list.append(
-                        np.linspace(0, hi, self.cfg.bins + 1, dtype=float)
-                    )
+                    if user_edges is not None:
+                        edges_list.append(user_edges)
+                    else:
+                        edges_list.append(np.linspace(0, hi, bins_eff + 1, dtype=float))
                     n_raw_list.append(0)
                     n_used_list.append(0)
                     n_dropped_list.append(0)
@@ -525,24 +644,28 @@ class TrainingMetricHistogramPlotter:
                 vals = vals[np.isfinite(vals)]
                 n_raw = int(vals.size)
 
-                if eff_xmax is not None:
-                    vals = vals[vals <= eff_xmax]
+                vals = _clip(vals)
                 n_used = int(vals.size)
                 n_dropped = int(n_raw - n_used)
 
                 if n_used == 0:
-                    counts = np.zeros((self.cfg.bins,), dtype=int)
+                    counts = np.zeros((bins_eff,), dtype=int)
                     hi = float(eff_xmax) if eff_xmax is not None else 1.0
-                    edges = np.linspace(0, hi, self.cfg.bins + 1, dtype=float)
+                    if user_edges is not None:
+                        edges = user_edges
+                    else:
+                        edges = np.linspace(0, hi, bins_eff + 1, dtype=float)
                 else:
-                    if eff_xmax is not None:
+                    if user_edges is not None:
+                        counts, edges = np.histogram(vals, bins=user_edges)
+                    elif eff_xmax is not None:
                         # Enforce shared edges via an explicit range.
                         counts, edges = np.histogram(
-                            vals, bins=self.cfg.bins, range=(0.0, float(eff_xmax))
+                            vals, bins=bins_eff, range=(0.0, float(eff_xmax))
                         )
                     else:
                         # Fallback: data-driven edges (will likely not align across groups).
-                        counts, edges = np.histogram(vals, bins=self.cfg.bins)
+                        counts, edges = np.histogram(vals, bins=bins_eff)
 
                 counts_list.append(counts.astype(int, copy=False))
                 edges_list.append(edges.astype(float, copy=False))
@@ -558,44 +681,51 @@ class TrainingMetricHistogramPlotter:
         counts_arr = (
             np.stack(counts_list, axis=0)
             if counts_list
-            else np.zeros((0, self.cfg.bins), dtype=int)
+            else np.zeros((0, bins_eff), dtype=int)
         )
         edges_arr = (
             np.stack(edges_list, axis=0)
             if edges_list
-            else np.zeros((0, self.cfg.bins + 1), dtype=float)
+            else np.zeros((0, bins_eff + 1), dtype=float)
         )
 
         if self.cfg.per_fly:
             mean_arr = (
                 np.stack(mean_list, axis=0)
                 if mean_list
-                else np.zeros((0, self.cfg.bins), dtype=float)
+                else np.zeros((0, bins_eff), dtype=float)
             )
             lo_arr = (
                 np.stack(lo_list, axis=0)
                 if lo_list
-                else np.zeros((0, self.cfg.bins), dtype=float)
+                else np.zeros((0, bins_eff), dtype=float)
             )
             hi_arr = (
                 np.stack(hi_list, axis=0)
                 if hi_list
-                else np.zeros((0, self.cfg.bins), dtype=float)
+                else np.zeros((0, bins_eff), dtype=float)
             )
             n_units_arr = (
                 np.stack(n_units_list, axis=0)
                 if n_units_list
-                else np.zeros((0, self.cfg.bins), dtype=int)
+                else np.zeros((0, bins_eff), dtype=int)
             )
 
         meta = {
             "log_tag": self.log_tag,
             "x_label": self.x_label,
             "base_title": self.base_title,
-            "bins": int(self.cfg.bins),
+            # binning bookkeeping
+            "binning": binning_mode,  # "edges" or "bins"
+            "bins_user": int(
+                self.cfg.bins
+            ),  # user-supplied bins parameter (used only when bin_edges is None)
+            "bins": int(bins_eff),  # effective payload bins
+            "bin_edges_user": bin_edges_user,  # explicit edges (if provided)
             "normalize": bool(self.cfg.normalize),
             "xmax_user": self.cfg.xmax,
             "xmax_effective": eff_xmax,
+            "xmin_effective": float(lo_edge),
             "pool_trainings": bool(self.cfg.pool_trainings),
             **sel_info,
             "subset_label": self.cfg.subset_label,
@@ -622,7 +752,7 @@ class TrainingMetricHistogramPlotter:
                     "ci_hi": hi_arr,
                     "n_units": n_units_arr,
                     "n_units_panel": np.asarray(n_units_panel_list, dtype=int),
-                    "per_unit_panel": np.asarray(per_unit_panel_list, dtype=object)
+                    "per_unit_panel": np.asarray(per_unit_panel_list, dtype=object),
                 }
             )
         else:
