@@ -216,16 +216,41 @@ class FlyDetector:
 # - - -
 
 
-def _parse_float_csv(s: str | None) -> list[float]:
+def _parse_float_csv(s: str | None) -> tuple[float, ...]:
     if not s:
-        return []
+        return ()
     parts = [p.strip() for p in s.split(",") if p.strip() != ""]
-    return [float(p) for p in parts]
+    return tuple(float(p) for p in parts)
 
 
-def _parse_float_csv_or_none(s: str | None) -> list[float] | None:
+def _parse_float_csv_or_none(s: str | None) -> tuple[float, ...] | None:
     vals = _parse_float_csv(s)
     return vals if vals else None
+
+
+def _parse_float_csv_or_edge_groups_or_none(
+    s: str | None,
+) -> tuple[float, ...] | tuple[tuple[float, ...], ...] | None:
+    if s is None:
+        return None
+    s = str(s).strip()
+    if not s:
+        return None
+
+    # Segment separator
+    if "|" in s:
+        groups: list[tuple[float, ...]] = []
+        for part in s.split("|"):
+            part = part.strip()
+            if not part:
+                continue
+            vals = _parse_float_csv(part)
+            if vals:
+                groups.append(vals)
+        return tuple(groups) if groups else None
+
+    # Original behavior
+    return _parse_float_csv_or_none(s)
 
 
 def _parse_hm_bounds_arg(
@@ -7142,7 +7167,7 @@ def postAnalyze(vas):
             out_file=DIST_BTWN_REWARDS_IMG_FILE,
             bins=getattr(opts, "btw_rwd_dist_nbins", 30),
             xmax=getattr(opts, "btw_rwd_dist_max", None),
-            bin_edges=_parse_float_csv_or_none(
+            bin_edges=_parse_float_csv_or_edge_groups_or_none(
                 getattr(opts, "btw_rwd_dist_bin_edges", None)
             ),
             normalize=getattr(opts, "btw_rwd_dist_normalize", False),

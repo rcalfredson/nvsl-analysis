@@ -8,6 +8,11 @@ from dataclasses import dataclass
 import numpy as np
 import matplotlib.pyplot as plt
 
+from src.plotting.bin_edges import (
+    is_grouped_edges,
+    normalize_panel_edges,
+    geom_from_edges,
+)
 from src.plotting.stats_bars import StatAnnotConfig, annotate_grouped_bars_per_bin
 
 
@@ -26,7 +31,10 @@ class ExportedTrainingHistogram:
     per_unit_panel: (
         np.ndarray | None
     )  # object array length n_panels; each entry (N_panel, bins)
-    bin_edges: np.ndarray  # (n_panels, bins+1)
+    # bin_edges:
+    #   - flat: (n_panels, bins+1) float array
+    #   - grouped: object array length n_panels; each entry is list[np.ndarray] of 1D edges
+    bin_edges: np.ndarray
     n_used: np.ndarray  # (n_panels,)
     meta: dict
 
@@ -70,6 +78,21 @@ def _maybe_none_array(x) -> np.ndarray | None:
         except Exception:
             pass
     return arr
+
+
+def _edges_equal(a_item, b_item) -> bool:
+    a = normalize_panel_edges(a_item)
+    b = normalize_panel_edges(b_item)
+    if isinstance(a, list) != isinstance(b, list):
+        return False
+    if isinstance(a, list):
+        if len(a) != len(b):
+            return False
+        return all(
+            aa.shape == bb.shape and np.allclose(aa, bb, rtol=0, atol=1e-12)
+            for aa, bb in zip(a, b)
+        )
+    return a.shape == b.shape and np.allclose(a, b, rtol=0, atol=1e-12)
 
 
 def _panel_n_label(h: ExportedTrainingHistogram, p_idx: int) -> str:
@@ -167,12 +190,13 @@ def validate_alignment(hists: list[ExportedTrainingHistogram]) -> None:
     # Bin edges must match per panel
     edges0 = hists[0].bin_edges
     for h in hists[1:]:
-        if h.bin_edges.shape != edges0.shape:
+        if len(h.bin_edges) != len(edges0):
             raise ValueError("bin_edges shape differs across inputs")
-        if not np.allclose(h.bin_edges, edges0, rtol=0, atol=1e-12):
-            raise ValueError(
-                "bin_edges differ across inputs. Re-export with the same --*-max and bins."
-            )
+        for p_idx in range(len(edges0)):
+            if not _edges_equal(h.bin_edges[p_idx], edges0[p_idx]):
+                raise ValueError(
+                    "bin_edges differ across inputs. Re-export with the same bin_edges/bin_edges_groups."
+                )
 
 
 def _panel_y(h: ExportedTrainingHistogram, p_idx: int) -> np.ndarray:
@@ -248,23 +272,46 @@ def plot_overlays(
     edges = hists[0].bin_edges
     # For a step plot, we’ll use edges and a y of length bins+1
     for p_idx, (ax, plabel) in enumerate(zip(axes, panel_labels)):
-        e = np.asarray(edges[p_idx], dtype=float)
         any_data = False
         keep_bins = None
 
+        e_item0 = normalize_panel_edges(hists[0].bin_edges[p_idx])
+        e_item = e_item0
+
         # --- optional plot-time truncation ---
         if xmax_plot is not None and np.isfinite(xmax_plot):
-            # keep bins whose left edge is < xmax_plot (or whose right edge <= xmax_plot)
-            # simplest: keep bins with e[i+1] <= xmax_plot
-            keep_bins = int(np.searchsorted(e, float(xmax_plot), side="right") - 1)
-            keep_bins = max(1, min(keep_bins, len(e) - 1))  # clamp to [1, bins]
+            xcut = float(xmax_plot)
 
-            e = e[: keep_bins + 1]
+            if is_grouped_edges(e_item0):
+                new_groups = []
+                kept = 0
+                for g in e_item0:
+                    g = np.asarray(g, float)
+                    # keep bins whose RIGHT edge <= xcut
+                    right = g[1:]
+                    k = int(np.sum(right <= xcut))
+                    if k <= 0:
+                        continue
+                    new_groups.append(g[: k + 1])
+                    kept += k
+                if kept <= 0:
+                    kept = 1
+                    # keep first bin of the first group so geometry isn't empty
+                    g0 = np.asarray(e_item0[0], float)
+                    new_groups = [g0[:2]]
+                e_item = new_groups
+                keep_bins = kept
+            else:
+                e_flat = np.asarray(e_item0, float)
+                keep_bins = int(
+                    np.searchsorted(e_flat[1:], xcut, side="right")
+                )  # count of bins
+                keep_bins = max(1, min(keep_bins, len(e_flat) - 1))
+                e_item = e_flat[: keep_bins + 1]
 
         # Precompute geometry for grouped bars (PDF only)
         if mode == "pdf":
-            widths = np.diff(e)
-            centers = 0.5 * (e[:-1] + e[1:])
+            widths, centers, bin_ranges, B, x0, x1 = geom_from_edges(e_item)
 
             # Decide whether to switch to categorical spacing
             wpos = widths[np.isfinite(widths) & (widths > 0)]
@@ -275,7 +322,6 @@ def plot_overlays(
 
         if mode == "pdf" and layout == "grouped":
             G = max(1, len(hists))
-            B = int(centers.size)
 
             if categorical_x:
                 # Categorical x positions: 0,1,2... so bins have equal spacing
@@ -294,7 +340,7 @@ def plot_overlays(
             offsets = gpos * bar_w[None, :]
 
         xpos_by_group: list[np.ndarray] = []
-        per_unit_by_group: list[np.ndarray] = []
+        per_unit_by_group: list[np.ndarray | None] = []
         hi_by_group: list[np.ndarray] = []
         group_names = [h.group for h in hists]
 
@@ -335,14 +381,36 @@ def plot_overlays(
             # ---- plotting ----
             if mode == "pdf":
                 if layout == "overlay":
-                    # current step overlay
-                    y_step = np.concatenate([y_bins, [y_bins[-1]]])
-                    ax.step(
-                        e,
-                        y_step,
-                        where="post",
-                        label=f"{h.group} (n={_panel_n_label(h, p_idx)})",
-                    )
+                    if is_grouped_edges(e_item):
+                        # plot each group as a separate step segment (no bridging across gaps)
+                        pos = 0
+                        for gi, g in enumerate(e_item):
+                            nb = int(len(g) - 1)
+                            if nb <= 0:
+                                continue
+                            y_seg = y_bins[pos : pos + nb]
+                            if y_seg.size != nb:
+                                break
+                            y_step = np.concatenate([y_seg, [y_seg[-1]]])
+                            ax.step(
+                                g,
+                                y_step,
+                                where="post",
+                                label=(
+                                    f"{h.group} (n={_panel_n_label(h, p_idx)})"
+                                    if gi == 0
+                                    else None
+                                ),
+                            )
+                            pos += nb
+                    else:
+                        y_step = np.concatenate([y_bins, [y_bins[-1]]])
+                        ax.step(
+                            e_item,
+                            y_step,
+                            where="post",
+                            label=f"{h.group} (n={_panel_n_label(h, p_idx)})",
+                        )
                 else:
                     # grouped / dodged bars
                     x = centers_x + offsets[g_idx]
@@ -431,14 +499,44 @@ def plot_overlays(
                 else:
                     # pooled counts
                     cdf = np.cumsum(counts) / total
+                    y_bins = counts / total
 
-                y_step = np.concatenate([[0.0], cdf])
-                ax.step(
-                    e,
-                    y_step,
-                    where="post",
-                    label=f"{h.group} (n={_panel_n_label(h, p_idx)})",
-                )
+                if is_grouped_edges(e_item):
+                    # Draw per-group, carrying forward cumulative value
+                    pos = 0
+                    cprev = 0.0
+                    for gi, g in enumerate(e_item):
+                        nb = int(len(g) - 1)
+                        if nb <= 0:
+                            continue
+                        yy = np.where(
+                            np.isfinite(y_bins[pos : pos + nb]),
+                            y_bins[pos : pos + nb],
+                            0.0,
+                        )
+                        cdf_seg = cprev + np.cumsum(yy)
+                        y_step = np.concatenate([[cprev], cdf_seg])
+                        ax.step(
+                            g,
+                            y_step,
+                            where="post",
+                            label=(
+                                f"{h.group} (n={_panel_n_label(h, p_idx)})"
+                                if gi == 0
+                                else None
+                            ),
+                        )
+                        cprev = float(cdf_seg[-1]) if cdf_seg.size else cprev
+                        pos += nb
+                else:
+
+                    y_step = np.concatenate([[0.0], cdf])
+                    ax.step(
+                        e_item,
+                        y_step,
+                        where="post",
+                        label=f"{h.group} (n={_panel_n_label(h, p_idx)})",
+                    )
 
         if not any_data:
             ax.set_axis_off()
@@ -462,7 +560,7 @@ def plot_overlays(
 
             # label bins as ranges: "0-10", "10-20", ...
             labels_xt = []
-            for a, b in zip(e[:-1], e[1:]):
+            for a, b in bin_ranges:
                 # choose formatting: ints if close, else compact float
                 if np.isclose(a, round(a)) and np.isclose(b, round(b)):
                     labels_xt.append(f"{int(round(a))}-{int(round(b))}")
@@ -471,8 +569,11 @@ def plot_overlays(
 
             ax.set_xticklabels(labels_xt, rotation=0, fontsize=8)
 
-        if mode == "pdf" and layout == "grouped" and categorical_x:
-            ax.set_xlim(-0.5, B - 0.5)
+        if mode == "pdf" and layout == "grouped":
+            if categorical_x:
+                ax.set_xlim(-0.5, B - 0.5)
+            else:
+                ax.set_xlim(x0, x1)
 
         if stats and mode == "pdf" and layout == "grouped":
             # require per-fly PDF inputs
