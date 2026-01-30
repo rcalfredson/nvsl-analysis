@@ -128,6 +128,7 @@ from src.plotting.between_reward_polar_occupancy import (
     BetweenRewardPolarOccupancyPlotter,
     BetweenRewardPolarOccupancyConfig,
 )
+from src.plotting.reward_raster_plotter import RewardRasterConfig, RewardRasterPlotter
 from src.plotting.turn_directionality_plotter import TurnDirectionalityPlotter
 from src.plotting.turn_prob_dist_plotter import TurnProbabilityByDistancePlotter
 from src.utils.debug_fly_groups import init_fly_group_logging, log_fly_group
@@ -636,6 +637,46 @@ g.add_argument(
         "sampling one or more between-reward segments within a specified "
         "training sync bucket and arranging them as subplots."
     ),
+)
+g.add_argument(
+    "--reward-raster",
+    action="store_true",
+    help=(
+        "Plot a raster of optogenetic reward (LED pulse) times for a random subset "
+        "of experimental flies, with one row per fly and time on the x-axis."
+    ),
+)
+g.add_argument(
+    "--reward-raster-nflies",
+    type=int,
+    default=50,
+    help="Number of flies (videos) to include in the raster. Default: %(default)s.",
+)
+g.add_argument(
+    "--reward-raster-seed",
+    type=int,
+    default=None,
+    help="Random seed for selecting flies for the raster (optional).",
+)
+g.add_argument(
+    "--reward-raster-per-training",
+    action="store_true",
+    help=(
+        "If set, create one subplot per training (time zero at each training start). "
+        "If not set, plot the full experiment timeline and mark training boundaries."
+    ),
+)
+g.add_argument(
+    "--reward-raster-marker-size",
+    type=float,
+    default=6.0,
+    help="Marker size for rewards in the raster plot. Default: %(default)s.",
+)
+g.add_argument(
+    "--reward-raster-out",
+    type=str,
+    default="imgs/reward_raster.png",
+    help="Output path for the reward raster image.",
 )
 g.add_argument(
     "--btw-rwd-trn",
@@ -7140,6 +7181,17 @@ def postAnalyze(vas):
     if opts.circle:
         plotAngularVelocity(vas, opts, gls)
         plotTurnRadiusHist(vas, gls, opts.yoked)
+
+    if getattr(opts, "reward_raster", False):
+        cfg = RewardRasterConfig(
+            out_file=getattr(opts, "reward_raster_out", "imgs/reward_raster.png"),
+            nflies=int(getattr(opts, "reward_raster_nflies", 50)),
+            seed=getattr(opts, "reward_raster_seed", None),
+            per_training=bool(getattr(opts, "reward_raster_per_training", False)),
+            marker_size=float(getattr(opts, "reward_raster_marker_size", 6.0)),
+        )
+        rr = RewardRasterPlotter(vas=vas, opts=opts, gls=gls, cfg=cfg)
+        rr.plot()
 
     if va.circle and getattr(opts, "btw_rwd_dist_hist", False):
         # Use all flies by default
