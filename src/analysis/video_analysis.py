@@ -107,7 +107,9 @@ from src.utils.util import error
 from src.analysis.va_spd_calculator import VASpeedCalculator
 from src.analysis.va_turn_directionality_collator import VATurnDirectionalityCollator
 from src.analysis.va_turn_prob_dist_collator import VATurnProbabilityDistanceCollator
-from src.exporting.wall_contacts_per_sync_bkt import build_wall_contacts_per_sync_bkt_payload
+from src.exporting.wall_contacts_per_sync_bkt import (
+    build_wall_contacts_per_sync_bkt_payload,
+)
 
 BACKGROUND_CHANNEL = 0  # blue (default for tracking)
 SYNC_CTRL = False  # whether to start sync buckets after control reward
@@ -285,12 +287,18 @@ class VideoAnalysis:
                 self.analyzeAgaroseDualCircleAvoidance()
             if getattr(opts, "wall", None):
                 self.bySyncBucketWallContactPct()
+            if getattr(opts, "reward_lv", False):
+                self.bySyncBucketRewardLV()
         if getattr(self.opts, "export_wall_contacts_per_sync_bkt_npz", None):
             try:
-                self.wall_contacts_per_sync_bkt_payload = build_wall_contacts_per_sync_bkt_payload(self)
+                self.wall_contacts_per_sync_bkt_payload = (
+                    build_wall_contacts_per_sync_bkt_payload(self)
+                )
             except Exception as e:
                 if getattr(self.opts, "wall_debug", False):
-                    print(f"[wall_contacts_export] WARNING: could not build payload: {e!r}")
+                    print(
+                        f"[wall_contacts_export] WARNING: could not build payload: {e!r}"
+                    )
         for opt, evt_name in (
             ("wall", "wall_contact"),
             ("agarose", "agarose_contact"),
@@ -2601,6 +2609,95 @@ class VideoAnalysis:
                 self._printBucketVals(adb[f], f, msg=flyDesc(f), prec=1)
                 self._append(self.bySB2, adb[f], f, n=n if self.opts.ol else n - 1)
         self.buckets = np.array(self.buckets)
+
+    def bySyncBucketRewardLV(self):
+        """
+        For each sync-bucket, compute local variation (LV) of reward timing
+        within that bucket, using reward inter-event intervals.
+
+        Results in self.syncRewardLV: a list (per training) of dicts with 'exp'
+        and optionally 'ctrl' keys mapping to LV values per sync bucket.
+        """
+        df = self._numRewardsMsg(True, silent=True)
+        self.syncRewardLV = []
+        if df is None or df <= 0:
+            return
+
+        def _lv_from_reward_frames(rf: np.ndarray) -> float:
+            # rf: sorted reward frames inside a bucket
+            if rf is None:
+                return np.nan
+            rf = np.asarray(rf, dtype=float)
+            rf = rf[np.isfinite(rf)]
+            rf = np.unique(rf)
+            if rf.size < 3:
+                return np.nan  # need >= 3 rewards -> >= 2 adjacent intervals
+            rf = np.sort(rf)
+
+            d = np.diff(rf)  # intervals (frames); using seconds would be identical
+            if d.size < 2:
+                return np.nan
+
+            d1 = d[:-1]
+            d2 = d[1:]
+            denom = d1 + d2
+            # Guard against pathological zeros (duplicate reward frames)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                frac = ((d2 - d1) ** 2) / (denom**2)
+                lv = 3.0 * np.nanmean(frac)
+
+            if not np.isfinite(lv):
+                return np.nan
+            return float(lv)
+
+        for trn in self.trns:
+            fi, n_buckets, _ = self._syncBucket(trn, df)
+            n_buckets = int(n_buckets)
+            this_training = {}
+
+            if fi is None:
+                for fly_key in ("exp", "ctrl"):
+                    this_training[fly_key] = [np.nan for _ in range(n_buckets)]
+                self.syncRewardLV.append(this_training)
+                continue
+
+            starts = [int(fi + k * df) for k in range(n_buckets)]
+            ends = [s + df for s in starts]
+            la = min(trn.stop, int(trn.start + n_buckets * df))
+            buckets = [(s, e) for s, e in zip(starts, ends) if e <= la]
+
+            for fly_key, fly_idx in (("exp", 0),) + (
+                (("ctrl", 1),) if len(self.trx) > 1 else ()
+            ):
+                if self.trx[fly_idx]._bad:
+                    this_training[fly_key] = [np.nan] * n_buckets
+                    continue
+
+                # "real rewards" (LED pulse frames)
+                rf_all = self._getOn(trn, calc=False, f=fly_idx)
+                if rf_all is None:
+                    this_training[fly_key] = [np.nan] * n_buckets
+                    continue
+                rf_all = np.asarray(rf_all, dtype=float)
+                if rf_all.size == 0:
+                    this_training[fly_key] = [np.nan] * n_buckets
+                    continue
+                rf_all = rf_all[np.isfinite(rf_all)]
+                # Restrict to training window (extra safety)
+                rf_all = rf_all[(rf_all >= trn.start) & (rf_all < trn.stop)]
+
+                lv_vals = []
+                for s, e in buckets:
+                    rf_b = rf_all[(rf_all >= s) & (rf_all < e)]
+                    lv_vals.append(_lv_from_reward_frames(rf_b))
+
+                missing = n_buckets - len(lv_vals)
+                if missing > 0:
+                    lv_vals.extend([np.nan] * missing)
+
+                this_training[fly_key] = lv_vals
+
+            self.syncRewardLV.append(this_training)
 
     def bySyncBucketWallContactPct(self, verbose: bool = False):
         """

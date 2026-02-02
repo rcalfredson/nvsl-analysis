@@ -87,6 +87,7 @@ from src.exporting.lgturn_startdist_sli_bundle import export_lgturn_startdist_sl
 from src.exporting.reward_lgturn_pathlen_sli_bundle import (
     export_reward_lgturn_pathlen_sli_bundle,
 )
+from src.exporting.reward_lv_sli_bundle import export_reward_lv_sli_bundle
 from src.exporting.turnback_sli_bundle import export_turnback_sli_bundle
 from src.exporting.wallpct_sli_bundle import export_wallpct_sli_bundle
 from src.exporting.wall_contacts_per_sync_bkt import save_wall_contacts_per_sync_bkt_npz
@@ -677,6 +678,12 @@ g.add_argument(
     type=str,
     default="imgs/reward_raster.png",
     help="Output path for the reward raster image.",
+)
+g.add_argument(
+    "--reward-lv",
+    action="store_true",
+    help="Compute per-sync-bucket local variation (LV) of reward timing "
+    "(LV≈1: Poisson-like; >1: more clustered). Stores results in va.syncRewardLV.",
 )
 g.add_argument(
     "--btw-rwd-trn",
@@ -2265,6 +2272,12 @@ g.add_argument(
     help="Write an .npz bundle with reward-anchored large-turn path length + SLI for multi-group overlays.",
 )
 g.add_argument(
+    "--export-reward-lv-sli-bundle",
+    type=str,
+    default=None,
+    help="Write an .npz bundle with reward timing local variation + SLI for multi-group overlays.",
+)
+g.add_argument(
     "--reward-lgturn-pathlen-sli-debug",
     action="store_true",
     help="Debug export of reward-lgturn-pathlen+SLI bundle.",
@@ -2813,6 +2826,7 @@ def bucketLenForType(tp):
             "rpid",
             "rpd",
             "rpd_exp_min_yok",
+            "rlv",
             "max_ctr_d_no_contact",
             "psc_conc",
             "psc_shift",
@@ -6571,6 +6585,9 @@ def postAnalyze(vas):
             vas, opts, gls, opts.export_reward_lgturn_pathlen_sli_bundle
         )
 
+    if getattr(opts, "export_reward_lv_sli_bundle", None):
+        export_reward_lv_sli_bundle(vas, opts, gls, opts.export_reward_lv_sli_bundle)
+
     if getattr(opts, "export_agarose_sli_bundle", None):
         export_agarose_sli_bundle(vas, opts, gls, opts.export_agarose_sli_bundle)
 
@@ -8855,6 +8872,9 @@ if __name__ == "__main__":
                 "because --export-wall-contacts-per-sync-bkt-npz was set"
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
+    if getattr(opts, "export_reward_lv_sli_bundle", None):
+        opts.reward_lv = True
 
     if opts.turn_prob_by_dist:
         opts.turn_prob_by_dist = parse_distances(opts.turn_prob_by_dist)

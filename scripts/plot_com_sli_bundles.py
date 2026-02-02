@@ -22,13 +22,14 @@ def main():
             "lgturn_startdist",
             "reward_lgturn_pathlen",
             "reward_lgturn_prevalence",
+            "reward_lv",
         ],
     )
     p.add_argument(
         "--turnback-mode",
         default="exp",
         choices=["exp", "ctrl", "exp_minus_ctrl"],
-        help="For metric in {turnback, agarose}: which curve to plot.",
+        help="For metrics with exp/ctrl variants (e.g. turnback, agarose, reward_lgturn_*, reward_lv): which curve to plot.",
     )
     p.add_argument(
         "--labels",
