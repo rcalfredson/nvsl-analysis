@@ -47,7 +47,12 @@ def sync_bucket_window(
     use_exclusion_mask: bool,
 ) -> tuple[int, int, int, list[bool]]:
     """
-    Return (fi, df, n_buckets, complete) describing included sync buckets.
+    Return (fi, df, n_buckets, complete) describing the included sync-bucket window.
+
+    - fi: start frame of the first included bucket (after skipping skip_first buckets)
+    - df: frames per sync bucket
+    - n_buckets: number of included buckets
+    - complete: list[bool] flags for whether each included bucket is complete
 
     Fallback:
       - single bucket spanning [trn.start, trn.stop)
