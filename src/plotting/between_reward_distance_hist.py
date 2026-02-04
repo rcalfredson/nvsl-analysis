@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Optional, Sequence
 
 import numpy as np
+from src.plotting.between_reward_segment_binning import sync_bucket_window
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.training_metric_histogram import (
     TrainingMetricHistogramConfig,
@@ -72,6 +73,19 @@ class BetweenRewardDistanceHistogramPlotter(TrainingMetricHistogramPlotter):
                 return True
         return False
 
+    @staticmethod
+    def _filter_on_to_window(on, fi: int, end: int) -> list[int]:
+        # Keep only reward frames in [fi, end)
+        out = []
+        for x in on:
+            try:
+                t = int(x)
+            except Exception:
+                continue
+            if fi <= t < end:
+                out.append(t)
+        return out
+
     # ---------- data collection ----------
 
     def _collect_values_by_training(self) -> list[np.ndarray]:
@@ -105,12 +119,32 @@ class BetweenRewardDistanceHistogramPlotter(TrainingMetricHistogramPlotter):
                         except (KeyError, TypeError, AttributeError):
                             wall_regions = None
 
+                    # --- Determine included sync-bucket window for this training/fly
+                    skip_first = self._effective_skip_first_sync_buckets()
+                    fi, df, n_buckets, complete = sync_bucket_window(
+                        va,
+                        trn,
+                        t_idx=t_idx,
+                        f=f,
+                        skip_first=skip_first,
+                        use_exclusion_mask=False,
+                    )
+                    if n_buckets <= 0:
+                        continue
+
+                    # End frame of included window (exclusive)
+                    end = int(fi + n_buckets * df)
+
                     # False → use actual rewards, not "calculated" rewards
                     on = va._getOn(trn, False, f=f)
                     if on is None or len(on) < 2:
                         continue
 
-                    dists_px = va._distTrav(f, on)
+                    on_win = self._filter_on_to_window(on, fi=fi, end=end)
+                    if len(on_win) < 2:
+                        continue
+
+                    dists_px = va._distTrav(f, on_win)
                     if not dists_px:
                         continue
 
@@ -126,8 +160,8 @@ class BetweenRewardDistanceHistogramPlotter(TrainingMetricHistogramPlotter):
                     if n_seg <= 0:
                         continue
                     for i in range(n_seg):
-                        s = int(on[i])
-                        e = int(on[i + 1])
+                        s = int(on_win[i])
+                        e = int(on_win[i + 1])
                         if (
                             self.cfg.exclude_wall_contact
                             and self._any_overlap_with_wall_regions(wall_regions, s, e)
@@ -179,8 +213,29 @@ class BetweenRewardDistanceHistogramPlotter(TrainingMetricHistogramPlotter):
                         continue
 
                     trj = va.trx[f]
+
+                    # --- Determine included sync-bucket window for this training/fly
+                    skip_first = self._effective_skip_first_sync_buckets()
+                    fi, df, n_buckets, complete = sync_bucket_window(
+                        va,
+                        trn,
+                        t_idx=t_idx,
+                        f=f,
+                        skip_first=skip_first,
+                        use_exclusion_mask=False,
+                    )
+                    if n_buckets <= 0:
+                        continue
+
+                    # End frame of included window (exclusive)
+                    end = int(fi + n_buckets * df)
+
                     on = va._getOn(trn, False, f=f)
                     if on is None or len(on) < 2:
+                        continue
+
+                    on_win = self._filter_on_to_window(on, fi=fi, end=end)
+                    if len(on_win) < 2:
                         continue
 
                     wall_regions = None
@@ -192,7 +247,7 @@ class BetweenRewardDistanceHistogramPlotter(TrainingMetricHistogramPlotter):
                         except (KeyError, TypeError, AttributeError):
                             wall_regions = None
 
-                    dists_px = va._distTrav(f, on)
+                    dists_px = va._distTrav(f, on_win)
                     if not dists_px:
                         continue
 
@@ -205,14 +260,14 @@ class BetweenRewardDistanceHistogramPlotter(TrainingMetricHistogramPlotter):
                     if dists_mm_all.size == 0:
                         continue
 
-                    n_seg = min(dists_mm_all.size, len(on) - 1)
+                    n_seg = min(dists_mm_all.size, len(on_win) - 1)
                     if n_seg <= 0:
                         continue
 
                     kept: list[float] = []
                     for i in range(n_seg):
-                        s = int(on[i])
-                        e = int(on[i + 1])
+                        s = int(on_win[i])
+                        e = int(on_win[i + 1])
                         if (
                             self.cfg.exclude_wall_contact
                             and self._any_overlap_with_wall_regions(wall_regions, s, e)

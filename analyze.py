@@ -282,6 +282,23 @@ def _parse_axis_limits_arg(
     return (lo, hi)
 
 
+def _effective_skip_first_sync_buckets_opts_only(opts, *local_attr_names: str) -> int:
+    gskip = int(getattr(opts, "skip_first_sync_buckets", 0) or 0)
+    if gskip < 0:
+        gskip = 0
+
+    lskip = 0
+    for name in local_attr_names:
+        v = int(getattr(opts, name, 0) or 0)
+        if v > lskip:
+            lskip = v
+    if lskip < 0:
+        lskip = 0
+
+    # Policy: global acts as a floor; locals can request skipping even more.
+    return max(gskip, lskip)
+
+
 # - - -
 
 p = argparse.ArgumentParser(description="Analyze learning experiments.")
@@ -2081,6 +2098,15 @@ g.add_argument(
     metavar="F",
     help="skip the given number of minutes from beginning of buckets "
     + "(default: %(default)s)",
+)
+g.add_argument(
+    "--skip-first-sync-buckets",
+    type=int,
+    default=0,
+    help=(
+        "Globally exclude the first K sync buckets (within each training) from analyses "
+        "that support sync-bucket windowing. Default: %(default)s."
+    ),
 )
 g.add_argument(
     "--skpPi",
@@ -7247,6 +7273,8 @@ def postAnalyze(vas):
         rr = RewardRasterPlotter(vas=vas, opts=opts, gls=gls, cfg=cfg)
         rr.plot()
 
+    skip_eff = _effective_skip_first_sync_buckets_opts_only(opts)
+
     if va.circle and getattr(opts, "btw_rwd_dist_hist", False):
         # Use all flies by default
         vas_for_hist = vas
@@ -7278,6 +7306,7 @@ def postAnalyze(vas):
             ),
             normalize=getattr(opts, "btw_rwd_dist_normalize", False),
             pool_trainings=getattr(opts, "btw_rwd_dist_pool_trainings", False),
+            skip_first_sync_buckets=skip_eff,
             subset_label=subset_label,
             ymax=getattr(opts, "btw_rwd_dist_ymax", None),
             exclude_wall_contact=getattr(
@@ -7328,6 +7357,7 @@ def postAnalyze(vas):
             ),
             normalize=getattr(opts, "btw_rwd_com_mag_normalize", False),
             pool_trainings=getattr(opts, "btw_rwd_com_mag_pool_trainings", False),
+            skip_first_sync_buckets=skip_eff,
             subset_label=subset_label,
             ymax=getattr(opts, "btw_rwd_com_mag_ymax", None),
             per_fly=getattr(opts, "btw_rwd_com_mag_per_fly", False),
@@ -7550,12 +7580,8 @@ def postAnalyze(vas):
                 cfg = BetweenRewardConditionedDistTravConfig(
                     out_file=BTW_RWD_DIST_BINNED_DISTTRAV_IMG_FILE,
                     training_index=t_idx,
-                    skip_first_sync_buckets=int(
-                        getattr(
-                            opts,
-                            "btw_rwd_conditioned_disttrav_skip_first_sync_buckets",
-                            0,
-                        )
+                    skip_first_sync_buckets=_effective_skip_first_sync_buckets_opts_only(
+                        opts, "btw_rwd_conditioned_disttrav_skip_first_sync_buckets"
                     ),
                     use_reward_exclusion_mask=bool(
                         getattr(
@@ -7708,8 +7734,8 @@ def postAnalyze(vas):
         cfg = BetweenRewardConditionedCOMConfig(
             out_file=BTW_RWD_DIST_BINNED_COM_IMG_FILE,
             training_index=t_idx,
-            skip_first_sync_buckets=int(
-                getattr(opts, "btw_rwd_conditioned_com_skip_first_sync_buckets", 0)
+            skip_first_sync_buckets=_effective_skip_first_sync_buckets_opts_only(
+                opts, "btw_rwd_conditioned_com_skip_first_sync_buckets"
             ),
             use_reward_exclusion_mask=bool(
                 getattr(

@@ -37,6 +37,8 @@ class TrainingMetricHistogramConfig:
     # Minimum number of segments (values) required for a fly/unit to be included
     # when per_fly=True. Ignored otherwise.
     min_segs_per_fly: int = 10
+    # Globally-supported "skip leading buckets" for training-windowed histograms
+    skip_first_sync_buckets: int = 0
 
 
 class TrainingMetricHistogramPlotter:
@@ -153,6 +155,19 @@ class TrainingMetricHistogramPlotter:
         Subclasses should override this when cfg.per_fly is enabled.
         """
         raise NotImplementedError
+
+    def _effective_skip_first_sync_buckets(self) -> int:
+        # Global flag
+        gskip = int(getattr(self.opts, "skip_first_sync_buckets", 0) or 0)
+        if gskip < 0:
+            gskip = 0
+
+        # Config-level skip for this plotter family
+        cskip = int(getattr(self.cfg, "skip_first_sync_buckets", 0) or 0)
+        if cskip < 0:
+            cskip = 0
+
+        return max(gskip, cskip)
 
     def _effective_xmax(self, vals_by_panel: list[np.ndarray]) -> float | None:
         """
@@ -327,6 +342,15 @@ class TrainingMetricHistogramPlotter:
                         "xmax_user": self.cfg.xmax,
                         "xmax_effective": None,
                         "pool_trainings": bool(self.cfg.pool_trainings),
+                        "skip_first_sync_buckets": int(
+                            getattr(self.cfg, "skip_first_sync_buckets", 0)
+                        ),
+                        "skip_first_sync_buckets_global": int(
+                            getattr(self.opts, "skip_first_sync_buckets", 0) or 0
+                        ),
+                        "skip_first_sync_buckets_effective": int(
+                            self._effective_skip_first_sync_buckets()
+                        ),
                         "subset_label": self.cfg.subset_label,
                         "per_fly": True,
                         "min_segs_per_fly": int(
@@ -361,6 +385,15 @@ class TrainingMetricHistogramPlotter:
                     "xmax_user": self.cfg.xmax,
                     "xmax_effective": None,
                     "pool_trainings": bool(self.cfg.pool_trainings),
+                    "skip_first_sync_buckets": int(
+                        getattr(self.cfg, "skip_first_sync_buckets", 0)
+                    ),
+                    "skip_first_sync_buckets_global": int(
+                        getattr(self.opts, "skip_first_sync_buckets", 0) or 0
+                    ),
+                    "skip_first_sync_buckets_effective": int(
+                        self._effective_skip_first_sync_buckets()
+                    ),
                     "subset_label": self.cfg.subset_label,
                     "per_fly": False,
                     "ci": False,
@@ -417,6 +450,16 @@ class TrainingMetricHistogramPlotter:
                                 "xmax_user": self.cfg.xmax,
                                 "xmax_effective": None,
                                 "pool_trainings": bool(self.cfg.pool_trainings),
+                                "skip_first_sync_buckets": int(
+                                    getattr(self.cfg, "skip_first_sync_buckets", 0)
+                                ),
+                                "skip_first_sync_buckets_global": int(
+                                    getattr(self.opts, "skip_first_sync_buckets", 0)
+                                    or 0
+                                ),
+                                "skip_first_sync_buckets_effective": int(
+                                    self._effective_skip_first_sync_buckets()
+                                ),
                                 **sel_info,
                                 "subset_label": self.cfg.subset_label,
                                 "per_fly": True,
@@ -489,6 +532,16 @@ class TrainingMetricHistogramPlotter:
                                 "xmax_user": self.cfg.xmax,
                                 "xmax_effective": None,
                                 "pool_trainings": bool(self.cfg.pool_trainings),
+                                "skip_first_sync_buckets": int(
+                                    getattr(self.cfg, "skip_first_sync_buckets", 0)
+                                ),
+                                "skip_first_sync_buckets_global": int(
+                                    getattr(self.opts, "skip_first_sync_buckets", 0)
+                                    or 0
+                                ),
+                                "skip_first_sync_buckets_effective": int(
+                                    self._effective_skip_first_sync_buckets()
+                                ),
                                 **sel_info,
                                 "subset_label": self.cfg.subset_label,
                                 "per_fly": False,
@@ -830,6 +883,15 @@ class TrainingMetricHistogramPlotter:
             "xmax_effective": eff_xmax,
             "xmin_effective": float(lo_edge),
             "pool_trainings": bool(self.cfg.pool_trainings),
+            "skip_first_sync_buckets": int(
+                getattr(self.cfg, "skip_first_sync_buckets", 0)
+            ),
+            "skip_first_sync_buckets_global": int(
+                getattr(self.opts, "skip_first_sync_buckets", 0) or 0
+            ),
+            "skip_first_sync_buckets_effective": int(
+                self._effective_skip_first_sync_buckets()
+            ),
             **sel_info,
             "subset_label": self.cfg.subset_label,
             "per_fly": bool(self.cfg.per_fly),

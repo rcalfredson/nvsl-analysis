@@ -5,6 +5,7 @@ from typing import Optional, Sequence
 
 import numpy as np
 
+from src.plotting.between_reward_segment_binning import sync_bucket_window
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.training_metric_histogram import (
     TrainingMetricHistogramConfig,
@@ -46,30 +47,29 @@ class BetweenRewardCOMMagHistogramPlotter(TrainingMetricHistogramPlotter):
             base_title="Between-reward COM magnitude (experimental flies only)",
         )
 
-    def _wall_contact_mask_for_training(
+    def _wall_contact_mask_for_window(
         self,
         va: "VideoAnalysis",
         f: int,
-        trn,
         *,
+        fi: int,
+        n_frames: int,
         exclude_wall: bool,
         warned_missing_wc: list[bool],
     ) -> Optional[np.ndarray]:
         """
-        Return a per-frame wall-contact boolean mask for the training window [trn.start, trn.stop),
+        Return a per-frame wall-contact boolean mask for the training window [fi, fi + n_frames),
         or None if unavailable / not requested.
 
         warned_missing_wc is a 1-item list used as a mutable "warn once" flag.
         """
         if not exclude_wall:
             return None
-        fi = int(trn.start)
-        df = int(max(1, trn.stop - trn.start))
         return build_wall_contact_mask_for_window(
             va,
             f,
             fi=fi,
-            n_frames=df,
+            n_frames=int(max(1, n_frames)),
             enabled=True,
             warned_missing_wc=warned_missing_wc,
             log_tag="btw_rwd_com_mag",
@@ -98,15 +98,25 @@ class BetweenRewardCOMMagHistogramPlotter(TrainingMetricHistogramPlotter):
                     if not va.noyc and f != 0:
                         continue
 
-                    # One "bucket" spanning the whole training:
-                    fi = int(trn.start)
-                    df = int(max(1, trn.stop - trn.start))
-                    n_buckets = 1
-                    complete = [True]
-                    wc = self._wall_contact_mask_for_training(
+                    skip_first = self._effective_skip_first_sync_buckets()
+                    fi, df, n_buckets, complete = sync_bucket_window(
+                        va,
+                        trn,
+                        t_idx=t_idx,
+                        f=f,
+                        skip_first=skip_first,
+                        use_exclusion_mask=False,
+                    )
+                    if n_buckets <= 0:
+                        continue
+
+                    n_frames = int(max(1, n_buckets * df))
+
+                    wc = self._wall_contact_mask_for_window(
                         va,
                         f,
-                        trn,
+                        fi=fi,
+                        n_frames=n_frames,
                         exclude_wall=exclude_wall,
                         warned_missing_wc=warned_missing_wc,
                     )
@@ -171,16 +181,25 @@ class BetweenRewardCOMMagHistogramPlotter(TrainingMetricHistogramPlotter):
                     if not va.noyc and f != 0:
                         continue
 
-                    # One "bucket" spanning the whole training:
-                    fi = int(trn.start)
-                    df = int(max(1, trn.stop - trn.start))
-                    n_buckets = 1
-                    complete = [True]
+                    skip_first = self._effective_skip_first_sync_buckets()
+                    fi, df, n_buckets, complete = sync_bucket_window(
+                        va,
+                        trn,
+                        t_idx=t_idx,
+                        f=f,
+                        skip_first=skip_first,
+                        use_exclusion_mask=False,
+                    )
+                    if n_buckets <= 0:
+                        continue
 
-                    wc = self._wall_contact_mask_for_training(
+                    n_frames = int(max(1, n_buckets * df))
+
+                    wc = self._wall_contact_mask_for_window(
                         va,
                         f,
-                        trn,
+                        fi=fi,
+                        n_frames=n_frames,
                         exclude_wall=exclude_wall,
                         warned_missing_wc=warned_missing_wc,
                     )
