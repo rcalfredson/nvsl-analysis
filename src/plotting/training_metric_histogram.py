@@ -39,6 +39,8 @@ class TrainingMetricHistogramConfig:
     min_segs_per_fly: int = 10
     # Globally-supported "skip leading buckets" for training-windowed histograms
     skip_first_sync_buckets: int = 0
+    # Omit figure suptitle by default
+    show_suptitle: bool = False
 
 
 class TrainingMetricHistogramPlotter:
@@ -1096,10 +1098,11 @@ class TrainingMetricHistogramPlotter:
                     )
                 else:
                     ax.set_ylabel("Proportion" if self.cfg.normalize else "# segments")
-        title = self.base_title
-        if self.cfg.subset_label:
-            title = f"{title}\n{self.cfg.subset_label}"
-        fig.suptitle(title)
+        if getattr(self.cfg, "show_suptitle", False):
+            title = self.base_title
+            if self.cfg.subset_label:
+                title = f"{title}\n{self.cfg.subset_label}"
+            fig.suptitle(title)
         fig.tight_layout()
 
         writeImage(self.cfg.out_file, format=self.opts.imageFormat)

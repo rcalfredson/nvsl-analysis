@@ -775,6 +775,12 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--btw-rwd-hist-suptitle",
+    action="store_true",
+    help="Show the figure suptitle for between-reward histograms (distance + COM magnitude). "
+    "By default, these plots omit the suptitle for cleaner panels.",
+)
+g.add_argument(
     "--btw-rwd-dist-hist",
     action="store_true",
     help=(
@@ -7317,6 +7323,7 @@ def postAnalyze(vas):
             ci=getattr(opts, "btw_rwd_dist_ci", False),
             ci_conf=float(getattr(opts, "btw_rwd_dist_ci_conf", 0.95)),
             trainings=getattr(opts, "btw_rwd_dist_trainings", None),
+            show_suptitle=getattr(opts, "btw_rwd_hist_suptitle", False),
         )
         br_plotter = BetweenRewardDistanceHistogramPlotter(
             vas=vas_for_hist, opts=opts, gls=gls, customizer=customizer, cfg=br_cfg
@@ -7365,6 +7372,7 @@ def postAnalyze(vas):
             ci=getattr(opts, "btw_rwd_com_mag_ci", False),
             ci_conf=float(getattr(opts, "btw_rwd_com_mag_ci_conf", 0.95)),
             trainings=getattr(opts, "btw_rwd_com_mag_trainings", None),
+            show_suptitle=getattr(opts, "btw_rwd_hist_suptitle", False),
         )
         plotter = BetweenRewardCOMMagHistogramPlotter(
             vas=vas_for_hist, opts=opts, gls=gls, customizer=customizer, cfg=cfg
