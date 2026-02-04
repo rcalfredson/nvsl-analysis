@@ -34,6 +34,9 @@ class TrainingMetricHistogramConfig:
     # Trainings to include when pool_trainings=False.
     # Using 1-based indexing (training 1 == first training).
     trainings: Sequence[int] | None = None
+    # Minimum number of segments (values) required for a fly/unit to be included
+    # when per_fly=True. Ignored otherwise.
+    min_segs_per_fly: int = 10
 
 
 class TrainingMetricHistogramPlotter:
@@ -326,6 +329,9 @@ class TrainingMetricHistogramPlotter:
                         "pool_trainings": bool(self.cfg.pool_trainings),
                         "subset_label": self.cfg.subset_label,
                         "per_fly": True,
+                        "min_segs_per_fly": int(
+                            getattr(self.cfg, "min_segs_per_fly", 10)
+                        ),
                         "ci": bool(self.cfg.ci),
                         "ci_conf": float(self.cfg.ci_conf),
                         "generated_utc": datetime.now(timezone.utc).isoformat(),
@@ -414,6 +420,9 @@ class TrainingMetricHistogramPlotter:
                                 **sel_info,
                                 "subset_label": self.cfg.subset_label,
                                 "per_fly": True,
+                                "min_segs_per_fly": int(
+                                    getattr(self.cfg, "min_segs_per_fly", 10)
+                                ),
                                 "ci": bool(self.cfg.ci),
                                 "ci_conf": float(self.cfg.ci_conf),
                                 "generated_utc": datetime.now(timezone.utc).isoformat(),
@@ -571,20 +580,40 @@ class TrainingMetricHistogramPlotter:
         # for vals, label in zip(vals_by_panel, panel_labels):
         if self.cfg.per_fly:
             for vlist, label in zip(vals_by_panel_by_fly, panel_labels):
+                min_n = int(getattr(self.cfg, "min_segs_per_fly", 10) or 0)
+                if min_n < 0:
+                    min_n = 0
+
                 # Flatten for raw segment counting / xmax filtering diagnostics
                 raw_all = []
                 used_all = []
+                n_units_small = 0
 
                 for v in vlist:
                     if v is None:
                         continue
+
                     vv = np.asarray(v, dtype=float)
                     vv = vv[np.isfinite(vv)]
-                    if vv.size:
-                        raw_all.append(vv)
-                        vv_used = _clip(vv)
-                        if vv_used.size:
-                            used_all.append(vv_used)
+                    if vv.size == 0:
+                        continue
+
+                    vv_used = _clip(vv)
+                    if vv_used.size == 0:
+                        continue
+
+                    # Enforce min_n consistently for diagnostics too
+                    if min_n > 0 and vv_used.size < min_n:
+                        n_units_small += 1
+                        continue
+
+                    raw_all.append(vv)
+                    used_all.append(vv_used)
+
+                if min_n > 0 and n_units_small > 0:
+                    print(
+                        f"[{self.log_tag}] {label}: skipped {n_units_small} fly-units with <{min_n} segments (per_fly)"
+                    )
 
                 if not used_all:
                     # No data: still emit deterministic edges
@@ -627,20 +656,18 @@ class TrainingMetricHistogramPlotter:
 
                 # Per-fly histograms
                 fly_hists: list[np.ndarray] = []
-                for v in vlist:
-                    if v is None:
-                        continue
-                    vv = _clip(v)
-                    if vv.size == 0:
-                        continue
+
+                for vv_used in used_all:
+                    # vv_used is already finite, clipped, and min_n-filtered
                     if user_edge_groups:
                         parts = []
                         for g in user_edges:
-                            c_g, _ = np.histogram(vv, bins=g)
+                            c_g, _ = np.histogram(vv_used, bins=g)
                             parts.append(c_g.astype(float, copy=False))
                         c = np.concatenate(parts, axis=0)
                     else:
-                        c, _ = np.histogram(vv, bins=edges)
+                        c, _ = np.histogram(vv_used, bins=edges)
+
                     c = c.astype(float, copy=False)
                     if self.cfg.normalize:
                         tot = float(np.sum(c))
@@ -648,7 +675,9 @@ class TrainingMetricHistogramPlotter:
                             c = c / tot
                         else:
                             c[:] = np.nan
+
                     fly_hists.append(c)
+
                 n_units_panel_list.append(len(fly_hists))
                 if not fly_hists:
                     mean = np.full((bins_eff,), np.nan, dtype=float)
@@ -804,6 +833,7 @@ class TrainingMetricHistogramPlotter:
             **sel_info,
             "subset_label": self.cfg.subset_label,
             "per_fly": bool(self.cfg.per_fly),
+            "min_segs_per_fly": int(getattr(self.cfg, "min_segs_per_fly", 10)),
             "ci": bool(self.cfg.ci),
             "ci_conf": float(self.cfg.ci_conf),
             "generated_utc": datetime.now(timezone.utc).isoformat(),

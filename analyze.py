@@ -859,6 +859,15 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--btw-rwd-dist-min-segs-per-fly",
+    type=int,
+    default=10,
+    help=(
+        "When using --btw-rwd-dist-per-fly, exclude any fly/unit with fewer than "
+        "this many between-reward segments in the selected window (default: %(default)s)."
+    ),
+)
+g.add_argument(
     "--btw-rwd-dist-ci",
     action="store_true",
     help=(
@@ -892,6 +901,15 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--btw-rwd-com-mag-min-segs-per-fly",
+    type=int,
+    default=10,
+    help=(
+        "When using --btw-rwd-com-mag-per-fly, exclude any fly/unit with fewer than "
+        "this many between-reward COM segments in the selected window (default: %(default)s)."
+    ),
+)
+g.add_argument(
     "--btw-rwd-com-mag-ci",
     action="store_true",
     help=(
@@ -915,6 +933,25 @@ g.add_argument(
     help=(
         "Export binned histogram data (counts + bin edges) for between-reward COM magnitudes "
         "as a compressed .npz file. Intended for later overlay plotting across groups."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-com-mag-nbins",
+    type=int,
+    default=30,
+    help=(
+        "Number of bins to use in the between-reward COM-magnitude histograms. "
+        "Default: 30."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-com-mag-bin-edges",
+    type=str,
+    default=None,
+    help=(
+        "Explicit comma-separated bin edges for between-reward COM-magnitude histograms "
+        '(e.g., "0,1,2,3,5,8,12,20,30,50"). '
+        "If provided, overrides --btw-rwd-com-mag-nbins/--btw-rwd-com-mag-max for bin construction."
     ),
 )
 g.add_argument(
@@ -7247,6 +7284,7 @@ def postAnalyze(vas):
                 opts, "btw_rwd_dist_exclude_wall_contact", False
             ),
             per_fly=getattr(opts, "btw_rwd_dist_per_fly", False),
+            min_segs_per_fly=int(getattr(opts, "btw_rwd_dist_min_segs_per_fly", 10)),
             ci=getattr(opts, "btw_rwd_dist_ci", False),
             ci_conf=float(getattr(opts, "btw_rwd_dist_ci_conf", 0.95)),
             trainings=getattr(opts, "btw_rwd_dist_trainings", None),
@@ -7283,13 +7321,17 @@ def postAnalyze(vas):
 
         cfg = BetweenRewardCOMMagHistogramConfig(
             out_file=BTW_RWD_COM_MAG_HIST_IMG_FILE,
-            bins=30,
+            bins=getattr(opts, "btw_rwd_com_mag_nbins", 30),
             xmax=getattr(opts, "btw_rwd_com_mag_max", None),
+            bin_edges=_parse_float_csv_or_edge_groups_or_none(
+                getattr(opts, "btw_rwd_com_mag_bin_edges", None)
+            ),
             normalize=getattr(opts, "btw_rwd_com_mag_normalize", False),
             pool_trainings=getattr(opts, "btw_rwd_com_mag_pool_trainings", False),
             subset_label=subset_label,
             ymax=getattr(opts, "btw_rwd_com_mag_ymax", None),
             per_fly=getattr(opts, "btw_rwd_com_mag_per_fly", False),
+            min_segs_per_fly=int(getattr(opts, "btw_rwd_com_mag_min_segs_per_fly", 10)),
             ci=getattr(opts, "btw_rwd_com_mag_ci", False),
             ci_conf=float(getattr(opts, "btw_rwd_com_mag_ci_conf", 0.95)),
             trainings=getattr(opts, "btw_rwd_com_mag_trainings", None),
