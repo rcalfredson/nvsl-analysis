@@ -37,6 +37,14 @@ def parse_args() -> argparse.Namespace:
         help="Overlay as probability distribution (pdf) or cumulative distribution (cdf).",
     )
     p.add_argument("--title", default=None, help="Figure title override.")
+    p.add_argument(
+        "--suptitle",
+        action="store_true",
+        help=(
+            "Show a figure suptitle. If --title is not provided, a default title is generated "
+            "from the first input's base_title and the selected mode."
+        ),
+    )
     p.add_argument("--xlabel", default=None, help="X-axis label override.")
     p.add_argument("--ylabel", default=None, help="Y-axis label override.")
     p.add_argument("--ymax", type=float, default=None, help="Optional fixed y max.")
@@ -80,7 +88,12 @@ def main() -> None:
         args.xlabel = hists[0].meta.get("x_label", None)
     if args.ylabel is None:
         args.ylabel = "proportion" if args.mode == "pdf" else "cumulative proportion"
-    if args.title is None:
+    # Title behavior:
+    # - default: no suptitle
+    # - is user provides --title: use it
+    # - if --suptitle and no --title: generate the old default
+    title = args.title
+    if title is None and args.suptitle:
         base = hists[0].meta.get("base_title", "Overlay histogram")
         args.title = f"{base}\n({args.mode.upper()} overlay)"
 
@@ -88,13 +101,13 @@ def main() -> None:
         hists,
         mode=args.mode,
         layout="grouped" if args.mode == "pdf" else "overlay",
-        title=args.title,
+        title=title,
         xlabel=args.xlabel,
         ylabel=args.ylabel,
         ymax=args.ymax,
         stats=args.stats,
         stats_alpha=args.stats_alpha,
-        xmax_plot=args.xmax_plot, 
+        xmax_plot=args.xmax_plot,
     )
     _savefig(args.out)
     plt.close(fig)
