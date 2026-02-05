@@ -10,24 +10,48 @@ from src.utils.util import p2stars
 
 
 def holm_adjust(pvals: list[float]) -> list[float]:
-    m = len(pvals)
-    if m == 0:
+    """
+    Holm–Bonferroni adjustment.
+
+    - Adjusts only finite p-values.
+    - Preserves NaN/inf positions as-is in the output.
+    """
+    p = np.asarray(pvals, dtype=float)
+    if p.size == 0:
         return []
-    order = np.argsort(pvals)
-    p_sorted = np.asarray(pvals, float)[order]
+
+    out = np.full_like(p, np.nan)  # default to NaN; we'll fill finite slots
+
+    finite_mask = np.isfinite(p)
+    if not np.any(finite_mask):
+        # all NaN/inf -> preserve as NaN (or you could copy infs, but NaN is usually best)
+        return out.tolist()
+
+    pf = p[finite_mask]
+
+    # Optional: clamp tiny numerical negatives and >1 values into [0, 1]
+    # (helpful if upstream occasionally produces -0.0 or 1.0000000002)
+    pf = np.clip(pf, 0.0, 1.0)
+
+    m = pf.size
+    order = np.argsort(pf)
+    p_sorted = pf[order]
 
     adj_sorted = np.empty_like(p_sorted)
     running_max = 0.0
-    for i, p in enumerate(p_sorted):
+    for i, pv in enumerate(p_sorted):
         factor = m - i
-        adj = float(factor * p)
+        adj = float(factor * pv)
         if adj > running_max:
             running_max = adj
         adj_sorted[i] = min(1.0, running_max)
 
-    adj = np.empty_like(adj_sorted)
-    adj[order] = adj_sorted
-    return adj.tolist()
+    # unsort back to the finite subset, then scatter back into full output
+    adj_f = np.empty_like(adj_sorted)
+    adj_f[order] = adj_sorted
+    out[finite_mask] = adj_f
+
+    return out.tolist()
 
 
 def anova_and_posthoc(
@@ -203,7 +227,7 @@ def annotate_grouped_bars_per_bin(
             if x2 < x1:
                 x1, x2 = x2, x1
 
-            stars = p2stars(float(p))
+            stars = p2stars(p)
             if not stars:
                 continue
 
