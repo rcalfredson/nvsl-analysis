@@ -90,6 +90,9 @@ from src.exporting.reward_lgturn_pathlen_sli_bundle import (
 from src.exporting.reward_lv_sli_bundle import export_reward_lv_sli_bundle
 from src.exporting.turnback_sli_bundle import export_turnback_sli_bundle
 from src.exporting.wallpct_sli_bundle import export_wallpct_sli_bundle
+from src.exporting.wall_contacts_per_reward_interval import (
+    save_wall_contacts_per_reward_interval_npz,
+)
 from src.exporting.wall_contacts_per_sync_bkt import save_wall_contacts_per_sync_bkt_npz
 from src.plotting.cross_fly_correlations import plot_cross_fly_correlations, SLIContext
 from src.plotting.individual_strategy_plotter import plot_individual_strategy_overlays
@@ -545,6 +548,15 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--export-wall-contacts-per-reward-interval-npz",
+    type=str,
+    default=None,
+    help=(
+        "Write NPZ export containing per-fly wall-contact event counts per inter-"
+        "reward interval for a selected training."
+    ),
+)
+g.add_argument(
     "--wall-contacts-trn",
     type=int,
     default=2,
@@ -560,7 +572,7 @@ g.add_argument(
     default=None,
     help=(
         "Plot from cached NPZ exports (LABEL:PATH). "
-        "Each NPZ must contain counts_per_bucket + role_idx."
+        "Each NPZ must contain counts_per_bucket or counts_per_interval + role_idx."
     ),
 )
 g.add_argument(
@@ -575,6 +587,17 @@ g.add_argument(
     default="exp",
     choices=("exp", "yok", "both"),
     help="Which role(s) to include from each cached NPZ (default: exp).",
+)
+g.add_argument(
+    "--wall-contacts-pmf-bin-edges",
+    type=_parse_float_csv_or_edge_groups_or_none,
+    default=None,
+    help=(
+        "Optional custom bin edges for k (wall-contact counts). "
+        "Example: '0,10,20,30,40,50,60' -> bins [0-9],[10-19],... "
+        "If provided, overrides --wall-contacts-pmf-bin-width. "
+        "If --wall-contacts-pmf-overflow is set, the last bin is 'last_edge+'."
+    ),
 )
 g.add_argument(
     "--wall-contacts-pmf-kmax-pctl",
@@ -7382,9 +7405,23 @@ def postAnalyze(vas):
             plotter.export_histograms_npz(out_npz)
         plotter.plot_histograms()
 
-    # ---------------- Wall-contact PMF per sync bucket ----------------
+    # ---------------- Wall-contact PMF per sync bucket/reward interval ----------------
+    # --- Export NPZ (per reward interval) ---
+    out_path = getattr(opts, "export_wall_contacts_per_reward_interval_npz", None)
+    if out_path:
+        payloads = []
+        for va in vas:
+            p = getattr(va, "wall_contacts_per_reward_interval_payload", None)
+            if p is not None:
+                payloads.append(p)
+        if payloads:
+            save_wall_contacts_per_reward_interval_npz(str(out_path), payloads)
+        else:
+            print(
+                "[wall_contacts_export] WARNING: no per-reward-interval payloads found"
+            )
 
-    # --- Export NPZ for VideoAnalysis group ---
+    # --- Export NPZ (per sync bucket) ---
     out_npz = getattr(opts, "export_wall_contacts_per_sync_bkt_npz", None)
     if out_npz:
         payloads = []
@@ -7404,8 +7441,8 @@ def postAnalyze(vas):
     # --- Plot from cached NPZ ---
     import_specs = getattr(opts, "wall_contacts_pmf_import_npz", None)
     if import_specs:
-        from src.plotting.wall_contacts_per_sync_bkt_pmf import (
-            WallContactsPerSyncBktResult,
+        from src.plotting.wall_contacts_pmf import (
+            WallContactsPMFResult,
             plot_wall_contacts_pmf_overlay,
         )
 
@@ -7431,14 +7468,14 @@ def postAnalyze(vas):
             labels.append(lab)
             paths.append(pth)
 
-        loaded_results: list[WallContactsPerSyncBktResult] = []
+        loaded_results: list[WallContactsPMFResult] = []
         loaded_labels: list[str] = []
         if not paths:
             print("[wall_contacts_pmf] WARNING: no valid cached NPZ specs.")
         else:
             for lab, pth in zip(labels, paths):
                 try:
-                    res = WallContactsPerSyncBktResult.load_npz(pth)
+                    res = WallContactsPMFResult.load_npz(pth)
                 except Exception as e:
                     print(
                         "[wall_contacts_pmf] WARNING: failed to load cached NPZ "
@@ -7452,6 +7489,10 @@ def postAnalyze(vas):
             out_file = getattr(opts, "wall_contacts_pmf_import_out", None)
             if not out_file:
                 out_file = "wall_contacts_pmf"  # extension added by plotter if absent
+
+            edges = getattr(opts, "wall_contacts_pmf_bin_edges", None)
+            if edges is not None and isinstance(edges, tuple) and edges and isinstance(edges[0], tuple):
+                raise ValueError("--wall-contacts-pmf-bin-edges does not support grouped edges (no '|').")
 
             plot_wall_contacts_pmf_overlay(
                 results=loaded_results,
@@ -8942,6 +8983,14 @@ if __name__ == "__main__":
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 
     if getattr(opts, "export_wall_contacts_per_sync_bkt_npz", None):
+        if getattr(opts, "wall", None) is None:
+            print(
+                f"[wall-contact] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
+                "because --export-wall-contacts-per-sync-bkt-npz was set"
+            )
+            opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+    
+    if getattr(opts, "export_wall_contacts_per_reward_interval_npz", None):
         if getattr(opts, "wall", None) is None:
             print(
                 f"[wall-contact] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "

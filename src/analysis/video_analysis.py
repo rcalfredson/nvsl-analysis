@@ -107,6 +107,9 @@ from src.utils.util import error
 from src.analysis.va_spd_calculator import VASpeedCalculator
 from src.analysis.va_turn_directionality_collator import VATurnDirectionalityCollator
 from src.analysis.va_turn_prob_dist_collator import VATurnProbabilityDistanceCollator
+from src.exporting.wall_contacts_per_reward_interval import (
+    build_wall_contacts_per_reward_interval_payload,
+)
 from src.exporting.wall_contacts_per_sync_bkt import (
     build_wall_contacts_per_sync_bkt_payload,
 )
@@ -293,6 +296,16 @@ class VideoAnalysis:
             try:
                 self.wall_contacts_per_sync_bkt_payload = (
                     build_wall_contacts_per_sync_bkt_payload(self)
+                )
+            except Exception as e:
+                if getattr(self.opts, "wall_debug", False):
+                    print(
+                        f"[wall_contacts_export] WARNING: could not build payload: {e!r}"
+                    )
+        if getattr(self.opts, "export_wall_contacts_per_reward_interval_npz", None):
+            try:
+                self.wall_contacts_per_reward_interval_payload = (
+                    build_wall_contacts_per_reward_interval_payload(self)
                 )
             except Exception as e:
                 if getattr(self.opts, "wall_debug", False):
