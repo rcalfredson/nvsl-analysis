@@ -5,6 +5,7 @@ from collections import defaultdict
 
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.stats import f_oneway
 
 import src.utils.util as util
 from src.utils.common import (
@@ -131,6 +132,29 @@ def _mean_ci_over_videos(vals_2d):
     nb = vals_2d.shape[1]
     mci = np.array([util.meanConfInt(vals_2d[:, b]) for b in range(nb)]).T
     return mci
+
+
+def _anova_p_per_bucket(group_samples, *, min_n_per_group=3):
+    """
+    group_samples: list[np.ndarray], each 1D
+    Returns: p-value (float) or np.nan
+    Notes:
+      - NaNs/infs are removed.
+      - Requires >=2 groups with >=min_n_per_group samples each.
+    """
+    try:
+        clean = []
+        for g in group_samples:
+            g = np.asarray(g, dtype=float)
+            g = g[np.isfinite(g)]
+            if g.size >= int(min_n_per_group):
+                clean.append(g)
+        if len(clean) < 2:
+            return np.nan
+        _F, p = f_oneway(*clean)
+        return float(p)
+    except Exception:
+        return np.nan
 
 
 def plot_com_sli_bundles(
@@ -457,10 +481,12 @@ def plot_com_sli_bundles(
 
         # For 2-group t-tests, collect per-bucket mean and raw values
         do_ttests = ng == 2
+        do_anova = ng >= 3
         means_by_group = [None] * ng  # each: (nb,) float
         vals_by_group = [
             None
         ] * ng  # each: (nb,) list[np.ndarray] (finite per-bucket samples)
+        min_n_per_group_anova = 3
 
         # Each bundle is a "group"
         for gi, b in enumerate(bundles):
@@ -493,7 +519,7 @@ def plot_com_sli_bundles(
                 mci[2, :] *= 100.0
 
             # For t-tests we compare what we're plotting (wallpct is scaled by 100)
-            if do_ttests:
+            if do_ttests or do_anova:
                 exp_for_test = np.asarray(exp, dtype=float)
                 if metric == "wallpct":
                     exp_for_test = exp_for_test * 100.0
@@ -540,6 +566,74 @@ def plot_com_sli_bundles(
                     txt._y_ = float(ys[bj])
                     txt._final_y_ = float(ys[bj] + 0.04 * (ylim[1] - ylim[0]))
                     lbls[bj].append(txt)
+
+        # ---- 3+ group one-way ANOVA + star annotations (plotRewards-style) ----
+        if (
+            do_anova
+            and all(m is not None for m in means_by_group)
+            and all(v is not None for v in vals_by_group)
+        ):
+            # For each bucket, run an omnibus ANOVA across groups.
+            # (No post-hoc here; this mirrors your "one symbol per bucket" style.)
+            for bj in range(nb):
+                groups_here = []
+                ok = True
+                for gi in range(ng):
+                    x = vals_by_group[gi][bj]
+                    if x.size < min_n_per_group_anova:
+                        ok = False
+                        break
+                    groups_here.append(x)
+                if not ok:
+                    continue
+
+                p = _anova_p_per_bucket(
+                    groups_here, min_n_per_group=min_n_per_group_anova
+                )
+                stars = util.p2stars(p, nanR="")
+                if not stars:
+                    continue
+
+                # Anchor at the max mean among groups at this bucket
+                mus = [means_by_group[gi][bj] for gi in range(ng)]
+                if not np.any(np.isfinite(mus)):
+                    continue
+                anchor_y = float(np.nanmax(mus))
+
+                # Avoid y-collisions with existing labels at this bucket
+                txts_here = lbls.get(bj, [])
+                avoid_ys = [
+                    (t._final_y_ if hasattr(t, "_final_y_") else t._y_)
+                    for t in txts_here
+                    if hasattr(t, "_final_y_") or hasattr(t, "_y_")
+                ]
+                if np.isfinite(anchor_y):
+                    avoid_ys.append(float(anchor_y))
+
+                span = ylim[1] - ylim[0]
+                base_y_for_star = float(anchor_y) + 0.04 * span
+                prefer = "above"
+                margin = 0.05 * (ylim[1] - ylim[0])
+                if base_y_for_star + 0.15 * (ylim[1] - ylim[0]) > ylim[1] - margin:
+                    prefer = "below"
+
+                ys_star, va_align = pick_non_overlapping_y(
+                    base_y_for_star, avoid_ys, ylim, prefer=prefer
+                )
+
+                txt = util.pltText(
+                    xs[bj],
+                    ys_star,
+                    stars,
+                    ha="center",
+                    va=va_align,
+                    size=customizer.in_plot_font_size,
+                    color="0",
+                    weight="bold",
+                )
+                txt._y_ = float(anchor_y)
+                txt._final_y_ = float(ys_star)
+                lbls[bj].append(txt)
 
             # ctrl overlay (optional)
             if include_ctrl:
