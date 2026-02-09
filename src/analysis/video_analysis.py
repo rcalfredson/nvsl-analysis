@@ -1529,6 +1529,8 @@ class VideoAnalysis:
 
         # 1) Per-fly episode detection
         for fi, trj in enumerate(self.trx):
+            if getattr(trj, "_bad", False):
+                continue
             trj.calc_agarose_dual_circle_episodes(delta_mm=delta_mm)
 
             episodes = getattr(trj, "agarose_dual_circle_episodes", [])
