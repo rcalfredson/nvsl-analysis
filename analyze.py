@@ -1113,6 +1113,11 @@ g.add_argument(
     help="Maximum x (mm) for distance bins. Default: %(default)s.",
 )
 g.add_argument(
+    "--btw-rwd-conditioned-com-overlay-title",
+    action="store_true",
+    help="Overlay plots only: include a title at the top of the plot (off by default).",
+)
+g.add_argument(
     "--btw-rwd-conditioned-com-overlay-bin-spacing",
     type=float,
     default=1.12,

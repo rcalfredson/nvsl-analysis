@@ -1474,7 +1474,8 @@ def plot_btw_rwd_conditioned_com_overlay(
 
         ax.set_ylim(bottom=0)
         ax.legend(loc="best", fontsize=customizer.in_plot_font_size)
-        ax.set_title(maybe_sentence_case("between-reward COM vs distance-from-reward"))
+        if bool(getattr(opts, "btw_rwd_conditioned_com_overlay_title", False)):
+            ax.set_title(maybe_sentence_case("between-reward COM vs distance-from-reward"))
 
         # Optional fixed ymax
         ymax = getattr(opts, "btw_rwd_conditioned_com_ymax", None)
