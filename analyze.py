@@ -1109,8 +1109,27 @@ g.add_argument(
 g.add_argument(
     "--btw-rwd-conditioned-com-xmax",
     type=float,
-    default=20.0,
+    default=33.0,
     help="Maximum x (mm) for distance bins. Default: %(default)s.",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com-overlay-bin-spacing",
+    type=float,
+    default=1.12,
+    help=(
+        "Overlay plots only: multiply spacing between distance bins by this factor. "
+        "1.0 = unchanged; >1 increases whitespace between bin groups."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com-overlay-max-width-scale",
+    type=float,
+    default=2.5,
+    help=(
+        "Overlay plots only: clamp the automatic figure-width scaling applied when "
+        "--btw-rwd-conditioned-com-overlay-bin-spacing > 1. "
+        "This prevents extremely wide figures if bin spacing is set very large."
+    ),
 )
 g.add_argument(
     "--btw-rwd-conditioned-com-ci-conf",
@@ -1131,6 +1150,18 @@ g.add_argument(
         "Restrict distance-binned COM analysis to flies in the top SLI fraction "
         "(see --best-worst-sli, --best-worst-fraction, --best-worst-trn)."
     ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com-stats",
+    action="store_true",
+    help="Calculate and display one-way ANOVA across groups for "
+    "distance-binned COM plots, with post-hoc pairwise tests.",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-com-stats-alpha",
+    type=float,
+    default=0.05,
+    help="Alpha to use for statistical tests in distance-binned COM plots.",
 )
 g.add_argument(
     "--btw-rwd-conditioned-com-exclude-nonwalking-frames",
@@ -1225,28 +1256,6 @@ g.add_argument(
     help="How many segments to list per bin in --btw-rwd-conditioned-com-top-segs-out. Default: %(default)s.",
 )
 
-# --- t-tests for distance-binned COM ---
-g.add_argument(
-    "--btw-rwd-conditioned-com-ttest-ind",
-    action="append",
-    default=None,
-    help=(
-        "Add unpaired t-test bracket+stars per x-bin for group pair LABELA:LABELB. "
-        "Repeatable."
-    ),
-)
-g.add_argument(
-    "--btw-rwd-conditioned-com-ttest-min-n",
-    type=int,
-    default=2,
-    help="Min per-bin n per group to run t-test. Default: %(default)s.",
-)
-g.add_argument(
-    "--btw-rwd-conditioned-com-ttest-correct",
-    choices=("none", "bonferroni", "fdr_bh"),
-    default="none",
-    help="Multiple-comparisons correction across bins for each requested pair. Default: %(default)s.",
-)
 
 # ---- Distance-binned between-reward distance traveled ----
 g.add_argument(
@@ -7491,8 +7500,15 @@ def postAnalyze(vas):
                 out_file = "wall_contacts_pmf"  # extension added by plotter if absent
 
             edges = getattr(opts, "wall_contacts_pmf_bin_edges", None)
-            if edges is not None and isinstance(edges, tuple) and edges and isinstance(edges[0], tuple):
-                raise ValueError("--wall-contacts-pmf-bin-edges does not support grouped edges (no '|').")
+            if (
+                edges is not None
+                and isinstance(edges, tuple)
+                and edges
+                and isinstance(edges[0], tuple)
+            ):
+                raise ValueError(
+                    "--wall-contacts-pmf-bin-edges does not support grouped edges (no '|')."
+                )
 
             plot_wall_contacts_pmf_overlay(
                 results=loaded_results,
@@ -8989,7 +9005,7 @@ if __name__ == "__main__":
                 "because --export-wall-contacts-per-sync-bkt-npz was set"
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
-    
+
     if getattr(opts, "export_wall_contacts_per_reward_interval_npz", None):
         if getattr(opts, "wall", None) is None:
             print(

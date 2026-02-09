@@ -14,7 +14,8 @@ def holm_adjust(pvals: list[float]) -> list[float]:
     Holm–Bonferroni adjustment.
 
     - Adjusts only finite p-values.
-    - Preserves NaN/inf positions as-is in the output.
+    - Preserves NaN positions as-is, and converts
+      inf → NaN.
     """
     p = np.asarray(pvals, dtype=float)
     if p.size == 0:
@@ -57,11 +58,17 @@ def holm_adjust(pvals: list[float]) -> list[float]:
 def anova_and_posthoc(
     group_samples: list[np.ndarray],
     *,
+    cfg: StatAnnotConfig,
     group_names: list[str],
 ) -> tuple[float, dict[tuple[str, str], float]]:
     # ANOVA
     try:
-        _, p_anova = f_oneway(*group_samples)
+        clean = [g[np.isfinite(g)] for g in group_samples]
+        clean = [g for g in clean if g.size >= cfg.min_n_per_group]
+        if len(clean) >= 2:
+            _, p_anova = f_oneway(*clean)
+        else:
+            p_anova = np.nan
     except Exception:
         p_anova = np.nan
 
@@ -182,7 +189,9 @@ def annotate_grouped_bars_per_bin(
         if not ok:
             continue
 
-        _p_anova, p_adj_pairs = anova_and_posthoc(samples, group_names=group_names)
+        _p_anova, p_adj_pairs = anova_and_posthoc(
+            samples, cfg=cfg, group_names=group_names
+        )
 
         sig_pairs = [
             (pair, p)

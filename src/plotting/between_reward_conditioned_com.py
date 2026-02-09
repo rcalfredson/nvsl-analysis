@@ -9,8 +9,9 @@ import matplotlib.pyplot as plt
 
 import src.utils.util as util
 from src.plotting.plot_customizer import PlotCustomizer
+from src.plotting.stats_bars import StatAnnotConfig, annotate_grouped_bars_per_bin
 from src.plotting.wall_contact_utils import build_wall_contact_mask_for_window
-from src.utils.common import maybe_sentence_case, ttest_ind, writeImage
+from src.utils.common import maybe_sentence_case, writeImage
 
 
 @dataclass
@@ -226,7 +227,7 @@ class BetweenRewardConditionedCOMPlotter:
         trn,
         *,
         t_idx: int,
-        f: int,
+        role_idx: int,
         skip_first: int,
         use_exclusion_mask: bool,
     ) -> tuple[int, int, int, list[bool]]:
@@ -275,9 +276,9 @@ class BetweenRewardConditionedCOMPlotter:
         n_buckets = int(len(rr2))
 
         if use_exclusion_mask and hasattr(va, "reward_exclusion_mask"):
-            # reward_exclusion_mask indexed by [t.n-1][f][b_idx]
+            # reward_exclusion_mask indexed by [t.n-1][role_idx][b_idx]
             try:
-                mask = va.reward_exclusion_mask[trn.n - 1][f]
+                mask = va.reward_exclusion_mask[trn.n - 1][role_idx]
             except Exception:
                 mask = []
             complete = []
@@ -380,7 +381,7 @@ class BetweenRewardConditionedCOMPlotter:
                     va,
                     trn,
                     t_idx=t_idx,
-                    f=trx_idx,
+                    role_idx=role_idx,
                     skip_first=int(self.cfg.skip_first_sync_buckets),
                     use_exclusion_mask=bool(self.cfg.use_reward_exclusion_mask),
                 )
@@ -494,7 +495,7 @@ class BetweenRewardConditionedCOMPlotter:
                     va,
                     trn,
                     t_idx=t_idx,
-                    f=trx_idx,
+                    role_idx=role_idx,
                     skip_first=int(self.cfg.skip_first_sync_buckets),
                     use_exclusion_mask=bool(self.cfg.use_reward_exclusion_mask),
                 )
@@ -620,7 +621,7 @@ class BetweenRewardConditionedCOMPlotter:
                     va,
                     trn,
                     t_idx=t_idx,
-                    f=trx_idx,
+                    role_idx=role_idx,
                     skip_first=int(self.cfg.skip_first_sync_buckets),
                     use_exclusion_mask=bool(self.cfg.use_reward_exclusion_mask),
                 )
@@ -1189,7 +1190,7 @@ class BetweenRewardConditionedCOMPlotter:
 
             # Title + small annotation (closer to bundle plotter style)
             ax.set_title(
-                maybe_sentence_case("Between-reward skewedness vs distance from reward")
+                maybe_sentence_case("Between-reward COM vs distance from reward")
             )
             parts = [f"T{int(self.cfg.training_index) + 1}"]
             if int(self.cfg.skip_first_sync_buckets) > 0:
@@ -1272,108 +1273,64 @@ def plot_btw_rwd_conditioned_com_overlay(
     x = np.asarray(ref.x_centers, dtype=float)
     edges = np.asarray(ref.x_edges, dtype=float)
     widths = edges[1:] - edges[:-1]
-    B = int(x.size)
 
-    fig, ax = plt.subplots(1, 1, figsize=(6.8, 4.2))
+    # --- layout: optionally increase spacing between bins for overlays ---
+    # 1.0 = unchanged. >1 spreads bins apart (more whitespace).
+    bin_spacing = float(
+        getattr(opts, "btw_rwd_conditioned_com_overlay_bin_spacing", 1.12) or 1.12
+    )
+    if not np.isfinite(bin_spacing) or bin_spacing <= 0:
+        bin_spacing = 1.0
+
+    origin = float(x[0]) if x.size else 0.0
+    x_plot = origin + (x - origin) * bin_spacing
 
     # --- grouped bars geometry ---
     pairs = list(zip(results, labels))
     n_groups = len(pairs)
     if n_groups == 0:
         raise ValueError("No results provided")
+
+    base_w, base_h = 6.8, 4.2
+    extra_w = 0.0
+    if n_groups >= 3:
+        extra_w = 1.0 + 0.7 * (n_groups - 3)
+
+    # How much did we stretch the x-span?
+    x0 = float(edges[0])
+    x1 = float(edges[-1])
+    x0_layout = origin + (x0 - origin) * bin_spacing
+    x1_layout = origin + (x1 - origin) * bin_spacing
+
+    span_raw = max(1e-9, x1 - x0)
+    span_layout = max(1e-9, x1_layout - x0_layout)
+    span_scale = span_layout / span_raw  # ~ bin_spacing (when origin ~ x0)
+
+    # Scale the figure width so spacing doesn't get "crammed" into same pixels.
+    # Optional clamp to avoid absurdly huge figures if someone sets bin_spacing=10.
+    max_scale = float(
+        getattr(opts, "btw_rwd_conditioned_com_overlay_max_width_scale", 2.5) or 2.5
+    )
+    span_scale = min(span_scale, max_scale)
+
+    fig, ax = plt.subplots(1, 1, figsize=((base_w + extra_w) * span_scale, base_h))
+
     # Keep bars within each bin: total footprint is frac * bin_width
     frac = 0.86
     bar_w = frac * widths / max(1, n_groups)
-
-    # ---------- t-test config / parsing ----------
-    # Map labels to indices
-    label_to_idx = {str(lab): i for i, (_, lab) in enumerate(pairs)}
-
-    # Parse requested pairs for independent t-tests to show on plot
-    pair_specs = getattr(opts, "btw_rwd_conditioned_com_ttest_ind", None) or []
-    pairs_req: list[tuple[str, str]] = []
-    for spec in pair_specs:
-        spec = str(spec)
-        if ":" not in spec:
-            print(f"[{log_tag}] WARNING: bad ttest spec {spec!r} (expected A:B)")
-            continue
-        a, b = [s.strip() for s in spec.split(":", 1)]
-        if a in label_to_idx and b in label_to_idx and a != b:
-            pairs_req.append((a, b))
-        else:
-            print(f"[{log_tag}] WARNING: unknown/invalid ttest labels in {spec!r}")
-
-    def _maybe_correct_pvals(pvals: np.ndarray) -> np.ndarray:
-        """
-        Apply a correction across bins for a single pair.
-        """
-        corr = str(getattr(opts, "btw_rwd_conditioned_com_ttest_correct", "none"))
-        p = np.asarray(pvals, dtype=float).copy()
-        fin = np.isfinite(p)
-        m = int(fin.sum())
-        if m <= 0 or corr == "none":
-            return p
-        if corr == "bonferroni":
-            p[fin] = np.minimum(1.0, p[fin] * float(m))
-            return p
-        if corr == "fdr_bh":
-            # Benjamini-Hochberg (simple implementation)
-            idx = np.where(fin)[0]
-            pv = p[idx]
-            order = np.argsort(pv)
-            pv_sorted = pv[order]
-            q = pv_sorted * float(m) / (np.arange(1, m + 1))
-            # enforce monotonicity
-            q = np.minimum.accumulate(q[::-1])[::-1]
-            out = p.copy()
-            out[idx[order]] = np.minimum(1.0, q)
-            return out
-        return p
-
-    def _draw_bracket(
-        ax,
-        x1: float,
-        x2: float,
-        y: float,
-        h: float,
-        text: str,
-        *,
-        color: str = "0.15",  # dark gray
-        lw: float = 1.0,
-    ) -> None:
-        if x2 < x1:
-            x1, x2 = x2, x1
-        ax.plot(
-            [x1, x1, x2, x2],
-            [y, y + h, y + h, y],
-            linewidth=lw,
-            color=color,
-            clip_on=False,
-            zorder=10,
-        )
-        ax.text(
-            (x1 + x2) / 2.0,
-            y + h,
-            text,
-            ha="center",
-            va="bottom",
-            fontsize=customizer.in_plot_font_size,
-            color=color,
-            zorder=11,
-        )
 
     # y-offset for n-labels are computed after y-lims are known.
     pending_nlabels: list[tuple[int, int, float, float, int]] = (
         []
     )  # (gi, j, x, y_top, n)
+    xpos_by_group: list[np.ndarray] = []
+    active = []
 
     any_data = False
     if len(labels) != len(results):
         print(
             f"[{log_tag}] WARNING: labels/results length mismatch; truncating to min."
         )
-    drawn = np.zeros((n_groups, B), dtype=bool)
-    occupied_top = np.full((n_groups, B), -np.inf, dtype=float)
     for gi, (res, lab) in enumerate(pairs):
         res.validate()
 
@@ -1398,14 +1355,14 @@ def plot_btw_rwd_conditioned_com_overlay(
         # Per-group bar centers: shift within each bin
         # Example: for 3 groups, offsets are [-1, 0, +1] * bar_w, centered
         offset = (gi - (n_groups - 1) / 2.0) * bar_w
-        x_bar = x + offset
+        x_bar = x_plot + offset
+        xpos_by_group.append(np.asarray(x_bar, float))
 
         fin = np.isfinite(x_bar) & np.isfinite(y) & np.isfinite(widths)
         if not fin.any():
             continue
         any_data = True
-
-        drawn[gi, fin] = True
+        active.append((gi, res, lab, x_bar, fin))
 
         ax.bar(
             x_bar[fin],
@@ -1445,14 +1402,75 @@ def plot_btw_rwd_conditioned_com_overlay(
         ax.set_axis_off()
         ax.text(0.5, 0.5, "no data", ha="center", va="center")
     else:
-        ax.set_xlabel(maybe_sentence_case("distance from reward circle [mm] (binned)"))
-        ax.set_ylabel(
-            maybe_sentence_case("mean COM dist. to circle center per fly [mm]")
-        )
+        # --- pick x-label from cached result meta (median vs max) ---
+        dist_stat = ""
+        try:
+            dist_stat = (
+                str(getattr(ref, "meta", {}).get("dist_stat", "")).strip().lower()
+            )
+        except Exception:
+            dist_stat = ""
 
-        # Match "bin span" x-lims like in base plot
-        if edges.size >= 2 and np.all(np.isfinite(edges[[0, -1]])):
-            ax.set_xlim(float(edges[0]), float(edges[-1]))
+        if dist_stat in ("max", "maxdist", "max_d"):
+            xlab = "Max distance to reward (mm)"
+        elif dist_stat in ("median", "med", "meddist"):
+            xlab = "Median distance to reward (mm)"
+        else:
+            # fallback if meta missing/unknown
+            xlab = "Distance to reward (mm)"
+
+        ax.set_xlabel(maybe_sentence_case(xlab))
+        ax.set_ylabel(maybe_sentence_case("COM distance to reward (mm)"))
+
+        # Match "bin span" x-lims like in base plot, but allow override via opts
+        x0 = float(edges[0])
+        x1 = float(edges[-1])
+
+        xmax_opt = getattr(opts, "btw_rwd_conditioned_com_xmax", None)
+        if xmax_opt is not None:
+            try:
+                xmax = float(xmax_opt)
+                if np.isfinite(xmax) and xmax > x0:
+                    # Clamp to not exceed cached bin span
+                    x1 = min(x1, xmax)
+            except Exception:
+                pass
+
+        x0_layout = origin + (x0 - origin) * bin_spacing
+        x1_layout = origin + (x1 - origin) * bin_spacing
+        ax.set_xlim(x0_layout, x1_layout)
+
+        # --- lock x ticks to bins (so bin_spacing never changes tick labels) ---
+        # One tick per bin, label = range (e.g., "0–2", "2–4", ...)
+        tick_pos = np.asarray(x_plot, dtype=float)
+
+        # If --btw_rwd_conditioned_com_xmax trims the plot, drop ticks beyond it
+        # so you don't get labels for bins that are off-screen.
+        keep = np.ones_like(tick_pos, dtype=bool)
+        if "x1_layout" in locals():
+            keep &= tick_pos <= float(x1_layout) + 1e-9
+
+        tick_pos = tick_pos[keep]
+        edges_show = edges[: (tick_pos.size + 1)]
+
+        def _fmt_edge(v: float) -> str:
+            # int-like -> no decimals; otherwise 1 decimal
+            if np.isfinite(v) and abs(v - round(v)) < 1e-9:
+                return str(int(round(v)))
+            return f"{v:.1f}"
+
+        tick_labels = [
+            f"{_fmt_edge(float(a))}–{_fmt_edge(float(b))}"
+            for a, b in zip(edges_show[:-1], edges_show[1:])
+        ]
+
+        ax.set_xticks(tick_pos)
+        ax.set_xticklabels(
+            tick_labels,
+            rotation=0,
+            ha="center",
+            fontsize=customizer.in_plot_font_size,
+        )
 
         ax.set_ylim(bottom=0)
         ax.legend(loc="best", fontsize=customizer.in_plot_font_size)
@@ -1480,98 +1498,28 @@ def plot_btw_rwd_conditioned_com_overlay(
                     size=customizer.in_plot_font_size,
                     color=".2",
                 )
-                occupied_top[gi, j] = max(occupied_top[gi, j], y_lab)
 
-        # ---------- t-tests + bracket+stars annotations ----------
-        # Only attempt if requested.
-        if pairs_req:
-            min_n = int(getattr(opts, "btw_rwd_conditioned_com_ttest_min_n", 2))
-
-            # Place brackets above the larger CI bound of the two compared bars.
-            # Track the highest annotation so we can expand y-lims if needed.
-            ylim0, ylim1 = ax.get_ylim()
-            y_span = (ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 1.0
-            h = 0.02 * y_span
-            pad = 0.03 * y_span
-            max_annot_y = float("-inf")
-
-            # Precompute per-group x-offset per bin for quick lookup
-            # offset_i is a vector (B,) because bar_w is vector (B,)
-            offsets = []
-            for gi in range(n_groups):
-                offsets.append((gi - (n_groups - 1) / 2.0) * bar_w)
-
-            for a, b in pairs_req:
-                ia, ib = label_to_idx[a], label_to_idx[b]
-                ra, rb = pairs[ia][0], pairs[ib][0]
-                if ra.per_unit is None or rb.per_unit is None:
-                    print(
-                        f"[{log_tag}] WARNING: missing per_unit in cached NPZ for {a!r} or {b!r}; cannot t-test."
-                    )
-                    continue
-
-                A = np.asarray(ra.per_unit, dtype=float)
-                Bv = np.asarray(rb.per_unit, dtype=float)
-                if A.ndim != 2 or Bv.ndim != 2 or A.shape[1] != B or Bv.shape[1] != B:
-                    print(
-                        f"[{log_tag}] WARNING: per_unit shape mismatch for {a!r} or {b!r}; cannot t-test."
-                    )
-                    continue
-
-                pvals = np.full((B,), np.nan, dtype=float)
-                for j in range(B):
-                    _, p, na, nb, _ = ttest_ind(
-                        A[:, j], Bv[:, j], min_n=min_n, silent=True
-                    )
-                    pvals[j] = p
-                p_use = _maybe_correct_pvals(pvals)
-
-                # draw per-bin brackets if we have finite y and p
-                for j in range(B):
-                    if not (drawn[ia, j] and drawn[ib, j]):
-                        continue
-                    if not np.isfinite(p_use[j]):
-                        continue
-
-                    stars = util.p2stars(p_use[j], nanR=None)
-                    if stars is None:
-                        continue
-                    if stars.startswith("ns"):
-                        continue  # only annotate significant by default
-
-                    # bar x-positions in this bin
-                    xa = float(x[j] + offsets[ia][j])
-                    xb = float(x[j] + offsets[ib][j])
-
-                    # y baseline: above the higher CI bound (or mean if CI missing)
-                    ya = (
-                        float(ra.ci_hi[j])
-                        if np.isfinite(ra.ci_hi[j])
-                        else float(ra.mean[j])
-                    )
-                    yb = (
-                        float(rb.ci_hi[j])
-                        if np.isfinite(rb.ci_hi[j])
-                        else float(rb.mean[j])
-                    )
-                    # y0 = np.nanmax([ya, yb])
-                    y_occ_a = occupied_top[ia, j]
-                    y_occ_b = occupied_top[ib, j]
-                    y0 = np.nanmax([ya, yb, y_occ_a, y_occ_b])
-
-                    y_br = float(y0 + pad)
-                    _draw_bracket(ax, xa, xb, y_br, h, stars)
-                    max_annot_y = max(max_annot_y, y_br + h)
-
-            # expand ylim if needed
-            if np.isfinite(max_annot_y):
-                ylim0, ylim1 = ax.get_ylim()
-                if max_annot_y > ylim1:
-                    ax.set_ylim(top=max_annot_y * 1.05)
+        do_stats = bool(getattr(opts, "btw_rwd_conditioned_com_stats", False))
+        if do_stats and not any(r.per_unit is None for r in results):
+            cfg_stats = StatAnnotConfig(
+                alpha=float(
+                    getattr(opts, "btw_rwd_conditioned_com_stats_alpha", 0.05) or 0.05
+                ),
+                nlabel_off_frac=0.04,
+            )
+            annotate_grouped_bars_per_bin(
+                ax,
+                x_centers=x_plot,
+                xpos_by_group=[a[3] for a in active],
+                per_unit_by_group=[np.asarray(a[1].per_unit, float) for a in active],  # type: ignore[arg-type]
+                hi_by_group=[np.asarray(a[1].ci_hi, float) for a in active],
+                group_names=[str(a[2]) for a in active],
+                cfg=cfg_stats,
+            )
 
     if customizer.font_size_customized:
         customizer.adjust_padding_proportionally()
-    fig.tight_layout(rect=(0, 0, 1, 1))
+    fig.tight_layout()
     writeImage(out_file, format=opts.imageFormat)
     plt.close(fig)
     print(f"[{log_tag}] wrote {out_file}")
