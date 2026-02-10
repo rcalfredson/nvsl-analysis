@@ -283,6 +283,13 @@ class VideoAnalysis:
             if getattr(opts, "reward_return_distance", False):
                 self.analyzeRewardReturnDistance()
                 self._maybe_plot_rrd_segments(self.opts)
+            if getattr(opts, "btw_rwd_shortest_tail", False):
+                self.byShortestBetweenRewardDistances(
+                    trainings=getattr(opts, "btw_rwd_shortest_tail_trainings", None),
+                    q=float(getattr(opts, "btw_rwd_shortest_tail_q", 0.05)),
+                    n_min=int(getattr(opts, "btw_rwd_shortest_tail_n_min", 15)),
+                    k_floor=int(getattr(opts, "btw_rwd_shortest_tail_k_floor", 3)),
+                )
             if getattr(opts, "agarose_dual_circle", False) and self.ct in (
                 CT.large,
                 CT.large2,
@@ -5848,6 +5855,89 @@ class VideoAnalysis:
                         self.t_length_contactless_mask = np.array(
                             self.t_length_contactless_mask
                         ).astype(bool)
+
+    def byShortestBetweenRewardDistances(
+        self,
+        *,
+        trainings=None,
+        q: float = 0.05,
+        n_min: int = 15,
+        k_floor: int = 3,
+        calc: bool = False,
+        ctrl: bool = False,
+    ):
+        """
+        For each selected training session, compute per-fly mean distance among the
+        shortest-tail between-reward segments, then aggregate across flies.
+
+        Parameters
+        ----------
+        trainings : sequence[int] | None
+            1-based training indices to compute. If None, compute all trainings.
+        q : float
+            Tail fraction (default 0.05).
+        n_min : int
+            Minimum number of segments per fly/training required to compute metric.
+        k_floor : int
+            Minimum number of segments used in shortest-tail mean.
+        calc : bool
+            If True, use calculated rewards (Trajectory.en[ctrl]) instead of delivered rewards (self.on)
+        ctrl : bool
+            Only relevant when calc=True; chooses which 'en' stream to use.
+        """
+        # Resolve which trainings to compute (internal indices)
+        if trainings is None:
+            t_indices = list(range(len(self.trns)))
+        else:
+            # parse_training_selector is 1-based.
+            t_indices = []
+            for ti in trainings:
+                try:
+                    t0 = int(ti) - 1
+                except Exception:
+                    continue
+                if 0 <= t0 < len(self.trns):
+                    t_indices.append(t0)
+        t_indices = sorted(set(t_indices))
+
+        # Per-training per-fly arrays (aligned to self.trns length)
+        self.shortestTailMeanDistByTrn = [None] * len(self.trns)
+        self.shortestTailMeanDistByTrn_mean = [np.nan] * len(self.trns)
+        self.shortestTailMeanDistByTrn_n = [0] * len(self.trns)
+        self.shortestTailMeta = dict(
+            q=q, n_min=n_min, k_floor=k_floor, trainings=trainings, calc=calc, ctrl=ctrl
+        )
+
+        for ti in t_indices:
+            t = self.trns[ti]
+            vals = []
+
+            for f in self.flies:
+                if not self.noyc and f != 0:
+                    continue
+                if self._bad(f):
+                    vals.append(np.nan)
+                    continue
+
+                # rewards per fly during training
+                on = self._getOn(t, calc=calc, ctrl=ctrl, f=f)
+                if on is None or len(on) < 2:
+                    vals.append(np.nan)
+                    continue
+
+                db = np.array(
+                    self._distTrav(f, on), dtype=float
+                )  # len(db) == len(on)-1
+                vals.append(
+                    util.mean_of_shortest_tail(db, q=q, n_min=n_min, k_floor=k_floor)
+                )
+
+            vals = np.asarray(vals, dtype=float)
+            self.shortestTailMeanDistByTrn[ti] = vals
+            self.shortestTailMeanDistByTrn_mean[ti] = (
+                float(np.nanmean(vals)) if np.isfinite(vals).any() else np.nan
+            )
+            self.shortestTailMeanDistByTrn_n[ti] = int(np.isfinite(vals).sum())
 
     # - - -
 

@@ -94,6 +94,9 @@ from src.exporting.wall_contacts_per_reward_interval import (
     save_wall_contacts_per_reward_interval_npz,
 )
 from src.exporting.wall_contacts_per_sync_bkt import save_wall_contacts_per_sync_bkt_npz
+from src.exporting.btw_rwd_shortest_tail_bundle import (
+    export_btw_rwd_shortest_tail_bundle,
+)
 from src.plotting.cross_fly_correlations import plot_cross_fly_correlations, SLIContext
 from src.plotting.individual_strategy_plotter import plot_individual_strategy_overlays
 from src.plotting.outside_circle_duration_plotter import OutsideCircleDurationPlotter
@@ -1049,6 +1052,68 @@ g.add_argument(
         "Set a fixed maximum for the y-axis in between-reward COM-magnitude "
         "histograms. By default, matplotlib chooses the y-axis scale."
     ),
+)
+g.add_argument(
+    "--btw-rwd-shortest-tail",
+    action="store_true",
+    help=(
+        "Compute a per-training 'best-case' between-reward efficiency metric: "
+        "for each fly and training, take the shortest-tail of between-reward "
+        "segment lengths (default: shortest 5% with k>=3), average within that tail, "
+        "then aggregate across flies. Stores results on each VideoAnalysis instance."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-shortest-tail-q",
+    type=float,
+    default=0.05,
+    help=(
+        "Tail fraction for --btw-rwd-shortest-tail. For each fly/training, compute the "
+        "mean of the shortest max(k_floor, ceil(q*n)) between-reward segments. "
+        "Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-shortest-tail-n-min",
+    type=int,
+    default=15,
+    help=(
+        "Minimum number of between-reward segments required per fly/training to compute "
+        "the shortest-tail mean. If fewer, that fly/training contributes NaN. "
+        "Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-shortest-tail-k-floor",
+    type=int,
+    default=3,
+    help=(
+        "Minimum number of segments included in the shortest-tail mean, even if q*n is smaller. "
+        "Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-shortest-tail-trainings",
+    type=parse_training_selector,
+    default=None,
+    help=(
+        "Subset of trainings to compute for --btw-rwd-shortest-tail (1-based). "
+        'Examples: "1", "1,3", "2-4", "1,3-5". Default: all trainings.'
+    ),
+)
+g.add_argument(
+    "--btw-rwd-shortest-tail-export-npz",
+    type=str,
+    default=None,
+    help=(
+        "Export per-training shortest-tail between-reward distance summaries as a compressed .npz "
+        "file for later overlay plotting across groups."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-shortest-tail-export-debug",
+    action="store_true",
+    help="Verbose debug prints for --btw-rwd-shortest-tail-export-npz.",
 )
 g.add_argument(
     "--btw-rwd-conditioned-com",
@@ -6696,6 +6761,11 @@ def postAnalyze(vas):
 
     if getattr(opts, "export_agarose_sli_bundle", None):
         export_agarose_sli_bundle(vas, opts, gls, opts.export_agarose_sli_bundle)
+
+    if getattr(opts, "btw_rwd_shortest_tail_export_npz", None):
+        export_btw_rwd_shortest_tail_bundle(
+            vas, opts, gls, opts.btw_rwd_shortest_tail_export_npz
+        )
 
     using_sli_set_op = bool(getattr(opts, "sli_set_op", None))
     if opts.wall:

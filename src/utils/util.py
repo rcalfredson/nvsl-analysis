@@ -1143,6 +1143,33 @@ def meanConfInt(a, conf=0.95, asDelta=False):
     return (mean, d, n) if asDelta else (mean, mean - d, mean + d, n)
 
 
+def mean_of_shortest_tail(
+    x,
+    *,
+    q: float = 0.05,
+    n_min: int = 15,
+    k_floor: int = 3,
+) -> float:
+    """
+    Return mean of the shortest max(k_floor, ceil(q*n)) values from x.
+
+    - Filters to finite values only.
+    - Returns np.nan if len(finite(x)) < n_min.
+    """
+    x = np.asarray(x, float)
+    x = x[np.isfinite(x)]
+    n = len(x)
+    if n < n_min:
+        return np.nan
+    q = float(q)
+    q = max(0.0, min(1.0, q))
+    k_floor = max(1, int(k_floor))
+    k = max(k_floor, int(math.ceil(q * n)))
+    k = max(1, min(k, n))
+    shortest = np.partition(x, k - 1)[:k]
+    return float(np.mean(shortest)) if len(shortest) else np.nan
+
+
 # returns 'ns', '*', ... for the given P value, nanR if P is NaN
 # note: follows https://graphpad.com/support/faqid/978/
 def p2stars(p, nsWithP=False, nanR=None):
