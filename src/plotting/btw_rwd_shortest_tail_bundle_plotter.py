@@ -27,6 +27,14 @@ def _as_scalar(x):
     return x
 
 
+def _q_to_pct_str(q: float) -> str:
+    # "5%" for 0.05, "2.5%" for 0.025, etc.
+    pct = 100.0 * float(q)
+    if abs(pct - round(pct)) < 1e-9:
+        return f"{int(round(pct))}%"
+    return f"{pct:g}%"
+
+
 def _load_bundle(path: str) -> dict:
     d = np.load(path, allow_pickle=True)
 
@@ -113,7 +121,7 @@ def plot_btw_rwd_shortest_tail_bundles(
     labels=None,
     opts=None,
     show_title=False,
-    y_label="Shortest-tail between-reward distance [mm]",
+    y_label=None,
     stats=True,
     min_n_per_group_anova=3,
 ):
@@ -141,6 +149,11 @@ def plot_btw_rwd_shortest_tail_bundles(
         group_labels = list(labels)
     else:
         group_labels = [b["group_label"] for b in bundles]
+
+    # y label default: bake q into label, unless caller provides one explicitly
+    if y_label is None:
+        q0 = bundles[0]["q"]
+        y_label = f"Mean between-reward distance, shortest {_q_to_pct_str(q0)} (mm)"
 
     # consistency checks on training dimension
     n_trn = bundles[0]["btw_rwd_shortest_tail_exp"].shape[1]
@@ -175,7 +188,7 @@ def plot_btw_rwd_shortest_tail_bundles(
     # compute + plot each group
     mci_by_group = []
     raw_by_group = []  # list of list-of-arrays per training (for stats)
-    ylim = [np.inf, -np.inf]
+    ylim = [0.0, 90.0]
 
     for gi, b in enumerate(bundles):
         exp = b["btw_rwd_shortest_tail_exp"][:, :n_trn]
@@ -233,12 +246,6 @@ def plot_btw_rwd_shortest_tail_bundles(
                 size=customizer.in_plot_font_size,
                 color=".2",
             )
-
-        # update ylims
-        if np.isfinite(lo).any():
-            ylim[0] = min(ylim[0], float(np.nanmin(lo)))
-        if np.isfinite(hi).any():
-            ylim[1] = max(ylim[1], float(np.nanmax(hi)))
 
     # ---- stats annotations ----
     if stats and ng >= 2:
@@ -368,5 +375,6 @@ def plot_btw_rwd_shortest_tail_bundles(
     base, ext = os.path.splitext(out_fn)
     if ext == "":
         out_fn = base + ".png"
+    ax.set_ylim(*ylim)
     writeImage(out_fn, format=getattr(opts, "imageFormat", "png"))
     plt.close()
