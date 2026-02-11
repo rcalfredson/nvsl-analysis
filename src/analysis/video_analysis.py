@@ -290,6 +290,38 @@ class VideoAnalysis:
                     n_min=int(getattr(opts, "btw_rwd_shortest_tail_n_min", 15)),
                     k_floor=int(getattr(opts, "btw_rwd_shortest_tail_k_floor", 3)),
                 )
+                if getattr(opts, "btw_rwd_shortest_tail_examples", False):
+                    self.export_shortest_tail_examples(
+                        trainings=getattr(
+                            opts, "btw_rwd_shortest_tail_examples_trainings", None
+                        ),
+                        flies=getattr(
+                            opts, "btw_rwd_shortest_tail_examples_flies", None
+                        ),
+                        topk=int(
+                            getattr(opts, "btw_rwd_shortest_tail_examples_topk", 6)
+                        ),
+                        num_intervals=int(
+                            getattr(opts, "btw_rwd_shortest_tail_examples_num", 6)
+                        ),
+                        pad=int(getattr(opts, "btw_rwd_shortest_tail_examples_pad", 5)),
+                        zoom=bool(
+                            getattr(opts, "btw_rwd_shortest_tail_examples_zoom", True)
+                        ),
+                        zoom_radius_mm=getattr(
+                            opts, "btw_rwd_shortest_tail_examples_zoom_radius_mm", None
+                        ),
+                        outdir=getattr(
+                            opts, "btw_rwd_shortest_tail_examples_outdir", None
+                        ),
+                        pick=str(
+                            getattr(
+                                opts,
+                                "btw_rwd_shortest_tail_examples_pick",
+                                "largest_delta",
+                            )
+                        ),
+                    )
             if getattr(opts, "agarose_dual_circle", False) and self.ct in (
                 CT.large,
                 CT.large2,
@@ -5856,6 +5888,226 @@ class VideoAnalysis:
                             self.t_length_contactless_mask
                         ).astype(bool)
 
+    def _mean_and_shortest_tail_idx(
+        self,
+        x: np.ndarray,
+        *,
+        q: float,
+        n_min: int,
+        k_floor: int,
+    ) -> tuple[float, np.ndarray]:
+        """
+        Return (mean_of_shortest_tail, idx_used_into_original_x).
+
+        idx_used is the indices (into x) of the k shortest finite entries used.
+        If not enough data, returns (np.nan, empty idx).
+        """
+        x = np.asarray(x, dtype=float)
+        finite = np.isfinite(x)
+        if finite.sum() < max(2, int(n_min)):
+            return np.nan, np.asarray([], dtype=int)
+
+        idx_f = np.flatnonzero(finite)
+        xf = x[idx_f]
+        n = xf.size
+
+        # Number of segments in tail:
+        # - "shortest q%" => ceil(q*n)
+        # - enforce k_floor
+        k = int(np.ceil(float(q) * float(n)))
+        k = max(int(k_floor), k)
+        k = min(k, n)
+
+        # Indices (within xf) of the k smallest
+        ord_k = np.argpartition(xf, k - 1)[:k]
+        # Map back to original x indices
+        idx_used = idx_f[ord_k]
+
+        mean_val = float(np.mean(x[idx_used])) if idx_used.size else np.nan
+        return mean_val, np.sort(idx_used)
+
+    def plot_shortest_tail_examples(
+        self,
+        *,
+        trn_index: int,
+        fly: int,
+        num: int = 6,
+        pad: int = 5,
+        zoom: bool = True,
+        zoom_radius_mm: float | None = None,
+        title_suffix: str = "",
+    ):
+        """
+        Plot up to `num` stored shortest-tail intervals for (trn_index, fly),
+        using EventChainPlotter.plot_between_reward_interval.
+        """
+        if (
+            not hasattr(self, "shortestTailExamples")
+            or self.shortestTailExamples is None
+        ):
+            print(
+                "[plot_shortest_tail_examples] No stored examples; run with keep_examples=True."
+            )
+            return
+
+        ex = self.shortestTailExamples[trn_index].get(fly, [])
+        if not ex:
+            print(
+                f"[plot_shortest_tail_examples] No examples for fly {fly}, trn {trn_index+1}."
+            )
+            return
+
+        trj = self.trx[fly] if isinstance(self.trx, dict) else None
+        if trj is None:
+            # adapt this line to however you access trajectories by fly id
+            trj = next((t for t in self.trx if getattr(t, "f", None) == fly), None)
+        if trj is None:
+            print(
+                f"[plot_shortest_tail_examples] Could not locate trajectory for fly {fly}."
+            )
+            return
+
+        ecp = EventChainPlotter(trj=trj, va=self)
+        for i, item in enumerate(ex[: max(1, int(num))]):
+            ecp.plot_between_reward_interval(
+                trn_index=trn_index,
+                start_reward=item["start_reward"],
+                end_reward=item["end_reward"],
+                pad=pad,
+                zoom=zoom,
+                zoom_radius_mm=zoom_radius_mm,
+                title_suffix=f"{title_suffix} | tail seg {i+1} (db={item['dist']:.2f})",
+            )
+
+    def export_shortest_tail_examples(
+        self,
+        *,
+        trainings=None,
+        flies=None,
+        topk: int = 6,
+        num_intervals: int = 6,
+        pad: int = 5,
+        zoom: bool = True,
+        zoom_radius_mm: float | None = None,
+        outdir: str | None = None,
+        pick: str = "largest_delta",  # or "random"
+    ):
+        """
+        Export plots for between-reward intervals that *actually contributed* to the
+        shortest-tail mean metric.
+
+        If `flies` is None, selects up to `topk` flies automatically per training.
+        """
+        if (
+            not hasattr(self, "shortestTailExamples")
+            or self.shortestTailExamples is None
+        ):
+            print(
+                "[export_shortest_tail_examples] No stored examples. Run shortest-tail with keep_examples=True."
+            )
+            return
+
+        if trainings is None:
+            t_indices = list(range(len(self.trns)))
+        else:
+            t_indices = sorted(
+                {int(t) - 1 for t in trainings if 1 <= int(t) <= len(self.trns)}
+            )
+
+        meta = getattr(self, "shortestTailMeta", {}) or {}
+        q = meta.get("q", None)
+        n_min = meta.get("n_min", None)
+        k_floor = meta.get("k_floor", None)
+        video_id = os.path.splitext(os.path.basename(self.fn))[0]
+
+        base_outdir = outdir or "imgs/between_rewards/shortest_tail_examples"
+        os.makedirs(base_outdir, exist_ok=True)
+
+        def _auto_pick_flies(vals: np.ndarray, fly_ids: list[int]) -> list[int]:
+            ok = np.isfinite(vals)
+            if not ok.any():
+                return []
+
+            v = vals.copy()
+            mu = float(np.nanmean(v))
+            if pick == "random":
+                idx = np.flatnonzero(ok)
+                rng = np.random.default_rng(0)
+                rng.shuffle(idx)
+                idx = idx[: int(topk)]
+                return [fly_ids[i] for i in idx]
+
+            # default: largest deviation from mean
+            dev = np.abs(v - mu)
+            dev[~ok] = -np.inf
+            idx = np.argsort(dev)[::-1][: int(topk)]
+            return [fly_ids[i] for i in idx if np.isfinite(dev[i])]
+
+        # fly IDs used in the per-fly array order
+        fly_ids = [f for f in self.flies if (self.noyc or f == 0)]  # mirrors your loop
+
+        for ti in t_indices:
+            vals = self.shortestTailMeanDistByTrn[ti]
+            if vals is None:
+                print(
+                    f"[export_shortest_tail_examples] No shortest-tail values for trn {ti+1}."
+                )
+                continue
+
+            if flies is None:
+                chosen_flies = _auto_pick_flies(vals, fly_ids)
+            else:
+                chosen_flies = [int(f) for f in flies]
+
+            if not chosen_flies:
+                print(
+                    f"[export_shortest_tail_examples] No flies selected for trn {ti+1}."
+                )
+                continue
+
+            # per training subdir
+            trn_dir = os.path.join(base_outdir, f"trn{ti+1}")
+            os.makedirs(trn_dir, exist_ok=True)
+
+            for f in chosen_flies:
+                if self._bad(f):
+                    continue
+                ex = self.shortestTailExamples[ti].get(f, [])
+                if not ex:
+                    continue
+
+                # get the fly’s per-training metric for labeling
+                try:
+                    i_f = fly_ids.index(f)
+                    v_f = vals[i_f]
+                except Exception:
+                    v_f = np.nan
+
+                # trajectory + plotter
+                trj = self.trx[f]
+                ecp = EventChainPlotter(trj=trj, va=self)
+
+                suffix = f"[q={q}, n_min={n_min}, k_floor={k_floor}] tail_mean={v_f:.2f}mm"
+
+                for j, item in enumerate(ex[: max(1, int(num_intervals))]):
+                    sr = item["start_reward"]
+                    er = item["end_reward"]
+
+                    out_path = os.path.join(
+                        trn_dir,
+                        f"{video_id}__fly{f}_seg{j+1}_rw{sr}-{er}_pad{int(pad)}.png",
+                    )
+                    ecp.plot_between_reward_interval(
+                        trn_index=ti,
+                        start_reward=sr,
+                        end_reward=er,
+                        pad=pad,
+                        zoom=zoom,
+                        zoom_radius_mm=zoom_radius_mm,
+                        out_path=out_path,
+                        title_suffix=suffix,
+                    )
+
     def byShortestBetweenRewardDistances(
         self,
         *,
@@ -5863,8 +6115,10 @@ class VideoAnalysis:
         q: float = 0.05,
         n_min: int = 15,
         k_floor: int = 3,
-        calc: bool = False,
+        calc: bool = True,
         ctrl: bool = False,
+        keep_examples: bool = True,
+        max_examples_per_fly: int = 10,
     ):
         """
         For each selected training session, compute per-fly mean distance among the
@@ -5884,6 +6138,12 @@ class VideoAnalysis:
             If True, use calculated rewards (Trajectory.en[ctrl]) instead of delivered rewards (self.on)
         ctrl : bool
             Only relevant when calc=True; chooses which 'en' stream to use.
+        keep_examples : bool
+            If True, store which between-reward intervals were used to compute each
+            fly's shortest-tail mean. These can be passed to
+            EventChainPlotter.plot_between_reward_interval(...)
+        max_examples_per_fly : int
+            Maximum number of examples to save if keep_examples=True.
         """
         # Resolve which trainings to compute (internal indices)
         if trainings is None:
@@ -5900,12 +6160,22 @@ class VideoAnalysis:
                     t_indices.append(t0)
         t_indices = sorted(set(t_indices))
 
+        px_per_mm = self.ct.pxPerMmFloor() * self.xf.fctr
+
         # Per-training per-fly arrays (aligned to self.trns length)
         self.shortestTailMeanDistByTrn = [None] * len(self.trns)
         self.shortestTailMeanDistByTrn_mean = [np.nan] * len(self.trns)
         self.shortestTailMeanDistByTrn_n = [0] * len(self.trns)
         self.shortestTailMeta = dict(
             q=q, n_min=n_min, k_floor=k_floor, trainings=trainings, calc=calc, ctrl=ctrl
+        )
+
+        # Store which intervals were used (per training, per fly)
+        # Structure:
+        #   self.shortestTailExamples[ti][f] = list of dicts:
+        #       {"start_reward": int, "end_reward": int, "dist": float, "seg_idx": int}
+        self.shortestTailExamples = (
+            [dict() for _ in range(len(self.trns))] if keep_examples else None
         )
 
         for ti in t_indices:
@@ -5917,20 +6187,43 @@ class VideoAnalysis:
                     continue
                 if self._bad(f):
                     vals.append(np.nan)
+                    if keep_examples:
+                        self.shortestTailExamples[ti][f] = []
                     continue
 
                 # rewards per fly during training
                 on = self._getOn(t, calc=calc, ctrl=ctrl, f=f)
                 if on is None or len(on) < 2:
                     vals.append(np.nan)
+                    if keep_examples:
+                        self.shortestTailExamples[ti][f] = []
                     continue
 
-                db = np.array(
-                    self._distTrav(f, on), dtype=float
+                on = np.asarray(on, dtype=int)
+                db = (
+                    np.asarray(self._distTrav(f, on), dtype=float) / px_per_mm
                 )  # len(db) == len(on)-1
-                vals.append(
-                    util.mean_of_shortest_tail(db, q=q, n_min=n_min, k_floor=k_floor)
+                mean_val, idx_used = self._mean_and_shortest_tail_idx(
+                    db, q=q, n_min=n_min, k_floor=k_floor
                 )
+                vals.append(mean_val)
+
+                if keep_examples:
+                    examples = []
+                    # idx_used are indices into db, and db[i] corresponds to on[i] -> on[i+1]
+                    for seg_i in idx_used[: max(0, int(max_examples_per_fly))]:
+                        sr = int(on[seg_i])
+                        er = int(on[seg_i + 1])
+                        d = float(db[seg_i]) if np.isfinite(db[seg_i]) else np.nan
+                        examples.append(
+                            dict(
+                                start_reward=sr,
+                                end_reward=er,
+                                dist=d,
+                                seg_idx=int(seg_i),
+                            )
+                        )
+                    self.shortestTailExamples[ti][f] = examples
 
             vals = np.asarray(vals, dtype=float)
             self.shortestTailMeanDistByTrn[ti] = vals

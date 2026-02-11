@@ -1115,6 +1115,114 @@ g.add_argument(
     action="store_true",
     help="Verbose debug prints for --btw-rwd-shortest-tail-export-npz.",
 )
+
+# ---- Shortest-tail explainability export (example interval plots) -------------
+
+g.add_argument(
+    "--btw-rwd-shortest-tail-examples",
+    action="store_true",
+    help=(
+        "If set, export example between-reward intervals that *contributed* to the "
+        "--btw-rwd-shortest-tail metric, using EventChainPlotter.plot_between_reward_interval. "
+        "Requires --btw-rwd-shortest-tail (so examples exist to export)."
+    ),
+)
+
+g.add_argument(
+    "--btw-rwd-shortest-tail-examples-trainings",
+    type=parse_training_selector,
+    default=None,
+    help=(
+        "Subset of trainings to export example interval plots for (1-based). "
+        'Examples: "1", "1,3", "2-4", "1,3-5". Default: all trainings computed.'
+    ),
+)
+
+g.add_argument(
+    "--btw-rwd-shortest-tail-examples-flies",
+    type=int,
+    action="append",
+    default=None,
+    help=(
+        "Repeatable. Export examples for these fly ids (exact fly indices used by VideoAnalysis). "
+        "If omitted, a subset is auto-selected per training (see --btw-rwd-shortest-tail-examples-topk "
+        "and --btw-rwd-shortest-tail-examples-pick)."
+    ),
+)
+
+g.add_argument(
+    "--btw-rwd-shortest-tail-examples-topk",
+    type=int,
+    default=6,
+    help=(
+        "If --btw-rwd-shortest-tail-examples-flies is not provided, export examples for up to "
+        "this many auto-selected flies per training. Default: %(default)s."
+    ),
+)
+
+g.add_argument(
+    "--btw-rwd-shortest-tail-examples-num",
+    type=int,
+    default=6,
+    help=(
+        "Number of shortest-tail intervals to plot per fly (per training). "
+        "Default: %(default)s."
+    ),
+)
+
+g.add_argument(
+    "--btw-rwd-shortest-tail-examples-pad",
+    type=int,
+    default=5,
+    help=(
+        "Frame padding on each side of a selected between-reward interval when plotting examples. "
+        "Default: %(default)s."
+    ),
+)
+
+g.add_argument(
+    "--btw-rwd-shortest-tail-examples-zoom",
+    action=argparse.BooleanOptionalAction,
+    default=True,
+    help=(
+        "Whether to zoom example plots around the reward circle. "
+        "Default: %(default)s. Use --no-btw-rwd-shortest-tail-examples-zoom to disable."
+    ),
+)
+
+g.add_argument(
+    "--btw-rwd-shortest-tail-examples-zoom-radius-mm",
+    type=float,
+    default=None,
+    help=(
+        "If provided, zoom window radius (mm) for example plots. If omitted, the plotting "
+        "method uses its default zoom radius multiplier on the reward radius."
+    ),
+)
+
+g.add_argument(
+    "--btw-rwd-shortest-tail-examples-outdir",
+    type=str,
+    default=None,
+    help=(
+        "Output directory for exported example interval plots. If omitted, defaults to "
+        "'imgs/between_rewards/shortest_tail_examples/'."
+    ),
+)
+
+g.add_argument(
+    "--btw-rwd-shortest-tail-examples-pick",
+    type=str,
+    choices=("largest_delta", "random"),
+    default="largest_delta",
+    help=(
+        "Auto-selection strategy for example export when --btw-rwd-shortest-tail-examples-flies "
+        "is not provided. 'largest_delta' picks flies with largest deviation from the training mean; "
+        "'random' picks a random subset (seeded). Default: %(default)s."
+    ),
+)
+
+
 g.add_argument(
     "--btw-rwd-conditioned-com",
     action="store_true",

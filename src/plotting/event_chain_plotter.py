@@ -615,6 +615,432 @@ class EventChainPlotter:
         writeImage(output_path, format=image_format)
         plt.close()
 
+    def plot_between_reward_interval(
+        self,
+        trn_index: int,
+        start_reward: int,
+        end_reward: int,
+        *,
+        seed: int | None = None,
+        image_format: str | None = None,
+        role_idx: int | None = None,
+        pad: int = 5,
+        zoom: bool = False,
+        zoom_radius_mm: float | None = None,
+        zoom_radius_mult: float = 3.0,
+        max_dist_mm: float | None = None,
+        short_strict: bool = False,
+        out_path: str | None = None,
+        title_suffix: str = "",
+    ):
+        """
+        Plot exactly one between-reward trajectory segment for this fly, defined by
+        (start_reward -> end_reward). Intended for debugging / explainability.
+
+        Parameters
+        ----------
+        trn_index : int
+            0-based index into va.trns.
+        start_reward, end_reward : int
+            Frame indices of the two successive reward events.
+        seed : int | None
+            Included for interface consistency (not used for selection).
+        image_format : str | None
+            Output image format. Defaults to self.image_format.
+        role_idx : int | None
+            Role index (0 exp / 1 yok). If None, will attempt to infer via va.flies.index(trj.f).
+        pad : int
+            Frames of padding on each side of the interval for plotting context.
+        zoom : bool
+            If True, zoom around the reward circle.
+        zoom_radius_mm : float | None
+            If provided, zoom window radius in mm. Otherwise use zoom_radius_mult * reward_radius.
+        zoom_radius_mult : float
+            Multiplier on reward radius (in px) for default zoom window.
+        max_dist_mm : float | None
+            If provided, compute segment distance (mm) and optionally reject if > max_dist_mm.
+            (Mostly useful if you want to keep this consistent with other filters.)
+        short_strict : bool
+            If True and max_dist_mm is provided and the segment is too long, skip output.
+        out_path : str | None
+            If provided, write exactly here. Otherwise uses the standard imgs/between_rewards/ pattern.
+        title_suffix : str
+            Extra text appended to per-figure title (useful for tagging q / group / etc.).
+        """
+
+        image_format = image_format or self.image_format
+
+        # --- Basic checks ----------------------------------------------------------
+        if trn_index < 0 or trn_index >= len(self.va.trns):
+            print(
+                f"[plot_between_reward_interval] Invalid trn_index={trn_index}; "
+                f"valid range is 0..{len(self.va.trns) - 1}"
+            )
+            return
+
+        n_frames = len(self.x)
+        sr = int(start_reward)
+        er = int(end_reward)
+
+        if sr < 0 or er < 0 or sr >= n_frames or er >= n_frames:
+            print(
+                f"[plot_between_reward_interval] Reward frames out of bounds "
+                f"(start={sr}, end={er}, n_frames={n_frames})."
+            )
+            return
+        if er <= sr:
+            print(
+                f"[plot_between_reward_interval] Invalid interval: end_reward ({er}) "
+                f"must be > start_reward ({sr})."
+            )
+            return
+
+        # Conversion: px -> mm for floor coords
+        px_per_mm = self.va.ct.pxPerMmFloor() * self.va.xf.fctr
+        if not np.isfinite(px_per_mm) or px_per_mm <= 0:
+            px_per_mm = None
+
+        def _segment_dist_mm(start_reward_i: int, end_reward_i: int) -> float:
+            start_frame_i = max(0, int(start_reward_i))
+            end_frame_i = min(n_frames - 1, int(end_reward_i))
+            if end_frame_i <= start_frame_i:
+                return np.nan
+            d_px = self.trj.distTrav(start_frame_i, end_frame_i)
+            if px_per_mm is None or not np.isfinite(d_px):
+                return np.nan
+            return float(d_px) / float(px_per_mm)
+
+        # Optional max-dist filter (debug consistency)
+        dmm = _segment_dist_mm(sr, er) if (max_dist_mm is not None) else np.nan
+        if max_dist_mm is not None:
+            max_dist_mm = float(max_dist_mm)
+            if np.isfinite(dmm) and dmm > max_dist_mm:
+                msg = (
+                    f"[plot_between_reward_interval] Segment dist {dmm:.2f} mm exceeds "
+                    f"max_dist_mm={max_dist_mm:g} (fly {self.trj.f}, trn {trn_index + 1})."
+                )
+                if short_strict:
+                    print(msg + " short_strict=True; skipping.")
+                    return
+                print(msg + " Proceeding anyway (short_strict=False).")
+
+        # Compute plotted window
+        start_frame = max(0, sr - int(pad))
+        end_frame = min(n_frames - 1, er + int(pad))
+        if start_frame >= end_frame:
+            print(
+                f"[plot_between_reward_interval] Collapsed plotted window "
+                f"({start_frame}..{end_frame}); skipping."
+            )
+            return
+
+        # --- Arena / floor geometry ------------------------------------------------
+        floor_coords = list(
+            self.va.ct.floor(self.va.xf, f=self.va.nef * (self.trj.f) + self.va.ef)
+        )
+        top_left, bottom_right = floor_coords[0], floor_coords[1]
+
+        contact_buffer_mm = CONTACT_BUFFER_OFFSETS["wall"]["max"]
+        contact_buffer_px = (
+            self.va.ct.pxPerMmFloor() * self.va.xf.fctr * contact_buffer_mm
+        )
+
+        reward_circle = None
+        try:
+            reward_circle = self.va.trns[trn_index].circles(self.trj.f)[0]
+        except Exception:
+            reward_circle = None
+
+        padding_x = (bottom_right[0] - top_left[0]) * 0.1
+        padding_y = (top_left[1] - bottom_right[1]) * 0.1
+
+        def _ylim_is_inverted_for_full_view() -> bool:
+            yA = bottom_right[1] - padding_y
+            yB = top_left[1] + padding_y
+            return yA > yB
+
+        # Arrow styles (copied from your existing method)
+        arrow_kwargs_default = {"length": 3.0, "linewidth": 2.0}
+        arrow_kwargs_zoomed = {"length": 1.5, "linewidth": 1.0}
+
+        def _choose_arrow_kwargs_for_view(x0, x1, y0, y1) -> dict:
+            floor_w = float(abs(bottom_right[0] - top_left[0]))
+            floor_h = float(abs(top_left[1] - bottom_right[1]))
+            if floor_w <= 0 or floor_h <= 0:
+                return arrow_kwargs_default
+            win_w = float(abs(x1 - x0))
+            win_h = float(abs(y1 - y0))
+            frac = max(win_w / floor_w, win_h / floor_h)
+            return arrow_kwargs_zoomed if frac <= 0.60 else arrow_kwargs_default
+
+        # --- Figure ----------------------------------------------------------------
+        fig, ax = plt.subplots(1, 1, figsize=(7.5, 6.5))
+        plt.sca(ax)
+
+        # Floor box
+        rect = patches.FancyBboxPatch(
+            (top_left[0], top_left[1]),
+            bottom_right[0] - top_left[0],
+            bottom_right[1] - top_left[1],
+            boxstyle="round,pad=0.05,rounding_size=2",
+            linewidth=1,
+            edgecolor="black",
+            facecolor="none",
+            zorder=2,
+        )
+        ax.add_patch(rect)
+
+        # Sidewall contact region
+        try:
+            self._draw_sidewall_contact_region(
+                lower_left_x=top_left[0],
+                lower_left_y=top_left[1],
+                top_left=top_left,
+                bottom_right=bottom_right,
+                contact_buffer_px=contact_buffer_px,
+            )
+        except Exception as e:
+            print(
+                f"[plot_between_reward_interval] Warning: failed to draw contact region: {e}"
+            )
+
+        # Reward circle
+        if reward_circle is not None:
+            rcx, rcy, rcr = reward_circle
+            rc_patch = plt.Circle(
+                (rcx, rcy),
+                rcr,
+                color="lightgray",
+                fill=False,
+                linestyle="-",
+                linewidth=1.5,
+                zorder=3,
+                label="Reward circle",
+            )
+            ax.add_patch(rc_patch)
+
+        ax.set_aspect("equal", adjustable="box")
+        ax.axis("off")
+
+        # Viewport (zoom or full)
+        x0 = x1 = y0 = y1 = None  # define for arrow style logic
+        if zoom and reward_circle is not None and px_per_mm is not None:
+            rcx, rcy, rcr = reward_circle
+
+            if zoom_radius_mm is not None:
+                win_rad_px = float(zoom_radius_mm) * float(px_per_mm)
+            else:
+                win_rad_px = float(rcr) * float(zoom_radius_mult)
+
+            win_rad_px = max(win_rad_px, float(rcr) * 1.25)
+
+            floor_y_min = min(top_left[1], bottom_right[1])
+            floor_y_max = max(top_left[1], bottom_right[1])
+            y0 = max(floor_y_min, rcy - win_rad_px)
+            y1 = min(floor_y_max, rcy + win_rad_px)
+
+            floor_x_min = min(top_left[0], bottom_right[0])
+            floor_x_max = max(top_left[0], bottom_right[0])
+            x0 = max(floor_x_min, rcx - win_rad_px)
+            x1 = min(floor_x_max, rcx + win_rad_px)
+
+            if (x1 - x0) < 5 or (y1 - y0) < 5:
+                ax.set_xlim(top_left[0] - padding_x, bottom_right[0] + padding_x)
+                ax.set_ylim(bottom_right[1] - padding_y, top_left[1] + padding_y)
+                x0 = x1 = y0 = y1 = None
+            else:
+                ax.set_xlim(x0, x1)
+                if _ylim_is_inverted_for_full_view():
+                    ax.set_ylim(y1, y0)
+                else:
+                    ax.set_ylim(y0, y1)
+
+                eps = 0.01
+                ax.add_patch(
+                    patches.Rectangle(
+                        (2 * eps, 2 * eps),
+                        1 - 4 * eps,
+                        1 - 4 * eps,
+                        transform=ax.transAxes,
+                        fill=False,
+                        linewidth=1.0,
+                        linestyle="--",
+                        edgecolor="0.6",
+                        zorder=10,
+                    )
+                )
+                ax.text(
+                    0.03,
+                    0.97,
+                    "zoom",
+                    transform=ax.transAxes,
+                    ha="left",
+                    va="top",
+                    fontsize=8,
+                    color="0.35",
+                    zorder=11,
+                    bbox=dict(
+                        boxstyle="round,pad=0.15",
+                        facecolor="white",
+                        edgecolor="none",
+                        alpha=0.7,
+                    ),
+                )
+        else:
+            ax.set_xlim(top_left[0] - padding_x, bottom_right[0] + padding_x)
+            ax.set_ylim(bottom_right[1] - padding_y, top_left[1] + padding_y)
+
+        # Choose arrow kwargs based on zoomed viewport
+        if (
+            zoom
+            and reward_circle is not None
+            and px_per_mm is not None
+            and x0 is not None
+            and x1 is not None
+            and y0 is not None
+            and y1 is not None
+            and (x1 - x0) > 5
+            and (y1 - y0) > 5
+        ):
+            arrow_kwargs = _choose_arrow_kwargs_for_view(x0, x1, y0, y1)
+        else:
+            arrow_kwargs = arrow_kwargs_default
+
+        # --- Draw trajectory segment ------------------------------------------------
+        last_arrow_idx = None
+        arrow_interval = 3
+
+        for i in range(start_frame, end_frame):
+            if (
+                np.isnan(self.x[i])
+                or np.isnan(self.y[i])
+                or np.isnan(self.x[i + 1])
+                or np.isnan(self.y[i + 1])
+            ):
+                continue
+
+            x_start, x_end = self.x[i], self.x[i + 1]
+            y_start, y_end = self.y[i], self.y[i + 1]
+
+            # clamp x to floor bounds like existing code
+            x_start = max(min(x_start, bottom_right[0]), top_left[0])
+            x_end = max(min(x_end, bottom_right[0]), top_left[0])
+
+            ax.plot(
+                [x_start, x_end],
+                [y_start, y_end],
+                color="black",
+                linewidth=0.75,
+                zorder=3,
+            )
+
+            if getattr(self.trj, "walking", None) is not None:
+                if not self.trj.walking[i + 1]:
+                    continue
+
+            speed = np.hypot(x_end - x_start, y_end - y_start)
+            try:
+                last_arrow_idx = self._draw_arrow_for_speed(
+                    i,
+                    x_start,
+                    x_end,
+                    y_start,
+                    y_end,
+                    last_arrow_idx,
+                    arrow_interval,
+                    speed,
+                    arrow_kwargs=arrow_kwargs,
+                )
+            except Exception:
+                # if arrow helper isn't available / fails, just skip arrows
+                pass
+
+        # Mark the two reward frames
+        ax.plot(
+            self.x[sr],
+            self.y[sr],
+            marker="o",
+            color="green",
+            markersize=7,
+            zorder=4,
+            label="Reward (start)",
+        )
+        ax.plot(
+            self.x[er],
+            self.y[er],
+            marker="o",
+            color="red",
+            markersize=7,
+            zorder=4,
+            label="Reward (end)",
+        )
+
+        # --- Titles / legend --------------------------------------------------------
+        video_id = os.path.splitext(os.path.basename(self.va.fn))[0]
+        fly_idx = self.va.f
+
+        if role_idx is None:
+            try:
+                role_idx = self.va.flies.index(fly_idx)
+            except Exception:
+                role_idx = 0
+
+        fly_role = "exp" if role_idx == 0 else "yok"
+
+        dist_line = ""
+        if px_per_mm is not None:
+            dmm2 = _segment_dist_mm(sr, er)
+            if np.isfinite(dmm2):
+                dist_line = f", dist {dmm2:.2f} mm"
+
+        suffix = f" {title_suffix}".rstrip()
+        global_title = (
+            "Between-reward trajectory (selected interval)\n"
+            f"{video_id}, fly {fly_idx}, {fly_role} | trn {trn_index + 1}\n"
+            f"rewards {sr}->{er} (frames {start_frame}-{end_frame}){dist_line}{suffix}"
+        )
+        fig.suptitle(global_title, fontsize=12)
+
+        handles, labels = ax.get_legend_handles_labels()
+        if handles:
+            ax.legend(
+                handles=handles,
+                labels=labels,
+                loc="lower center",
+                bbox_to_anchor=(0.5, -0.08),
+                fancybox=True,
+                shadow=True,
+                ncol=3,
+                fontsize=9,
+            )
+
+        fig.subplots_adjust(left=0.04, right=0.98, top=0.88, bottom=0.16)
+
+        # --- Output path ------------------------------------------------------------
+        if out_path is None:
+            seed_str = f"{seed}" if seed is not None else "na"
+            zoom_str = ""
+            if zoom:
+                if zoom_radius_mm is not None:
+                    zoom_str = f"_zoom{float(zoom_radius_mm):g}mm"
+                else:
+                    zoom_str = f"_zoomx{float(zoom_radius_mult):g}"
+
+            out_path = (
+                f"imgs/between_rewards/"
+                f"{video_id}__fly{fly_idx}_role{role_idx}_"
+                f"trn{trn_index + 1}_"
+                f"rw{sr}-{er}_pad{int(pad)}_seed{seed_str}"
+                f"{zoom_str}."
+                f"{image_format}"
+            )
+
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+        writeImage(out_path, format=image_format)
+        plt.close(fig)
+
+        print(f"[plot_between_reward_interval] wrote {out_path}")
+
     def plot_between_reward_chain(
         self,
         trn_index,

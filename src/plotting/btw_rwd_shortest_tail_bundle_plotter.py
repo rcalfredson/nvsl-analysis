@@ -188,7 +188,7 @@ def plot_btw_rwd_shortest_tail_bundles(
     # compute + plot each group
     mci_by_group = []
     raw_by_group = []  # list of list-of-arrays per training (for stats)
-    ylim = [0.0, 90.0]
+    ylim = [0.0, 20.0]
 
     for gi, b in enumerate(bundles):
         exp = b["btw_rwd_shortest_tail_exp"][:, :n_trn]
