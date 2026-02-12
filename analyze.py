@@ -131,6 +131,11 @@ from src.plotting.between_reward_distance_hist import (
     BetweenRewardDistanceHistogramPlotter,
     BetweenRewardDistanceHistogramConfig,
 )
+from src.plotting.between_reward_hexbin_density import (
+    BetweenRewardHexbinConfig,
+    HexBinGridSpec,
+    run_between_reward_hexbin_density,
+)
 from src.plotting.between_reward_polar_occupancy import (
     BetweenRewardPolarOccupancyPlotter,
     BetweenRewardPolarOccupancyConfig,
@@ -933,6 +938,68 @@ g.add_argument(
         "Only used with --btw-rwd-dist-per-fly."
     ),
 )
+g.add_argument(
+    "--btw-rwd-hexbin",
+    action="store_true",
+    help="Plot between-reward density: max distance from reward vs total/return path length.",
+)
+g.add_argument(
+    "--btw-rwd-hexbin-training", type=int, default=1, help="Training to plot (1-based)."
+)
+g.add_argument(
+    "--btw-rwd-hexbin-x-mode", choices=["Ltotal", "Lreturn"], default="Ltotal"
+)
+g.add_argument(
+    "--btw-rwd-hexbin-out", default=None, help="Output image path (png by default)."
+)
+g.add_argument("--btw-rwd-hexbin-npz", default=None, help="Optional output .npz path.")
+
+g.add_argument("--btw-rwd-hexbin-gridside", type=int, default=45)
+g.add_argument("--btw-rwd-hexbin-mincnt", type=int, default=1)
+
+g.add_argument(
+    "--btw-rwd-hexbin-no-log1p-x",
+    dest="btw_rwd_hexbin_log1p_x",
+    action="store_false",
+    default=True,
+)
+g.add_argument(
+    "--btw-rwd-hexbin-log1p-y",
+    dest="btw_rwd_hexbin_log1p_y",
+    action="store_true",
+    default=False,
+)
+
+g.add_argument(
+    "--btw-rwd-hexbin-no-reward-exclusion-mask",
+    dest="btw_rwd_hexbin_use_reward_exclusion_mask",
+    action="store_false",
+    default=True,
+)
+
+g.add_argument(
+    "--btw-rwd-hexbin-drop-per-unit",
+    dest="btw_rwd_hexbin_keep_per_unit",
+    action="store_false",
+    default=True,
+)
+g.add_argument(
+    "--btw-rwd-hexbin-no-normalize-per-fly",
+    dest="btw_rwd_hexbin_normalize_per_fly",
+    action="store_false",
+    default=True,
+)
+g.add_argument(
+    "--btw-rwd-hexbin-cbar-max",
+    type=float,
+    default=None,
+    help="Optional max for colorbar scale (mean per-fly density). If set, fixes the scale across plots.",
+)
+
+# Optional text overrides
+g.add_argument("--btw-rwd-hexbin-title", default=None)
+g.add_argument("--btw-rwd-hexbin-xlabel", default=None)
+g.add_argument("--btw-rwd-hexbin-ylabel", default=None)
 g.add_argument(
     "--btw-rwd-com-mag-hist",
     action="store_true",
@@ -7702,6 +7769,45 @@ def postAnalyze(vas):
                 log_tag="wall_contacts_pmf",
             )
             return
+
+    # --- Between-reward hexbin density (max distance versus distance traveled) ---
+    if getattr(opts, "btw_rwd_hexbin", False):
+        t_sel = int(opts.btw_rwd_hexbin_training)
+        if t_sel < 1:
+            raise ValueError("--btw-rwd-hexbin-training must be >= 1")
+        training_index = t_sel - 1
+        cfg = BetweenRewardHexbinConfig(
+            training_index=training_index,
+            skip_first_sync_buckets=_effective_skip_first_sync_buckets_opts_only(opts),
+            use_reward_exclusion_mask=bool(
+                opts.btw_rwd_hexbin_use_reward_exclusion_mask
+            ),
+            x_mode=str(opts.btw_rwd_hexbin_x_mode),
+            log1p_x=bool(opts.btw_rwd_hexbin_log1p_x),
+            log1p_y=bool(opts.btw_rwd_hexbin_log1p_y),
+            hex=HexBinGridSpec(
+                gridside=int(opts.btw_rwd_hexbin_gridside),
+                mincnt=int(opts.btw_rwd_hexbin_mincnt),
+            ),
+        )
+
+        out_png = opts.btw_rwd_hexbin_out
+        out_npz = opts.btw_rwd_hexbin_npz
+
+        run_between_reward_hexbin_density(
+            vas,
+            cfg=cfg,
+            opts=opts,
+            out_npz=out_npz,
+            out_png=out_png,
+            customizer=customizer,
+            keep_per_unit=bool(opts.btw_rwd_hexbin_keep_per_unit),
+            normalize_per_fly=bool(opts.btw_rwd_hexbin_normalize_per_fly),
+            title=opts.btw_rwd_hexbin_title,
+            xlabel=opts.btw_rwd_hexbin_xlabel,
+            ylabel=opts.btw_rwd_hexbin_ylabel,
+            cbar_max=opts.btw_rwd_hexbin_cbar_max,
+        )
 
     # ---------------- Distance-binned between-reward distance traveled ----------------
     if getattr(opts, "btw_rwd_conditioned_disttrav", False) and any(
