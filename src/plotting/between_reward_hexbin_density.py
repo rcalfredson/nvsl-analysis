@@ -463,16 +463,16 @@ def run_between_reward_hexbin_density(
 def _pretty_x_mode(x_mode: str) -> str:
     m = _x_mode_norm(x_mode)
     if m == "lreturn":
-        return "return path length"  # human-facing
-    return "total path length"
+        return "return segment"  # human-facing
+    return "total segment"
 
 
 def _axis_label_x(cfg: BetweenRewardHexbinConfig) -> str:
     m = _x_mode_norm(cfg.x_mode)
     if m == "lreturn":
-        base = "Path length after farthest point [mm]"
+        base = "Distance traveled after farthest point [mm]"
     else:
-        base = "Total path length per segment [mm]"
+        base = "Total distance traveled [mm]"
     if cfg.log1p_x:
         return base + " (log1p)"
     return base
