@@ -132,7 +132,7 @@ def _ensure_rewards_per_distance(va) -> bool:
     """
     if getattr(va, "rwdsPerDist", None) is None:
         if hasattr(va, "_rewards_per_distance"):
-            va._rewards_per_distance()
+            va._rewards_per_distance(silent=True)
         else:
             print(
                 "[correlations] WARNING: no rwdsPerDist and no _rewards_per_distance()"

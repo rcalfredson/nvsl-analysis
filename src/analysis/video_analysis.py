@@ -929,8 +929,9 @@ class VideoAnalysis:
                 )
             )
 
-    def _rewards_per_distance(self):
-        print("\nrewards per distance traveled [m⁻¹]")
+    def _rewards_per_distance(self, silent=False):
+        if not silent:
+            print("\nrewards per distance traveled [m⁻¹]")
         self.rwdsPerDist = []
         exp_trj = self.trx[0]
         ctrl_trj = self.trx[1] if len(self.trx) > 1 else None
@@ -978,12 +979,14 @@ class VideoAnalysis:
             return row
 
         for trn in self.trns:
-            print(trn.name())
+            if not silent:
+                print(trn.name())
             rows = (_row(exp_trj, trn), _row(ctrl_trj, trn))
-            for i, row in enumerate(rows):
-                self._printBucketVals(
-                    row[:num_displayed_buckets], i, flyDesc(i), prec=2
-                )
+            if not silent:
+                for i, row in enumerate(rows):
+                    self._printBucketVals(
+                        row[:num_displayed_buckets], i, flyDesc(i), prec=2
+                    )
             self.rwdsPerDist.extend(rows)
 
     def _aggregate_slide_circle_metrics(self):
@@ -6087,7 +6090,9 @@ class VideoAnalysis:
                 trj = self.trx[f]
                 ecp = EventChainPlotter(trj=trj, va=self)
 
-                suffix = f"[q={q}, n_min={n_min}, k_floor={k_floor}] tail_mean={v_f:.2f}mm"
+                suffix = (
+                    f"[q={q}, n_min={n_min}, k_floor={k_floor}] tail_mean={v_f:.2f}mm"
+                )
 
                 for j, item in enumerate(ex[: max(1, int(num_intervals))]):
                     sr = item["start_reward"]
