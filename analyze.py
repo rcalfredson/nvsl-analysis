@@ -97,6 +97,12 @@ from src.exporting.wall_contacts_per_sync_bkt import save_wall_contacts_per_sync
 from src.exporting.btw_rwd_shortest_tail_bundle import (
     export_btw_rwd_shortest_tail_bundle,
 )
+from src.plotting.between_reward_conditioned_maxdist_vs_disttrav import (
+    BetweenRewardConditionedMaxDistVsDistTravConfig,
+    BetweenRewardConditionedMaxDistVsDistTravPlotter,
+    BetweenRewardConditionedMaxDistVsDistTravResult,
+    plot_btw_rwd_conditioned_dmax_vs_disttrav_overlay,
+)
 from src.plotting.cross_fly_correlations import plot_cross_fly_correlations, SLIContext
 from src.plotting.individual_strategy_plotter import plot_individual_strategy_overlays
 from src.plotting.outside_circle_duration_plotter import OutsideCircleDurationPlotter
@@ -1000,6 +1006,155 @@ g.add_argument(
 g.add_argument("--btw-rwd-hexbin-title", default=None)
 g.add_argument("--btw-rwd-hexbin-xlabel", default=None)
 g.add_argument("--btw-rwd-hexbin-ylabel", default=None)
+
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav",
+    action="store_true",
+    help=(
+        "Plot distance-traveled-binned mean max distance from reward (Dmax) "
+        "for between-reward segments."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav-trn",
+    type=int,
+    default=2,
+    help="Training to analyze (1-based; default: %(default)s).",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav-x-mode",
+    choices=["Ltotal", "Lreturn"],
+    default="Ltotal",
+    help="X-axis metric for binning (default: %(default)s).",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav-xbin",
+    type=float,
+    default=50.0,
+    help="X-bin width in mm (default: %(default)s).",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav-xbin-log",
+    type=float,
+    default=1.0,
+    help=(
+        "X-bin width in log1p-space (default: %(default)s). "
+        "Only used when --btw-rwd-conditioned-dmax-vs-disttrav-log1p-x is set."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav-xmin",
+    type=float,
+    default=0.0,
+    help="Min x for bins in mm (default: %(default)s).",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav-xmax",
+    type=float,
+    default=1600.0,
+    help="Max x for bins in mm (default: %(default)s).",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav-ycap-mm",
+    type=float,
+    default=None,
+    help=(
+        "Optional cap on Dmax in linear mm. If set, points with Dmax above this "
+        "are dropped before binning (for HTL, 33 is a good setting)."
+    ),
+)
+
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav-log1p-x",
+    dest="btw_rwd_conditioned_dmax_vs_disttrav_log1p_x",
+    action="store_true",
+    default=False,
+    help="Use log1p transform for x before binning/plotting.",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav-log1p-y",
+    dest="btw_rwd_conditioned_dmax_vs_disttrav_log1p_y",
+    action="store_true",
+    default=False,
+    help="Use log1p tranform for y (Dmax) before binning/plotting.",
+)
+
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav-ci-conf",
+    type=float,
+    default=0.95,
+    help="Confidence level for per-bin CI (default: %(default)s).",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav-ymax",
+    type=float,
+    default=None,
+    help="Optional plot y-axis max (in plot-space units).",
+)
+
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav-use-reward-exclusion-mask",
+    dest="btw_rwd_conditioned_dmax_vs_disttrav_use_reward_exclusion_mask",
+    action="store_true",
+    default=False,
+    help="Exclude frames inside the reward circle when computing segment metrics.",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav-exclude-wall-contact",
+    action="store_true",
+    default=False,
+    help="Exclude segments that include wall contact.",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav-exclude-nonwalking-frames",
+    action="store_true",
+    default=False,
+    help="Exclude frames below walking speed threshold (affects segment metrics).",
+)
+
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav-min-walk-frames",
+    type=int,
+    default=2,
+    help="Minimum number of walking frames required for a segment to be included.",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav-min-meddist-mm",
+    type=float,
+    default=0.0,
+    help="Optional per-segment minimum median distance-from-reward (mm).",
+)
+
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav-export-npz",
+    default=None,
+    help="Optional output .npz path (cached result).",
+)
+
+# Optional overlay import (repeatable)
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav-import-npz",
+    action="append",
+    default=None,
+    help="Repeatable: LABEL:PATH to cached NPZ results to overlay (skips computation).",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav-stats",
+    action="store_true",
+    help="Annotate per-bin group comparisons (ANOVA + Holm-corrected post-hoc) on overlay plots.",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav-stats-alpha",
+    type=float,
+    default=0.05,
+    help="Alpha for --btw-rwd-conditioned-dmax-vs-disttrav-stats (default: %(default)s).",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-dmax-vs-disttrav-import-out",
+    default=None,
+    help="Output image for overlay plot from imported NPZs.",
+)
+
 g.add_argument(
     "--btw-rwd-com-mag-hist",
     action="store_true",
@@ -7808,6 +7963,185 @@ def postAnalyze(vas):
             ylabel=opts.btw_rwd_hexbin_ylabel,
             cbar_max=opts.btw_rwd_hexbin_cbar_max,
         )
+
+    # ---------------- Dmax vs distance-traveled (distance-traveled-binned) ----------------
+    if getattr(opts, "btw_rwd_conditioned_dmax_vs_disttrav", False) and any(
+        getattr(v, "circle", None) for v in vas
+    ):
+        did_import_overlay = False
+
+        import_specs = getattr(
+            opts, "btw_rwd_conditioned_dmax_vs_disttrav_import_npz", None
+        )
+        if import_specs:
+            labels: list[str] = []
+            paths: list[str] = []
+            for spec in import_specs:
+                spec = str(spec)
+                if ":" not in spec:
+                    print(
+                        "[btw_rwd_dmax_vs_disttrav] WARNING: ignoring import spec without LABEL:PATH format: "
+                        f"{spec!r}"
+                    )
+                    continue
+                lab, pth = spec.split(":", 1)
+                lab = lab.strip()
+                pth = pth.strip()
+                if not lab or not pth:
+                    print(
+                        "[btw_rwd_dmax_vs_disttrav] WARNING: ignoring malformed import spec: "
+                        f"{spec!r}"
+                    )
+                    continue
+                labels.append(lab)
+                paths.append(pth)
+
+            loaded_results: list[BetweenRewardConditionedMaxDistVsDistTravResult] = []
+            loaded_labels: list[str] = []
+            for lab, pth in zip(labels, paths):
+                try:
+                    res = BetweenRewardConditionedMaxDistVsDistTravResult.load_npz(pth)
+                except Exception as e:
+                    print(
+                        "[btw_rwd_dmax_vs_disttrav] WARNING: failed to load cached NPZ "
+                        f"({lab!r} at {pth!r}): {e}"
+                    )
+                    continue
+                loaded_results.append(res)
+                loaded_labels.append(lab)
+
+            if loaded_results:
+                out_file = getattr(
+                    opts, "btw_rwd_conditioned_dmax_vs_disttrav_import_out", None
+                )
+                if not out_file:
+                    out_file = "imgs/between_reward_dmax_vs_disttrav_overlay.png"
+
+                plot_btw_rwd_conditioned_dmax_vs_disttrav_overlay(
+                    results=loaded_results,
+                    labels=loaded_labels,
+                    out_file=str(out_file),
+                    opts=opts,
+                    customizer=customizer,
+                    log_tag="btw_rwd_dmax_vs_disttrav",
+                    do_stats=bool(
+                        getattr(
+                            opts, "btw_rwd_conditioned_dmax_vs_disttrav_stats", False
+                        )
+                    ),
+                    stats_alpha=float(
+                        getattr(
+                            opts,
+                            "btw_rwd_conditioned_dmax_vs_disttrav_stats_alpha",
+                            0.05,
+                        )
+                        or 0.05
+                    ),
+                )
+                did_import_overlay = True
+
+        if not did_import_overlay:
+            # Training index (user is 1-based; internal is 0-based)
+            trn_1based = int(
+                getattr(opts, "btw_rwd_conditioned_dmax_vs_disttrav_trn", 2)
+            )
+            if trn_1based < 1:
+                raise ValueError(
+                    "--btw-rwd-conditioned-dmax-vs-disttrav-trn must be >= 1"
+                )
+            t_idx = trn_1based - 1
+
+            cfg = BetweenRewardConditionedMaxDistVsDistTravConfig(
+                out_file="imgs/between_reward_dmax_vs_disttrav.png",
+                training_index=int(t_idx),
+                skip_first_sync_buckets=_effective_skip_first_sync_buckets_opts_only(
+                    opts,
+                ),
+                use_reward_exclusion_mask=bool(
+                    getattr(
+                        opts,
+                        "btw_rwd_conditioned_dmax_vs_disttrav_use_reward_exclusion_mask",
+                        False,
+                    )
+                ),
+                exclude_wall_contact=bool(
+                    getattr(
+                        opts,
+                        "btw_rwd_conditioned_dmax_vs_disttrav_exclude_wall_contact",
+                        False,
+                    )
+                ),
+                exclude_nonwalking_frames=bool(
+                    getattr(
+                        opts,
+                        "btw_rwd_conditioned_dmax_vs_disttrav_exclude_nonwalking_frames",
+                        False,
+                    )
+                ),
+                min_walk_frames=int(
+                    getattr(
+                        opts, "btw_rwd_conditioned_dmax_vs_disttrav_min_walk_frames", 2
+                    )
+                    or 2
+                ),
+                per_segment_min_meddist_mm=float(
+                    getattr(
+                        opts, "btw_rwd_conditioned_dmax_vs_disttrav_min_meddist_mm", 0.0
+                    )
+                ),
+                x_mode=str(
+                    getattr(
+                        opts, "btw_rwd_conditioned_dmax_vs_disttrav_x_mode", "Ltotal"
+                    )
+                ),
+                x_bin_width_mm=float(
+                    getattr(opts, "btw_rwd_conditioned_dmax_vs_disttrav_xbin", 50.0)
+                ),
+                x_bin_width_log=float(
+                    getattr(opts, "btw_rwd_conditioned_dmax_vs_disttrav_xbin_log", 1.0)
+                ),
+                x_min_mm=float(
+                    getattr(opts, "btw_rwd_conditioned_dmax_vs_disttrav_xmin", 0.0)
+                ),
+                x_max_mm=float(
+                    getattr(opts, "btw_rwd_conditioned_dmax_vs_disttrav_xmax", 1600.0)
+                ),
+                y_max_mm=getattr(
+                    opts, "btw_rwd_conditioned_dmax_vs_disttrav_ycap_mm", None
+                ),
+                log1p_x=bool(
+                    getattr(opts, "btw_rwd_conditioned_dmax_vs_disttrav_log1p_x", False)
+                ),
+                log1p_y=bool(
+                    getattr(opts, "btw_rwd_conditioned_dmax_vs_disttrav_log1p_y", False)
+                ),
+                ci_conf=float(
+                    getattr(opts, "btw_rwd_conditioned_dmax_vs_disttrav_ci_conf", 0.95)
+                ),
+                ymax=getattr(opts, "btw_rwd_conditioned_dmax_vs_disttrav_ymax", None),
+            )
+
+            plotter = BetweenRewardConditionedMaxDistVsDistTravPlotter(
+                vas=vas, opts=opts, gls=gls, customizer=customizer, cfg=cfg
+            )
+            plotter.plot()
+
+            # Optional: export cached NPZ
+            exp_path = getattr(
+                opts, "btw_rwd_conditioned_dmax_vs_disttrav_export_npz", None
+            )
+            if exp_path:
+                try:
+                    res = plotter.compute_result()
+                    res.save_npz(str(exp_path))
+                    print(
+                        f"[btw_rwd_dmax_vs_disttrav] wrote cached NPZ: {str(exp_path)}"
+                    )
+                except Exception as e:
+                    print(
+                        "[btw_rwd_dmax_vs_disttrav] WARNING: failed to export cached NPZ "
+                        f"to {str(exp_path)!r}: {e}"
+                    )
 
     # ---------------- Distance-binned between-reward distance traveled ----------------
     if getattr(opts, "btw_rwd_conditioned_disttrav", False) and any(
