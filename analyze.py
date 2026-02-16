@@ -1276,6 +1276,16 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--btw-rwd-com-exclude-reward-endpoints",
+    action="store_true",
+    help=(
+        "When computing per-between-reward-segment COM (and segment distance stats), "
+        "exclude both reward endpoint frames, using frames strictly between rewards "
+        "(i.e., use [on[i]+1 : on[i+1]-1) instead of [on[i] : on[i+1])). "
+        "This enforces symmetric endpoint handling and avoids overweighting reward-proximal frames."
+    ),
+)
+g.add_argument(
     "--btw-rwd-shortest-tail",
     action="store_true",
     help=(

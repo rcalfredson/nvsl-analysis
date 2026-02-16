@@ -46,6 +46,7 @@ from src.utils.constants import (
     COMR_NO_FULL_BUCKETS,
     COMR_BAD_TRAJ,
     COMR_EXCLUDED_PAIR,
+    COMR_SEG_TOO_SHORT_EXCL_ENDPOINTS,
     COMR_EMPTY_BUCKET,
     COMR_NAN_MEAN,
     COMR_INSUFF_REWARDS,
@@ -2859,6 +2860,7 @@ class VideoAnalysis:
         nonwalk_mask=None,
         min_walk_frames: int = 2,
         dist_stats: tuple[str, ...] = ("median",),
+        exclude_reward_endpoints: bool = False,
         debug: bool = False,
         yield_skips: bool = False,
     ) -> "Iterator[BetweenRewardSegmentCOM]":
@@ -2869,7 +2871,7 @@ class VideoAnalysis:
             b_idx = int((s - fi) // df)
 
         Filters (matching bySyncBucketCOM(per_segment=True)):
-          - segment length must be >= 2 frames (e > s + 1)
+          - segment must contain at least 1 frame after endpoint handling
           - bucket must be complete
           - optional wall-contact exclusion (any wc[s:e] == True)
           - optional non-walking frame exclusion:
@@ -2934,30 +2936,41 @@ class VideoAnalysis:
             if not complete[b_idx]:
                 continue
 
-            # too short
-            if e <= s + 1:
+            # Choose segment frame interval
+            # default: [s, e) (includes start reward frame, excludes end reward frame)
+            # symmetric mode: (s, e) implemented as [s+1, e-1)
+            s_seg = s + 1 if exclude_reward_endpoints else s
+            e_seg = e - 1 if exclude_reward_endpoints else e
+
+            # too short (need at least 1 frame after endpoint handling)
+            if e_seg <= s_seg:
                 if yield_skips:
-                    yield _make_skip(i, s, e, b_idx, "too_short")
+                    why = (
+                        "too_short_excl_endpoints"
+                        if exclude_reward_endpoints
+                        else "too_short"
+                    )
+                    yield _make_skip(i, s, e, b_idx, why)
                 continue
 
             # wall-contact filter
             if exclude_wall and wc is not None:
                 # wc is assumed to be windowed so index (frame - fi) is valid (e.g. [fi, fi+n_win))
-                s2 = max(0, min(s - fi, len(wc)))
-                e2 = max(0, min(e - fi, len(wc)))
+                s2 = max(0, min(s_seg - fi, len(wc)))
+                e2 = max(0, min(e_seg - fi, len(wc)))
                 if e2 > s2 and np.any(wc[s2:e2]):
                     if yield_skips:
                         yield _make_skip(i, s, e, b_idx, "wall_contact")
                     continue
 
-            xs = traj.x[s:e]
-            ys = traj.y[s:e]
+            xs = traj.x[s_seg:e_seg]
+            ys = traj.y[s_seg:e_seg]
             if xs.size == 0:
                 if yield_skips:
                     yield _make_skip(i, s, e, b_idx, "empty_xy")
                 continue
             # Track absolute frame indices alongside xs/ys so we can return max-distance frame.
-            idx = np.arange(s, e, dtype=int)
+            idx = np.arange(s_seg, e_seg, dtype=int)
 
             # Optional: drop non-walking frames *within* the segment
             if exclude_nonwalk and nonwalk_mask is not None:
@@ -3221,6 +3234,7 @@ class VideoAnalysis:
                             n_segments_used=0,
                             n_excluded_pair=0,
                             n_too_short=0,
+                            n_too_short_excl_endpoints=0,
                             n_meddist_nan=0,
                             n_meddist_filtered=0,
                             n_wall_contact_filtered=0,
@@ -3246,6 +3260,11 @@ class VideoAnalysis:
                         per_segment_min_meddist_mm=float(min_med_mm),
                         exclude_wall=exclude_wall,
                         wc=wc,
+                        exclude_reward_endpoints=bool(
+                            getattr(
+                                self.opts, "btw_rwd_com_exclude_reward_endpoints", False
+                            )
+                        ),
                         debug=bool(getattr(self.opts, "com_sli_debug", False)),
                         yield_skips=True,
                     ):
@@ -3258,6 +3277,8 @@ class VideoAnalysis:
                         else:
                             if seg.why == "too_short":
                                 bucket_stats[b_idx]["n_too_short"] += 1
+                            elif seg.why == "too_short_excl_endpoints":
+                                bucket_stats[b_idx]["n_too_short_excl_endpoints"] += 1
                             elif seg.why == "wall_contact":
                                 bucket_stats[b_idx]["n_wall_contact_filtered"] += 1
                             elif seg.why == "meddist_nan":
@@ -3327,6 +3348,8 @@ class VideoAnalysis:
                                 reason = COMR_SEG_MEAN_NAN
                             elif st["n_excluded_pair"] > 0:
                                 reason = COMR_EXCLUDED_PAIR
+                            elif st["n_too_short_excl_endpoints"]:
+                                reason = COMR_SEG_TOO_SHORT_EXCL_ENDPOINTS
                             else:
                                 reason = COMR_SEG_TOO_SHORT
 

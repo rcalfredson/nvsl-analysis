@@ -421,6 +421,11 @@ class BetweenRewardConditionedCOMPlotter:
                     nonwalk_mask=nonwalk_mask,
                     min_walk_frames=min_walk_frames,
                     wc=wc,
+                    exclude_reward_endpoints=bool(
+                        getattr(
+                            self.opts, "btw_rwd_com_exclude_reward_endpoints", False
+                        )
+                    ),
                     dist_stats=dist_stats,
                     debug=False,
                     yield_skips=False,
@@ -547,6 +552,11 @@ class BetweenRewardConditionedCOMPlotter:
                     per_segment_min_meddist_mm=min_med_mm,
                     exclude_wall=exclude_wall,
                     wc=wc,
+                    exclude_reward_endpoints=bool(
+                        getattr(
+                            self.opts, "btw_rwd_com_exclude_reward_endpoints", False
+                        )
+                    ),
                     exclude_nonwalk=exclude_nonwalk,
                     nonwalk_mask=nonwalk_mask,
                     min_walk_frames=min_walk_frames,
@@ -664,6 +674,11 @@ class BetweenRewardConditionedCOMPlotter:
                     per_segment_min_meddist_mm=min_med_mm,
                     exclude_wall=exclude_wall,
                     wc=wc,
+                    exclude_reward_endpoints=bool(
+                        getattr(
+                            self.opts, "btw_rwd_com_exclude_reward_endpoints", False
+                        )
+                    ),
                     dist_stats=dist_stats,
                     debug=False,
                     yield_skips=False,
@@ -1475,7 +1490,9 @@ def plot_btw_rwd_conditioned_com_overlay(
         ax.set_ylim(bottom=0)
         ax.legend(loc="best", fontsize=customizer.in_plot_font_size)
         if bool(getattr(opts, "btw_rwd_conditioned_com_overlay_title", False)):
-            ax.set_title(maybe_sentence_case("between-reward COM vs distance-from-reward"))
+            ax.set_title(
+                maybe_sentence_case("between-reward COM vs distance-from-reward")
+            )
 
         # Optional fixed ymax
         ymax = getattr(opts, "btw_rwd_conditioned_com_ymax", None)
