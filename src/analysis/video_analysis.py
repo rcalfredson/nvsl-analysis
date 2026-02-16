@@ -1414,14 +1414,17 @@ class VideoAnalysis:
                 (# episodes for fly f whose start frame falls in bucket b and that
                  re-enter the inner circle before ever leaving the outer circle)
                 /
-                (# all such episodes whose start frame falls in bucket b)
+                (# all such episodes whose start frame falls in bucket b with an
+                 observed outcome)
 
         Episode definition (per training):
-          - Start: first frame after an in_inner True-> False transition (exit inner).
+          - Start: first frame after an in_inner True -> False transition (exit inner).
           - End: first frame of either:
               * re-enter inner (success), or
-              * leave outer (failure), or
-              * training end (failure)
+              * leave outer (failure).
+
+        Episodes that reach training end before either outcome occurs are right-censored
+        and excluded from both numerator and denominator.
 
         Results are stored in:
             self.reward_turnback_dual_circle_counts = {

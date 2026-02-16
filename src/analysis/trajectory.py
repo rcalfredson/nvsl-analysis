@@ -864,8 +864,13 @@ class Trajectory:
         """
         Return dual-circle 'turn-back' episodes around reward circle for one training.
 
-        Episode starts when exiting inner circle, ends when re-entering inner (success)
-        or leaving outer (failure) or reaching training end (failure).
+        Episode starts when the fly exits the inner circle and ends at the first observed
+        outcome:
+          - re-enter inner (success), or
+          - exit outer (failure).
+
+        If training ends before either outcome is observed, the episode is right-censored
+        and is not returned (excluded from numerator and denominator).
         """
         episodes: list[dict] = []
 
@@ -933,6 +938,7 @@ class Trajectory:
         enter_ptr = 0
         dropped_too_short = 0
         dropped_empty_window = 0
+        dropped_trn_end_censored = 0
         for ex in exit_idxs:
             while enter_ptr < len(enter_idxs) and enter_idxs[enter_ptr] <= ex:
                 enter_ptr += 1
@@ -969,14 +975,10 @@ class Trajectory:
                     }
                 )
             else:
-                episodes.append(
-                    {
-                        "start": int(t0 + ex),
-                        "stop": int(t1),
-                        "turns_back": False,
-                        "end_reason": "trn_end",
-                    }
-                )
+                # Right-censored episode: we never observed either outcome (re-enter inner or exit outer)
+                # before training ended. Exclude from numerator and denominator.
+                dropped_trn_end_censored += 1
+                continue
 
         if debug:
             n_ep = len(episodes)
@@ -1006,7 +1008,8 @@ class Trajectory:
                 f"{flyDesc(self.f)} {trn.sname()}: "
                 f"episodes={n_ep} turnbacks={n_turn} "
                 f"reasons={reasons} "
-                f"dropped(short={dropped_too_short}, empty={dropped_empty_window}) "
+                f"dropped(censored_trn_end={dropped_trn_end_censored}, "
+                f"short={dropped_too_short}, empty={dropped_empty_window}) "
                 f"dur(fr) min/med/max={dmin}/{dmed}/{dmax}"
             )
 
