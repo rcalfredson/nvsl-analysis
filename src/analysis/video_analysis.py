@@ -1411,10 +1411,10 @@ class VideoAnalysis:
 
         For each sync bucket, we compute:
             ratio[t, f, b] =
-                (# episodes for fly f whose start frame falls in bucket b and that
+                (# episodes for fly f whose outcome falls in bucket b and that
                  re-enter the inner circle before ever leaving the outer circle)
                 /
-                (# all such episodes whose start frame falls in bucket b with an
+                (# all such episodes whose outcome falls in bucket b with an
                  observed outcome)
 
         Episode definition (per training):
@@ -1505,12 +1505,14 @@ class VideoAnalysis:
                     continue
 
                 for ep in episodes:
-                    entry = int(ep["start"])
+                    # Bin by episode outcome time, not episode start.
+                    # stop is exclusive, so the decisive frame is stop - 1.
+                    event_t = int(ep["stop"]) - 1
                     turns_back = bool(ep.get("turns_back", False))
 
-                    # find which bucket this entry belongs to within this training
+                    # find which bucket this outcome belongs to within this training
                     for b_idx, (sb_start, sb_stop) in enumerate(bucket_ranges):
-                        if sb_start <= entry < sb_stop:
+                        if sb_start <= event_t < sb_stop:
                             total_counts[t_idx, fi, b_idx] += 1
                             if turns_back:
                                 turn_counts[t_idx, fi, b_idx] += 1

@@ -897,7 +897,8 @@ class Trajectory:
         if outer_r_px <= inner_r_px:
             return episodes
 
-        border_width_px = float(border_width_mm) * px_per_mm
+        inner_border_px = float(border_width_mm) * px_per_mm
+        outer_border_px = 0.0
 
         # training frame bounds
         t0 = int(trn.start)
@@ -914,10 +915,10 @@ class Trajectory:
 
         if np.any(good):
             inner_state = self.calc_in_circle(
-                xs[good], ys[good], cx, cy, inner_r_px, border_width_px=border_width_px
+                xs[good], ys[good], cx, cy, inner_r_px, border_width_px=inner_border_px
             )
             outer_state = self.calc_in_circle(
-                xs[good], ys[good], cx, cy, outer_r_px, border_width_px=border_width_px
+                xs[good], ys[good], cx, cy, outer_r_px, border_width_px=outer_border_px
             )
             in_inner[good] = inner_state > 0
             in_outer[good] = outer_state > 0
