@@ -2329,12 +2329,6 @@ g.add_argument(
     help="outer padding (mm) added to reward-circle radius for turnback metric",
 )
 g.add_argument(
-    "--turnback-min-outside-frames",
-    type=int,
-    default=1,
-    help="minimum frames outside inner circle to count a turnback episode",
-)
-g.add_argument(
     "--turnback-border-width-mm",
     type=float,
     default=0.1,

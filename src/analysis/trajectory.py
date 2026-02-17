@@ -857,7 +857,6 @@ class Trajectory:
         trn,
         inner_delta_mm: float = 0.0,
         outer_delta_mm: float = 2.0,
-        min_outside_frames: int = 1,
         border_width_mm: float = 0.1,
         debug: bool = False,
     ) -> list[dict]:
@@ -937,7 +936,6 @@ class Trajectory:
             )
 
         enter_ptr = 0
-        dropped_too_short = 0
         dropped_empty_window = 0
         dropped_trn_end_censored = 0
         for ex in exit_idxs:
@@ -948,9 +946,6 @@ class Trajectory:
             search_stop = next_enter if next_enter is not None else (t1 - t0)
             if search_stop <= ex:
                 dropped_empty_window += 1
-                continue
-            if (search_stop - ex) < int(min_outside_frames):
-                dropped_too_short += 1
                 continue
 
             outer_violation_rel = np.where(~in_outer[ex:search_stop])[0]
@@ -1010,8 +1005,8 @@ class Trajectory:
                 f"episodes={n_ep} turnbacks={n_turn} "
                 f"reasons={reasons} "
                 f"dropped(censored_trn_end={dropped_trn_end_censored}, "
-                f"short={dropped_too_short}, empty={dropped_empty_window}) "
-                f"dur(fr) min/med/max={dmin}/{dmed}/{dmax}"
+                f"empty={dropped_empty_window}) dur(fr) min/med/max="
+                f"{dmin}/{dmed}/{dmax}"
             )
 
             # optional: print a few example episodes (first 5)

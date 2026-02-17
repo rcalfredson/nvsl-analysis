@@ -1447,9 +1447,6 @@ class VideoAnalysis:
                 getattr(self.opts, "turnback_outer_delta_mm", 2.0) or 2.0
             )
 
-        min_outside_frames = int(
-            getattr(self.opts, "turnback_min_outside_frames", 1) or 1
-        )
         border_width_mm = float(
             getattr(self.opts, "turnback_border_width_mm", 0.1) or 0.1
         )
@@ -1497,7 +1494,6 @@ class VideoAnalysis:
                     trn=trn,
                     inner_delta_mm=inner_delta_mm,
                     outer_delta_mm=outer_delta_mm,
-                    min_outside_frames=min_outside_frames,
                     border_width_mm=border_width_mm,
                     debug=debug,
                 )
