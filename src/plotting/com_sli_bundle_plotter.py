@@ -70,6 +70,76 @@ def _load_bundle(path):
     return out
 
 
+def _as_str_array(x):
+    # video_ids often come out as dtype=object arrays
+    arr = np.asarray(x)
+    if arr.ndim != 1:
+        arr = arr.reshape(-1)
+    return np.array([str(v) for v in arr], dtype=object)
+
+
+def _bundle_video_ids(bundle):
+    key = "video_uid" if "video_uid" in bundle else "video_ids"
+    if key not in bundle:
+        return None
+    return _as_str_array(bundle[key])
+
+
+def _align_by_video_ids(base_bundle, comp_bundle):
+    """
+    Returns:
+      base_idx, comp_idx, n_match
+    Where base_idx and comp_idx are index arrays selecting matched videos in the SAME ID order.
+    """
+    if "video_ids" not in base_bundle or "video_ids" not in comp_bundle:
+        return None, None, 0
+    base_ids = _bundle_video_ids(base_bundle)
+    comp_ids = _bundle_video_ids
+    if base_ids is None or comp_ids is None:
+        return None, None, 0
+
+    base_map = {vid: i for i, vid in enumerate(base_ids)}
+    comp_map = {vid: i for i, vid in enumerate(comp_ids)}
+
+    common = [vid for vid in comp_ids if vid in base_map]
+    if not common:
+        return None, None, 0
+
+    base_idx = np.array([base_map[vid] for vid in common], dtype=int)
+    comp_idx = np.array([comp_map[vid] for vid in common], dtype=int)
+    return base_idx, comp_idx, int(len(common))
+
+
+def _check_delta_compat(base, comp, *, keys, metric_label="metric"):
+    """
+    Basic sanity checks so we don't silently subtract apples from wheelbarrows.
+    """
+    # bucket length consistency
+    bl0 = float(_as_scalar(base.get("bucket_len_min", np.nan)))
+    bl1 = float(_as_scalar(comp.get("bucket_len_min", np.nan)))
+    if np.isfinite(bl0) and np.isfinite(bl1) and abs(bl0 - bl1) > 1e-6:
+        raise ValueError(
+            f"Cannot delta: bucket_len_min differs (base={bl0}, comp={bl1})."
+        )
+
+    # require series arrays exist and shapes compatible
+    for k in keys:
+        if k not in base:
+            raise ValueError(f"Baseline bundle missing key {k!r} for {metric_label}.")
+        if k not in comp:
+            raise ValueError(f"Bundle missing key {k!r} for {metric_label}.")
+
+    # optional: turnback-specific metadata checks (safe to ignore if absent)
+    # If both present, require equality for inner_delta_mm since you're testing pixel rounding.
+    if "turnback_inner_delta_mm" in base and "turnback_inner_delta_mm" in comp:
+        d0 = float(_as_scalar(base["turnback_inner_delta_mm"]))
+        d1 = float(_as_scalar(comp["turnback_inner_delta_mm"]))
+        if abs(d0 - d1) > 1e-9:
+            raise ValueError(
+                f"Cannot delta turnback: turnback_inner_delta_mm differs (base={d0}, comp={d1})."
+            )
+
+
 def _fmt_bucket_len(bl):
     # mimic “blf” vibe (integer when possible)
     if np.isfinite(bl) and abs(bl - round(bl)) < 1e-9:
@@ -169,6 +239,10 @@ def plot_com_sli_bundles(
     opts=None,
     metric="commag",
     turnback_mode="exp",  # exp | ctrl | exp_minus_ctrl
+    delta_vs_path=None,  # baseline bundle path; if set, plot (bundle - baseline)
+    delta_label=None,  # label prefix in delta mode
+    delta_ylabel=None,
+    delta_allow_unpaired=False,
 ):
     """
     Plot COM magnitude or SLI vs sync bucket from one or more exported bundles.
@@ -188,6 +262,10 @@ def plot_com_sli_bundles(
     ng = len(bundles)
     if ng == 0:
         raise ValueError("No bundles provided")
+
+    base_bundle = None
+    if delta_vs_path:
+        base_bundle = _load_bundle(delta_vs_path)
 
     if metric == "commag":
         series_key = "commag_exp"
@@ -332,6 +410,44 @@ def plot_com_sli_bundles(
                 return (turns_exp - turns_ctrl) / rewards_safe
         return np.asarray(b[series_key], dtype=float)
 
+    def _series_for_bundle_delta(b):
+        """
+        Return series for bundle b. If delta_vs_path is set, return (b - base_bundle),
+        aligned by video_ids when possible. Prefers paired deltas.
+        """
+        s = _series_for_bundle(b)
+        if base_bundle is None:
+            return s
+
+        # series from baseline
+        sb = _series_for_bundle(base_bundle)
+
+        # shape check early
+        if s.ndim != 3 or sb.ndim != 3:
+            raise ValueError("Series arrays must be 3D (n_videos, n_trains, nb).")
+        if s.shape[1:] != sb.shape[1:]:
+            raise ValueError(
+                f"Cannot delta: series shapes differ (comp={s.shape}, base={sb.shape})."
+            )
+
+        # Paired alignment by video_ids
+        bidx, cidx, n_match = _align_by_video_ids(base_bundle, b)
+        if n_match and n_match >= 2:
+            return s[cidx, :, :] - sb[bidx, :, :]
+
+        # Fallback: unpaired delta (mean difference) by repeating mean delta per "pseudo video"
+        if not delta_allow_unpaired:
+            raise ValueError(
+                "Cannot compute paired delta: insufficient overlapping video_ids "
+                f"(matched={n_match}). Re-export with consistent video sets or use --delta-allow-unpaired."
+            )
+
+        # Compute mean(base) and mean(comp) per train/bucket, then treat as 1-sample series
+        # so downstream mean+CI yields n=1.
+        m_comp = np.nanmean(s, axis=0, keepdims=True)
+        m_base = np.nanmean(sb, axis=0, keepdims=True)
+        return m_comp - m_base
+
     for b in bundles:
         missing = [k for k in need_keys if k not in b]
         if missing:
@@ -346,6 +462,10 @@ def plot_com_sli_bundles(
     else:
         group_labels = [b["group_label"] for b in bundles]
 
+    if base_bundle is not None:
+        prefix = delta_label or "Δ vs baseline"
+        group_labels = [f"{prefix}: {gl}" for gl in group_labels]
+
     # Consistency checks
     bls = np.array([b["bucket_len_min"] for b in bundles], dtype=float)
     if not np.all(np.isfinite(bls)):
@@ -359,9 +479,14 @@ def plot_com_sli_bundles(
     blf = _fmt_bucket_len(bl)
 
     # training names: require consistent length; content may vary slightly
-    s0 = _series_for_bundle(bundles[0])
+    # s0 = _series_for_bundle(bundles[0])
+    if base_bundle is not None:
+        _check_delta_compat(
+            base_bundle, bundles[0], keys=need_keys, metric_label=metric
+        )
+    s0 = _series_for_bundle_delta(bundles[0])
     n_trains = s0.shape[1]
-    if any(_series_for_bundle(b).shape[1] != n_trains for b in bundles):
+    if any(_series_for_bundle_delta(b).shape[1] != n_trains for b in bundles):
         raise ValueError(
             f"Bundles disagree on number of trainings ({series_key}.shape[1])."
         )
@@ -372,7 +497,7 @@ def plot_com_sli_bundles(
 
     # nb
     nb = s0.shape[2]
-    if any(_series_for_bundle(b).shape[2] != nb for b in bundles):
+    if any(_series_for_bundle_delta(b).shape[2] != nb for b in bundles):
         raise ValueError(
             f"Bundles disagree on number of sync buckets ({series_key}.shape[2])."
         )
@@ -419,6 +544,12 @@ def plot_com_sli_bundles(
         ylim = [-3.0, 4.0] if turnback_mode == "exp_minus_ctrl" else [0.0, 8.0]
     elif metric == "reward_lgturn_prevalence":
         ylim = [-0.5, 0.5] if turnback_mode == "exp_minus_ctrl" else [0.0, 1.0]
+
+    if base_bundle is not None:
+        ylim = [
+            -0.05,
+            0.05,
+        ]  # initial fallback; refined after computing mci_min/mci_max
     mci_min, mci_max = None, None
 
     # If "both" mode, we effectively double “groups” per bundle.
@@ -494,7 +625,10 @@ def plot_com_sli_bundles(
             if sel_idx.size == 0:
                 continue
 
-            series = _series_for_bundle(b)
+            # For delta mode, series is (bundle - baseline)
+            if base_bundle is not None:
+                _check_delta_compat(base_bundle, b, keys=need_keys, metric_label=metric)
+            series = _series_for_bundle_delta(b)
             exp = series[sel_idx, ti, :]
             mci = _mean_ci_over_videos(exp)
 
@@ -799,25 +933,62 @@ def plot_com_sli_bundles(
                 y_label += "\n(exp - yok)"
             elif turnback_mode == "ctrl":
                 y_label += "\n(yok)"
+
+        if base_bundle is not None:
+            if delta_ylabel:
+                y_label = str(delta_ylabel)
+            else:
+                y_label = f"Δ {y_label}"
         if ti == 0:
             plt.ylabel(maybe_sentence_case(y_label))
-        plt.axhline(color="k")
+        if base_bundle is not None:
+            plt.axhline(0.0, color="k")
+        else:
+            plt.axhline(color="k")
         plt.xlim(0, xs[-1])
 
+    # --- Delta-mode y-lims: center around 0 and keep it tight unless the data demand otherwise ---
+    if base_bundle is not None:
+        if (
+            mci_min is None
+            or mci_max is None
+            or not (np.isfinite(mci_min) and np.isfinite(mci_max))
+        ):
+            # Fall back to a small symmetric range
+            ylim = [-0.05, 0.05]
+        else:
+            # Symmetric about 0, based on observed extrema (including CI bounds)
+            span = float(max(abs(mci_min), abs(mci_max)))
+
+            # Add a little breathing room so CI shading and stars don't clip.
+            pad = 1.25
+            span *= pad
+
+            # Guard against a degenerate case where everything is exactly zero/nan
+            span = max(span, 0.01)
+
+            ylim = [-span, span]
+
     # Dynamic y-lims similar to plotRewards behavior
-    if mci_max is not None and np.isfinite(mci_max):
-        base_pad = 1.1
-        if mci_max > ylim[1]:
-            ylim[1] = mci_max * base_pad
-    if mci_min is not None and np.isfinite(mci_min):
-        if mci_min < ylim[0]:
-            ylim[0] = mci_min * 1.2
+    if base_bundle is None:
+        if mci_max is not None and np.isfinite(mci_max):
+            base_pad = 1.1
+            if mci_max > ylim[1]:
+                ylim[1] = mci_max * base_pad
+        if mci_min is not None and np.isfinite(mci_min):
+            if mci_min < ylim[0]:
+                ylim[0] = mci_min * 1.2
 
     for ax in fig.get_axes():
         ax.set_ylim(ylim[0], ylim[1])
 
-    # legend
-    axs[0].legend(frameon=False)
+    # legend (or suptitle if only one entry)
+    handles, leg_labels = axs[0].get_legend_handles_labels()
+    # Only promote to suptitle when there is exactly one legend entry
+    if len(leg_labels) == 1:
+        fig.suptitle(leg_labels[0], y=0.995)
+    else:
+        axs[0].legend(frameon=False)
     if customizer.font_size_customized:
         customizer.adjust_padding_proportionally(wspace=getattr(opts, "wspace", 0.35))
 
