@@ -214,10 +214,14 @@ def export_turnback_sli_bundle(vas, opts, gls, out_fn):
         training_names = np.array([], dtype=object)
 
     try:
+        video_fns = np.array([getattr(va, "fn", "") for va in vas_ok], dtype=object)
+        fly_ids = np.array([int(getattr(va, "f", -1)) for va in vas_ok], dtype=int)
         video_ids = np.array(
-            [getattr(va, "fn", f"va_{i}") for i, va in enumerate(vas_ok)]
+            [f"{fn}::f{f}" for fn, f in zip(video_fns, fly_ids)], dtype=object
         )
     except Exception:
+        video_fns = np.array([""] * len(vas_ok), dtype=object)
+        fly_ids = np.array([-1] * len(vas_ok), dtype=int)
         video_ids = np.array([f"va_{i}" for i in range(len(vas_ok))], dtype=object)
 
     os.makedirs(os.path.dirname(out_fn) or ".", exist_ok=True)
@@ -232,12 +236,22 @@ def export_turnback_sli_bundle(vas, opts, gls, out_fn):
         group_label=np.array(group_label, dtype=object),
         bucket_len_min=np.array(bucket_len_min, dtype=float),
         training_names=training_names,
+        video_fns=video_fns,
+        fly_ids=fly_ids,
         video_ids=video_ids,
         sli_training_idx=np.array(getattr(opts, "best_worst_trn", 1) - 1, dtype=int),
         sli_use_training_mean=np.array(
             bool(getattr(opts, "sli_use_training_mean", False))
         ),
+        turnback_inner_delta_mm=np.array(
+            float(getattr(opts, "turnback_inner_delta_mm", 0.0)), dtype=float
+        ),
+        turnback_inner_radius_offset_px=np.array(
+            float(getattr(opts, "turnback_inner_radius_offset_px", 0.0)), dtype=float
+        ),
     )
     print(f"[export] Wrote turnback+SLI bundle: {out_fn} (n={len(vas_ok)})")
-    _dbg(opts, f"[turnback-export] saved keys: turnback_ratio_exp/ctrl, turnback_total_exp/ctrl, sli, sli_ts, metadata")
-
+    _dbg(
+        opts,
+        f"[turnback-export] saved keys: turnback_ratio_exp/ctrl, turnback_total_exp/ctrl, sli, sli_ts, metadata",
+    )
