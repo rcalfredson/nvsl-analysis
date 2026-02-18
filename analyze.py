@@ -7309,8 +7309,7 @@ def postAnalyze(vas):
                     skip_first_sync_buckets=skip_k,
                 )
 
-                # Reward index (exp − yoked) for the first included sync bucket of the first training.
-                # raw_4 shape: (n_videos, n_trains, n_flies, nb)
+                # Reward index (exp − yoked) for T1, SB1.
                 reward_pi_first_bucket = None
                 try:
                     if (
@@ -7318,18 +7317,13 @@ def postAnalyze(vas):
                         and raw_4.shape[2] > 1  # exp + yoked present
                         and raw_4.shape[3] > 0  # at least one sync bucket
                     ):
-                        # X values for the new correlation plot:
-                        # exp − yoked, training 0, first included bucket
-                        b0 = skip_k
-                        if b0 < raw_4.shape[3]:
-                            reward_pi_first_bucket = (
-                                raw_4[:, 0, 0, b0] - raw_4[:, 0, 1, b0]
-                            )
-                        else:
-                            reward_pi_first_bucket = None
+                        if skip_k:
                             print(
-                                "[correlations] WARNING: skip_first_sync_buckets leaves no buckets for T1"
+                                "[correlations] NOTE: --skip-first-sync-buckets does not affect "
+                                "reward_pi_first_bucket (always T1, SB1)."
                             )
+                        b0 = 0
+                        reward_pi_first_bucket = raw_4[:, 0, 0, b0] - raw_4[:, 0, 1, b0]
                     else:
                         print(
                             "[correlations] WARNING: raw_4 too small to extract "

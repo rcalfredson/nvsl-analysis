@@ -60,7 +60,8 @@ def early_sli_label(*, training_idx: int, skip_first_sync_buckets: int) -> str:
     trn = training_idx + 1
     k = int(skip_first_sync_buckets or 0)
     sb = k + 1  # 1-based
-    return f"SLI (T{trn}, SB{sb})"
+    sb_txt = 'first sync bucket' if sb == 1 else f"SB{sb}"
+    return f"SLI (T{trn}, {sb_txt})"
 
 
 def _compute_group_corr(
@@ -717,6 +718,10 @@ def plot_cross_fly_correlations(
     skip_k = max(0, skip_k)
     early_lbl = early_sli_label(training_idx=0, skip_first_sync_buckets=skip_k)  # T1
     early_sb_txt = f"SB{skip_k + 1}"
+    if early_sb_txt == "SB1":
+        early_sb_txt = 'first sync bucket'
+    t1_sb1_lbl = early_sli_label(training_idx=0, skip_first_sync_buckets=0)  # always SB1
+    
 
     rpd_vals = []
     med_train_vals = []
@@ -984,7 +989,7 @@ def plot_cross_fly_correlations(
 
     if summary is not None:
         plot_fast_vs_strong_scatter(
-            sli_T1_first=reward_pi_training_vals,
+            sli_T1_first=reward_pi_first_bucket,
             sli_strong=sli_vals,
             vas=vas,
             fast_idx=summary["fast"],
@@ -994,5 +999,5 @@ def plot_cross_fly_correlations(
             customizer=customizer,
             strong_y_label=x_label_sli,
             strong_title_suffix=sli_ctx.label_short(),
-            x_label=early_lbl,
+            x_label=t1_sb1_lbl,
         )
