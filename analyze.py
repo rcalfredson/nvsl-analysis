@@ -150,6 +150,9 @@ from src.plotting.reward_raster_plotter import RewardRasterConfig, RewardRasterP
 from src.plotting.turn_directionality_plotter import TurnDirectionalityPlotter
 from src.plotting.turn_prob_dist_plotter import TurnProbabilityByDistancePlotter
 from src.utils.debug_fly_groups import init_fly_group_logging, log_fly_group
+from src.utils.post_analyze import (
+    report_turnback_sensitivity,
+)
 import src.utils.util as util
 from src.utils.util import (
     ArgumentError,
@@ -2335,9 +2338,36 @@ g.add_argument(
     help="border thickness (mm) used for in-circle classification in turnback metric",
 )
 g.add_argument(
+    "--turnback-inner-radius-offset-px",
+    type=float,
+    default=0.0,
+    help="pixel offset added to inner circle radius (after reward radius conversion) for turnback metric",
+)
+g.add_argument(
     "--turnback-dual-circle-debug",
     action="store_true",
     help="print debug info for turnback dual-circle episodes",
+)
+g.add_argument(
+    "--turnback-dual-circle-sensitivity",
+    action="store_true",
+    help="report per-bucket sensitivity of turnback dual-circle ratio to inner-radius ±pixel offsets (exp only)",
+)
+g.add_argument(
+    "--turnback-dual-circle-sensitivity-jitter-px",
+    type=str,
+    default="0.5,1.0",
+    help="comma-separated pixel offsets to test (e.g. '0.25,0.5,1.0')",
+)
+g.add_argument(
+    "--turnback-dual-circle-sensitivity-min-total",
+    type=int,
+    default=10,
+    help="minimum baseline episodes per bucket to include in max-|Δratio| summary",
+)
+g.add_argument("--turnback-dual-circle-sensitivity-top-k", type=int, default=15)
+g.add_argument(
+    "--turnback-dual-circle-sensitivity-stable-require-both", action="store_true"
 )
 g.add_argument(
     "--rc_turn_tests",
@@ -7130,6 +7160,8 @@ def postAnalyze(vas):
 
     if not (va.circle or va.choice):
         return
+
+    report_turnback_sensitivity(vas, opts)
 
     tcs = (
         ("bysb2",)

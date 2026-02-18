@@ -491,6 +491,10 @@ class VideoAnalysis:
             print("va proc time:", proc_time)
             per_va_processing_times.append(proc_time)
 
+    def __repr__(self):
+        cls_name = self.__class__.__name__
+        return f"{cls_name}(fn={getattr(self,'fn',None)}, f={getattr(self,'f',None)})"
+
     # set option defaults depending on protocol
     def setOptionDefaults(self):
         if hasattr(self.opts, "_dfltsSet"):
@@ -1450,6 +1454,9 @@ class VideoAnalysis:
         border_width_mm = float(
             getattr(self.opts, "turnback_border_width_mm", 0.1) or 0.1
         )
+        radius_offset_px = float(
+            getattr(self.opts, "turnback_inner_radius_offset_px", 0.0) or 0.0
+        )
         debug = bool(getattr(self.opts, "turnback_dual_circle_debug", False))
 
         sync_ranges = getattr(self, "sync_bucket_ranges", None)
@@ -1496,6 +1503,7 @@ class VideoAnalysis:
                     outer_delta_mm=outer_delta_mm,
                     border_width_mm=border_width_mm,
                     debug=debug,
+                    radius_offset_px=radius_offset_px,
                 )
                 if not episodes:
                     continue
