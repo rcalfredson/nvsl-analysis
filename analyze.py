@@ -4485,6 +4485,7 @@ def plotRewards(
         else:
             # need raw_4 shaped array (video, training, fly, bucket)
             use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
+            skip_k = int(getattr(opts, "skip_first_sync_buckets", 0) or 0)
             n_videos = len(vas)
             n_trains = len(trns)
             n_flies = len(va.flies)
@@ -4495,6 +4496,7 @@ def plotRewards(
                 sli_training_idx,
                 bucket_idx=None,
                 average_over_buckets=use_training_mean,
+                skip_first_sync_buckets=skip_k,
             )
             bottom, top = select_extremes(sli_ser, sli_fraction)
 
@@ -7297,15 +7299,17 @@ def postAnalyze(vas):
             sli_ser = None
             sli_training_idx = getattr(opts, "best_worst_trn", 1) - 1
             use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
+            skip_k = int(getattr(opts, "skip_first_sync_buckets", 0) or 0)
             if tp == "rpid":
                 sli_ser = compute_sli_per_fly(
                     raw_4,
                     sli_training_idx,
                     bucket_idx=None,
                     average_over_buckets=use_training_mean,
+                    skip_first_sync_buckets=skip_k,
                 )
 
-                # Reward index (exp − yoked) for the FIRST sync bucket of the FIRST training.
+                # Reward index (exp − yoked) for the first included sync bucket of the first training.
                 # raw_4 shape: (n_videos, n_trains, n_flies, nb)
                 reward_pi_first_bucket = None
                 try:
@@ -7315,8 +7319,17 @@ def postAnalyze(vas):
                         and raw_4.shape[3] > 0  # at least one sync bucket
                     ):
                         # X values for the new correlation plot:
-                        # exp − yoked, training 0, bucket 0, per VideoAnalysis
-                        reward_pi_first_bucket = raw_4[:, 0, 0, 0] - raw_4[:, 0, 1, 0]
+                        # exp − yoked, training 0, first included bucket
+                        b0 = skip_k
+                        if b0 < raw_4.shape[3]:
+                            reward_pi_first_bucket = (
+                                raw_4[:, 0, 0, b0] - raw_4[:, 0, 1, b0]
+                            )
+                        else:
+                            reward_pi_first_bucket = None
+                            print(
+                                "[correlations] WARNING: skip_first_sync_buckets leaves no buckets for T1"
+                            )
                     else:
                         print(
                             "[correlations] WARNING: raw_4 too small to extract "
@@ -7478,6 +7491,7 @@ def postAnalyze(vas):
                 sli_ctx = SLIContext(
                     training_idx=sli_training_idx,
                     average_over_buckets=use_training_mean,
+                    skip_first_sync_buckets=skip_k,
                 )
                 plot_cross_fly_correlations(
                     sli_values=sli_ser,

@@ -17,6 +17,8 @@ def compute_sli_per_fly(
     training_idx: int,
     bucket_idx: Optional[int] = None,
     average_over_buckets: bool = False,
+    *,
+    skip_first_sync_buckets: int = 0,
 ) -> pd.Series:
     """
     Compute SLI per fly.
@@ -27,20 +29,56 @@ def compute_sli_per_fly(
         Use the mean across *all* sync buckets for the given training_idx.
     """
     n_vids = perf4.shape[0]
+    nb = perf4.shape[3]
+
+    k = int(skip_first_sync_buckets or 0)
+    k = max(0, min(k, nb))  # clamp
+
+    if training_idx < 0 or training_idx >= perf4.shape[1]:
+        return pd.Series({vid: np.nan for vid in range(n_vids)}, name="SLI").astype(
+            float
+        )
+
+    # Buckets eligible for use after skip
+    start = k
+    if start >= nb:
+        # No buckets left; return all-NaN series (keeps downstream logic simple)
+        return pd.Series({vid: np.nan for vid in range(n_vids)}, name="SLI").astype(
+            float
+        )
 
     if average_over_buckets:
-        # Mean over all buckets in this training for each fly.
+        # Mean over all buckets (optionally skipping first k) in this training for each fly
         sli = {
             vid: (
-                np.nanmean(perf4[vid, training_idx, 0, :])
-                - np.nanmean(perf4[vid, training_idx, 1, :])
+                np.nanmean(perf4[vid, training_idx, 0, start:])
+                - np.nanmean(perf4[vid, training_idx, 1, start:])
             )
             for vid in range(n_vids)
         }
     else:
         if bucket_idx is None:
-            # Preserve existing default: "final sync bucket of training session"
-            bucket_idx = perf4.shape[3] - 2
+            # Preserve the old "near-end" intent, but do it within [start:].
+            # Old default was nb - 2. Now use the same offset relative to the end,
+            # but ensure we never go before `start`.
+            default_idx = nb - 2
+            bucket_idx = max(start, default_idx)
+
+        # If user explicitly requested a bucket in the skipped region, that's probably a bug.
+        if bucket_idx < start:
+            print(
+                f"[SLI] WARNING: requested bucket_idx={bucket_idx} is within skipped region "
+                f"(<{start}); returning NaNs"
+            )
+            return pd.Series({vid: np.nan for vid in range(n_vids)}, name="SLI").astype(
+                float
+            )
+
+        if bucket_idx >= nb:
+            return pd.Series({vid: np.nan for vid in range(n_vids)}, name="SLI").astype(
+                float
+            )
+
         sli = {
             vid: perf4[vid, training_idx, 0, bucket_idx]
             - perf4[vid, training_idx, 1, bucket_idx]

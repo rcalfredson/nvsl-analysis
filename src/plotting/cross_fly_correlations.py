@@ -36,18 +36,23 @@ class SLIContext:
 
     training_idx: int
     average_over_buckets: bool = False
+    skip_first_sync_buckets: int = 0
 
     def label_long(self) -> str:
         trn = self.training_idx + 1
+        k = self.skip_first_sync_buckets
+        skip_txt = f", skip first {k} SB" if k else ""
         if self.average_over_buckets:
-            return f"SLI (mean over sync buckets, training {trn})"
-        return f"SLI (last sync bucket, training {trn})"
+            return f"SLI (mean over sync buckets{skip_txt}, training {trn})"
+        return f"SLI (last sync bucket{skip_txt}, training {trn})"
 
     def label_short(self) -> str:
         trn = self.training_idx + 1
+        k = self.skip_first_sync_buckets
+        skip_txt = f", skip{k}" if k else ""
         if self.average_over_buckets:
-            return f"SLI (mean, T{trn})"
-        return f"SLI (last SB, T{trn})"
+            return f"SLI (mean{skip_txt}, T{trn})"
+        return f"SLI (last SB{skip_txt}, T{trn})"
 
 
 def _compute_group_corr(
@@ -292,6 +297,7 @@ def plot_fast_vs_strong_scatter(
     *,
     strong_y_label: str,
     strong_title_suffix: str,
+    x_label: str,
 ):
     """
     Scatter plot of:
@@ -381,7 +387,7 @@ def plot_fast_vs_strong_scatter(
     fig, ax = plt.subplots(figsize=(5.5, 4.5))
     ax.scatter(x_f, y_f, c=point_colors, alpha=0.85)
 
-    ax.set_xlabel("SLI (T1, first sync bucket)")
+    ax.set_xlabel(x_label)
     ax.set_ylabel(strong_y_label)
     ax.set_title(
         f"Fast vs Strong Learners ({strong_title_suffix}, top {frac*100:.0f}% each)",
@@ -498,6 +504,7 @@ def plot_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow(
     out_dir: Path,
     frac: float,
     customizer: PlotCustomizer,
+    early_bucket_phrase: str,
 ):
     """
     Correlation plot:
@@ -557,7 +564,7 @@ def plot_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow(
     ax.scatter(x_f, y_f, c=point_colors, alpha=0.85)
 
     ax.set_xlabel("\nBPI\n(exp - yok, pre-training)")
-    ax.set_ylabel("SLI\n(T1, first sync bucket)")
+    ax.set_ylabel(f"SLI\n(T1, {early_bucket_phrase})")
     ax.set_title(
         f"Pre-training vs early reward preference\n"
         f"(fast vs slow learners, top/bottom {frac * 100:.0f}% SLI)"
@@ -673,6 +680,7 @@ def plot_cross_fly_correlations(
         xlim=getattr(opts, "corr_xlim", None),
         ylim=getattr(opts, "corr_ylim", None),
     )
+    frac = getattr(opts, "best_worst_fraction", 0.2)
     customizer = plot_customizer or PlotCustomizer()
 
     sli_vals = np.asarray(sli_values, float)
@@ -696,6 +704,15 @@ def plot_cross_fly_correlations(
 
     x_label_sli = sli_ctx.label_long()
 
+    skip_k = int(getattr(sli_ctx, "skip_first_sync_buckets", 0) or 0)
+    early_bucket_idx = skip_k
+    early_bucket_label = f"SB{early_bucket_idx + 1}"
+    early_bucket_phrase = (
+        f"first included sync bucket ({early_bucket_label})"
+        if skip_k
+        else "first sync bucket (SB1)"
+    )
+
     rpd_vals = []
     med_train_vals = []
     pre_pi_diff_vals = []
@@ -718,7 +735,10 @@ def plot_cross_fly_correlations(
         _ensure_sync_med_dist(va)
         if hasattr(va, "syncMedDist") and training_idx < len(va.syncMedDist):
             med_vec = np.asarray(va.syncMedDist[training_idx].get("exp", []), float)
-            med_train = np.nanmedian(med_vec) if med_vec.size else np.nan
+            if med_vec.size and early_bucket_idx < med_vec.size:
+                med_train = np.nanmedian(med_vec[early_bucket_idx:])
+            else:
+                med_train = np.nan
         else:
             med_train = np.nan
 
@@ -751,7 +771,7 @@ def plot_cross_fly_correlations(
         try:
             calc_idx = 1
             training_idx_T1 = 0
-            bucket_idx = 0  # first sync bucket of T1
+            bucket_idx = early_bucket_idx  # first included bucket of T1 (aligned with X variable)
 
             tot = getattr(va, "numRewardsTot", None)
 
@@ -799,7 +819,6 @@ def plot_cross_fly_correlations(
     summary = None
     if reward_pi_training_vals is not None:
         try:
-            frac = getattr(opts, "best_worst_fraction", 0.2)
             strong_label = (
                 f"Strong learners (top {frac*100:.1f}%, {sli_ctx.label_short()})"
             )
@@ -857,7 +876,7 @@ def plot_cross_fly_correlations(
             y=reward_pi_training_vals,
             title="Pre-training exploration vs early SLI",
             x_label="Fraction of floor explored during pre-training\n(exp fly)",
-            y_label="SLI (T1, first sync bucket)",
+            y_label=f"SLI (T1, {early_bucket_phrase})",
             cfg=cfg,
             filename="corr_pre_floor_exploration_vs_sli_T1_first",
             customizer=customizer,
@@ -886,8 +905,8 @@ def plot_cross_fly_correlations(
             x=reward_pi_training_vals,
             y=total_reward_vals,
             title="Early SLI vs total rewards",
-            x_label="SLI\n(T1, first sync bucket)",
-            y_label="Total rewards\n(exp, T1, first sync bucket)",
+            x_label=f"SLI\n(T1, {early_bucket_phrase})",
+            y_label=f"Total rewards\n(exp, T1, {early_bucket_phrase})",
             cfg=cfg,
             filename="corr_reward_pi_first_bucket_vs_total_rewards",
             customizer=customizer,
@@ -931,7 +950,6 @@ def plot_cross_fly_correlations(
             )
 
         # --- Plot 5c: Pre-training vs T1 first-bucket PI (fast vs slow) ---
-        frac = getattr(opts, "best_worst_fraction", 0.2)
         fast_idx_fs, slow_idx_fs = _fast_slow_indices_from_sli_T1_first(
             reward_pi_training_vals, frac
         )
@@ -950,6 +968,7 @@ def plot_cross_fly_correlations(
                 out_dir=out_dir,
                 frac=frac,
                 customizer=customizer,
+                early_bucket_phrase=early_bucket_phrase,
             )
 
     else:
@@ -970,4 +989,5 @@ def plot_cross_fly_correlations(
             customizer=customizer,
             strong_y_label=x_label_sli,
             strong_title_suffix=sli_ctx.label_short(),
+            x_label=f"SLI (T1, {early_bucket_phrase})",
         )
