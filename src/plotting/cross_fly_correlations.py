@@ -60,7 +60,7 @@ def early_sli_label(*, training_idx: int, skip_first_sync_buckets: int) -> str:
     trn = training_idx + 1
     k = int(skip_first_sync_buckets or 0)
     sb = k + 1  # 1-based
-    sb_txt = 'first sync bucket' if sb == 1 else f"SB{sb}"
+    sb_txt = "first sync bucket" if sb == 1 else f"SB{sb}"
     return f"SLI (T{trn}, {sb_txt})"
 
 
@@ -167,6 +167,39 @@ def _ensure_reward_pi_pre(va) -> bool:
             print("[correlations] WARNING: no rewardPIPre and no calcRewardsPre()")
             return False
     return True
+
+
+def _reduce_sync_bucket_series(
+    vec,
+    *,
+    bucket_idx: int | None = None,
+    average_over_buckets: bool = False,
+    skip_first_sync_buckets: int = 0,
+    reduce: str = "mean",
+) -> float:
+    arr = np.asarray(vec, float)
+    if arr.size == 0:
+        return np.nan
+
+    k = max(0, int(skip_first_sync_buckets or 0))
+
+    if bucket_idx is not None:
+        b = int(bucket_idx)
+        if 0 <= b < arr.size and np.isfinite(arr[b]):
+            return float(arr[b])
+        return np.nan
+
+    sub = arr[k:] if k < arr.size else np.array([], float)
+    sub = sub[np.isfinite(sub)]
+    if sub.size == 0:
+        return np.nan
+
+    if average_over_buckets:
+        if reduce == "median":
+            return float(np.median(sub))
+        return float(np.mean(sub))
+
+    return _last_valid_scalar(sub)
 
 
 def _last_valid_scalar(row) -> float:
@@ -719,9 +752,10 @@ def plot_cross_fly_correlations(
     early_lbl = early_sli_label(training_idx=0, skip_first_sync_buckets=skip_k)  # T1
     early_sb_txt = f"SB{skip_k + 1}"
     if early_sb_txt == "SB1":
-        early_sb_txt = 'first sync bucket'
-    t1_sb1_lbl = early_sli_label(training_idx=0, skip_first_sync_buckets=0)  # always SB1
-    
+        early_sb_txt = "first sync bucket"
+    t1_sb1_lbl = early_sli_label(
+        training_idx=0, skip_first_sync_buckets=0
+    )  # always SB1
 
     rpd_vals = []
     med_train_vals = []
@@ -735,7 +769,12 @@ def plot_cross_fly_correlations(
             row_idx = 2 * training_idx  # exp row
             if 0 <= row_idx < len(va.rwdsPerDist):
                 exp_row = va.rwdsPerDist[row_idx]
-                rpd_val = _last_valid_scalar(exp_row)
+                rpd_val = _reduce_sync_bucket_series(
+                    exp_row,
+                    bucket_idx=None,
+                    average_over_buckets=bool(sli_ctx.average_over_buckets),
+                    skip_first_sync_buckets=skip_k,
+                )
             else:
                 rpd_val = np.nan
         else:
@@ -843,15 +882,31 @@ def plot_cross_fly_correlations(
         except Exception as e:
             print(f"[correlations] WARNING: failed fast/strong summary: {e}")
 
+    rpd_mode = "mean" if sli_ctx.average_over_buckets else "last"
+    rpd_suffix = f"{rpd_mode}_skip{skip_k}" if skip_k else rpd_mode
+
+    rpd_y_label = "rewards per distance $[m^{{-1}}]$"
+
+    if sli_ctx.average_over_buckets:
+        start_sb = skip_k + 1
+        rpd_y_label = (
+            f"rewards per distance $[m^{{-1}}]$\n(mean SB{start_sb}-end)"
+        )
+    else:
+        if skip_k:
+            rpd_y_label = (
+                f"rewards per distance $[m^{{-1}}]$\n(last valid, SB{skip_k+1}-end)"
+            )
+
     # --- Plot 1: SLI_final vs reward-per-distance ---
     _scatter_with_corr(
         x=sli_vals,
         y=rpd_vals,
         title="Rewards per distance vs SLI",
         x_label=x_label_sli,
-        y_label="rewards per distance $[m^{-1}]$\n$(\\text{exp} - \\text{yok})$",
+        y_label=rpd_y_label,
         cfg=cfg,
-        filename="corr_rpd_vs_sli",
+        filename=f"corr_rpd_vs_sli_{rpd_suffix}",
         customizer=customizer,
     )
 
