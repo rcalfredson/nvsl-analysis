@@ -46,13 +46,14 @@ class SLIContext:
             return f"SLI (mean over sync buckets{skip_txt}, training {trn})"
         return f"SLI (last sync bucket{skip_txt}, training {trn})"
 
-    def label_short(self) -> str:
+    def label_short(self, abbrev_sb=True) -> str:
         trn = self.training_idx + 1
         k = int(self.skip_first_sync_buckets or 0)
         start_sb = k + 1  # 1-based
+        sb_txt = "SB" if abbrev_sb else "sync bucket"
         if self.average_over_buckets:
-            return f"SLI (T{trn}, mean SB{start_sb}-end)"
-        return f"SLI (T{trn}, last SB)"
+            return f"SLI (T{trn}, mean, {sb_txt} {start_sb}-end)"
+        return f"SLI (T{trn}, last {sb_txt})"
 
 
 def early_sli_label(*, training_idx: int, skip_first_sync_buckets: int) -> str:
@@ -745,7 +746,7 @@ def plot_cross_fly_correlations(
     if sli_ctx is None:
         sli_ctx = SLIContext(training_idx=training_idx, average_over_buckets=False)
 
-    x_label_sli = sli_ctx.label_short()
+    x_label_sli = sli_ctx.label_short(abbrev_sb=False)
 
     skip_k = int(getattr(sli_ctx, "skip_first_sync_buckets", 0) or 0)
     skip_k = max(0, skip_k)
@@ -889,9 +890,7 @@ def plot_cross_fly_correlations(
 
     if sli_ctx.average_over_buckets:
         start_sb = skip_k + 1
-        rpd_y_label = (
-            f"rewards per distance $[m^{{-1}}]$\n(mean SB{start_sb}-end)"
-        )
+        rpd_y_label = f"rewards per distance $[m^{{-1}}]$\n(mean SB{start_sb}-end)"
     else:
         if skip_k:
             rpd_y_label = (
