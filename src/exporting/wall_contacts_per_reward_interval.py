@@ -26,17 +26,46 @@ def _infer_role_idx(trj) -> int:
     return role if role in (0, 1) else 0
 
 
-def _sanitize_reward_frames(rf, trn) -> np.ndarray:
+def _training_window_after_skip(
+    va, trn, *, t_idx: int, skip_first: int
+) -> tuple[int, int]:
+    """
+    Return (start_frame, stop_frame) spanning the *contiguous range* of frames covered
+    by the included sync buckets (>=1 buckets), after dropping the first `skip_first`
+    sync buckets.
+
+    Fallback: (trn.start, trn.stop).
+    """
+    ranges = getattr(va, "sync_bucket_ranges", None)
+    if not ranges or t_idx >= len(ranges) or not ranges[t_idx]:
+        return (int(trn.start), int(trn.stop))
+
+    rr = ranges[t_idx]
+    if skip_first < 0:
+        skip_first = 0
+    if skip_first >= len(rr):
+        return (0, 0)
+
+    rr2 = rr[skip_first:]
+    start = int(rr2[0][0])
+    stop = int(rr2[-1][1])
+    if stop <= start:
+        return (0, 0)
+    return (start, stop)
+
+
+def _sanitize_reward_frames(rf, *, start: int, stop: int) -> np.ndarray:
     if rf is None:
         return np.zeros(0, dtype=np.int64)
     rf = np.asarray(rf, dtype=float)
     rf = rf[np.isfinite(rf)]
     if rf.size == 0:
         return np.zeros(0, dtype=np.int64)
-    # Restrict to training window (half-open)
-    rf = rf[(rf >= trn.start) & (rf < trn.stop)]
+
+    rf = rf[(rf >= start) & (rf < stop)]
     if rf.size == 0:
         return np.zeros(0, dtype=np.int64)
+
     rf = np.unique(rf.astype(np.int64))
     rf.sort()
     return rf
@@ -78,6 +107,7 @@ def build_wall_contacts_per_reward_interval_payload(va) -> dict:
     """
     trn_1based = int(getattr(va.opts, "wall_contacts_trn", 2))
     t_idx = trn_1based - 1
+    skip_k = int(getattr(va.opts, "skip_first_sync_buckets", 0) or 0)
 
     if not hasattr(va, "trns"):
         raise RuntimeError("va.trns not found")
@@ -95,8 +125,9 @@ def build_wall_contacts_per_reward_interval_payload(va) -> dict:
     video_fn = getattr(va, "fn", None)
     video_basename = os.path.basename(video_fn) if video_fn else ""
 
-    # Cache reward frames per role (0/1) so we don't call _getOn repeatedly
+    # Cache per-role reward frames and per-role window
     rewards_by_role: dict[int, np.ndarray] = {}
+    window_by_role: dict[int, tuple[int, int]] = {}
 
     role_idx = []
     fly_id = []
@@ -112,11 +143,23 @@ def build_wall_contacts_per_reward_interval_payload(va) -> dict:
 
         role = _infer_role_idx(trj)
 
-        if role not in rewards_by_role:
-            rf_raw = va._getOn(trn, calc=False, f=role)
-            rewards_by_role[role] = _sanitize_reward_frames(rf_raw, trn)
+        if role not in window_by_role:
+            w_start, w_stop = _training_window_after_skip(
+                va, trn, t_idx=t_idx, skip_first=skip_k
+            )
+            window_by_role[role] = (w_start, w_stop)
 
-        rf = rewards_by_role[role]
+        w_start, w_stop = window_by_role[role]
+        if w_stop <= w_start:
+            rf = np.zeros(0, dtype=np.int64)
+        else:
+            if role not in rewards_by_role:
+                rf_raw = va._getOn(trn, calc=False, f=role)
+                rewards_by_role[role] = _sanitize_reward_frames(
+                    rf_raw, start=w_start, stop=w_stop
+                )
+
+            rf = rewards_by_role[role]
         regions = _get_wall_contact_regions(trj)
         counts = _count_regions_by_reward_interval_start(regions, rf)
 
