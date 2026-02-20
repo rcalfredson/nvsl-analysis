@@ -97,6 +97,10 @@ from src.exporting.wall_contacts_per_sync_bkt import save_wall_contacts_per_sync
 from src.exporting.btw_rwd_shortest_tail_bundle import (
     export_btw_rwd_shortest_tail_bundle,
 )
+from src.exporting.exit_events_from_csv import (
+    export_exit_event_images_from_csv,
+    ExitEventImageConfig,
+)
 from src.plotting.between_reward_conditioned_maxdist_vs_disttrav import (
     BetweenRewardConditionedMaxDistVsDistTravConfig,
     BetweenRewardConditionedMaxDistVsDistTravPlotter,
@@ -2902,6 +2906,57 @@ g.add_argument(
         "Dump per-video/per-fly reward-circle exits and whether each is associated "
         "with an accepted large turn."
     ),
+)
+g.add_argument(
+    "--exit-events-csv",
+    default=None,
+    help="Path to exit-event CSV; if set, export stitched annotated event images.",
+)
+g.add_argument(
+    "--exit-events-outdir",
+    default="exports/exit_events",
+    help="Output directory for annotated exit event images.",
+)
+g.add_argument(
+    "--exit-events-max-frames",
+    type=int,
+    default=40,
+    help="Max tiles per event (uniformly subsampled if exceeded).",
+)
+g.add_argument(
+    "--exit-events-stride",
+    type=int,
+    default=1,
+    help="Frame stride within each event window (before max-frames cap).",
+)
+g.add_argument(
+    "--exit-events-nc",
+    type=int,
+    default=10,
+    help="Number of columns in the stitched grid.",
+)
+g.add_argument(
+    "--exit-events-d",
+    type=int,
+    default=10,
+    help="Pixel spacing between tiles in the stitched grid.",
+)
+g.add_argument(
+    "--exit-events-resize",
+    type=float,
+    default=None,
+    help="Resize factor applied to tiles before stitching (e.g., 0.5, 2.0).",
+)
+g.add_argument(
+    "--exit-events-crop-radius-px",
+    type=int,
+    default=None,
+    help="Crop radius around the fly in pixels (tile size = 2r × 2r)",
+)
+g.add_argument(
+    "--exit-events-no-headers",
+    action="store_true",
+    help="Do not label tiles with frame indices.",
 )
 g.add_argument(
     "--reward-turn-debug",
@@ -9522,6 +9577,24 @@ def analyze():
             post_start = timeit.default_timer()
         va0 = vas[0]
         postAnalyze(vas)
+
+        if getattr(opts, "exit_events_csv", None):
+            cfg = ExitEventImageConfig(
+                out_root=getattr(opts, "exit_events_outdir", "exports/exit_events"),
+                max_frames=int(getattr(opts, "exit_events_max_frames", 40)),
+                stride=int(getattr(opts, "exit_events_stride", 1)),
+                nc=int(getattr(opts, "exit_events_nc", 10)),
+                d=int(getattr(opts, "exit_events_d", 10)),
+                resize_fctr=getattr(opts, "exit_events_resize", None),
+                crop_radius_px=getattr(opts, "exit_events_crop_radius_px", None),
+                include_headers=not bool(
+                    getattr(opts, "exit_events_no_headers", False)
+                ),
+            )
+            export_exit_event_images_from_csv(
+                csv_path=opts.exit_events_csv, vas=vas, cfg=cfg
+            )
+
         if opts.wall:
             analyzer = BoundaryContactEventAnalyzer(
                 vas, boundary_tp="wall", evt_name="wall_contact"

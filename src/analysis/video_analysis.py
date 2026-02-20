@@ -1081,6 +1081,77 @@ class VideoAnalysis:
 
     # - - -
 
+    def render_annotated_frame(
+        self,
+        frame_idx: int,
+        *,
+        trx_idx: int = 0,
+        crop: bool = True,
+        crop_radius_px: int | None = None,
+        include_training_annotation: bool = True,
+        include_text_overlay: bool = False,
+    ):
+        """
+        Return an annotated (optionally cropped) frame for a given index.
+
+        - No UI, no cv2.imshow.
+        - Uses the same annotation logic as _playAnnotatedVideo().
+        """
+        # 1) Read raw frame
+        raw_frm = util.readFrame(self.cap, int(frame_idx))
+        frm = np.array(raw_frm)
+
+        # 2) Training annotation (circles/lines)
+        t = Training.get(self.trns, int(frame_idx))
+        cpr = None
+        # annotate mutates frm in-place; cpr is optional (cx, cy, r) metadata for text overlay
+        if include_training_annotation and t:
+            cpr = t.annotate(frm)
+
+        # 3) Fly annotation
+        # Choose the trajectory to annotate (CSV provides trx_idx)
+        if trx_idx < 0 or trx_idx >= len(self.trx):
+            trx_idx = 0
+        trx = self.trx[trx_idx]
+
+        fly_color = COL_Y
+        trx.annotate(frm, int(frame_idx), self._DLT, fly_color)
+
+        if include_text_overlay:
+            self.trx[0].annotateTxt(frm, int(frame_idx), "td", cpr)
+
+        # 4) Crop around fly
+        if not crop:
+            return frm
+
+        # Determine crop center.
+        cx, cy = int(trx.x[frame_idx]), int(trx.y[frame_idx])
+
+        if crop_radius_px is None:
+            # reasonable default: ~10mm radius in pixels
+            px_per_mm = self.ct.pxPerMmFloor()
+            if px_per_mm:
+                crop_radius_px = int(round(10.0 * px_per_mm))
+            else:
+                crop_radius_px = 80
+
+        h, w = frm.shape[:2]
+        r = int(crop_radius_px)
+        x0, x1 = max(0, cx - r), min(w, cx + r)
+        y0, y1 = max(0, cy - r), min(h, cy + r)
+
+        # If crop hits boundary, pad to keep consistent tile sizes
+        tile = frm[y0:y1, x0:x1]
+        out_h, out_w = 2 * r, 2 * r
+        if tile.shape[0] != out_h or tile.shape[1] != out_w:
+            padded = np.zeros((out_h, out_w, tile.shape[2]), dtype=tile.dtype)
+            py0 = max(0, r - cy)
+            px0 = max(0, r - cx)
+            padded[py0 : py0 + tile.shape[0], px0 : px0 + tile.shape[1]] = tile
+            tile = padded
+
+        return tile
+
     def _writeAnnotatedVideo(self):
         """
         Writes an annotated version of the original video with visual markers or annotations
