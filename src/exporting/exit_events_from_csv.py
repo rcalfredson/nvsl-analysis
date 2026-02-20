@@ -42,6 +42,7 @@ class ExitEventImageConfig:
     resize_fctr: float | None = None
     crop_radius_px: int | None = None  # if None, VA decides
     include_headers: bool = True
+    include_pre_training: bool = False
 
 
 def export_exit_event_images_from_csv(
@@ -76,6 +77,10 @@ def export_exit_event_images_from_csv(
             video = row.get("video", "")
             fly_idx = _parse_int(row.get("fly_idx"), default=0)
             trx_idx = _parse_int(row.get("trx_idx"), default=0)
+            trn_range_idx = _parse_int(row.get('trn_range_idx'), default=None)
+            if not cfg.include_pre_training and trn_range_idx == 0:
+                n_skipped += 1
+                continue
 
             if _is_blank(video):
                 n_skipped += 1

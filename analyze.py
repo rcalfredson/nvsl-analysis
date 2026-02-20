@@ -2918,6 +2918,11 @@ g.add_argument(
     help="Output directory for annotated exit event images.",
 )
 g.add_argument(
+    "--exit-events-include-pre-training",
+    action="store_true",
+    help="Include rows with trn_range_idx == 0 (pre-training). Default: skip them.",
+)
+g.add_argument(
     "--exit-events-max-frames",
     type=int,
     default=40,
@@ -9589,6 +9594,9 @@ def analyze():
                 crop_radius_px=getattr(opts, "exit_events_crop_radius_px", None),
                 include_headers=not bool(
                     getattr(opts, "exit_events_no_headers", False)
+                ),
+                include_pre_training=bool(
+                    getattr(opts, "exit_events_include_pre_training", False)
                 ),
             )
             export_exit_event_images_from_csv(
