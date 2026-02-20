@@ -3,7 +3,7 @@ import pandas as pd
 from pathlib import Path
 
 
-def make_large_turn_exit_table(va, *, include_video_name=True, include_fly_index=True):
+def make_large_turn_exit_table(va):
     """
     Convert the per-fly exit/turn records created in Cython
     (va.lg_turn_exit_events) into a single pandas DataFrame.
@@ -21,8 +21,9 @@ def make_large_turn_exit_table(va, *, include_video_name=True, include_fly_index
     -------
     df : pandas.DataFrame
         Columns:
-            video              (optional)
-            fly                (optional)
+            video
+            fly_idx
+            trx_idx
             trn_range_idx
             exit_idx
             exit_frame
@@ -54,7 +55,7 @@ def make_large_turn_exit_table(va, *, include_video_name=True, include_fly_index
         rejections = va.lg_turn_rejection_reasons
 
     # iterate over flies
-    for fly_idx, fly_records in enumerate(va.lg_turn_exit_events):
+    for trx_idx, fly_records in enumerate(va.lg_turn_exit_events):
 
         for rec in fly_records:
             row = dict(rec)  # shallow copy of dict created by Cython
@@ -65,12 +66,12 @@ def make_large_turn_exit_table(va, *, include_video_name=True, include_fly_index
             reject_turn_end_idx = None
 
             if has_rejections:
-                if fly_idx < len(rejections):
+                if trx_idx < len(rejections):
                     trn_range_idx = rec.get("trn_range_idx")
                     if isinstance(trn_range_idx, int) and 0 <= trn_range_idx < len(
-                        rejections[fly_idx]
+                        rejections[trx_idx]
                     ):
-                        per_range = rejections[fly_idx][trn_range_idx]
+                        per_range = rejections[trx_idx][trn_range_idx]
                         # per_range is a dict mapping exit_idx -> (reason, (st, end))
                         if isinstance(per_range, dict):
                             exit_idx = rec.get("exit_idx")
@@ -86,19 +87,17 @@ def make_large_turn_exit_table(va, *, include_video_name=True, include_fly_index
             row["reject_turn_start_idx"] = reject_turn_start_idx
             row["reject_turn_end_idx"] = reject_turn_end_idx
 
-            if include_fly_index:
-                row["fly"] = fly_idx
-
-            if include_video_name:
-                row["video"] = va.fn
+            row["video"] = va.fn
+            row["fly_idx"] = va.f
+            row["trx_idx"] = trx_idx
 
             rows.append(row)
 
     if not rows:
         # empty dataframe with correct schema
         cols = [
-            *(["video"] if include_video_name else []),
-            *(["fly"] if include_fly_index else []),
+            "video" "fly_idx",
+            "trx_idx",
             "trn_range_idx",
             "exit_idx",
             "exit_frame",
@@ -120,11 +119,7 @@ def make_large_turn_exit_table(va, *, include_video_name=True, include_fly_index
     df = pd.DataFrame(rows)
 
     # Reorder columns (nice, consistent, readable)
-    col_order = []
-    if include_video_name:
-        col_order.append("video")
-    if include_fly_index:
-        col_order.append("fly")
+    col_order = ["video", "fly_idx", "trx_idx"]
     col_order += [
         "trn_range_idx",
         "exit_idx",
@@ -164,11 +159,11 @@ def save_large_turn_exit_table(va, out_path, *, per_fly=False):
     if per_fly:
         out_path.mkdir(parents=True, exist_ok=True)
         df = make_large_turn_exit_table(va)
-        for fly_idx in df["fly"].unique():
-            df_fly = df.query("fly == @fly_idx")
+        for trx_idx in df["trx_idx"].unique():
+            df_fly = df.query("trx_idx == @trx_idx")
             df_fly.to_csv(
                 out_path
-                / f"{os.path.basename(va.fn)}_f{va.f}_{fly_idx:02d}_turn_exit_events.csv",
+                / f"{os.path.basename(va.fn)}_f{va.f}_{trx_idx:02d}_turn_exit_events.csv",
                 index=False,
             )
     else:

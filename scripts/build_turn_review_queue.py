@@ -213,7 +213,8 @@ def build_review_queue(
         backward_frac_thresh=backward_frac_thresh,
     )
     queue = queue.sort_values(
-        ["review_class", "_near_score", "video", "fly", "exit_frame"], ascending=True
+        ["review_class", "_near_score", "video", "fly_idx", "trx_idx", "exit_frame"],
+        ascending=True,
     )
 
     # Add columns for human labeling
