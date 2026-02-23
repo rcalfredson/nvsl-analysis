@@ -551,7 +551,7 @@ def plot_overlays(
                 ax.set_ylabel(ylabel)
 
         if ymax is not None:
-            ax.set_ylim(top=float(ymax))
+            ax.set_ylim(bottom=0, top=float(ymax))
 
         # ---- bin-range x tick labels for grouped PDF bars ----
         if mode == "pdf" and layout == "grouped":
