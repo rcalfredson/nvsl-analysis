@@ -1824,12 +1824,14 @@ class VideoAnalysis:
                     )
 
                 st = os.stat(video_fn)
+                va_id = int(getattr(self, "f", 0))
                 input_identities = {
                     "video": {
                         "basename": os.path.basename(video_fn),
                         "size": int(st.st_size),
                         "mtime": float(st.st_mtime),
-                    }
+                    },
+                    "va": {"id": va_id},
                 }
 
                 ct_name = getattr(self.ct, "name", str(self.ct))
@@ -1846,6 +1848,7 @@ class VideoAnalysis:
                     boundary_contact_binary_path=boundary_contact_binary_path,
                     boundary_contact_binary_sha256=boundary_contact_binary_sha256,
                     input_identities=input_identities,
+                    va_id=va_id,
                 )
 
                 if (

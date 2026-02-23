@@ -242,6 +242,7 @@ def build_wall_cache_spec(
     boundary_contact_binary_path: str,
     boundary_contact_binary_sha256: str,
     input_identities: Dict[str, Any],
+    va_id: int,
 ) -> WallCacheSpec:
     """
     Create an expected manifest and an output path for the cache file.
@@ -260,12 +261,13 @@ def build_wall_cache_spec(
         cache_dir = os.path.join(os.path.dirname(video_fn), DEFAULT_CACHE_SUBDIR)
     _ensure_dir(cache_dir)
 
-    npz_name = f"{video_base}__wall__p{param_hash}__v{CACHE_SCHEMA_VERSION}.npz"
+    npz_name = f"{video_base}__va{int(va_id)}__wall__p{param_hash}__v{CACHE_SCHEMA_VERSION}.npz"
     npz_path = os.path.join(cache_dir, npz_name)
 
     expected_manifest = {
         "schema_version": CACHE_SCHEMA_VERSION,
         "video_basename": video_base,
+        "va_id": int(va_id),
         "code": {
             "boundary_contact_binary_path": boundary_contact_binary_path,
             "boundary_contact_binary_sha256": boundary_contact_binary_sha256,
@@ -330,6 +332,7 @@ def save_wall_cache_npz(
     manifest_full = dict(manifest)
     manifest_full["created_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     manifest_full["payload"] = {
+        "va_id": manifest.get("va_id", None),
         "flies": sorted([int(f) for f in per_fly_payload.keys()]),
     }
 
