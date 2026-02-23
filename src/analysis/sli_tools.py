@@ -19,6 +19,7 @@ def compute_sli_per_fly(
     average_over_buckets: bool = False,
     *,
     skip_first_sync_buckets: int = 0,
+    keep_first_sync_buckets: int = 0,
 ) -> pd.Series:
     """
     Compute SLI per fly.
@@ -31,18 +32,21 @@ def compute_sli_per_fly(
     n_vids = perf4.shape[0]
     nb = perf4.shape[3]
 
-    k = int(skip_first_sync_buckets or 0)
-    k = max(0, min(k, nb))  # clamp
+    kskip = max(0, min(int(skip_first_sync_buckets or 0), nb))
+    kkeep = int(keep_first_sync_buckets or 0)
+    if kkeep < 0:
+        kkeep = 0
+
+    # Buckets eligible for use after skip
+    start = kskip
+    end = nb if kkeep == 0 else min(nb, start + kkeep)
 
     if training_idx < 0 or training_idx >= perf4.shape[1]:
         return pd.Series({vid: np.nan for vid in range(n_vids)}, name="SLI").astype(
             float
         )
 
-    # Buckets eligible for use after skip
-    start = k
-    if start >= nb:
-        # No buckets left; return all-NaN series (keeps downstream logic simple)
+    if end <= start:
         return pd.Series({vid: np.nan for vid in range(n_vids)}, name="SLI").astype(
             float
         )
@@ -51,30 +55,22 @@ def compute_sli_per_fly(
         # Mean over all buckets (optionally skipping first k) in this training for each fly
         sli = {
             vid: (
-                np.nanmean(perf4[vid, training_idx, 0, start:])
-                - np.nanmean(perf4[vid, training_idx, 1, start:])
+                np.nanmean(perf4[vid, training_idx, 0, start:end])
+                - np.nanmean(perf4[vid, training_idx, 1, start:end])
             )
             for vid in range(n_vids)
         }
     else:
         if bucket_idx is None:
-            # Preserve the old "near-end" intent, but do it within [start:].
-            # Old default was nb - 2. Now use the same offset relative to the end,
-            # but ensure we never go before `start`.
-            default_idx = nb - 2
+            default_idx = end - 2
             bucket_idx = max(start, default_idx)
 
-        # If user explicitly requested a bucket in the skipped region, that's probably a bug.
-        if bucket_idx < start:
+        # Disallow buckets outside the window
+        if bucket_idx < start or bucket_idx >= end:
             print(
-                f"[SLI] WARNING: requested bucket_idx={bucket_idx} is within skipped region "
-                f"(<{start}); returning NaNs"
+                f"[SLI] WARNING: requested bucket_idx={bucket_idx} outside included window "
+                f"[{start}, {end}); returning NaNs"
             )
-            return pd.Series({vid: np.nan for vid in range(n_vids)}, name="SLI").astype(
-                float
-            )
-
-        if bucket_idx >= nb:
             return pd.Series({vid: np.nan for vid in range(n_vids)}, name="SLI").astype(
                 float
             )
@@ -84,6 +80,7 @@ def compute_sli_per_fly(
             - perf4[vid, training_idx, 1, bucket_idx]
             for vid in range(n_vids)
         }
+
     return pd.Series(sli, name="SLI").astype(float)
 
 
@@ -102,6 +99,8 @@ def compute_sli_set_groups(
     pos_spec: SLISelectionSpec,
     neg_spec: Optional[SLISelectionSpec],
     fraction: float,
+    skip_first_sync_buckets: int = 0,
+    keep_first_sync_buckets: int = 0,
 ) -> Dict[str, List[int]]:
     """
     Compute top-fraction groups for a positive and (optional) negative SLI spec,
@@ -122,6 +121,8 @@ def compute_sli_set_groups(
         training_idx=pos_spec.training_idx,
         bucket_idx=pos_spec.bucket_idx,
         average_over_buckets=pos_spec.average_over_buckets,
+        skip_first_sync_buckets=skip_first_sync_buckets,
+        keep_first_sync_buckets=keep_first_sync_buckets,
     )
     _, pos_top = select_extremes(sli_pos, fraction=fraction)
     pos_set = set(pos_top)
@@ -136,6 +137,8 @@ def compute_sli_set_groups(
             training_idx=neg_spec.training_idx,
             bucket_idx=neg_spec.bucket_idx,
             average_over_buckets=neg_spec.average_over_buckets,
+            skip_first_sync_buckets=skip_first_sync_buckets,
+            keep_first_sync_buckets=keep_first_sync_buckets,
         )
         _, neg_top = select_extremes(sli_neg, fraction=fraction)
         neg_set = set(neg_top)

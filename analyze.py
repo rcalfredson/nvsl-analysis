@@ -7390,7 +7390,8 @@ def postAnalyze(vas):
             sli_ser = None
             sli_training_idx = getattr(opts, "best_worst_trn", 1) - 1
             use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
-            skip_k = int(getattr(opts, "skip_first_sync_buckets", 0) or 0)
+            skip_k = _effective_skip_first_sync_buckets_opts_only(opts)
+            keep_k = _effective_keep_first_sync_buckets_opts_only(opts)
             if tp == "rpid":
                 sli_ser = compute_sli_per_fly(
                     raw_4,
@@ -7398,6 +7399,7 @@ def postAnalyze(vas):
                     bucket_idx=None,
                     average_over_buckets=use_training_mean,
                     skip_first_sync_buckets=skip_k,
+                    keep_first_sync_buckets=keep_k,
                 )
 
                 # Reward index (exp − yoked) for T1, SB1.
@@ -7460,7 +7462,12 @@ def postAnalyze(vas):
                     )
                 else:
                     groups = compute_sli_set_groups(
-                        raw_4, pos_spec=pos_spec, neg_spec=neg_spec, fraction=frac
+                        raw_4,
+                        pos_spec=pos_spec,
+                        neg_spec=neg_spec,
+                        fraction=frac,
+                        skip_first_sync_buckets=skip_k,
+                        keep_first_sync_buckets=keep_k,
                     )
                     op = opts.sli_set_op
                     if op == "pos":
