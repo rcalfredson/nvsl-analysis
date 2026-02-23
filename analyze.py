@@ -323,6 +323,27 @@ def _effective_skip_first_sync_buckets_opts_only(opts, *local_attr_names: str) -
     return max(gskip, lskip)
 
 
+def _effective_keep_first_sync_buckets_opts_only(opts, *local_attr_names: str) -> int:
+    gkeep = int(getattr(opts, "keep_first_sync_buckets", 0) or 0)
+    if gkeep < 0:
+        gkeep = 0
+
+    lkeep = 0
+    for name in local_attr_names:
+        v = int(getattr(opts, name, 0) or 0)
+        if v < 0:
+            v = 0
+        if v == 0:
+            continue
+        lkeep = v if lkeep == 0 else min(lkeep, v)
+
+    if gkeep == 0:
+        return lkeep
+    if lkeep == 0:
+        return gkeep
+    return min(gkeep, lkeep)
+
+
 # - - -
 
 p = argparse.ArgumentParser(description="Analyze learning experiments.")
@@ -2582,6 +2603,16 @@ g.add_argument(
     help=(
         "Globally exclude the first K sync buckets (within each training) from analyses "
         "that support sync-bucket windowing. Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--keep-first-sync-buckets",
+    type=int,
+    default=0,
+    help=(
+        "Globally cap analyses to the first K sync buckets (within each training) "
+        "for analyses that support sync-bucket windowing. Applied after skipping. "
+        "0 means no cap. Default: %(default)s."
     ),
 )
 g.add_argument(
@@ -7821,6 +7852,7 @@ def postAnalyze(vas):
         rr.plot()
 
     skip_eff = _effective_skip_first_sync_buckets_opts_only(opts)
+    keep_eff = _effective_keep_first_sync_buckets_opts_only(opts)
 
     if va.circle and getattr(opts, "btw_rwd_dist_hist", False):
         # Use all flies by default
@@ -7854,6 +7886,7 @@ def postAnalyze(vas):
             normalize=getattr(opts, "btw_rwd_dist_normalize", False),
             pool_trainings=getattr(opts, "btw_rwd_dist_pool_trainings", False),
             skip_first_sync_buckets=skip_eff,
+            keep_first_sync_buckets=keep_eff,
             subset_label=subset_label,
             ymax=getattr(opts, "btw_rwd_dist_ymax", None),
             exclude_wall_contact=getattr(
@@ -7906,6 +7939,7 @@ def postAnalyze(vas):
             normalize=getattr(opts, "btw_rwd_com_mag_normalize", False),
             pool_trainings=getattr(opts, "btw_rwd_com_mag_pool_trainings", False),
             skip_first_sync_buckets=skip_eff,
+            keep_first_sync_buckets=keep_eff,
             subset_label=subset_label,
             ymax=getattr(opts, "btw_rwd_com_mag_ymax", None),
             per_fly=getattr(opts, "btw_rwd_com_mag_per_fly", False),

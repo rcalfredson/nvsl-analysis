@@ -37,8 +37,9 @@ class TrainingMetricHistogramConfig:
     # Minimum number of segments (values) required for a fly/unit to be included
     # when per_fly=True. Ignored otherwise.
     min_segs_per_fly: int = 10
-    # Globally-supported "skip leading buckets" for training-windowed histograms
+    # Sync-bucket windowing knobs for this plotter (typically derived from global opts).
     skip_first_sync_buckets: int = 0
+    keep_first_sync_buckets: int = 0  # 0 = no cap
     # Omit figure suptitle by default
     show_suptitle: bool = False
 
@@ -158,18 +159,19 @@ class TrainingMetricHistogramPlotter:
         """
         raise NotImplementedError
 
+    def _effective_keep_first_sync_buckets(self) -> int:
+        ckeep = int(getattr(self.cfg, "keep_first_sync_buckets", 0) or 0)
+        return 0 if ckeep < 0 else ckeep
+
     def _effective_skip_first_sync_buckets(self) -> int:
-        # Global flag
-        gskip = int(getattr(self.opts, "skip_first_sync_buckets", 0) or 0)
-        if gskip < 0:
-            gskip = 0
-
-        # Config-level skip for this plotter family
         cskip = int(getattr(self.cfg, "skip_first_sync_buckets", 0) or 0)
-        if cskip < 0:
-            cskip = 0
+        return 0 if cskip < 0 else cskip
 
-        return max(gskip, cskip)
+    def _effective_sync_bucket_window(self) -> tuple[int, int]:
+        return (
+            self._effective_skip_first_sync_buckets(),
+            self._effective_keep_first_sync_buckets(),
+        )
 
     def _effective_xmax(self, vals_by_panel: list[np.ndarray]) -> float | None:
         """

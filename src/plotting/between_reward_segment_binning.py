@@ -44,6 +44,7 @@ def sync_bucket_window(
     t_idx: int,
     f: int,
     skip_first: int,
+    keep_first: int = 0,
     use_exclusion_mask: bool,
 ) -> tuple[int, int, int, list[bool]]:
     """
@@ -71,10 +72,16 @@ def sync_bucket_window(
 
     if skip_first < 0:
         skip_first = 0
+    if keep_first < 0:
+        keep_first = 0
     if skip_first >= len(rr):
         return (0, 1, 0, [])
 
     rr2 = rr[skip_first:]
+    if keep_first > 0:
+        rr2 = rr2[:keep_first]
+    if not rr2:
+        return (0, 1, 0, [])
     fi = int(rr2[0][0])
 
     df_list = [int(b - a) for (a, b) in rr2 if b > a]
