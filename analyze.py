@@ -2602,7 +2602,8 @@ g.add_argument(
     default=0,
     help=(
         "Globally exclude the first K sync buckets (within each training) from analyses "
-        "that support sync-bucket windowing. Default: %(default)s."
+        "that support sync-bucket windowing. Affects which sync buckets are included "
+        "for plotting/exporting and other downstream computations. Default: %(default)s."
     ),
 )
 g.add_argument(
@@ -2612,7 +2613,28 @@ g.add_argument(
     help=(
         "Globally cap analyses to the first K sync buckets (within each training) "
         "for analyses that support sync-bucket windowing. Applied after skipping. "
-        "0 means no cap. Default: %(default)s."
+        "Affects which sync buckets are included for plotting/exporting and other "
+        "downstream computations. 0 means no cap. Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--sli-select-skip-first-sync-buckets",
+    type=int,
+    default=None,
+    help=(
+        "Exclude the first K sync buckets for SLI-based selections. "
+        "Affects only SLI used for best/worst (and SLI set-op) selection. "
+        "If omitted, defaults to no skip."
+    ),
+)
+g.add_argument(
+    "--sli-select-keep-first-sync-buckets",
+    type=int,
+    default=None,
+    help=(
+        "Cap SLI-based selections to the first K sync buckets (applied after selection skip). "
+        "Affects only SLI used for best/worst (and SLI set-op) selection. "
+        "If omitted, defaults to no cap."
     ),
 )
 g.add_argument(
@@ -7392,14 +7414,21 @@ def postAnalyze(vas):
             use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
             skip_k = _effective_skip_first_sync_buckets_opts_only(opts)
             keep_k = _effective_keep_first_sync_buckets_opts_only(opts)
+            
+            raw_sel_skip = getattr(opts, "sli_select_skip_first_sync_buckets", None)
+            raw_sel_keep = getattr(opts, "sli_select_keep_first_sync_buckets", None)
+
+            sel_skip_k = 0 if raw_sel_skip is None else max(0, int(raw_sel_skip))
+            sel_keep_k = 0 if raw_sel_keep is None else max(0, int(raw_sel_keep))
+
             if tp == "rpid":
                 sli_ser = compute_sli_per_fly(
                     raw_4,
                     sli_training_idx,
                     bucket_idx=None,
                     average_over_buckets=use_training_mean,
-                    skip_first_sync_buckets=skip_k,
-                    keep_first_sync_buckets=keep_k,
+                    skip_first_sync_buckets=sel_skip_k,
+                    keep_first_sync_buckets=sel_keep_k,
                 )
 
                 # Reward index (exp − yoked) for T1, SB1.
@@ -7466,8 +7495,8 @@ def postAnalyze(vas):
                         pos_spec=pos_spec,
                         neg_spec=neg_spec,
                         fraction=frac,
-                        skip_first_sync_buckets=skip_k,
-                        keep_first_sync_buckets=keep_k,
+                        skip_first_sync_buckets=sel_skip_k,
+                        keep_first_sync_buckets=sel_keep_k,
                     )
                     op = opts.sli_set_op
                     if op == "pos":
