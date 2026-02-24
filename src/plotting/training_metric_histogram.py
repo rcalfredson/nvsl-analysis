@@ -83,6 +83,21 @@ class TrainingMetricHistogramPlotter:
         va_id = int(getattr(va, "f", 0) or 0)  # if that's your VA identifier
         return f"{base}|va_tag={va_id}|trx_idx={int(f)}"
 
+    @staticmethod
+    def _split_unit(item):
+        """
+        Accept either:
+        - ndarray-like values
+        - (unit_id, values) pairs
+        - None
+        Return (unit_id_or_None, values_or_None)
+        """
+        if item is None:
+            return None, None
+        if isinstance(item, (tuple, list)) and len(item) == 2:
+            return item[0], item[1]
+        return None, item
+
     def _selected_training_indices(
         self, n_panels: int
     ) -> tuple[list[int] | None, dict[str, Any]]:
@@ -424,7 +439,7 @@ class TrainingMetricHistogramPlotter:
                 if len(vals_by_trn_by_fly) == 1:
                     vals_by_panel_by_fly = vals_by_trn_by_fly
                 else:
-                    pooled_units: list[np.ndarray] = []
+                    pooled_units: list[object] = []
                     for vlist in vals_by_trn_by_fly:
                         pooled_units.extend(vlist)
                     vals_by_panel_by_fly = [pooled_units]
@@ -502,7 +517,8 @@ class TrainingMetricHistogramPlotter:
             # Determine eff_xmax across all values
             all_panels_flat: list[np.ndarray] = []
             for vlist in vals_by_panel_by_fly:
-                for v in vlist:
+                for item in vlist:
+                    _, v = self._split_unit(item)
                     if v is None:
                         continue
                     vv = np.asarray(v, dtype=float)
@@ -658,12 +674,9 @@ class TrainingMetricHistogramPlotter:
                 n_units_small = 0
 
                 for item in vlist:
-                    unit_id = None
-                    if item is None:
+                    unit_id, v = self._split_unit(item)
+                    if v is None:
                         continue
-                    v = item
-                    if isinstance(item, (tuple, list)) and len(item) == 2:
-                        unit_id, v = item[0], item[1]
 
                     vv = np.asarray(v, dtype=float)
                     vv = vv[np.isfinite(vv)]
