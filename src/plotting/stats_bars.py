@@ -4,9 +4,27 @@ from dataclasses import dataclass
 
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import f_oneway, ttest_ind
+from scipy.stats import f_oneway, ttest_ind, ttest_rel
 
 from src.utils.util import p2stars
+
+
+def _match_by_id(
+    a: np.ndarray, a_ids: np.ndarray, b: np.ndarray, b_ids: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    # map id -> value
+    da = {
+        str(i): float(v) for i, v in zip(a_ids, a) if np.isfinite(v) and i is not None
+    }
+    db = {
+        str(i): float(v) for i, v in zip(b_ids, b) if np.isfinite(v) and i is not None
+    }
+    common = sorted(set(da.keys()) & set(db.keys()))
+    if not common:
+        return np.asarray([], float), np.asarray([], float)
+    xa = np.asarray([da[k] for k in common], float)
+    xb = np.asarray([db[k] for k in common], float)
+    return xa, xb
 
 
 def holm_adjust(pvals: list[float]) -> list[float]:
@@ -60,6 +78,10 @@ def anova_and_posthoc(
     *,
     cfg: StatAnnotConfig,
     group_names: list[str],
+    paired: bool = False,
+    group_ids: list[np.ndarray | None] | None = None,
+    debug: bool = False,
+    debug_ctx: str = "",
 ) -> tuple[float, dict[tuple[str, str], float]]:
     # ANOVA
     try:
@@ -76,15 +98,61 @@ def anova_and_posthoc(
     pairs: list[tuple[int, int]] = []
     p_raw: list[float] = []
     G = len(group_samples)
+
     for i in range(G):
         for j in range(i + 1, G):
+            p = np.nan
             try:
-                _, p = ttest_ind(
-                    group_samples[i],
-                    group_samples[j],
-                    equal_var=False,
-                    nan_policy="omit",
-                )
+                if paired:
+                    if (
+                        group_ids is None
+                        or group_ids[i] is None
+                        or group_ids[j] is None
+                    ):
+                        p = np.nan
+                    else:
+                        xi, xj = _match_by_id(
+                            np.asarray(group_samples[i], float),
+                            np.asarray(group_ids[i], dtype=object),
+                            np.asarray(group_samples[j], float),
+                            np.asarray(group_ids[j], dtype=object),
+                        )
+                        n_overlap = int(xi.size)
+                        n_i = int(
+                            np.isfinite(np.asarray(group_samples[i], float)).sum()
+                        )
+                        n_j = int(
+                            np.isfinite(np.asarray(group_samples[j], float)).sum()
+                        )
+                        used = (
+                            "paired"
+                            if (n_overlap >= cfg.min_n_per_group)
+                            else "welch_fallback"
+                        )
+
+                        if debug and used != "paired":
+                            print(
+                                f"[stats] {debug_ctx} {group_names[i]} vs {group_names[j]}: "
+                                f"paired overlap n={n_overlap} (A n={n_i}, B n={n_j}) -> Welch"
+                            )
+
+                        if used == "paired":
+                            _, p = ttest_rel(xi, xj, nan_policy="omit")
+                        else:
+                            # fallback to Welch if insufficient pairs
+                            _, p = ttest_ind(
+                                group_samples[i],
+                                group_samples[j],
+                                equal_var=False,
+                                nan_policy="omit",
+                            )
+                else:
+                    _, p = ttest_ind(
+                        group_samples[i],
+                        group_samples[j],
+                        equal_var=False,
+                        nan_policy="omit",
+                    )
             except Exception:
                 p = np.nan
             pairs.append((i, j))
@@ -151,9 +219,13 @@ def annotate_grouped_bars_per_bin(
     x_centers: np.ndarray,  # (B,)
     xpos_by_group: list[np.ndarray],  # list of (B,) x positions
     per_unit_by_group: list[np.ndarray | None],  # list of (N_g, B)
+    per_unit_ids_by_group: list[np.ndarray | None] | None = None,
     hi_by_group: list[np.ndarray],  # list of (B,) upper CI (or bar tops)
     group_names: list[str],
     cfg: StatAnnotConfig,
+    paired: bool = False,
+    panel_label: str | None = None,
+    debug: bool = False,
 ) -> None:
     # Expand ylim for headroom
     ylim0, ylim1 = ax.get_ylim()
@@ -175,22 +247,49 @@ def annotate_grouped_bars_per_bin(
     for j in range(B):
         # Collect samples for this bin
         samples: list[np.ndarray] = []
+        ids_for_samples: list[np.ndarray | None] = []
         ok = True
-        for pu in per_unit_by_group:
+
+        for gi, pu in enumerate(per_unit_by_group):
             if pu is None:
                 ok = False
                 break
             v = np.asarray(pu[:, j], float)
-            v = v[np.isfinite(v)]
+            mask = np.isfinite(v)
+            v = v[mask]
             if v.size < cfg.min_n_per_group:
                 ok = False
                 break
             samples.append(v)
+
+            if per_unit_ids_by_group is not None:
+                ids = per_unit_ids_by_group[gi]
+                if ids is None:
+                    ids_for_samples.append(None)
+                else:
+                    ids = np.asarray(ids, dtype=object).ravel()
+                    ids_for_samples.append(ids[mask])
+            else:
+                ids_for_samples.append(None)
         if not ok:
             continue
 
+        debug_ctx = ""
+        if debug:
+            debug_ctx = (
+                f"panel={panel_label} bin={j}"
+                if panel_label is not None
+                else f"bin={j}"
+            )
+
         _p_anova, p_adj_pairs = anova_and_posthoc(
-            samples, cfg=cfg, group_names=group_names
+            samples,
+            cfg=cfg,
+            group_names=group_names,
+            paired=paired,
+            group_ids=ids_for_samples if paired else None,
+            debug=debug,
+            debug_ctx=debug_ctx,
         )
 
         sig_pairs = [

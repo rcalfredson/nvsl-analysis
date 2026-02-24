@@ -58,13 +58,23 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--stats",
         action="store_true",
-        help="Add per-bin one-way ANOVA + Holm/Welch posthoc stars (per-fly PDF only).",
+        help="Add per-bin one-way ANOVA + Holm posthoc stars (Welch or paired t-tests depending on --stats-paired).",
+    )
+    p.add_argument(
+        "--stats-paired",
+        action="store_true",
+        help="When --stats is enabled, use paired t-tests (ttest_rel) when unit IDs overlap between groups.",
     )
     p.add_argument(
         "--stats-alpha",
         type=float,
         default=0.05,
         help="Alpha for stats (default 0.05).",
+    )
+    p.add_argument(
+        "--stats-debug",
+        action="store_true",
+        help="Additional debug output when stats are enabled.",
     )
     return p.parse_args()
 
@@ -107,7 +117,9 @@ def main() -> None:
         ymax=args.ymax,
         stats=args.stats,
         stats_alpha=args.stats_alpha,
+        stats_paired=args.stats_paired,
         xmax_plot=args.xmax_plot,
+        debug=args.stats_debug,
     )
     _savefig(args.out)
     plt.close(fig)

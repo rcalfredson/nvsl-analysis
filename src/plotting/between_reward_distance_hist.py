@@ -172,7 +172,7 @@ class BetweenRewardDistanceHistogramPlotter(TrainingMetricHistogramPlotter):
 
         return [np.asarray(xs, dtype=float) for xs in all_by_trn]
 
-    def _collect_values_by_training_per_fly(self) -> list[list[np.ndarray]]:
+    def _collect_values_by_training_per_fly(self) -> list[list[tuple[str, np.ndarray]]]:
         """
         Per-fly collection for histogram aggregation.
 
@@ -283,7 +283,10 @@ class BetweenRewardDistanceHistogramPlotter(TrainingMetricHistogramPlotter):
                     if self.cfg.pool_trainings:
                         pooled_for_this_fly.append(dists_mm.astype(float, copy=False))
                     else:
-                        all_by_trn[t_idx].append(dists_mm.astype(float, copy=False))
+                        unit_id = self._unit_id(va, f=f)
+                        all_by_trn[t_idx].append(
+                            (unit_id, dists_mm.astype(float, copy=False))
+                        )
             if self.cfg.pool_trainings:
                 if pooled_for_this_fly:
                     pooled_panel.append(np.concatenate(pooled_for_this_fly, axis=0))

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass
+import os
 from typing import Any, Sequence, Union
 import json
 from datetime import datetime, timezone
@@ -73,6 +74,14 @@ class TrainingMetricHistogramPlotter:
         self.log_tag = log_tag
         self.x_label = x_label
         self.base_title = base_title
+
+    @staticmethod
+    def _unit_id(va, *, f: int) -> str:
+        # best-effort stable ID
+        video_fn = getattr(va, "fn", None)
+        base = os.path.basename(str(video_fn)) if video_fn else "unknown_video"
+        va_id = int(getattr(va, "f", 0) or 0)  # if that's your VA identifier
+        return f"{base}|va_tag={va_id}|trx_idx={int(f)}"
 
     def _selected_training_indices(
         self, n_panels: int
@@ -633,6 +642,7 @@ class TrainingMetricHistogramPlotter:
         n_units_list: list[np.ndarray] = []
         n_units_panel_list: list[int] = []
         per_unit_panel_list: list[np.ndarray | None] = []
+        per_unit_ids_panel_list: list[np.ndarray | None] = []
 
         # for vals, label in zip(vals_by_panel, panel_labels):
         if self.cfg.per_fly:
@@ -644,11 +654,16 @@ class TrainingMetricHistogramPlotter:
                 # Flatten for raw segment counting / xmax filtering diagnostics
                 raw_all = []
                 used_all = []
+                used_ids: list[object] = []
                 n_units_small = 0
 
-                for v in vlist:
-                    if v is None:
+                for item in vlist:
+                    unit_id = None
+                    if item is None:
                         continue
+                    v = item
+                    if isinstance(item, (tuple, list)) and len(item) == 2:
+                        unit_id, v = item[0], item[1]
 
                     vv = np.asarray(v, dtype=float)
                     vv = vv[np.isfinite(vv)]
@@ -666,6 +681,18 @@ class TrainingMetricHistogramPlotter:
 
                     raw_all.append(vv)
                     used_all.append(vv_used)
+
+                    # used_ids.append(str(unit_id) if unit_id is not None else None)
+                    if unit_id is None:
+                        unit_id = f"anon_{len(used_ids)}"
+                        print(
+                            f"[{self.log_tag}] WARNING: missing unit_id; using {unit_id} in {label}"
+                        )
+                    used_ids.append(str(unit_id))
+
+                ids_clean = [x for x in used_ids if x is not None]
+                if len(set(ids_clean)) != len(ids_clean):
+                    print(f"[{self.log_tag}] WARNING: duplicate unit_id(s) in {label}")
 
                 if min_n > 0 and n_units_small > 0:
                     print(
@@ -688,6 +715,8 @@ class TrainingMetricHistogramPlotter:
                     n_used_list.append(0)
                     n_dropped_list.append(0)
                     n_units_panel_list.append(0)
+                    per_unit_panel_list.append(None)
+                    per_unit_ids_panel_list.append(None)
                     continue
 
                 flat_raw = np.concatenate(raw_all, axis=0)  # for n_raw
@@ -742,6 +771,7 @@ class TrainingMetricHistogramPlotter:
                     hi = np.full((bins_eff,), np.nan, dtype=float)
                     n_units = np.zeros((bins_eff,), dtype=int)
                     per_unit_panel_list.append(None)
+                    per_unit_ids_panel_list.append(None)
                 else:
                     M = np.stack(fly_hists, axis=0)  # (n_units, bins)
                     mean = np.full((bins_eff,), np.nan, dtype=float)
@@ -749,6 +779,7 @@ class TrainingMetricHistogramPlotter:
                     hi = np.full((bins_eff,), np.nan, dtype=float)
                     n_units = np.zeros((bins_eff,), dtype=int)
                     per_unit_panel_list.append(M)
+                    per_unit_ids_panel_list.append(np.asarray(used_ids, dtype=object))
                     for j in range(bins_eff):
                         m, lo_j, hi_j, n_j = meanConfInt(
                             M[:, j], conf=float(self.cfg.ci_conf)
@@ -923,6 +954,9 @@ class TrainingMetricHistogramPlotter:
                     "n_units": n_units_arr,
                     "n_units_panel": np.asarray(n_units_panel_list, dtype=int),
                     "per_unit_panel": np.asarray(per_unit_panel_list, dtype=object),
+                    "per_unit_ids_panel": np.asarray(
+                        per_unit_ids_panel_list, dtype=object
+                    ),
                 }
             )
         else:
@@ -957,6 +991,7 @@ class TrainingMetricHistogramPlotter:
             n_units=data.get("n_units", None),
             n_units_panel=data.get("n_units_panel", None),
             per_unit_panel=data.get("per_unit_panel", None),
+            per_unit_ids_panel=data.get("per_unit_ids_panel", None),
             meta_json=json.dumps(data["meta"], sort_keys=True),
         )
         print(f"[{self.log_tag}] wrote histogram export {out_npz}")

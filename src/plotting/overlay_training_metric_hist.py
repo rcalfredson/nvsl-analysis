@@ -31,6 +31,9 @@ class ExportedTrainingHistogram:
     per_unit_panel: (
         np.ndarray | None
     )  # object array length n_panels; each entry (N_panel, bins)
+    per_unit_ids_panel: (
+        np.ndarray | None
+    )  # object array length n_panels; each entry (N_panel,)
     # bin_edges:
     #   - flat: (n_panels, bins+1) float array
     #   - grouped: object array length n_panels; each entry is list[np.ndarray] of 1D edges
@@ -121,6 +124,9 @@ def load_export_npz(group: str, path: str) -> ExportedTrainingHistogram:
     per_unit_panel = _maybe_none_array(
         d["per_unit_panel"] if "per_unit_panel" in d.files else None
     )
+    per_unit_ids_panel = _maybe_none_array(
+        d["per_unit_ids_panel"] if "per_unit_ids_panel" in d.files else None
+    )
     bin_edges = np.asarray(d["bin_edges"])
     n_used = np.asarray(d["n_used"])
     meta_json = d["meta_json"].item() if "meta_json" in d.files else "{}"
@@ -137,6 +143,7 @@ def load_export_npz(group: str, path: str) -> ExportedTrainingHistogram:
         n_units=n_units,
         n_units_panel=n_units_panel,
         per_unit_panel=per_unit_panel,
+        per_unit_ids_panel=per_unit_ids_panel,
         bin_edges=bin_edges,
         n_used=n_used,
         meta=meta,
@@ -229,8 +236,10 @@ def plot_overlays(
     ymax: float | None = None,
     stats: bool = False,
     stats_alpha: float = 0.05,
+    stats_paired: bool = False,
     xmax_plot: float | None = None,
     categorical_bin_ratio_max: float = 4.0,
+    debug: bool = False,
 ) -> plt.Figure:
     if mode not in ("pdf", "cdf"):
         raise ValueError("mode must be 'pdf' or 'cdf'")
@@ -341,6 +350,7 @@ def plot_overlays(
 
         xpos_by_group: list[np.ndarray] = []
         per_unit_by_group: list[np.ndarray | None] = []
+        per_unit_ids_by_group: list[np.ndarray | None] = []
         hi_by_group: list[np.ndarray] = []
         group_names = [h.group for h in hists]
 
@@ -433,14 +443,33 @@ def plot_overlays(
                         pu = None
                         if pu_obj is not None and np.asarray(pu_obj).shape[0] > p_idx:
                             pu = pu_obj[p_idx]
+
+                        ids_obj = getattr(h, "per_unit_ids_panel", None)
+                        ids = None
+                        if ids_obj is not None and np.asarray(ids_obj).shape[0] > p_idx:
+                            ids = ids_obj[p_idx]
+
                         if pu is None:
                             # keep placeholder to error cleanly later if stats requested
                             per_unit_by_group.append(None)  # type: ignore[arg-type]
+                            per_unit_ids_by_group.append(None)
                         else:
                             pu = np.asarray(pu, float)
                             if keep_bins is not None:
                                 pu = pu[:, :keep_bins]
                             per_unit_by_group.append(pu)  # (N_panel, bins)
+
+                            # ids must align with pu rows
+                            if ids is None:
+                                per_unit_ids_by_group.append(None)
+                            else:
+                                ids = np.asarray(ids, dtype=object).ravel()
+                                if ids.shape[0] != pu.shape[0]:
+                                    raise ValueError(
+                                        f"per_unit_ids_panel size mismatch for group={h.group}, panel={plabel}: "
+                                        f"ids={ids.shape[0]} vs per_unit_panel rows={pu.shape[0]}"
+                                    )
+                                per_unit_ids_by_group.append(ids)
 
                     # bar() ignores NaNs poorly; replace NaNs with 0-height bars
                     y_plot = np.where(np.isfinite(y_bins), y_bins, 0.0)
@@ -587,6 +616,12 @@ def plot_overlays(
                     "Re-export with per_unit_panel enabled."
                 )
 
+            if stats_paired and any(ids is None for ids in per_unit_ids_by_group):
+                raise ValueError(
+                    "Paired stats requested but per_unit_ids_panel missing in one or more inputs. "
+                    "Re-export with per_unit_ids_panel enabled."
+                )
+
             cfg_stats = StatAnnotConfig(
                 alpha=float(stats_alpha),
                 min_n_per_group=3,
@@ -597,10 +632,14 @@ def plot_overlays(
                 ax,
                 x_centers=centers_x,
                 xpos_by_group=xpos_by_group,
-                per_unit_by_group=per_unit_by_group,  # type: ignore[arg-type]
+                per_unit_by_group=per_unit_by_group,
+                per_unit_ids_by_group=per_unit_ids_by_group,
                 hi_by_group=hi_by_group,
                 group_names=group_names,
                 cfg=cfg_stats,
+                paired=bool(stats_paired),
+                panel_label=plabel,
+                debug=debug,
             )
 
         ax.legend(fontsize=8)
