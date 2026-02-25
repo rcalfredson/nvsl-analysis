@@ -427,13 +427,18 @@ cdef class RewardCircleAnchoredTurnFinder:
         # such as their start and stop indices, and computes statistics related to these large
         # turns for further analysis.
 
-        # Reset lightweight per-fly/per-training weaving summary for this analysis run.
+        # Reset per-fly/per-training weaving summary for this analysis run.
         # Shape after analysis:
         #   va.weaving_exit_stats[fly_idx][training_idx] = (weaving_count, total_exits)
         # where training_idx indexes trainings 0..N-1 (pre is excluded).
         self.va.weaving_exit_stats = []
 
-        # Reset lightweight per-fly/per-training small-angle re-entry summary.
+        # Reset per-fly/per-training/per-sync-bucket weaving summary
+        # Shape:
+        #   va.weaving_exit_stats_sb[fly_idx][training_idx] = (weaving_counts[B], total_exits[B])
+        self.va.weaving_exit_stats_sb = []
+
+        # Reset per-fly/per-training small-angle re-entry summary.
         # Shape after analysis:
         #   va.small_angle_exit_stats[fly_idx][training_idx] = (small_angle_count, total_exits)
         self.va.small_angle_exit_stats = []
@@ -595,6 +600,16 @@ cdef class RewardCircleAnchoredTurnFinder:
         cdef int weaving_nonlarge = 0
         cdef int small_angle_nonlarge = 0
         cdef int total_exits
+        cdef int training_idx = -1
+        cdef object bucket_ranges = None
+        cdef int B = 0
+        cdef list starts = []
+        cdef list ends = []
+        cdef list weaving_counts = []
+        cdef list total_counts = []
+        cdef int b = -1
+        cdef int bi = 0
+        cdef int sf = 0
 
         # Identifies and processes large turns within a specified range of a trajectory.
         #
@@ -648,6 +663,20 @@ cdef class RewardCircleAnchoredTurnFinder:
         if trj.f < len(self.va.lg_turn_rejection_reasons):
             if i < len(self.va.lg_turn_rejection_reasons[trj.f]):
                 rejection_map = self.va.lg_turn_rejection_reasons[trj.f][i]
+
+        if i > 0 and hasattr(self.va, "sync_bucket_ranges"):
+            training_idx = i - 1
+            if training_idx < len(self.va.sync_bucket_ranges):
+                bucket_ranges = self.va.sync_bucket_ranges[training_idx]
+                B = len(bucket_ranges)
+                weaving_counts = [0] * B
+                total_counts = [0] * B
+                starts = [int(s) for (s, _) in bucket_ranges]
+                ends   = [int(e) for (_, e) in bucket_ranges]
+            else:
+                bucket_ranges = None
+        else:
+            bucket_ranges = None
 
         # Per-range weaving summary
         total_exits = len(exits)
@@ -711,6 +740,19 @@ cdef class RewardCircleAnchoredTurnFinder:
             elif (not has_turn) and (reason == "small_angle_reentry"):
                 small_angle_nonlarge += 1
 
+            if bucket_ranges is not None:
+                sf = int(ex_fm)
+
+                b = -1
+                for bi in range(B):
+                    if sf >= starts[bi] and sf < ends[bi]:
+                        b = bi
+                        break
+                if b >= 0:
+                    total_counts[b] += 1
+                    if (not has_turn) and (reason == 'weaving'):
+                        weaving_counts[b] += 1
+
             # --- Optional: heavy per-exit record, only if dump flag is enabled ---
             if self.collect_exit_events:
                 self.va.lg_turn_exit_events[trj.f].append(
@@ -750,6 +792,8 @@ cdef class RewardCircleAnchoredTurnFinder:
         # of whether per-exit dumps are enabled.
         self._accumulate_weaving_stats(trj.f, i, weaving_nonlarge, total_exits)
         self._accumulate_small_angle_stats(trj.f, i, small_angle_nonlarge, total_exits)
+        if bucket_ranges is not None:
+            self._accumulate_weaving_stats_sb(trj.f, i, weaving_counts, total_counts)
 
         # Large turn-to-exit ratio calculation
         self.turn_to_exit_ratios[trj.f].push_back(self.calc_turn_to_exit_ratio(trj, i))
@@ -1448,6 +1492,49 @@ cdef class RewardCircleAnchoredTurnFinder:
             "is_backward": bool(is_backward),
         }
         per_exit[exit_idx] = metrics
+
+    cdef void _accumulate_weaving_stats_sb(
+        self,
+        int fly_idx,
+        int trn_range_idx,
+        object weaving_counts,  # list[int] length B
+        object total_counts,    # list[int] length B
+    ):
+        cdef int training_idx
+        cdef list per_fly
+        cdef list per_trn
+        cdef int n
+        cdef int n_old
+        cdef int m
+
+        if trn_range_idx <= 0:
+            return
+        training_idx = trn_range_idx - 1
+
+        if not hasattr(self.va, "weaving_exit_stats_sb"):
+            self.va.weaving_exit_stats_sb = []
+        per_fly = self.va.weaving_exit_stats_sb
+
+        while len(per_fly) <= fly_idx:
+            per_fly.append([])
+
+        per_trn = per_fly[fly_idx]
+        while len(per_trn) <= training_idx:
+            per_trn.append(None)
+
+        # Merge with existing if present (in case getTurnsForRange is called multiple times)
+        if per_trn[training_idx] is None:
+            per_trn[training_idx] = (weaving_counts, total_counts)
+        else:
+            old_w, old_t = per_trn[training_idx]
+            # elementwise add
+            n = len(weaving_counts)
+            n_old = len(old_w)
+            m = n_old if n_old < n else n
+            for bi in range(m):
+                old_w[bi] = int(old_w[bi]) + int(weaving_counts[bi])
+                old_t[bi] = int(old_t[bi]) + int(total_counts[bi])
+            per_trn[training_idx] = (old_w, old_t)
 
     cdef void _accumulate_weaving_stats(
         self,

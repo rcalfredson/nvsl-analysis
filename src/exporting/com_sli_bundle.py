@@ -78,8 +78,20 @@ def _compute_sli_scalar_and_timeseries_from_rpid(vas, opts):
     # Scalar SLI for filtering:
     sli_training_idx = getattr(opts, "best_worst_trn", 1) - 1
     use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
+
+    # SLI selection windowing (applies ONLY to the scalar used for best/worst + set-op selection)
+    raw_sel_skip = getattr(opts, "sli_select_skip_first_sync_buckets", None)
+    raw_sel_keep = getattr(opts, "sli_select_keep_first_sync_buckets", None)
+    sel_skip_k = 0 if raw_sel_skip is None else max(0, int(raw_sel_skip))
+    sel_keep_k = 0 if raw_sel_keep is None else max(0, int(raw_sel_keep))
+
     sli_scalar = compute_sli_per_fly(
-        raw_4, sli_training_idx, bucket_idx=None, average_over_buckets=use_training_mean
+        raw_4,
+        sli_training_idx,
+        bucket_idx=None,
+        average_over_buckets=use_training_mean,
+        skip_first_sync_buckets=sel_skip_k,
+        keep_first_sync_buckets=sel_keep_k,
     )
     return np.asarray(sli_scalar, dtype=float), np.asarray(sli_ts, dtype=float)
 

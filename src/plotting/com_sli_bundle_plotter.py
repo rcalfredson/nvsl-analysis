@@ -57,6 +57,7 @@ def _load_bundle(path):
         if k.startswith(
             (
                 "commag_",
+                "weaving_",
                 "wallpct_",
                 "turnback_",
                 "agarose_",
@@ -94,7 +95,7 @@ def _align_by_video_ids(base_bundle, comp_bundle):
     if "video_ids" not in base_bundle or "video_ids" not in comp_bundle:
         return None, None, 0
     base_ids = _bundle_video_ids(base_bundle)
-    comp_ids = _bundle_video_ids
+    comp_ids = _bundle_video_ids(comp_bundle)
     if base_ids is None or comp_ids is None:
         return None, None, 0
 
@@ -291,6 +292,23 @@ def plot_com_sli_bundles(
             include_ctrl = False
         else:
             raise ValueError(f"Unknown turnback_mode={turnback_mode!r}")
+    elif metric == "weaving":
+        if turnback_mode == "exp":
+            series_key = "weaving_ratio_exp"
+            need_keys = ["weaving_ratio_exp"]
+            include_ctrl = False
+        elif turnback_mode == "ctrl":
+            series_key = "weaving_ratio_ctrl"
+            need_keys = ["weaving_ratio_ctrl"]
+            include_ctrl = False
+        elif turnback_mode == "exp_minus_ctrl":
+            series_key = "weaving_ratio_exp"
+            need_keys = ["weaving_ratio_exp", "weaving_ratio_ctrl"]
+            include_ctrl = False
+        else:
+            raise ValueError(
+                f"Unknown turnback_mode={turnback_mode!r} for metric=weaving"
+            )
     elif metric == "agarose":
         if turnback_mode == "exp":
             series_key = "agarose_ratio_exp"
@@ -369,7 +387,9 @@ def plot_com_sli_bundles(
             )
     else:
         raise ValueError(
-            "Invalid metric specified; supported: 'commag', 'sli', 'turnback', 'agarose', 'wallpct', 'lgturn_startdist', 'reward_lgturn_pathlen', 'reward_lv'."
+            "Invalid metric specified; supported: 'commag', 'sli', 'turnback', "
+            "'agarose', 'wallpct', 'lgturn_startdist', 'reward_lgturn_pathlen', "
+            "'reward_lv', 'reward_lgturn_prevalence', 'weaving'."
         )
 
     def _series_for_bundle(b):
@@ -379,6 +399,10 @@ def plot_com_sli_bundles(
         if metric == "turnback" and turnback_mode == "exp_minus_ctrl":
             exp_arr = np.asarray(b["turnback_ratio_exp"], dtype=float)
             ctrl_arr = np.asarray(b["turnback_ratio_ctrl"], dtype=float)
+            return exp_arr - ctrl_arr
+        if metric == "weaving" and turnback_mode == "exp_minus_ctrl":
+            exp_arr = np.asarray(b["weaving_ratio_exp"], dtype=float)
+            ctrl_arr = np.asarray(b["weaving_ratio_ctrl"], dtype=float)
             return exp_arr - ctrl_arr
         if metric == "agarose" and turnback_mode == "exp_minus_ctrl":
             exp_arr = np.asarray(b["agarose_ratio_exp"], dtype=float)
@@ -544,6 +568,8 @@ def plot_com_sli_bundles(
         ylim = [-3.0, 4.0] if turnback_mode == "exp_minus_ctrl" else [0.0, 8.0]
     elif metric == "reward_lgturn_prevalence":
         ylim = [-0.5, 0.5] if turnback_mode == "exp_minus_ctrl" else [0.0, 1.0]
+    elif metric == "weaving":
+        ylim = [-0.5, 0.5] if turnback_mode == "exp_minus_ctrl" else [0.0, 0.5]
 
     if base_bundle is not None:
         ylim = [
@@ -701,6 +727,64 @@ def plot_com_sli_bundles(
                     txt._final_y_ = float(ys[bj] + 0.04 * (ylim[1] - ylim[0]))
                     lbls[bj].append(txt)
 
+            # ctrl overlay (optional)
+            if include_ctrl:
+                if metric == "commag":
+                    ctrl_key = "commag_ctrl"
+                elif metric == "wallpct":
+                    ctrl_key = "wallpct_ctrl"
+                elif metric == "turnback":
+                    ctrl_key = "turnback_ratio_ctrl"
+                elif metric == "agarose":
+                    ctrl_key = "agarose_ratio_ctrl"
+                elif metric == "lgturn_startdist":
+                    ctrl_key = "lgturn_startdist_ctrl"
+                elif metric == "reward_lgturn_pathlen":
+                    ctrl_key = "reward_lgturn_pathlen_ctrl"
+                else:
+                    ctrl_key = None
+                if ctrl_key is None:
+                    continue
+
+                ctrl_arr = np.asarray(b[ctrl_key], dtype=float)
+                if ctrl_arr.shape[0] != len(b["sli"]):
+                    print(
+                        f"[plot] WARNING: {b['path']} {ctrl_key} shape mismatch; skipping ctrl overlay"
+                    )
+                    continue
+                ctrl = ctrl_arr[sel_idx, ti, :]
+                mci_c = _mean_ci_over_videos(ctrl)
+                if metric == "wallpct":
+                    mci_c = mci_c.copy()
+                    mci_c[0, :] *= 100.0
+                    mci_c[1, :] *= 100.0
+                    mci_c[2, :] *= 100.0
+                ys_c = mci_c[0, :]
+                fin_c = np.isfinite(ys_c)
+                if fin_c.any():
+                    plt.plot(
+                        xs[fin_c],
+                        ys_c[fin_c],
+                        color=ctrl_color,
+                        marker="o",
+                        ms=3,
+                        mec=ctrl_color,
+                        linewidth=2,
+                        linestyle=ls,
+                        alpha=0.95,
+                    )
+                    if (
+                        np.isfinite(mci_c[1, :]).any()
+                        and np.isfinite(mci_c[2, :]).any()
+                    ):
+                        plt.fill_between(
+                            xs[fin_c],
+                            mci_c[1, :][fin_c],
+                            mci_c[2, :][fin_c],
+                            color=ctrl_color,
+                            alpha=0.12,
+                        )
+
         # ---- 3+ group one-way ANOVA + star annotations (plotRewards-style) ----
         if (
             do_anova
@@ -768,63 +852,6 @@ def plot_com_sli_bundles(
                 txt._y_ = float(anchor_y)
                 txt._final_y_ = float(ys_star)
                 lbls[bj].append(txt)
-
-            # ctrl overlay (optional)
-            if include_ctrl:
-                if metric == "commag":
-                    ctrl_key = "commag_ctrl"
-                elif metric == "wallpct":
-                    ctrl_key = "wallpct_ctrl"
-                elif metric == "turnback":
-                    ctrl_key = "turnback_ratio_ctrl"
-                elif metric == "agarose":
-                    ctrl_key = "agarose_ratio_ctrl"
-                elif metric == "lgturn_startdist":
-                    ctrl_key = "lgturn_startdist_ctrl"
-                elif metric == "reward_lgturn_pathlen":
-                    ctrl_key = "reward_lgturn_pathlen_ctrl"
-                else:
-                    ctrl_key = None
-                if ctrl_key is None:
-                    continue
-                ctrl_arr = np.asarray(b[ctrl_key], dtype=float)
-                if ctrl_arr.shape[0] != len(b["sli"]):
-                    print(
-                        f"[plot] WARNING: {b['path']} {ctrl_key} shape mismatch; skipping ctrl overlay"
-                    )
-                    continue
-                ctrl = ctrl_arr[sel_idx, ti, :]
-                mci_c = _mean_ci_over_videos(ctrl)
-                if metric == "wallpct":
-                    mci_c = mci_c.copy()
-                    mci_c[0, :] *= 100.0
-                    mci_c[1, :] *= 100.0
-                    mci_c[2, :] *= 100.0
-                ys_c = mci_c[0, :]
-                fin_c = np.isfinite(ys_c)
-                if fin_c.any():
-                    plt.plot(
-                        xs[fin_c],
-                        ys_c[fin_c],
-                        color=ctrl_color,
-                        marker="o",
-                        ms=3,
-                        mec=ctrl_color,
-                        linewidth=2,
-                        linestyle=ls,
-                        alpha=0.95,
-                    )
-                    if (
-                        np.isfinite(mci_c[1, :]).any()
-                        and np.isfinite(mci_c[2, :]).any()
-                    ):
-                        plt.fill_between(
-                            xs[fin_c],
-                            mci_c[1, :][fin_c],
-                            mci_c[2, :][fin_c],
-                            color=ctrl_color,
-                            alpha=0.12,
-                        )
 
         # ---- Two-group t-tests + star annotations (plotRewards-style) ----
         if (
@@ -933,6 +960,13 @@ def plot_com_sli_bundles(
                 y_label += "\n(exp - yok)"
             elif turnback_mode == "ctrl":
                 y_label += "\n(yok)"
+        elif metric == "weaving":
+            if turnback_mode == "exp_minus_ctrl":
+                y_label = "Weaving-per-exit ratio\n(exp - yok)"
+            elif turnback_mode == "ctrl":
+                y_label = "Weaving-per-exit ratio\n(yok)"
+            else:
+                y_label = "Weaving-per-exit ratio"
 
         if base_bundle is not None:
             if delta_ylabel:

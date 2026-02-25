@@ -94,6 +94,7 @@ from src.exporting.wall_contacts_per_reward_interval import (
     save_wall_contacts_per_reward_interval_npz,
 )
 from src.exporting.wall_contacts_per_sync_bkt import save_wall_contacts_per_sync_bkt_npz
+from src.exporting.weaving_sli_bundle import export_weaving_sli_bundle
 from src.exporting.btw_rwd_shortest_tail_bundle import (
     export_btw_rwd_shortest_tail_bundle,
 )
@@ -2852,6 +2853,12 @@ g.add_argument(
     help="Write a .npz bundle with turnback dual-circle ratio + SLI for multi-group overlays.",
 )
 g.add_argument(
+    "--export-weaving-sli-bundle",
+    type=str,
+    default=None,
+    help="Write an .npz bundle with weaving-per-exit ratio by sync bucket + SLI for multi-group overlays.",
+)
+g.add_argument(
     "--export-lgturn-startdist-sli-bundle",
     type=str,
     default=None,
@@ -3483,6 +3490,7 @@ def bucketLenForType(tp):
             "turnback_dual_circle",
             "turnback_dual_circle_exp_min_yok",
             "rrd_mean_dist",
+            "weaving",
         )
         or "_turn" in tp
         or "r_no_contact" in tp
@@ -7225,6 +7233,9 @@ def postAnalyze(vas):
     if getattr(opts, "export_turnback_sli_bundle", None):
         export_turnback_sli_bundle(vas, opts, gls, opts.export_turnback_sli_bundle)
 
+    if getattr(opts, "export_weaving_sli_bundle", None):
+        export_weaving_sli_bundle(vas, opts, gls, opts.export_weaving_sli_bundle)
+
     if getattr(opts, "export_lgturn_startdist_sli_bundle", None):
         export_lgturn_startdist_sli_bundle(
             vas, opts, gls, opts.export_lgturn_startdist_sli_bundle
@@ -7414,7 +7425,7 @@ def postAnalyze(vas):
             use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
             skip_k = _effective_skip_first_sync_buckets_opts_only(opts)
             keep_k = _effective_keep_first_sync_buckets_opts_only(opts)
-            
+
             raw_sel_skip = getattr(opts, "sli_select_skip_first_sync_buckets", None)
             raw_sel_keep = getattr(opts, "sli_select_keep_first_sync_buckets", None)
 

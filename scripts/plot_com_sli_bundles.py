@@ -17,6 +17,7 @@ def main():
         choices=[
             "commag",
             "sli",
+            "weaving",
             "turnback",
             "agarose",
             "wallpct",
