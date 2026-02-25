@@ -14,6 +14,7 @@ from src.plotting.bin_edges import (
     geom_from_edges,
 )
 from src.plotting.stats_bars import StatAnnotConfig, annotate_grouped_bars_per_bin
+from src.utils.util import meanConfInt
 
 
 @dataclass(frozen=True)
@@ -61,6 +62,15 @@ class ExportedTrainingHistogram:
     def normalize(self) -> bool:
         # present in histogram config, not always in meta historically
         return bool(self.meta.get("normalize", False))
+
+
+def _mean_ci_from_util(x: np.ndarray, conf: float) -> tuple[float, float, float, int]:
+    """
+    Mean and t CI across finite x, via src.utils.util.meanConfInt.
+    Returns (mean, lo, hi, n).
+    """
+    m, lo, hi, n = meanConfInt(x, conf=float(conf), asDelta=False)
+    return float(m), float(lo), float(hi), int(n)
 
 
 def _maybe_none_array(x) -> np.ndarray | None:
@@ -284,6 +294,21 @@ def plot_overlays(
         any_data = False
         keep_bins = None
 
+        paired_plot_mode = (
+            stats_paired and stats and mode == "pdf" and layout == "grouped"
+        )
+
+        paired_n_constant: int | None = None
+
+        def _legend_label(h: ExportedTrainingHistogram) -> str:
+            # If paired n varies by bin, we omit legend n and show per-bin n labels.
+            # If paired n is constant across bins, put it back in the legend.
+            if paired_plot_mode:
+                if paired_n_constant is not None:
+                    return f"{h.group} (n={paired_n_constant})"
+                return f"{h.group}"
+            return f"{h.group} (n={_panel_n_label(h, p_idx)})"
+
         e_item0 = normalize_panel_edges(hists[0].bin_edges[p_idx])
         e_item = e_item0
 
@@ -354,8 +379,136 @@ def plot_overlays(
         hi_by_group: list[np.ndarray] = []
         group_names = [h.group for h in hists]
 
+        # If we're in paired mode, we will recompute the displayed means/CI from paired-only
+        # observations (paired within-bin by common unit IDs across all groups).
+        paired_means: list[np.ndarray] | None = None
+        paired_cilo: list[np.ndarray] | None = None
+        paired_cihi: list[np.ndarray] | None = None
+        paired_n_per_bin: np.ndarray | None = None
+
+        if paired_plot_mode:
+            # Require per-fly payloads and IDs
+            if not all(h.per_fly for h in hists):
+                raise ValueError("Paired stats require per_fly=True exports.")
+
+            # Grab per-unit matrices/IDs for all groups for this panel (already aligned by keep_bins)
+            pu_list: list[np.ndarray] = []
+            id_list: list[np.ndarray] = []
+            ci_conf = float(hists[0].meta.get("ci_conf", 0.95))
+
+            for h in hists:
+                pu_obj = getattr(h, "per_unit_panel", None)
+                ids_obj = getattr(h, "per_unit_ids_panel", None)
+                if pu_obj is None or ids_obj is None:
+                    raise ValueError(
+                        "Paired plotting requested but per_unit_panel/per_unit_ids_panel missing. "
+                        "Re-export with per_unit_panel and per_unit_ids_panel enabled."
+                    )
+                if (
+                    np.asarray(pu_obj).shape[0] <= p_idx
+                    or np.asarray(ids_obj).shape[0] <= p_idx
+                ):
+                    raise ValueError(
+                        f"Missing per-unit payload for panel={plabel} in group={h.group}."
+                    )
+
+                pu = np.asarray(pu_obj[p_idx], float)
+                ids = np.asarray(ids_obj[p_idx], dtype=object).ravel()
+                if ids.shape[0] != pu.shape[0]:
+                    raise ValueError(
+                        f"per_unit_ids_panel size mismatch for group={h.group}, panel={plabel}: "
+                        f"ids={ids.shape[0]} vs per_unit_panel rows={pu.shape[0]}"
+                    )
+                if keep_bins is not None:
+                    pu = pu[:, :keep_bins]
+                pu_list.append(pu)
+                id_list.append(ids)
+
+            B_eff = int(pu_list[0].shape[1])
+
+            # Per-bin common IDs across ALL groups
+            common_ids_by_bin: list[list[str]] = []
+            for j in range(B_eff):
+                sets = []
+                for pu, ids in zip(pu_list, id_list):
+                    col = np.asarray(pu[:, j], float)
+                    mask = np.isfinite(col)
+                    keys = {str(i) for i in ids[mask] if i is not None}
+                    sets.append(keys)
+                common = set.intersection(*sets) if sets else set()
+                common_ids_by_bin.append(sorted(common))
+
+            # Build a stable union ID list (only those that are paired in at least one bin)
+            union_ids: list[str] = []
+            seen = set()
+            for keys in common_ids_by_bin:
+                for k in keys:
+                    if k not in seen:
+                        seen.add(k)
+                        union_ids.append(k)
+            union_ids = sorted(union_ids)
+
+            # Create filtered per-unit matrices: rows are union_ids, values are present only if paired in that bin
+            pu_filt_list: list[np.ndarray] = []
+            for pu, ids in zip(pu_list, id_list):
+                # map id -> row index in original matrix
+                idx_map = {str(i): ii for ii, i in enumerate(ids) if i is not None}
+                out = np.full((len(union_ids), B_eff), np.nan, dtype=float)
+                for j in range(B_eff):
+                    keys = common_ids_by_bin[j]
+                    for r, k in enumerate(union_ids):
+                        if k not in keys:
+                            continue
+                        ii = idx_map.get(k, None)
+                        if ii is None:
+                            continue
+                        v = float(pu[ii, j])
+                        if np.isfinite(v):
+                            out[r, j] = v
+                pu_filt_list.append(out)
+
+            # Compute paired-only mean/CI per group per bin
+            paired_means = []
+            paired_cilo = []
+            paired_cihi = []
+            paired_n = np.zeros((B_eff,), dtype=int)
+            for j in range(B_eff):
+                paired_n[j] = int(len(common_ids_by_bin[j]))
+            paired_n_per_bin = paired_n
+
+            # Decide whether paired n is constant across bins (ignore zeros)
+            nz = paired_n_per_bin[
+                np.isfinite(paired_n_per_bin) & (paired_n_per_bin > 0)
+            ]
+            uniq = np.unique(nz) if nz.size else np.asarray([], int)
+            if uniq.size == 1:
+                paired_n_constant = int(uniq[0])
+
+            for out in pu_filt_list:
+                m = np.full((B_eff,), np.nan, dtype=float)
+                lo = np.full((B_eff,), np.nan, dtype=float)
+                hi = np.full((B_eff,), np.nan, dtype=float)
+                for j in range(B_eff):
+                    mm, l0, h0, _n = _mean_ci_from_util(out[:, j], conf=ci_conf)
+                    m[j] = mm
+                    lo[j] = l0
+                    hi[j] = h0
+                paired_means.append(m)
+                paired_cilo.append(lo)
+                paired_cihi.append(hi)
+
+            # Overwrite what stats sees with paired-filtered matrices/IDs
+            per_unit_by_group = [m for m in pu_filt_list]
+            per_unit_ids_by_group = [
+                np.asarray(union_ids, dtype=object) for _ in pu_filt_list
+            ]
+
         for g_idx, h in enumerate(hists):
-            y_raw = _panel_y(h, p_idx)
+            # In paired plot mode, the displayed y comes from paired-only means.
+            if paired_plot_mode and paired_means is not None:
+                y_raw = paired_means[g_idx]
+            else:
+                y_raw = _panel_y(h, p_idx)
 
             # Determine total / skip logic depending on payload type
             if h.per_fly:
@@ -406,11 +559,7 @@ def plot_overlays(
                                 g,
                                 y_step,
                                 where="post",
-                                label=(
-                                    f"{h.group} (n={_panel_n_label(h, p_idx)})"
-                                    if gi == 0
-                                    else None
-                                ),
+                                label=(_legend_label(h) if gi == 0 else None),
                             )
                             pos += nb
                     else:
@@ -419,7 +568,7 @@ def plot_overlays(
                             e_item,
                             y_step,
                             where="post",
-                            label=f"{h.group} (n={_panel_n_label(h, p_idx)})",
+                            label=_legend_label(h),
                         )
                 else:
                     # grouped / dodged bars
@@ -429,7 +578,9 @@ def plot_overlays(
                     xpos_by_group.append(np.asarray(x, float))
 
                     # baseline for brackets (top of CI if available; else bar height)
-                    if h.ci_hi is not None and h.ci_hi.shape[0] > p_idx:
+                    if paired_plot_mode and paired_cihi is not None:
+                        hi_by_group.append(np.asarray(paired_cihi[g_idx], float))
+                    elif h.ci_hi is not None and h.ci_hi.shape[0] > p_idx:
                         tmp_hi = np.asarray(h.ci_hi[p_idx], float)
                         if keep_bins is not None:
                             tmp_hi = tmp_hi[:keep_bins]
@@ -438,7 +589,7 @@ def plot_overlays(
                         hi_by_group.append(np.asarray(y_bins, float))
 
                     # record per-fly per-bin PDF values for stats
-                    if h.per_fly:
+                    if (not paired_plot_mode) and h.per_fly:
                         pu_obj = getattr(h, "per_unit_panel", None)
                         pu = None
                         if pu_obj is not None and np.asarray(pu_obj).shape[0] > p_idx:
@@ -478,19 +629,29 @@ def plot_overlays(
                         y_plot,
                         width=bar_w,
                         align="center",
-                        label=f"{h.group} (n={_panel_n_label(h, p_idx)})",
+                        label=_legend_label(h),
                     )
 
                 # CI whiskers: only meaningful for per-fly PDF overlays
-                if (
-                    h.per_fly
-                    and getattr(h, "ci_lo", None) is not None
-                    and getattr(h, "ci_hi", None) is not None
+                if h.per_fly and (
+                    paired_plot_mode
+                    or (
+                        getattr(h, "ci_lo", None) is not None
+                        and getattr(h, "ci_hi", None) is not None
+                    )
                 ):
                     if h.ci_lo.shape[0] <= p_idx or h.ci_hi.shape[0] <= p_idx:
                         continue
-                    lo = np.asarray(h.ci_lo[p_idx], dtype=float)
-                    hi = np.asarray(h.ci_hi[p_idx], dtype=float)
+                    if (
+                        paired_plot_mode
+                        and paired_cilo is not None
+                        and paired_cihi is not None
+                    ):
+                        lo = np.asarray(paired_cilo[g_idx], dtype=float)
+                        hi = np.asarray(paired_cihi[g_idx], dtype=float)
+                    else:
+                        lo = np.asarray(h.ci_lo[p_idx], dtype=float)
+                        hi = np.asarray(h.ci_hi[p_idx], dtype=float)
                     y = np.asarray(y_bins, dtype=float)
 
                     if keep_bins is not None:
@@ -549,11 +710,7 @@ def plot_overlays(
                             g,
                             y_step,
                             where="post",
-                            label=(
-                                f"{h.group} (n={_panel_n_label(h, p_idx)})"
-                                if gi == 0
-                                else None
-                            ),
+                            label=(_legend_label(h) if gi == 0 else None),
                         )
                         cprev = float(cdf_seg[-1]) if cdf_seg.size else cprev
                         pos += nb
@@ -564,7 +721,7 @@ def plot_overlays(
                         e_item,
                         y_step,
                         where="post",
-                        label=f"{h.group} (n={_panel_n_label(h, p_idx)})",
+                        label=_legend_label(h),
                     )
 
         if not any_data:
@@ -641,6 +798,42 @@ def plot_overlays(
                 panel_label=plabel,
                 debug=debug,
             )
+        # Optional per-bin n labels in paired mode (only if n varies by bin)
+        if (
+            paired_plot_mode
+            and paired_n_per_bin is not None
+            and paired_n_constant is None
+        ):
+            # Put n labels just above the tallest bar/CI in that bin
+            ylim0, ylim1 = ax.get_ylim()
+            y_rng = float(ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 1.0
+            y_pad = 0.015 * y_rng
+            for j in range(int(centers_x.size)):
+                nbin = int(paired_n_per_bin[j])
+                if nbin <= 0:
+                    continue
+                # derive a reasonable baseline from hi_by_group if available
+                y_top = np.nan
+                for gg in range(len(hi_by_group)):
+                    if j < hi_by_group[gg].shape[0] and np.isfinite(hi_by_group[gg][j]):
+                        y_top = (
+                            hi_by_group[gg][j]
+                            if not np.isfinite(y_top)
+                            else max(y_top, hi_by_group[gg][j])
+                        )
+                if not np.isfinite(y_top):
+                    continue
+                ax.text(
+                    float(centers_x[j]),
+                    float(y_top + y_pad),
+                    f"n={nbin}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=7,
+                    color="0.2",
+                    clip_on=False,
+                    zorder=9,
+                )
 
         ax.legend(fontsize=8)
 
