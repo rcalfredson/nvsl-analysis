@@ -50,9 +50,9 @@ class SLIContext:
         trn = self.training_idx + 1
         k = int(self.skip_first_sync_buckets or 0)
         start_sb = k + 1  # 1-based
-        sb_txt = "SB" if abbrev_sb else "sync bucket"
+        sb_txt = "SB" if abbrev_sb else "sync bucket "
         if self.average_over_buckets:
-            return f"SLI (T{trn}, mean, {sb_txt} {start_sb}-end)"
+            return f"SLI (T{trn}, mean, {sb_txt}{start_sb}-end)"
         return f"SLI (T{trn}, last {sb_txt})"
 
 
