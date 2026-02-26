@@ -611,7 +611,7 @@ def plot_com_sli_bundles(
             else "single bucket (per exporter settings)"
         )
         fig.text(
-            0.02,
+            0.1,
             0.98,
             f"SLI filter: {sli_extremes} {int(sli_fraction*100)}% within group; T{stis[0]+1}; {sli_mode}",
             ha="left",
