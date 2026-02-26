@@ -8,17 +8,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import src.utils.util as util
-from src.plotting.between_reward_segment_metrics import dist_traveled_mm_masked
-from src.plotting.plot_customizer import PlotCustomizer
-from src.plotting.stats_bars import StatAnnotConfig, annotate_grouped_bars_per_bin
-from src.utils.common import maybe_sentence_case, writeImage
-
 from src.plotting.between_reward_segment_binning import (
     x_edges as make_x_edges,
     sync_bucket_window,
     build_nonwalk_mask,
     wall_contact_mask,
 )
+from src.plotting.between_reward_segment_metrics import dist_traveled_mm_masked
+from src.plotting.grouped_bar_layout import grouped_bar_layout_from_edges
+from src.plotting.plot_customizer import PlotCustomizer
+from src.plotting.stats_bars import StatAnnotConfig, annotate_grouped_bars_per_bin
+from src.utils.common import maybe_sentence_case, writeImage
 
 
 @dataclass
@@ -1186,9 +1186,16 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
         ylabel: str,
         out_path: str,
     ) -> None:
-        fig, ax = plt.subplots(1, 1, figsize=(7.4, 4.4))
 
         n_groups = len(means)
+
+        # grouped bar geometry
+        fig_w, centers_x, bar_w, offsets, bin_ranges, xlim, categorical_used = (
+            grouped_bar_layout_from_edges(edges, n_groups, categorical=True)
+        )
+
+        fig, ax = plt.subplots(1, 1, figsize=(fig_w, 4.4))
+
         if n_groups == 0:
             ax.set_axis_off()
             ax.text(0.5, 0.5, "no data", ha="center", va="center")
@@ -1196,10 +1203,6 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
             plt.close(fig)
             print(f"[{log_tag}] wrote {out_path}")
             return
-
-        # grouped bar geometry
-        frac = 0.86
-        bar_w = frac * widths / max(1, n_groups)
 
         any_data = False
         pending_labels: list[tuple[float, float, int]] = []  # x, y_top, n
@@ -1211,11 +1214,10 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
             hi_i = np.asarray(hi[gi], dtype=float)
             n_i = np.asarray(n_units[gi], dtype=int)
 
-            offset = (gi - (n_groups - 1) / 2.0) * bar_w
-            xb = x + offset
+            xb = centers_x + offsets[gi]
             xpos_by_group.append(np.asarray(xb, float))
 
-            fin = np.isfinite(xb) & np.isfinite(y) & np.isfinite(widths)
+            fin = np.isfinite(xb) & np.isfinite(y) & np.isfinite(bar_w)
             if not fin.any():
                 continue
             any_data = True
@@ -1262,8 +1264,17 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
             )
             ax.set_ylabel(maybe_sentence_case(ylabel))
 
-            if edges.size >= 2 and np.all(np.isfinite(edges[[0, -1]])):
-                ax.set_xlim(float(edges[0]), float(edges[-1]))
+            ax.set_xlim(*xlim)
+            ax.set_xticks(centers_x)
+
+            # Tick labels: either bin ranges (0-2,2-4,...) or sparse numeric centers
+            labels_xt = []
+            for a, b in bin_ranges:
+                if np.isclose(a, round(a)) and np.isclose(b, round(b)):
+                    labels_xt.append(f"{int(round(a))}-{int(round(b))}")
+                else:
+                    labels_xt.append(f"{a:0.2f}-{b:0.2f}")
+            ax.set_xticklabels(labels_xt, rotation=0, fontsize=8)
 
             ax.set_ylim(bottom=0)
             ymax = getattr(opts, "btw_rwd_conditioned_disttrav_ymax", None)
@@ -1285,7 +1296,7 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
                 )
                 annotate_grouped_bars_per_bin(
                     ax,
-                    x_centers=x,
+                    x_centers=centers_x,
                     xpos_by_group=xpos_by_group,
                     per_unit_by_group=[np.asarray(pu, float) for pu in per_unit],  # type: ignore[arg-type]
                     hi_by_group=hi,
