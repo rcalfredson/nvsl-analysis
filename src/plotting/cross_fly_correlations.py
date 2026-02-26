@@ -747,6 +747,7 @@ def plot_cross_fly_correlations(
         sli_ctx = SLIContext(training_idx=training_idx, average_over_buckets=False)
 
     x_label_sli = sli_ctx.label_short(abbrev_sb=False)
+    y_label_sli = sli_ctx.label_short(abbrev_sb=True)
 
     skip_k = int(getattr(sli_ctx, "skip_first_sync_buckets", 0) or 0)
     skip_k = max(0, skip_k)
@@ -927,7 +928,7 @@ def plot_cross_fly_correlations(
         y=sli_vals,
         title="Baseline PI vs SLI",
         x_label="Baseline PI\n(exp − yok, pre-training)",
-        y_label=x_label_sli,
+        y_label=y_label_sli,
         cfg=cfg,
         filename="corr_pre_reward_pi_vs_sli",
         customizer=customizer,
@@ -957,7 +958,7 @@ def plot_cross_fly_correlations(
         y=sli_vals,
         title="Pre-training exploration vs SLI",
         x_label="Fraction of floor explored during pre-training\n(exp fly)",
-        y_label=x_label_sli,
+        y_label=y_label_sli,
         cfg=cfg,
         filename="corr_pre_floor_exploration_vs_sli_final",
         customizer=customizer,
