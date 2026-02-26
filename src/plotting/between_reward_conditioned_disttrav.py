@@ -75,6 +75,7 @@ class BetweenRewardConditionedDistTravResult:
 
     per_unit_total: np.ndarray | None = None  # (N_units, B)
     per_unit_tail: np.ndarray | None = None  # (N_units, B)
+    per_unit_ids: np.ndarray | None = None  # (N_units,) stable IDs for pairing
 
     def validate(self) -> None:
         edges = np.asarray(self.x_edges, dtype=float)
@@ -107,6 +108,21 @@ class BetweenRewardConditionedDistTravResult:
             pu = np.asarray(self.per_unit_tail, dtype=float)
             if pu.ndim != 2 or pu.shape[1] != B:
                 raise ValueError(f"per_unit_tail must be 2D with shape (N, {B})")
+        if self.per_unit_ids is not None:
+            ids = np.asarray(self.per_unit_ids, dtype=object).ravel()
+            # If per-unit arrays exist, ensure N matches
+            if self.per_unit_total is not None:
+                pu = np.asarray(self.per_unit_total, dtype=float)
+                if ids.shape[0] != pu.shape[0]:
+                    raise ValueError(
+                        "per_unit_ids length must match per_unit_total rows"
+                    )
+            if self.per_unit_tail is not None:
+                pu = np.asarray(self.per_unit_tail, dtype=float)
+                if ids.shape[0] != pu.shape[0]:
+                    raise ValueError(
+                        "per_unit_ids length must match per_unit_tail rows"
+                    )
 
     def save_npz(self, path: str) -> None:
         self.validate()
@@ -126,6 +142,8 @@ class BetweenRewardConditionedDistTravResult:
             kwargs["per_unit_total"] = np.asarray(self.per_unit_total, dtype=float)
         if self.per_unit_tail is not None:
             kwargs["per_unit_tail"] = np.asarray(self.per_unit_tail, dtype=float)
+        if self.per_unit_ids is not None:
+            kwargs["per_unit_ids"] = np.asarray(self.per_unit_ids, dtype=object)
         np.savez_compressed(path, **kwargs)
 
     @staticmethod
@@ -158,6 +176,11 @@ class BetweenRewardConditionedDistTravResult:
             per_unit_tail=(
                 np.asarray(z["per_unit_tail"], dtype=float)
                 if "per_unit_tail" in z
+                else None
+            ),
+            per_unit_ids=(
+                np.asarray(z["per_unit_ids"], dtype=object)
+                if "per_unit_ids" in z
                 else None
             ),
         )
@@ -565,7 +588,9 @@ class BetweenRewardConditionedDistTravPlotter:
             pass
         return None
 
-    def _collect_per_fly_binned_means(self) -> tuple[np.ndarray, np.ndarray, dict]:
+    def _collect_per_fly_binned_means(
+        self,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
         edges = self._x_edges()
         B = int(max(1, edges.size - 1))
 
@@ -586,6 +611,7 @@ class BetweenRewardConditionedDistTravPlotter:
         per_fly_tail: list[np.ndarray] = []
 
         unit_info: list[dict] = []
+        unit_ids: list[str] = []
 
         t_idx = int(self.cfg.training_index)
 
@@ -722,6 +748,11 @@ class BetweenRewardConditionedDistTravPlotter:
                 if np.any(np.isfinite(vec_total)) or np.any(np.isfinite(vec_tail)):
                     per_fly_total.append(vec_total)
                     per_fly_tail.append(vec_tail)
+
+                    video_id = self._video_base(va)
+                    uid = f"{video_id}|fly={int(fly_id)}|trx={int(trx_idx)}"
+                    unit_ids.append(uid)
+
                     unit_info.append(
                         dict(
                             video_id=self._video_base(va),
@@ -752,7 +783,12 @@ class BetweenRewardConditionedDistTravPlotter:
                 "units": "mm",
                 "unit_info": unit_info,
             }
-            return np.empty((0, B), dtype=float), np.empty((0, B), dtype=float), meta
+            return (
+                np.empty((0, B), dtype=float),
+                np.empty((0, B), dtype=float),
+                np.empty((0,), dtype=object),
+                meta,
+            )
 
         Y_total = np.stack(per_fly_total, axis=0)
         Y_tail = np.stack(per_fly_tail, axis=0)
@@ -775,7 +811,8 @@ class BetweenRewardConditionedDistTravPlotter:
             "units": "mm",
             "unit_info": unit_info,
         }
-        return Y_total, Y_tail, meta
+        ids = np.asarray(unit_ids, dtype=object)
+        return Y_total, Y_tail, ids, meta
 
     def _write_quantiles_tsv(
         self, path: str, res: BetweenRewardConditionedDistTravResult
@@ -944,7 +981,7 @@ class BetweenRewardConditionedDistTravPlotter:
         centers = 0.5 * (edges[:-1] + edges[1:])
         B = int(max(1, edges.size - 1))
 
-        Y_total, Y_tail, meta = self._collect_per_fly_binned_means()
+        Y_total, Y_tail, ids, meta = self._collect_per_fly_binned_means()
 
         mean_total = np.full((B,), np.nan, dtype=float)
         lo_total = np.full((B,), np.nan, dtype=float)
@@ -982,6 +1019,7 @@ class BetweenRewardConditionedDistTravPlotter:
             meta=meta,
             per_unit_total=(Y_total if Y_total.size else None),
             per_unit_tail=(Y_tail if Y_tail.size else None),
+            per_unit_ids=(ids if ids.size else None),
         )
 
     def plot(self) -> None:
@@ -1284,24 +1322,45 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
                 except Exception:
                     pass
 
+            ids_by_group = [r.per_unit_ids for r in results]
+
             # --- stats annotations (one-way ANOVA + Holm-corrected post-hoc) ---
             do_stats = bool(getattr(opts, "btw_rwd_conditioned_disttrav_stats", False))
+            do_paired = bool(
+                getattr(opts, "btw_rwd_conditioned_disttrav_stats_paired", False)
+            )
             if do_stats and not any(pu is None for pu in per_unit):
+                # if paired requested, ensure ids exist; otherwise warn + fall back
+                use_paired = do_paired and not any(ids is None for ids in ids_by_group)
+                if do_paired and not use_paired:
+                    print(
+                        f"[{log_tag}] WARNING: paired stats requested but missing per_unit_ids in one or more cached results; falling back to Welch."
+                    )
                 cfg_stats = StatAnnotConfig(
                     alpha=float(
                         getattr(opts, "btw_rwd_conditioned_disttrav_stats_alpha", 0.05)
                         or 0.05
                     ),
-                    nlabel_off_frac=0.04,  # you DO have n labels here
+                    nlabel_off_frac=0.04,
                 )
                 annotate_grouped_bars_per_bin(
                     ax,
                     x_centers=centers_x,
                     xpos_by_group=xpos_by_group,
-                    per_unit_by_group=[np.asarray(pu, float) for pu in per_unit],  # type: ignore[arg-type]
+                    per_unit_by_group=[np.asarray(pu, float) for pu in per_unit],
+                    per_unit_ids_by_group=(
+                        [np.asarray(ids, dtype=object) for ids in ids_by_group]
+                        if use_paired
+                        else None
+                    ),
                     hi_by_group=hi,
                     group_names=[str(l) for l in labels],
                     cfg=cfg_stats,
+                    paired=use_paired,
+                    panel_label=title,
+                    debug=bool(
+                        getattr(opts, "btw_rwd_conditioned_disttrav_stats_debug", False)
+                    ),
                 )
 
             ax.legend(loc="best", fontsize=customizer.in_plot_font_size)

@@ -1786,6 +1786,11 @@ g.add_argument(
     "distance-traveled plots, with post-hoc pairwise tests.",
 )
 g.add_argument(
+    "--btw-rwd-conditioned-disttrav-stats-paired",
+    action="store_true",
+    help="Use paired tests for post-hoc comparisons when unit IDs overlap across groups.",
+)
+g.add_argument(
     "--btw-rwd-conditioned-disttrav-stats-alpha",
     type=float,
     default=0.05,
