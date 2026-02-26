@@ -217,12 +217,14 @@ class BetweenRewardDistanceHistogramPlotter(TrainingMetricHistogramPlotter):
 
                     # --- Determine included sync-bucket window for this training/fly
                     skip_first = self._effective_skip_first_sync_buckets()
+                    keep_first = self._effective_keep_first_sync_buckets()
                     fi, df, n_buckets, complete = sync_bucket_window(
                         va,
                         trn,
                         t_idx=t_idx,
                         f=f,
                         skip_first=skip_first,
+                        keep_first=keep_first,
                         use_exclusion_mask=False,
                     )
                     if n_buckets <= 0:
