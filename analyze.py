@@ -1727,6 +1727,16 @@ g.add_argument(
 )
 
 g.add_argument(
+    "--btw-rwd-conditioned-disttrav-keep-first-sync-buckets",
+    type=int,
+    default=0,
+    help=(
+        "Cap this analysis to the first K sync buckets (after skipping), "
+        "for between-reward conditioned dist-traveled plots. 0 means no cap."
+    ),
+)
+
+g.add_argument(
     "--btw-rwd-conditioned-disttrav-use-reward-exclusion-mask",
     action="store_true",
     help=(
@@ -8460,6 +8470,9 @@ def postAnalyze(vas):
                     training_index=t_idx,
                     skip_first_sync_buckets=_effective_skip_first_sync_buckets_opts_only(
                         opts, "btw_rwd_conditioned_disttrav_skip_first_sync_buckets"
+                    ),
+                    keep_first_sync_buckets=_effective_keep_first_sync_buckets_opts_only(
+                        opts, "btw_rwd_conditioned_disttrav_keep_first_sync_buckets"
                     ),
                     use_reward_exclusion_mask=bool(
                         getattr(

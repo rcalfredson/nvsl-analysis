@@ -44,6 +44,7 @@ class BetweenRewardConditionedDistTravConfig:
     training_index: int = 1  # Training 2 default (0-based)
 
     skip_first_sync_buckets: int = 0
+    keep_first_sync_buckets: int = 0
     use_reward_exclusion_mask: bool = False
 
     # Distance binning in mm
@@ -311,6 +312,7 @@ class BetweenRewardConditionedDistTravPlotter:
                     t_idx=t_idx,
                     f=trx_idx,
                     skip_first=int(self.cfg.skip_first_sync_buckets),
+                    keep_first=int(self.cfg.keep_first_sync_buckets),
                     use_exclusion_mask=bool(self.cfg.use_reward_exclusion_mask),
                 )
                 if n_buckets <= 0:
@@ -638,6 +640,7 @@ class BetweenRewardConditionedDistTravPlotter:
                     t_idx=t_idx,
                     f=trx_idx,
                     skip_first=int(self.cfg.skip_first_sync_buckets),
+                    keep_first=int(self.cfg.keep_first_sync_buckets),
                     use_exclusion_mask=bool(self.cfg.use_reward_exclusion_mask),
                 )
                 if n_buckets <= 0:
@@ -769,6 +772,7 @@ class BetweenRewardConditionedDistTravPlotter:
                 "log_tag": self.log_tag,
                 "training_index": int(self.cfg.training_index),
                 "skip_first_sync_buckets": int(self.cfg.skip_first_sync_buckets),
+                "keep_first_sync_buckets": int(self.cfg.keep_first_sync_buckets),
                 "use_reward_exclusion_mask": bool(self.cfg.use_reward_exclusion_mask),
                 "x_bin_width_mm": float(self.cfg.x_bin_width_mm),
                 "x_min_mm": float(self.cfg.x_min_mm),
@@ -797,6 +801,7 @@ class BetweenRewardConditionedDistTravPlotter:
             "log_tag": self.log_tag,
             "training_index": int(self.cfg.training_index),
             "skip_first_sync_buckets": int(self.cfg.skip_first_sync_buckets),
+            "keep_first_sync_buckets": int(self.cfg.keep_first_sync_buckets),
             "use_reward_exclusion_mask": bool(self.cfg.use_reward_exclusion_mask),
             "x_bin_width_mm": float(self.cfg.x_bin_width_mm),
             "x_min_mm": float(self.cfg.x_min_mm),
@@ -868,6 +873,7 @@ class BetweenRewardConditionedDistTravPlotter:
                         # meta
                         "training_index",
                         "skip_first_sync_buckets",
+                        "keep_first_sync_buckets",
                         "exclude_wall_contact",
                         "exclude_nonwalking_frames",
                         "min_walk_frames",
@@ -945,6 +951,7 @@ class BetweenRewardConditionedDistTravPlotter:
                                 qh[4],
                                 int(self.cfg.training_index),
                                 int(self.cfg.skip_first_sync_buckets),
+                                int(self.cfg.keep_first_sync_buckets),
                                 int(
                                     bool(
                                         getattr(
@@ -1108,6 +1115,10 @@ class BetweenRewardConditionedDistTravPlotter:
                 if int(self.cfg.skip_first_sync_buckets) > 0:
                     parts.append(
                         f"skip first {int(self.cfg.skip_first_sync_buckets)} bucket(s)"
+                    )
+                if int(self.cfg.keep_first_sync_buckets) > 0:
+                    parts.append(
+                        f"keep first {int(self.cfg.keep_first_sync_buckets)} bucket(s)"
                     )
                 if self.cfg.subset_label:
                     parts.append(str(self.cfg.subset_label))
