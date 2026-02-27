@@ -21,6 +21,117 @@ from src.plotting.stats_bars import StatAnnotConfig, annotate_grouped_bars_per_b
 from src.utils.common import maybe_sentence_case, writeImage
 
 
+def _mean_ci_from_util(x: np.ndarray, conf: float) -> tuple[float, float, float, int]:
+    m, lo, hi, n = util.meanConfInt(
+        np.asarray(x, float),
+        conf=float(conf),
+        asDelta=False,
+    )
+    return float(m), float(lo), float(hi), int(n)
+
+
+def _paired_filter_and_recompute(
+    *,
+    per_unit_by_group: list[np.ndarray],
+    ids_by_group: list[np.ndarray],
+    ci_conf: float,
+) -> tuple[
+    list[np.ndarray],
+    list[np.ndarray],
+    list[np.ndarray],
+    list[np.ndarray],
+    list[np.ndarray],
+    list[np.ndarray],
+]:
+    """
+    Returns:
+      pu_filt_list, ids_filt_list, means, lo, hi, n_units
+    where pu_filt_list share the same row IDs (union_ids) across groups,
+    but each bin j only contains values for IDs that are paired in that bin.
+    """
+    G = len(per_unit_by_group)
+    if G == 0:
+        raise ValueError("no groups")
+
+    B = int(per_unit_by_group[0].shape[1])
+    for pu in per_unit_by_group[1:]:
+        if int(pu.shape[1]) != B:
+            raise ValueError("per_unit_by_group bin count mismatch across groups")
+
+    # Per-bin intersection of finite IDs across all groups
+    common_ids_by_bin: list[list[str]] = []
+    for j in range(B):
+        sets: list[set[str]] = []
+        for pu, ids in zip(per_unit_by_group, ids_by_group):
+            col = np.asarray(pu[:, j], float)
+            mask = np.isfinite(col)
+            keys = {
+                str(i)
+                for i in np.asarray(ids, dtype=object).ravel()[mask]
+                if i is not None
+            }
+            sets.append(keys)
+        common = set.intersection(*sets) if sets else set()
+        common_ids_by_bin.append(sorted(common))
+
+    # Unions of IDs that are paired in at least one bin
+    union_ids: list[str] = []
+    seen: set[str] = set()
+    for keys in common_ids_by_bin:
+        for k in keys:
+            if k not in seen:
+                seen.add(k)
+                union_ids.append(k)
+    union_ids = sorted(union_ids)
+
+    # Build filtered matrices shaped (len(union_ids), B)
+    pu_filt_list: list[np.ndarray] = []
+    for pu, ids in zip(per_unit_by_group, ids_by_group):
+        idx_map = {
+            str(i): ii
+            for ii, i in enumerate(np.asarray(ids, dtype=object).ravel())
+            if i is not None
+        }
+        out = np.full((len(union_ids), B), np.nan, dtype=float)
+        for j in range(B):
+            keys = set(common_ids_by_bin[j])
+            if not keys:
+                continue
+            for r, k in enumerate(union_ids):
+                if k not in keys:
+                    continue
+                ii = idx_map.get(k, None)
+                if ii is None:
+                    continue
+                v = float(pu[ii, j])
+                if np.isfinite(v):
+                    out[r, j] = v
+        pu_filt_list.append(out)
+
+    # Recompute means/CI per group per bin from paired-only values
+    means: list[np.ndarray] = []
+    lo: list[np.ndarray] = []
+    hi: list[np.ndarray] = []
+    n_units = np.zeros((B,), dtype=int)
+    for j in range(B):
+        n_units[j] = int(len(common_ids_by_bin[j]))
+
+    for out in pu_filt_list:
+        m = np.full((B,), np.nan, dtype=float)
+        l0 = np.full((B,), np.nan, dtype=float)
+        h0 = np.full((B,), np.nan, dtype=float)
+        for j in range(B):
+            mm, ll, hh, _n = _mean_ci_from_util(out[:, j], conf=ci_conf)
+            m[j], l0[j], h0[j] = mm, ll, hh
+        means.append(m)
+        lo.append(l0)
+        hi.append(h0)
+
+    ids_filt_list = [np.asarray(union_ids, dtype=object) for _ in range(G)]
+    n_list = [np.asarray(n_units, dtype=int) for _ in range(G)]
+    return pu_filt_list, ids_filt_list, means, lo, hi, n_list
+
+
 @dataclass
 class BetweenRewardConditionedDistTravConfig:
     """
@@ -1253,15 +1364,86 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
             print(f"[{log_tag}] wrote {out_path}")
             return
 
+        # -------------------------------------------------------------------------
+        # --- prepare stats inputs (optionally paired + plot-consistent) ---
+        # Decide once, then the rest of the function just consumes these prepared arrays.
+        # -------------------------------------------------------------------------
+
+        means_plot = [np.asarray(m, dtype=float) for m in means]
+        lo_plot = [np.asarray(v, dtype=float) for v in lo]
+        hi_plot = [np.asarray(v, dtype=float) for v in hi]
+        n_plot = [np.asarray(v, dtype=int) for v in n_units]
+
+        per_unit_by_group: list[np.ndarray] | None = None
+        per_unit_ids_by_group: list[np.ndarray] | None = None
+
+        do_stats = bool(getattr(opts, "btw_rwd_conditioned_disttrav_stats", False))
+        do_paired_req = bool(
+            getattr(opts, "btw_rwd_conditioned_disttrav_stats_paired", False)
+        )
+
+        have_per_unit = not any(pu is None for pu in per_unit)
+        if do_stats and have_per_unit:
+            pu_list = [np.asarray(pu, float) for pu in per_unit]  # type: ignore[arg-type]
+
+            ids_by_group = [r.per_unit_ids for r in results]
+            have_ids = not any(ids is None for ids in ids_by_group)
+
+            # paired only if requested + ids exist for all groups
+            use_paired = bool(do_paired_req and have_ids)
+
+            if do_paired_req and not use_paired:
+                print(
+                    f"[{log_tag}] WARNING: paired stats requested but missing per_unit_ids "
+                    "in one or more cached results; falling back to Welch."
+                )
+
+            # If paired is enabled, filter to paired-only units and recompute what we display
+            # so the plot (bars/CI/n) matches what stats is testing.
+            if use_paired:
+                pu_filt_list, ids_filt_list, m_f, lo_f, hi_f, n_f = (
+                    _paired_filter_and_recompute(
+                        per_unit_by_group=pu_list,
+                        ids_by_group=[np.asarray(ids, dtype=object) for ids in ids_by_group],  # type: ignore[arg-type]
+                        ci_conf=float(
+                            getattr(opts, "btw_rwd_conditioned_disttrav_ci_conf", 0.95)
+                        ),
+                    )
+                )
+
+                # Overwrite both "what gets plotted" and "what stats sees"
+                means_plot = [np.asarray(v, float) for v in m_f]
+                lo_plot = [np.asarray(v, float) for v in lo_f]
+                hi_plot = [np.asarray(v, float) for v in hi_f]
+                n_plot = [np.asarray(v, int) for v in n_f]
+
+                per_unit_by_group = pu_filt_list
+                per_unit_ids_by_group = ids_filt_list
+            else:
+                # Unpaired stats: just use raw per-unit payloads
+                per_unit_by_group = pu_list
+                per_unit_ids_by_group = None
+
+            cfg_stats = StatAnnotConfig(
+                alpha=float(
+                    getattr(opts, "btw_rwd_conditioned_disttrav_stats_alpha", 0.05)
+                    or 0.05
+                ),
+                nlabel_off_frac=0.04,
+            )
+        else:
+            use_paired = False
+            cfg_stats = None
+
         any_data = False
         pending_labels: list[tuple[float, float, int]] = []  # x, y_top, n
         xpos_by_group: list[np.ndarray] = []
 
         for gi in range(n_groups):
-            y = np.asarray(means[gi], dtype=float)
-            lo_i = np.asarray(lo[gi], dtype=float)
-            hi_i = np.asarray(hi[gi], dtype=float)
-            n_i = np.asarray(n_units[gi], dtype=int)
+            y = np.asarray(means_plot[gi], dtype=float)
+            lo_i = np.asarray(lo_plot[gi], dtype=float)
+            hi_i = np.asarray(hi_plot[gi], dtype=float)
+            n_i = np.asarray(n_plot[gi], dtype=int)
 
             xb = centers_x + offsets[gi]
             xpos_by_group.append(np.asarray(xb, float))
@@ -1333,41 +1515,26 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
                 except Exception:
                     pass
 
-            ids_by_group = [r.per_unit_ids for r in results]
+            # ---------------------------------------------------------------------
+            # --- annotate stats (ANOVA + Holm-corrected post-hoc; paired optional) ---
+            # ---------------------------------------------------------------------
 
-            # --- stats annotations (one-way ANOVA + Holm-corrected post-hoc) ---
-            do_stats = bool(getattr(opts, "btw_rwd_conditioned_disttrav_stats", False))
-            do_paired = bool(
-                getattr(opts, "btw_rwd_conditioned_disttrav_stats_paired", False)
-            )
-            if do_stats and not any(pu is None for pu in per_unit):
-                # if paired requested, ensure ids exist; otherwise warn + fall back
-                use_paired = do_paired and not any(ids is None for ids in ids_by_group)
-                if do_paired and not use_paired:
-                    print(
-                        f"[{log_tag}] WARNING: paired stats requested but missing per_unit_ids in one or more cached results; falling back to Welch."
-                    )
-                cfg_stats = StatAnnotConfig(
-                    alpha=float(
-                        getattr(opts, "btw_rwd_conditioned_disttrav_stats_alpha", 0.05)
-                        or 0.05
-                    ),
-                    nlabel_off_frac=0.04,
-                )
+            if (
+                do_stats
+                and have_per_unit
+                and per_unit_by_group is not None
+                and cfg_stats is not None
+            ):
                 annotate_grouped_bars_per_bin(
                     ax,
                     x_centers=centers_x,
                     xpos_by_group=xpos_by_group,
-                    per_unit_by_group=[np.asarray(pu, float) for pu in per_unit],
-                    per_unit_ids_by_group=(
-                        [np.asarray(ids, dtype=object) for ids in ids_by_group]
-                        if use_paired
-                        else None
-                    ),
-                    hi_by_group=hi,
+                    per_unit_by_group=per_unit_by_group,
+                    per_unit_ids_by_group=per_unit_ids_by_group,
+                    hi_by_group=hi_plot,
                     group_names=[str(l) for l in labels],
                     cfg=cfg_stats,
-                    paired=use_paired,
+                    paired=bool(use_paired),
                     panel_label=title,
                     debug=bool(
                         getattr(opts, "btw_rwd_conditioned_disttrav_stats_debug", False)
