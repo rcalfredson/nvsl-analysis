@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
+import json
+import math
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -747,11 +748,29 @@ def plot_overlays(
             # label bins as ranges: "0-10", "10-20", ...
             labels_xt = []
             for a, b in bin_ranges:
-                # choose formatting: ints if close, else compact float
-                if np.isclose(a, round(a)) and np.isclose(b, round(b)):
-                    labels_xt.append(f"{int(round(a))}-{int(round(b))}")
+                a = float(a)
+                b = float(b)
+
+                # If edges look like integer bins (including half-integer edges), show integer ranges.
+                # Examples:
+                #  -0.5..10.5  -> 0-10
+                #  10.5..20.5  -> 11-20
+                #  80.5..110.5 -> 81-110
+                a_is_intish = np.isclose(a, round(a)) or np.isclose(a % 1.0, 0.5)
+                b_is_intish = np.isclose(b, round(b)) or np.isclose(b % 1.0, 0.5)
+
+                if a_is_intish and b_is_intish:
+                    lo = int(math.ceil(a))  # -0.5 -> 0, 10.5 -> 11
+                    hi = int(math.floor(b))  # 10.5 -> 10, 20.5 -> 20
+
+                    # Guard: if something weird happens (e.g., very narrow bin), fall back
+                    if hi < lo:
+                        labels_xt.append(f"{a:g}-{b:g}")
+                    else:
+                        labels_xt.append(f"{lo}-{hi}")
                 else:
-                    labels_xt.append(f"{a:0.2f}-{b:0.2f}")
+                    # Non-integer-ish bins: keep compact float formatting
+                    labels_xt.append(f"{a:g}-{b:g}")
 
             ax.set_xticklabels(labels_xt, rotation=0, fontsize=8)
 

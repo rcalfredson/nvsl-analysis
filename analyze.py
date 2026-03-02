@@ -108,6 +108,10 @@ from src.plotting.between_reward_conditioned_maxdist_vs_disttrav import (
     BetweenRewardConditionedMaxDistVsDistTravResult,
     plot_btw_rwd_conditioned_dmax_vs_disttrav_overlay,
 )
+from src.plotting.reward_count_hist import (
+    RewardCountHistogramConfig,
+    RewardCountHistogramPlotter,
+)
 from src.plotting.cross_fly_correlations import plot_cross_fly_correlations, SLIContext
 from src.plotting.individual_strategy_plotter import plot_individual_strategy_overlays
 from src.plotting.outside_circle_duration_plotter import OutsideCircleDurationPlotter
@@ -200,6 +204,7 @@ REWARD_PI_POST_IMG_FILE = "imgs/reward_pi_post__%s_min_buckets.png"
 REWARD_PI_POST_DIFF_IMG_FILE = "imgs/reward_pi_post_diff__%s_min_buckets.png"
 DIST_BTWN_REWARDS_LABEL = "mean dist. between calc. rewards%s"
 DIST_BTWN_REWARDS_IMG_FILE = "imgs/btw_rwd_dists.png"
+REWARD_COUNT_HIST_IMG_FILE = "imgs/rwd_count_hist.png"
 BTW_RWD_COM_MAG_HIST_IMG_FILE = "imgs/btw_rwd_com_mag_hist.png"
 BTW_RWD_DIST_BINNED_COM_IMG_FILE = "imgs/btw_rwd_dist_binned_com.png"
 BTW_RWD_DIST_BINNED_DISTTRAV_IMG_FILE = "imgs/btw_rwd_dist_binned_disttrav.png"
@@ -972,6 +977,86 @@ g.add_argument(
         "Confidence level for --btw-rwd-dist-ci (default: %(default)s). "
         "Only used with --btw-rwd-dist-per-fly."
     ),
+)
+g.add_argument(
+    "--reward-count-hist",
+    action="store_true",
+    help=(
+        "Plot histograms of total reward counts per fly, separated by training. "
+        "Counts are computed within the included sync-bucket window."
+    ),
+)
+g.add_argument(
+    "--reward-count-export-hist",
+    type=str,
+    default=None,
+    help=(
+        "Export binned histogram data (counts + bin edges) for reward counts "
+        "as a compressed .npz for later overlay plotting across groups."
+    ),
+)
+g.add_argument(
+    "--reward-count-nbins",
+    type=int,
+    default=25,
+    help="Number of bins for reward-count histograms (default: 25).",
+)
+g.add_argument(
+    "--reward-count-bin-edges",
+    type=str,
+    default=None,
+    help=(
+        "Explicit comma-separated bin edges for reward-count histograms. "
+        "Tip for integer counts: use half-integer edges like '-0.5,0.5,1.5,...'. "
+        "If provided, overrides --reward-count-nbins/--reward-count-max."
+    ),
+)
+g.add_argument(
+    "--reward-count-max",
+    type=float,
+    default=None,
+    help=(
+        "Maximum reward count to include in the reward-count histograms. "
+        "Values beyond this are discarded for plotting. By default, the full range is shown."
+    ),
+)
+g.add_argument(
+    "--reward-count-per-fly",
+    action="store_true",
+    help=(
+        "Export reward-count histograms in per-fly format (one unit per fly). "
+        "Required for overlay plotting with --stats and per-bin CI."
+    ),
+)
+g.add_argument(
+    "--reward-count-normalize",
+    action="store_true",
+    help="Normalize reward-count histograms so the y-axis shows proportion of flies per bin.",
+)
+g.add_argument(
+    "--reward-count-pool-trainings",
+    action="store_true",
+    help="Pool reward counts across trainings into a single histogram instead of one panel per training.",
+)
+g.add_argument(
+    "--reward-count-trainings",
+    type=parse_training_selector,
+    default=None,
+    help='Subset of trainings to plot (1-based). Examples: "1", "1,3", "2-4", "1,3-5". Ignored if --reward-count-pool-trainings is set.',
+)
+g.add_argument(
+    "--reward-count-top-sli",
+    action="store_true",
+    help=(
+        "Restrict reward-count histograms to flies in the top SLI fraction "
+        "(see --best-worst-sli, --best-worst-fraction, and --best-worst-trn)."
+    ),
+)
+g.add_argument(
+    "--reward-count-ymax",
+    type=float,
+    default=None,
+    help="Set a fixed maximum for the y-axis in reward-count histograms.",
 )
 g.add_argument(
     "--btw-rwd-hexbin",
@@ -7915,6 +8000,57 @@ def postAnalyze(vas):
 
     skip_eff = _effective_skip_first_sync_buckets_opts_only(opts)
     keep_eff = _effective_keep_first_sync_buckets_opts_only(opts)
+
+    do_plot = bool(getattr(opts, "reward_count_hist", False))
+    do_export = bool(getattr(opts, "reward_count_export_hist", None))
+
+    if va.circle and (do_plot or do_export):
+        vas_for_hist = vas
+
+        if getattr(opts, "reward_count_top_sli", False):
+            if saved_top is None:
+                print(
+                    "[reward_count] WARNING: --reward-count-top-sli requested "
+                    "but no top-SLI group is available; falling back to all flies."
+                )
+            else:
+                vas_for_hist = [vas[i] for i in saved_top]
+                print(
+                    f"[reward_count] restricting to {len(vas_for_hist)} top-SLI flies"
+                )
+
+        subset_label = None
+        if getattr(opts, "reward_count_top_sli", False) and saved_top is not None:
+            frac = float(getattr(opts, "best_worst_fraction", 0.1))
+            subset_label = f"Restricted to top {100*frac:.1f}% SLI flies"
+
+        rc_cfg = RewardCountHistogramConfig(
+            out_file=REWARD_COUNT_HIST_IMG_FILE,  # define a constant path like your others
+            bins=getattr(opts, "reward_count_nbins", 25),
+            xmax=getattr(opts, "reward_count_max", None),
+            bin_edges=_parse_float_csv_or_edge_groups_or_none(
+                getattr(opts, "reward_count_bin_edges", None)
+            ),
+            normalize=getattr(opts, "reward_count_normalize", False),
+            pool_trainings=getattr(opts, "reward_count_pool_trainings", False),
+            skip_first_sync_buckets=skip_eff,
+            keep_first_sync_buckets=keep_eff,
+            subset_label=subset_label,
+            ymax=getattr(opts, "reward_count_ymax", None),
+            per_fly=getattr(opts, "reward_count_per_fly", False),
+            trainings=getattr(opts, "reward_count_trainings", None),
+            min_segs_per_fly=1,  # reward-count produces 1 value per fly
+        )
+
+        rc_plotter = RewardCountHistogramPlotter(
+            vas=vas_for_hist, opts=opts, gls=gls, customizer=customizer, cfg=rc_cfg
+        )
+
+        out_npz = getattr(opts, "reward_count_export_hist", None)
+        if do_export:
+            rc_plotter.export_histograms_npz(out_npz)
+        if do_plot:
+            rc_plotter.plot_histograms()
 
     if va.circle and getattr(opts, "btw_rwd_dist_hist", False):
         # Use all flies by default
