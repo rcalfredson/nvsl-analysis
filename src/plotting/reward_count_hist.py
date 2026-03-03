@@ -9,6 +9,7 @@ import numpy as np
 
 from src.plotting.between_reward_segment_binning import sync_bucket_window
 from src.plotting.plot_customizer import PlotCustomizer
+from src.plotting.reward_count_collectors import RewardCountPerFlyCollector
 from src.plotting.training_metric_histogram import (
     TrainingMetricHistogramConfig,
     TrainingMetricHistogramPlotter,
@@ -20,7 +21,9 @@ class RewardCountHistogramConfig(TrainingMetricHistogramConfig):
     pass
 
 
-class RewardCountHistogramPlotter(TrainingMetricHistogramPlotter):
+class RewardCountHistogramPlotter(
+    TrainingMetricHistogramPlotter, RewardCountPerFlyCollector
+):
     """
     Histogram of total reward counts per fly, by training.
 
@@ -111,53 +114,8 @@ class RewardCountHistogramPlotter(TrainingMetricHistogramPlotter):
         return [np.asarray(xs, dtype=float) for xs in all_by_trn]
 
     def _collect_values_by_training_per_fly(self):
-        """
-        Return list length n_trainings; each element is a list of (unit_id, value)
-        where values is a 1D float array of raw values for that unit in that training.
-
-        For reward totals: each unit contributes exactly one value (count) per training,
-        so values is a length-1 array.
-        """
-        n_trn = self._n_trainings()
-        out: list[list[object]] = [[] for _ in range(n_trn)]
-
-        for va in self.vas:
-            if getattr(va, "_skipped", False):
-                continue
-            if va.trx[0].bad():
-                continue
-
-            trns = getattr(va, "trns", [])
-            for t_idx, trn in enumerate(trns[:n_trn]):
-
-                # Experimental fly only
-                for f in va.flies:
-                    if not va.noyc and f != 0:
-                        continue
-
-                    skip_first, keep_first = self._effective_sync_bucket_window()
-                    fi, df, n_buckets, complete = sync_bucket_window(
-                        va,
-                        trn,
-                        t_idx=t_idx,
-                        f=f,
-                        skip_first=skip_first,
-                        keep_first=keep_first,
-                        use_exclusion_mask=False,
-                    )
-                    if n_buckets <= 0:
-                        continue
-
-                    end = int(fi + n_buckets * df)
-
-                    on = va._getOn(trn, False, f=f)
-                    if on is None:
-                        continue
-
-                    on_win = self._filter_on_to_window(on, fi=fi, end=end)
-                    n_rewards = float(len(on_win))
-
-                    unit_id = self._unit_id(va, f=f)
-                    out[t_idx].append((unit_id, np.asarray([n_rewards], dtype=float)))
-
-        return out
+        out = self._collect_reward_totals_by_training_per_fly()  # (uid, float)
+        wrapped = []
+        for panel in out:
+            wrapped.append([(uid, np.asarray([v], dtype=float)) for uid, v in panel])
+        return wrapped

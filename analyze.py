@@ -112,6 +112,10 @@ from src.plotting.reward_count_hist import (
     RewardCountHistogramConfig,
     RewardCountHistogramPlotter,
 )
+from src.plotting.reward_count_totals import (
+    RewardCountTotalsConfig,
+    RewardCountTotalsPlotter,
+)
 from src.plotting.cross_fly_correlations import plot_cross_fly_correlations, SLIContext
 from src.plotting.individual_strategy_plotter import plot_individual_strategy_overlays
 from src.plotting.outside_circle_duration_plotter import OutsideCircleDurationPlotter
@@ -205,6 +209,7 @@ REWARD_PI_POST_DIFF_IMG_FILE = "imgs/reward_pi_post_diff__%s_min_buckets.png"
 DIST_BTWN_REWARDS_LABEL = "mean dist. between calc. rewards%s"
 DIST_BTWN_REWARDS_IMG_FILE = "imgs/btw_rwd_dists.png"
 REWARD_COUNT_HIST_IMG_FILE = "imgs/rwd_count_hist.png"
+REWARD_COUNT_TOTAL_BARS_IMG_FILE = "imgs/rwd_totals.png"
 BTW_RWD_COM_MAG_HIST_IMG_FILE = "imgs/btw_rwd_com_mag_hist.png"
 BTW_RWD_DIST_BINNED_COM_IMG_FILE = "imgs/btw_rwd_dist_binned_com.png"
 BTW_RWD_DIST_BINNED_DISTTRAV_IMG_FILE = "imgs/btw_rwd_dist_binned_disttrav.png"
@@ -1057,6 +1062,64 @@ g.add_argument(
     type=float,
     default=None,
     help="Set a fixed maximum for the y-axis in reward-count histograms.",
+)
+g.add_argument(
+    "--reward-count-total-bars",
+    action="store_true",
+    help=(
+        "Plot bar charts of mean total reward counts per fly, separated by training "
+        "(within the included sync-bucket window)."
+    ),
+)
+g.add_argument(
+    "--reward-count-total-export",
+    type=str,
+    default=None,
+    help=(
+        "Export per-fly total reward counts (one scalar per fly per training) "
+        "as a compressed .npz for later overlay plotting + t-tests across groups."
+    ),
+)
+g.add_argument(
+    "--reward-count-total-pool-trainings",
+    action="store_true",
+    help="Pool reward counts across trainings into a single bar instead of one bar per training.",
+)
+g.add_argument(
+    "--reward-count-total-trainings",
+    type=parse_training_selector,
+    default=None,
+    help='Subset of trainings to include (1-based). Examples: "1", "1,3", "2-4". Ignored if pooled.',
+)
+g.add_argument(
+    "--reward-count-total-top-sli",
+    action="store_true",
+    help=(
+        "Restrict reward-count totals to flies in the top SLI fraction "
+        "(see --best-worst-sli, --best-worst-fraction, and --best-worst-trn)."
+    ),
+)
+g.add_argument(
+    "--reward-count-total-ci",
+    action="store_true",
+    help="If set, compute a mean CI across flies (stored in export; optionally shown on plot).",
+)
+g.add_argument(
+    "--reward-count-total-ci-conf",
+    type=float,
+    default=0.95,
+    help="Confidence level for mean CI across flies (default: 0.95).",
+)
+g.add_argument(
+    "--reward-count-total-ymax",
+    type=float,
+    default=None,
+    help="Set a fixed maximum for the y-axis in reward-count total bar charts.",
+)
+g.add_argument(
+    "--reward-count-total-show-points",
+    action="store_true",
+    help="Overlay per-fly points on the bars (useful sanity check; not required for export).",
 )
 g.add_argument(
     "--btw-rwd-hexbin",
@@ -8051,6 +8114,53 @@ def postAnalyze(vas):
             rc_plotter.export_histograms_npz(out_npz)
         if do_plot:
             rc_plotter.plot_histograms()
+
+    do_total_plot = bool(getattr(opts, "reward_count_total_bars", False))
+    do_total_export = bool(getattr(opts, "reward_count_total_export", None))
+
+    if va.circle and (do_total_plot or do_total_export):
+        vas_for_totals = vas
+
+        if getattr(opts, "reward_count_total_top_sli", False):
+            if saved_top is None:
+                print(
+                    "[reward_count_total] WARNING: --reward-count-total-top-sli requested "
+                    "but no top-SLI group is available; falling back to all flies."
+                )
+            else:
+                vas_for_totals = [vas[i] for i in saved_top]
+                print(
+                    f"[reward_count_total] restricting to {len(vas_for_totals)} top-SLI flies"
+                )
+
+        subset_label = None
+        if getattr(opts, "reward_count_total_top_sli", False) and saved_top is not None:
+            frac = float(getattr(opts, "best_worst_fraction", 0.1))
+            subset_label = f"Restricted to top {100*frac:.1f}% SLI flies"
+
+        cfg = RewardCountTotalsConfig(
+            out_file=REWARD_COUNT_TOTAL_BARS_IMG_FILE,
+            pool_trainings=getattr(opts, "reward_count_total_pool_trainings", False),
+            trainings=getattr(opts, "reward_count_total_trainings", None),
+            skip_first_sync_buckets=skip_eff,
+            keep_first_sync_buckets=keep_eff,
+            subset_label=subset_label,
+            ymax=getattr(opts, "reward_count_total_ymax", None),
+            ci=getattr(opts, "reward_count_total_ci", False),
+            ci_conf=float(getattr(opts, "reward_count_total_ci_conf", 0.95)),
+            show_points=getattr(opts, "reward_count_total_show_points", False),
+            # min_segs_per_fly not needed: this is 1 scalar per fly
+        )
+
+        plotter = RewardCountTotalsPlotter(
+            vas=vas_for_totals, opts=opts, gls=gls, customizer=customizer, cfg=cfg
+        )
+
+        out_npz = getattr(opts, "reward_count_total_export", None)
+        if do_total_export:
+            plotter.export_npz(out_npz)
+        if do_total_plot:
+            plotter.plot_bars()
 
     if va.circle and getattr(opts, "btw_rwd_dist_hist", False):
         # Use all flies by default
