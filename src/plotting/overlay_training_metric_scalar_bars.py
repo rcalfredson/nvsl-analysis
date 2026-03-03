@@ -59,6 +59,69 @@ def _maybe_none_array(x) -> np.ndarray | None:
     return arr
 
 
+def _paired_filter_mats_all_panels(
+    mats: list[np.ndarray],
+    ids: list[np.ndarray],
+    *,
+    P: int,
+) -> tuple[list[np.ndarray], np.ndarray, np.ndarray]:
+    """
+    Build paired-only matrices across ALL panels:
+      - For each panel p, find IDs present in ALL groups (finite values in that column).
+      - Build a stable union of IDs that are paired in at least one panel.
+      - Output matrices are (N_union, P), with entries present only where the ID is paired for that panel.
+    Returns:
+      (mats_filt_per_group, union_ids, paired_n_per_panel)
+    """
+    # per-panel common ids
+    common_ids_by_panel: list[list[str]] = []
+    paired_n = np.zeros((P,), dtype=int)
+
+    for p in range(P):
+        sets = []
+        for M, I in zip(mats, ids):
+            col = np.asarray(M[:, p], float)
+            mask = np.isfinite(col)
+            keys = {str(i) for i in I[mask] if i is not None}
+            sets.append(keys)
+        common = set.intersection(*sets) if sets else set()
+        keys_sorted = sorted(common)
+        common_ids_by_panel.append(keys_sorted)
+        paired_n[p] = int(len(keys_sorted))
+
+    # stable union of ids paired in at least one panel
+    seen = set()
+    union_ids: list[str] = []
+    for keys in common_ids_by_panel:
+        for k in keys:
+            if k not in seen:
+                seen.add(k)
+                union_ids.append(k)
+    union_ids = sorted(union_ids)
+
+    # build filtered matrices
+    mats_filt: list[np.ndarray] = []
+    for M, I in zip(mats, ids):
+        idx_map = {str(i): ii for ii, i in enumerate(I) if i is not None}
+        out = np.full((len(union_ids), P), np.nan, dtype=float)
+        for p in range(P):
+            keys = set(common_ids_by_panel[p])
+            if not keys:
+                continue
+            for r, k in enumerate(union_ids):
+                if k not in keys:
+                    continue
+                ii = idx_map.get(k, None)
+                if ii is None:
+                    continue
+                v = float(M[ii, p])
+                if np.isfinite(v):
+                    out[r, p] = v
+        mats_filt.append(out)
+
+    return mats_filt, np.asarray(union_ids, dtype=object), paired_n
+
+
 def _mean_ci_from_util(x: np.ndarray, conf: float) -> tuple[float, float, float, int]:
     """
     Mean and t CI across finite x, via src.utils.util.meanConfInt.
@@ -159,6 +222,19 @@ def _legend_n_for_group(x: ExportedTrainingScalarBars) -> int | None:
     return None
 
 
+def _legend_n_from_paired(paired_n_per_panel: np.ndarray, P: int) -> int | None:
+    if paired_n_per_panel is None or P <= 0:
+        return None
+    if P == 1:
+        return int(paired_n_per_panel[0])
+
+    nz = paired_n_per_panel[(paired_n_per_panel > 0) & np.isfinite(paired_n_per_panel)]
+    if nz.size == 0:
+        return None
+    uniq = np.unique(nz)
+    return int(uniq[0]) if uniq.size == 1 else None
+
+
 def _panel_n_label(x: ExportedTrainingScalarBars, p_idx: int) -> str:
     if x.n_units_panel is not None and x.n_units_panel.shape[0] > p_idx:
         return str(int(x.n_units_panel[p_idx]))
@@ -200,43 +276,6 @@ def _group_union_matrix(
                 M[r, p] = v
 
     return M, np.asarray(union_ids, dtype=object)
-
-
-def _paired_filter_across_groups_for_panel(
-    mats: list[np.ndarray],
-    ids: list[np.ndarray],
-    *,
-    p_idx: int,
-) -> tuple[list[np.ndarray], np.ndarray]:
-    """
-    For a single panel index p_idx:
-      - Find IDs present (finite) in ALL groups
-      - Return a list of vectors (one per group) filtered to those IDs
-      - Return the common IDs as object array
-    """
-    sets = []
-    for M, I in zip(mats, ids):
-        col = np.asarray(M[:, p_idx], float)
-        mask = np.isfinite(col)
-        sets.append({str(i) for i in I[mask] if i is not None})
-
-    common = set.intersection(*sets) if sets else set()
-    common_ids = np.asarray(sorted(common), dtype=object)
-
-    out_vecs = []
-    for M, I in zip(mats, ids):
-        idx_map = {str(i): ii for ii, i in enumerate(I) if i is not None}
-        v = np.full((common_ids.size,), np.nan, float)
-        for k_idx, k in enumerate(common_ids):
-            ii = idx_map.get(str(k), None)
-            if ii is None:
-                continue
-            vv = float(M[ii, p_idx])
-            if np.isfinite(vv):
-                v[k_idx] = vv
-        out_vecs.append(v)
-
-    return out_vecs, common_ids
 
 
 def plot_overlays(
@@ -282,34 +321,42 @@ def plot_overlays(
     lo_plot = []
     hi_plot = []
 
+    xpos_by_group = []
+    hi_by_group = []
+    per_unit_by_group = []
+    per_unit_ids_by_group = []
+
     if stats and stats_paired:
-        paired_n_per_panel = np.zeros((P,), dtype=int)
-        for p in range(P):
-            vecs, common_ids = _paired_filter_across_groups_for_panel(
-                mats, ids_union, p_idx=p
-            )
-            paired_n_per_panel[p] = int(common_ids.size)
+        # Build paired-only matrices/IDs across all panels (so stats and plotting align)
+        mats_paired, ids_paired, paired_n_per_panel = _paired_filter_mats_all_panels(
+            mats, ids_union, P=P
+        )
 
-            for gi in range(G):
-                if p == 0:
-                    means_plot.append(np.full((P,), np.nan, float))
-                    lo_plot.append(np.full((P,), np.nan, float))
-                    hi_plot.append(np.full((P,), np.nan, float))
+        # Overwrite what stats sees (paired-only)
+        per_unit_by_group = [m for m in mats_paired]
+        per_unit_ids_by_group = [ids_paired for _ in mats_paired]
 
-                m, lo, hi, _n = _mean_ci_from_util(vecs[gi], conf=xs[0].ci_conf)
-                means_plot[gi][p] = m
-                lo_plot[gi][p] = lo
-                hi_plot[gi][p] = hi
+        # Recompute displayed mean/CI from the paired-only matrices
+        means_plot = []
+        lo_plot = []
+        hi_plot = []
+        for out in mats_paired:
+            m = np.full((P,), np.nan, float)
+            lo = np.full((P,), np.nan, float)
+            hi = np.full((P,), np.nan, float)
+            for p in range(P):
+                mm, l0, h0, _n = _mean_ci_from_util(out[:, p], conf=xs[0].ci_conf)
+                m[p] = mm
+                lo[p] = l0
+                hi[p] = h0
+            means_plot.append(m)
+            lo_plot.append(lo)
+            hi_plot.append(hi)
     else:
         for x in xs:
             means_plot.append(np.asarray(x.mean, float))
             lo_plot.append(np.asarray(x.ci_lo, float))
             hi_plot.append(np.asarray(x.ci_hi, float))
-
-    xpos_by_group = []
-    hi_by_group = []
-    per_unit_by_group = []
-    per_unit_ids_by_group = []
 
     for gi, x in enumerate(xs):
         xg = x_centers + offsets[gi]
@@ -317,7 +364,11 @@ def plot_overlays(
 
         y = np.asarray(means_plot[gi], float)
         y_plot = np.where(np.isfinite(y), y, 0.0)
-        n_leg = _legend_n_for_group(x)
+        # n_leg = _legend_n_for_group(x)
+        if stats and stats_paired and paired_n_per_panel is not None:
+            n_leg = _legend_n_from_paired(paired_n_per_panel, P)
+        else:
+            n_leg = _legend_n_for_group(x)
         label = f"{x.group} (n={n_leg})" if n_leg is not None else f"{x.group}"
         ax.bar(xg, y_plot, width=bar_w, align="center", label=label)
 
@@ -343,8 +394,9 @@ def plot_overlays(
         hi_by_group.append(np.where(np.isfinite(hi), hi, y))
 
         # stats payload
-        per_unit_by_group.append(mats[gi])  # (N_union, P)
-        per_unit_ids_by_group.append(ids_union[gi])  # (N_union,)
+        if not (stats and stats_paired):
+            per_unit_by_group.append(mats[gi])  # (N_union, P)
+            per_unit_ids_by_group.append(ids_union[gi])  # (N_union,)
 
     # ---- per-panel n labels (only when legend n is omitted) ----
     # Show per-panel n centered on each tick, above the tallest bar/CI in that panel.
