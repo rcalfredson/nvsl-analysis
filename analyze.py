@@ -150,6 +150,10 @@ from src.plotting.between_reward_distance_hist import (
     BetweenRewardDistanceHistogramPlotter,
     BetweenRewardDistanceHistogramConfig,
 )
+from src.plotting.btw_rwd_return_leg_dist_totals import (
+    ReturnLegDistTotalsConfig,
+    ReturnLegDistTotalsPlotter,
+)
 from src.plotting.between_reward_hexbin_density import (
     BetweenRewardHexbinConfig,
     HexBinGridSpec,
@@ -213,6 +217,9 @@ REWARD_COUNT_TOTAL_BARS_IMG_FILE = "imgs/rwd_totals.png"
 BTW_RWD_COM_MAG_HIST_IMG_FILE = "imgs/btw_rwd_com_mag_hist.png"
 BTW_RWD_DIST_BINNED_COM_IMG_FILE = "imgs/btw_rwd_dist_binned_com.png"
 BTW_RWD_DIST_BINNED_DISTTRAV_IMG_FILE = "imgs/btw_rwd_dist_binned_disttrav.png"
+BTW_RWD_RETURN_LEG_DIST_BARS_IMG_FILE = (
+    "imgs/btw_rwd_return_leg_dist_bars.png"
+)
 BTW_RWD_POLAR_IMG_FILE = "imgs/btw_rwd_polar.png"
 PSC_LABEL = "%% in circle\n(%s, %.1f-cm radius)"
 TURN_IMG_FILE = "imgs/%s%s_turn%s%s__%%s_min_buckets.png"
@@ -1121,6 +1128,107 @@ g.add_argument(
     action="store_true",
     help="Overlay per-fly points on the bars (useful sanity check; not required for export).",
 )
+# -------------------------------------------------------------------------
+# Mean return-leg (tail) distance traveled between rewards (scalar bars)
+# -------------------------------------------------------------------------
+g.add_argument(
+    "--btw-rwd-return-leg-dist",
+    action="store_true",
+    help=(
+        "Compute/plot mean return-leg (max→end, aka tail) distance traveled between rewards "
+        "as per-training scalar bars (within the included sync-bucket window)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-return-leg-dist-export",
+    type=str,
+    default=None,
+    help=(
+        "Export per-fly mean return-leg distance traveled between rewards "
+        "(one scalar per fly per training) as a compressed .npz for overlay plotting + stats."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-return-leg-dist-pool-trainings",
+    action="store_true",
+    help="Pool return-leg distances across trainings into a single bar instead of one bar per training.",
+)
+g.add_argument(
+    "--btw-rwd-return-leg-dist-trainings",
+    type=parse_training_selector,
+    default=None,
+    help='Subset of trainings to include (1-based). Examples: "1", "1,3", "2-4". Ignored if pooled.',
+)
+g.add_argument(
+    "--btw-rwd-return-leg-dist-top-sli",
+    action="store_true",
+    help=(
+        "Restrict return-leg distance metric to flies in the top SLI fraction "
+        "(see --best-worst-sli, --best-worst-fraction, and --best-worst-trn)."
+    ),
+)
+
+
+# --- sync-bucket windowing (mirrors other modules) ---
+g.add_argument(
+    "--btw-rwd-return-leg-dist-skip-first-sync-buckets",
+    type=int,
+    default=0,
+    help="Skip the first N sync buckets within each training before computing return-leg distances (default: 0).",
+)
+g.add_argument(
+    "--btw-rwd-return-leg-dist-keep-first-sync-buckets",
+    type=int,
+    default=0,
+    help=(
+        "Keep only the first N sync buckets within each training (after any skips). "
+        "0 means keep all remaining buckets (default: 0)."
+    ),
+)
+
+# --- frame inclusion options (mapped to shared generic names via sentinel block) ---
+g.add_argument(
+    "--btw-rwd-return-leg-dist-exclude-nonwalking-frames",
+    action="store_true",
+    help=(
+        "Exclude non-walking frames when computing distance traveled within each between-reward segment. "
+        "Uses the standard non-walk mask infrastructure."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-return-leg-dist-min-walk-frames",
+    type=int,
+    default=2,
+    help=(
+        "Minimum number of walking frames required to keep a segment's distance estimate "
+        "(after excluding non-walking frames). Default: 2."
+    ),
+)
+
+# --- plot/export cosmetics (scalar bars base) ---
+g.add_argument(
+    "--btw-rwd-return-leg-dist-ci",
+    action="store_true",
+    help="If set, compute a mean CI across flies (stored in export; optionally shown on plot).",
+)
+g.add_argument(
+    "--btw-rwd-return-leg-dist-ci-conf",
+    type=float,
+    default=0.95,
+    help="Confidence level for mean CI across flies (default: 0.95).",
+)
+g.add_argument(
+    "--btw-rwd-return-leg-dist-ymax",
+    type=float,
+    default=None,
+    help="Set a fixed maximum for the y-axis in return-leg distance scalar bar charts.",
+)
+g.add_argument(
+    "--btw-rwd-return-leg-dist-show-points",
+    action="store_true",
+    help="Overlay per-fly points on the bars (useful sanity check; not required for export).",
+)
+
 g.add_argument(
     "--btw-rwd-hexbin",
     action="store_true",
@@ -8161,6 +8269,103 @@ def postAnalyze(vas):
             plotter.export_npz(out_npz)
         if do_total_plot:
             plotter.plot_bars()
+
+    # ---------------- Between-reward return-leg distance (scalar bars) ----------------
+    do_plot = bool(getattr(opts, "btw_rwd_return_leg_dist", False))
+    do_export = bool(getattr(opts, "btw_rwd_return_leg_dist_export", None))
+
+    if va.circle and (do_plot or do_export):
+        vas_for_plot = vas
+
+        # Optional top-SLI restriction
+        if getattr(opts, "btw_rwd_return_leg_dist_top_sli", False):
+            if saved_top is None:
+                print(
+                    "[btw_rwd_return_leg_dist] WARNING: --btw-rwd-return-leg-dist-top-sli requested "
+                    "but no top-SLI group is available; falling back to all flies."
+                )
+            else:
+                vas_for_plot = [vas[i] for i in saved_top]
+                print(
+                    f"[btw_rwd_return_leg_dist] restricting to {len(vas_for_plot)} top-SLI flies"
+                )
+
+        subset_label = None
+        if (
+            getattr(opts, "btw_rwd_return_leg_dist_top_sli", False)
+            and saved_top is not None
+        ):
+            frac = float(getattr(opts, "best_worst_fraction", 0.1))
+            subset_label = f"Restricted to top {100*frac:.1f}% SLI flies"
+
+        # ---- map return-leg-specific nonwalk flags into the shared names ----
+        _sentinel = object()
+        name_excl = "btw_rwd_conditioned_exclude_nonwalking_frames"
+        name_minf = "btw_rwd_conditioned_min_walk_frames"
+
+        old_excl = getattr(opts, name_excl, _sentinel)
+        old_minf = getattr(opts, name_minf, _sentinel)
+
+        try:
+            setattr(
+                opts,
+                name_excl,
+                bool(
+                    getattr(
+                        opts,
+                        "btw_rwd_return_leg_dist_exclude_nonwalking_frames",
+                        False,
+                    )
+                ),
+            )
+            setattr(
+                opts,
+                name_minf,
+                int(getattr(opts, "btw_rwd_return_leg_dist_min_walk_frames", 2) or 2),
+            )
+
+            cfg = ReturnLegDistTotalsConfig(
+                out_file=BTW_RWD_RETURN_LEG_DIST_BARS_IMG_FILE,
+                pool_trainings=bool(
+                    getattr(opts, "btw_rwd_return_leg_dist_pool_trainings", False)
+                ),
+                trainings=getattr(opts, "btw_rwd_return_leg_dist_trainings", None),
+                skip_first_sync_buckets=_effective_skip_first_sync_buckets_opts_only(
+                    opts, "btw_rwd_return_leg_dist_skip_first_sync_buckets"
+                ),
+                keep_first_sync_buckets=_effective_keep_first_sync_buckets_opts_only(
+                    opts, "btw_rwd_return_leg_dist_keep_first_sync_buckets"
+                ),
+                subset_label=subset_label,
+                ymax=getattr(opts, "btw_rwd_return_leg_dist_ymax", None),
+                ci=bool(getattr(opts, "btw_rwd_return_leg_dist_ci", False)),
+                ci_conf=float(getattr(opts, "btw_rwd_return_leg_dist_ci_conf", 0.95)),
+                show_points=bool(
+                    getattr(opts, "btw_rwd_return_leg_dist_show_points", False)
+                ),
+            )
+
+            plotter = ReturnLegDistTotalsPlotter(
+                vas=vas_for_plot, opts=opts, gls=gls, customizer=customizer, cfg=cfg
+            )
+
+            out_npz = getattr(opts, "btw_rwd_return_leg_dist_export", None)
+            if do_export:
+                plotter.export_npz(str(out_npz))
+            if do_plot:
+                plotter.plot_bars()
+        finally:
+            if old_excl is _sentinel:
+                if hasattr(opts, name_excl):
+                    delattr(opts, name_excl)
+            else:
+                setattr(opts, name_excl, old_excl)
+
+            if old_minf is _sentinel:
+                if hasattr(opts, name_minf):
+                    delattr(opts, name_minf)
+            else:
+                setattr(opts, name_minf, old_minf)
 
     if va.circle and getattr(opts, "btw_rwd_dist_hist", False):
         # Use all flies by default
