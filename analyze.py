@@ -217,9 +217,7 @@ REWARD_COUNT_TOTAL_BARS_IMG_FILE = "imgs/rwd_totals.png"
 BTW_RWD_COM_MAG_HIST_IMG_FILE = "imgs/btw_rwd_com_mag_hist.png"
 BTW_RWD_DIST_BINNED_COM_IMG_FILE = "imgs/btw_rwd_dist_binned_com.png"
 BTW_RWD_DIST_BINNED_DISTTRAV_IMG_FILE = "imgs/btw_rwd_dist_binned_disttrav.png"
-BTW_RWD_RETURN_LEG_DIST_BARS_IMG_FILE = (
-    "imgs/btw_rwd_return_leg_dist_bars.png"
-)
+BTW_RWD_RETURN_LEG_DIST_BARS_IMG_FILE = "imgs/btw_rwd_return_leg_dist_bars.png"
 BTW_RWD_POLAR_IMG_FILE = "imgs/btw_rwd_polar.png"
 PSC_LABEL = "%% in circle\n(%s, %.1f-cm radius)"
 TURN_IMG_FILE = "imgs/%s%s_turn%s%s__%%s_min_buckets.png"
@@ -429,6 +427,16 @@ g.add_argument(
         "for the top and bottom 10%% of learners, selected based on their SLI "
         "score in the final sync bucket of training session 2, or the session "
         "specified by --best-worst-trn."
+    ),
+)
+g.add_argument(
+    "--best-worst-extreme",
+    type=str,
+    choices=("top", "bottom", "both"),
+    default="both",
+    help=(
+        "When using --best-worst-sli (and not --sli-set-op), choose which learners "
+        "to plot: 'top', 'bottom', or 'both' (default)."
     ),
 )
 g.add_argument(
@@ -7854,6 +7862,23 @@ def postAnalyze(vas):
             if using_sli_set_op and saved_custom_selection is not None:
                 should_plot = True
             if tp in ("rpid", "rpipd") and should_plot:
+                best_worst_extreme = getattr(opts, "best_worst_extreme", "both")
+                sli_extremes = None
+                sli_selected_arg = None
+                if (
+                    opts.best_worst_sli
+                    and not using_sli_set_op
+                    and selected_bottom is not None
+                    and selected_top is not None
+                ):
+                    sli_extremes = best_worst_extreme  # "top"|"bottom"|"both"
+                    if best_worst_extreme == "top":
+                        sli_selected_arg = ([], selected_top)
+                    elif best_worst_extreme == "bottom":
+                        sli_selected_arg = (selected_bottom, [])
+                    else:
+                        sli_selected_arg = (selected_bottom, selected_top)
+
                 plotRewards(
                     va,
                     tp,
@@ -7863,19 +7888,10 @@ def postAnalyze(vas):
                     gls,
                     vas,
                     save_auc_types=SAVE_AUC_TYPES,
-                    sli_extremes=(
-                        "both" if opts.best_worst_sli and not using_sli_set_op else None
-                    ),
+                    sli_extremes=sli_extremes,
                     sli_fraction=opts.best_worst_fraction,
                     sli_training_idx=sli_training_idx,
-                    sli_selected=(
-                        (
-                            selected_bottom,
-                            selected_top,
-                        )
-                        if (opts.best_worst_sli and selected_bottom is not None)
-                        else None
-                    ),
+                    sli_selected=sli_selected_arg,
                     num_trainings=opts.num_trainings,
                     sli_custom_selection=(
                         saved_custom_selection if using_sli_set_op else None
