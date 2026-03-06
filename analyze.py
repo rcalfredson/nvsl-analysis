@@ -7985,7 +7985,7 @@ def postAnalyze(vas):
                     vas,
                     save_auc_types=SAVE_AUC_TYPES,
                     sli_extremes=sli_extremes,
-                    sli_fraction=opts.best_worst_fraction,  # legacy compatibility
+                    sli_fraction=getattr(opts, "best_worst_fraction", None),  # legacy compatibility
                     sli_top_fraction=getattr(opts, "top_sli_fraction", None),
                     sli_bottom_fraction=getattr(opts, "bottom_sli_fraction", None),
                     sli_training_idx=sli_training_idx,
