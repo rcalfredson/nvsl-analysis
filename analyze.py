@@ -360,6 +360,10 @@ def _effective_keep_first_sync_buckets_opts_only(opts, *local_attr_names: str) -
     return min(gkeep, lkeep)
 
 
+def _tp_supports_sli_defined_subsets(tp: str) -> bool:
+    return tp in ("rpid", "rpipd", "commag", "commag_exp_min_yok")
+
+
 # - - -
 
 p = argparse.ArgumentParser(description="Analyze learning experiments.")
@@ -4911,7 +4915,7 @@ def plotRewards(
         sli_bottom_fraction = 0.1
 
     # --- Apply custom SLI-based subset, if requested ---
-    if sli_custom_selection is not None and tp in ("rpid", "rpipd"):
+    if sli_custom_selection is not None and _tp_supports_sli_defined_subsets(tp):
         selected = np.asarray(sli_custom_selection, dtype=int)
         a = a[selected, :, :]
         row_to_video_idx = row_to_video_idx[selected]
@@ -4934,7 +4938,7 @@ def plotRewards(
             gls = [sli_custom_label]
         ng = 1
 
-    if sli_extremes and tp in ("rpid", "rpipd"):
+    if sli_extremes and _tp_supports_sli_defined_subsets(tp):
         if sli_selected is not None:
             bottom, top = sli_selected
             bottom = [] if bottom is None else bottom
@@ -6015,11 +6019,7 @@ def plotRewards(
 
     if (
         sli_custom_selection is not None
-        and tp
-        in (
-            "rpid",
-            "rpipd",
-        )
+        and _tp_supports_sli_defined_subsets(tp)
         and getattr(opts, "sli_set_op", None)
     ):
         op_tag = opts.sli_set_op
@@ -7739,6 +7739,119 @@ def postAnalyze(vas):
 
     saved_bottom = saved_top = None
     saved_custom_selection = None
+    custom_label = None
+    sli_ser = None
+    reward_pi_first_bucket = None
+    sli_training_idx = getattr(opts, "best_worst_trn", 1) - 1
+    use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
+    skip_k = _effective_skip_first_sync_buckets_opts_only(opts)
+    keep_k = _effective_keep_first_sync_buckets_opts_only(opts)
+
+    raw_sel_skip = getattr(opts, "sli_select_skip_first_sync_buckets", None)
+    raw_sel_keep = getattr(opts, "sli_select_keep_first_sync_buckets", None)
+    sel_skip_k = 0 if raw_sel_skip is None else max(0, int(raw_sel_skip))
+    sel_keep_k = 0 if raw_sel_keep is None else max(0, int(raw_sel_keep))
+
+    if (opts.best_worst_sli or using_sli_set_op) and (not va.noyc) and (not va.choice):
+        tp_sli, calc_sli = typeCalc("rpid")
+        trns_sli = trnsForType(va, tp_sli)
+        if trns_sli:
+            a_sli = np.array([vaVarForType(va_, tp_sli, calc_sli) for va_ in vas])
+            a_sli = a_sli.reshape((len(vas), len(trns_sli), -1))
+
+            raw_perf = a_sli.copy()
+            n_videos = len(vas)
+            n_trains = len(trns_sli)
+            n_flies = len(va.flies)
+            nb_sli = raw_perf.shape[2] // n_flies
+            raw_4 = raw_perf.reshape((n_videos, n_trains, n_flies, nb_sli))
+
+            sli_ser = compute_sli_per_fly(
+                raw_4,
+                sli_training_idx,
+                bucket_idx=None,
+                average_over_buckets=use_training_mean,
+                skip_first_sync_buckets=sel_skip_k,
+                keep_first_sync_buckets=sel_keep_k,
+            )
+
+            if opts.best_worst_sli:
+                top_fraction = getattr(opts, "top_sli_fraction", None)
+                bottom_fraction = getattr(opts, "bottom_sli_fraction", None)
+
+                saved_bottom, saved_top = select_fractional_groups(
+                    sli_ser,
+                    top_fraction=top_fraction,
+                    bottom_fraction=bottom_fraction,
+                )
+
+                if saved_bottom is not None and saved_top is not None:
+                    overlap = sorted(set(saved_bottom) & set(saved_top))
+                    if overlap:
+                        print(
+                            "[SLI] WARNING: top and bottom selections overlap for "
+                            f"{len(overlap)} flies "
+                            f"(top_fraction={top_fraction}, "
+                            f"bottom_fraction={bottom_fraction})."
+                        )
+
+            if using_sli_set_op:
+                frac = getattr(opts, "best_worst_fraction", 0.1)
+
+                def _parse_spec(name: str) -> Optional[SLISelectionSpec]:
+                    val = getattr(opts, name, None)
+                    if not val:
+                        return None
+                    try:
+                        trn_str, bkt_str = val.split(",")
+                        trn = int(trn_str) - 1
+                        bkt = int(bkt_str) - 1
+                        return SLISelectionSpec(
+                            training_idx=trn,
+                            bucket_idx=bkt,
+                            average_over_buckets=use_training_mean,
+                        )
+                    except Exception:
+                        print(f"[SLI] WARNING: could not parse --{name}='{val}'")
+                        return None
+
+                pos_spec = _parse_spec("sli_pos")
+                neg_spec = _parse_spec("sli_neg")
+
+                if pos_spec is None:
+                    print(
+                        "[SLI] WARNING: --sli-set-op used without --sli-pos; "
+                        "ignoring composite selection."
+                    )
+                else:
+                    groups = compute_sli_set_groups(
+                        raw_4,
+                        pos_spec=pos_spec,
+                        neg_spec=neg_spec,
+                        fraction=frac,
+                        skip_first_sync_buckets=sel_skip_k,
+                        keep_first_sync_buckets=sel_keep_k,
+                    )
+                    op = opts.sli_set_op
+                    if op == "pos":
+                        saved_custom_selection = groups.get("pos_top", [])
+                        custom_label = "Positive SLI selection"
+                    elif op == "neg":
+                        saved_custom_selection = groups.get("neg_top", [])
+                        custom_label = "Negative SLI selection"
+                    elif op == "pos_minus_neg":
+                        saved_custom_selection = groups.get("pos_minus_neg", [])
+                        custom_label = "Pos − Neg (top)"
+                    elif op == "neg_minus_pos":
+                        saved_custom_selection = groups.get("neg_minus_pos", [])
+                        custom_label = "Neg − Pos (top)"
+                    elif op == "intersect":
+                        saved_custom_selection = groups.get("intersection", [])
+                        custom_label = "Intersection (top)"
+                    elif op == "union":
+                        saved_custom_selection = groups.get("union", [])
+                        custom_label = "Union (top)"
+
     for tc in tcs:
         tp, calc = typeCalc(tc)
         hdr = headerForType(va, tp, calc)
@@ -7778,29 +7891,7 @@ def postAnalyze(vas):
                 ]
             )
 
-            # if the user asked for best/worst SLI, pick them once during TRAINING (rpid)
-            sli_ser = None
-            sli_training_idx = getattr(opts, "best_worst_trn", 1) - 1
-            use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
-            skip_k = _effective_skip_first_sync_buckets_opts_only(opts)
-            keep_k = _effective_keep_first_sync_buckets_opts_only(opts)
-
-            raw_sel_skip = getattr(opts, "sli_select_skip_first_sync_buckets", None)
-            raw_sel_keep = getattr(opts, "sli_select_keep_first_sync_buckets", None)
-
-            sel_skip_k = 0 if raw_sel_skip is None else max(0, int(raw_sel_skip))
-            sel_keep_k = 0 if raw_sel_keep is None else max(0, int(raw_sel_keep))
-
             if tp == "rpid":
-                sli_ser = compute_sli_per_fly(
-                    raw_4,
-                    sli_training_idx,
-                    bucket_idx=None,
-                    average_over_buckets=use_training_mean,
-                    skip_first_sync_buckets=sel_skip_k,
-                    keep_first_sync_buckets=sel_keep_k,
-                )
-
                 # Reward index (exp − yoked) for T1, SB1.
                 reward_pi_first_bucket = None
                 try:
@@ -7827,76 +7918,7 @@ def postAnalyze(vas):
                         f"T1, bucket 1: {e}"
                     )
 
-            # --- Compute composite SLI group if requested ---
-            if tp == "rpid" and using_sli_set_op:
-                composite_group = None
-                frac = getattr(opts, "best_worst_fraction", 0.1)
-                use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
-
-                def _parse_spec(name: str) -> Optional[SLISelectionSpec]:
-
-                    val = getattr(opts, name, None)
-                    if not val:
-                        return None
-                    try:
-                        trn_str, bkt_str = val.split(",")
-                        trn = int(trn_str) - 1  # 0-based
-                        bkt = int(bkt_str) - 1  # 0-based
-                        return SLISelectionSpec(
-                            training_idx=trn,
-                            bucket_idx=bkt,
-                            average_over_buckets=use_training_mean,
-                        )
-                    except Exception:
-                        print(f"[SLI] WARNING: could not parse --{name}='{val}'")
-                        return None
-
-                pos_spec = _parse_spec("sli_pos")
-                neg_spec = _parse_spec("sli_neg")
-
-                if pos_spec is None:
-                    print(
-                        "[SLI] WARNING: --sli-set-op used without --sli-pos; "
-                        "ignoring composite selection."
-                    )
-                else:
-                    groups = compute_sli_set_groups(
-                        raw_4,
-                        pos_spec=pos_spec,
-                        neg_spec=neg_spec,
-                        fraction=frac,
-                        skip_first_sync_buckets=sel_skip_k,
-                        keep_first_sync_buckets=sel_keep_k,
-                    )
-                    op = opts.sli_set_op
-                    if op == "pos":
-                        composite_group = groups.get("pos_top", [])
-                        label = "Positive SLI selection"
-                    elif op == "neg":
-                        composite_group = groups.get("neg_top", [])
-                        label = "Negative SLI selection"
-                    elif op == "pos_minus_neg":
-                        composite_group = groups.get("pos_minus_neg", [])
-                        label = "Pos − Neg (top)"
-                    elif op == "neg_minus_pos":
-                        composite_group = groups.get("neg_minus_pos", [])
-                        label = "Neg − Pos (top)"
-                    elif op == "intersect":
-                        composite_group = groups.get("intersection", [])
-                        label = "Intersection (top)"
-                    elif op == "union":
-                        composite_group = groups.get("union", [])
-                        label = "Union (top)"
-                    else:
-                        composite_group = None
-                        label = None
-
-                    if composite_group is not None:
-                        saved_custom_selection = composite_group
-                        custom_label = label
-                    else:
-                        custom_label = None
-            elif tp == "rpipd" and using_sli_set_op:
+            if using_sli_set_op and _tp_supports_sli_defined_subsets(tp):
                 composite_group = saved_custom_selection
             else:
                 composite_group = None
@@ -7906,40 +7928,13 @@ def postAnalyze(vas):
                 and composite_group is not None
                 and tp == "rpid"
             ):
+                op = opts.sli_set_op
                 log_fly_group("SLI_CUSTOM_" + op.upper(), composite_group, vas)
 
-            # Create SLI groups based on best/worst percentiles
+            # Fetch SLI groups based on best/worst percentiles
             selected_bottom = selected_top = None
-            if opts.best_worst_sli:
-                if tp == "rpid":
-                    top_fraction = getattr(opts, "top_sli_fraction", None)
-                    bottom_fraction = getattr(opts, "bottom_sli_fraction", None)
-
-                    # *training* period: compute bottom/top groups independently
-                    selected_bottom, selected_top = select_fractional_groups(
-                        sli_ser,
-                        top_fraction=top_fraction,
-                        bottom_fraction=bottom_fraction,
-                    )
-
-                    # Report overlap if it occurs; this is allowed with asymmetric fractions.
-                    if selected_bottom is not None and selected_top is not None:
-                        overlap = sorted(set(selected_bottom) & set(selected_top))
-                        if overlap:
-                            print(
-                                "[SLI] WARNING: top and bottom selections overlap for "
-                                f"{len(overlap)} flies "
-                                f"(top_fraction={top_fraction}, "
-                                f"bottom_fraction={bottom_fraction})."
-                            )
-
-                    # save them so we can reuse for the post period
-                    saved_bottom, saved_top = selected_bottom, selected_top
-                elif tp == "rpipd" and (
-                    saved_bottom is not None or saved_top is not None
-                ):
-                    # *post* period: reuse the exact same flies we picked above
-                    selected_bottom, selected_top = saved_bottom, saved_top
+            if opts.best_worst_sli and _tp_supports_sli_defined_subsets(tp):
+                selected_bottom, selected_top = saved_bottom, saved_top
 
             # now call the plotting function for either training or post
             should_plot = False
@@ -7954,7 +7949,7 @@ def postAnalyze(vas):
 
             if using_sli_set_op and saved_custom_selection is not None:
                 should_plot = True
-            if tp in ("rpid", "rpipd") and should_plot:
+            if _tp_supports_sli_defined_subsets(tp) and should_plot:
                 best_worst_extreme = getattr(opts, "best_worst_extreme", "both")
                 sli_extremes = None
                 sli_selected_arg = None
@@ -7985,7 +7980,9 @@ def postAnalyze(vas):
                     vas,
                     save_auc_types=SAVE_AUC_TYPES,
                     sli_extremes=sli_extremes,
-                    sli_fraction=getattr(opts, "best_worst_fraction", None),  # legacy compatibility
+                    sli_fraction=getattr(
+                        opts, "best_worst_fraction", None
+                    ),  # legacy compatibility
                     sli_top_fraction=getattr(opts, "top_sli_fraction", None),
                     sli_bottom_fraction=getattr(opts, "bottom_sli_fraction", None),
                     sli_training_idx=sli_training_idx,
