@@ -201,7 +201,7 @@ CONTACT_EVENT_PCT_TIME_IMG_FILE = "imgs/%s_%s_pct_time__%%s_min_buckets.png"
 CONTACT_EVENT_DURATION_IMG_FILE = "imgs/%s_%s_contact_duration__%%s_min_buckets.png"
 DIST_BTWN_REWARDS_FILE = "imgs/dist_btwn_%srewards__%%s_min_buckets.png"
 MED_DIST_TO_REWARD_FILE = "imgs/med_dist_to_rwd_ctr%s__%%s_min_buckets.png"
-COM_MAG_TO_REWARD_FILE = "imgs/com_mag_to_reward%s__%%s_min_buckets.png"
+COM_DIST_TO_REWARD_FILE = "imgs/com_dist_to_reward%s__%%s_min_buckets.png"
 DIST_BTWN_REWARDS_HIST_FILE = "imgs/trajectory_len_dist%s.png"
 MAX_DIST_REWARDS_FILE = "imgs/max_dist_from_center__%s_min_buckets.png"
 CONTACTLESS_RWDS_IMG_FILE = "imgs/contactless_rewards_%s__%%s_min_buckets.png"
@@ -5946,8 +5946,8 @@ def plotRewards(
         rrd_mean_dist=RRD_MEAN_DIST_IMG_FILE,
         meddist=MED_DIST_TO_REWARD_FILE % "",
         meddist_exp_min_yok=MED_DIST_TO_REWARD_FILE % "_exp_min_yok",
-        commag=COM_MAG_TO_REWARD_FILE % "",
-        commag_exp_min_yok=COM_MAG_TO_REWARD_FILE % "_exp_min_yok",
+        commag=COM_DIST_TO_REWARD_FILE % "",
+        commag_exp_min_yok=COM_DIST_TO_REWARD_FILE % "_exp_min_yok",
     )
 
     if opts.turn:
@@ -7918,81 +7918,81 @@ def postAnalyze(vas):
                         f"T1, bucket 1: {e}"
                     )
 
-            if using_sli_set_op and _tp_supports_sli_defined_subsets(tp):
-                composite_group = saved_custom_selection
+        if using_sli_set_op and _tp_supports_sli_defined_subsets(tp):
+            composite_group = saved_custom_selection
+        else:
+            composite_group = None
+
+        if (
+            getattr(opts, "log_fly_grps", False)
+            and composite_group is not None
+            and tp == "rpid"
+        ):
+            op = opts.sli_set_op
+            log_fly_group("SLI_CUSTOM_" + op.upper(), composite_group, vas)
+
+        # Fetch SLI groups based on best/worst percentiles
+        selected_bottom = selected_top = None
+        if opts.best_worst_sli and _tp_supports_sli_defined_subsets(tp):
+            selected_bottom, selected_top = saved_bottom, saved_top
+
+        # now call the plotting function for either training or post
+        should_plot = False
+        if opts.best_worst_sli:
+            best_worst_extreme = getattr(opts, "best_worst_extreme", "both")
+            if best_worst_extreme == "top":
+                should_plot = bool(selected_top)
+            elif best_worst_extreme == "bottom":
+                should_plot = bool(selected_bottom)
             else:
-                composite_group = None
+                should_plot = bool(selected_bottom) or bool(selected_top)
 
+        if using_sli_set_op and saved_custom_selection is not None:
+            should_plot = True
+        if _tp_supports_sli_defined_subsets(tp) and should_plot:
+            best_worst_extreme = getattr(opts, "best_worst_extreme", "both")
+            sli_extremes = None
+            sli_selected_arg = None
             if (
-                getattr(opts, "log_fly_grps", False)
-                and composite_group is not None
-                and tp == "rpid"
+                opts.best_worst_sli
+                and not using_sli_set_op
+                and (selected_bottom is not None or selected_top is not None)
             ):
-                op = opts.sli_set_op
-                log_fly_group("SLI_CUSTOM_" + op.upper(), composite_group, vas)
-
-            # Fetch SLI groups based on best/worst percentiles
-            selected_bottom = selected_top = None
-            if opts.best_worst_sli and _tp_supports_sli_defined_subsets(tp):
-                selected_bottom, selected_top = saved_bottom, saved_top
-
-            # now call the plotting function for either training or post
-            should_plot = False
-            if opts.best_worst_sli:
-                best_worst_extreme = getattr(opts, "best_worst_extreme", "both")
+                sli_extremes = best_worst_extreme  # "top"|"bottom"|"both"
                 if best_worst_extreme == "top":
-                    should_plot = bool(selected_top)
+                    sli_selected_arg = ([], selected_top or [])
                 elif best_worst_extreme == "bottom":
-                    should_plot = bool(selected_bottom)
+                    sli_selected_arg = (selected_bottom or [], [])
                 else:
-                    should_plot = bool(selected_bottom) or bool(selected_top)
+                    sli_selected_arg = (selected_bottom or [], selected_top or [])
 
-            if using_sli_set_op and saved_custom_selection is not None:
-                should_plot = True
-            if _tp_supports_sli_defined_subsets(tp) and should_plot:
-                best_worst_extreme = getattr(opts, "best_worst_extreme", "both")
-                sli_extremes = None
+            if sli_selected_arg == ([], []):
                 sli_selected_arg = None
-                if (
-                    opts.best_worst_sli
-                    and not using_sli_set_op
-                    and (selected_bottom is not None or selected_top is not None)
-                ):
-                    sli_extremes = best_worst_extreme  # "top"|"bottom"|"both"
-                    if best_worst_extreme == "top":
-                        sli_selected_arg = ([], selected_top or [])
-                    elif best_worst_extreme == "bottom":
-                        sli_selected_arg = (selected_bottom or [], [])
-                    else:
-                        sli_selected_arg = (selected_bottom or [], selected_top or [])
+                sli_extremes = None
 
-                if sli_selected_arg == ([], []):
-                    sli_selected_arg = None
-                    sli_extremes = None
-
-                plotRewards(
-                    va,
-                    tp,
-                    a,
-                    trns,
-                    gis,
-                    gls,
-                    vas,
-                    save_auc_types=SAVE_AUC_TYPES,
-                    sli_extremes=sli_extremes,
-                    sli_fraction=getattr(
-                        opts, "best_worst_fraction", None
-                    ),  # legacy compatibility
-                    sli_top_fraction=getattr(opts, "top_sli_fraction", None),
-                    sli_bottom_fraction=getattr(opts, "bottom_sli_fraction", None),
-                    sli_training_idx=sli_training_idx,
-                    sli_selected=sli_selected_arg,
-                    num_trainings=opts.num_trainings,
-                    sli_custom_selection=(
-                        saved_custom_selection if using_sli_set_op else None
-                    ),
-                    sli_custom_label=(custom_label if using_sli_set_op else None),
-                )
+            plotRewards(
+                va,
+                tp,
+                a,
+                trns,
+                gis,
+                gls,
+                vas,
+                save_auc_types=SAVE_AUC_TYPES,
+                sli_extremes=sli_extremes,
+                sli_fraction=getattr(
+                    opts, "best_worst_fraction", None
+                ),  # legacy compatibility
+                sli_top_fraction=getattr(opts, "top_sli_fraction", None),
+                sli_bottom_fraction=getattr(opts, "bottom_sli_fraction", None),
+                sli_training_idx=sli_training_idx,
+                sli_selected=sli_selected_arg,
+                num_trainings=opts.num_trainings,
+                sli_custom_selection=(
+                    saved_custom_selection if using_sli_set_op else None
+                ),
+                sli_custom_label=(custom_label if using_sli_set_op else None),
+            )
             if (
                 tp == "rpid"
                 and opts.best_worst_sli
