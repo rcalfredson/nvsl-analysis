@@ -124,7 +124,7 @@ from src.plotting.plot import plotAngularVelocity, plotTurnRadiusHist
 from src.plotting.plot_customizer import PlotCustomizer
 from src.analysis.sli_tools import (
     compute_sli_per_fly,
-    select_extremes,
+    select_fractional_groups,
     SLISelectionSpec,
     compute_sli_set_groups,
 )
@@ -424,9 +424,11 @@ g.add_argument(
     action="store_true",
     help=(
         "Plot the SLI (Spatial Learning Index) across the full experiment "
-        "for the top and bottom 10%% of learners, selected based on their SLI "
-        "score in the final sync bucket of training session 2, or the session "
-        "specified by --best-worst-trn."
+        "for SLI-selected learner subsets. By default, this uses the top and "
+        "bottom 10%% of learners, selected based on their SLI score in the final "
+        "sync bucket of training session 2, or the session specified by "
+        "--best-worst-trn. Use --top-sli-fraction and/or --bottom-sli-fraction "
+        "to customize the selected fractions."
     ),
 )
 g.add_argument(
@@ -435,8 +437,8 @@ g.add_argument(
     choices=("top", "bottom", "both"),
     default="both",
     help=(
-        "When using --best-worst-sli (and not --sli-set-op), choose which learners "
-        "to plot: 'top', 'bottom', or 'both' (default)."
+        "When using --best-worst-sli (and not --sli-set-op), choose which learner "
+        "subset(s) to plot: 'top', 'bottom', or 'both' (default)."
     ),
 )
 g.add_argument(
@@ -466,6 +468,24 @@ g.add_argument(
     default=argparse.SUPPRESS,
     help="Fraction of flies to use for SLI cutoff when plotting best/worst learners."
     " Default: 0.1.",
+)
+g.add_argument(
+    "--top-sli-fraction",
+    type=float,
+    default=argparse.SUPPRESS,
+    help=(
+        "Fraction of flies to include in the top-SLI group. "
+        "Overrides --best-worst-fraction for the top group only."
+    ),
+)
+g.add_argument(
+    "--bottom-sli-fraction",
+    type=float,
+    default=argparse.SUPPRESS,
+    help=(
+        "Fraction of flies to include in the bottom-SLI group. "
+        "Overrides --best-worst-fraction for the bottom group only."
+    ),
 )
 g.add_argument(
     "--sli-pos",
@@ -945,6 +965,18 @@ g.add_argument(
         "When plotting between-reward distance histograms, restrict to flies "
         "in the top SLI fraction (see --best-worst-sli, --best-worst-fraction, "
         "and --best-worst-trn). By default, all flies are included."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-return-leg-dist-sli-group",
+    type=str,
+    choices=("top", "bottom"),
+    default=None,
+    help=(
+        "Restrict between-reward return-leg distance plotting/export to a selected "
+        "SLI subset: 'top' or 'bottom'. Uses the SLI selection configured by "
+        "--best-worst-sli together with --best-worst-fraction and/or the side-specific "
+        "flags --top-sli-fraction and --bottom-sli-fraction."
     ),
 )
 g.add_argument(
@@ -4789,7 +4821,9 @@ def plotRewards(
     vas=None,
     save_auc_types=None,
     sli_extremes=None,  # None | "top" | "bottom" | "both"
-    sli_fraction=0.1,  #  fraction of flies to select
+    sli_fraction=None,  # legacy shared fraction; retained for compatibility
+    sli_top_fraction=None,  # Optional[float]
+    sli_bottom_fraction=None,  # Optional[float]
     sli_training_idx=None,  # which training index to compute extremes
     sli_selected=None,  # optional precomputed (bottom, top)
     num_trainings=None,  # optionally limit number of trainings shown (e.g., 2)
@@ -4825,6 +4859,17 @@ def plotRewards(
         - ValueError: If any of the input parameters are invalid or not in the expected format.
         - RuntimeError: If there's an issue generating the plot.
     """
+
+    def _pct_label(prefix, frac):
+        if frac is None:
+            return prefix
+        return f"{prefix} {int(round(frac * 100))}%"
+
+    def _pct_tag(frac):
+        if frac is None:
+            return ""
+        return str(int(round(frac * 100)))
+
     nrp = tp == "nrpp"
     rpi, rpip = tp in ("rpi", "rpip"), tp in ("rpip", "rpipd")
     r_diff = tp in ("rpid", "rpipd")
@@ -4855,6 +4900,16 @@ def plotRewards(
     fs, ng = fliesForType(va, tp), gis.max() + 1
     row_to_video_idx = np.arange(a.shape[0])
 
+    # Normalize SLI fraction metadata for labeling / filenames.
+    # New-style side-specific fractions override the legacy shared fraction.
+    if sli_top_fraction is None:
+        sli_top_fraction = sli_fraction
+    if sli_bottom_fraction is None:
+        sli_bottom_fraction = sli_fraction
+    if sli_top_fraction is None and sli_bottom_fraction is None and sli_extremes:
+        sli_top_fraction = 0.1
+        sli_bottom_fraction = 0.1
+
     # --- Apply custom SLI-based subset, if requested ---
     if sli_custom_selection is not None and tp in ("rpid", "rpipd"):
         selected = np.asarray(sli_custom_selection, dtype=int)
@@ -4882,6 +4937,8 @@ def plotRewards(
     if sli_extremes and tp in ("rpid", "rpipd"):
         if sli_selected is not None:
             bottom, top = sli_selected
+            bottom = [] if bottom is None else bottom
+            top = [] if top is None else top
         else:
             # need raw_4 shaped array (video, training, fly, bucket)
             use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
@@ -4898,17 +4955,29 @@ def plotRewards(
                 average_over_buckets=use_training_mean,
                 skip_first_sync_buckets=skip_k,
             )
-            bottom, top = select_extremes(sli_ser, sli_fraction)
+            bottom, top = select_fractional_groups(
+                sli_ser,
+                top_fraction=sli_top_fraction,
+                bottom_fraction=sli_bottom_fraction,
+            )
+            bottom = [] if bottom is None else bottom
+            top = [] if top is None else top
 
         if sli_extremes == "bottom":
             selected = bottom
-            gls = [f"Bottom {int(sli_fraction*100)}%"]
+            selected_groups = [0] * len(selected)
+            gls = [_pct_label("Bottom", sli_bottom_fraction)]
         elif sli_extremes == "top":
             selected = top
-            gls = [f"Top {int(sli_fraction*100)}%"]
+            selected_groups = [0] * len(selected)
+            gls = [_pct_label("Top", sli_top_fraction)]
         elif sli_extremes == "both":
             selected = bottom + top
-            gls = [f"Bottom {int(sli_fraction*100)}%", f"Top {int(sli_fraction*100)}%"]
+            selected_groups = ([0] * len(bottom)) + ([1] * len(top))
+            gls = [
+                _pct_label("Bottom", sli_bottom_fraction),
+                _pct_label("Top", sli_top_fraction),
+            ]
         if tp == "rpid" and sli_extremes and getattr(opts, "log_fly_grps", False):
             log_fly_group("SLI_BOTTOM_LEARNERS", bottom, vas)
             log_fly_group("SLI_TOP_LEARNERS", top, vas)
@@ -4916,11 +4985,10 @@ def plotRewards(
         selected = np.asarray(selected, dtype=int)
         a = a[selected, :, :]
         row_to_video_idx = row_to_video_idx[selected]
-        gis = (
-            np.array([0 if vid in bottom else 1 for vid in selected])
-            if sli_extremes == "both"
-            else np.zeros(len(selected), dtype=int)
-        )
+        if sli_extremes == "both":
+            gis = np.asarray(selected_groups, dtype=int)
+        else:
+            gis = np.zeros(len(selected), dtype=int)
         ng = len(gls)
 
     nf = len(fs)
@@ -5398,13 +5466,21 @@ def plotRewards(
                                     for local_idx, row_idx in enumerate(vis):
                                         original_vid_idx = row_to_video_idx[row_idx]
                                         va_i = vas[original_vid_idx]
-                                        va_i.saved_auc.setdefault(tp, []).append(
-                                            {
-                                                "training": i,
-                                                "exp": exp_aucs[local_idx],
-                                                "ctrl": ctrl_aucs[local_idx],
-                                            }
-                                        )
+                                        record = {
+                                            "training": i,
+                                            "exp": exp_aucs[local_idx],
+                                            "ctrl": ctrl_aucs[local_idx],
+                                        }
+
+                                        if sli_extremes == "both":
+                                            record["group"] = (
+                                                "bottom" if g == 0 else "top"
+                                            )
+                                        elif sli_extremes == "top":
+                                            record["group"] = "top"
+                                        elif sli_extremes == "bottom":
+                                            record["group"] = "bottom"
+                                        va_i.saved_auc.setdefault(tp, []).append(record)
                             if auc_to_csv and cond2:
                                 if diff_tp and i == 1:
                                     pass
@@ -5928,10 +6004,14 @@ def plotRewards(
     base, ext = os.path.splitext(imgFiles[tp] % blf)
     suffix_parts = []
     if sli_extremes:
-        ext_tag = sli_extremes
-        if sli_extremes == "both":
-            ext_tag = "top_bottom"
-        suffix_parts.append(f"_{ext_tag}{int(sli_fraction * 100)}")
+        if sli_extremes == "bottom":
+            suffix_parts.append(f"_bottom{_pct_tag(sli_bottom_fraction)}")
+        elif sli_extremes == "top":
+            suffix_parts.append(f"_top{_pct_tag(sli_top_fraction)}")
+        elif sli_extremes == "both":
+            suffix_parts.append(
+                f"_bottom{_pct_tag(sli_bottom_fraction)}_top{_pct_tag(sli_top_fraction)}"
+            )
 
     if (
         sli_custom_selection is not None
@@ -7832,32 +7912,45 @@ def postAnalyze(vas):
             selected_bottom = selected_top = None
             if opts.best_worst_sli:
                 if tp == "rpid":
-                    # How many flies do we actually have?
-                    n_flies = len(sli_ser)
-                    # max fraction per group so that bottom/top can be disjoint
-                    max_fraction_non_overlap = (n_flies // 2) / float(n_flies)
-                    fraction = opts.best_worst_fraction
-                    if fraction > max_fraction_non_overlap:
-                        print(
-                            f"[Warning] Requested best_worst_fraction={fraction:.3f} "
-                            f"is too large for {n_flies} flies. "
-                            f"Clamping to {max_fraction_non_overlap:.3f} to avoid overlap."
-                        )
-                        fraction = max_fraction_non_overlap
-                    # *training* period: actually compute the extremes
-                    selected_bottom, selected_top = select_extremes(
-                        sli_ser, fraction=fraction
+                    top_fraction = getattr(opts, "top_sli_fraction", None)
+                    bottom_fraction = getattr(opts, "bottom_sli_fraction", None)
+
+                    # *training* period: compute bottom/top groups independently
+                    selected_bottom, selected_top = select_fractional_groups(
+                        sli_ser,
+                        top_fraction=top_fraction,
+                        bottom_fraction=bottom_fraction,
                     )
+
+                    # Report overlap if it occurs; this is allowed with asymmetric fractions.
+                    if selected_bottom is not None and selected_top is not None:
+                        overlap = sorted(set(selected_bottom) & set(selected_top))
+                        if overlap:
+                            print(
+                                "[SLI] WARNING: top and bottom selections overlap for "
+                                f"{len(overlap)} flies "
+                                f"(top_fraction={top_fraction}, "
+                                f"bottom_fraction={bottom_fraction})."
+                            )
+
                     # save them so we can reuse for the post period
                     saved_bottom, saved_top = selected_bottom, selected_top
-                elif tp == "rpipd" and saved_bottom is not None:
+                elif tp == "rpipd" and (
+                    saved_bottom is not None or saved_top is not None
+                ):
                     # *post* period: reuse the exact same flies we picked above
                     selected_bottom, selected_top = saved_bottom, saved_top
 
             # now call the plotting function for either training or post
             should_plot = False
-            if opts.best_worst_sli and selected_bottom is not None:
-                should_plot = True
+            if opts.best_worst_sli:
+                best_worst_extreme = getattr(opts, "best_worst_extreme", "both")
+                if best_worst_extreme == "top":
+                    should_plot = bool(selected_top)
+                elif best_worst_extreme == "bottom":
+                    should_plot = bool(selected_bottom)
+                else:
+                    should_plot = bool(selected_bottom) or bool(selected_top)
 
             if using_sli_set_op and saved_custom_selection is not None:
                 should_plot = True
@@ -7868,16 +7961,19 @@ def postAnalyze(vas):
                 if (
                     opts.best_worst_sli
                     and not using_sli_set_op
-                    and selected_bottom is not None
-                    and selected_top is not None
+                    and (selected_bottom is not None or selected_top is not None)
                 ):
                     sli_extremes = best_worst_extreme  # "top"|"bottom"|"both"
                     if best_worst_extreme == "top":
-                        sli_selected_arg = ([], selected_top)
+                        sli_selected_arg = ([], selected_top or [])
                     elif best_worst_extreme == "bottom":
-                        sli_selected_arg = (selected_bottom, [])
+                        sli_selected_arg = (selected_bottom or [], [])
                     else:
-                        sli_selected_arg = (selected_bottom, selected_top)
+                        sli_selected_arg = (selected_bottom or [], selected_top or [])
+
+                if sli_selected_arg == ([], []):
+                    sli_selected_arg = None
+                    sli_extremes = None
 
                 plotRewards(
                     va,
@@ -7889,7 +7985,9 @@ def postAnalyze(vas):
                     vas,
                     save_auc_types=SAVE_AUC_TYPES,
                     sli_extremes=sli_extremes,
-                    sli_fraction=opts.best_worst_fraction,
+                    sli_fraction=opts.best_worst_fraction,  # legacy compatibility
+                    sli_top_fraction=getattr(opts, "top_sli_fraction", None),
+                    sli_bottom_fraction=getattr(opts, "bottom_sli_fraction", None),
                     sli_training_idx=sli_training_idx,
                     sli_selected=sli_selected_arg,
                     num_trainings=opts.num_trainings,
@@ -7898,12 +7996,16 @@ def postAnalyze(vas):
                     ),
                     sli_custom_label=(custom_label if using_sli_set_op else None),
                 )
-            if tp == "rpid" and opts.best_worst_sli and selected_bottom is not None:
+            if (
+                tp == "rpid"
+                and opts.best_worst_sli
+                and (selected_bottom is not None or selected_top is not None)
+            ):
                 plot_individual_strategy_overlays(
                     vas=vas,
                     gls=gls,
                     opts=opts,
-                    sli_selected=(selected_bottom, selected_top),
+                    sli_selected=(selected_bottom or [], selected_top or []),
                 )
 
             if tp == "rpid" and sli_ser is not None:
@@ -8293,26 +8395,51 @@ def postAnalyze(vas):
     if va.circle and (do_plot or do_export):
         vas_for_plot = vas
 
-        # Optional top-SLI restriction
-        if getattr(opts, "btw_rwd_return_leg_dist_top_sli", False):
+        sli_group = getattr(opts, "btw_rwd_return_leg_dist_sli_group", None)
+
+        # Backward compatibility for older top-only flag, if present
+        if sli_group is None and getattr(
+            opts, "btw_rwd_return_leg_dist_top_sli", False
+        ):
+            sli_group = "top"
+
+        # Optional SLI restriction
+        if sli_group == "top":
             if saved_top is None:
                 print(
-                    "[btw_rwd_return_leg_dist] WARNING: --btw-rwd-return-leg-dist-top-sli requested "
+                    "[btw_rwd_return_leg_dist] WARNING: top-SLI restriction requested "
                     "but no top-SLI group is available; falling back to all flies."
                 )
             else:
                 vas_for_plot = [vas[i] for i in saved_top]
                 print(
-                    f"[btw_rwd_return_leg_dist] restricting to {len(vas_for_plot)} top-SLI flies"
+                    f"[btw_rwd_return_leg_dist] restricting to "
+                    f"{len(vas_for_plot)} top-SLI flies"
+                )
+        elif sli_group == "bottom":
+            if saved_bottom is None:
+                print(
+                    "[btw_rwd_return_leg_dist] WARNING: bottom-SLI restriction requested "
+                    "but no bottom-SLI group is available; falling back to all flies."
+                )
+            else:
+                vas_for_plot = [vas[i] for i in saved_bottom]
+                print(
+                    f"[btw_rwd_return_leg_dist] restricting to "
+                    f"{len(vas_for_plot)} bottom-SLI flies"
                 )
 
         subset_label = None
-        if (
-            getattr(opts, "btw_rwd_return_leg_dist_top_sli", False)
-            and saved_top is not None
-        ):
-            frac = float(getattr(opts, "best_worst_fraction", 0.1))
-            subset_label = f"Restricted to top {100*frac:.1f}% SLI flies"
+        if sli_group == "top" and saved_top is not None:
+            frac = getattr(opts, "top_sli_fraction", None)
+            if frac is None:
+                frac = getattr(opts, "best_worst_fraction", 0.1)
+            subset_label = f"Restricted to top {100*float(frac):.1f}% SLI flies"
+        elif sli_group == "bottom" and saved_bottom is not None:
+            frac = getattr(opts, "bottom_sli_fraction", None)
+            if frac is None:
+                frac = getattr(opts, "best_worst_fraction", 0.1)
+            subset_label = f"Restricted to bottom {100*float(frac):.1f}% SLI flies"
 
         # ---- map return-leg-specific nonwalk flags into the shared names ----
         _sentinel = object()
@@ -10359,6 +10486,8 @@ if __name__ == "__main__":
             error("--outside-circle-radii must be supplied for circular geometry")
 
     bw_frac = getattr(opts, "best_worst_fraction", None)
+    top_frac = getattr(opts, "top_sli_fraction", None)
+    bottom_frac = getattr(opts, "bottom_sli_fraction", None)
     bw_sli = getattr(opts, "best_worst_sli", False)
     sli_set_op = getattr(opts, "sli_set_op", None)
 
@@ -10370,14 +10499,54 @@ if __name__ == "__main__":
             "Use only one SLI selection mode."
         )
 
-    if bw_frac is not None and not bw_sli and not sli_set_op:
-        print("Warning: --best-worst-fraction implies --best-worst-sli.")
-        opts.best_worst_sli = True
-    elif bw_sli and bw_frac is None:
-        opts.best_worst_fraction = 0.1
+    # Side-specific fractions inherit from --best-worst-fraction unless explicitly set.
+    if top_frac is None and bw_frac is not None:
+        top_frac = bw_frac
+    if bottom_frac is None and bw_frac is not None:
+        bottom_frac = bw_frac
 
+    # Default for best/worst mode: if user asked for it but supplied no fractions,
+    # retain historical behavior of 10% top and 10% bottom.
+    if bw_sli and top_frac is None and bottom_frac is None:
+        top_frac = 0.1
+        bottom_frac = 0.1
+        bw_frac = 0.1
+
+    # sli-set-op continues to use --best-worst-fraction only, with the same default.
     if sli_set_op and bw_frac is None:
-        opts.best_worst_fraction = 0.1
+        bw_frac = 0.1
+        opts.best_worst_fraction = bw_frac
+
+    # Any SLI fraction option implies --best-worst-sli unless sli-set-op is in use.
+    if (
+        (bw_frac is not None or top_frac is not None or bottom_frac is not None)
+        and not bw_sli
+        and not sli_set_op
+    ):
+        print(
+            "Warning: --best-worst-fraction / --top-sli-fraction / "
+            "--bottom-sli-fraction implies --best-worst-sli."
+        )
+        opts.best_worst_sli = True
+
+    # Validate fractions
+    for opt_name, frac in (
+        ("--best-worst-fraction", bw_frac),
+        ("--top-sli-fraction", top_frac),
+        ("--bottom-sli-fraction", bottom_frac),
+    ):
+        if frac is not None and not (0 < float(frac) <= 1):
+            raise SystemExit(f"{opt_name} must be in the interval (0, 1].")
+
+    # Save normalized effective fractions back onto opts for downstream code.
+    opts.top_sli_fraction = top_frac
+    opts.bottom_sli_fraction = bottom_frac
+    if bw_frac is not None:
+        opts.best_worst_fraction = bw_frac
+
+    if getattr(opts, "btw_rwd_return_leg_dist_top_sli", False):
+        if getattr(opts, "btw_rwd_return_leg_dist_sli_group", None) is None:
+            opts.btw_rwd_return_leg_dist_sli_group = "top"
 
     # - - -
     test()

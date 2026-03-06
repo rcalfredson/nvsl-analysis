@@ -84,13 +84,77 @@ def compute_sli_per_fly(
     return pd.Series(sli, name="SLI").astype(float)
 
 
+def _validate_fraction(name: str, fraction: Optional[float]) -> None:
+    if fraction is None:
+        return
+    if not (0 < float(fraction) <= 1):
+        raise ValueError(f"{name} must be in the interval (0, 1], got {fraction!r}")
+
+
+def _count_from_fraction(n: int, fraction: float) -> int:
+    """
+    Convert a fraction to a number of flies, keeping historical behavior:
+    use floor via int(n * fraction), but always select at least 1 fly if the
+    fraction is positive and n > 0.
+    """
+    if n <= 0:
+        return 0
+    return max(1, int(n * fraction))
+
+
+def select_fractional_groups(
+    sli_series: pd.Series,
+    *,
+    top_fraction: Optional[float] = None,
+    bottom_fraction: Optional[float] = None,
+) -> Tuple[Optional[List[int]], Optional[List[int]]]:
+    """
+    Select bottom and/or top groups from an SLI series using potentially
+    different fractions.
+
+    Returns
+    -------
+    (bottom, top)
+        Each element is either a list of fly indices or None if that side
+        was not requested.
+
+    Notes
+    -----
+    - This function allows overlap between top and bottom selections when the
+      requested fractions imply it.
+    - NaNs are ignored automatically by pandas nsmallest/nlargest.
+    """
+    _validate_fraction("bottom_fraction", bottom_fraction)
+    _validate_fraction("top_fraction", top_fraction)
+
+    n = len(sli_series)
+
+    bottom = None
+    top = None
+
+    if bottom_fraction is not None:
+        k_bottom = _count_from_fraction(n, float(bottom_fraction))
+        bottom = sli_series.nsmallest(k_bottom).index.tolist()
+
+    if top_fraction is not None:
+        k_top = _count_from_fraction(n, float(top_fraction))
+        top = sli_series.nlargest(k_top).index.tolist()
+
+    return bottom, top
+
+
 def select_extremes(
     sli_series: pd.Series, fraction: float = 0.1
 ) -> Tuple[List[int], List[int]]:
-    n = len(sli_series)
-    k = max(1, int(n * fraction))
-    bottom = sli_series.nsmallest(k).index.tolist()
-    top = sli_series.nlargest(k).index.tolist()
+    """
+    Backward-compatible wrapper: select the same fraction from the bottom and top.
+    """
+    bottom, top = select_fractional_groups(
+        sli_series, top_fraction=fraction, bottom_fraction=fraction
+    )
+    # Historical contract: always return lists, never None
+    bottom = [] if bottom is None else bottom
+    top = [] if top is None else top
     return bottom, top
 
 
@@ -124,7 +188,12 @@ def compute_sli_set_groups(
         skip_first_sync_buckets=skip_first_sync_buckets,
         keep_first_sync_buckets=keep_first_sync_buckets,
     )
-    _, pos_top = select_extremes(sli_pos, fraction=fraction)
+    _, pos_top = select_fractional_groups(
+        sli_pos,
+        top_fraction=fraction,
+        bottom_fraction=None,
+    )
+    pos_top = [] if pos_top is None else pos_top
     pos_set = set(pos_top)
 
     groups: Dict[str, List[int]] = {
@@ -140,7 +209,10 @@ def compute_sli_set_groups(
             skip_first_sync_buckets=skip_first_sync_buckets,
             keep_first_sync_buckets=keep_first_sync_buckets,
         )
-        _, neg_top = select_extremes(sli_neg, fraction=fraction)
+        _, neg_top = select_fractional_groups(
+            sli_neg, top_fraction=fraction, bottom_fraction=None
+        )
+        neg_top = [] if neg_top is None else neg_top
         neg_set = set(neg_top)
 
         groups.update(
