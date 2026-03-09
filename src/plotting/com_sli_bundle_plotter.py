@@ -7,10 +7,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import f_oneway
 
+from src.plotting.palettes import get_palette, FLY_COLS
 import src.utils.util as util
 from src.utils.common import (
     maybe_sentence_case,
     pch,
+    pick_above_or_expand,
     writeImage,
     ttest_ind,
     pick_non_overlapping_y,
@@ -838,14 +840,14 @@ def plot_com_sli_bundles(
 
                 span = ylim[1] - ylim[0]
                 base_y_for_star = float(anchor_y) + 0.04 * span
-                prefer = "above"
-                margin = 0.05 * (ylim[1] - ylim[0])
-                if base_y_for_star + 0.15 * (ylim[1] - ylim[0]) > ylim[1] - margin:
-                    prefer = "below"
 
-                ys_star, va_align = pick_non_overlapping_y(
-                    base_y_for_star, avoid_ys, ylim, prefer=prefer
+                ys_star, va_align = pick_above_or_expand(
+                    base_y_for_star,
+                    avoid_ys,
+                    ylim,
                 )
+                if ys_star is None:
+                    continue
 
                 txt = util.pltText(
                     xs[bj],
@@ -899,17 +901,16 @@ def plot_com_sli_bundles(
                 if np.isfinite(anchor_y):
                     avoid_ys.append(float(anchor_y))
 
-                # plotRewards-style base y: above the anchor, but choose below if near top margin
                 span = ylim[1] - ylim[0]
                 base_y_for_star = float(anchor_y) + 0.04 * span
-                prefer = "above"
-                margin = 0.05 * (ylim[1] - ylim[0])
-                if base_y_for_star + 0.15 * (ylim[1] - ylim[0]) > ylim[1] - margin:
-                    prefer = "below"
 
-                ys_star, va_align = pick_non_overlapping_y(
-                    base_y_for_star, avoid_ys, ylim, prefer=prefer
+                ys_star, va_align = pick_above_or_expand(
+                    base_y_for_star,
+                    avoid_ys,
+                    ylim,
                 )
+                if ys_star is None:
+                    continue
 
                 txt = util.pltText(
                     xs[bj],
