@@ -5232,6 +5232,7 @@ def plotRewards(
             "meddist",
             "meddist_exp_min_yok",
             "commag",
+            "commag_exp_min_yok",
         ):
             exp_color, yok_color = palette[0], palette[1]
             mc = exp_color if f == 0 else yok_color
@@ -5494,9 +5495,6 @@ def plotRewards(
                         avoid_ys = [
                             y for y in avoid_ys if y is not None and np.isfinite(y)
                         ]
-                        print(f"tp: {tp}")
-                        print("txts_here:", txts_here)
-                        print("avoid_y:", avoid_ys)
 
                         geom_y = bucket_top_geom[j]
                         occupied_ys = avoid_ys + (
@@ -5510,9 +5508,6 @@ def plotRewards(
                         else:
                             continue
                         base_y_for_star = anchor_y + 0.04 * ann_span
-                        print('anchor y:', anchor_y)
-                        print('base Y for star:', base_y_for_star)
-                        print('ann span:', ann_span)
 
                         ys, va_align = pick_above_or_expand(
                             base_y_for_star,
@@ -5520,7 +5515,6 @@ def plotRewards(
                             ylim,
                             span_override=ann_span,
                         )
-                        print("non-overlapping y:", ys, va_align)
                         txt = util.pltText(
                             xs[j],
                             ys,
@@ -5545,11 +5539,21 @@ def plotRewards(
                     if ng > 1 and not tp == "rpip" and not opts.hidePltTests:
                         if useMidPlotAUCVerticalAlignment:
                             base_y_for_auc = max(
-                                global_geom_top + 0.06 * ann_span,
+                                global_geom_top + 0.16 * ann_span,
                                 ylim[0] + 0.88 * ann_span,
                             )
-                            ys = base_y_for_auc
-                            va_align = "baseline"
+
+                            occupied_panel_ys = [
+                                y for y in [global_geom_top]
+                                if y is not None and np.isfinite(y)
+                            ]
+
+                            ys, va_align = pick_above_or_expand(
+                                base_y_for_auc,
+                                occupied_panel_ys,
+                                ylim,
+                                span_override=ann_span,
+                            )
                         else:
                             base_y_for_auc = -0.79 if nosym else pch(-0.55, -0.46)
 
