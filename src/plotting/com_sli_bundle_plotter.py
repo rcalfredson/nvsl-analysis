@@ -73,6 +73,12 @@ def _load_bundle(path):
     return out
 
 
+def _pct_label(prefix, frac):
+    if frac is None:
+        return prefix
+    return f"{prefix} {int(round(frac * 100))}%"
+
+
 def _bundle_metric_palette(metric):
     if metric == "commag":
         return get_palette("commag")
@@ -159,10 +165,17 @@ def _fmt_bucket_len(bl):
     return f"{bl:g}"
 
 
-def _select_sli_extremes(sli, fraction, which):
+def _select_sli_extremes(
+    sli,
+    *,
+    top_fraction=None,
+    bottom_fraction=None,
+    which=None,
+):
     """
     sli: (n_videos,) float
     which: None | "top" | "bottom" | "both"
+
     returns:
       - indices (np.ndarray of ints) into videos
       - group_labels (list[str]) if which=="both" else None
@@ -176,32 +189,54 @@ def _select_sli_extremes(sli, fraction, which):
     sli = np.asarray(sli, dtype=float)
     finite = np.isfinite(sli)
     if not finite.any():
-        return (
-            np.array([], dtype=int),
-            (["Bottom", "Top"] if which == "both" else None),
-            np.array([], dtype=int),
-        )
+        if which == "both":
+            return (
+                np.array([], dtype=int),
+                [
+                    _pct_label("Bottom", bottom_fraction),
+                    _pct_label("Top", top_fraction),
+                ],
+                np.array([], dtype=int),
+            )
+        return np.array([], dtype=int), None, np.array([], dtype=int)
 
-    # Match pandas select_extremes(): k based on total n (incl NaNs)
-    k = max(1, int(n * fraction))
     finite_idx = np.flatnonzero(finite)
-    k_eff = min(k, finite_idx.size)
     order = finite_idx[np.argsort(sli[finite_idx])]
 
-    bottom = order[:k_eff].tolist()
-    top = order[-k_eff:].tolist()
+    def _k(frac):
+        if frac is None:
+            return 0
+        return min(max(1, int(n * frac)), finite_idx.size)
+
+    k_bottom = _k(bottom_fraction)
+    k_top = _k(top_fraction)
+
+    bottom = order[:k_bottom].tolist() if k_bottom > 0 else []
+    top = order[-k_top:].tolist() if k_top > 0 else []
+
+    overlap = sorted(set(bottom) & set(top))
+    if overlap:
+        warnings.warn(
+            f"Top and bottom SLI selections overlap for {len(overlap)} videos "
+            f"(top_fraction={top_fraction}, bottom_fraction={bottom_fraction})."
+        )
 
     if which == "bottom":
         idx = np.array(bottom, dtype=int)
         return idx, None, np.zeros(len(idx), dtype=int)
+
     if which == "top":
         idx = np.array(top, dtype=int)
         return idx, None, np.zeros(len(idx), dtype=int)
+
     if which == "both":
         idx = np.array(bottom + top, dtype=int)
-        # 0 for bottom, 1 for top
         gid = np.array([0] * len(bottom) + [1] * len(top), dtype=int)
-        return idx, [f"Bottom {int(fraction*100)}%", f"Top {int(fraction*100)}%"], gid
+        labels = [
+            _pct_label("Bottom", bottom_fraction),
+            _pct_label("Top", top_fraction),
+        ]
+        return idx, labels, gid
 
     raise ValueError(f"Unknown which={which!r}")
 
@@ -247,7 +282,9 @@ def plot_com_sli_bundles(
     num_trainings=None,
     include_ctrl=False,
     sli_extremes=None,  # None | "top" | "bottom" | "both"
-    sli_fraction=0.2,
+    sli_fraction=None,  # legacy shared fraction
+    sli_top_fraction=None,  # Optional[float]
+    sli_bottom_fraction=None,
     opts=None,
     metric="commag",
     turnback_mode="exp",  # exp | ctrl | exp_minus_ctrl
@@ -269,6 +306,18 @@ def plot_com_sli_bundles(
             wspace=0.35,
             imageFormat="png",
         )
+
+    if sli_top_fraction is None:
+        sli_top_fraction = sli_fraction
+    if sli_bottom_fraction is None:
+        sli_bottom_fraction = sli_fraction
+    if (
+        sli_extremes is not None
+        and sli_top_fraction is None
+        and sli_bottom_fraction is None
+    ):
+        sli_top_fraction = 0.2
+        sli_bottom_fraction = 0.2
 
     bundles = [_load_bundle(p) for p in bundle_paths]
     ng = len(bundles)
@@ -602,7 +651,10 @@ def plot_com_sli_bundles(
     selections = []
     for b in bundles:
         idx, both_labels, gid = _select_sli_extremes(
-            b["sli"], sli_fraction, sli_extremes
+            b["sli"],
+            top_fraction=sli_top_fraction,
+            bottom_fraction=sli_bottom_fraction,
+            which=sli_extremes,
         )
         selections.append((idx, both_labels, gid))
 
@@ -620,15 +672,28 @@ def plot_com_sli_bundles(
             if bool(means[0])
             else "single bucket (per exporter settings)"
         )
-        fig.text(
-            0.1,
-            0.98,
-            f"SLI filter: {sli_extremes} {int(sli_fraction*100)}% within group; T{stis[0]+1}; {sli_mode}",
-            ha="left",
-            va="top",
-            fontsize=customizer.in_plot_font_size,
-            color="0",
-        )
+        if sli_extremes == "top":
+            sel_txt = _pct_label("Top", sli_top_fraction)
+        elif sli_extremes == "bottom":
+            sel_txt = _pct_label("Bottom", sli_bottom_fraction)
+        elif sli_extremes == "both":
+            sel_txt = (
+                f"{_pct_label('Bottom', sli_bottom_fraction)} vs "
+                f"{_pct_label('Top', sli_top_fraction)}"
+            )
+        else:
+            sel_txt = None
+
+        if sel_txt is not None:
+            fig.text(
+                0.1,
+                0.98,
+                f"SLI filter: {sel_txt} within group; T{stis[0]+1}; {sli_mode}",
+                ha="left",
+                va="top",
+                fontsize=customizer.in_plot_font_size,
+                color="0",
+            )
 
     # plotting
     for ti in range(n_trains):
@@ -655,9 +720,44 @@ def plot_com_sli_bundles(
         ] * ng  # each: (nb,) list[np.ndarray] (finite per-bucket samples)
         min_n_per_group_anova = 3
 
-        # Each bundle is a "group"
+        plot_groups = []
         for gi, b in enumerate(bundles):
             sel_idx, both_labels, gid = selections[gi]
+
+            if sel_idx.size == 0:
+                continue
+
+            if sli_extremes == "both":
+                for sub_gid, sub_label in enumerate(both_labels):
+                    sub_idx = sel_idx[gid == sub_gid]
+                    if sub_idx.size == 0:
+                        continue
+                    plot_groups.append(
+                        {
+                            "bundle": b,
+                            "sel_idx": sub_idx,
+                            "label": sub_label,
+                            "style_idx": sub_gid,
+                        }
+                    )
+            else:
+                plot_groups.append(
+                    {
+                        "bundle": b,
+                        "sel_idx": sel_idx,
+                        "label": group_labels[gi],
+                        "style_idx": gi,
+                    }
+                )
+
+        n_plot_groups = len(plot_groups)
+
+        for gi, pg in enumerate(plot_groups):
+            b = pg["bundle"]
+            sel_idx = pg["sel_idx"]
+            label = pg["label"]
+            style_idx = pg["style_idx"]
+
             if sel_idx.size == 0:
                 continue
 
@@ -701,7 +801,7 @@ def plot_com_sli_bundles(
                 means_by_group[gi] = np.asarray(mci[0, :], dtype=float)
             ys = mci[0, :]
             fin = np.isfinite(ys)
-            ls = linestyles[gi % len(linestyles)]
+            ls = linestyles[style_idx % len(linestyles)]
             (line,) = plt.plot(
                 xs[fin],
                 ys[fin],
@@ -713,7 +813,7 @@ def plot_com_sli_bundles(
                 linestyle=ls,
             )
             if ti == 0:
-                line.set_label(group_labels[gi])
+                line.set_label(label)
 
             # CI shading
             if np.isfinite(mci[1, :]).any() and np.isfinite(mci[2, :]).any():

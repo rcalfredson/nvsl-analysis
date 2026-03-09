@@ -84,14 +84,46 @@ def main():
         help="Optional SLI filtering within each bundle.",
     )
     p.add_argument(
-        "--sli-fraction",
+        "--best-worst-fraction",
         type=float,
-        default=0.2,
-        help="Fraction for SLI extremes (e.g. 0.2 for top 20%).",
+        default=argparse.SUPPRESS,
+        help=(
+            "Legacy shared fraction for SLI extremes. "
+            "Used for both top and bottom unless side-specific fractions are provided."
+        ),
+    )
+    p.add_argument(
+        "--top-sli-fraction",
+        type=float,
+        default=argparse.SUPPRESS,
+        help="Fraction of videos to include in the top-SLI subset.",
+    )
+    p.add_argument(
+        "--bottom-sli-fraction",
+        type=float,
+        default=argparse.SUPPRESS,
+        help="Fraction of videos to include in the bottom-SLI subset.",
     )
     p.add_argument("--wspace", type=float, default=0.35)
     p.add_argument("--image-format", default="png")
     args = p.parse_args()
+
+    shared_frac = getattr(args, "best_worst_fraction", None)
+    top_frac = getattr(args, "top_sli_fraction", None)
+    bottom_frac = getattr(args, "bottom_sli_fraction", None)
+
+    if top_frac is None and shared_frac is not None:
+        top_frac = shared_frac
+    if bottom_frac is None and shared_frac is not None:
+        bottom_frac = shared_frac
+
+    for opt_name, frac in (
+        ("--best-worst-fraction", shared_frac),
+        ("--top-sli-fraction", top_frac),
+        ("--bottom-sli-fraction", bottom_frac),
+    ):
+        if frac is not None and not (0 < float(frac) <= 1):
+            raise SystemExit(f"{opt_name} must be in the interval (0, 1].")
 
     bundles = [s for s in args.bundles.split(",") if s]
     labels = None
@@ -114,7 +146,9 @@ def main():
         num_trainings=args.num_trainings,
         include_ctrl=args.include_ctrl,
         sli_extremes=args.sli_extremes,
-        sli_fraction=args.sli_fraction,
+        sli_fraction=shared_frac,
+        sli_top_fraction=top_frac,
+        sli_bottom_fraction=bottom_frac,
         opts=opts,
         metric=args.metric,
         turnback_mode=args.turnback_mode,
