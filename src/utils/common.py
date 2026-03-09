@@ -654,6 +654,49 @@ def writeImage(fn, img=None, format="png"):
         cv2.imwrite(fn, img)
 
 
+def pick_above_or_expand(
+    base_y,
+    avoid_ys,
+    ylim,
+    gap=0.06,
+    step=0.025,
+    pad=0.05,
+    span_override=None,
+):
+    avoid_ys = [y for y in avoid_ys if y is not None and np.isfinite(y)]
+
+    if not np.isfinite(base_y):
+        return None, "baseline"
+
+    if not all(np.isfinite(v) for v in ylim):
+        return None, "baseline"
+
+    span = span_override if span_override is not None else (ylim[1] - ylim[0])
+    if not np.isfinite(span) or span <= 0:
+        return None, "baseline"
+
+    gap_abs = gap * span
+    step_abs = step * span
+    pad_abs = pad * span
+
+    def clear(ycand):
+        return np.isfinite(ycand) and all(abs(ycand - y0) >= gap_abs for y0 in avoid_ys)
+
+    ycand = base_y
+    for _ in range(12):
+        if clear(ycand):
+            if ycand > ylim[1] - 0.02 * span:
+                ylim[1] = ycand + pad_abs
+            return ycand, "baseline"
+        ycand += step_abs
+
+    if not np.isfinite(ycand):
+        return None, "baseline"
+
+    ylim[1] = max(ylim[1], ycand + pad_abs)
+    return ycand, "baseline"
+
+
 def pick_non_overlapping_y(
     base_y, avoid_ys, ylim, prefer="above", gap=0.085, step=0.03
 ):

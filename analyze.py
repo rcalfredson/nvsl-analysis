@@ -61,6 +61,7 @@ from src.utils.common import (
     is_nan,
     maybe_sentence_case,
     pch,
+    pick_above_or_expand,
     pick_non_overlapping_y,
     propagate_nans,
     skipMsg,
@@ -4999,14 +5000,56 @@ def plotRewards(
     palette = get_palette(tp)
     nb, (meanC, fly2C) = int(a.shape[2] / nf), FLY_COLS
 
-    def getVals(g, b=None, delta=False, f1=None):
+    def getVals(g, b=None, delta=False, f1=None, i_idx=None):
+        if i_idx is None:
+            i_idx = i
+
         vis = np.flatnonzero(gis == g)
 
         def gvs(f):
             o = f * nb
-            return a[vis, i, o : o + nb] if b is None else a[vis, i, o + b]
+            return a[vis, i_idx, o : o + nb] if b is None else a[vis, i_idx, o + b]
 
         return gvs(0) - gvs(1) if delta else gvs(f1 if f1 is not None else f)
+
+    def _panel_bucket_top_geom_for_current_axis(i_idx, f):
+        fly_roles = fs if joinF else [f]
+
+        tops = []
+        for j in range(nb):
+            vals = []
+            for f_plot in fly_roles:
+                for g_plot in range(ng):
+                    mci_g = util.meanConfInt(
+                        getVals(g_plot, j, False, f1=f_plot, i_idx=i_idx)
+                    )
+                    top = mci_g[2] if np.isfinite(mci_g[2]) else mci_g[0]
+                    if np.isfinite(top):
+                        vals.append(top)
+            tops.append(max(vals) if vals else np.nan)
+        return tops
+    
+    def _panel_bucket_geom_bounds_for_current_axis(i_idx, f):
+        fly_roles = fs if joinF else [f]
+
+        panel_top = -np.inf
+        panel_bottom = np.inf
+
+        for j in range(nb):
+            for f_plot in fly_roles:
+                for g_plot in range(ng):
+                    mci_g = util.meanConfInt(
+                        getVals(g_plot, j, False, f1=f_plot, i_idx=i_idx)
+                    )
+                    top = mci_g[2] if np.isfinite(mci_g[2]) else mci_g[0]
+                    bot = mci_g[1] if np.isfinite(mci_g[1]) else mci_g[0]
+
+                    if np.isfinite(top):
+                        panel_top = max(panel_top, top)
+                    if np.isfinite(bot):
+                        panel_bottom = min(panel_bottom, bot)
+
+        return panel_bottom, panel_top
 
     meanOnly, showN, showV, joinF, fillBtw = True, True, False, True, True
     showPG, showPP = True, True  # p values between groups, for post
@@ -5161,6 +5204,25 @@ def plotRewards(
         else:
             axs = axs[None]
     mci_min, mci_max = None, None
+
+    global_geom_top = -np.inf
+    global_geom_bottom = np.inf
+
+    for f_scan in fs:
+        for i_scan in range(len(trns)):
+            panel_bottom, panel_top = _panel_bucket_geom_bounds_for_current_axis(i_scan, f_scan)
+            if np.isfinite(panel_top):
+                global_geom_top = max(global_geom_top, panel_top)
+            if np.isfinite(panel_bottom):
+                global_geom_bottom = min(global_geom_bottom, panel_bottom)
+
+    if not np.isfinite(global_geom_top):
+        global_geom_top = ylim[1]
+    if not np.isfinite(global_geom_bottom):
+        global_geom_bottom = ylim[0]
+
+    global_ann_span = max(ylim[1], global_geom_top) - min(ylim[0], global_geom_bottom)
+
     for f in fs:
         if tp in (
             "rpid",
@@ -5213,6 +5275,14 @@ def plotRewards(
                 else:
                     all_line_vals = []
             # plot mean and confidence interval
+            mci_by_group = []
+            for g in range(ng):
+                mci = np.array([util.meanConfInt(getVals(g, b)) for b in range(nb)]).T
+                mci_by_group.append(mci)
+            bucket_top_geom = _panel_bucket_top_geom_for_current_axis(i, f)
+            panel_geom_vals = [y for y in bucket_top_geom if np.isfinite(y)]
+            panel_geom_top = max(panel_geom_vals) if panel_geom_vals else ylim[1]
+            ann_span = global_ann_span
             for g in range(ng):  # group
                 if pcm:
                     rewardsAvgs = np.mean(
@@ -5296,38 +5366,75 @@ def plotRewards(
                                 lblText = (
                                     "%.2f" % rewardsAvgs[i + f][j] if pcm else "%d" % n
                                 )
-                                y, key, m = (
-                                    mci[0, j],
-                                    util.join("|", (i, j)),
-                                    (ylim[1] - ylim[0]) / 2,
+                                key = util.join("|", (i, j))
+                                existing_bucket_text_ys = [
+                                    t._final_y_ if hasattr(t, "_final_y_") else t._y_
+                                    for t in lbls.get(key, [])
+                                ]
+                                existing_bucket_text_ys = [
+                                    y
+                                    for y in existing_bucket_text_ys
+                                    if y is not None and np.isfinite(y)
+                                ]
+
+                                group_geom_y = mci[0, j]
+                                if not np.isfinite(group_geom_y):
+                                    continue
+
+                                base_y_for_count = group_geom_y + 0.018 * ann_span
+                                occupied_ys = [group_geom_y]
+
+                                y_pos, va_align = pick_above_or_expand(
+                                    base_y_for_count,
+                                    occupied_ys,
+                                    ylim,
+                                    span_override=ann_span,
                                 )
-                                y_pos = y + 0.04 * m
+                                if y_pos is None:
+                                    continue
+
+                                bucket_txts = lbls.get(key, [])
+                                bucket_label_ys = [
+                                    (
+                                        t._final_y_
+                                        if hasattr(t, "_final_y_")
+                                        else getattr(t, "_y_", None)
+                                    )
+                                    for t in bucket_txts
+                                ]
+                                bucket_label_ys = [
+                                    y
+                                    for y in bucket_label_ys
+                                    if y is not None and np.isfinite(y)
+                                ]
+
+                                need_dodge = False
+                                if ng == 2 and joinF and bucket_label_ys:
+                                    gap_thresh = 0.06 * ann_span
+                                    need_dodge = any(
+                                        abs(y_pos - y0) < gap_thresh
+                                        for y0 in bucket_label_ys
+                                    )
+
+                                if need_dodge:
+                                    dodge = bl * 0.15
+
+                                    prior_txt = lbls[key][0]
+                                    prior_txt.set_x(xs[j] - dodge)
+                                    x_pos = xs[j] + dodge
+                                else:
+                                    x_pos = xs[j]
+
                                 txt = util.pltText(
-                                    xs[j],
+                                    x_pos,
                                     y_pos,
                                     lblText,
                                     ha="center",
                                     size=customizer.in_plot_font_size,
                                     color=".2",
                                 )
-                                if i == 0:
-                                    all_line_vals.append([y_pos])
-                                txt._y_ = y
+                                txt._y_ = group_geom_y
                                 txt._final_y_ = y_pos
-                                txt._firstSm_ = False
-                                txt._ontp_ = True
-                                if lbls[key]:
-                                    txt1 = lbls[key][0]
-                                    y1 = txt1._y_
-                                    txt1._firstSm_ = y1 < y
-                                    if (
-                                        abs(y1 - y) < pch(0.14, 0.1) * m
-                                    ):  # move label below
-                                        txta, ya = (txt, y) if y1 > y else (txt1, y1)
-                                        txta.set_y(ya - pch(0.04, 0.03) * m)
-                                        txta.set_va("top")
-                                        txta._ontp_ = False
-                                        txt1._final_y_ = ya - pch(0.04, 0.03) * m
                                 lbls[key].append(txt)
                     # values
                     if showV:
@@ -5384,32 +5491,36 @@ def plotRewards(
                             t._final_y_ if hasattr(t, "_final_y_") else t._y_
                             for t in txts_here
                         ]
+                        avoid_ys = [
+                            y for y in avoid_ys if y is not None and np.isfinite(y)
+                        ]
+                        print(f"tp: {tp}")
+                        print("txts_here:", txts_here)
+                        print("avoid_y:", avoid_ys)
 
-                        if avoid_ys:
-                            anchor_y = max(avoid_ys)
-                        else:
+                        geom_y = bucket_top_geom[j]
+                        occupied_ys = avoid_ys + (
+                            [geom_y] if np.isfinite(geom_y) else []
+                        )
+                        fallback_y = mci[0, j]
+                        if occupied_ys:
+                            anchor_y = max(occupied_ys)
+                        elif np.isfinite(mci[0, j]):
                             anchor_y = mci[0, j]
+                        else:
+                            continue
+                        base_y_for_star = anchor_y + 0.04 * ann_span
+                        print('anchor y:', anchor_y)
+                        print('base Y for star:', base_y_for_star)
+                        print('ann span:', ann_span)
 
-                        base_y_for_star = anchor_y + (
-                            0 if strs.startswith("*") else pch(0.02, 0.015) * anchor_y
-                        )
-
-                        # Prefer above unless too close to top margin:
-                        prefer = "above"
-                        margin = 0.05 * (ylim[1] - ylim[0])
-
-                        if (
-                            base_y_for_star + 0.15 * (ylim[1] - ylim[0])
-                            > ylim[1] - margin
-                        ):
-                            prefer = "below"
-
-                        ys, va_align = pick_non_overlapping_y(
+                        ys, va_align = pick_above_or_expand(
                             base_y_for_star,
-                            avoid_ys,
+                            occupied_ys,
                             ylim,
-                            prefer=prefer,
+                            span_override=ann_span,
                         )
+                        print("non-overlapping y:", ys, va_align)
                         txt = util.pltText(
                             xs[j],
                             ys,
@@ -5433,9 +5544,33 @@ def plotRewards(
                     # AUC
                     if ng > 1 and not tp == "rpip" and not opts.hidePltTests:
                         if useMidPlotAUCVerticalAlignment:
-                            base_y_for_auc = ylim[0] + 0.75 * (ylim[1] - ylim[0])
+                            base_y_for_auc = max(
+                                global_geom_top + 0.06 * ann_span,
+                                ylim[0] + 0.88 * ann_span,
+                            )
+                            ys = base_y_for_auc
+                            va_align = "baseline"
                         else:
                             base_y_for_auc = -0.79 if nosym else pch(-0.55, -0.46)
+
+                            avoid_ys = [
+                                (
+                                    t._final_y_
+                                    if hasattr(t, "_final_y_")
+                                    else getattr(t, "_y_", None)
+                                )
+                                for tlist in lbls.values()
+                                for t in tlist
+                                if hasattr(t, "_y_") or hasattr(t, "_final_y_")
+                            ]
+                            avoid_ys = [y for y in avoid_ys if y is not None]
+
+                            ys, va_align = pick_non_overlapping_y(
+                                base_y_for_auc,
+                                avoid_ys,
+                                ylim,
+                                prefer="above",
+                            )
 
                         printed_header = False
                         for btwn in pch((False,), (False, True)):
@@ -5548,26 +5683,7 @@ def plotRewards(
                                 if tpn[4] is not None:
                                     print(tpn[4])
 
-                                avoid_ys = [
-                                    (
-                                        t._final_y_
-                                        if hasattr(t, "_final_y_")
-                                        else getattr(t, "_y_", None)
-                                    )
-                                    for tlist in lbls.values()
-                                    for t in tlist
-                                    if hasattr(t, "_y_") or hasattr(t, "_final_y_")
-                                ]
-                                avoid_ys = [y for y in avoid_ys if y is not None]
-
-                                ys, va_align = pick_non_overlapping_y(
-                                    base_y_for_auc,
-                                    avoid_ys,
-                                    ylim,
-                                    prefer="above",
-                                )
-
-                                util.pltText(
+                                txt = util.pltText(
                                     0.05 * (xs[-1] + 2 * bl - xs[0]),
                                     ys,
                                     "%s (n=%d,%d): %s"
@@ -5629,7 +5745,7 @@ def plotRewards(
                         )
 
                         # draw the connecting line at y_star - small offset
-                        h = 0.03 * (ylim[1] - ylim[0])
+                        h = 0.03 * ann_span
                         y_line = y_star - 0.5 * h
                         plt.plot(
                             [
@@ -5664,7 +5780,7 @@ def plotRewards(
                         util.pltText(
                             xs[0],
                             (
-                                ylim[0] + 0.90 * (ylim[1] - ylim[0])
+                                ylim[0] + 0.90 * ann_span
                                 if useAxLimsForStatsVerticalAlignment
                                 else -0.7
                             ),
@@ -5680,7 +5796,7 @@ def plotRewards(
                         util.pltText(
                             xs[1],
                             (
-                                (0.80 - 0.05 * f1) * (ylim[1] - ylim[0])
+                                (0.80 - 0.05 * f1) * ann_span
                                 if useAxLimsForStatsVerticalAlignment
                                 else -0.83 - f1 * 0.11
                             ),
