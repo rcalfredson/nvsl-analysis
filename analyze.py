@@ -120,6 +120,10 @@ from src.plotting.reward_count_totals import (
 from src.plotting.cross_fly_correlations import plot_cross_fly_correlations, SLIContext
 from src.plotting.individual_strategy_plotter import plot_individual_strategy_overlays
 from src.plotting.outside_circle_duration_plotter import OutsideCircleDurationPlotter
+from src.plotting.palettes import (
+    FLY_COLS,
+    get_palette,
+)
 from src.utils.parsers import parse_distances, parse_training_selector
 from src.plotting.plot import plotAngularVelocity, plotTurnRadiusHist
 from src.plotting.plot_customizer import PlotCustomizer
@@ -4751,38 +4755,6 @@ def checkValues(vas, tp, calc, a):
                 assert np.all(np.isnan(a[i, :, f * npf : (f + 1) * npf]))
 
 
-FLY_COLS = ("#1f4da1", "#a00000")
-
-PAIRED = sns.color_palette("Paired", 12)  # has 12 distinct colors
-
-
-def paired_slice(start, end, reverse=True):
-    colors = PAIRED[start:end]
-    return list(reversed(colors)) if reverse else colors
-
-
-METRIC_PALETTES = {
-    "sli": paired_slice(0, 2),
-    "rpd": paired_slice(2, 4),
-    "commag": paired_slice(6, 8),
-    "meddist": paired_slice(8, 10),
-}
-
-
-def get_palette(tp):
-    """Return a pair of colors (exp, yok) appropriate for this metric type."""
-    if tp in ("rpid", "rpipd"):
-        return METRIC_PALETTES["sli"]
-    elif tp in ("rpd", "rpd_exp_min_yok"):
-        return METRIC_PALETTES["rpd"]
-    elif tp in ("commag", "commag_exp_min_yok"):
-        return METRIC_PALETTES["commag"]
-    elif tp in ("meddist", "meddist_exp_min_yok"):
-        return METRIC_PALETTES["meddist"]
-    else:
-        return FLY_COLS
-
-
 def drawLegend(tp, ng, nf, nrp, gls, customizer):
     """
     Generates and adds a legend to the plot based on the experimental setup, including
@@ -5028,7 +5000,7 @@ def plotRewards(
                         vals.append(top)
             tops.append(max(vals) if vals else np.nan)
         return tops
-    
+
     def _panel_bucket_geom_bounds_for_current_axis(i_idx, f):
         fly_roles = fs if joinF else [f]
 
@@ -5210,7 +5182,9 @@ def plotRewards(
 
     for f_scan in fs:
         for i_scan in range(len(trns)):
-            panel_bottom, panel_top = _panel_bucket_geom_bounds_for_current_axis(i_scan, f_scan)
+            panel_bottom, panel_top = _panel_bucket_geom_bounds_for_current_axis(
+                i_scan, f_scan
+            )
             if np.isfinite(panel_top):
                 global_geom_top = max(global_geom_top, panel_top)
             if np.isfinite(panel_bottom):
@@ -5544,7 +5518,8 @@ def plotRewards(
                             )
 
                             occupied_panel_ys = [
-                                y for y in [global_geom_top]
+                                y
+                                for y in [global_geom_top]
                                 if y is not None and np.isfinite(y)
                             ]
 

@@ -71,6 +71,15 @@ def _load_bundle(path):
     return out
 
 
+def _bundle_metric_palette(metric):
+    if metric == "commag":
+        return get_palette("commag")
+    elif metric == "sli":
+        return get_palette("rpid")
+    else:
+        return FLY_COLS
+
+
 def _as_str_array(x):
     # video_ids often come out as dtype=object arrays
     arr = np.asarray(x)
@@ -536,8 +545,7 @@ def plot_com_sli_bundles(
 
     # Styling: mimic plotRewards commag behavior (group via linestyle)
     # Use matplotlib default C0/C1 to stay close to existing look.
-    exp_color = "C0"
-    ctrl_color = "C1"
+    exp_color, ctrl_color = _bundle_metric_palette(metric)
     linestyles = ["-", "--", ":", "-."]  # extend if needed
 
     customizer = PlotCustomizer()
