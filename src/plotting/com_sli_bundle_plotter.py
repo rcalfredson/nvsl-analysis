@@ -667,11 +667,7 @@ def plot_com_sli_bundles(
             warnings.warn(
                 "Bundles disagree on sli_training_idx and/or sli_use_training_mean; annotation may be misleading."
             )
-        sli_mode = (
-            "mean over buckets"
-            if bool(means[0])
-            else "single bucket (per exporter settings)"
-        )
+        sli_mode = "mean over buckets" if bool(means[0]) else "single bucket"
         if sli_extremes == "top":
             sel_txt = _pct_label("Top", sli_top_fraction)
         elif sli_extremes == "bottom":
@@ -711,13 +707,6 @@ def plot_com_sli_bundles(
         except Exception:
             title = f"training {ti+1}"
 
-        # For 2-group t-tests, collect per-bucket mean and raw values
-        do_ttests = ng == 2
-        do_anova = ng >= 3
-        means_by_group = [None] * ng  # each: (nb,) float
-        vals_by_group = [
-            None
-        ] * ng  # each: (nb,) list[np.ndarray] (finite per-bucket samples)
         min_n_per_group_anova = 3
 
         plot_groups = []
@@ -751,6 +740,14 @@ def plot_com_sli_bundles(
                 )
 
         n_plot_groups = len(plot_groups)
+
+        # Stats should follow the number of plotted groups, not the number of bundles.
+        do_ttests = n_plot_groups == 2
+        do_anova = n_plot_groups >= 3
+        means_by_group = [None] * n_plot_groups  # each: (nb,) float
+        vals_by_group = [
+            None
+        ] * n_plot_groups  # each: (nb,) list[np.ndarray] (finite per-bucket samples)
 
         for gi, pg in enumerate(plot_groups):
             b = pg["bundle"]
@@ -906,7 +903,7 @@ def plot_com_sli_bundles(
             for bj in range(nb):
                 groups_here = []
                 ok = True
-                for gi in range(ng):
+                for gi in range(n_plot_groups):
                     x = vals_by_group[gi][bj]
                     if x.size < min_n_per_group_anova:
                         ok = False
@@ -923,7 +920,7 @@ def plot_com_sli_bundles(
                     continue
 
                 # Anchor at the max mean among groups at this bucket
-                mus = [means_by_group[gi][bj] for gi in range(ng)]
+                mus = [means_by_group[gi][bj] for gi in range(n_plot_groups)]
                 if not np.any(np.isfinite(mus)):
                     continue
                 anchor_y = float(np.nanmax(mus))
