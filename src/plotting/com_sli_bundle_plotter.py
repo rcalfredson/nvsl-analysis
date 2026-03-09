@@ -930,6 +930,10 @@ def plot_com_sli_bundles(
 
         if metric == "commag":
             y_label = "COM dist. to circle center [mm]"
+            if turnback_mode == "exp_minus_ctrl":
+                y_label += "\n(exp - yok)"
+            elif turnback_mode == "ctrl":
+                y_label += "\n(yok)"
         elif metric == "sli":
             y_label = "SLI"
         elif metric == "turnback":
