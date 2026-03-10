@@ -1114,6 +1114,18 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--reward-count-sli-group",
+    type=str,
+    choices=("top", "bottom"),
+    default=None,
+    help=(
+        "Restrict reward-count histograms/export to a selected SLI subset: "
+        "'top' or 'bottom'. Uses the SLI selection configured by "
+        "--best-worst-sli together with --best-worst-fraction and/or the side-specific "
+        "flags --top-sli-fraction and --bottom-sli-fraction."
+    ),
+)
+g.add_argument(
     "--reward-count-ymax",
     type=float,
     default=None,
@@ -1153,6 +1165,18 @@ g.add_argument(
     help=(
         "Restrict reward-count totals to flies in the top SLI fraction "
         "(see --best-worst-sli, --best-worst-fraction, and --best-worst-trn)."
+    ),
+)
+g.add_argument(
+    "--reward-count-total-sli-group",
+    type=str,
+    choices=("top", "bottom"),
+    default=None,
+    help=(
+        "Restrict reward-count totals/export to a selected SLI subset: "
+        "'top' or 'bottom'. Uses the SLI selection configured by "
+        "--best-worst-sli together with --best-worst-fraction and/or the side-specific "
+        "flags --top-sli-fraction and --bottom-sli-fraction."
     ),
 )
 g.add_argument(
@@ -8409,10 +8433,16 @@ def postAnalyze(vas):
     if va.circle and (do_plot or do_export):
         vas_for_hist = vas
 
-        if getattr(opts, "reward_count_top_sli", False):
+        sli_group = getattr(opts, "reward_count_sli_group", None)
+
+        # Backward compatibility for older top-only flag, if present
+        if sli_group is None and getattr(opts, "reward_count_top_sli", False):
+            sli_group = "top"
+
+        if sli_group == "top":
             if saved_top is None:
                 print(
-                    "[reward_count] WARNING: --reward-count-top-sli requested "
+                    "[reward_count] WARNING: top-SLI restriction requested "
                     "but no top-SLI group is available; falling back to all flies."
                 )
             else:
@@ -8420,11 +8450,29 @@ def postAnalyze(vas):
                 print(
                     f"[reward_count] restricting to {len(vas_for_hist)} top-SLI flies"
                 )
+        elif sli_group == "bottom":
+            if saved_bottom is None:
+                print(
+                    "[reward_count] WARNING: bottom-SLI restriction requested "
+                    "but no bottom-SLI group is available; falling back to all flies."
+                )
+            else:
+                vas_for_hist = [vas[i] for i in saved_bottom]
+                print(
+                    f"[reward_count] restricting to {len(vas_for_hist)} bottom-SLI flies"
+                )
 
         subset_label = None
-        if getattr(opts, "reward_count_top_sli", False) and saved_top is not None:
-            frac = float(getattr(opts, "best_worst_fraction", 0.1))
+        if sli_group == "top" and saved_top is not None:
+            frac = getattr(opts, "top_sli_fraction", None)
+            if frac is None:
+                frac = getattr(opts, "best_worst_fraction", 0.1)
             subset_label = f"Restricted to top {100*frac:.1f}% SLI flies"
+        elif sli_group == "bottom" and saved_bottom is not None:
+            frac = getattr(opts, "bottom_sli_fraction", None)
+            if frac is None:
+                frac = getattr(opts, "best_worst_fraction", 0.1)
+            subset_label = f"Restricted to bottom {100*frac:.1f}% SLI flies"
 
         rc_cfg = RewardCountHistogramConfig(
             out_file=REWARD_COUNT_HIST_IMG_FILE,  # define a constant path like your others
@@ -8460,10 +8508,16 @@ def postAnalyze(vas):
     if va.circle and (do_total_plot or do_total_export):
         vas_for_totals = vas
 
-        if getattr(opts, "reward_count_total_top_sli", False):
+        sli_group = getattr(opts, "reward_count_total_sli_group", None)
+
+        # Backward compatibility for older top-only flag, if present
+        if sli_group is None and getattr(opts, "reward_count_total_top_sli", False):
+            sli_group = "top"
+
+        if sli_group == "top":
             if saved_top is None:
                 print(
-                    "[reward_count_total] WARNING: --reward-count-total-top-sli requested "
+                    "[reward_count_total] WARNING: top-SLI restriction requested "
                     "but no top-SLI group is available; falling back to all flies."
                 )
             else:
@@ -8471,11 +8525,29 @@ def postAnalyze(vas):
                 print(
                     f"[reward_count_total] restricting to {len(vas_for_totals)} top-SLI flies"
                 )
+        elif sli_group == "bottom":
+            if saved_bottom is None:
+                print(
+                    "[reward_count_total] WARNING: bottom-SLI restriction requested "
+                    "but no bottom-SLI group is available; falling back to all flies."
+                )
+            else:
+                vas_for_totals = [vas[i] for i in saved_bottom]
+                print(
+                    f"[reward_count_total] restricting to {len(vas_for_totals)} bottom-SLI flies"
+                )
 
         subset_label = None
-        if getattr(opts, "reward_count_total_top_sli", False) and saved_top is not None:
-            frac = float(getattr(opts, "best_worst_fraction", 0.1))
+        if sli_group == "top" and saved_top is not None:
+            frac = getattr(opts, "top_sli_fraction", None)
+            if frac is None:
+                frac = getattr(opts, "best_worst_fraction", 0.1)
             subset_label = f"Restricted to top {100*frac:.1f}% SLI flies"
+        elif sli_group == "bottom" and saved_bottom is not None:
+            frac = getattr(opts, "bottom_sli_fraction", None)
+            if frac is None:
+                frac = getattr(opts, "best_worst_fraction", 0.1)
+            subset_label = f"Restricted to bottom {100*frac:.1f}% SLI flies"
 
         cfg = RewardCountTotalsConfig(
             out_file=REWARD_COUNT_TOTAL_BARS_IMG_FILE,
@@ -10690,6 +10762,12 @@ if __name__ == "__main__":
     if getattr(opts, "btw_rwd_dist_top_sli", False):
         if getattr(opts, "btw_rwd_dist_sli_group", None) is None:
             opts.btw_rwd_dist_sli_group = "top"
+    if getattr(opts, "reward_count_top_sli", False):
+        if getattr(opts, "reward_count_sli_group", None) is None:
+            opts.reward_count_sli_group = "top"
+    if getattr(opts, "reward_count_total_top_sli", False):
+        if getattr(opts, "reward_count_total_sli_group", None) is None:
+            opts.reward_count_total_sli_group = "top"
 
     # - - -
     test()
