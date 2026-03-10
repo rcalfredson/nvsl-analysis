@@ -2090,7 +2090,22 @@ g.add_argument(
     action="store_true",
     help=(
         "Restrict distance-traveled analysis to flies in the top SLI fraction "
-        "(see --best-worst-sli, --best-worst-fraction, --best-worst-trn)."
+        "(see --best-worst-sli, --best-worst-fraction, --best-worst-trn). "
+        "Legacy shortcut for selecting the 'top' group; for top or bottom "
+        "selection use --btw-rwd-conditioned-disttrav-sli-group."
+    ),
+)
+
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-sli-group",
+    type=str,
+    choices=("top", "bottom"),
+    default=None,
+    help=(
+        "Restrict distance-traveled analysis/export to a selected SLI subset: "
+        "'top' or 'bottom'. Uses the SLI selection configured by "
+        "--best-worst-sli together with --best-worst-fraction and/or the side-specific "
+        "flags --top-sli-fraction and --bottom-sli-fraction."
     ),
 )
 
@@ -9134,11 +9149,20 @@ def postAnalyze(vas):
 
                 vas_for_plot = vas
 
-                # Mirror the "top SLI" restriction behavior used by other plotters.
-                if getattr(opts, "btw_rwd_conditioned_disttrav_top_sli", False):
+                sli_group = getattr(
+                    opts, "btw_rwd_conditioned_disttrav_sli_group", None
+                )
+
+                # Backward compatibility for older top-only flag
+                if sli_group is None and getattr(
+                    opts, "btw_rwd_conditioned_disttrav_top_sli", False
+                ):
+                    sli_group = "top"
+
+                if sli_group == "top":
                     if saved_top is None:
                         print(
-                            "[btw_rwd_dist_binned_disttrav] WARNING: --btw-rwd-conditioned-disttrav-top-sli requested "
+                            "[btw_rwd_dist_binned_disttrav] WARNING: top-SLI restriction requested "
                             "but no top-SLI group is available; falling back to all flies."
                         )
                     else:
@@ -9147,14 +9171,32 @@ def postAnalyze(vas):
                             "[btw_rwd_dist_binned_disttrav] restricting distance-traveled analysis to "
                             f"{len(vas_for_plot)} top-SLI flies"
                         )
+                elif sli_group == "bottom":
+                    if saved_bottom is None:
+                        print(
+                            "[btw_rwd_dist_binned_disttrav] WARNING: bottom-SLI restriction requested "
+                            "but no bottom-SLI group is available; falling back to all flies."
+                        )
+                    else:
+                        vas_for_plot = [vas[i] for i in saved_bottom]
+                        print(
+                            "[btw_rwd_dist_binned_disttrav] restricting distance-traveled analysis to "
+                            f"{len(vas_for_plot)} bottom-SLI flies"
+                        )
 
                 subset_label = None
-                if (
-                    getattr(opts, "btw_rwd_conditioned_disttrav_top_sli", False)
-                    and saved_top is not None
-                ):
-                    frac = float(getattr(opts, "best_worst_fraction", 0.1))
-                    subset_label = f"Restricted to top {100*frac:.1f}% SLI flies"
+                if sli_group == "top" and saved_top is not None:
+                    frac = getattr(opts, "top_sli_fraction", None)
+                    if frac is None:
+                        frac = getattr(opts, "best_worst_fraction", 0.1)
+                    subset_label = f"Restricted to top {100*float(frac):.1f}% SLI flies"
+                elif sli_group == "bottom" and saved_bottom is not None:
+                    frac = getattr(opts, "bottom_sli_fraction", None)
+                    if frac is None:
+                        frac = getattr(opts, "best_worst_fraction", 0.1)
+                    subset_label = (
+                        f"Restricted to bottom {100*float(frac):.1f}% SLI flies"
+                    )
 
                 # Training index (user is 1-based; internal is 0-based)
                 trn_1based = int(getattr(opts, "btw_rwd_conditioned_disttrav_trn", 2))
