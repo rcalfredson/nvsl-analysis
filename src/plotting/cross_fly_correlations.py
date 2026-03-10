@@ -86,6 +86,218 @@ def _compute_group_corr(
     return pearsonr(x_g[mask], y_g[mask])
 
 
+def _normalize_selected_groups(
+    sli_selected: tuple[Sequence[int], Sequence[int]] | None,
+    sli_extremes: str | None,
+) -> tuple[np.ndarray, np.ndarray, str | None]:
+    """
+    Normalize caller-provided selected groups.
+
+    Returns
+    -------
+    bottom_idx, top_idx, mode
+        mode is one of {"top", "bottom", "both"} or None if nothing to plot.
+    """
+    if sli_selected is None:
+        return np.array([], dtype=int), np.array([], dtype=int), None
+
+    bottom_raw, top_raw = sli_selected
+    bottom_idx = np.asarray(bottom_raw if bottom_raw is not None else [], dtype=int)
+    top_idx = np.asarray(top_raw if top_raw is not None else [], dtype=int)
+
+    mode = sli_extremes or "both"
+
+    if mode == "top":
+        if top_idx.size == 0:
+            return bottom_idx, top_idx, None
+        return np.array([], dtype=int), top_idx, "top"
+
+    if mode == "bottom":
+        if bottom_idx.size == 0:
+            return bottom_idx, top_idx, None
+        return bottom_idx, np.array([], dtype=int), "bottom"
+
+    # default: both
+    if bottom_idx.size == 0 and top_idx.size == 0:
+        return bottom_idx, top_idx, None
+
+    return bottom_idx, top_idx, "both"
+
+
+def plot_selected_group_scatter(
+    *,
+    x: np.ndarray,
+    y: np.ndarray,
+    bottom_idx: np.ndarray,
+    top_idx: np.ndarray,
+    mode: str,
+    title: str,
+    x_label: str,
+    y_label: str,
+    filename: str,
+    out_dir: Path,
+    customizer: PlotCustomizer,
+    top_label: str = "Top SLI-selected",
+    bottom_label: str = "Bottom SLI-selected",
+    other_label: str = "Other",
+    top_color: str = "#1f77b4",
+    bottom_color: str = "#cc0000",
+    other_color: str = "#aaaaaa",
+    alpha: float = 0.85,
+    figsize: tuple = (5.5, 4.5),
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
+):
+    """
+    Plot all points, highlighting selected top/bottom SLI groups and reporting
+    correlations for the highlighted group(s) only.
+
+    mode:
+        "top"     -> highlight top group only
+        "bottom"  -> highlight bottom group only
+        "both"    -> highlight both groups
+    """
+    x = np.asarray(x, float)
+    y = np.asarray(y, float)
+
+    mask = np.isfinite(x) & np.isfinite(y)
+    if np.sum(mask) < 3:
+        print(f"[correlations] WARNING: not enough valid data for {filename}")
+        return
+
+    x_f = x[mask]
+    y_f = y[mask]
+    valid_global_idx = np.arange(x.shape[0])[mask]
+
+    bottom_set = set(np.asarray(bottom_idx, dtype=int).tolist())
+    top_set = set(np.asarray(top_idx, dtype=int).tolist())
+
+    if mode == "both":
+        overlap = top_set & bottom_set
+        if overlap:
+            print()
+
+    classes = []
+    point_colors = []
+
+    for idx in valid_global_idx:
+        if mode in ("both", "top") and idx in top_set:
+            cls = "top"
+            color = top_color
+        elif mode in ("both", "bottom") and idx in bottom_set:
+            cls = "bottom"
+            color = bottom_color
+        else:
+            cls = "other"
+            color = other_color
+        classes.append(cls)
+        point_colors.append(color)
+
+    classes_arr = np.asarray(classes, dtype=object)
+
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.scatter(x_f, y_f, c=point_colors, alpha=alpha)
+
+    if xlim is not None:
+        ax.set_xlim(xlim)
+    if ylim is not None:
+        ax.set_ylim(ylim)
+
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    ax.set_title(title, pad=10)
+    ax.grid(False)
+
+    corr_top = None
+    corr_bottom = None
+    if mode in ("both", "top"):
+        plotted_top_mask = classes_arr == "top"
+        if np.sum(plotted_top_mask) >= 3:
+            r_t, p_t = pearsonr(x_f[plotted_top_mask], y_f[plotted_top_mask])
+            corr_top = (float(r_t), float(p_t), int(np.sum(plotted_top_mask)))
+
+    if mode in ("both", "bottom"):
+        plotted_bottom_mask = classes_arr == "bottom"
+        if np.sum(plotted_bottom_mask) >= 3:
+            r_b, p_b = pearsonr(x_f[plotted_bottom_mask], y_f[plotted_bottom_mask])
+            corr_bottom = (float(r_b), float(p_b), int(np.sum(plotted_bottom_mask)))
+
+    lines = []
+
+    if mode in ("both", "top"):
+        if corr_top is not None:
+            r_t, p_t, n_t = corr_top
+            lines.append(f"{top_label}: r = {r_t:.3f}, p = {p_t:.3g} (n={n_t})")
+        else:
+            lines.append(f"{top_label}: r = n/a")
+
+    if mode in ("both", "bottom"):
+        if corr_bottom is not None:
+            r_b, p_b, n_b = corr_bottom
+            lines.append(f"{bottom_label}: r = {r_b:.3f}, p = {p_b:.3g} (n={n_b})")
+        else:
+            lines.append(f"{bottom_label}: r = n/a")
+
+    ax.text(
+        0.05,
+        0.95,
+        "\n".join(lines),
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=10,
+        zorder=5,
+        bbox=dict(
+            facecolor="white", alpha=0.80, edgecolor="none", boxstyle="round,pad=0.25"
+        ),
+    )
+
+    handles = []
+    if mode in ("both", "top"):
+        handles.append(
+            plt.Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="w",
+                markerfacecolor=top_color,
+                markersize=8,
+                label=top_label,
+            )
+        )
+
+    if mode in ("both", "bottom"):
+        handles.append(
+            plt.Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="w",
+                markerfacecolor=bottom_color,
+                markersize=8,
+                label=bottom_label,
+            )
+        )
+
+    handles.append(
+        plt.Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            markerfacecolor=other_color,
+            markersize=8,
+            label=other_label,
+        )
+    )
+    ax.legend(handles=handles, loc="best", frameon=True)
+
+    customizer.adjust_padding_proportionally()
+    fig.tight_layout()
+    writeImage(str(out_dir / f"{filename}.png"), format="png")
+    plt.close(fig)
+
+
 def _scatter_with_corr(
     *,
     x: np.ndarray,
@@ -694,6 +906,8 @@ def plot_cross_fly_correlations(
     plot_customizer: PlotCustomizer | None = None,
     *,
     sli_ctx: SLIContext | None = None,
+    sli_selected: tuple[Sequence[int], Sequence[int]] | None = None,
+    sli_extremes: str | None = None,
 ):
     """
     Cross-fly correlations:
@@ -726,6 +940,24 @@ def plot_cross_fly_correlations(
     )
     frac = getattr(opts, "best_worst_fraction", 0.2)
     customizer = plot_customizer or PlotCustomizer()
+
+    selected_bottom_idx, selected_top_idx, selected_mode = _normalize_selected_groups(
+        sli_selected=sli_selected,
+        sli_extremes=sli_extremes,
+    )
+
+    top_frac = getattr(opts, "top_sli_fraction", None)
+    bottom_frac = getattr(opts, "bottom_sli_fraction", None)
+
+    top_pct_txt = (
+        f"{top_frac * 100:.0f}%" if top_frac is not None else f"{frac * 100:.0f}%"
+    )
+    bottom_pct_txt = (
+        f"{bottom_frac * 100:.0f}%" if bottom_frac is not None else f"{frac * 100:.0f}%"
+    )
+
+    top_sel_label = f"Top SLI-selected ({top_pct_txt})"
+    bottom_sel_label = f"Bottom SLI-selected ({bottom_pct_txt})"
 
     sli_vals = np.asarray(sli_values, float)
     if sli_vals.shape[0] != len(vas):
@@ -946,6 +1178,42 @@ def plot_cross_fly_correlations(
             filename="corr_pre_floor_exploration_vs_sli_T1_first",
             customizer=customizer,
         )
+        if selected_mode is not None:
+            if selected_mode == "top":
+                title_3b_sel = (
+                    "Pre-training exploration vs early SLI (top SLI-selected learners)"
+                )
+                filename_3b_sel = (
+                    "corr_pre_floor_exploration_vs_sli_T1_first_top_selected"
+                )
+            elif selected_mode == "bottom":
+                title_3b_sel = "Pre-training exploration vs early SLI (bottom SLI-selected learners)"
+                filename_3b_sel = (
+                    "corr_pre_floor_exploration_vs_sli_T1_first_bottom_selected"
+                )
+            else:
+                title_3b_sel = "Pre-training exploration vs early SLI (top vs bottom SLI-selected learners)"
+                filename_3b_sel = (
+                    "corr_pre_floor_exploration_vs_sli_T1_first_selected_extremes"
+                )
+
+            plot_selected_group_scatter(
+                x=pre_coverage_vals,
+                y=reward_pi_training_vals,
+                bottom_idx=selected_bottom_idx,
+                top_idx=selected_top_idx,
+                mode=selected_mode,
+                title=title_3b_sel,
+                x_label="Fraction of floor explored during pre-training\n(exp fly)",
+                y_label=early_lbl,
+                filename=filename_3b_sel,
+                out_dir=out_dir,
+                customizer=customizer,
+                top_label=top_sel_label,
+                bottom_label=bottom_sel_label,
+                xlim=cfg.xlim,
+                ylim=cfg.ylim,
+            )
     else:
         print(
             "[correlations] WARNING: missing reward_pi_training_vals; "
@@ -963,6 +1231,41 @@ def plot_cross_fly_correlations(
         filename="corr_pre_floor_exploration_vs_sli_final",
         customizer=customizer,
     )
+
+    if selected_mode is not None:
+        if selected_mode == "top":
+            title_3c_sel = "Pre-training exploration vs SLI (top SLI-selected learners)"
+            filename_3c_sel = "corr_pre_floor_exploration_vs_sli_final_top_selected"
+        elif selected_mode == "bottom":
+            title_3c_sel = (
+                "Pre-training exploration vs SLI (bottom SLI-selected learners)"
+            )
+            filename_3c_sel = "corr_pre_floor_exploration_vs_sli_final_bottom_selected"
+        else:
+            title_3c_sel = (
+                "Pre-training exploration vs SLI (top vs bottom SLI-selected learners)"
+            )
+            filename_3c_sel = (
+                "corr_pre_floor_exploration_vs_sli_final_selected_extremes"
+            )
+
+        plot_selected_group_scatter(
+            x=pre_coverage_vals,
+            y=sli_vals,
+            bottom_idx=selected_bottom_idx,
+            top_idx=selected_top_idx,
+            mode=selected_mode,
+            title=title_3c_sel,
+            x_label="Fraction of floor explored during pre-training\n(exp fly)",
+            y_label=y_label_sli,
+            filename=filename_3c_sel,
+            out_dir=out_dir,
+            customizer=customizer,
+            top_label=top_sel_label,
+            bottom_label=bottom_sel_label,
+            xlim=cfg.xlim,
+            ylim=cfg.ylim,
+        )
 
     if reward_pi_training_vals is not None:
         # --- Plot 4: Reward PI (T1, first bucket) vs total rewards in that bucket ---
@@ -1034,6 +1337,44 @@ def plot_cross_fly_correlations(
                 frac=frac,
                 customizer=customizer,
                 early_label=early_lbl,
+            )
+
+        # --- Plot 5d: Baseline PI vs early SLI for selected SLI groups ---
+        if selected_mode is not None:
+            if selected_mode == "top":
+                title_5_sel = "Baseline PI vs early SLI (top SLI-selected learners)"
+                filename_5_sel = (
+                    "corr_pre_reward_pi_vs_T1_first_bucket_reward_pi_top_selected"
+                )
+            elif selected_mode == "bottom":
+                title_5_sel = "Baseline PI vs early SLI (bottom SLI-selected learners)"
+                filename_5_sel = (
+                    "corr_pre_reward_pi_vs_T1_first_bucket_reward_pi_bottom_selected"
+                )
+            else:
+                title_5_sel = (
+                    "Baseline PI vs early SLI (top vs bottom SLI-selected learners)"
+                )
+                filename_5_sel = (
+                    "corr_pre_reward_pi_vs_T1_first_bucket_reward_pi_selected_extremes"
+                )
+
+            plot_selected_group_scatter(
+                x=pre_pi_diff_vals,
+                y=reward_pi_training_vals,
+                bottom_idx=selected_bottom_idx,
+                top_idx=selected_top_idx,
+                mode=selected_mode,
+                title=title_5_sel,
+                x_label="Baseline PI\n(exp - yok, pre-training)",
+                y_label=early_lbl.replace("SLI", "SLI\n"),
+                filename=filename_5_sel,
+                out_dir=out_dir,
+                customizer=customizer,
+                top_label=top_sel_label,
+                bottom_label=bottom_sel_label,
+                xlim=cfg.xlim,
+                ylim=cfg.ylim,
             )
 
     else:
