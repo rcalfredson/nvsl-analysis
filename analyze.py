@@ -8115,6 +8115,12 @@ def postAnalyze(vas):
                     out_dir="imgs/correlations",
                     plot_customizer=customizer,
                     sli_ctx=sli_ctx,
+                    sli_selected=(selected_bottom or [], selected_top or []),
+                    sli_extremes=(
+                        getattr(opts, "best_worst_extreme", "both")
+                        if opts.best_worst_sli
+                        else None
+                    ),
                 )
 
         a_orig = a.copy()
