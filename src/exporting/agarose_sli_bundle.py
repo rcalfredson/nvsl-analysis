@@ -167,6 +167,76 @@ def _extract_agarose_arrays(vas, opts=None):
     return ratio_exp, ratio_ctrl, total_exp, total_ctrl, avoid_exp, avoid_ctrl
 
 
+def _extract_agarose_pre_arrays(vas, opts=None):
+    """
+    Returns:
+      ratio_exp: (n_videos,) float
+      ratio_ctrl:(n_videos,) float
+      total_exp: (n_videos,) int
+      total_ctrl:(n_videos,) int
+      avoid_exp: (n_videos,) int
+      avoid_ctrl:(n_videos,) int
+      window_min: scalar float (best effort, from first available VA)
+    """
+    n_videos = len(vas)
+    ratio_exp = np.full(n_videos, np.nan, dtype=float)
+    ratio_ctrl = np.full(n_videos, np.nan, dtype=float)
+    total_exp = np.zeros(n_videos, dtype=int)
+    total_ctrl = np.zeros(n_videos, dtype=int)
+    avoid_exp = np.zeros(n_videos, dtype=int)
+    avoid_ctrl = np.zeros(n_videos, dtype=int)
+    window_min = np.nan
+
+    for vi, va in enumerate(vas):
+        d = getattr(va, "agarose_dual_circle_pre_counts", None)
+        vid = getattr(va, "fn", f"va_{vi}")
+        if not isinstance(d, dict) or d.get("ratio", None) is None:
+            _dbg(
+                opts,
+                f"[agarose-export] {vid}: MISSING agarose_dual_circle_pre_counts['ratio']",
+            )
+            continue
+
+        ratio = np.asarray(d["ratio"], dtype=float)
+        _dbg(
+            opts,
+            f"[agarose-export] {vid}: pre ratio shape={getattr(ratio, 'shape', None)}",
+        )
+        if ratio.ndim != 1:
+            _dbg(
+                opts,
+                f"[agarose-export] {vid}: SKIP pre (ratio.ndim={ratio.ndim}, expected 1)",
+            )
+            continue
+
+        if ratio.size >= 1:
+            ratio_exp[vi] = ratio[0]
+        if ratio.size >= 2:
+            ratio_ctrl[vi] = ratio[1]
+
+        tot = np.asarray(d.get("total", []), dtype=int)
+        if tot.ndim == 1:
+            if tot.size >= 1:
+                total_exp[vi] = tot[0]
+            if tot.size >= 2:
+                total_ctrl[vi] = tot[1]
+
+        av = np.asarray(d.get("avoid", []), dtype=int)
+        if av.ndim == 1:
+            if av.size >= 1:
+                avoid_exp[vi] = av[0]
+            if av.size >= 2:
+                avoid_ctrl[vi] = av[1]
+
+        if not np.isfinite(window_min):
+            try:
+                window_min = float(np.asarray(d.get("window_min", np.nan)).reshape(()))
+            except Exception:
+                pass
+
+    return ratio_exp, ratio_ctrl, total_exp, total_ctrl, avoid_exp, avoid_ctrl, window_min
+
+
 def export_agarose_sli_bundle(vas, opts, gls, out_fn):
     """
     Writes an .npz with:
@@ -175,6 +245,7 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
       - agarose_ratio_exp/ctrl: (n_videos, n_trn, n_sb)
       - agarose_total_exp/ctrl: (n_videos, n_trn, n_sb) int
       - agarose_avoid_exp/ctrl: (n_videos, n_trn, n_sb) int
+      - optionally agarose_pre_ratio_*/total_*/avoid_*: (n_videos,)
       - metadata: group_label, bucket_len_min, training_names, video_ids, SLI settings
     """
     from analyze import bucketLenForType
@@ -228,6 +299,28 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
     except Exception:
         video_ids = np.array([f"va_{i}" for i in range(len(vas_ok))], dtype=object)
 
+    pre_payload = {}
+    if bool(getattr(opts, "agarose_sli_include_pre", False)):
+        (
+            pre_ratio_exp,
+            pre_ratio_ctrl,
+            pre_total_exp,
+            pre_total_ctrl,
+            pre_avoid_exp,
+            pre_avoid_ctrl,
+            pre_window_min,
+        ) = _extract_agarose_pre_arrays(vas_ok, opts)
+        pre_payload = {
+            "agarose_pre_ratio_exp": pre_ratio_exp,
+            "agarose_pre_ratio_ctrl": pre_ratio_ctrl,
+            "agarose_pre_total_exp": pre_total_exp,
+            "agarose_pre_total_ctrl": pre_total_ctrl,
+            "agarose_pre_avoid_exp": pre_avoid_exp,
+            "agarose_pre_avoid_ctrl": pre_avoid_ctrl,
+            "agarose_pre_window_min": np.array(pre_window_min, dtype=float),
+            "agarose_pre_label": np.array("pre last 10m", dtype=object),
+        }
+
     os.makedirs(os.path.dirname(out_fn) or ".", exist_ok=True)
     np.savez_compressed(
         out_fn,
@@ -247,9 +340,12 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
         sli_use_training_mean=np.array(
             bool(getattr(opts, "sli_use_training_mean", False))
         ),
+        **pre_payload,
     )
     print(f"[export] Wrote agarose+SLI bundle: {out_fn} (n={len(vas_ok)})")
     _dbg(
         opts,
-        "[agarose-export] saved keys: agarose_ratio_*, agarose_total_*, agarose_avoid_*, sli, sli_ts, metadata",
+        "[agarose-export] saved keys: agarose_ratio_*, agarose_total_*, agarose_avoid_*, "
+        + ("agarose_pre_*, " if pre_payload else "")
+        + "sli, sli_ts, metadata",
     )

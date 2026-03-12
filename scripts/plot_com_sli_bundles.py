@@ -78,6 +78,14 @@ def main():
         help="Overlay ctrl curves (same linestyle as group, different color).",
     )
     p.add_argument(
+        "--include-pre",
+        action="store_true",
+        help=(
+            "For metrics that support it, prepend the exported pre-training value "
+            "to the first training panel."
+        ),
+    )
+    p.add_argument(
         "--sli-extremes",
         default=None,
         choices=["top", "bottom", "both"],
@@ -156,6 +164,7 @@ def main():
         delta_label=delta_label,
         delta_ylabel=args.delta_ylabel,
         delta_allow_unpaired=args.delta_allow_unpaired,
+        include_pre=args.include_pre,
     )
 
 

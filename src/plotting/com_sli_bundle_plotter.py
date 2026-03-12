@@ -292,6 +292,7 @@ def plot_com_sli_bundles(
     delta_label=None,  # label prefix in delta mode
     delta_ylabel=None,
     delta_allow_unpaired=False,
+    include_pre=False,
 ):
     """
     Plot COM magnitude or SLI vs sync bucket from one or more exported bundles.
@@ -384,6 +385,16 @@ def plot_com_sli_bundles(
             include_ctrl = False
         else:
             raise ValueError(f"Unknown mode={turnback_mode!r} for metric=agarose")
+        if include_pre:
+            if turnback_mode == "exp":
+                need_keys = need_keys + ["agarose_pre_ratio_exp"]
+            elif turnback_mode == "ctrl":
+                need_keys = need_keys + ["agarose_pre_ratio_ctrl"]
+            else:
+                need_keys = need_keys + [
+                    "agarose_pre_ratio_exp",
+                    "agarose_pre_ratio_ctrl",
+                ]
     elif metric == "wallpct":
         series_key = "wallpct_exp"
         need_keys = ["wallpct_exp"]
@@ -452,6 +463,9 @@ def plot_com_sli_bundles(
             "'reward_lv', 'reward_lgturn_prevalence', 'weaving'."
         )
 
+    if include_pre and metric != "agarose":
+        raise ValueError("--include-pre is currently supported only for metric='agarose'.")
+
     def _series_for_bundle(b):
         """
         Return array shaped (n_videos, n_trains, nb) for the requested plot.
@@ -494,6 +508,17 @@ def plot_com_sli_bundles(
                 return (turns_exp - turns_ctrl) / rewards_safe
         return np.asarray(b[series_key], dtype=float)
 
+    def _pre_series_for_bundle(b):
+        if metric != "agarose" or not include_pre:
+            return None
+        if turnback_mode == "exp":
+            return np.asarray(b["agarose_pre_ratio_exp"], dtype=float)
+        if turnback_mode == "ctrl":
+            return np.asarray(b["agarose_pre_ratio_ctrl"], dtype=float)
+        exp_arr = np.asarray(b["agarose_pre_ratio_exp"], dtype=float)
+        ctrl_arr = np.asarray(b["agarose_pre_ratio_ctrl"], dtype=float)
+        return exp_arr - ctrl_arr
+
     def _series_for_bundle_delta(b):
         """
         Return series for bundle b. If delta_vs_path is set, return (b - base_bundle),
@@ -531,6 +556,32 @@ def plot_com_sli_bundles(
         m_comp = np.nanmean(s, axis=0, keepdims=True)
         m_base = np.nanmean(sb, axis=0, keepdims=True)
         return m_comp - m_base
+
+    def _pre_series_for_bundle_delta(b):
+        s = _pre_series_for_bundle(b)
+        if s is None or base_bundle is None:
+            return s
+
+        sb = _pre_series_for_bundle(base_bundle)
+        if sb is None:
+            raise ValueError(
+                "Baseline bundle is missing pre-training agarose keys required by --include-pre."
+            )
+
+        if s.ndim != 1 or sb.ndim != 1:
+            raise ValueError("Pre-training agarose arrays must be 1D (n_videos,).")
+
+        bidx, cidx, n_match = _align_by_video_ids(base_bundle, b)
+        if n_match and n_match >= 2:
+            return s[cidx] - sb[bidx]
+
+        if not delta_allow_unpaired:
+            raise ValueError(
+                "Cannot compute paired delta for pre-training agarose: insufficient "
+                f"overlapping video_ids (matched={n_match})."
+            )
+
+        return np.array([np.nanmean(s) - np.nanmean(sb)], dtype=float)
 
     for b in bundles:
         missing = [k for k in need_keys if k not in b]
@@ -593,6 +644,7 @@ def plot_com_sli_bundles(
 
     # x positions: end points in minutes, matching plotRewards() for non-post
     xs = (np.arange(nb) + 1) * bl
+    pre_x = 0.0
 
     # Styling: mimic plotRewards commag behavior (group via linestyle)
     # Use matplotlib default C0/C1 to stay close to existing look.
@@ -695,6 +747,8 @@ def plot_com_sli_bundles(
     for ti in range(n_trains):
         ax = axs[ti]
         plt.sca(ax)
+        panel_has_pre = bool(include_pre and metric == "agarose" and ti == 0)
+        panel_xs = np.concatenate(([pre_x], xs)) if panel_has_pre else xs
 
         # Per(training,bucket) label registry so stars can avoid overlapping
         # with existing text (n labels and other stars).
@@ -747,7 +801,7 @@ def plot_com_sli_bundles(
         means_by_group = [None] * n_plot_groups  # each: (nb,) float
         vals_by_group = [
             None
-        ] * n_plot_groups  # each: (nb,) list[np.ndarray] (finite per-bucket samples)
+        ] * n_plot_groups  # each: list[np.ndarray] (finite per-bucket samples)
 
         for gi, pg in enumerate(plot_groups):
             b = pg["bundle"]
@@ -764,30 +818,38 @@ def plot_com_sli_bundles(
             series = _series_for_bundle_delta(b)
             exp = series[sel_idx, ti, :]
             mci = _mean_ci_over_videos(exp)
+            plot_mci = mci
+            exp_for_test = np.asarray(exp, dtype=float)
+
+            if panel_has_pre:
+                pre_series = _pre_series_for_bundle_delta(b)
+                pre_vals = np.asarray(pre_series[sel_idx], dtype=float)
+                pre_mci = np.asarray(util.meanConfInt(pre_vals), dtype=float).reshape(4, 1)
+                plot_mci = np.concatenate((pre_mci, plot_mci), axis=1)
+                exp_for_test = np.concatenate((pre_vals[:, None], exp_for_test), axis=1)
 
             # update global min/max for dynamic y-lims
-            if not np.all(np.isnan(mci[1, :])):
+            if not np.all(np.isnan(plot_mci[1, :])):
                 mci_min = (
-                    np.nanmin(mci[1, :])
+                    np.nanmin(plot_mci[1, :])
                     if mci_min is None
-                    else min(mci_min, np.nanmin(mci[1, :]))
+                    else min(mci_min, np.nanmin(plot_mci[1, :]))
                 )
-            if not np.all(np.isnan(mci[2, :])):
+            if not np.all(np.isnan(plot_mci[2, :])):
                 mci_max = (
-                    np.nanmax(mci[2, :])
+                    np.nanmax(plot_mci[2, :])
                     if mci_max is None
-                    else max(mci_max, np.nanmax(mci[2, :]))
+                    else max(mci_max, np.nanmax(plot_mci[2, :]))
                 )
 
             if metric == "wallpct":
-                mci = mci.copy()
-                mci[0, :] *= 100.0
-                mci[1, :] *= 100.0
-                mci[2, :] *= 100.0
+                plot_mci = plot_mci.copy()
+                plot_mci[0, :] *= 100.0
+                plot_mci[1, :] *= 100.0
+                plot_mci[2, :] *= 100.0
 
             # For t-tests we compare what we're plotting (wallpct is scaled by 100)
             if do_ttests or do_anova:
-                exp_for_test = np.asarray(exp, dtype=float)
                 if metric == "wallpct":
                     exp_for_test = exp_for_test * 100.0
                 # Store finite samples per bucket
@@ -795,12 +857,12 @@ def plot_com_sli_bundles(
                     exp_for_test[np.isfinite(exp_for_test[:, bj]), bj]
                     for bj in range(exp_for_test.shape[1])
                 ]
-                means_by_group[gi] = np.asarray(mci[0, :], dtype=float)
-            ys = mci[0, :]
+                means_by_group[gi] = np.asarray(plot_mci[0, :], dtype=float)
+            ys = plot_mci[0, :]
             fin = np.isfinite(ys)
             ls = linestyles[style_idx % len(linestyles)]
             (line,) = plt.plot(
-                xs[fin],
+                panel_xs[fin],
                 ys[fin],
                 color=exp_color,
                 marker="o",
@@ -813,16 +875,20 @@ def plot_com_sli_bundles(
                 line.set_label(label)
 
             # CI shading
-            if np.isfinite(mci[1, :]).any() and np.isfinite(mci[2, :]).any():
+            if np.isfinite(plot_mci[1, :]).any() and np.isfinite(plot_mci[2, :]).any():
                 plt.fill_between(
-                    xs[fin], mci[1, :][fin], mci[2, :][fin], color=exp_color, alpha=0.15
+                    panel_xs[fin],
+                    plot_mci[1, :][fin],
+                    plot_mci[2, :][fin],
+                    color=exp_color,
+                    alpha=0.15,
                 )
 
             # optionally show n per bucket (like plotRewards)
-            for bj, n in enumerate(mci[3, :]):
+            for bj, n in enumerate(plot_mci[3, :]):
                 if n > 0 and np.isfinite(ys[bj]):
                     txt = util.pltText(
-                        xs[bj],
+                        panel_xs[bj],
                         ys[bj] + 0.04 * (ylim[1] - ylim[0]),
                         f"{int(n)}",
                         ha="center",
@@ -861,16 +927,25 @@ def plot_com_sli_bundles(
                     continue
                 ctrl = ctrl_arr[sel_idx, ti, :]
                 mci_c = _mean_ci_over_videos(ctrl)
+                plot_mci_c = mci_c
+                if panel_has_pre:
+                    pre_ctrl_vals = np.asarray(
+                        b["agarose_pre_ratio_ctrl"], dtype=float
+                    )[sel_idx]
+                    pre_mci_c = np.asarray(
+                        util.meanConfInt(pre_ctrl_vals), dtype=float
+                    ).reshape(4, 1)
+                    plot_mci_c = np.concatenate((pre_mci_c, plot_mci_c), axis=1)
                 if metric == "wallpct":
-                    mci_c = mci_c.copy()
-                    mci_c[0, :] *= 100.0
-                    mci_c[1, :] *= 100.0
-                    mci_c[2, :] *= 100.0
-                ys_c = mci_c[0, :]
+                    plot_mci_c = plot_mci_c.copy()
+                    plot_mci_c[0, :] *= 100.0
+                    plot_mci_c[1, :] *= 100.0
+                    plot_mci_c[2, :] *= 100.0
+                ys_c = plot_mci_c[0, :]
                 fin_c = np.isfinite(ys_c)
                 if fin_c.any():
                     plt.plot(
-                        xs[fin_c],
+                        panel_xs[fin_c],
                         ys_c[fin_c],
                         color=ctrl_color,
                         marker="o",
@@ -881,13 +956,13 @@ def plot_com_sli_bundles(
                         alpha=0.95,
                     )
                     if (
-                        np.isfinite(mci_c[1, :]).any()
-                        and np.isfinite(mci_c[2, :]).any()
+                        np.isfinite(plot_mci_c[1, :]).any()
+                        and np.isfinite(plot_mci_c[2, :]).any()
                     ):
                         plt.fill_between(
-                            xs[fin_c],
-                            mci_c[1, :][fin_c],
-                            mci_c[2, :][fin_c],
+                            panel_xs[fin_c],
+                            plot_mci_c[1, :][fin_c],
+                            plot_mci_c[2, :][fin_c],
                             color=ctrl_color,
                             alpha=0.12,
                         )
@@ -900,7 +975,7 @@ def plot_com_sli_bundles(
         ):
             # For each bucket, run an omnibus ANOVA across groups.
             # (No post-hoc here; this mirrors your "one symbol per bucket" style.)
-            for bj in range(nb):
+            for bj in range(len(vals_by_group[0])):
                 groups_here = []
                 ok = True
                 for gi in range(n_plot_groups):
@@ -947,7 +1022,7 @@ def plot_com_sli_bundles(
                     continue
 
                 txt = util.pltText(
-                    xs[bj],
+                    panel_xs[bj],
                     ys_star,
                     stars,
                     ha="center",
@@ -968,7 +1043,7 @@ def plot_com_sli_bundles(
         ):
             m0 = means_by_group[0]
             m1 = means_by_group[1]
-            for bj in range(nb):
+            for bj in range(len(vals_by_group[0])):
                 x0 = vals_by_group[0][bj]
                 x1 = vals_by_group[1][bj]
 
@@ -1010,7 +1085,7 @@ def plot_com_sli_bundles(
                     continue
 
                 txt = util.pltText(
-                    xs[bj],
+                    panel_xs[bj],
                     ys_star,
                     stars,
                     ha="center",
@@ -1024,7 +1099,14 @@ def plot_com_sli_bundles(
                 lbls[bj].append(txt)
 
         plt.title(maybe_sentence_case(title))
-        plt.xlabel(maybe_sentence_case(f"end points [min] of {blf} min sync buckets"))
+        if panel_has_pre:
+            plt.xlabel(
+                maybe_sentence_case(
+                    f"pre, then end points [min] of {blf} min sync buckets"
+                )
+            )
+        else:
+            plt.xlabel(maybe_sentence_case(f"end points [min] of {blf} min sync buckets"))
 
         if metric == "commag":
             y_label = "COM dist. to circle center [mm]"
@@ -1089,7 +1171,13 @@ def plot_com_sli_bundles(
             plt.axhline(0.0, color="k")
         else:
             plt.axhline(color="k")
-        plt.xlim(0, xs[-1])
+        if panel_has_pre:
+            ax.axvline(bl / 2.0, color="0.5", linestyle=":", linewidth=1)
+            ax.set_xticks(panel_xs)
+            ax.set_xticklabels(["pre"] + [f"{x:g}" for x in xs])
+            plt.xlim(-0.5 * bl, xs[-1])
+        else:
+            plt.xlim(0, xs[-1])
 
     # --- Delta-mode y-lims: center around 0 and keep it tight unless the data demand otherwise ---
     if base_bundle is not None:

@@ -3271,6 +3271,14 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--agarose-sli-include-pre",
+    action="store_true",
+    help=(
+        "When exporting agarose+SLI bundles, also store the last-10-minute "
+        "pre-training agarose avoidance ratio/counts."
+    ),
+)
+g.add_argument(
     "--export-wallpct-sli-bundle",
     type=str,
     default=None,
