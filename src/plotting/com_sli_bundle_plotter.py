@@ -8,6 +8,11 @@ import matplotlib.pyplot as plt
 from scipy.stats import f_oneway
 
 from src.plotting.palettes import get_palette, FLY_COLS
+from src.analysis.sli_bundle_utils import (
+    align_by_video_ids,
+    as_scalar,
+    load_sli_bundle,
+)
 import src.utils.util as util
 from src.utils.common import (
     maybe_sentence_case,
@@ -18,59 +23,6 @@ from src.utils.common import (
     pick_non_overlapping_y,
 )
 from src.plotting.plot_customizer import PlotCustomizer
-
-
-def _as_scalar(x):
-    # handle np arrays holding single objects/scalars
-    if isinstance(x, np.ndarray) and x.shape == ():
-        return x.item()
-    return x
-
-
-def _load_bundle(path):
-    d = np.load(path, allow_pickle=True)
-    # required keys
-    req = [
-        "sli",
-        "group_label",
-        "bucket_len_min",
-        "training_names",
-        "video_ids",
-        "sli_training_idx",
-        "sli_use_training_mean",
-    ]
-    missing = [k for k in req if k not in d.files]
-    if missing:
-        raise ValueError(f"Bundle {path} is missing keys: {missing}")
-
-    out = {k: d[k] for k in req}
-    out["path"] = path
-
-    # normalize a few things
-    out["group_label"] = str(_as_scalar(out["group_label"]))
-    out["bucket_len_min"] = float(_as_scalar(out["bucket_len_min"]))
-    out["sli_training_idx"] = int(_as_scalar(out["sli_training_idx"]))
-    out["sli_use_training_mean"] = bool(_as_scalar(out["sli_use_training_mean"]))
-
-    # Look for optional keys by prefix
-    for k in d.files:
-        if k in out:
-            continue
-        if k.startswith(
-            (
-                "commag_",
-                "weaving_",
-                "wallpct_",
-                "turnback_",
-                "agarose_",
-                "lgturn_",
-                "reward_lgturn_",
-                "reward_lv_",
-                "sli_",
-            )
-        ) or k in ("sli_ts",):
-            out[k] = d[k]
-    return out
 
 
 def _pct_label(prefix, frac):
@@ -87,54 +39,13 @@ def _bundle_metric_palette(metric):
     else:
         return FLY_COLS
 
-
-def _as_str_array(x):
-    # video_ids often come out as dtype=object arrays
-    arr = np.asarray(x)
-    if arr.ndim != 1:
-        arr = arr.reshape(-1)
-    return np.array([str(v) for v in arr], dtype=object)
-
-
-def _bundle_video_ids(bundle):
-    key = "video_uid" if "video_uid" in bundle else "video_ids"
-    if key not in bundle:
-        return None
-    return _as_str_array(bundle[key])
-
-
-def _align_by_video_ids(base_bundle, comp_bundle):
-    """
-    Returns:
-      base_idx, comp_idx, n_match
-    Where base_idx and comp_idx are index arrays selecting matched videos in the SAME ID order.
-    """
-    if "video_ids" not in base_bundle or "video_ids" not in comp_bundle:
-        return None, None, 0
-    base_ids = _bundle_video_ids(base_bundle)
-    comp_ids = _bundle_video_ids(comp_bundle)
-    if base_ids is None or comp_ids is None:
-        return None, None, 0
-
-    base_map = {vid: i for i, vid in enumerate(base_ids)}
-    comp_map = {vid: i for i, vid in enumerate(comp_ids)}
-
-    common = [vid for vid in comp_ids if vid in base_map]
-    if not common:
-        return None, None, 0
-
-    base_idx = np.array([base_map[vid] for vid in common], dtype=int)
-    comp_idx = np.array([comp_map[vid] for vid in common], dtype=int)
-    return base_idx, comp_idx, int(len(common))
-
-
 def _check_delta_compat(base, comp, *, keys, metric_label="metric"):
     """
     Basic sanity checks so we don't silently subtract apples from wheelbarrows.
     """
     # bucket length consistency
-    bl0 = float(_as_scalar(base.get("bucket_len_min", np.nan)))
-    bl1 = float(_as_scalar(comp.get("bucket_len_min", np.nan)))
+    bl0 = float(as_scalar(base.get("bucket_len_min", np.nan)))
+    bl1 = float(as_scalar(comp.get("bucket_len_min", np.nan)))
     if np.isfinite(bl0) and np.isfinite(bl1) and abs(bl0 - bl1) > 1e-6:
         raise ValueError(
             f"Cannot delta: bucket_len_min differs (base={bl0}, comp={bl1})."
@@ -150,8 +61,8 @@ def _check_delta_compat(base, comp, *, keys, metric_label="metric"):
     # optional: turnback-specific metadata checks (safe to ignore if absent)
     # If both present, require equality for inner_delta_mm since you're testing pixel rounding.
     if "turnback_inner_delta_mm" in base and "turnback_inner_delta_mm" in comp:
-        d0 = float(_as_scalar(base["turnback_inner_delta_mm"]))
-        d1 = float(_as_scalar(comp["turnback_inner_delta_mm"]))
+        d0 = float(as_scalar(base["turnback_inner_delta_mm"]))
+        d1 = float(as_scalar(comp["turnback_inner_delta_mm"]))
         if abs(d0 - d1) > 1e-9:
             raise ValueError(
                 f"Cannot delta turnback: turnback_inner_delta_mm differs (base={d0}, comp={d1})."
@@ -320,14 +231,14 @@ def plot_com_sli_bundles(
         sli_top_fraction = 0.2
         sli_bottom_fraction = 0.2
 
-    bundles = [_load_bundle(p) for p in bundle_paths]
+    bundles = [load_sli_bundle(p) for p in bundle_paths]
     ng = len(bundles)
     if ng == 0:
         raise ValueError("No bundles provided")
 
     base_bundle = None
     if delta_vs_path:
-        base_bundle = _load_bundle(delta_vs_path)
+        base_bundle = load_sli_bundle(delta_vs_path)
 
     if metric == "commag":
         series_key = "commag_exp"
@@ -540,7 +451,7 @@ def plot_com_sli_bundles(
             )
 
         # Paired alignment by video_ids
-        bidx, cidx, n_match = _align_by_video_ids(base_bundle, b)
+        bidx, cidx, n_match = align_by_video_ids(base_bundle, b)
         if n_match and n_match >= 2:
             return s[cidx, :, :] - sb[bidx, :, :]
 
@@ -571,7 +482,7 @@ def plot_com_sli_bundles(
         if s.ndim != 1 or sb.ndim != 1:
             raise ValueError("Pre-training agarose arrays must be 1D (n_videos,).")
 
-        bidx, cidx, n_match = _align_by_video_ids(base_bundle, b)
+        bidx, cidx, n_match = align_by_video_ids(base_bundle, b)
         if n_match and n_match >= 2:
             return s[cidx] - sb[bidx]
 
