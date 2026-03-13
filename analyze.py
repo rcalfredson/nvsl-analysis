@@ -3274,8 +3274,9 @@ g.add_argument(
     "--agarose-sli-include-pre",
     action="store_true",
     help=(
-        "When exporting agarose+SLI bundles, also store the last-10-minute "
-        "pre-training agarose avoidance ratio/counts."
+        "When exporting agarose+SLI bundles, also store both the experiment-wide "
+        "last-10-minute pre-training agarose metrics and the per-training last-10-minute "
+        "pre windows immediately preceding each training."
     ),
 )
 g.add_argument(

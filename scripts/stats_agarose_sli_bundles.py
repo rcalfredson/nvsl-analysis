@@ -61,10 +61,19 @@ def main() -> int:
         help="Which agarose series to compare.",
     )
     p.add_argument(
+        "--pre-scope",
+        default="experiment",
+        choices=["experiment", "training"],
+        help=(
+            "Which pre-training baseline to use: the experiment-wide last 10 minutes "
+            "or the selected training's own last 10 minutes."
+        ),
+    )
+    p.add_argument(
         "--training-index",
         type=int,
         default=2,
-        help="1-based training index to compare against pre-training (default: 2).",
+        help="1-based training index to compare against the selected pre baseline (default: 2).",
     )
     p.add_argument(
         "--sync-bucket-index",
@@ -100,6 +109,7 @@ def main() -> int:
         args.bundle_a,
         args.bundle_b,
         mode=args.mode,
+        pre_scope=args.pre_scope,
         training_index_1based=args.training_index,
         bucket_index=_to_zero_based(args.sync_bucket_index),
         bucket_start_index=_to_zero_based(args.sync_bucket_start_index),
@@ -115,7 +125,8 @@ def main() -> int:
 
     print(
         "Selection:"
-        f" mode={sel_a.mode}, training={sel_a.training_idx + 1} ({sel_a.training_name}),"
+        f" mode={sel_a.mode}, pre_scope={sel_a.pre_scope},"
+        f" training={sel_a.training_idx + 1} ({sel_a.training_name}),"
         f" sync_bucket={sel_a.bucket_start_idx + 1}"
         + (
             ""
@@ -129,7 +140,7 @@ def main() -> int:
         print(f"\n{sel.bundle_label}")
         print(f"  n paired: {_fmt(stats['n_pairs'])}")
         print(
-            "  pre (paired to selected post):"
+            f"  pre ({sel.pre_scope}, paired to selected post):"
             f" mean={_fmt(stats['pre'].mean)}"
             f" CI=[{_fmt(stats['pre'].ci_low)}, {_fmt(stats['pre'].ci_high)}]"
         )

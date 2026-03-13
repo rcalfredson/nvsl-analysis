@@ -65,10 +65,19 @@ def main() -> int:
         help="Which agarose series to analyze.",
     )
     p.add_argument(
+        "--pre-scope",
+        default="experiment",
+        choices=["experiment", "training"],
+        help=(
+            "Which pre-training baseline to use: the experiment-wide last 10 minutes "
+            "or the selected training's own last 10 minutes."
+        ),
+    )
+    p.add_argument(
         "--training-index",
         type=int,
         default=2,
-        help="1-based training index to compare against pre-training (default: 2).",
+        help="1-based training index to compare against the selected pre baseline (default: 2).",
     )
     p.add_argument(
         "--sync-bucket-index",
@@ -125,6 +134,7 @@ def main() -> int:
     long_rows, bundle_rows, meta = build_delta_table(
         entries,
         mode=args.mode,
+        pre_scope=args.pre_scope,
         training_index_1based=args.training_index,
         bucket_index=_to_zero_based(args.sync_bucket_index),
         bucket_start_index=_to_zero_based(args.sync_bucket_start_index),
@@ -140,12 +150,13 @@ def main() -> int:
 
     print(
         "Selection:"
-        f" mode={meta['mode']}, training={meta['training_index']} ({meta['training_name']}),"
-        f" sync_bucket={meta['bucket_start_index'] + 1}"
+        f" mode={meta['mode']}, pre_scope={meta['pre_scope']},"
+        f" training={meta['training_index']} ({meta['training_name']}),"
+        f" sync_bucket={meta['bucket_start_index']}"
         + (
             ""
             if meta["bucket_start_index"] == meta["bucket_end_index"]
-            else f"-{meta['bucket_end_index'] + 1}"
+            else f"-{meta['bucket_end_index']}"
         )
         + ","
         f" bucket_window_min={_fmt(meta['bucket_start_min'])}-{_fmt(meta['bucket_end_min'])}"

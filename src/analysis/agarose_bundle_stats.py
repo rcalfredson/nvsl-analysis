@@ -12,6 +12,7 @@ from src.analysis.sli_bundle_utils import load_sli_bundle
 
 
 VALID_MODES = ("exp", "ctrl", "exp_minus_ctrl")
+VALID_PRE_SCOPES = ("experiment", "training")
 
 
 @dataclass(frozen=True)
@@ -38,6 +39,7 @@ class BundleSelection:
     bucket_end_min: float
     bucket_label: str
     mode: str
+    pre_scope: str
 
 
 @dataclass(frozen=True)
@@ -52,6 +54,14 @@ def _validate_mode(mode: str) -> str:
     if mode not in VALID_MODES:
         raise ValueError(f"mode must be one of {VALID_MODES}, got {mode!r}")
     return mode
+
+
+def _validate_pre_scope(pre_scope: str) -> str:
+    if pre_scope not in VALID_PRE_SCOPES:
+        raise ValueError(
+            f"pre_scope must be one of {VALID_PRE_SCOPES}, got {pre_scope!r}"
+        )
+    return pre_scope
 
 
 def _resolve_training_names(bundle: dict) -> list[str]:
@@ -112,25 +122,61 @@ def _series_for_mode(bundle: dict, mode: str) -> np.ndarray:
     return exp - ctrl
 
 
-def _pre_for_mode(bundle: dict, mode: str) -> np.ndarray:
+def _pre_for_mode(
+    bundle: dict, mode: str, *, pre_scope: str, training_idx: int
+) -> np.ndarray:
     mode = _validate_mode(mode)
-    if "agarose_pre_ratio_exp" not in bundle:
+    pre_scope = _validate_pre_scope(pre_scope)
+    if pre_scope == "experiment":
+        if "agarose_pre_ratio_exp" not in bundle:
+            raise ValueError(
+                f"Bundle {bundle.get('path', '<unknown>')} is missing pre-training agarose keys. "
+                "Re-export with --agarose-sli-include-pre."
+            )
+        exp = np.asarray(bundle["agarose_pre_ratio_exp"], dtype=float)
+        if mode == "exp":
+            return exp
+        if "agarose_pre_ratio_ctrl" not in bundle:
+            raise ValueError(
+                f"Bundle {bundle.get('path', '<unknown>')} is missing agarose_pre_ratio_ctrl. "
+                "Re-export with --agarose-sli-include-pre."
+            )
+        ctrl = np.asarray(bundle["agarose_pre_ratio_ctrl"], dtype=float)
+        if mode == "ctrl":
+            return ctrl
+        return exp - ctrl
+
+    if "agarose_training_pre_ratio_exp" not in bundle:
         raise ValueError(
-            f"Bundle {bundle.get('path', '<unknown>')} is missing pre-training agarose keys. "
+            f"Bundle {bundle.get('path', '<unknown>')} is missing training-specific pre-training agarose keys. "
             "Re-export with --agarose-sli-include-pre."
         )
-    exp = np.asarray(bundle["agarose_pre_ratio_exp"], dtype=float)
+    exp = np.asarray(bundle["agarose_training_pre_ratio_exp"], dtype=float)
+    if exp.ndim != 2:
+        raise ValueError(
+            f"Expected agarose_training_pre_ratio_exp with shape (n_videos, n_trainings), got {exp.shape}"
+        )
+    if training_idx < 0 or training_idx >= exp.shape[1]:
+        raise IndexError(
+            f"training index {training_idx + 1} is out of range for training-specific pre array with {exp.shape[1]} trainings"
+        )
+    exp_sel = exp[:, training_idx]
     if mode == "exp":
-        return exp
-    if "agarose_pre_ratio_ctrl" not in bundle:
+        return exp_sel
+    if "agarose_training_pre_ratio_ctrl" not in bundle:
         raise ValueError(
-            f"Bundle {bundle.get('path', '<unknown>')} is missing agarose_pre_ratio_ctrl. "
+            f"Bundle {bundle.get('path', '<unknown>')} is missing agarose_training_pre_ratio_ctrl. "
             "Re-export with --agarose-sli-include-pre."
         )
-    ctrl = np.asarray(bundle["agarose_pre_ratio_ctrl"], dtype=float)
+    ctrl = np.asarray(bundle["agarose_training_pre_ratio_ctrl"], dtype=float)
+    if ctrl.ndim != 2 or ctrl.shape != exp.shape:
+        raise ValueError(
+            f"Expected agarose_training_pre_ratio_ctrl with shape {exp.shape}, got {ctrl.shape}"
+        )
+    ctrl_sel = ctrl[:, training_idx]
     if mode == "ctrl":
-        return ctrl
-    return exp - ctrl
+        return ctrl_sel
+    return exp_sel - ctrl_sel
 
 
 def summarize_vector(x: np.ndarray) -> VectorSummary:
@@ -167,6 +213,7 @@ def select_agarose_pre_and_post(
     bundle_path: str,
     *,
     mode: str = "exp",
+    pre_scope: str = "experiment",
     training_index_1based: int = 2,
     bucket_index: int = -1,
     bucket_start_index: int | None = None,
@@ -175,21 +222,21 @@ def select_agarose_pre_and_post(
 ) -> BundleSelection:
     bundle = load_sli_bundle(bundle_path)
     series = _series_for_mode(bundle, mode)
-    pre = _pre_for_mode(bundle, mode)
     if series.ndim != 3:
         raise ValueError(
             f"Expected agarose series with shape (n_videos, n_trainings, n_buckets), got {series.shape}"
         )
     n_videos, n_trainings, n_buckets = series.shape
-    if pre.ndim != 1 or pre.shape[0] != n_videos:
-        raise ValueError(
-            f"Expected pre-training agarose array with shape ({n_videos},), got {pre.shape}"
-        )
 
     training_idx = int(training_index_1based) - 1
     if training_idx < 0 or training_idx >= n_trainings:
         raise IndexError(
             f"training index {training_index_1based} is out of range for {n_trainings} trainings"
+        )
+    pre = _pre_for_mode(bundle, mode, pre_scope=pre_scope, training_idx=training_idx)
+    if pre.ndim != 1 or pre.shape[0] != n_videos:
+        raise ValueError(
+            f"Expected pre-training agarose array with shape ({n_videos},), got {pre.shape}"
         )
     bucket_start_idx, bucket_end_idx = _resolve_bucket_window(
         n_buckets,
@@ -234,6 +281,7 @@ def select_agarose_pre_and_post(
         bucket_end_min=bucket_end_min,
         bucket_label=bucket_label,
         mode=mode,
+        pre_scope=pre_scope,
     )
 
 
@@ -340,6 +388,7 @@ def build_delta_table(
     entries: list[BundleManifestEntry],
     *,
     mode: str = "exp",
+    pre_scope: str = "experiment",
     training_index_1based: int = 2,
     bucket_index: int = -1,
     bucket_start_index: int | None = None,
@@ -354,6 +403,7 @@ def build_delta_table(
         sel = select_agarose_pre_and_post(
             entry.bundle_path,
             mode=mode,
+            pre_scope=pre_scope,
             training_index_1based=training_index_1based,
             bucket_index=bucket_index,
             bucket_start_index=bucket_start_index,
@@ -385,7 +435,7 @@ def build_delta_table(
                 "mode": sel.mode,
                 "training_index": sel.training_idx + 1,
                 "training_name": sel.training_name,
-                "pre_scope": "paired_to_selected_post",
+                "pre_scope": sel.pre_scope,
                 "bucket_label": (
                     f"{sel.bucket_start_idx + 1}"
                     if sel.bucket_start_idx == sel.bucket_end_idx
@@ -420,7 +470,7 @@ def build_delta_table(
                     "mode": sel.mode,
                     "training_index": sel.training_idx + 1,
                     "training_name": sel.training_name,
-                    "pre_scope": "paired_to_selected_post",
+                    "pre_scope": sel.pre_scope,
                     "bucket_label": (
                         f"{sel.bucket_start_idx + 1}"
                         if sel.bucket_start_idx == sel.bucket_end_idx
@@ -442,7 +492,7 @@ def build_delta_table(
         "mode": reference.mode,
         "training_index": reference.training_idx + 1,
         "training_name": reference.training_name,
-        "pre_scope": "paired_to_selected_post",
+        "pre_scope": reference.pre_scope,
         "bucket_label": (
             f"{reference.bucket_start_idx + 1}"
             if reference.bucket_start_idx == reference.bucket_end_idx
@@ -744,6 +794,7 @@ def compare_agarose_bundles(
     bundle_b_path: str,
     *,
     mode: str = "exp",
+    pre_scope: str = "experiment",
     training_index_1based: int = 2,
     bucket_index: int = -1,
     bucket_start_index: int | None = None,
@@ -754,6 +805,7 @@ def compare_agarose_bundles(
     sel_a = select_agarose_pre_and_post(
         bundle_a_path,
         mode=mode,
+        pre_scope=pre_scope,
         training_index_1based=training_index_1based,
         bucket_index=bucket_index,
         bucket_start_index=bucket_start_index,
@@ -763,6 +815,7 @@ def compare_agarose_bundles(
     sel_b = select_agarose_pre_and_post(
         bundle_b_path,
         mode=mode,
+        pre_scope=pre_scope,
         training_index_1based=training_index_1based,
         bucket_index=bucket_index,
         bucket_start_index=bucket_start_index,
@@ -818,7 +871,7 @@ def summary_rows(result: dict[str, Any]) -> list[dict[str, Any]]:
                     "mode": sel.mode,
                     "training_index": sel.training_idx + 1,
                     "training_name": sel.training_name,
-                    "pre_scope": "paired_to_selected_post",
+                    "pre_scope": sel.pre_scope,
                     "bucket_label": (
                         f"{sel.bucket_start_idx + 1}"
                         if sel.bucket_start_idx == sel.bucket_end_idx
@@ -848,7 +901,7 @@ def summary_rows(result: dict[str, Any]) -> list[dict[str, Any]]:
             "mode": result["bundle_a"].mode,
             "training_index": result["bundle_a"].training_idx + 1,
             "training_name": result["bundle_a"].training_name,
-            "pre_scope": "paired_to_selected_post",
+            "pre_scope": result["bundle_a"].pre_scope,
             "bucket_label": (
                 f"{result['bundle_a'].bucket_start_idx + 1}"
                 if result["bundle_a"].bucket_start_idx == result["bundle_a"].bucket_end_idx
@@ -884,7 +937,7 @@ def long_rows(result: dict[str, Any]) -> list[dict[str, Any]]:
                     "mode": sel.mode,
                     "training_index": sel.training_idx + 1,
                     "training_name": sel.training_name,
-                    "pre_scope": "paired_to_selected_post",
+                    "pre_scope": sel.pre_scope,
                     "bucket_label": (
                         f"{sel.bucket_start_idx + 1}"
                         if sel.bucket_start_idx == sel.bucket_end_idx

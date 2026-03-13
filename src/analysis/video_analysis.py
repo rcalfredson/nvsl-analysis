@@ -1705,6 +1705,9 @@ class VideoAnalysis:
         self.agarose_dual_circle_pre_counts = self._calcAgaroseDualCirclePreCounts(
             per_fly_episodes
         )
+        self.agarose_dual_circle_training_pre_counts = (
+            self._calcAgaroseDualCircleTrainingPreCounts(per_fly_episodes)
+        )
 
     def _calcAgaroseDualCirclePreCounts(self, per_fly_episodes):
         """
@@ -1766,6 +1769,69 @@ class VideoAnalysis:
             "start_frame": np.array(pre_start, dtype=float),
             "stop_frame": np.array(pre_stop, dtype=float),
             "window_min": np.array(actual_window_min, dtype=float),
+        }
+
+    def _calcAgaroseDualCircleTrainingPreCounts(self, per_fly_episodes):
+        """
+        Aggregate dual-circle agarose avoidance over the final 10 minutes
+        immediately preceding each training.
+
+        Training 1 uses the last 10 minutes of the experiment-wide pre period.
+        Later trainings use the last 10 minutes between the previous training's
+        stop and the current training's start.
+        """
+        n_flies = len(self.trx)
+        n_trn = len(getattr(self, "trns", []))
+        avoid_counts = np.zeros((n_trn, n_flies), dtype=int)
+        total_counts = np.zeros((n_trn, n_flies), dtype=int)
+        ratio = np.full((n_trn, n_flies), np.nan, dtype=float)
+        pre_start = np.full(n_trn, np.nan, dtype=float)
+        pre_stop = np.full(n_trn, np.nan, dtype=float)
+        actual_window_min = np.full(n_trn, np.nan, dtype=float)
+
+        if not hasattr(self, "startPre") or n_trn == 0:
+            return {
+                "avoid": avoid_counts,
+                "total": total_counts,
+                "ratio": ratio,
+                "start_frame": pre_start,
+                "stop_frame": pre_stop,
+                "window_min": actual_window_min,
+            }
+
+        for t_idx, trn in enumerate(self.trns):
+            window_stop = int(trn.start)
+            if t_idx == 0:
+                base_start = int(self.startPre)
+            else:
+                base_start = int(self.trns[t_idx - 1].stop)
+            window_start = max(base_start, window_stop - self._min2f(10))
+
+            pre_start[t_idx] = window_start
+            pre_stop[t_idx] = window_stop
+            if window_start >= window_stop:
+                actual_window_min[t_idx] = 0.0
+                continue
+
+            actual_window_min[t_idx] = self._f2min(window_stop - window_start)
+            for fi, episodes in enumerate(per_fly_episodes):
+                if getattr(self.trx[fi], "_bad", False):
+                    continue
+                for ep in episodes:
+                    entry = ep["start"]
+                    if window_start <= entry < window_stop:
+                        total_counts[t_idx, fi] += 1
+                        if ep["avoids_inner"]:
+                            avoid_counts[t_idx, fi] += 1
+
+        np.divide(avoid_counts, total_counts, out=ratio, where=(total_counts > 0))
+        return {
+            "avoid": avoid_counts,
+            "total": total_counts,
+            "ratio": ratio,
+            "start_frame": pre_start,
+            "stop_frame": pre_stop,
+            "window_min": actual_window_min,
         }
 
     def runBoundaryContactAnalyses(self):
