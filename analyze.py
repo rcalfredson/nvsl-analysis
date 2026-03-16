@@ -103,6 +103,7 @@ from src.exporting.exit_events_from_csv import (
     export_exit_event_images_from_csv,
     ExitEventImageConfig,
 )
+from src.utils.agarose_debug import save_agarose_dual_circle_debug_table
 from src.plotting.between_reward_conditioned_maxdist_vs_disttrav import (
     BetweenRewardConditionedMaxDistVsDistTravConfig,
     BetweenRewardConditionedMaxDistVsDistTravPlotter,
@@ -3404,6 +3405,23 @@ g.add_argument(
     "--reward-turn-debug",
     action="store_true",
     help="Sanity check reward-anchored large turns: print a few windows and validate bounds.",
+)
+g.add_argument(
+    "--agarose-dual-circle-debug-csv",
+    default=None,
+    help=(
+        "Optional CSV path for one-row-per-episode agarose dual-circle debug output, "
+        "including exact frame ranges and pre/training/bucket assignments."
+    ),
+)
+g.add_argument(
+    "--agarose-dual-circle-debug-context-sec",
+    type=float,
+    default=2.0,
+    help=(
+        "Seconds of context to include before/after each agarose dual-circle episode "
+        "in the debug CSV frame suggestions (default: %(default)s)."
+    ),
 )
 g.add_argument("--timeit", action="store_true", help="log stats of processing times")
 
@@ -10527,6 +10545,11 @@ def analyze():
             )
             export_exit_event_images_from_csv(
                 csv_path=opts.exit_events_csv, vas=vas, cfg=cfg
+            )
+
+        if getattr(opts, "agarose_dual_circle_debug_csv", None):
+            save_agarose_dual_circle_debug_table(
+                vas, opts.agarose_dual_circle_debug_csv
             )
 
         if opts.wall:

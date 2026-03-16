@@ -1056,9 +1056,12 @@ class Trajectory:
         n_frames = len(self.x)
         in_outer = np.zeros(n_frames, dtype=bool)
         in_inner = np.zeros(n_frames, dtype=bool)
+        outer_by_well = []
+        inner_by_well = []
+        well_labels = []
 
         # Combine across all wells by OR-ing
-        for cx, cy in centers:
+        for wi, (cx, cy) in enumerate(centers):
             if np.isnan(cx) or np.isnan(cy):
                 continue
             # Outer circle
@@ -1082,6 +1085,9 @@ class Trajectory:
 
             in_outer |= outer_state > 0
             in_inner |= inner_state > 0
+            outer_by_well.append((outer_state > 0).astype(bool))
+            inner_by_well.append((inner_state > 0).astype(bool))
+            well_labels.append(f"well{wi + 1}")
 
         # Find contiguous regions where in_outer is True
         outer_regions = util.trueRegions(in_outer)
@@ -1093,12 +1099,35 @@ class Trajectory:
                 continue
             # Did we ever enter the inner circle during this outer episode?
             has_inner = np.any(in_inner[start:stop])
+            start_well_labels = tuple(
+                lab for lab, outer_mask in zip(well_labels, outer_by_well) if outer_mask[start]
+            )
+            inner_well_labels = tuple(
+                lab
+                for lab, inner_mask in zip(well_labels, inner_by_well)
+                if np.any(inner_mask[start:stop])
+            )
+            outer_well_labels = tuple(
+                lab
+                for lab, outer_mask in zip(well_labels, outer_by_well)
+                if np.any(outer_mask[start:stop])
+            )
+            entered_inner_frame = None
+            if has_inner:
+                inner_idxs = np.flatnonzero(in_inner[start:stop])
+                if inner_idxs.size:
+                    entered_inner_frame = int(start + inner_idxs[0])
 
             episodes.append(
                 {
                     "start": int(start),
                     "stop": int(stop),
                     "avoids_inner": not bool(has_inner),
+                    "entered_inner_frame": entered_inner_frame,
+                    "start_well_labels": start_well_labels,
+                    "inner_well_labels": inner_well_labels,
+                    "all_outer_well_labels": outer_well_labels,
+                    "all_inner_well_labels": inner_well_labels,
                 }
             )
 

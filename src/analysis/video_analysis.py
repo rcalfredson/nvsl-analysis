@@ -1716,6 +1716,10 @@ class VideoAnalysis:
         self.agarose_dual_circle_training_pre_counts = (
             self._calcAgaroseDualCircleTrainingPreCounts(per_fly_episodes)
         )
+        if getattr(self.opts, "agarose_dual_circle_debug_csv", None):
+            self.agarose_dual_circle_debug_rows = self._buildAgaroseDualCircleDebugRows(
+                per_fly_episodes, delta_mm=delta_mm
+            )
 
     def _calcAgaroseDualCirclePreCounts(self, per_fly_episodes):
         """
@@ -1851,6 +1855,117 @@ class VideoAnalysis:
             "stop_frame": pre_stop,
             "window_min": actual_window_min,
         }
+
+    def _agaroseDualCircleGlobalPreWindow(self):
+        if (
+            not hasattr(self, "startPre")
+            or not hasattr(self, "trns")
+            or len(self.trns) == 0
+        ):
+            return None
+        pre_stop = int(self.trns[0].start)
+        pre_start = max(int(self.startPre), pre_stop - self._min2f(10))
+        if pre_start >= pre_stop:
+            return None
+        return int(pre_start), int(pre_stop)
+
+    def _agaroseDualCircleTrainingPreWindows(self):
+        windows = []
+        if not hasattr(self, "trns") or len(self.trns) == 0 or not hasattr(self, "startPre"):
+            return windows
+        for t_idx, trn in enumerate(self.trns):
+            window_stop = int(trn.start)
+            base_start = int(self.startPre) if t_idx == 0 else int(self.trns[t_idx - 1].stop)
+            window_start = max(base_start, window_stop - self._min2f(10))
+            if window_start < window_stop:
+                windows.append((int(window_start), int(window_stop)))
+            else:
+                windows.append(None)
+        return windows
+
+    def _agaroseDualCircleSyncAssignment(self, entry_frame: int):
+        sync_ranges = getattr(self, "sync_bucket_ranges", None)
+        if sync_ranges is None:
+            return None, None
+        for t_idx, bucket_ranges in enumerate(sync_ranges):
+            if not bucket_ranges:
+                continue
+            for b_idx, (sb_start, sb_stop) in enumerate(bucket_ranges):
+                if sb_start <= entry_frame < sb_stop:
+                    return int(t_idx), int(b_idx)
+        return None, None
+
+    def _buildAgaroseDualCircleDebugRows(self, per_fly_episodes, delta_mm):
+        rows = []
+        global_pre = self._agaroseDualCircleGlobalPreWindow()
+        training_pre_windows = self._agaroseDualCircleTrainingPreWindows()
+        context_frames = max(
+            1,
+            self._min2f(float(getattr(self.opts, "agarose_dual_circle_debug_context_sec", 2.0)) / 60.0),
+        )
+        for fi, episodes in enumerate(per_fly_episodes):
+            trj = self.trx[fi]
+            abs_fly = self.trxf[fi] if fi < len(self.trxf) else fi
+            fly_role = "exp" if fi == 0 else "ctrl"
+            trj_bad = bool(getattr(trj, "_bad", False))
+            for ep_idx, ep in enumerate(episodes):
+                entry = int(ep["start"])
+                stop = int(ep["stop"])
+                sync_t_idx, sync_b_idx = self._agaroseDualCircleSyncAssignment(entry)
+
+                in_global_pre = False
+                if global_pre is not None:
+                    in_global_pre = global_pre[0] <= entry < global_pre[1]
+
+                training_pre_idx = None
+                for t_idx, window in enumerate(training_pre_windows):
+                    if window is not None and window[0] <= entry < window[1]:
+                        training_pre_idx = int(t_idx)
+                        break
+
+                rows.append(
+                    {
+                        "video": self.fn,
+                        "va_fly": self.f,
+                        "trx_idx": int(fi),
+                        "absolute_fly": int(abs_fly),
+                        "fly_role": fly_role,
+                        "trajectory_bad": trj_bad,
+                        "episode_idx": int(ep_idx),
+                        "episode_start_frame": entry,
+                        "episode_stop_frame": stop,
+                        "episode_duration_frames": int(max(0, stop - entry)),
+                        "episode_start_time_s": float(self._f2s(entry)),
+                        "episode_stop_time_s": float(self._f2s(stop)),
+                        "avoids_inner": bool(ep.get("avoids_inner", False)),
+                        "entered_inner": bool(not ep.get("avoids_inner", False)),
+                        "entered_inner_frame": ep.get("entered_inner_frame"),
+                        "start_well_labels": "|".join(ep.get("start_well_labels", ())),
+                        "inner_well_labels": "|".join(ep.get("inner_well_labels", ())),
+                        "all_outer_well_labels": "|".join(ep.get("all_outer_well_labels", ())),
+                        "all_inner_well_labels": "|".join(ep.get("all_inner_well_labels", ())),
+                        "global_pre_last10m": bool(in_global_pre),
+                        "training_pre_idx_1based": ""
+                        if training_pre_idx is None
+                        else int(training_pre_idx + 1),
+                        "sync_training_idx_1based": ""
+                        if sync_t_idx is None
+                        else int(sync_t_idx + 1),
+                        "sync_bucket_idx_1based": ""
+                        if sync_b_idx is None
+                        else int(sync_b_idx + 1),
+                        "sync_bucket_start_frame": ""
+                        if sync_t_idx is None
+                        else int(self.sync_bucket_ranges[sync_t_idx][sync_b_idx][0]),
+                        "sync_bucket_stop_frame": ""
+                        if sync_t_idx is None
+                        else int(self.sync_bucket_ranges[sync_t_idx][sync_b_idx][1]),
+                        "debug_context_start_frame": int(max(0, entry - context_frames)),
+                        "debug_context_stop_frame": int(min(self.nf, stop + context_frames)),
+                        "agarose_outer_delta_mm": float(delta_mm),
+                    }
+                )
+        return rows
 
     def runBoundaryContactAnalyses(self):
         """
