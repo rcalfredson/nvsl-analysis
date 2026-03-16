@@ -2700,6 +2700,15 @@ g.add_argument(
     help="extra radius (in mm) added around agarose wells to define outer circle",
 )
 g.add_argument(
+    "--agarose-dual-circle-min-total",
+    type=int,
+    default=10,
+    help=(
+        "minimum number of dual-circle agarose episodes required to report a ratio "
+        "for a fly/window; smaller totals are left as NaN (use 0 for legacy behavior)"
+    ),
+)
+g.add_argument(
     "--turnback-dual-circle",
     action="store_true",
     help="analyze dual-circle reward turn-back metric",

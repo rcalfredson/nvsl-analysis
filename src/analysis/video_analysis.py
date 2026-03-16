@@ -1613,6 +1613,9 @@ class VideoAnalysis:
                  /
                 (# all such episodes whose entry frame falls in bucket b)
 
+        Ratios are reported as NaN when the denominator is below
+        opts.agarose_dual_circle_min_total.
+
         Results are stored in:
             self.agarose_dual_circle_counts = {
                 "avoid":  np.ndarray,  # shape (n_trn, n_flies, n_sb)
@@ -1627,6 +1630,9 @@ class VideoAnalysis:
         # Allow override but fall back to an option or default
         if delta_mm is None:
             delta_mm = getattr(self.opts, "agarose_outer_delta_mm", 0.5)
+        min_total = max(
+            0, int(getattr(self.opts, "agarose_dual_circle_min_total", 10))
+        )
 
         sync_ranges = getattr(self, "sync_bucket_ranges", None)
         if sync_ranges is None:
@@ -1696,6 +1702,8 @@ class VideoAnalysis:
         # 3) Compute ratios with safe division
         ratio = np.full_like(avoid_counts, np.nan, dtype=float)
         np.divide(avoid_counts, total_counts, out=ratio, where=(total_counts > 0))
+        if min_total > 0:
+            ratio[total_counts < min_total] = np.nan
 
         self.agarose_dual_circle_counts = {
             "avoid": avoid_counts,
@@ -1719,6 +1727,9 @@ class VideoAnalysis:
         avoid_counts = np.zeros(n_flies, dtype=int)
         total_counts = np.zeros(n_flies, dtype=int)
         ratio = np.full(n_flies, np.nan, dtype=float)
+        min_total = max(
+            0, int(getattr(self.opts, "agarose_dual_circle_min_total", 10))
+        )
 
         pre_start = np.nan
         pre_stop = np.nan
@@ -1762,6 +1773,8 @@ class VideoAnalysis:
                         avoid_counts[fi] += 1
 
         np.divide(avoid_counts, total_counts, out=ratio, where=(total_counts > 0))
+        if min_total > 0:
+            ratio[total_counts < min_total] = np.nan
         return {
             "avoid": avoid_counts,
             "total": total_counts,
@@ -1785,6 +1798,9 @@ class VideoAnalysis:
         avoid_counts = np.zeros((n_trn, n_flies), dtype=int)
         total_counts = np.zeros((n_trn, n_flies), dtype=int)
         ratio = np.full((n_trn, n_flies), np.nan, dtype=float)
+        min_total = max(
+            0, int(getattr(self.opts, "agarose_dual_circle_min_total", 10))
+        )
         pre_start = np.full(n_trn, np.nan, dtype=float)
         pre_stop = np.full(n_trn, np.nan, dtype=float)
         actual_window_min = np.full(n_trn, np.nan, dtype=float)
@@ -1825,6 +1841,8 @@ class VideoAnalysis:
                             avoid_counts[t_idx, fi] += 1
 
         np.divide(avoid_counts, total_counts, out=ratio, where=(total_counts > 0))
+        if min_total > 0:
+            ratio[total_counts < min_total] = np.nan
         return {
             "avoid": avoid_counts,
             "total": total_counts,
