@@ -84,6 +84,7 @@ from src.utils.constants import (
 from src.analysis.motion import CircularMotionDetector
 from src.exporting.agarose_sli_bundle import export_agarose_sli_bundle
 from src.exporting.com_sli_bundle import export_com_sli_bundle
+from src.exporting.cum_reward_sli_bundle import export_cum_reward_sli_bundle
 from src.exporting.lgturn_startdist_sli_bundle import export_lgturn_startdist_sli_bundle
 from src.exporting.reward_lgturn_pathlen_sli_bundle import (
     export_reward_lgturn_pathlen_sli_bundle,
@@ -3207,6 +3208,30 @@ g.add_argument(
         "Export per-fly data underlying the individual strategy overlays "
         "to a TSV file for reuse in standalone plotting / statistics"
     ),
+)
+g.add_argument(
+    "--export-cum-reward-sli-bundle",
+    type=str,
+    default=None,
+    help="Write an .npz bundle with cumulative-reward-aligned SLI curves for multi-group overlays.",
+)
+g.add_argument(
+    "--cum-reward-sli-tick-spacing",
+    type=int,
+    default=5,
+    help="Reward-count spacing for the cumulative-reward x-axis used in cum-reward SLI bundle exports.",
+)
+g.add_argument(
+    "--cum-reward-sli-trainings",
+    type=str,
+    default=None,
+    help="Trainings to include in cumulative-reward SLI bundle exports, e.g. '1-3' or '1,3,5'. Default: all.",
+)
+g.add_argument(
+    "--cum-reward-sli-group",
+    choices=["top", "bottom"],
+    default=None,
+    help="Deprecated for cumulative-reward SLI bundles; top/bottom selection should be applied at plot time.",
 )
 g.add_argument(
     "--export-com-sli-bundle",
@@ -7756,6 +7781,14 @@ def postAnalyze(vas):
     if getattr(opts, "export_com_sli_bundle", None):
         export_com_sli_bundle(vas, opts, gls, opts.export_com_sli_bundle)
 
+    if getattr(opts, "export_cum_reward_sli_bundle", None):
+        if getattr(opts, "cum_reward_sli_group", None) is not None:
+            print(
+                "[cum_reward_sli] NOTE: --cum-reward-sli-group is ignored during export; "
+                "use --sli-extremes with scripts/plot_cum_reward_sli_bundles.py instead."
+            )
+        export_cum_reward_sli_bundle(vas, opts, gls, opts.export_cum_reward_sli_bundle)
+
     if getattr(opts, "export_wallpct_sli_bundle", None):
         export_wallpct_sli_bundle(vas, opts, gls, opts.export_wallpct_sli_bundle)
 
@@ -10775,7 +10808,11 @@ if __name__ == "__main__":
 
     # Any SLI fraction option implies --best-worst-sli unless sli-set-op is in use.
     if (
-        (bw_frac is not None or top_frac is not None or bottom_frac is not None)
+        (
+            bw_frac is not None
+            or top_frac is not None
+            or bottom_frac is not None
+        )
         and not bw_sli
         and not sli_set_op
     ):
@@ -10784,6 +10821,7 @@ if __name__ == "__main__":
             "--bottom-sli-fraction implies --best-worst-sli."
         )
         opts.best_worst_sli = True
+        bw_sli = True
 
     # Validate fractions
     for opt_name, frac in (
