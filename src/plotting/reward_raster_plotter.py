@@ -8,7 +8,15 @@ from typing import Sequence
 import numpy as np
 import matplotlib.pyplot as plt
 
-from src.plotting.between_reward_segment_binning import sync_bucket_window
+from src.plotting.reward_window_utils import (
+    cumulative_window_seconds_for_frame,
+    effective_sync_bucket_window,
+    frames_in_windows,
+    selected_training_indices,
+    selected_windows_for_va,
+    training_window_label,
+    window_duration_s,
+)
 
 
 @dataclass(frozen=True)
@@ -79,62 +87,38 @@ class RewardRasterPlotter:
         return rf.astype(int, copy=False)
 
     def _effective_skip_first_sync_buckets(self) -> int:
-        skip = int(getattr(self.cfg, "skip_first_sync_buckets", 0) or 0)
-        return max(0, skip)
+        skip, _keep = effective_sync_bucket_window(
+            getattr(self.cfg, "skip_first_sync_buckets", 0),
+            getattr(self.cfg, "keep_first_sync_buckets", 0),
+        )
+        return skip
 
     def _effective_keep_first_sync_buckets(self) -> int:
-        keep = int(getattr(self.cfg, "keep_first_sync_buckets", 0) or 0)
-        return max(0, keep)
+        _skip, keep = effective_sync_bucket_window(
+            getattr(self.cfg, "skip_first_sync_buckets", 0),
+            getattr(self.cfg, "keep_first_sync_buckets", 0),
+        )
+        return keep
 
     def _selected_training_indices(self, ref_va) -> list[int]:
-        trns = getattr(ref_va, "trns", None) or []
-        n_trn = len(trns)
-        if n_trn <= 0:
-            return []
-
-        raw = list(self.cfg.trainings) if self.cfg.trainings else []
-        if not raw:
-            return list(range(n_trn))
-
-        keep = sorted({int(x) - 1 for x in raw if 1 <= int(x) <= n_trn})
-        if keep:
-            return keep
-
-        print(
-            "[reward_raster] WARNING: selected trainings are out of range; "
-            "falling back to all trainings."
+        return selected_training_indices(
+            ref_va,
+            self.cfg.trainings,
+            log_tag="reward_raster",
         )
-        return list(range(n_trn))
 
     def _selected_windows_for_va(self, va, selected_trainings: Sequence[int]):
-        windows = []
-        trns = getattr(va, "trns", None) or []
-        skip_first = self._effective_skip_first_sync_buckets()
-        keep_first = self._effective_keep_first_sync_buckets()
-
-        for t_idx in selected_trainings:
-            if t_idx < 0 or t_idx >= len(trns):
-                continue
-            trn = trns[t_idx]
-            fi, df, n_buckets, _complete = sync_bucket_window(
-                va,
-                trn,
-                t_idx=t_idx,
-                f=0,
-                skip_first=skip_first,
-                keep_first=keep_first,
-                use_exclusion_mask=False,
-            )
-            if n_buckets <= 0:
-                continue
-            end = int(fi + n_buckets * df)
-            windows.append((t_idx, trn, int(fi), end))
-        return windows
+        return selected_windows_for_va(
+            va,
+            selected_trainings,
+            skip_first_sync_buckets=self._effective_skip_first_sync_buckets(),
+            keep_first_sync_buckets=self._effective_keep_first_sync_buckets(),
+            f=0,
+        )
 
     @staticmethod
     def _window_duration_s(fi: int, end: int, fps: float) -> float:
-        fps = float(fps) if fps and np.isfinite(fps) and fps > 0 else 1.0
-        return max(0.0, float(end - fi) / fps)
+        return window_duration_s(fi, end, fps)
 
     def _collect_windowed_entry(
         self, va, *, selected_trainings: Sequence[int], sli_value: float | None
@@ -147,23 +131,14 @@ class RewardRasterPlotter:
         if not np.isfinite(fps) or fps <= 0:
             fps = 1.0
 
-        reward_times_s = []
-        offset_s = 0.0
-        total_rewards = 0
-
-        for _t_idx, trn, fi, end in windows:
-            rf = self._get_reward_frames_for_training(va, trn, f_idx=0)
-            rf = rf[(rf >= fi) & (rf < end)]
-            rf = np.sort(rf)
-            if rf.size:
-                reward_times_s.append(offset_s + (rf - fi) / fps)
-                total_rewards += int(rf.size)
-            offset_s += self._window_duration_s(fi, end, fps)
-
-        if reward_times_s:
-            all_times = np.concatenate(reward_times_s).astype(float, copy=False)
-        else:
-            all_times = np.zeros((0,), dtype=float)
+        reward_frames = frames_in_windows(va, windows, calc=False, ctrl=False, f=0)
+        all_times = np.asarray(
+            [
+                cumulative_window_seconds_for_frame(windows, int(frame), fps=fps)
+                for frame in reward_frames
+            ],
+            dtype=float,
+        )
 
         first_n = int(getattr(self.cfg, "first_n_rewards", 0) or 0)
         if first_n > 0 and all_times.size > first_n:
@@ -175,7 +150,7 @@ class RewardRasterPlotter:
         return RewardRasterFlyEntry(
             va=va,
             reward_times_s=all_times,
-            total_rewards_in_window=int(total_rewards),
+            total_rewards_in_window=int(reward_frames.size),
             time_to_first_reward_s=t_first,
             sli=sli,
         )
@@ -247,21 +222,7 @@ class RewardRasterPlotter:
         return list(entries)
 
     def _training_label(self, selected_trainings: Sequence[int]) -> str:
-        if not selected_trainings:
-            return "all trainings"
-        if len(selected_trainings) == 1:
-            return f"T{selected_trainings[0] + 1}"
-        runs = []
-        start = prev = selected_trainings[0] + 1
-        for idx0 in selected_trainings[1:]:
-            cur = idx0 + 1
-            if cur == prev + 1:
-                prev = cur
-                continue
-            runs.append(f"T{start}" if start == prev else f"T{start}-T{prev}")
-            start = prev = cur
-        runs.append(f"T{start}" if start == prev else f"T{start}-T{prev}")
-        return ", ".join(runs)
+        return training_window_label(selected_trainings)
 
     def _plot_windowed(
         self, ref_va, selected_trainings: Sequence[int]

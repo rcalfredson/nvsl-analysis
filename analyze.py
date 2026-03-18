@@ -171,6 +171,10 @@ from src.plotting.between_reward_polar_occupancy import (
     BetweenRewardPolarOccupancyConfig,
 )
 from src.plotting.reward_raster_plotter import RewardRasterConfig, RewardRasterPlotter
+from src.plotting.first_n_reward_diagnostics import (
+    FirstNRewardDiagnosticsConfig,
+    FirstNRewardDiagnosticsPlotter,
+)
 from src.plotting.turn_directionality_plotter import TurnDirectionalityPlotter
 from src.plotting.turn_prob_dist_plotter import TurnProbabilityByDistancePlotter
 from src.utils.debug_fly_groups import init_fly_group_logging, log_fly_group
@@ -220,6 +224,8 @@ REWARD_PI_POST_DIFF_IMG_FILE = "imgs/reward_pi_post_diff__%s_min_buckets.png"
 DIST_BTWN_REWARDS_LABEL = "mean dist. between calc. rewards%s"
 DIST_BTWN_REWARDS_IMG_FILE = "imgs/btw_rwd_dists.png"
 REWARD_COUNT_HIST_IMG_FILE = "imgs/rwd_count_hist.png"
+FIRST_N_REWARD_DIAGNOSTICS_CSV_FILE = "exports/first_n_reward_diagnostics.csv"
+FIRST_N_REWARD_DIAGNOSTICS_PLOT_FILE = "imgs/first_n_reward_diagnostics.png"
 REWARD_COUNT_TOTAL_BARS_IMG_FILE = "imgs/rwd_totals.png"
 BTW_RWD_COM_MAG_HIST_IMG_FILE = "imgs/btw_rwd_com_mag_hist.png"
 BTW_RWD_DIST_BINNED_COM_IMG_FILE = "imgs/btw_rwd_dist_binned_com.png"
@@ -864,6 +870,179 @@ g.add_argument(
     type=str,
     default="imgs/reward_raster.png",
     help="Output path for the reward raster image.",
+)
+g.add_argument(
+    "--first-n-reward-diagnostics",
+    action="store_true",
+    help=(
+        "Export per-fly diagnostics anchored to the frame/time of each fly's "
+        "nth actual reward within the selected window, with an optional scatter plot."
+    ),
+)
+g.add_argument(
+    "--first-n-reward-diagnostics-n",
+    type=int,
+    default=10,
+    help=(
+        "Nth actual reward used to define the per-fly diagnostic cutoff within the "
+        "selected analysis window. Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--first-n-reward-diagnostics-trainings",
+    type=parse_training_selector,
+    default=None,
+    help=(
+        'Subset of trainings to include in the first-n reward diagnostics (1-based). '
+        'Examples: "1", "1,3", "2-4". Within each selected training, the included '
+        "sync buckets are further restricted by the global "
+        "--skip-first-sync-buckets / --keep-first-sync-buckets window."
+    ),
+)
+g.add_argument(
+    "--first-n-reward-diagnostics-sli-group",
+    type=str,
+    choices=("top", "bottom"),
+    default=None,
+    help=(
+        "Restrict first-n reward diagnostics to a selected SLI subset: 'top' or "
+        "'bottom'. Uses the same SLI selection configured by --best-worst-sli "
+        "together with --best-worst-fraction and/or the side-specific flags "
+        "--top-sli-fraction and --bottom-sli-fraction."
+    ),
+)
+g.add_argument(
+    "--first-n-reward-diagnostics-csv",
+    type=str,
+    default=FIRST_N_REWARD_DIAGNOSTICS_CSV_FILE,
+    help="Output CSV path for first-n reward diagnostics.",
+)
+g.add_argument(
+    "--first-n-reward-diagnostics-npz",
+    type=str,
+    default=None,
+    help="Optional NPZ output path for first-n reward diagnostics.",
+)
+g.add_argument(
+    "--first-n-reward-diagnostics-plot-out",
+    type=str,
+    default=FIRST_N_REWARD_DIAGNOSTICS_PLOT_FILE,
+    help="Output image path for the first-n reward diagnostics scatter plot.",
+)
+g.add_argument(
+    "--first-n-reward-diagnostics-pi-threshold",
+    type=int,
+    default=10,
+    help=(
+        "Minimum total actual/control circle entries required before reward PI is "
+        "reported at the nth-reward cutoff. Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--first-n-reward-diagnostics-max-span-s",
+    type=float,
+    default=None,
+    help=(
+        "Optional final filter: keep only flies whose first-N reward span "
+        "(nth minus first actual reward time, within the selected window) is at most "
+        "this many seconds."
+    ),
+)
+g.add_argument(
+    "--first-n-reward-diagnostics-max-time-to-nth-s",
+    type=float,
+    default=None,
+    help=(
+        "Optional final filter: keep only flies whose nth actual reward occurs within "
+        "this many seconds from the start of the selected analysis window."
+    ),
+)
+g.add_argument(
+    "--first-n-reward-diagnostics-x-by",
+    type=str,
+    choices=(
+        "sli",
+        "cutoff_frame",
+        "cutoff_training",
+        "cutoff_time_since_selected_window_start_s",
+        "cutoff_time_since_cutoff_training_start_s",
+        "time_to_first_actual_reward_s",
+        "time_to_nth_actual_reward_s",
+        "first_n_reward_span_s",
+        "actual_reward_count_by_cutoff",
+        "control_reward_count_by_cutoff",
+        "actual_circle_entry_count_by_cutoff",
+        "control_circle_entry_count_by_cutoff",
+        "reward_pi_by_cutoff",
+        "actual_entry_minus_reward_count_by_cutoff",
+        "control_entry_minus_reward_count_by_cutoff",
+        "control_to_actual_entry_ratio_by_cutoff",
+        "control_to_actual_reward_ratio_by_cutoff",
+        "actual_reward_count_in_selected_window",
+    ),
+    default="first_n_reward_span_s",
+    help="Metric used for the x-axis of the first-n reward diagnostics scatter plot.",
+)
+g.add_argument(
+    "--first-n-reward-diagnostics-y-by",
+    type=str,
+    choices=(
+        "sli",
+        "cutoff_frame",
+        "cutoff_training",
+        "cutoff_time_since_selected_window_start_s",
+        "cutoff_time_since_cutoff_training_start_s",
+        "time_to_first_actual_reward_s",
+        "time_to_nth_actual_reward_s",
+        "first_n_reward_span_s",
+        "actual_reward_count_by_cutoff",
+        "control_reward_count_by_cutoff",
+        "actual_circle_entry_count_by_cutoff",
+        "control_circle_entry_count_by_cutoff",
+        "reward_pi_by_cutoff",
+        "actual_entry_minus_reward_count_by_cutoff",
+        "control_entry_minus_reward_count_by_cutoff",
+        "control_to_actual_entry_ratio_by_cutoff",
+        "control_to_actual_reward_ratio_by_cutoff",
+        "actual_reward_count_in_selected_window",
+    ),
+    default="sli",
+    help="Metric used for the y-axis of the first-n reward diagnostics scatter plot.",
+)
+g.add_argument(
+    "--first-n-reward-diagnostics-color-by",
+    type=str,
+    choices=(
+        "sli",
+        "cutoff_frame",
+        "cutoff_training",
+        "cutoff_time_since_selected_window_start_s",
+        "cutoff_time_since_cutoff_training_start_s",
+        "time_to_first_actual_reward_s",
+        "time_to_nth_actual_reward_s",
+        "first_n_reward_span_s",
+        "control_circle_entry_count_by_cutoff",
+        "control_reward_count_by_cutoff",
+        "actual_circle_entry_count_by_cutoff",
+        "actual_reward_count_by_cutoff",
+        "reward_pi_by_cutoff",
+        "actual_entry_minus_reward_count_by_cutoff",
+        "control_entry_minus_reward_count_by_cutoff",
+        "control_to_actual_entry_ratio_by_cutoff",
+        "control_to_actual_reward_ratio_by_cutoff",
+        "actual_reward_count_in_selected_window",
+    ),
+    default="control_circle_entry_count_by_cutoff",
+    help="Metric used to color the first-n reward diagnostics scatter plot.",
+)
+g.add_argument(
+    "--first-n-reward-diagnostics-label-low-sli-outliers",
+    type=int,
+    default=0,
+    help=(
+        "If > 0, label this many most negative SLI-vs-span outliers in the "
+        "first-n reward diagnostics scatter plot."
+    ),
 )
 g.add_argument(
     "--reward-lv",
@@ -8620,6 +8799,128 @@ def postAnalyze(vas):
             vas=vas_for_raster, opts=opts, gls=gls, cfg=cfg
         )
         rr.plot()
+
+    if getattr(opts, "first_n_reward_diagnostics", False):
+        vas_for_diag = vas
+        diag_sli_group = getattr(opts, "first_n_reward_diagnostics_sli_group", None)
+
+        if diag_sli_group == "top":
+            if saved_top is None:
+                print(
+                    "[first_n_reward_diag] WARNING: top-SLI restriction requested "
+                    "but no top-SLI group is available; falling back to all flies."
+                )
+            else:
+                vas_for_diag = [vas[i] for i in saved_top]
+                print(
+                    f"[first_n_reward_diag] restricting to {len(vas_for_diag)} top-SLI flies"
+                )
+        elif diag_sli_group == "bottom":
+            if saved_bottom is None:
+                print(
+                    "[first_n_reward_diag] WARNING: bottom-SLI restriction requested "
+                    "but no bottom-SLI group is available; falling back to all flies."
+                )
+            else:
+                vas_for_diag = [vas[i] for i in saved_bottom]
+                print(
+                    f"[first_n_reward_diag] restricting to {len(vas_for_diag)} bottom-SLI flies"
+                )
+
+        diag_subset_label = None
+        if diag_sli_group == "top" and saved_top is not None:
+            frac = getattr(opts, "top_sli_fraction", None)
+            if frac is None:
+                frac = getattr(opts, "best_worst_fraction", 0.1)
+            diag_subset_label = f"Restricted to top {100*frac:.1f}% SLI flies"
+        elif diag_sli_group == "bottom" and saved_bottom is not None:
+            frac = getattr(opts, "bottom_sli_fraction", None)
+            if frac is None:
+                frac = getattr(opts, "best_worst_fraction", 0.1)
+            diag_subset_label = f"Restricted to bottom {100*frac:.1f}% SLI flies"
+
+        diag_sli_values = None
+        if sli_ser is not None:
+            if diag_sli_group == "top" and saved_top is not None:
+                diag_sli_values = [float(sli_ser.iloc[i]) for i in saved_top]
+            elif diag_sli_group == "bottom" and saved_bottom is not None:
+                diag_sli_values = [float(sli_ser.iloc[i]) for i in saved_bottom]
+            else:
+                diag_sli_values = [float(x) for x in sli_ser.to_numpy(dtype=float)]
+
+        diag_cfg = FirstNRewardDiagnosticsConfig(
+            csv_out=str(
+                getattr(
+                    opts,
+                    "first_n_reward_diagnostics_csv",
+                    FIRST_N_REWARD_DIAGNOSTICS_CSV_FILE,
+                )
+            ),
+            npz_out=getattr(opts, "first_n_reward_diagnostics_npz", None),
+            plot_out=str(
+                getattr(
+                    opts,
+                    "first_n_reward_diagnostics_plot_out",
+                    FIRST_N_REWARD_DIAGNOSTICS_PLOT_FILE,
+                )
+            ),
+            trainings=getattr(opts, "first_n_reward_diagnostics_trainings", None),
+            skip_first_sync_buckets=_effective_skip_first_sync_buckets_opts_only(opts),
+            keep_first_sync_buckets=_effective_keep_first_sync_buckets_opts_only(opts),
+            first_n_rewards=max(
+                1, int(getattr(opts, "first_n_reward_diagnostics_n", 10) or 10)
+            ),
+            subset_label=diag_subset_label,
+            sli_values=diag_sli_values,
+            pi_threshold=int(
+                getattr(opts, "first_n_reward_diagnostics_pi_threshold", 10) or 0
+            ),
+            max_span_s=getattr(
+                opts, "first_n_reward_diagnostics_max_span_s", None
+            ),
+            max_time_to_nth_s=getattr(
+                opts, "first_n_reward_diagnostics_max_time_to_nth_s", None
+            ),
+            x_by=str(
+                getattr(
+                    opts,
+                    "first_n_reward_diagnostics_x_by",
+                    "first_n_reward_span_s",
+                )
+                or "first_n_reward_span_s"
+            ),
+            y_by=str(
+                getattr(
+                    opts,
+                    "first_n_reward_diagnostics_y_by",
+                    "sli",
+                )
+                or "sli"
+            ),
+            color_by=str(
+                getattr(
+                    opts,
+                    "first_n_reward_diagnostics_color_by",
+                    "control_circle_entry_count_by_cutoff",
+                )
+                or "control_circle_entry_count_by_cutoff"
+            ),
+            label_low_sli_outliers=int(
+                getattr(
+                    opts,
+                    "first_n_reward_diagnostics_label_low_sli_outliers",
+                    0,
+                )
+                or 0
+            ),
+        )
+        diag_plotter = FirstNRewardDiagnosticsPlotter(
+            vas=vas_for_diag,
+            opts=opts,
+            gls=gls,
+            cfg=diag_cfg,
+        )
+        diag_plotter.run()
 
     skip_eff = _effective_skip_first_sync_buckets_opts_only(opts)
     keep_eff = _effective_keep_first_sync_buckets_opts_only(opts)
