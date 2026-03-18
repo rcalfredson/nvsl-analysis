@@ -789,8 +789,11 @@ g.add_argument(
 g.add_argument(
     "--reward-raster-nflies",
     type=int,
-    default=50,
-    help="Number of flies (videos) to include in the raster. Default: %(default)s.",
+    default=0,
+    help=(
+        "Maximum number of flies (videos) to include in the raster. "
+        "0 means include all flies in the selected subset. Default: %(default)s."
+    ),
 )
 g.add_argument(
     "--reward-raster-seed",
@@ -811,6 +814,50 @@ g.add_argument(
     type=float,
     default=6.0,
     help="Marker size for rewards in the raster plot. Default: %(default)s.",
+)
+g.add_argument(
+    "--reward-raster-trainings",
+    type=parse_training_selector,
+    default=None,
+    help=(
+        'Subset of trainings to include in the reward raster (1-based). '
+        'Examples: "1", "1,3", "2-4", "1,3-5". '
+        "Within each selected training, the included sync buckets are further "
+        "restricted by the global --skip-first-sync-buckets / --keep-first-sync-buckets window."
+    ),
+)
+g.add_argument(
+    "--reward-raster-first-n-rewards",
+    type=int,
+    default=0,
+    help=(
+        "If > 0, keep only the first N actual rewards per fly within the selected "
+        "analysis window. 0 means keep all rewards in the window."
+    ),
+)
+g.add_argument(
+    "--reward-raster-sli-group",
+    type=str,
+    choices=("top", "bottom"),
+    default=None,
+    help=(
+        "Restrict reward rasters to a selected SLI subset: 'top' or 'bottom'. "
+        "Uses the SLI selection configured by --best-worst-sli together with "
+        "--best-worst-fraction and/or the side-specific flags "
+        "--top-sli-fraction and --bottom-sli-fraction."
+    ),
+)
+g.add_argument(
+    "--reward-raster-sort",
+    type=str,
+    choices=("none", "total_rewards", "time_to_first_reward", "sli"),
+    default="none",
+    help=(
+        "Optional row ordering for the reward raster. "
+        "'total_rewards' sorts descending by reward count in the selected window; "
+        "'time_to_first_reward' sorts ascending by the first reward time in the selected window; "
+        "'sli' sorts descending by SLI."
+    ),
 )
 g.add_argument(
     "--reward-raster-out",
@@ -7955,7 +8002,20 @@ def postAnalyze(vas):
     sel_skip_k = 0 if raw_sel_skip is None else max(0, int(raw_sel_skip))
     sel_keep_k = 0 if raw_sel_keep is None else max(0, int(raw_sel_keep))
 
-    if (opts.best_worst_sli or using_sli_set_op) and (not va.noyc) and (not va.choice):
+    need_reward_raster_sli_group = getattr(opts, "reward_raster_sli_group", None) in (
+        "top",
+        "bottom",
+    )
+    need_reward_raster_sli_sort = (
+        getattr(opts, "reward_raster_sort", "none") == "sli"
+    )
+
+    if (
+        opts.best_worst_sli
+        or using_sli_set_op
+        or need_reward_raster_sli_group
+        or need_reward_raster_sli_sort
+    ) and (not va.noyc) and (not va.choice):
         tp_sli, calc_sli = typeCalc("rpid")
         trns_sli = trnsForType(va, tp_sli)
         if trns_sli:
@@ -7978,9 +8038,19 @@ def postAnalyze(vas):
                 keep_first_sync_buckets=sel_keep_k,
             )
 
-            if opts.best_worst_sli:
+            if opts.best_worst_sli or need_reward_raster_sli_group:
                 top_fraction = getattr(opts, "top_sli_fraction", None)
                 bottom_fraction = getattr(opts, "bottom_sli_fraction", None)
+                if (
+                    need_reward_raster_sli_group
+                    and not opts.best_worst_sli
+                    and top_fraction is None
+                    and bottom_fraction is None
+                ):
+                    if getattr(opts, "reward_raster_sli_group", None) == "top":
+                        top_fraction = 0.1
+                    elif getattr(opts, "reward_raster_sli_group", None) == "bottom":
+                        bottom_fraction = 0.1
 
                 saved_bottom, saved_top = select_fractional_groups(
                     sli_ser,
@@ -8483,14 +8553,72 @@ def postAnalyze(vas):
         plotTurnRadiusHist(vas, gls, opts.yoked)
 
     if getattr(opts, "reward_raster", False):
+        vas_for_raster = vas
+        raster_sli_group = getattr(opts, "reward_raster_sli_group", None)
+
+        if raster_sli_group == "top":
+            if saved_top is None:
+                print(
+                    "[reward_raster] WARNING: top-SLI restriction requested "
+                    "but no top-SLI group is available; falling back to all flies."
+                )
+            else:
+                vas_for_raster = [vas[i] for i in saved_top]
+                print(
+                    f"[reward_raster] restricting to {len(vas_for_raster)} top-SLI flies"
+                )
+        elif raster_sli_group == "bottom":
+            if saved_bottom is None:
+                print(
+                    "[reward_raster] WARNING: bottom-SLI restriction requested "
+                    "but no bottom-SLI group is available; falling back to all flies."
+                )
+            else:
+                vas_for_raster = [vas[i] for i in saved_bottom]
+                print(
+                    f"[reward_raster] restricting to {len(vas_for_raster)} bottom-SLI flies"
+                )
+
+        raster_subset_label = None
+        if raster_sli_group == "top" and saved_top is not None:
+            frac = getattr(opts, "top_sli_fraction", None)
+            if frac is None:
+                frac = getattr(opts, "best_worst_fraction", 0.1)
+            raster_subset_label = f"Restricted to top {100*frac:.1f}% SLI flies"
+        elif raster_sli_group == "bottom" and saved_bottom is not None:
+            frac = getattr(opts, "bottom_sli_fraction", None)
+            if frac is None:
+                frac = getattr(opts, "best_worst_fraction", 0.1)
+            raster_subset_label = f"Restricted to bottom {100*frac:.1f}% SLI flies"
+
+        raster_sli_values = None
+        if sli_ser is not None:
+            if raster_sli_group == "top" and saved_top is not None:
+                raster_sli_values = [float(sli_ser.iloc[i]) for i in saved_top]
+            elif raster_sli_group == "bottom" and saved_bottom is not None:
+                raster_sli_values = [float(sli_ser.iloc[i]) for i in saved_bottom]
+            else:
+                raster_sli_values = [float(x) for x in sli_ser.to_numpy(dtype=float)]
+
         cfg = RewardRasterConfig(
             out_file=getattr(opts, "reward_raster_out", "imgs/reward_raster.png"),
-            nflies=int(getattr(opts, "reward_raster_nflies", 50)),
+            nflies=int(getattr(opts, "reward_raster_nflies", 0)),
             seed=getattr(opts, "reward_raster_seed", None),
             per_training=bool(getattr(opts, "reward_raster_per_training", False)),
             marker_size=float(getattr(opts, "reward_raster_marker_size", 6.0)),
+            trainings=getattr(opts, "reward_raster_trainings", None),
+            skip_first_sync_buckets=_effective_skip_first_sync_buckets_opts_only(opts),
+            keep_first_sync_buckets=_effective_keep_first_sync_buckets_opts_only(opts),
+            first_n_rewards=int(
+                getattr(opts, "reward_raster_first_n_rewards", 0) or 0
+            ),
+            subset_label=raster_subset_label,
+            sort_by=str(getattr(opts, "reward_raster_sort", "none") or "none"),
+            sli_values=raster_sli_values,
         )
-        rr = RewardRasterPlotter(vas=vas, opts=opts, gls=gls, cfg=cfg)
+        rr = RewardRasterPlotter(
+            vas=vas_for_raster, opts=opts, gls=gls, cfg=cfg
+        )
         rr.plot()
 
     skip_eff = _effective_skip_first_sync_buckets_opts_only(opts)
