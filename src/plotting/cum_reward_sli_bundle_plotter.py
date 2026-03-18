@@ -195,12 +195,18 @@ def plot_cum_reward_sli_bundles(
             lo = np.where(ci_mask, mci[1], np.nan)
             hi = np.where(ci_mask, mci[2], np.nan)
             plt.fill_between(ticks0, lo, hi, alpha=0.2, color=line.get_color())
-            if np.isfinite(mci[1]).any():
-                lo_f = np.nanmin(mci[1])
+            if np.isfinite(lo).any():
+                lo_f = np.nanmin(lo)
                 y_min = lo_f if y_min is None else min(y_min, lo_f)
-            if np.isfinite(mci[2]).any():
-                hi_f = np.nanmax(mci[2])
+            if np.isfinite(hi).any():
+                hi_f = np.nanmax(hi)
                 y_max = hi_f if y_max is None else max(y_max, hi_f)
+            ys = np.asarray(mci[0], dtype=float)
+            if np.isfinite(ys).any():
+                ys_lo = np.nanmin(ys)
+                ys_hi = np.nanmax(ys)
+                y_min = ys_lo if y_min is None else min(y_min, ys_lo)
+                y_max = ys_hi if y_max is None else max(y_max, ys_hi)
             means_by_group.append(np.asarray(mci[0], dtype=float))
             vals_by_group.append(
                 [vals[np.isfinite(vals[:, bj]), bj] for bj in range(vals.shape[1])]
