@@ -124,6 +124,22 @@ def _shared_tick_positions(bundles, max_supported_tick):
     return shared, positions
 
 
+def _resolve_min_fly_pct(bundles, min_fly_pct):
+    if min_fly_pct is not None:
+        return float(min_fly_pct)
+
+    vals = []
+    for b in bundles:
+        v = b.get("cum_reward_sli_min_fly_pct")
+        if v is None:
+            vals.append(95.0)
+        else:
+            vals.append(float(np.asarray(v).reshape(())))
+    if not vals:
+        return 95.0
+    return min(vals)
+
+
 def plot_cum_reward_sli_bundles(
     bundle_paths,
     out_fn,
@@ -136,7 +152,7 @@ def plot_cum_reward_sli_bundles(
     standalone_extreme_labels=False,
     ci_min_n=3,
     show_n=False,
-    min_fly_pct=95.0,
+    min_fly_pct=None,
     opts=None,
 ):
     if opts is None:
@@ -157,6 +173,7 @@ def plot_cum_reward_sli_bundles(
     bundles = [load_sli_bundle(p) for p in bundle_paths]
     if not bundles:
         raise ValueError("No bundles provided")
+    min_fly_pct = _resolve_min_fly_pct(bundles, min_fly_pct)
 
     for b in bundles:
         for key in ("cum_reward_sli_curve", "cum_reward_sli_ticks"):

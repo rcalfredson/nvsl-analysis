@@ -42,12 +42,15 @@ def main():
     )
     p.add_argument(
         "--min-fly-pct",
+        "--cum-reward-sli-min-fly-pct",
+        dest="min_fly_pct",
         type=float,
-        default=95.0,
+        default=argparse.SUPPRESS,
         help=(
             "Restrict the plotted cumulative-reward range to ticks reached by at "
-            "least this percent of flies in each plotted subset. Use 0 to show "
-            "the full tail."
+            "least this percent of flies in each plotted subset. Defaults to the "
+            "value saved in each bundle, or 95 if unavailable. Use 0 to show the "
+            "full tail."
         ),
     )
     p.add_argument(
@@ -87,7 +90,8 @@ def main():
     ):
         if frac is not None and not (0 < float(frac) <= 1):
             raise SystemExit(f"{opt_name} must be in the interval (0, 1].")
-    if not (0 <= float(args.min_fly_pct) <= 100):
+    min_fly_pct = getattr(args, "min_fly_pct", None)
+    if min_fly_pct is not None and not (0 <= float(min_fly_pct) <= 100):
         raise SystemExit("--min-fly-pct must be in the interval [0, 100].")
 
     bundles = [s.strip() for s in args.bundles.split(",") if s.strip()]
@@ -107,7 +111,7 @@ def main():
         standalone_extreme_labels=bool(args.standalone_extreme_labels),
         ci_min_n=max(1, int(args.ci_min_n)),
         show_n=bool(args.show_n),
-        min_fly_pct=float(args.min_fly_pct),
+        min_fly_pct=None if min_fly_pct is None else float(min_fly_pct),
         opts=opts,
     )
 
