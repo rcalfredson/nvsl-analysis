@@ -221,6 +221,7 @@ def export_cum_reward_sli_bundle(vas, opts, gls, out_fn):
     skip_first = max(0, int(getattr(opts, "skip_first_sync_buckets", 0) or 0))
     keep_first = max(0, int(getattr(opts, "keep_first_sync_buckets", 0) or 0))
     pi_threshold = max(0, int(getattr(opts, "piTh", 10) or 0))
+    min_fly_pct = float(getattr(opts, "cum_reward_sli_min_fly_pct", 95.0) or 0.0)
 
     try:
         sli, sli_ts_full = _compute_sli_scalar_and_timeseries_from_rpid(vas_ok, opts)
@@ -276,6 +277,7 @@ def export_cum_reward_sli_bundle(vas, opts, gls, out_fn):
         cum_reward_sli_ticks=np.asarray(cum_reward_ticks, dtype=float),
         cum_reward_sli_tick_spacing=np.array(tick_spacing, dtype=int),
         cum_reward_sli_pi_threshold=np.array(pi_threshold, dtype=int),
+        cum_reward_sli_min_fly_pct=np.array(min_fly_pct, dtype=float),
         cum_reward_sli_reward_pi_exp=np.asarray(reward_pi_exp, dtype=float),
         cum_reward_sli_reward_pi_yoked=np.asarray(reward_pi_yoked, dtype=float),
         cum_reward_sli_total_actual_rewards=np.asarray(total_actual_rewards, dtype=int),

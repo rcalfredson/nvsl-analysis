@@ -72,6 +72,58 @@ def _sparse_ticks(ticks: np.ndarray, *, max_labels: int = 12) -> np.ndarray:
     return out
 
 
+def _infer_total_rewards(bundle):
+    totals = bundle.get("cum_reward_sli_total_actual_rewards")
+    if totals is not None:
+        return np.asarray(totals, dtype=float).reshape(-1)
+
+    curve = np.asarray(bundle["cum_reward_sli_curve"], dtype=float)
+    ticks = np.asarray(bundle["cum_reward_sli_ticks"], dtype=float).reshape(-1)
+    out = np.zeros((curve.shape[0],), dtype=float)
+    for i, row in enumerate(curve):
+        finite = np.flatnonzero(np.isfinite(row))
+        if finite.size:
+            out[i] = float(ticks[finite[-1]])
+    return out
+
+
+def _subset_max_supported_tick(bundle, sub_idx, min_fly_pct):
+    ticks = np.asarray(bundle["cum_reward_sli_ticks"], dtype=float).reshape(-1)
+    if ticks.size == 0 or sub_idx.size == 0 or float(min_fly_pct) <= 0:
+        return None
+
+    totals = _infer_total_rewards(bundle)
+    subset_totals = np.asarray(totals[sub_idx], dtype=float)
+    subset_totals = subset_totals[np.isfinite(subset_totals)]
+    if subset_totals.size == 0:
+        return None
+
+    req = int(np.ceil(subset_totals.size * (float(min_fly_pct) / 100.0)))
+    req = min(max(req, 1), subset_totals.size)
+    sorted_desc = np.sort(subset_totals)[::-1]
+    return float(sorted_desc[req - 1])
+
+
+def _shared_tick_positions(bundles, max_supported_tick):
+    shared = None
+    tick_maps = []
+    for b in bundles:
+        ticks = np.asarray(b["cum_reward_sli_ticks"], dtype=float).reshape(-1)
+        if max_supported_tick is not None:
+            ticks = ticks[ticks <= float(max_supported_tick)]
+        tick_maps.append({float(x): i for i, x in enumerate(ticks)})
+        shared = ticks if shared is None else np.intersect1d(shared, ticks)
+
+    shared = np.asarray([] if shared is None else shared, dtype=float)
+    if shared.size == 0:
+        return shared, []
+
+    positions = []
+    for tm in tick_maps:
+        positions.append(np.array([tm[float(x)] for x in shared], dtype=int))
+    return shared, positions
+
+
 def plot_cum_reward_sli_bundles(
     bundle_paths,
     out_fn,
@@ -84,6 +136,7 @@ def plot_cum_reward_sli_bundles(
     standalone_extreme_labels=False,
     ci_min_n=3,
     show_n=False,
+    min_fly_pct=95.0,
     opts=None,
 ):
     if opts is None:
@@ -112,16 +165,6 @@ def plot_cum_reward_sli_bundles(
                     f"Bundle {b.get('path', '<unknown>')} is missing key {key!r}"
                 )
 
-    ticks0 = np.asarray(bundles[0]["cum_reward_sli_ticks"], dtype=float)
-    for b in bundles[1:]:
-        ticks = np.asarray(b["cum_reward_sli_ticks"], dtype=float)
-        if ticks.shape != ticks0.shape or not np.allclose(
-            ticks, ticks0, equal_nan=True
-        ):
-            raise ValueError(
-                "Bundles disagree on cum_reward_sli_ticks; re-export with matching settings."
-            )
-
     group_labels = (
         list(labels) if labels is not None else [b["group_label"] for b in bundles]
     )
@@ -143,8 +186,10 @@ def plot_cum_reward_sli_bundles(
     y_max = None
     means_by_group = []
     vals_by_group = []
+    subset_specs_by_bundle = []
+    subset_max_ticks = []
 
-    for gi, b in enumerate(bundles):
+    for b in bundles:
         idx = _selected_indices(
             b,
             sli_extremes=sli_extremes,
@@ -158,12 +203,34 @@ def plot_cum_reward_sli_bundles(
             ]
         else:
             subset_specs = [(None, np.asarray(idx, dtype=int), "-")]
+        subset_specs_by_bundle.append(subset_specs)
+
+        for _which, sub_idx, _linestyle in subset_specs:
+            if sub_idx.size == 0:
+                continue
+            subset_max = _subset_max_supported_tick(b, sub_idx, min_fly_pct)
+            if subset_max is not None:
+                subset_max_ticks.append(float(subset_max))
+
+    max_supported_tick = (
+        min(subset_max_ticks) if subset_max_ticks else None
+    )
+    ticks0, tick_positions = _shared_tick_positions(bundles, max_supported_tick)
+    if ticks0.size == 0:
+        raise ValueError(
+            "No shared cumulative-reward ticks remain after applying the min-fly support cutoff."
+        )
+
+    for gi, b in enumerate(bundles):
+        subset_specs = subset_specs_by_bundle[gi]
+        tick_idx = tick_positions[gi]
 
         for which, sub_idx, linestyle in subset_specs:
             if sub_idx.size == 0:
                 continue
 
-            vals = np.asarray(b["cum_reward_sli_curve"], dtype=float)[sub_idx, :]
+            vals_full = np.asarray(b["cum_reward_sli_curve"], dtype=float)[sub_idx, :]
+            vals = vals_full[:, tick_idx]
             mci = _mean_ci_over_videos(vals)
             if mci.shape[1] == 0:
                 continue

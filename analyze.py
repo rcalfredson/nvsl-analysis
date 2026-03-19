@@ -3454,6 +3454,16 @@ g.add_argument(
     help="Trainings to include in cumulative-reward SLI bundle exports, e.g. '1-3' or '1,3,5'. Default: all.",
 )
 g.add_argument(
+    "--cum-reward-sli-min-fly-pct",
+    type=float,
+    default=95.0,
+    help=(
+        "Recommended minimum percent of flies that must reach a cumulative-reward "
+        "tick for it to remain in cumulative-reward SLI overlays. "
+        "Use 0 to keep the full tail."
+    ),
+)
+g.add_argument(
     "--cum-reward-sli-group",
     choices=["top", "bottom"],
     default=None,

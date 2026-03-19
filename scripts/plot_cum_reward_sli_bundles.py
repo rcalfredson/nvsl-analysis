@@ -41,6 +41,16 @@ def main():
         help="Annotate per-tick sample sizes near the plotted curves.",
     )
     p.add_argument(
+        "--min-fly-pct",
+        type=float,
+        default=95.0,
+        help=(
+            "Restrict the plotted cumulative-reward range to ticks reached by at "
+            "least this percent of flies in each plotted subset. Use 0 to show "
+            "the full tail."
+        ),
+    )
+    p.add_argument(
         "--best-worst-fraction",
         type=float,
         default=argparse.SUPPRESS,
@@ -77,6 +87,8 @@ def main():
     ):
         if frac is not None and not (0 < float(frac) <= 1):
             raise SystemExit(f"{opt_name} must be in the interval (0, 1].")
+    if not (0 <= float(args.min_fly_pct) <= 100):
+        raise SystemExit("--min-fly-pct must be in the interval [0, 100].")
 
     bundles = [s.strip() for s in args.bundles.split(",") if s.strip()]
     labels = None
@@ -95,6 +107,7 @@ def main():
         standalone_extreme_labels=bool(args.standalone_extreme_labels),
         ci_min_n=max(1, int(args.ci_min_n)),
         show_n=bool(args.show_n),
+        min_fly_pct=float(args.min_fly_pct),
         opts=opts,
     )
 
