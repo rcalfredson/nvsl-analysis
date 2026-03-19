@@ -8178,8 +8178,8 @@ def postAnalyze(vas):
 
     raw_sel_skip = getattr(opts, "sli_select_skip_first_sync_buckets", None)
     raw_sel_keep = getattr(opts, "sli_select_keep_first_sync_buckets", None)
-    sel_skip_k = 0 if raw_sel_skip is None else max(0, int(raw_sel_skip))
-    sel_keep_k = 0 if raw_sel_keep is None else max(0, int(raw_sel_keep))
+    sel_skip_k = skip_k if raw_sel_skip is None else max(0, int(raw_sel_skip))
+    sel_keep_k = keep_k if raw_sel_keep is None else max(0, int(raw_sel_keep))
 
     need_reward_raster_sli_group = getattr(opts, "reward_raster_sli_group", None) in (
         "top",
@@ -8461,7 +8461,8 @@ def postAnalyze(vas):
                 sli_ctx = SLIContext(
                     training_idx=sli_training_idx,
                     average_over_buckets=use_training_mean,
-                    skip_first_sync_buckets=skip_k,
+                    skip_first_sync_buckets=sel_skip_k,
+                    keep_first_sync_buckets=sel_keep_k,
                 )
                 plot_cross_fly_correlations(
                     sli_values=sli_ser,

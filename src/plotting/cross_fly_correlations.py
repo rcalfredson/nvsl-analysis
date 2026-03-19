@@ -37,23 +37,47 @@ class SLIContext:
     training_idx: int
     average_over_buckets: bool = False
     skip_first_sync_buckets: int = 0
+    keep_first_sync_buckets: int = 0
+
+    def _window_bounds(self) -> tuple[int, int | None]:
+        start_sb = int(self.skip_first_sync_buckets or 0) + 1  # 1-based
+        keep = int(self.keep_first_sync_buckets or 0)
+        end_sb = None if keep <= 0 else start_sb + keep - 1
+        return start_sb, end_sb
+
+    def _window_text(self, *, abbrev_sb: bool = True) -> str:
+        start_sb, end_sb = self._window_bounds()
+        if abbrev_sb:
+            if end_sb is None:
+                return f"SB{start_sb}-end"
+            if end_sb == start_sb:
+                return f"SB{start_sb}"
+            return f"SB{start_sb}-SB{end_sb}"
+
+        if end_sb is None:
+            return f"sync bucket {start_sb}-end"
+        if end_sb == start_sb:
+            return f"sync bucket {start_sb}"
+        return f"sync buckets {start_sb}-{end_sb}"
 
     def label_long(self) -> str:
         trn = self.training_idx + 1
-        k = self.skip_first_sync_buckets
-        skip_txt = f", skip first {k} SB" if k else ""
+        start_sb, end_sb = self._window_bounds()
+        window_txt = (
+            f", sync buckets {start_sb}-end"
+            if end_sb is None
+            else f", sync buckets {start_sb}-{end_sb}"
+        )
         if self.average_over_buckets:
-            return f"SLI (mean over sync buckets{skip_txt}, training {trn})"
-        return f"SLI (last sync bucket{skip_txt}, training {trn})"
+            return f"SLI (mean over{window_txt}, training {trn})"
+        return f"SLI (last sync bucket within{window_txt}, training {trn})"
 
     def label_short(self, abbrev_sb=True) -> str:
         trn = self.training_idx + 1
-        k = int(self.skip_first_sync_buckets or 0)
-        start_sb = k + 1  # 1-based
-        sb_txt = "SB" if abbrev_sb else "sync bucket "
+        window_txt = self._window_text(abbrev_sb=abbrev_sb)
         if self.average_over_buckets:
-            return f"SLI (T{trn}, mean, {sb_txt}{start_sb}-end)"
-        return f"SLI (T{trn}, last {sb_txt})"
+            return f"SLI (T{trn}, mean, {window_txt})"
+        return f"SLI (T{trn}, last, {window_txt})"
 
 
 def early_sli_label(*, training_idx: int, skip_first_sync_buckets: int) -> str:
@@ -147,6 +171,7 @@ def plot_selected_group_scatter(
     figsize: tuple = (5.5, 4.5),
     xlim: tuple[float, float] | None = None,
     ylim: tuple[float, float] | None = None,
+    include_all_corr: bool = False,
 ):
     """
     Plot all points, highlighting selected top/bottom SLI groups and reporting
@@ -208,8 +233,13 @@ def plot_selected_group_scatter(
     ax.set_title(title, pad=10)
     ax.grid(False)
 
+    corr_all = None
     corr_top = None
     corr_bottom = None
+    if include_all_corr and x_f.size >= 3:
+        r_a, p_a = pearsonr(x_f, y_f)
+        corr_all = (float(r_a), float(p_a), int(x_f.size))
+
     if mode in ("both", "top"):
         plotted_top_mask = classes_arr == "top"
         if np.sum(plotted_top_mask) >= 3:
@@ -223,6 +253,13 @@ def plot_selected_group_scatter(
             corr_bottom = (float(r_b), float(p_b), int(np.sum(plotted_bottom_mask)))
 
     lines = []
+
+    if include_all_corr:
+        if corr_all is not None:
+            r_a, p_a, n_a = corr_all
+            lines.append(f"All (finite): r = {r_a:.3f}, p = {p_a:.3g} (n={n_a})")
+        else:
+            lines.append("All (finite): r = n/a")
 
     if mode in ("both", "top"):
         if corr_top is not None:
@@ -293,7 +330,7 @@ def plot_selected_group_scatter(
     ax.legend(handles=handles, loc="best", frameon=True)
 
     customizer.adjust_padding_proportionally()
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0, 1, 0.98))
     writeImage(str(out_dir / f"{filename}.png"), format="png")
     plt.close(fig)
 
@@ -369,6 +406,22 @@ def _ensure_rewards_per_distance(va) -> bool:
     return True
 
 
+def _ensure_rewards_per_minute_by_sync_bucket(va) -> bool:
+    """
+    Make sure va.rwdsPerMinBySyncBucket exists.
+    """
+    if getattr(va, "rwdsPerMinBySyncBucket", None) is None:
+        if hasattr(va, "_rewards_per_minute_by_sync_bucket"):
+            va._rewards_per_minute_by_sync_bucket(silent=True)
+        else:
+            print(
+                "[correlations] WARNING: no rwdsPerMinBySyncBucket and no "
+                "_rewards_per_minute_by_sync_bucket()"
+            )
+            return False
+    return True
+
+
 def _ensure_reward_pi_pre(va) -> bool:
     """
     Make sure va.rewardPIPre exists (pre-training reward PI).
@@ -388,6 +441,7 @@ def _reduce_sync_bucket_series(
     bucket_idx: int | None = None,
     average_over_buckets: bool = False,
     skip_first_sync_buckets: int = 0,
+    keep_first_sync_buckets: int = 0,
     reduce: str = "mean",
 ) -> float:
     arr = np.asarray(vec, float)
@@ -402,7 +456,12 @@ def _reduce_sync_bucket_series(
             return float(arr[b])
         return np.nan
 
-    sub = arr[k:] if k < arr.size else np.array([], float)
+    end = arr.size
+    keep = int(keep_first_sync_buckets or 0)
+    if keep > 0:
+        end = min(arr.size, k + keep)
+
+    sub = arr[k:end] if k < arr.size else np.array([], float)
     sub = sub[np.isfinite(sub)]
     if sub.size == 0:
         return np.nan
@@ -983,6 +1042,8 @@ def plot_cross_fly_correlations(
 
     skip_k = int(getattr(sli_ctx, "skip_first_sync_buckets", 0) or 0)
     skip_k = max(0, skip_k)
+    keep_k = int(getattr(sli_ctx, "keep_first_sync_buckets", 0) or 0)
+    keep_k = max(0, keep_k)
     early_lbl = early_sli_label(training_idx=0, skip_first_sync_buckets=skip_k)  # T1
     early_sb_txt = f"SB{skip_k + 1}"
     if early_sb_txt == "SB1":
@@ -992,6 +1053,7 @@ def plot_cross_fly_correlations(
     )  # always SB1
 
     rpd_vals = []
+    rpt_vals = []
     med_train_vals = []
     pre_pi_diff_vals = []
     total_reward_vals = []
@@ -1008,18 +1070,37 @@ def plot_cross_fly_correlations(
                     bucket_idx=None,
                     average_over_buckets=bool(sli_ctx.average_over_buckets),
                     skip_first_sync_buckets=skip_k,
+                    keep_first_sync_buckets=keep_k,
                 )
             else:
                 rpd_val = np.nan
         else:
             rpd_val = np.nan
 
+        # --- Reward per time (same training/window as reward-per-distance) ---
+        if _ensure_rewards_per_minute_by_sync_bucket(va):
+            row_idx = 2 * training_idx  # exp row
+            if 0 <= row_idx < len(va.rwdsPerMinBySyncBucket):
+                exp_row = va.rwdsPerMinBySyncBucket[row_idx]
+                rpt_val = _reduce_sync_bucket_series(
+                    exp_row,
+                    bucket_idx=None,
+                    average_over_buckets=bool(sli_ctx.average_over_buckets),
+                    skip_first_sync_buckets=skip_k,
+                    keep_first_sync_buckets=keep_k,
+                )
+            else:
+                rpt_val = np.nan
+        else:
+            rpt_val = np.nan
+
         # --- Median distance to reward during training ---
         _ensure_sync_med_dist(va)
         if hasattr(va, "syncMedDist") and training_idx < len(va.syncMedDist):
             med_vec = np.asarray(va.syncMedDist[training_idx].get("exp", []), float)
-            if med_vec.size and skip_k < med_vec.size:
-                med_train = np.nanmedian(med_vec[skip_k:])
+            end_k = med_vec.size if keep_k <= 0 else min(med_vec.size, skip_k + keep_k)
+            if med_vec.size and skip_k < end_k:
+                med_train = np.nanmedian(med_vec[skip_k:end_k])
             else:
                 med_train = np.nan
         else:
@@ -1087,12 +1168,14 @@ def plot_cross_fly_correlations(
             total_rewards = np.nan
 
         rpd_vals.append(rpd_val)
+        rpt_vals.append(rpt_val)
         med_train_vals.append(med_train)
         pre_pi_diff_vals.append(pre_diff)
         total_reward_vals.append(total_rewards)
         pre_coverage_vals.append(coverage)
 
     rpd_vals = np.asarray(rpd_vals, float)
+    rpt_vals = np.asarray(rpt_vals, float)
     med_train_vals = np.asarray(med_train_vals, float)
     pre_pi_diff_vals = np.asarray(pre_pi_diff_vals, float)
     total_reward_vals = np.asarray(total_reward_vals, float)
@@ -1117,18 +1200,25 @@ def plot_cross_fly_correlations(
             print(f"[correlations] WARNING: failed fast/strong summary: {e}")
 
     rpd_mode = "mean" if sli_ctx.average_over_buckets else "last"
-    rpd_suffix = f"{rpd_mode}_skip{skip_k}" if skip_k else rpd_mode
+    suffix_parts = [rpd_mode]
+    if skip_k:
+        suffix_parts.append(f"skip{skip_k}")
+    if keep_k:
+        suffix_parts.append(f"keep{keep_k}")
+    rpd_suffix = "_".join(suffix_parts)
 
     rpd_y_label = "rewards per distance $[m^{{-1}}]$"
+    rpt_y_label = "rewards per minute"
 
     if sli_ctx.average_over_buckets:
-        start_sb = skip_k + 1
-        rpd_y_label = f"rewards per distance $[m^{{-1}}]$\n(mean SB{start_sb}-end)"
+        window_txt = sli_ctx._window_text(abbrev_sb=True)
+        rpd_y_label = f"rewards per distance $[m^{{-1}}]$\n(mean {window_txt})"
+        rpt_y_label = f"rewards per minute\n(mean {window_txt})"
     else:
-        if skip_k:
-            rpd_y_label = (
-                f"rewards per distance $[m^{{-1}}]$\n(last valid, SB{skip_k+1}-end)"
-            )
+        if skip_k or keep_k:
+            window_txt = sli_ctx._window_text(abbrev_sb=True)
+            rpd_y_label = f"rewards per distance $[m^{{-1}}]$\n(last valid, {window_txt})"
+            rpt_y_label = f"rewards per minute\n(last valid, {window_txt})"
 
     # --- Plot 1: SLI_final vs reward-per-distance ---
     _scatter_with_corr(
@@ -1141,6 +1231,78 @@ def plot_cross_fly_correlations(
         filename=f"corr_rpd_vs_sli_{rpd_suffix}",
         customizer=customizer,
     )
+    if selected_mode is not None:
+        if selected_mode == "top":
+            title_1_sel = "Rewards per distance vs SLI (top SLI-selected learners)"
+            filename_1_sel = f"corr_rpd_vs_sli_{rpd_suffix}_top_selected"
+        elif selected_mode == "bottom":
+            title_1_sel = "Rewards per distance vs SLI (bottom SLI-selected learners)"
+            filename_1_sel = f"corr_rpd_vs_sli_{rpd_suffix}_bottom_selected"
+        else:
+            title_1_sel = (
+                "Rewards per distance vs SLI (top vs bottom SLI-selected learners)"
+            )
+            filename_1_sel = f"corr_rpd_vs_sli_{rpd_suffix}_selected_extremes"
+
+        plot_selected_group_scatter(
+            x=sli_vals,
+            y=rpd_vals,
+            bottom_idx=selected_bottom_idx,
+            top_idx=selected_top_idx,
+            mode=selected_mode,
+            title=title_1_sel,
+            x_label=x_label_sli,
+            y_label=rpd_y_label,
+            filename=filename_1_sel,
+            out_dir=out_dir,
+            customizer=customizer,
+            top_label=top_sel_label,
+            bottom_label=bottom_sel_label,
+            xlim=cfg.xlim,
+            ylim=cfg.ylim,
+        )
+
+    # --- Plot 1b: SLI_final vs reward-per-time (SLI on Y axis) ---
+    _scatter_with_corr(
+        x=rpt_vals,
+        y=sli_vals,
+        title="SLI vs rewards per minute",
+        x_label=rpt_y_label,
+        y_label=y_label_sli,
+        cfg=cfg,
+        filename=f"corr_sli_vs_rpt_{rpd_suffix}",
+        customizer=customizer,
+    )
+    if selected_mode is not None:
+        if selected_mode == "top":
+            title_1b_sel = "SLI vs rewards per minute (top SLI-selected learners)"
+            filename_1b_sel = f"corr_sli_vs_rpt_{rpd_suffix}_top_selected"
+        elif selected_mode == "bottom":
+            title_1b_sel = "SLI vs rewards per minute (bottom SLI-selected learners)"
+            filename_1b_sel = f"corr_sli_vs_rpt_{rpd_suffix}_bottom_selected"
+        else:
+            title_1b_sel = "SLI vs rewards per minute (top vs bottom SLI-selected learners)"
+            filename_1b_sel = f"corr_sli_vs_rpt_{rpd_suffix}_selected_extremes"
+
+        plot_selected_group_scatter(
+            x=rpt_vals,
+            y=sli_vals,
+            bottom_idx=selected_bottom_idx,
+            top_idx=selected_top_idx,
+            mode=selected_mode,
+            title=title_1b_sel,
+            x_label=rpt_y_label,
+            y_label=y_label_sli,
+            filename=filename_1b_sel,
+            out_dir=out_dir,
+            customizer=customizer,
+            top_label=top_sel_label,
+            bottom_label=bottom_sel_label,
+            figsize=(6.8, 5.6),
+            xlim=cfg.xlim,
+            ylim=cfg.ylim,
+            include_all_corr=True,
+        )
 
     # --- Plot 2: SLI_final vs median training distance ---
     _scatter_with_corr(

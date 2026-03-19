@@ -994,6 +994,61 @@ class VideoAnalysis:
                     )
             self.rwdsPerDist.extend(rows)
 
+    def _rewards_per_minute_by_sync_bucket(self, silent=False):
+        if not silent:
+            print("\nrewards per minute by sync bucket")
+        self.rwdsPerMinBySyncBucket = []
+        exp_trj = self.trx[0]
+        ctrl_trj = self.trx[1] if len(self.trx) > 1 else None
+        num_displayed_buckets = 0
+
+        def _row(trj: Trajectory, trn: Training):
+            """Safe fetch of one training row."""
+            nonlocal num_displayed_buckets
+            df = self._numRewardsMsg(True, silent=True)
+            fi_start, n_buckets, _ = self._syncBucket(trn, df)
+            nan_row = [np.nan] * n_buckets
+            row = []
+
+            if trj is None or fi_start is None or getattr(trj, "_bad", True):
+                return nan_row
+
+            fi = fi_start
+            la = min(trn.stop, int(trn.start + n_buckets * df))
+            fiRi = util.none2val(self._idxSync(RI_START, trn, fi, la), la)
+            n_calc = self._countOnByBucket(
+                fi, la, df, calc=True, ctrl=False, f=trj.f, fiCount=fiRi
+            )
+            bucket_minutes = float(self._f2min(df))
+            if not np.isfinite(bucket_minutes) or bucket_minutes <= 0:
+                return nan_row
+
+            while fi + df < la:
+                i = len(row)
+
+                if self.is_excluded_pair(trj.f, trn.n - 1, i):
+                    row.append(np.nan)
+                    fi += df
+                    continue
+
+                row.append(n_calc[i] / bucket_minutes)
+                fi += df
+
+            num_displayed_buckets = max(num_displayed_buckets, len(row))
+            row.extend([np.nan] * (n_buckets - len(row)))
+            return row
+
+        for trn in self.trns:
+            if not silent:
+                print(trn.name())
+            rows = (_row(exp_trj, trn), _row(ctrl_trj, trn))
+            if not silent:
+                for i, row in enumerate(rows):
+                    self._printBucketVals(
+                        row[:num_displayed_buckets], i, flyDesc(i), prec=2
+                    )
+            self.rwdsPerMinBySyncBucket.extend(rows)
+
     def _aggregate_slide_circle_metrics(self):
         """Collate slide-circle %-in metrics from every Trajectory."""
         if not self.opts.prefCircleSlideRad:
