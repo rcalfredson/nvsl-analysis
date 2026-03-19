@@ -3442,6 +3442,15 @@ g.add_argument(
     help="Write an .npz bundle with cumulative-reward-aligned SLI curves for multi-group overlays.",
 )
 g.add_argument(
+    "--cum-reward-sli-debug-tsv",
+    type=str,
+    default=None,
+    help=(
+        "Optional TSV debug export for cumulative-reward SLI bundles: one row per "
+        "fly per cumulative-reward tick, including counts and PI/SLI values."
+    ),
+)
+g.add_argument(
     "--cum-reward-sli-tick-spacing",
     type=int,
     default=5,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import os
 
 import numpy as np
@@ -89,13 +90,15 @@ def _pi_for_cutoffs(
     pi_threshold: int,
 ):
     if cutoffs.size == 0 or thresholds.size == 0:
-        return np.zeros((0,), dtype=int), np.zeros((0,), dtype=float)
+        zeros_i = np.zeros((0,), dtype=int)
+        zeros_f = np.zeros((0,), dtype=float)
+        return zeros_i, zeros_f, zeros_i, zeros_i
     exp_entries = _frames_in_windows(va, windows, calc=True, ctrl=False, f=f)
     ctrl_entries = _frames_in_windows(va, windows, calc=True, ctrl=True, f=f)
     n_exp = np.searchsorted(exp_entries, cutoffs, side="right")
     n_ctrl = np.searchsorted(ctrl_entries, cutoffs, side="right")
     pi = np.asarray(util.prefIdx(n_exp, n_ctrl, n=pi_threshold), dtype=float)
-    return thresholds, pi
+    return thresholds, pi, n_exp.astype(int, copy=False), n_ctrl.astype(int, copy=False)
 
 
 def _build_running_pi_curves(
@@ -108,8 +111,13 @@ def _build_running_pi_curves(
     pi_threshold: int,
 ):
     x_lists = []
+    cutoff_lists = []
     pi_exp_lists = []
     pi_yok_lists = []
+    n_exp0_lists = []
+    n_ctrl0_lists = []
+    n_exp1_lists = []
+    n_ctrl1_lists = []
     sli_lists = []
     max_tick = 0
 
@@ -125,12 +133,22 @@ def _build_running_pi_curves(
         )
         if actual_rewards_exp.size == 0:
             common_x = np.zeros((0,), dtype=int)
+            cutoffs = np.zeros((0,), dtype=int)
             pi_exp_common = np.zeros((0,), dtype=float)
             pi_yok_common = np.zeros((0,), dtype=float)
+            n_exp0 = np.zeros((0,), dtype=int)
+            n_ctrl0 = np.zeros((0,), dtype=int)
+            n_exp1 = np.zeros((0,), dtype=int)
+            n_ctrl1 = np.zeros((0,), dtype=int)
             sli = np.zeros((0,), dtype=float)
             x_lists.append(common_x)
+            cutoff_lists.append(cutoffs)
             pi_exp_lists.append(pi_exp_common)
             pi_yok_lists.append(pi_yok_common)
+            n_exp0_lists.append(n_exp0)
+            n_ctrl0_lists.append(n_ctrl0)
+            n_exp1_lists.append(n_exp1)
+            n_ctrl1_lists.append(n_ctrl1)
             sli_lists.append(sli)
             continue
 
@@ -141,17 +159,27 @@ def _build_running_pi_curves(
             dtype=int,
         )
         if common_x.size == 0:
+            cutoffs = np.zeros((0,), dtype=int)
             pi_exp_common = np.zeros((0,), dtype=float)
             pi_yok_common = np.zeros((0,), dtype=float)
+            n_exp0 = np.zeros((0,), dtype=int)
+            n_ctrl0 = np.zeros((0,), dtype=int)
+            n_exp1 = np.zeros((0,), dtype=int)
+            n_ctrl1 = np.zeros((0,), dtype=int)
             sli = np.zeros((0,), dtype=float)
             x_lists.append(common_x)
+            cutoff_lists.append(cutoffs)
             pi_exp_lists.append(pi_exp_common)
             pi_yok_lists.append(pi_yok_common)
+            n_exp0_lists.append(n_exp0)
+            n_ctrl0_lists.append(n_ctrl0)
+            n_exp1_lists.append(n_exp1)
+            n_ctrl1_lists.append(n_ctrl1)
             sli_lists.append(sli)
             continue
 
         cutoffs = actual_rewards_exp[common_x - 1]
-        _x_exp, pi_exp_common = _pi_for_cutoffs(
+        _x_exp, pi_exp_common, n_exp0, n_ctrl0 = _pi_for_cutoffs(
             va,
             windows,
             f=0,
@@ -161,8 +189,10 @@ def _build_running_pi_curves(
         )
         if getattr(va, "noyc", False):
             pi_yok_common = np.full(pi_exp_common.shape, np.nan, dtype=float)
+            n_exp1 = np.zeros(pi_exp_common.shape, dtype=int)
+            n_ctrl1 = np.zeros(pi_exp_common.shape, dtype=int)
         else:
-            _x_yok, pi_yok_common = _pi_for_cutoffs(
+            _x_yok, pi_yok_common, n_exp1, n_ctrl1 = _pi_for_cutoffs(
                 va,
                 windows,
                 f=1,
@@ -174,8 +204,13 @@ def _build_running_pi_curves(
         if common_x.size:
             max_tick = max(max_tick, int(common_x[-1]))
         x_lists.append(common_x)
+        cutoff_lists.append(cutoffs.astype(int, copy=False))
         pi_exp_lists.append(pi_exp_common)
         pi_yok_lists.append(pi_yok_common)
+        n_exp0_lists.append(n_exp0)
+        n_ctrl0_lists.append(n_ctrl0)
+        n_exp1_lists.append(n_exp1)
+        n_ctrl1_lists.append(n_ctrl1)
         sli_lists.append(sli)
 
     tick_spacing = max(1, int(tick_spacing or 1))
@@ -190,17 +225,108 @@ def _build_running_pi_curves(
     pi_yok_arr = np.full((n_videos, n_ticks), np.nan, dtype=float)
     sli_arr = np.full((n_videos, n_ticks), np.nan, dtype=float)
     total_actual_rewards = np.zeros((n_videos,), dtype=int)
+    cutoff_frame_arr = np.full((n_videos, n_ticks), np.nan, dtype=float)
+    n_exp0_arr = np.full((n_videos, n_ticks), np.nan, dtype=float)
+    n_ctrl0_arr = np.full((n_videos, n_ticks), np.nan, dtype=float)
+    n_exp1_arr = np.full((n_videos, n_ticks), np.nan, dtype=float)
+    n_ctrl1_arr = np.full((n_videos, n_ticks), np.nan, dtype=float)
 
     for vi, xs in enumerate(x_lists):
         if xs.size == 0:
             continue
         total_actual_rewards[vi] = int(xs[-1])
         n = min(n_ticks, xs.size)
+        cutoff_frame_arr[vi, :n] = cutoff_lists[vi][:n]
         pi_exp_arr[vi, :n] = pi_exp_lists[vi][:n]
         pi_yok_arr[vi, :n] = pi_yok_lists[vi][:n]
+        n_exp0_arr[vi, :n] = n_exp0_lists[vi][:n]
+        n_ctrl0_arr[vi, :n] = n_ctrl0_lists[vi][:n]
+        n_exp1_arr[vi, :n] = n_exp1_lists[vi][:n]
+        n_ctrl1_arr[vi, :n] = n_ctrl1_lists[vi][:n]
         sli_arr[vi, :n] = sli_lists[vi][:n]
 
-    return common_ticks, sli_arr, pi_exp_arr, pi_yok_arr, total_actual_rewards
+    debug = dict(
+        cutoff_frame=cutoff_frame_arr,
+        n_exp0=n_exp0_arr,
+        n_ctrl0=n_ctrl0_arr,
+        n_exp1=n_exp1_arr,
+        n_ctrl1=n_ctrl1_arr,
+    )
+    return common_ticks, sli_arr, pi_exp_arr, pi_yok_arr, total_actual_rewards, debug
+
+
+def _write_cum_reward_sli_debug_tsv(
+    path,
+    *,
+    vas,
+    group_label,
+    sli_scalar,
+    ticks,
+    total_actual_rewards,
+    reward_pi_exp,
+    reward_pi_yoked,
+    sli_vs_cum_rewards,
+    debug,
+):
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    fieldnames = [
+        "video_index",
+        "video_id",
+        "group_label",
+        "scalar_sli",
+        "reward_tick",
+        "cutoff_frame",
+        "total_actual_rewards",
+        "reached_reward_tick",
+        "exp_reward_pi",
+        "yoked_reward_pi",
+        "sli",
+        "sli_finite",
+        "exp_calc_entries_exp_fly",
+        "ctrl_calc_entries_exp_fly",
+        "exp_calc_entries_yoked_fly",
+        "ctrl_calc_entries_yoked_fly",
+    ]
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter="\t")
+        writer.writeheader()
+        ticks = np.asarray(ticks, dtype=float).reshape(-1)
+        total_actual_rewards = np.asarray(total_actual_rewards, dtype=int).reshape(-1)
+        cutoff_frame = np.asarray(debug["cutoff_frame"], dtype=float)
+        n_exp0 = np.asarray(debug["n_exp0"], dtype=float)
+        n_ctrl0 = np.asarray(debug["n_ctrl0"], dtype=float)
+        n_exp1 = np.asarray(debug["n_exp1"], dtype=float)
+        n_ctrl1 = np.asarray(debug["n_ctrl1"], dtype=float)
+        reward_pi_exp = np.asarray(reward_pi_exp, dtype=float)
+        reward_pi_yoked = np.asarray(reward_pi_yoked, dtype=float)
+        sli_vs_cum_rewards = np.asarray(sli_vs_cum_rewards, dtype=float)
+        sli_scalar = np.asarray(sli_scalar, dtype=float).reshape(-1)
+        for vi, va in enumerate(vas):
+            video_id = str(getattr(va, "fn", f"va_{vi}"))
+            for tj, tick in enumerate(ticks):
+                pi_exp = reward_pi_exp[vi, tj]
+                pi_yok = reward_pi_yoked[vi, tj]
+                sli = sli_vs_cum_rewards[vi, tj]
+                writer.writerow(
+                    {
+                        "video_index": vi,
+                        "video_id": video_id,
+                        "group_label": group_label,
+                        "scalar_sli": "" if not np.isfinite(sli_scalar[vi]) else float(sli_scalar[vi]),
+                        "reward_tick": int(tick) if float(tick).is_integer() else float(tick),
+                        "cutoff_frame": "" if not np.isfinite(cutoff_frame[vi, tj]) else int(cutoff_frame[vi, tj]),
+                        "total_actual_rewards": int(total_actual_rewards[vi]),
+                        "reached_reward_tick": int(total_actual_rewards[vi] >= int(round(float(tick)))),
+                        "exp_reward_pi": "" if not np.isfinite(pi_exp) else float(pi_exp),
+                        "yoked_reward_pi": "" if not np.isfinite(pi_yok) else float(pi_yok),
+                        "sli": "" if not np.isfinite(sli) else float(sli),
+                        "sli_finite": int(np.isfinite(sli)),
+                        "exp_calc_entries_exp_fly": "" if not np.isfinite(n_exp0[vi, tj]) else int(n_exp0[vi, tj]),
+                        "ctrl_calc_entries_exp_fly": "" if not np.isfinite(n_ctrl0[vi, tj]) else int(n_ctrl0[vi, tj]),
+                        "exp_calc_entries_yoked_fly": "" if not np.isfinite(n_exp1[vi, tj]) else int(n_exp1[vi, tj]),
+                        "ctrl_calc_entries_yoked_fly": "" if not np.isfinite(n_ctrl1[vi, tj]) else int(n_ctrl1[vi, tj]),
+                    }
+                )
 
 
 def export_cum_reward_sli_bundle(vas, opts, gls, out_fn):
@@ -236,6 +362,7 @@ def export_cum_reward_sli_bundle(vas, opts, gls, out_fn):
         reward_pi_exp,
         reward_pi_yoked,
         total_actual_rewards,
+        debug,
     ) = _build_running_pi_curves(
         vas_ok,
         selected_trainings,
@@ -296,3 +423,18 @@ def export_cum_reward_sli_bundle(vas, opts, gls, out_fn):
         ),
     )
     print(f"[export] Wrote cum_reward_sli+SLI bundle: {out_fn} (n={n_videos})")
+    debug_tsv = getattr(opts, "cum_reward_sli_debug_tsv", None)
+    if debug_tsv:
+        _write_cum_reward_sli_debug_tsv(
+            debug_tsv,
+            vas=vas_ok,
+            group_label=group_label,
+            sli_scalar=sli,
+            ticks=cum_reward_ticks,
+            total_actual_rewards=total_actual_rewards,
+            reward_pi_exp=reward_pi_exp,
+            reward_pi_yoked=reward_pi_yoked,
+            sli_vs_cum_rewards=sli_vs_cum_rewards,
+            debug=debug,
+        )
+        print(f"[export] Wrote cum_reward_sli debug TSV: {debug_tsv}")
