@@ -53,7 +53,7 @@ def load_sli_bundle(path: str) -> dict:
     for k in d.files:
         if k in out:
             continue
-        if k.startswith(prefixes) or k in ("sli_ts",):
+        if k.startswith(prefixes) or k in ("sli_ts", "fly_ids"):
             out[k] = d[k]
     return out
 
@@ -63,6 +63,12 @@ def bundle_video_ids(bundle: dict) -> np.ndarray | None:
     if key not in bundle:
         return None
     return as_str_array(bundle[key])
+
+
+def bundle_fly_ids(bundle: dict) -> np.ndarray | None:
+    if "fly_ids" not in bundle:
+        return None
+    return np.asarray(bundle["fly_ids"], dtype=int).reshape(-1)
 
 
 def align_by_video_ids(base_bundle: dict, comp_bundle: dict) -> tuple[np.ndarray | None, np.ndarray | None, int]:

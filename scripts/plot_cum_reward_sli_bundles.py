@@ -19,6 +19,15 @@ def main():
     )
     p.add_argument("--out", required=True, help="Output image filename (png/pdf).")
     p.add_argument(
+        "--metric",
+        default="sli",
+        choices=["sli", "reward_pi", "reward_pi_exp", "reward_pi_yoked"],
+        help=(
+            "Y-axis metric to plot against cumulative rewards. "
+            "'reward_pi' defaults to the experimental fly."
+        ),
+    )
+    p.add_argument(
         "--sli-extremes",
         default=None,
         choices=["top", "bottom", "both"],
@@ -39,6 +48,36 @@ def main():
         "--show-n",
         action="store_true",
         help="Annotate per-tick sample sizes near the plotted curves.",
+    )
+    p.add_argument(
+        "--individual-sample-n",
+        type=int,
+        default=argparse.SUPPRESS,
+        help=(
+            "If given and > 0, plot a random sample of this many individual-fly "
+            "curves per plotted subset instead of subset means/CI."
+        ),
+    )
+    p.add_argument(
+        "--individual-seed",
+        type=int,
+        default=0,
+        help="Random seed used with --individual-sample-n.",
+    )
+    p.add_argument(
+        "--hide-legend",
+        action="store_true",
+        help="Hide the legend. Useful for dense sampled-individual plots.",
+    )
+    p.add_argument(
+        "--individual-color-mode",
+        choices=["gradient", "random"],
+        default="gradient",
+        help=(
+            "Color style for sampled individual-fly traces. "
+            "'gradient' uses the current single-hue shading; "
+            "'random' assigns colors from a categorical palette."
+        ),
     )
     p.add_argument(
         "--min-fly-pct",
@@ -93,6 +132,9 @@ def main():
     min_fly_pct = getattr(args, "min_fly_pct", None)
     if min_fly_pct is not None and not (0 <= float(min_fly_pct) <= 100):
         raise SystemExit("--min-fly-pct must be in the interval [0, 100].")
+    individual_sample_n = getattr(args, "individual_sample_n", None)
+    if individual_sample_n is not None and int(individual_sample_n) < 0:
+        raise SystemExit("--individual-sample-n must be >= 0.")
 
     bundles = [s.strip() for s in args.bundles.split(",") if s.strip()]
     labels = None
@@ -112,6 +154,11 @@ def main():
         ci_min_n=max(1, int(args.ci_min_n)),
         show_n=bool(args.show_n),
         min_fly_pct=None if min_fly_pct is None else float(min_fly_pct),
+        metric=args.metric,
+        individual_sample_n=individual_sample_n,
+        individual_seed=int(args.individual_seed),
+        individual_color_mode=args.individual_color_mode,
+        show_legend=not bool(args.hide_legend),
         opts=opts,
     )
 

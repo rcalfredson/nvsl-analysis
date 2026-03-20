@@ -1,13 +1,20 @@
 from __future__ import annotations
 
+import os
 from types import SimpleNamespace
 from collections import defaultdict
 
 import matplotlib.pyplot as plt
+from matplotlib import colors as mcolors
+from matplotlib import cm
 import numpy as np
 import pandas as pd
 
-from src.analysis.sli_bundle_utils import load_sli_bundle
+from src.analysis.sli_bundle_utils import (
+    bundle_fly_ids,
+    bundle_video_ids,
+    load_sli_bundle,
+)
 from src.analysis.sli_tools import select_fractional_groups
 from src.plotting.plot_customizer import PlotCustomizer
 from src.utils.common import pick_above_or_expand, ttest_ind, writeImage
@@ -157,6 +164,143 @@ def _centered_x_offsets(count: int, dodge_step: float) -> np.ndarray:
     return idx * (2.0 * float(dodge_step))
 
 
+def _metric_spec(metric: str | None) -> tuple[str, str, str]:
+    metric_name = str(metric or "sli").strip().lower()
+    specs = {
+        "sli": (
+            "cum_reward_sli_curve",
+            "SLI",
+            "SLI vs cumulative rewards",
+        ),
+        "reward_pi": (
+            "cum_reward_sli_reward_pi_exp",
+            "Reward PI (experimental fly)",
+            "Reward PI vs cumulative rewards",
+        ),
+        "reward_pi_exp": (
+            "cum_reward_sli_reward_pi_exp",
+            "Reward PI (experimental fly)",
+            "Reward PI vs cumulative rewards",
+        ),
+        "reward_pi_yoked": (
+            "cum_reward_sli_reward_pi_yoked",
+            "Reward PI (yoked fly)",
+            "Reward PI vs cumulative rewards",
+        ),
+    }
+    if metric_name not in specs:
+        raise ValueError(
+            "Unsupported metric={!r}; expected one of: {}".format(
+                metric,
+                ", ".join(sorted(specs)),
+            )
+        )
+    return specs[metric_name]
+
+
+def _sample_indices(
+    sub_idx: np.ndarray,
+    *,
+    sample_n: int | None,
+    rng: np.random.Generator | None,
+) -> np.ndarray:
+    sub_idx = np.asarray(sub_idx, dtype=int)
+    if sub_idx.size == 0:
+        return sub_idx
+    if sample_n is None:
+        return sub_idx
+    n = max(0, int(sample_n))
+    if n == 0:
+        return np.zeros((0,), dtype=int)
+    if n >= sub_idx.size or rng is None:
+        return sub_idx.copy()
+    chosen = np.sort(rng.choice(sub_idx, size=n, replace=False))
+    return np.asarray(chosen, dtype=int)
+
+
+def _subset_plot_label(
+    group_label: str,
+    *,
+    which: str | None,
+    sli_extremes,
+    sli_top_fraction,
+    sli_bottom_fraction,
+    standalone_extreme_labels: bool,
+) -> str:
+    label = str(group_label)
+    if which == "top":
+        extreme_label = _pct_label("Top", sli_top_fraction)
+        return (
+            extreme_label
+            if standalone_extreme_labels
+            else f"{label} ({extreme_label.lower()})"
+        )
+    if which == "bottom":
+        extreme_label = _pct_label("Bottom", sli_bottom_fraction)
+        return (
+            extreme_label
+            if standalone_extreme_labels
+            else f"{label} ({extreme_label.lower()})"
+        )
+    if sli_extremes == "top":
+        return f"{label} ({_pct_label('top', sli_top_fraction)})"
+    if sli_extremes == "bottom":
+        return f"{label} ({_pct_label('bottom', sli_bottom_fraction)})"
+    return label
+
+
+def _lighten_color(color, amount: float) -> tuple[float, float, float]:
+    rgb = np.asarray(mcolors.to_rgb(color), dtype=float)
+    amt = min(max(float(amount), 0.0), 1.0)
+    return tuple(rgb + (1.0 - rgb) * amt)
+
+
+def _sampled_line_color(
+    *,
+    color_mode: str,
+    base_color,
+    order: int,
+    n_sampled: int,
+    rng: np.random.Generator | None,
+):
+    if str(color_mode) == "random":
+        cmap = cm.get_cmap("tab20")
+        if rng is None:
+            idx = order % cmap.N
+        else:
+            idx = int(rng.integers(0, cmap.N))
+        return tuple(cmap(idx)[:3])
+    return _lighten_color(
+        base_color,
+        0.15 + 0.55 * (float(order) / max(n_sampled - 1, 1)),
+    )
+
+
+def _short_video_label(raw) -> str:
+    text = str(raw)
+    if "::f" in text:
+        text = text.split("::f", 1)[0]
+    text = os.path.basename(text.rstrip("/")) or text
+    if text.lower().endswith((".avi", ".mp4", ".mov", ".mkv")):
+        text = os.path.splitext(text)[0]
+    return text
+
+
+def _fly_label(bundle: dict, abs_idx: int) -> str:
+    video_ids = bundle_video_ids(bundle)
+    fly_ids = bundle_fly_ids(bundle)
+    base = (
+        _short_video_label(video_ids[abs_idx])
+        if video_ids is not None and 0 <= int(abs_idx) < len(video_ids)
+        else f"fly {int(abs_idx) + 1}"
+    )
+    if fly_ids is not None and 0 <= int(abs_idx) < len(fly_ids):
+        fly_id = int(fly_ids[abs_idx])
+        if fly_id >= 0:
+            return f"{base} [f={fly_id}]"
+    return base
+
+
 def plot_cum_reward_sli_bundles(
     bundle_paths,
     out_fn,
@@ -170,6 +314,11 @@ def plot_cum_reward_sli_bundles(
     ci_min_n=3,
     show_n=False,
     min_fly_pct=None,
+    metric="sli",
+    individual_sample_n=None,
+    individual_seed=0,
+    individual_color_mode="gradient",
+    show_legend=True,
     opts=None,
 ):
     if opts is None:
@@ -191,9 +340,10 @@ def plot_cum_reward_sli_bundles(
     if not bundles:
         raise ValueError("No bundles provided")
     min_fly_pct = _resolve_min_fly_pct(bundles, min_fly_pct)
+    metric_key, y_label, plot_title = _metric_spec(metric)
 
     for b in bundles:
-        for key in ("cum_reward_sli_curve", "cum_reward_sli_ticks"):
+        for key in (metric_key, "cum_reward_sli_ticks"):
             if key not in b:
                 raise ValueError(
                     f"Bundle {b.get('path', '<unknown>')} is missing key {key!r}"
@@ -214,6 +364,10 @@ def plot_cum_reward_sli_bundles(
     customizer = PlotCustomizer()
     fig = plt.figure(figsize=(7.5, 4.8))
     ax = plt.gca()
+    individual_mode = (
+        individual_sample_n is not None and int(individual_sample_n) > 0
+    )
+    rng = np.random.default_rng(individual_seed) if individual_mode else None
     n_labels = []
     lbls = defaultdict(list)
     y_min = None
@@ -265,31 +419,68 @@ def plot_cum_reward_sli_bundles(
             if sub_idx.size == 0:
                 continue
 
-            vals_full = np.asarray(b["cum_reward_sli_curve"], dtype=float)[sub_idx, :]
+            vals_full = np.asarray(b[metric_key], dtype=float)[sub_idx, :]
             vals = vals_full[:, tick_idx]
+            label = _subset_plot_label(
+                group_labels[gi],
+                which=which,
+                sli_extremes=sli_extremes,
+                sli_top_fraction=sli_top_fraction,
+                sli_bottom_fraction=sli_bottom_fraction,
+                standalone_extreme_labels=standalone_extreme_labels,
+            )
+
+            if individual_mode:
+                sampled_rel = _sample_indices(
+                    np.arange(sub_idx.size, dtype=int),
+                    sample_n=individual_sample_n,
+                    rng=rng,
+                )
+                if sampled_rel.size == 0:
+                    continue
+                sampled_abs = sub_idx[sampled_rel]
+                (anchor_line,) = plt.plot(
+                    [], [], label=label, linewidth=2, linestyle=linestyle
+                )
+                base_color = anchor_line.get_color()
+                n_sampled = sampled_rel.size
+                for order, (rel_idx, abs_idx) in enumerate(
+                    zip(sampled_rel, sampled_abs), start=1
+                ):
+                    row = np.asarray(vals[rel_idx], dtype=float)
+                    if not np.isfinite(row).any():
+                        continue
+                    color = _sampled_line_color(
+                        color_mode=individual_color_mode,
+                        base_color=base_color,
+                        order=order - 1,
+                        n_sampled=n_sampled,
+                        rng=rng,
+                    )
+                    fly_label = _fly_label(b, int(abs_idx))
+                    if len(subset_specs) > 1 or len(bundles) > 1:
+                        fly_label = f"{label}: {fly_label}"
+                    plt.plot(
+                        ticks0,
+                        row,
+                        label=fly_label,
+                        linewidth=1.4,
+                        linestyle=linestyle,
+                        alpha=0.95,
+                        color=color,
+                    )
+                    ys = row[np.isfinite(row)]
+                    if ys.size:
+                        ys_lo = float(np.nanmin(ys))
+                        ys_hi = float(np.nanmax(ys))
+                        y_min = ys_lo if y_min is None else min(y_min, ys_lo)
+                        y_max = ys_hi if y_max is None else max(y_max, ys_hi)
+                anchor_line.remove()
+                continue
+
             mci = _mean_ci_over_videos(vals)
             if mci.shape[1] == 0:
                 continue
-
-            label = group_labels[gi]
-            if which == "top":
-                extreme_label = _pct_label("Top", sli_top_fraction)
-                label = (
-                    extreme_label
-                    if standalone_extreme_labels
-                    else f"{label} ({extreme_label.lower()})"
-                )
-            elif which == "bottom":
-                extreme_label = _pct_label("Bottom", sli_bottom_fraction)
-                label = (
-                    extreme_label
-                    if standalone_extreme_labels
-                    else f"{label} ({extreme_label.lower()})"
-                )
-            elif sli_extremes == "top":
-                label = f"{label} ({_pct_label('top', sli_top_fraction)})"
-            elif sli_extremes == "bottom":
-                label = f"{label} ({_pct_label('bottom', sli_bottom_fraction)})"
 
             (line,) = plt.plot(
                 ticks0, mci[0], label=label, linewidth=2, linestyle=linestyle
@@ -325,8 +516,10 @@ def plot_cum_reward_sli_bundles(
             )
 
     plt.xlabel("Cumulative rewards")
-    plt.ylabel("SLI")
-    plt.title("SLI vs cumulative rewards")
+    plt.ylabel(y_label)
+    plt.title(
+        f"{plot_title} (sampled individual flies)" if individual_mode else plot_title
+    )
     plt.axhline(0, color="0.5", linewidth=1, linestyle="--")
     plt.xlim(left=0)
     if ticks0.size:
@@ -335,7 +528,21 @@ def plot_cum_reward_sli_bundles(
         ax.set_xticklabels(
             [f"{int(x)}" if float(x).is_integer() else f"{x:g}" for x in tick_labels]
         )
-    plt.legend(frameon=False)
+    if show_legend:
+        if individual_mode:
+            fig.subplots_adjust(right=0.70)
+            ax.legend(
+                frameon=False,
+                loc="center left",
+                bbox_to_anchor=(1.01, 0.5),
+                fontsize=max(7, customizer.in_plot_font_size - 4),
+                title="Sampled flies",
+                title_fontsize=max(8, customizer.in_plot_font_size - 3),
+                handlelength=2.2,
+                borderaxespad=0.0,
+            )
+        else:
+            plt.legend(frameon=False)
     if (
         y_min is not None
         and y_max is not None
@@ -351,7 +558,7 @@ def plot_cum_reward_sli_bundles(
         ylim[1] = ylim[1] + 0.10 * span
         ax.set_ylim(ylim[0], ylim[1])
     ylim = list(ax.get_ylim())
-    if show_n and n_labels:
+    if show_n and n_labels and not individual_mode:
         span = ylim[1] - ylim[0]
         if not np.isfinite(span) or span <= 0:
             span = 1.0
@@ -404,7 +611,11 @@ def plot_cum_reward_sli_bundles(
     span = ylim[1] - ylim[0]
     if not np.isfinite(span) or span <= 0:
         span = 1.0
-    if len(vals_by_group) == 2 and all(v is not None for v in vals_by_group):
+    if (
+        not individual_mode
+        and len(vals_by_group) == 2
+        and all(v is not None for v in vals_by_group)
+    ):
         m0 = means_by_group[0]
         m1 = means_by_group[1]
         n0 = ns_by_group[0]

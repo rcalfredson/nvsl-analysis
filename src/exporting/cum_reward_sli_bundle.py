@@ -109,6 +109,7 @@ def _build_running_pi_curves(
     keep_first: int,
     tick_spacing: int,
     pi_threshold: int,
+    max_rewards: int | None,
 ):
     x_lists = []
     cutoff_lists = []
@@ -131,6 +132,8 @@ def _build_running_pi_curves(
         actual_rewards_exp = _frames_in_windows(
             va, windows, calc=False, ctrl=False, f=0
         )
+        if max_rewards is not None and int(max_rewards) >= 0:
+            actual_rewards_exp = actual_rewards_exp[: int(max_rewards)]
         if actual_rewards_exp.size == 0:
             common_x = np.zeros((0,), dtype=int)
             cutoffs = np.zeros((0,), dtype=int)
@@ -348,6 +351,8 @@ def export_cum_reward_sli_bundle(vas, opts, gls, out_fn):
     keep_first = max(0, int(getattr(opts, "keep_first_sync_buckets", 0) or 0))
     pi_threshold = max(0, int(getattr(opts, "piTh", 10) or 0))
     min_fly_pct = float(getattr(opts, "cum_reward_sli_min_fly_pct", 95.0) or 0.0)
+    raw_max_rewards = getattr(opts, "cum_reward_sli_max_rewards", None)
+    max_rewards = None if raw_max_rewards is None else max(0, int(raw_max_rewards))
 
     try:
         sli, sli_ts_full = _compute_sli_scalar_and_timeseries_from_rpid(vas_ok, opts)
@@ -370,6 +375,7 @@ def export_cum_reward_sli_bundle(vas, opts, gls, out_fn):
         keep_first=keep_first,
         tick_spacing=tick_spacing,
         pi_threshold=pi_threshold,
+        max_rewards=max_rewards,
     )
 
     try:
@@ -388,11 +394,18 @@ def export_cum_reward_sli_bundle(vas, opts, gls, out_fn):
         training_names = np.array([], dtype=object)
 
     try:
+        video_fns = np.array(
+            [getattr(va, "fn", "") for va in vas_ok],
+            dtype=object,
+        )
+        fly_ids = np.array([int(getattr(va, "f", -1)) for va in vas_ok], dtype=int)
         video_ids = np.array(
-            [getattr(va, "fn", f"va_{i}") for i, va in enumerate(vas_ok)],
+            [f"{fn}::f{f}" for fn, f in zip(video_fns, fly_ids)],
             dtype=object,
         )
     except Exception:
+        video_fns = np.array([""] * n_videos, dtype=object)
+        fly_ids = np.array([-1] * n_videos, dtype=int)
         video_ids = np.array([f"va_{i}" for i in range(n_videos)], dtype=object)
 
     os.makedirs(os.path.dirname(out_fn) or ".", exist_ok=True)
@@ -405,6 +418,9 @@ def export_cum_reward_sli_bundle(vas, opts, gls, out_fn):
         cum_reward_sli_tick_spacing=np.array(tick_spacing, dtype=int),
         cum_reward_sli_pi_threshold=np.array(pi_threshold, dtype=int),
         cum_reward_sli_min_fly_pct=np.array(min_fly_pct, dtype=float),
+        cum_reward_sli_max_rewards=(
+            np.array(-1 if max_rewards is None else max_rewards, dtype=int)
+        ),
         cum_reward_sli_reward_pi_exp=np.asarray(reward_pi_exp, dtype=float),
         cum_reward_sli_reward_pi_yoked=np.asarray(reward_pi_yoked, dtype=float),
         cum_reward_sli_total_actual_rewards=np.asarray(total_actual_rewards, dtype=int),
@@ -417,6 +433,7 @@ def export_cum_reward_sli_bundle(vas, opts, gls, out_fn):
         bucket_len_min=np.array(bucket_len_min, dtype=float),
         training_names=training_names,
         video_ids=video_ids,
+        fly_ids=fly_ids,
         sli_training_idx=np.array(getattr(opts, "best_worst_trn", 1) - 1, dtype=int),
         sli_use_training_mean=np.array(
             bool(getattr(opts, "sli_use_training_mean", False))

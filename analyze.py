@@ -3570,6 +3570,16 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--cum-reward-sli-max-rewards",
+    type=int,
+    default=None,
+    help=(
+        "Optional explicit cap on the cumulative rewards exported into cum-reward "
+        "SLI bundles. If unset, export up to each fly's available tail and let "
+        "--cum-reward-sli-min-fly-pct control plot-time truncation."
+    ),
+)
+g.add_argument(
     "--cum-reward-sli-group",
     choices=["top", "bottom"],
     default=None,
