@@ -15,6 +15,11 @@ from src.utils.common import writeImage
 from src.utils.debug_fly_groups import log_fly_group
 
 
+BBOX_STYLE = dict(
+    facecolor="white", alpha=0.80, edgecolor="none", boxstyle="round,pad=0.25"
+)
+
+
 @dataclass
 class CorrelationPlotConfig:
     out_dir: Path
@@ -108,6 +113,134 @@ def _compute_group_corr(
         return None
 
     return pearsonr(x_g[mask], y_g[mask])
+
+
+def _add_smart_stats_box(
+    ax,
+    text: str,
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    fontsize: int = 10,
+    max_overlap_frac: float = 0.08,
+):
+    """
+    Place a stats textbox where it obscures as few points as possible.
+
+    The function first tries the four plot corners. If each candidate would
+    still cover a substantial fraction of points, it adds upper y headroom and
+    moves the textbox into that empty band above the scatter cloud.
+    """
+    x = np.asarray(x, float)
+    y = np.asarray(y, float)
+    finite = np.isfinite(x) & np.isfinite(y)
+    x_f = x[finite]
+    y_f = y[finite]
+
+    if x_f.size == 0:
+        return ax.text(
+            0.05,
+            0.95,
+            text,
+            transform=ax.transAxes,
+            va="top",
+            ha="left",
+            fontsize=fontsize,
+            zorder=5,
+            bbox=BBOX_STYLE,
+        )
+
+    fig = ax.figure
+    probe = ax.text(
+        0.05,
+        0.95,
+        text,
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=fontsize,
+        zorder=5,
+        alpha=0.0,
+        bbox=BBOX_STYLE,
+    )
+
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    pts_display = ax.transData.transform(np.column_stack([x_f, y_f]))
+
+    candidates = [
+        dict(x=0.05, y=0.95, ha="left", va="top"),
+        dict(x=0.95, y=0.95, ha="right", va="top"),
+        dict(x=0.05, y=0.05, ha="left", va="bottom"),
+        dict(x=0.95, y=0.05, ha="right", va="bottom"),
+    ]
+
+    best_candidate = None
+    best_overlap = None
+    best_patch_bbox = None
+
+    for candidate in candidates:
+        probe.set_position((candidate["x"], candidate["y"]))
+        probe.set_ha(candidate["ha"])
+        probe.set_va(candidate["va"])
+        fig.canvas.draw()
+        patch_bbox = probe.get_bbox_patch().get_window_extent(renderer=renderer)
+        inside = (
+            (pts_display[:, 0] >= patch_bbox.x0)
+            & (pts_display[:, 0] <= patch_bbox.x1)
+            & (pts_display[:, 1] >= patch_bbox.y0)
+            & (pts_display[:, 1] <= patch_bbox.y1)
+        )
+        overlap = float(np.mean(inside))
+        if best_overlap is None or overlap < best_overlap:
+            best_overlap = overlap
+            best_candidate = candidate
+            best_patch_bbox = patch_bbox
+
+    probe.remove()
+
+    if best_candidate is not None and best_overlap is not None:
+        if best_overlap <= max_overlap_frac:
+            return ax.text(
+                best_candidate["x"],
+                best_candidate["y"],
+                text,
+                transform=ax.transAxes,
+                va=best_candidate["va"],
+                ha=best_candidate["ha"],
+                fontsize=fontsize,
+                zorder=5,
+                bbox=BBOX_STYLE,
+            )
+
+    y0, y1 = ax.get_ylim()
+    y_span = y1 - y0
+    if not np.isfinite(y_span) or y_span <= 0:
+        y_span = max(float(np.nanmax(y_f) - np.nanmin(y_f)), 1.0)
+
+    box_height_frac = 0.18
+    if best_patch_bbox is not None and ax.bbox.height > 0:
+        box_height_frac = best_patch_bbox.height / ax.bbox.height
+
+    extra_top = max((box_height_frac + 0.08) * y_span, 0.18 * y_span)
+    original_top = y1
+    ax.set_ylim(y0, y1 + extra_top)
+
+    x0, x1 = ax.get_xlim()
+    x_span = x1 - x0
+    if not np.isfinite(x_span) or x_span <= 0:
+        x_span = max(float(np.nanmax(x_f) - np.nanmin(x_f)), 1.0)
+
+    return ax.text(
+        x0 + 0.02 * x_span,
+        original_top + 0.97 * extra_top,
+        text,
+        va="top",
+        ha="left",
+        fontsize=fontsize,
+        zorder=5,
+        bbox=BBOX_STYLE,
+    )
 
 
 def _normalize_selected_groups(
@@ -275,19 +408,7 @@ def plot_selected_group_scatter(
         else:
             lines.append(f"{bottom_label}: r = n/a")
 
-    ax.text(
-        0.05,
-        0.95,
-        "\n".join(lines),
-        transform=ax.transAxes,
-        va="top",
-        ha="left",
-        fontsize=10,
-        zorder=5,
-        bbox=dict(
-            facecolor="white", alpha=0.80, edgecolor="none", boxstyle="round,pad=0.25"
-        ),
-    )
+    _add_smart_stats_box(ax, "\n".join(lines), x_f, y_f)
 
     handles = []
     if mode in ("both", "top"):
@@ -371,19 +492,7 @@ def _scatter_with_corr(
     ax.set_title(title, pad=10)
     ax.grid(False)
 
-    ax.text(
-        0.05,
-        0.95,
-        f"r = {r:.3f}\np = {p:.3g}",
-        transform=ax.transAxes,
-        va="top",
-        ha="left",
-        fontsize=10,
-        zorder=5,
-        bbox=dict(
-            facecolor="white", alpha=0.80, edgecolor="none", boxstyle="round,pad=0.25"
-        ),
-    )
+    _add_smart_stats_box(ax, f"r = {r:.3f}\np = {p:.3g}", x_f, y_f)
 
     customizer.adjust_padding_proportionally()
     fig.tight_layout()
@@ -709,21 +818,6 @@ def plot_fast_vs_strong_scatter(
         pad=10,
     )
 
-    # Create extra vertical headroom for the text block
-    # (keeps annotation from overlapping datapoints)
-    x_min, x_max = float(np.nanmin(x_f)), float(np.nanmax(x_f))
-    y_min, y_max = float(np.nanmin(y_f)), float(np.nanmax(y_f))
-    x_rng = x_max - x_min
-    y_rng = y_max - y_min
-    if not np.isfinite(x_rng) or x_rng <= 0:
-        x_rng = 1.0
-    if not np.isfinite(y_rng) or y_rng <= 0:
-        y_rng = 1.0
-
-    # Add headroom proportional to the number of stat lines we print.
-    top_pad = 0.25 * y_rng  # temporary; overwritten after we build `lines`
-    ax.set_ylim(y_min, y_max + top_pad)
-
     # Display descriptive correlations (fast/strong each including overlap)
     lines = []
     if corr_all is not None:
@@ -743,23 +837,7 @@ def plot_fast_vs_strong_scatter(
     else:
         lines.append("Strong (incl overlap): r = n/a")
 
-    # Now that we know how many lines we're printing, increase headroom if needed.
-    # Keeps the textbox from crowding the point cloud near the top.
-    top_pad = max(0.25 * y_rng, (0.10 * len(lines) + 0.05) * y_rng)
-    ax.set_ylim(y_min, y_max + top_pad)
-
-    ax.text(
-        x_min + 0.02 * x_rng,
-        y_max + 0.90 * top_pad,
-        "\n".join(lines),
-        va="top",
-        ha="left",
-        fontsize=10,
-        zorder=5,
-        bbox=dict(
-            facecolor="white", alpha=0.80, edgecolor="none", boxstyle="round,pad=0.25"
-        ),
-    )
+    _add_smart_stats_box(ax, "\n".join(lines), x_f, y_f)
 
     # Legend
     handles = [
@@ -934,19 +1012,7 @@ def plot_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow(
     else:
         lines.append("Slow:  r = n/a")
 
-    ax.text(
-        0.05,
-        0.95,
-        "\n".join(lines),
-        transform=ax.transAxes,
-        va="top",
-        ha="left",
-        fontsize=10,
-        zorder=5,
-        bbox=dict(
-            facecolor="white", alpha=0.80, edgecolor="none", boxstyle="round,pad=0.25"
-        ),
-    )
+    _add_smart_stats_box(ax, "\n".join(lines), x_f, y_f)
 
     customizer.adjust_padding_proportionally()
 
