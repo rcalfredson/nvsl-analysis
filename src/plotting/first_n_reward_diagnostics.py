@@ -149,7 +149,7 @@ class FirstNRewardDiagnosticsPlotter:
             if self._passes_final_time_filters(row)
         ]
 
-    def compute_rows(self) -> list[FirstNRewardDiagnosticRow]:
+    def compute_all_rows(self) -> list[FirstNRewardDiagnosticRow]:
         if not self.vas:
             return []
 
@@ -301,7 +301,10 @@ class FirstNRewardDiagnosticsPlotter:
                 )
             )
 
-        return [row for row in rows if self._passes_final_time_filters(row)]
+        return rows
+
+    def compute_rows(self) -> list[FirstNRewardDiagnosticRow]:
+        return self._eligible_rows(self.compute_all_rows())
 
     def _write_csv(self, rows: list[FirstNRewardDiagnosticRow]) -> None:
         path = self.cfg.csv_out

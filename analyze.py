@@ -175,6 +175,10 @@ from src.plotting.first_n_reward_diagnostics import (
     FirstNRewardDiagnosticsConfig,
     FirstNRewardDiagnosticsPlotter,
 )
+from src.plotting.first_n_reward_sli_comparison import (
+    FirstNRewardSLIComparisonConfig,
+    FirstNRewardSLIComparisonPlotter,
+)
 from src.plotting.turn_directionality_plotter import TurnDirectionalityPlotter
 from src.plotting.turn_prob_dist_plotter import TurnProbabilityByDistancePlotter
 from src.utils.debug_fly_groups import init_fly_group_logging, log_fly_group
@@ -226,6 +230,8 @@ DIST_BTWN_REWARDS_IMG_FILE = "imgs/btw_rwd_dists.png"
 REWARD_COUNT_HIST_IMG_FILE = "imgs/rwd_count_hist.png"
 FIRST_N_REWARD_DIAGNOSTICS_CSV_FILE = "exports/first_n_reward_diagnostics.csv"
 FIRST_N_REWARD_DIAGNOSTICS_PLOT_FILE = "imgs/first_n_reward_diagnostics.png"
+FIRST_N_REWARD_SLI_COMPARISON_CSV_FILE = "exports/first_n_reward_sli_comparison.csv"
+FIRST_N_REWARD_SLI_COMPARISON_PLOT_FILE = "imgs/first_n_reward_sli_comparison.png"
 REWARD_COUNT_TOTAL_BARS_IMG_FILE = "imgs/rwd_totals.png"
 BTW_RWD_COM_MAG_HIST_IMG_FILE = "imgs/btw_rwd_com_mag_hist.png"
 BTW_RWD_DIST_BINNED_COM_IMG_FILE = "imgs/btw_rwd_dist_binned_com.png"
@@ -1043,6 +1049,97 @@ g.add_argument(
         "If > 0, label this many most negative SLI-vs-span outliers in the "
         "first-n reward diagnostics scatter plot."
     ),
+)
+g.add_argument(
+    "--first-n-reward-sli-comparison",
+    action="store_true",
+    help=(
+        "Compare first-n reward timing between bottom- and top-SLI learner groups "
+        "using a swarm plot overlaid on a box plot, plus a Welch t-test annotation."
+    ),
+)
+g.add_argument(
+    "--first-n-reward-sli-comparison-n",
+    type=int,
+    default=10,
+    help=(
+        "Nth actual reward used for the SLI-group comparison. "
+        "Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--first-n-reward-sli-comparison-trainings",
+    type=parse_training_selector,
+    default=None,
+    help=(
+        'Subset of trainings to include in the first-n SLI comparison (1-based). '
+        'Examples: "1", "1,3", "2-4". Within each selected training, the included '
+        "sync buckets are further restricted by the global "
+        "--skip-first-sync-buckets / --keep-first-sync-buckets window."
+    ),
+)
+g.add_argument(
+    "--first-n-reward-sli-comparison-metric",
+    type=str,
+    choices=(
+        "time_to_first_actual_reward_s",
+        "time_to_nth_actual_reward_s",
+        "first_n_reward_span_s",
+        "cutoff_time_since_selected_window_start_s",
+        "cutoff_time_since_cutoff_training_start_s",
+        "reward_pi_by_cutoff",
+        "actual_reward_count_by_cutoff",
+        "control_reward_count_by_cutoff",
+        "actual_circle_entry_count_by_cutoff",
+        "control_circle_entry_count_by_cutoff",
+        "actual_reward_count_in_selected_window",
+        "sli",
+    ),
+    default="time_to_nth_actual_reward_s",
+    help=(
+        "Per-fly metric to compare between bottom- and top-SLI groups. "
+        "Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--first-n-reward-sli-comparison-pi-threshold",
+    type=int,
+    default=10,
+    help=(
+        "Minimum total actual/control circle entries required before reward PI is "
+        "reported at the nth-reward cutoff. Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--first-n-reward-sli-comparison-max-span-s",
+    type=float,
+    default=None,
+    help=(
+        "Optional final filter: keep only flies whose first-N reward span "
+        "(nth minus first actual reward time, within the selected window) is at most "
+        "this many seconds."
+    ),
+)
+g.add_argument(
+    "--first-n-reward-sli-comparison-max-time-to-nth-s",
+    type=float,
+    default=None,
+    help=(
+        "Optional final filter: keep only flies whose nth actual reward occurs within "
+        "this many seconds from the start of the selected analysis window."
+    ),
+)
+g.add_argument(
+    "--first-n-reward-sli-comparison-csv",
+    type=str,
+    default=FIRST_N_REWARD_SLI_COMPARISON_CSV_FILE,
+    help="Output CSV path for the first-n SLI comparison rows.",
+)
+g.add_argument(
+    "--first-n-reward-sli-comparison-plot-out",
+    type=str,
+    default=FIRST_N_REWARD_SLI_COMPARISON_PLOT_FILE,
+    help="Output image path for the first-n SLI comparison plot.",
 )
 g.add_argument(
     "--reward-lv",
@@ -8207,12 +8304,16 @@ def postAnalyze(vas):
     need_reward_raster_sli_sort = (
         getattr(opts, "reward_raster_sort", "none") == "sli"
     )
+    need_first_n_reward_sli_comparison = bool(
+        getattr(opts, "first_n_reward_sli_comparison", False)
+    )
 
     if (
         opts.best_worst_sli
         or using_sli_set_op
         or need_reward_raster_sli_group
         or need_reward_raster_sli_sort
+        or need_first_n_reward_sli_comparison
     ) and (not va.noyc) and (not va.choice):
         tp_sli, calc_sli = typeCalc("rpid")
         trns_sli = trnsForType(va, tp_sli)
@@ -8236,16 +8337,23 @@ def postAnalyze(vas):
                 keep_first_sync_buckets=sel_keep_k,
             )
 
-            if opts.best_worst_sli or need_reward_raster_sli_group:
+            if (
+                opts.best_worst_sli
+                or need_reward_raster_sli_group
+                or need_first_n_reward_sli_comparison
+            ):
                 top_fraction = getattr(opts, "top_sli_fraction", None)
                 bottom_fraction = getattr(opts, "bottom_sli_fraction", None)
                 if (
-                    need_reward_raster_sli_group
+                    (need_reward_raster_sli_group or need_first_n_reward_sli_comparison)
                     and not opts.best_worst_sli
                     and top_fraction is None
                     and bottom_fraction is None
                 ):
-                    if getattr(opts, "reward_raster_sli_group", None) == "top":
+                    if need_first_n_reward_sli_comparison:
+                        top_fraction = 0.1
+                        bottom_fraction = 0.1
+                    elif getattr(opts, "reward_raster_sli_group", None) == "top":
                         top_fraction = 0.1
                     elif getattr(opts, "reward_raster_sli_group", None) == "bottom":
                         bottom_fraction = 0.1
@@ -8941,6 +9049,92 @@ def postAnalyze(vas):
             cfg=diag_cfg,
         )
         diag_plotter.run()
+
+    if getattr(opts, "first_n_reward_sli_comparison", False):
+        if saved_top is None or saved_bottom is None:
+            print(
+                "[first_n_reward_sli_cmp] WARNING: top/bottom SLI groups are not "
+                "available; skipping comparison plot."
+            )
+        elif len(saved_top) == 0 or len(saved_bottom) == 0:
+            print(
+                "[first_n_reward_sli_cmp] WARNING: top/bottom SLI groups are empty; "
+                "skipping comparison plot."
+            )
+        else:
+            top_fraction = getattr(opts, "top_sli_fraction", None)
+            bottom_fraction = getattr(opts, "bottom_sli_fraction", None)
+            if top_fraction is None:
+                top_fraction = getattr(opts, "best_worst_fraction", 0.1)
+            if bottom_fraction is None:
+                bottom_fraction = getattr(opts, "best_worst_fraction", 0.1)
+
+            cmp_cfg = FirstNRewardSLIComparisonConfig(
+                plot_out=str(
+                    getattr(
+                        opts,
+                        "first_n_reward_sli_comparison_plot_out",
+                        FIRST_N_REWARD_SLI_COMPARISON_PLOT_FILE,
+                    )
+                ),
+                csv_out=str(
+                    getattr(
+                        opts,
+                        "first_n_reward_sli_comparison_csv",
+                        FIRST_N_REWARD_SLI_COMPARISON_CSV_FILE,
+                    )
+                ),
+                trainings=getattr(
+                    opts, "first_n_reward_sli_comparison_trainings", None
+                ),
+                skip_first_sync_buckets=_effective_skip_first_sync_buckets_opts_only(
+                    opts
+                ),
+                keep_first_sync_buckets=_effective_keep_first_sync_buckets_opts_only(
+                    opts
+                ),
+                first_n_rewards=max(
+                    1, int(getattr(opts, "first_n_reward_sli_comparison_n", 10) or 10)
+                ),
+                pi_threshold=int(
+                    getattr(opts, "first_n_reward_sli_comparison_pi_threshold", 10)
+                    or 0
+                ),
+                max_span_s=getattr(
+                    opts, "first_n_reward_sli_comparison_max_span_s", None
+                ),
+                max_time_to_nth_s=getattr(
+                    opts, "first_n_reward_sli_comparison_max_time_to_nth_s", None
+                ),
+                metric=str(
+                    getattr(
+                        opts,
+                        "first_n_reward_sli_comparison_metric",
+                        "time_to_nth_actual_reward_s",
+                    )
+                    or "time_to_nth_actual_reward_s"
+                ),
+                top_label=f"Top {100*float(top_fraction):.1f}% SLI",
+                bottom_label=f"Bottom {100*float(bottom_fraction):.1f}% SLI",
+            )
+            cmp_plotter = FirstNRewardSLIComparisonPlotter(
+                vas_top=[vas[i] for i in saved_top],
+                vas_bottom=[vas[i] for i in saved_bottom],
+                opts=opts,
+                gls=gls,
+                top_sli_values=(
+                    [float(sli_ser.iloc[i]) for i in saved_top]
+                    if sli_ser is not None
+                    else None
+                ),
+                bottom_sli_values=(
+                    [float(sli_ser.iloc[i]) for i in saved_bottom]
+                    if sli_ser is not None
+                    else None
+                ),
+                cfg=cmp_cfg,
+            )
+            cmp_plotter.run()
 
     skip_eff = _effective_skip_first_sync_buckets_opts_only(opts)
     keep_eff = _effective_keep_first_sync_buckets_opts_only(opts)
