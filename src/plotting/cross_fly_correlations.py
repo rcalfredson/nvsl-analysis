@@ -601,8 +601,8 @@ def _fast_slow_indices_from_sli_T1_first(
     - fast = top `frac` of finite values
     - slow = bottom `frac` of finite values
 
-    If 2*k would exceed the number of finite flies, k is clamped so that
-    fast and slow remain disjoint.
+    If 2*frac == 1, the finite flies are partitioned exhaustively; any
+    rounding remainder is assigned to the slow group.
     """
     arr = np.asarray(sli_T1_first, float)
     mask = np.isfinite(arr)
@@ -613,16 +613,23 @@ def _fast_slow_indices_from_sli_T1_first(
     finite_idx = np.arange(arr.shape[0])[mask]
     n_finite = finite_vals.size
 
-    k = max(1, int(frac * n_finite))
-    if 2 * k > n_finite:
-        k = n_finite // 2
+    k_slow = max(1, int(frac * n_finite))
+    k_fast = max(1, int(frac * n_finite))
 
-    if k == 0:
+    if np.isclose(2.0 * float(frac), 1.0, atol=1e-12):
+        assigned = k_slow + k_fast
+        if assigned < n_finite:
+            k_slow += n_finite - assigned
+
+    if k_slow + k_fast > n_finite:
+        k_slow = min(k_slow, max(0, n_finite - k_fast))
+
+    if k_slow == 0 or k_fast == 0:
         return np.array([], dtype=int), np.array([], dtype=int)
 
     order = np.argsort(finite_vals)  # ascending
-    slow_idx = finite_idx[order[:k]]
-    fast_idx = finite_idx[order[-k:]]
+    slow_idx = finite_idx[order[:k_slow]]
+    fast_idx = finite_idx[order[-k_fast:]]
 
     return fast_idx, slow_idx
 

@@ -102,6 +102,52 @@ def _count_from_fraction(n: int, fraction: float) -> int:
     return max(1, int(n * fraction))
 
 
+def _fractional_group_counts(
+    n: int,
+    *,
+    bottom_fraction: Optional[float],
+    top_fraction: Optional[float],
+) -> Tuple[int, int]:
+    """
+    Convert requested fractions to bottom/top counts.
+
+    Historical behavior uses floor on each side. When both fractions are
+    requested and sum to 1, we instead force an exhaustive partition by
+    assigning any rounding remainder to the larger-fraction side. Ties go to
+    the bottom group for determinism.
+    """
+    k_bottom = (
+        _count_from_fraction(n, float(bottom_fraction))
+        if bottom_fraction is not None
+        else 0
+    )
+    k_top = (
+        _count_from_fraction(n, float(top_fraction))
+        if top_fraction is not None
+        else 0
+    )
+
+    if (
+        n > 0
+        and bottom_fraction is not None
+        and top_fraction is not None
+        and np.isclose(float(bottom_fraction) + float(top_fraction), 1.0, atol=1e-12)
+    ):
+        assigned = k_bottom + k_top
+        if assigned < n:
+            remainder = n - assigned
+            if float(bottom_fraction) >= float(top_fraction):
+                k_bottom += remainder
+            else:
+                k_top += remainder
+
+    if top_fraction is not None and bottom_fraction is not None:
+        max_bottom = max(0, n - k_top)
+        k_bottom = min(k_bottom, max_bottom)
+
+    return k_bottom, k_top
+
+
 def select_fractional_groups(
     sli_series: pd.Series,
     *,
@@ -122,6 +168,9 @@ def select_fractional_groups(
     -----
     - Fractions are computed among flies with finite SLI only.
     - When both top and bottom selections are requested, they are made disjoint.
+    - If top_fraction + bottom_fraction == 1, the finite flies are partitioned
+      exhaustively; any rounding remainder is assigned to the larger-fraction
+      side (bottom on ties).
     - Requests with top_fraction + bottom_fraction > 1 are rejected.
     """
     _validate_fraction("bottom_fraction", bottom_fraction)
@@ -149,20 +198,11 @@ def select_fractional_groups(
 
     order = finite.sort_values(kind="mergesort")
 
-    k_bottom = (
-        _count_from_fraction(n_finite, float(bottom_fraction))
-        if bottom_fraction is not None
-        else 0
+    k_bottom, k_top = _fractional_group_counts(
+        n_finite,
+        bottom_fraction=bottom_fraction,
+        top_fraction=top_fraction,
     )
-    k_top = (
-        _count_from_fraction(n_finite, float(top_fraction))
-        if top_fraction is not None
-        else 0
-    )
-
-    if top_fraction is not None and bottom_fraction is not None:
-        max_bottom = max(0, n_finite - k_top)
-        k_bottom = min(k_bottom, max_bottom)
 
     if bottom_fraction is not None:
         bottom = order.index[:k_bottom].tolist() if k_bottom > 0 else []
