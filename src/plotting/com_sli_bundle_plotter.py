@@ -92,8 +92,8 @@ def _select_sli_extremes(
       - group_labels (list[str]) if which=="both" else None
       - group_ids (np.ndarray) same length as indices, for legend grouping (0/1)
     """
-    n = len(sli)
     if which is None:
+        n = len(sli)
         idx = np.arange(n, dtype=int)
         return idx, None, np.zeros(n, dtype=int)
 
@@ -113,24 +113,32 @@ def _select_sli_extremes(
 
     finite_idx = np.flatnonzero(finite)
     order = finite_idx[np.argsort(sli[finite_idx])]
+    n_finite = finite_idx.size
+
+    if (
+        top_fraction is not None
+        and bottom_fraction is not None
+        and float(top_fraction) + float(bottom_fraction) > 1.0 + 1e-12
+    ):
+        raise ValueError(
+            "top_fraction + bottom_fraction must be <= 1 for disjoint selections "
+            f"(got top_fraction={top_fraction!r}, "
+            f"bottom_fraction={bottom_fraction!r})"
+        )
 
     def _k(frac):
         if frac is None:
             return 0
-        return min(max(1, int(n * frac)), finite_idx.size)
+        return min(max(1, int(n_finite * frac)), n_finite)
 
     k_bottom = _k(bottom_fraction)
     k_top = _k(top_fraction)
+    if top_fraction is not None and bottom_fraction is not None:
+        k_bottom = min(k_bottom, max(0, n_finite - k_top))
 
     bottom = order[:k_bottom].tolist() if k_bottom > 0 else []
-    top = order[-k_top:].tolist() if k_top > 0 else []
-
-    overlap = sorted(set(bottom) & set(top))
-    if overlap:
-        warnings.warn(
-            f"Top and bottom SLI selections overlap for {len(overlap)} videos "
-            f"(top_fraction={top_fraction}, bottom_fraction={bottom_fraction})."
-        )
+    top_pool = order[k_bottom:] if k_bottom > 0 else order
+    top = top_pool[-k_top:].tolist() if k_top > 0 else []
 
     if which == "bottom":
         idx = np.array(bottom, dtype=int)

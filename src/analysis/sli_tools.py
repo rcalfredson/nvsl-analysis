@@ -120,25 +120,59 @@ def select_fractional_groups(
 
     Notes
     -----
-    - This function allows overlap between top and bottom selections when the
-      requested fractions imply it.
-    - NaNs are ignored automatically by pandas nsmallest/nlargest.
+    - Fractions are computed among flies with finite SLI only.
+    - When both top and bottom selections are requested, they are made disjoint.
+    - Requests with top_fraction + bottom_fraction > 1 are rejected.
     """
     _validate_fraction("bottom_fraction", bottom_fraction)
     _validate_fraction("top_fraction", top_fraction)
 
-    n = len(sli_series)
+    finite = sli_series.dropna()
+    n_finite = len(finite)
+
+    if (
+        top_fraction is not None
+        and bottom_fraction is not None
+        and float(top_fraction) + float(bottom_fraction) > 1.0 + 1e-12
+    ):
+        raise ValueError(
+            "top_fraction + bottom_fraction must be <= 1 for disjoint selections "
+            f"(got top_fraction={top_fraction!r}, "
+            f"bottom_fraction={bottom_fraction!r})"
+        )
 
     bottom = None
     top = None
 
+    if n_finite == 0:
+        return [] if bottom_fraction is not None else None, [] if top_fraction is not None else None
+
+    order = finite.sort_values(kind="mergesort")
+
+    k_bottom = (
+        _count_from_fraction(n_finite, float(bottom_fraction))
+        if bottom_fraction is not None
+        else 0
+    )
+    k_top = (
+        _count_from_fraction(n_finite, float(top_fraction))
+        if top_fraction is not None
+        else 0
+    )
+
+    if top_fraction is not None and bottom_fraction is not None:
+        max_bottom = max(0, n_finite - k_top)
+        k_bottom = min(k_bottom, max_bottom)
+
     if bottom_fraction is not None:
-        k_bottom = _count_from_fraction(n, float(bottom_fraction))
-        bottom = sli_series.nsmallest(k_bottom).index.tolist()
+        bottom = order.index[:k_bottom].tolist() if k_bottom > 0 else []
 
     if top_fraction is not None:
-        k_top = _count_from_fraction(n, float(top_fraction))
-        top = sli_series.nlargest(k_top).index.tolist()
+        if bottom_fraction is not None and k_bottom > 0:
+            top_pool = order.index[k_bottom:]
+            top = top_pool[-k_top:].tolist() if k_top > 0 else []
+        else:
+            top = order.index[-k_top:].tolist() if k_top > 0 else []
 
     return bottom, top
 
