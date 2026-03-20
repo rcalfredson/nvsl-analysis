@@ -140,6 +140,23 @@ def _resolve_min_fly_pct(bundles, min_fly_pct):
     return min(vals)
 
 
+def _tick_dodge_step(ticks: np.ndarray) -> float:
+    ticks = np.asarray(ticks, dtype=float).reshape(-1)
+    if ticks.size >= 2:
+        diffs = np.diff(ticks)
+        diffs = diffs[np.isfinite(diffs) & (diffs > 0)]
+        if diffs.size:
+            return float(np.nanmedian(diffs)) * 0.15
+    return 0.15
+
+
+def _centered_x_offsets(count: int, dodge_step: float) -> np.ndarray:
+    if count <= 1 or not np.isfinite(dodge_step) or dodge_step <= 0:
+        return np.zeros((max(count, 1),), dtype=float)
+    idx = np.arange(count, dtype=float) - 0.5 * (count - 1)
+    return idx * (2.0 * float(dodge_step))
+
+
 def plot_cum_reward_sli_bundles(
     bundle_paths,
     out_fn,
@@ -203,6 +220,7 @@ def plot_cum_reward_sli_bundles(
     y_max = None
     means_by_group = []
     vals_by_group = []
+    ns_by_group = []
     subset_specs_by_bundle = []
     subset_max_ticks = []
 
@@ -237,6 +255,7 @@ def plot_cum_reward_sli_bundles(
         raise ValueError(
             "No shared cumulative-reward ticks remain after applying the min-fly support cutoff."
         )
+    dodge_step = _tick_dodge_step(ticks0)
 
     for gi, b in enumerate(bundles):
         subset_specs = subset_specs_by_bundle[gi]
@@ -292,6 +311,7 @@ def plot_cum_reward_sli_bundles(
                 y_min = ys_lo if y_min is None else min(y_min, ys_lo)
                 y_max = ys_hi if y_max is None else max(y_max, ys_hi)
             means_by_group.append(np.asarray(mci[0], dtype=float))
+            ns_by_group.append(np.asarray(mci[3], dtype=int))
             vals_by_group.append(
                 [vals[np.isfinite(vals[:, bj]), bj] for bj in range(vals.shape[1])]
             )
@@ -342,18 +362,35 @@ def plot_cum_reward_sli_bundles(
                 if int(n) <= 0 or not np.isfinite(y):
                     continue
                 txts_here = lbls.get(bj, [])
-                avoid_ys = [
-                    (t._final_y_ if hasattr(t, "_final_y_") else t._y_)
+                bucket_label_ys = [
+                    (t._final_y_ if hasattr(t, "_final_y_") else getattr(t, "_y_", None))
                     for t in txts_here
-                    if hasattr(t, "_final_y_") or hasattr(t, "_y_")
                 ]
-                avoid_ys.append(float(y))
-                base_y = float(y) + 0.04 * span
-                ys_txt, va_align = pick_above_or_expand(base_y, avoid_ys, ylim)
+                bucket_label_ys = [
+                    y0 for y0 in bucket_label_ys if y0 is not None and np.isfinite(y0)
+                ]
+                base_y = float(y) + 0.018 * span
+                ys_txt, va_align = pick_above_or_expand(
+                    base_y,
+                    [float(y)],
+                    ylim,
+                    span_override=span,
+                )
                 if ys_txt is None:
                     continue
+                need_dodge = False
+                if bucket_label_ys:
+                    gap_thresh = 0.06 * span
+                    need_dodge = any(abs(float(ys_txt) - y0) < gap_thresh for y0 in bucket_label_ys)
+                if need_dodge:
+                    offsets = _centered_x_offsets(len(txts_here) + 1, dodge_step)
+                    for txt, offset in zip(txts_here, offsets[:-1]):
+                        txt.set_x(float(x) + float(offset))
+                    x_pos = float(x) + float(offsets[-1])
+                else:
+                    x_pos = float(x)
                 txt = util.pltText(
-                    x,
+                    x_pos,
                     ys_txt,
                     f"{int(n)}",
                     ha="center",
@@ -370,9 +407,13 @@ def plot_cum_reward_sli_bundles(
     if len(vals_by_group) == 2 and all(v is not None for v in vals_by_group):
         m0 = means_by_group[0]
         m1 = means_by_group[1]
+        n0 = ns_by_group[0]
+        n1 = ns_by_group[1]
         for bj in range(len(vals_by_group[0])):
             x0 = vals_by_group[0][bj]
             x1 = vals_by_group[1][bj]
+            if int(n0[bj]) < int(ci_min_n) or int(n1[bj]) < int(ci_min_n):
+                continue
             if x0.size < 2 or x1.size < 2:
                 continue
             try:
