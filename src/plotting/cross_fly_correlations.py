@@ -11,6 +11,11 @@ import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
 
 from src.plotting.plot_customizer import PlotCustomizer
+from src.plotting.reward_window_utils import (
+    cumulative_window_seconds_for_frame,
+    frames_in_windows,
+    selected_windows_for_va,
+)
 from src.utils.common import writeImage
 from src.utils.debug_fly_groups import log_fly_group
 
@@ -83,6 +88,49 @@ class SLIContext:
         if self.average_over_buckets:
             return f"SLI (T{trn}, mean, {window_txt})"
         return f"SLI (T{trn}, last, {window_txt})"
+
+
+def _window_context_suffix(ctx: SLIContext, *, prefix: str) -> str:
+    mode = "mean" if ctx.average_over_buckets else "last"
+    parts = [f"{prefix}T{ctx.training_idx + 1}", mode]
+    skip_k = max(0, int(ctx.skip_first_sync_buckets or 0))
+    keep_k = max(0, int(ctx.keep_first_sync_buckets or 0))
+    if skip_k:
+        parts.append(f"skip{skip_k}")
+    if keep_k:
+        parts.append(f"keep{keep_k}")
+    return "_".join(parts)
+
+
+def _windowed_metric_label(metric_name: str, ctx: SLIContext) -> str:
+    window_txt = ctx._window_text(abbrev_sb=True)
+    if ctx.average_over_buckets:
+        return f"{metric_name}\n(mean {window_txt}, T{ctx.training_idx + 1})"
+    if ctx.skip_first_sync_buckets or ctx.keep_first_sync_buckets:
+        return f"{metric_name}\n(last valid, {window_txt}, T{ctx.training_idx + 1})"
+    if ctx.training_idx != 0:
+        return f"{metric_name}\n(last valid, T{ctx.training_idx + 1})"
+    return metric_name
+
+
+def _first_n_reward_rate_label(
+    *,
+    first_n_rewards: int,
+    ctx: SLIContext,
+    max_time_to_nth_s: float | None = None,
+    time_basis: str = "window_start",
+) -> str:
+    window_txt = ctx._window_text(abbrev_sb=True)
+    cutoff_txt = ""
+    if max_time_to_nth_s is not None and np.isfinite(float(max_time_to_nth_s)):
+        cutoff_txt = f", <= {float(max_time_to_nth_s):g}s"
+    basis_txt = (
+        "first-to-nth span" if str(time_basis) == "first_to_nth" else "window start to nth"
+    )
+    return (
+        f"rewards per minute\n"
+        f"(first {int(first_n_rewards)} calc rewards, {basis_txt}{cutoff_txt}, {window_txt}, T{ctx.training_idx + 1})"
+    )
 
 
 def early_sli_label(*, training_idx: int, skip_first_sync_buckets: int) -> str:
@@ -542,6 +590,66 @@ def _ensure_reward_pi_pre(va) -> bool:
             print("[correlations] WARNING: no rewardPIPre and no calcRewardsPre()")
             return False
     return True
+
+
+def _rewards_per_minute_for_first_n_calc_rewards(
+    va,
+    *,
+    training_idx: int,
+    skip_first_sync_buckets: int = 0,
+    keep_first_sync_buckets: int = 0,
+    first_n_rewards: int,
+    max_time_to_nth_s: float | None = None,
+    time_basis: str = "window_start",
+) -> float:
+    n_target = max(1, int(first_n_rewards or 1))
+    windows = selected_windows_for_va(
+        va,
+        [int(training_idx)],
+        skip_first_sync_buckets=int(skip_first_sync_buckets or 0),
+        keep_first_sync_buckets=int(keep_first_sync_buckets or 0),
+        f=0,
+    )
+    if not windows:
+        return np.nan
+
+    fps = float(getattr(va, "fps", 1.0) or 1.0)
+    if not np.isfinite(fps) or fps <= 0:
+        fps = 1.0
+
+    calc_rewards = frames_in_windows(va, windows, calc=True, ctrl=False, f=0)
+    if calc_rewards.size < n_target:
+        return np.nan
+
+    cutoff_frame = int(calc_rewards[n_target - 1])
+    elapsed_s = cumulative_window_seconds_for_frame(windows, cutoff_frame, fps=fps)
+    if not np.isfinite(elapsed_s) or elapsed_s <= 0:
+        return np.nan
+    if max_time_to_nth_s is not None:
+        try:
+            max_time_to_nth_s = float(max_time_to_nth_s)
+        except Exception:
+            max_time_to_nth_s = None
+        if (
+            max_time_to_nth_s is not None
+            and np.isfinite(max_time_to_nth_s)
+            and elapsed_s > max_time_to_nth_s
+        ):
+            return np.nan
+    if str(time_basis) == "first_to_nth":
+        if n_target < 2:
+            return np.nan
+        first_s = cumulative_window_seconds_for_frame(
+            windows, int(calc_rewards[0]), fps=fps
+        )
+        if not np.isfinite(first_s):
+            return np.nan
+        span_s = elapsed_s - first_s
+        if not np.isfinite(span_s) or span_s <= 0:
+            return np.nan
+        return float((n_target - 1) * 60.0 / span_s)
+
+    return float(n_target * 60.0 / elapsed_s)
 
 
 def _reduce_sync_bucket_series(
@@ -1038,6 +1146,7 @@ def plot_cross_fly_correlations(
     plot_customizer: PlotCustomizer | None = None,
     *,
     sli_ctx: SLIContext | None = None,
+    reward_rate_ctx: SLIContext | None = None,
     sli_selected: tuple[Sequence[int], Sequence[int]] | None = None,
     sli_extremes: str | None = None,
 ):
@@ -1109,6 +1218,8 @@ def plot_cross_fly_correlations(
 
     if sli_ctx is None:
         sli_ctx = SLIContext(training_idx=training_idx, average_over_buckets=False)
+    if reward_rate_ctx is None:
+        reward_rate_ctx = sli_ctx
 
     x_label_sli = sli_ctx.label_short(abbrev_sb=False)
     y_label_sli = sli_ctx.label_short(abbrev_sb=True)
@@ -1117,6 +1228,19 @@ def plot_cross_fly_correlations(
     skip_k = max(0, skip_k)
     keep_k = int(getattr(sli_ctx, "keep_first_sync_buckets", 0) or 0)
     keep_k = max(0, keep_k)
+    reward_training_idx = int(getattr(reward_rate_ctx, "training_idx", training_idx) or 0)
+    reward_avg = bool(getattr(reward_rate_ctx, "average_over_buckets", False))
+    reward_skip_k = int(getattr(reward_rate_ctx, "skip_first_sync_buckets", 0) or 0)
+    reward_skip_k = max(0, reward_skip_k)
+    reward_keep_k = int(getattr(reward_rate_ctx, "keep_first_sync_buckets", 0) or 0)
+    reward_keep_k = max(0, reward_keep_k)
+    reward_first_n = int(getattr(opts, "corr_reward_rate_first_n_rewards", 0) or 0)
+    reward_first_n = max(0, reward_first_n)
+    reward_max_time_to_nth_s = getattr(opts, "corr_reward_rate_max_time_to_nth_s", None)
+    reward_first_n_time_basis = str(
+        getattr(opts, "corr_reward_rate_first_n_time_basis", "window_start")
+        or "window_start"
+    )
     early_lbl = early_sli_label(training_idx=0, skip_first_sync_buckets=skip_k)  # T1
     early_sb_txt = f"SB{skip_k + 1}"
     if early_sb_txt == "SB1":
@@ -1150,17 +1274,27 @@ def plot_cross_fly_correlations(
         else:
             rpd_val = np.nan
 
-        # --- Reward per time (same training/window as reward-per-distance) ---
-        if _ensure_rewards_per_minute_by_sync_bucket(va):
-            row_idx = 2 * training_idx  # exp row
+        # --- Reward per time (may use a different training/window from SLI) ---
+        if reward_first_n > 0:
+            rpt_val = _rewards_per_minute_for_first_n_calc_rewards(
+                va,
+                training_idx=reward_training_idx,
+                skip_first_sync_buckets=reward_skip_k,
+                keep_first_sync_buckets=reward_keep_k,
+                first_n_rewards=reward_first_n,
+                max_time_to_nth_s=reward_max_time_to_nth_s,
+                time_basis=reward_first_n_time_basis,
+            )
+        elif _ensure_rewards_per_minute_by_sync_bucket(va):
+            row_idx = 2 * reward_training_idx  # exp row
             if 0 <= row_idx < len(va.rwdsPerMinBySyncBucket):
                 exp_row = va.rwdsPerMinBySyncBucket[row_idx]
                 rpt_val = _reduce_sync_bucket_series(
                     exp_row,
                     bucket_idx=None,
-                    average_over_buckets=bool(sli_ctx.average_over_buckets),
-                    skip_first_sync_buckets=skip_k,
-                    keep_first_sync_buckets=keep_k,
+                    average_over_buckets=reward_avg,
+                    skip_first_sync_buckets=reward_skip_k,
+                    keep_first_sync_buckets=reward_keep_k,
                 )
             else:
                 rpt_val = np.nan
@@ -1272,26 +1406,41 @@ def plot_cross_fly_correlations(
         except Exception as e:
             print(f"[correlations] WARNING: failed fast/strong summary: {e}")
 
-    rpd_mode = "mean" if sli_ctx.average_over_buckets else "last"
-    suffix_parts = [rpd_mode]
-    if skip_k:
-        suffix_parts.append(f"skip{skip_k}")
-    if keep_k:
-        suffix_parts.append(f"keep{keep_k}")
-    rpd_suffix = "_".join(suffix_parts)
+    rpd_suffix = _window_context_suffix(sli_ctx, prefix="sli")
+    rpt_suffix = (
+        f"{_window_context_suffix(sli_ctx, prefix='sli')}__"
+        f"{_window_context_suffix(reward_rate_ctx, prefix='rpt')}"
+    )
+    if reward_first_n > 0:
+        rpt_suffix = f"{rpt_suffix}__first{reward_first_n}calc"
+        if reward_first_n_time_basis == "first_to_nth":
+            rpt_suffix = f"{rpt_suffix}__first_to_nth"
+        if reward_max_time_to_nth_s is not None:
+            try:
+                cutoff_suffix = float(reward_max_time_to_nth_s)
+            except Exception:
+                cutoff_suffix = None
+            if cutoff_suffix is not None and np.isfinite(cutoff_suffix):
+                rpt_suffix = f"{rpt_suffix}__maxtime{cutoff_suffix:g}s"
 
     rpd_y_label = "rewards per distance $[m^{{-1}}]$"
-    rpt_y_label = "rewards per minute"
+    if reward_first_n > 0:
+        rpt_y_label = _first_n_reward_rate_label(
+            first_n_rewards=reward_first_n,
+            ctx=reward_rate_ctx,
+            max_time_to_nth_s=reward_max_time_to_nth_s,
+            time_basis=reward_first_n_time_basis,
+        )
+    else:
+        rpt_y_label = _windowed_metric_label("rewards per minute", reward_rate_ctx)
 
     if sli_ctx.average_over_buckets:
         window_txt = sli_ctx._window_text(abbrev_sb=True)
         rpd_y_label = f"rewards per distance $[m^{{-1}}]$\n(mean {window_txt})"
-        rpt_y_label = f"rewards per minute\n(mean {window_txt})"
     else:
         if skip_k or keep_k:
             window_txt = sli_ctx._window_text(abbrev_sb=True)
             rpd_y_label = f"rewards per distance $[m^{{-1}}]$\n(last valid, {window_txt})"
-            rpt_y_label = f"rewards per minute\n(last valid, {window_txt})"
 
     # --- Plot 1: SLI_final vs reward-per-distance ---
     _scatter_with_corr(
@@ -1343,19 +1492,19 @@ def plot_cross_fly_correlations(
         x_label=rpt_y_label,
         y_label=y_label_sli,
         cfg=cfg,
-        filename=f"corr_sli_vs_rpt_{rpd_suffix}",
+        filename=f"corr_sli_vs_rpt_{rpt_suffix}",
         customizer=customizer,
     )
     if selected_mode is not None:
         if selected_mode == "top":
             title_1b_sel = "SLI vs rewards per minute (top SLI-selected learners)"
-            filename_1b_sel = f"corr_sli_vs_rpt_{rpd_suffix}_top_selected"
+            filename_1b_sel = f"corr_sli_vs_rpt_{rpt_suffix}_top_selected"
         elif selected_mode == "bottom":
             title_1b_sel = "SLI vs rewards per minute (bottom SLI-selected learners)"
-            filename_1b_sel = f"corr_sli_vs_rpt_{rpd_suffix}_bottom_selected"
+            filename_1b_sel = f"corr_sli_vs_rpt_{rpt_suffix}_bottom_selected"
         else:
             title_1b_sel = "SLI vs rewards per minute (top vs bottom SLI-selected learners)"
-            filename_1b_sel = f"corr_sli_vs_rpt_{rpd_suffix}_selected_extremes"
+            filename_1b_sel = f"corr_sli_vs_rpt_{rpt_suffix}_selected_extremes"
 
         plot_selected_group_scatter(
             x=rpt_vals,

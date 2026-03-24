@@ -566,6 +566,93 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--corr-reward-rate-trn",
+    type=int,
+    default=None,
+    help=(
+        "Training session to use for the reward-rate axis in the "
+        "'SLI vs rewards per minute' correlation plot. If omitted, "
+        "inherits the SLI training/window."
+    ),
+)
+g.add_argument(
+    "--corr-reward-rate-skip-first-sync-buckets",
+    type=int,
+    default=None,
+    help=(
+        "Exclude the first K sync buckets when computing reward rate for the "
+        "'SLI vs rewards per minute' correlation plot. If omitted, inherits "
+        "the SLI window."
+    ),
+)
+g.add_argument(
+    "--corr-reward-rate-keep-first-sync-buckets",
+    type=int,
+    default=None,
+    help=(
+        "Cap reward-rate computation to the first K sync buckets (after skip) "
+        "for the 'SLI vs rewards per minute' correlation plot. If omitted, "
+        "inherits the SLI window."
+    ),
+)
+g.add_argument(
+    "--corr-reward-rate-use-training-mean",
+    dest="corr_reward_rate_use_training_mean",
+    action="store_const",
+    const=True,
+    default=None,
+    help=(
+        "Use the mean reward rate across the selected reward-rate window in the "
+        "'SLI vs rewards per minute' correlation plot. If omitted, inherits the "
+        "SLI reduction mode."
+    ),
+)
+g.add_argument(
+    "--corr-reward-rate-use-training-last",
+    dest="corr_reward_rate_use_training_mean",
+    action="store_const",
+    const=False,
+    default=None,
+    help=(
+        "Use the last valid reward-rate sync bucket within the selected reward-rate "
+        "window in the 'SLI vs rewards per minute' correlation plot. If omitted, "
+        "inherits the SLI reduction mode."
+    ),
+)
+g.add_argument(
+    "--corr-reward-rate-first-n-rewards",
+    type=int,
+    default=0,
+    help=(
+        "For the 'SLI vs rewards per minute' correlation plot, compute reward rate "
+        "from the first N calculated rewards of the experimental fly within the "
+        "selected reward-rate window, using N / time-to-Nth-reward. "
+        "Use 0 to keep the existing sync-bucket-based reward-rate calculation."
+    ),
+)
+g.add_argument(
+    "--corr-reward-rate-max-time-to-nth-s",
+    type=float,
+    default=None,
+    help=(
+        "When --corr-reward-rate-first-n-rewards is used, keep only flies whose "
+        "Nth calculated reward is reached within this many seconds from the start "
+        "of the selected reward-rate window. Flies exceeding the cutoff are "
+        "excluded from the reward-rate scatter."
+    ),
+)
+g.add_argument(
+    "--corr-reward-rate-first-n-time-basis",
+    type=str,
+    choices=("window_start", "first_to_nth"),
+    default="window_start",
+    help=(
+        "When --corr-reward-rate-first-n-rewards is used, compute reward rate either "
+        "from selected-window start to the Nth calculated reward ('window_start') or "
+        "from the first to the Nth calculated reward ('first_to_nth')."
+    ),
+)
+g.add_argument(
     "--rdp",
     dest="rdp",
     type=float,
@@ -967,6 +1054,17 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--first-n-reward-diagnostics-reward-event-type",
+    type=str,
+    choices=("actual", "calc"),
+    default="actual",
+    help=(
+        "Reward event type used for the first-n reward diagnostics timing metrics. "
+        "'actual' preserves historical behavior; 'calc' aligns these timing metrics "
+        "with calculated rewards used elsewhere."
+    ),
+)
+g.add_argument(
     "--first-n-reward-diagnostics-x-by",
     type=str,
     choices=(
@@ -988,6 +1086,11 @@ g.add_argument(
         "control_to_actual_entry_ratio_by_cutoff",
         "control_to_actual_reward_ratio_by_cutoff",
         "actual_reward_count_in_selected_window",
+        "reward_event_type",
+        "selected_reward_count_in_selected_window",
+        "time_to_first_selected_reward_s",
+        "time_to_nth_selected_reward_s",
+        "first_n_selected_reward_span_s",
     ),
     default="first_n_reward_span_s",
     help="Metric used for the x-axis of the first-n reward diagnostics scatter plot.",
@@ -1014,6 +1117,11 @@ g.add_argument(
         "control_to_actual_entry_ratio_by_cutoff",
         "control_to_actual_reward_ratio_by_cutoff",
         "actual_reward_count_in_selected_window",
+        "reward_event_type",
+        "selected_reward_count_in_selected_window",
+        "time_to_first_selected_reward_s",
+        "time_to_nth_selected_reward_s",
+        "first_n_selected_reward_span_s",
     ),
     default="sli",
     help="Metric used for the y-axis of the first-n reward diagnostics scatter plot.",
@@ -1040,6 +1148,10 @@ g.add_argument(
         "control_to_actual_entry_ratio_by_cutoff",
         "control_to_actual_reward_ratio_by_cutoff",
         "actual_reward_count_in_selected_window",
+        "selected_reward_count_in_selected_window",
+        "time_to_first_selected_reward_s",
+        "time_to_nth_selected_reward_s",
+        "first_n_selected_reward_span_s",
     ),
     default="control_circle_entry_count_by_cutoff",
     help="Metric used to color the first-n reward diagnostics scatter plot.",
@@ -1088,6 +1200,9 @@ g.add_argument(
         "time_to_first_actual_reward_s",
         "time_to_nth_actual_reward_s",
         "first_n_reward_span_s",
+        "time_to_first_selected_reward_s",
+        "time_to_nth_selected_reward_s",
+        "first_n_selected_reward_span_s",
         "cutoff_time_since_selected_window_start_s",
         "cutoff_time_since_cutoff_training_start_s",
         "reward_pi_by_cutoff",
@@ -1102,6 +1217,17 @@ g.add_argument(
     help=(
         "Per-fly metric to compare between bottom- and top-SLI groups. "
         "Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--first-n-reward-sli-comparison-reward-event-type",
+    type=str,
+    choices=("actual", "calc"),
+    default="actual",
+    help=(
+        "Reward event type used when building first-n reward SLI-group comparison "
+        "metrics. 'actual' preserves historical behavior; 'calc' aligns with "
+        "calculated rewards."
     ),
 )
 g.add_argument(
@@ -8672,6 +8798,51 @@ def postAnalyze(vas):
                     skip_first_sync_buckets=sel_skip_k,
                     keep_first_sync_buckets=sel_keep_k,
                 )
+                reward_rate_ctx = SLIContext(
+                    training_idx=(
+                        sli_ctx.training_idx
+                        if getattr(opts, "corr_reward_rate_trn", None) is None
+                        else int(getattr(opts, "corr_reward_rate_trn")) - 1
+                    ),
+                    average_over_buckets=(
+                        sli_ctx.average_over_buckets
+                        if getattr(opts, "corr_reward_rate_use_training_mean", None)
+                        is None
+                        else bool(getattr(opts, "corr_reward_rate_use_training_mean"))
+                    ),
+                    skip_first_sync_buckets=(
+                        sli_ctx.skip_first_sync_buckets
+                        if getattr(
+                            opts, "corr_reward_rate_skip_first_sync_buckets", None
+                        )
+                        is None
+                        else max(
+                            0,
+                            int(
+                                getattr(
+                                    opts,
+                                    "corr_reward_rate_skip_first_sync_buckets",
+                                )
+                            ),
+                        )
+                    ),
+                    keep_first_sync_buckets=(
+                        sli_ctx.keep_first_sync_buckets
+                        if getattr(
+                            opts, "corr_reward_rate_keep_first_sync_buckets", None
+                        )
+                        is None
+                        else max(
+                            0,
+                            int(
+                                getattr(
+                                    opts,
+                                    "corr_reward_rate_keep_first_sync_buckets",
+                                )
+                            ),
+                        )
+                    ),
+                )
                 plot_cross_fly_correlations(
                     sli_values=sli_ser,
                     vas=vas,
@@ -8681,6 +8852,7 @@ def postAnalyze(vas):
                     out_dir="imgs/correlations",
                     plot_customizer=customizer,
                     sli_ctx=sli_ctx,
+                    reward_rate_ctx=reward_rate_ctx,
                     sli_selected=(selected_bottom or [], selected_top or []),
                     sli_extremes=(
                         getattr(opts, "best_worst_extreme", "both")
@@ -9122,6 +9294,14 @@ def postAnalyze(vas):
                 )
                 or 0
             ),
+            reward_event_type=str(
+                getattr(
+                    opts,
+                    "first_n_reward_diagnostics_reward_event_type",
+                    "actual",
+                )
+                or "actual"
+            ),
         )
         diag_plotter = FirstNRewardDiagnosticsPlotter(
             vas=vas_for_diag,
@@ -9194,6 +9374,14 @@ def postAnalyze(vas):
                         "time_to_nth_actual_reward_s",
                     )
                     or "time_to_nth_actual_reward_s"
+                ),
+                reward_event_type=str(
+                    getattr(
+                        opts,
+                        "first_n_reward_sli_comparison_reward_event_type",
+                        "actual",
+                    )
+                    or "actual"
                 ),
                 top_label=f"Top {100*float(top_fraction):.1f}% SLI",
                 bottom_label=f"Bottom {100*float(bottom_fraction):.1f}% SLI",
@@ -11491,6 +11679,15 @@ if __name__ == "__main__":
     except Exception as e:
         raise ValueError(f"Invalid --corr-ylim: {e}") from e
     opts.corr_ylim = None if corr_ymin is None else (corr_ymin, corr_ymax)
+
+    corr_reward_rate_trn = getattr(opts, "corr_reward_rate_trn", None)
+    if corr_reward_rate_trn is not None and int(corr_reward_rate_trn) < 1:
+        raise SystemExit("--corr-reward-rate-trn must be >= 1.")
+    if int(getattr(opts, "corr_reward_rate_first_n_rewards", 0) or 0) < 0:
+        raise SystemExit("--corr-reward-rate-first-n-rewards must be >= 0.")
+    corr_reward_rate_max_time = getattr(opts, "corr_reward_rate_max_time_to_nth_s", None)
+    if corr_reward_rate_max_time is not None and float(corr_reward_rate_max_time) <= 0:
+        raise SystemExit("--corr-reward-rate-max-time-to-nth-s must be > 0.")
 
     if opts.turn_prob_by_dist or opts.outside_circle_radii:
         if opts.contact_geometry == "horizontal" and not opts.turn_prob_by_dist:

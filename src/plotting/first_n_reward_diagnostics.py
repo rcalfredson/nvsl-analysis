@@ -38,6 +38,7 @@ class FirstNRewardDiagnosticsConfig:
     y_by: str = "sli"
     color_by: str = "control_circle_entry_count_by_cutoff"
     label_low_sli_outliers: int = 0
+    reward_event_type: str = "actual"
 
 
 @dataclass(frozen=True)
@@ -71,6 +72,11 @@ class FirstNRewardDiagnosticRow:
     control_entry_minus_reward_count_by_cutoff: float
     control_to_actual_entry_ratio_by_cutoff: float
     control_to_actual_reward_ratio_by_cutoff: float
+    reward_event_type: str
+    selected_reward_count_in_selected_window: int
+    time_to_first_selected_reward_s: float
+    time_to_nth_selected_reward_s: float
+    first_n_selected_reward_span_s: float
 
 
 class FirstNRewardDiagnosticsPlotter:
@@ -116,6 +122,20 @@ class FirstNRewardDiagnosticsPlotter:
         if not row.eligible_for_nth_reward_cutoff:
             return False
 
+        reward_event_type = str(
+            getattr(self.cfg, "reward_event_type", "actual") or "actual"
+        )
+        span_value = (
+            row.first_n_selected_reward_span_s
+            if reward_event_type == "calc"
+            else row.first_n_reward_span_s
+        )
+        time_to_nth_value = (
+            row.time_to_nth_selected_reward_s
+            if reward_event_type == "calc"
+            else row.time_to_nth_actual_reward_s
+        )
+
         max_span_s = self.cfg.max_span_s
         if max_span_s is not None:
             try:
@@ -123,9 +143,9 @@ class FirstNRewardDiagnosticsPlotter:
             except Exception:
                 max_span_s = None
             if max_span_s is not None:
-                if not np.isfinite(row.first_n_reward_span_s):
+                if not np.isfinite(span_value):
                     return False
-                if row.first_n_reward_span_s > max_span_s:
+                if span_value > max_span_s:
                     return False
 
         max_time_to_nth_s = self.cfg.max_time_to_nth_s
@@ -135,9 +155,9 @@ class FirstNRewardDiagnosticsPlotter:
             except Exception:
                 max_time_to_nth_s = None
             if max_time_to_nth_s is not None:
-                if not np.isfinite(row.time_to_nth_actual_reward_s):
+                if not np.isfinite(time_to_nth_value):
                     return False
-                if row.time_to_nth_actual_reward_s > max_time_to_nth_s:
+                if time_to_nth_value > max_time_to_nth_s:
                     return False
 
         return True
@@ -184,13 +204,19 @@ class FirstNRewardDiagnosticsPlotter:
             if not np.isfinite(fps) or fps <= 0:
                 fps = 1.0
 
+            reward_event_type = str(getattr(self.cfg, "reward_event_type", "actual") or "actual")
+            use_calc_rewards = reward_event_type == "calc"
             actual_rewards = frames_in_windows(va, windows, calc=False, ctrl=False, f=0)
+            selected_rewards = frames_in_windows(
+                va, windows, calc=use_calc_rewards, ctrl=False, f=0
+            )
             actual_entries = frames_in_windows(va, windows, calc=True, ctrl=False, f=0)
             control_entries = frames_in_windows(va, windows, calc=True, ctrl=True, f=0)
 
             has_window = bool(windows)
             n_actual = int(actual_rewards.size)
-            eligible = has_window and n_actual >= n_target
+            n_selected = int(selected_rewards.size)
+            eligible = has_window and n_selected >= n_target
             sli = self._sli_value_for_index(i)
 
             cutoff_frame = np.nan
@@ -209,37 +235,67 @@ class FirstNRewardDiagnosticsPlotter:
             control_entry_minus_reward = np.nan
             control_to_actual_entry_ratio = np.nan
             control_to_actual_reward_ratio = np.nan
+            time_to_first_selected_s = np.nan
+            time_to_nth_selected_s = np.nan
+            selected_span_s = np.nan
 
             if n_actual > 0:
                 time_to_first_s = cumulative_window_seconds_for_frame(
                     windows, int(actual_rewards[0]), fps=fps
                 )
+            if n_selected > 0:
+                time_to_first_selected_s = cumulative_window_seconds_for_frame(
+                    windows, int(selected_rewards[0]), fps=fps
+                )
 
             if eligible:
-                cutoff_frame = float(actual_rewards[n_target - 1])
+                cutoff_frame = float(selected_rewards[n_target - 1])
                 cutoff_time_s = cumulative_window_seconds_for_frame(
-                    windows, int(actual_rewards[n_target - 1]), fps=fps
+                    windows, int(selected_rewards[n_target - 1]), fps=fps
                 )
                 time_to_nth_s = cutoff_time_s
+                time_to_nth_selected_s = cutoff_time_s
                 if np.isfinite(time_to_first_s) and np.isfinite(time_to_nth_s):
                     span_s = float(time_to_nth_s - time_to_first_s)
+                if (
+                    np.isfinite(time_to_first_selected_s)
+                    and np.isfinite(time_to_nth_selected_s)
+                ):
+                    selected_span_s = float(
+                        time_to_nth_selected_s - time_to_first_selected_s
+                    )
 
-                cutoff_window = locate_window_for_frame(windows, int(actual_rewards[n_target - 1]))
+                cutoff_window = locate_window_for_frame(
+                    windows, int(selected_rewards[n_target - 1])
+                )
                 if cutoff_window is not None:
                     cutoff_training = float(cutoff_window.training_idx + 1)
                     cutoff_time_training_s = max(
                         0.0,
-                        float(actual_rewards[n_target - 1] - cutoff_window.trn.start) / fps,
+                        float(selected_rewards[n_target - 1] - cutoff_window.trn.start)
+                        / fps,
                     )
 
                 actual_reward_count_by_cutoff = float(
-                    np.searchsorted(actual_rewards, int(actual_rewards[n_target - 1]), side="right")
+                    np.searchsorted(
+                        actual_rewards,
+                        int(selected_rewards[n_target - 1]),
+                        side="right",
+                    )
                 )
                 actual_entry_count_by_cutoff = float(
-                    np.searchsorted(actual_entries, int(actual_rewards[n_target - 1]), side="right")
+                    np.searchsorted(
+                        actual_entries,
+                        int(selected_rewards[n_target - 1]),
+                        side="right",
+                    )
                 )
                 control_entry_count_by_cutoff = float(
-                    np.searchsorted(control_entries, int(actual_rewards[n_target - 1]), side="right")
+                    np.searchsorted(
+                        control_entries,
+                        int(selected_rewards[n_target - 1]),
+                        side="right",
+                    )
                 )
                 control_reward_count_by_cutoff = control_entry_count_by_cutoff
                 reward_pi = float(
@@ -298,6 +354,11 @@ class FirstNRewardDiagnosticsPlotter:
                     control_entry_minus_reward_count_by_cutoff=control_entry_minus_reward,
                     control_to_actual_entry_ratio_by_cutoff=control_to_actual_entry_ratio,
                     control_to_actual_reward_ratio_by_cutoff=control_to_actual_reward_ratio,
+                    reward_event_type=reward_event_type,
+                    selected_reward_count_in_selected_window=n_selected,
+                    time_to_first_selected_reward_s=time_to_first_selected_s,
+                    time_to_nth_selected_reward_s=time_to_nth_selected_s,
+                    first_n_selected_reward_span_s=selected_span_s,
                 )
             )
 
@@ -347,6 +408,7 @@ class FirstNRewardDiagnosticsPlotter:
             "color_by": self.cfg.color_by,
             "skip_first_sync_buckets": int(self.cfg.skip_first_sync_buckets or 0),
             "keep_first_sync_buckets": int(self.cfg.keep_first_sync_buckets or 0),
+            "reward_event_type": str(getattr(self.cfg, "reward_event_type", "actual") or "actual"),
         }
         np.savez(path, **cols, metadata=np.asarray(meta, dtype=object))
         print(f"[{self.log_tag}] wrote NPZ: {path}")

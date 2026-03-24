@@ -33,6 +33,7 @@ class FirstNRewardSLIComparisonConfig:
     top_label: str = "Top SLI-selected"
     bottom_label: str = "Bottom SLI-selected"
     title: str | None = None
+    reward_event_type: str = "actual"
 
 
 @dataclass(frozen=True)
@@ -86,6 +87,9 @@ class FirstNRewardSLIComparisonPlotter:
             "time_to_first_actual_reward_s": "Time to first actual reward",
             "time_to_nth_actual_reward_s": "Time to nth actual reward",
             "first_n_reward_span_s": "Span from first to nth actual reward",
+            "time_to_first_selected_reward_s": "Time to first selected reward",
+            "time_to_nth_selected_reward_s": "Time to nth selected reward",
+            "first_n_selected_reward_span_s": "Span from first to nth selected reward",
             "cutoff_time_since_selected_window_start_s": "Nth reward time from selected window start",
             "cutoff_time_since_cutoff_training_start_s": "Nth reward time from cutoff training start",
             "reward_pi_by_cutoff": "Reward PI at nth reward cutoff",
@@ -127,6 +131,9 @@ class FirstNRewardSLIComparisonPlotter:
             pi_threshold=int(self.cfg.pi_threshold or 0),
             max_span_s=self.cfg.max_span_s,
             max_time_to_nth_s=self.cfg.max_time_to_nth_s,
+            reward_event_type=str(
+                getattr(self.cfg, "reward_event_type", "actual") or "actual"
+            ),
         )
 
     def _compute_rows_for_group(self, vas, *, sli_values, subset_label: str) -> _GroupComputation:
