@@ -90,6 +90,9 @@ from src.exporting.reward_lgturn_pathlen_sli_bundle import (
     export_reward_lgturn_pathlen_sli_bundle,
 )
 from src.exporting.reward_lv_sli_bundle import export_reward_lv_sli_bundle
+from src.exporting.turnback_outer_radius_sli_bundle import (
+    export_turnback_outer_radius_sli_bundle,
+)
 from src.exporting.turnback_sli_bundle import export_turnback_sli_bundle
 from src.exporting.wallpct_sli_bundle import export_wallpct_sli_bundle
 from src.exporting.wall_contacts_per_reward_interval import (
@@ -3597,6 +3600,69 @@ g.add_argument(
     type=str,
     default=None,
     help="Write a .npz bundle with turnback dual-circle ratio + SLI for multi-group overlays.",
+)
+g.add_argument(
+    "--export-turnback-outer-radius-sli-bundle",
+    type=str,
+    default=None,
+    help=(
+        "Write a .npz bundle with fixed-window turnback ratios as a function of "
+        "outer-circle radius for multi-group overlays/stats."
+    ),
+)
+g.add_argument(
+    "--turnback-outer-radius-trainings",
+    type=str,
+    default=None,
+    help=(
+        "Trainings to include in turnback-outer-radius exports, e.g. '2' or '2-3'. "
+        "Default: all trainings."
+    ),
+)
+g.add_argument(
+    "--turnback-outer-radius-outer-deltas-mm",
+    type=str,
+    default=None,
+    help=(
+        "Comma-separated outer-circle radius paddings (mm) for the turnback-outer-"
+        "radius export, e.g. '0.5,1.0,1.5,2.0'."
+    ),
+)
+g.add_argument(
+    "--turnback-outer-radius-skip-first-sync-buckets",
+    type=int,
+    default=None,
+    help=(
+        "Optional export-specific sync-bucket skip for turnback-outer-radius "
+        "bundles. Defaults to --skip-first-sync-buckets."
+    ),
+)
+g.add_argument(
+    "--turnback-outer-radius-keep-first-sync-buckets",
+    type=int,
+    default=None,
+    help=(
+        "Optional export-specific sync-bucket cap for turnback-outer-radius "
+        "bundles. Defaults to --keep-first-sync-buckets."
+    ),
+)
+g.add_argument(
+    "--turnback-outer-radius-last-sync-buckets",
+    type=int,
+    default=0,
+    help=(
+        "After training selection and optional skip/keep trimming, keep only the "
+        "last K sync buckets per training for turnback-outer-radius bundles. "
+        "Use 0 for no tail restriction."
+    ),
+)
+g.add_argument(
+    "--turnback-outer-radius-debug",
+    action="store_true",
+    help=(
+        "Debug export of turnback-outer-radius+SLI bundle: print selected windows, "
+        "radii, and per-video finite/count summaries."
+    ),
 )
 g.add_argument(
     "--export-weaving-sli-bundle",
@@ -8146,6 +8212,11 @@ def postAnalyze(vas):
 
     if getattr(opts, "export_turnback_sli_bundle", None):
         export_turnback_sli_bundle(vas, opts, gls, opts.export_turnback_sli_bundle)
+
+    if getattr(opts, "export_turnback_outer_radius_sli_bundle", None):
+        export_turnback_outer_radius_sli_bundle(
+            vas, opts, gls, opts.export_turnback_outer_radius_sli_bundle
+        )
 
     if getattr(opts, "export_weaving_sli_bundle", None):
         export_weaving_sli_bundle(vas, opts, gls, opts.export_weaving_sli_bundle)
