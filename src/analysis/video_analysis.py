@@ -592,12 +592,20 @@ class VideoAnalysis:
             and getattr(self.opts, "rrd_exclude_wall_contact", False)
         )
 
+        keep_wall_regions_for_between_reward_maxdist = bool(
+            getattr(self.opts, "export_between_reward_maxdist_sli_bundle", False)
+            and getattr(
+                self.opts, "between_reward_maxdist_exclude_wall_contact", False
+            )
+        )
+
         keep_wall_regions = (
             keep_wall_regions_for_polar
             or keep_wall_regions_for_btw_rwd_com_mag
             or keep_wall_regions_for_btw_rwd_dist
             or keep_wall_regions_for_btw_rwd_conditioned_com
             or keep_wall_regions_for_rrd
+            or keep_wall_regions_for_between_reward_maxdist
         )
 
         # ─────────────────────────────────────────────────────────────
@@ -4201,6 +4209,9 @@ class VideoAnalysis:
             if exclude_wall_contact is None
             else exclude_wall_contact
         )
+        debug_export = bool(
+            getattr(self.opts, "between_reward_maxdist_sli_debug", False)
+        )
 
         def _slice_start_stop(sl) -> tuple[int, int]:
             a = 0 if getattr(sl, "start", None) is None else int(sl.start)
@@ -4265,6 +4276,12 @@ class VideoAnalysis:
 
                 sums = np.zeros(n_buckets, dtype=float)
                 counts = np.zeros(n_buckets, dtype=int)
+                dbg_total = 0
+                dbg_kept = 0
+                dbg_excl_regions = 0
+                dbg_excl_mask = 0
+                dbg_nonfinite = 0
+                dbg_examples = []
 
                 for seg in self._iter_between_reward_segment_com(
                     trn,
@@ -4284,6 +4301,7 @@ class VideoAnalysis:
                     debug=False,
                     yield_skips=False,
                 ):
+                    dbg_total += 1
                     b_idx = int(getattr(seg, "b_idx", -1))
                     max_d_mm = float(getattr(seg, "max_d_mm", np.nan))
                     s = int(getattr(seg, "s", -1))
@@ -4296,16 +4314,28 @@ class VideoAnalysis:
                         if wall_regions is not None and _any_overlap_with_wall_regions(
                             wall_regions, s, e
                         ):
+                            dbg_excl_regions += 1
+                            if debug_export and len(dbg_examples) < 5:
+                                dbg_examples.append(
+                                    f"region b={b_idx} s={s} e={e} dmax={max_d_mm:g}"
+                                )
                             continue
                         if wc is not None:
                             s2 = max(0, min(s - int(fi), len(wc)))
                             e2 = max(0, min(e - int(fi), len(wc)))
                             if e2 > s2 and np.any(wc[s2:e2]):
+                                dbg_excl_mask += 1
+                                if debug_export and len(dbg_examples) < 5:
+                                    dbg_examples.append(
+                                        f"mask b={b_idx} s={s} e={e} dmax={max_d_mm:g}"
+                                    )
                                 continue
                     if not np.isfinite(max_d_mm):
+                        dbg_nonfinite += 1
                         continue
                     sums[b_idx] += max_d_mm
                     counts[b_idx] += 1
+                    dbg_kept += 1
 
                 means = [np.nan] * n_buckets
                 ns = [0] * n_buckets
@@ -4318,6 +4348,29 @@ class VideoAnalysis:
 
                 this_training[fly_key] = means
                 this_training_n[fly_key] = ns
+                if debug_export:
+                    src = (
+                        "regions"
+                        if wall_regions is not None
+                        else ("mask" if wc is not None else "none")
+                    )
+                    print(
+                        "[between_reward_maxdist] {} {} {}: total={} kept={} "
+                        "excl_regions={} excl_mask={} nonfinite={} wall_src={} per_bucket={}".format(
+                            getattr(self, "fn", "va"),
+                            trn.name(),
+                            fly_key,
+                            dbg_total,
+                            dbg_kept,
+                            dbg_excl_regions,
+                            dbg_excl_mask,
+                            dbg_nonfinite,
+                            src,
+                            ns,
+                        )
+                    )
+                    for ex in dbg_examples:
+                        print(f"[between_reward_maxdist]   example: {ex}")
 
             self.syncMeanBetweenRewardMaxDist.append(this_training)
             self.syncMeanBetweenRewardMaxDistN.append(this_training_n)

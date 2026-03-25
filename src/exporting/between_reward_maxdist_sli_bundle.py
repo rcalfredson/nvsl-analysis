@@ -48,25 +48,22 @@ def _extract_between_reward_maxdist_arrays(vas, opts=None):
     for vi, va in enumerate(vas):
         vid = getattr(va, "fn", f"va_{vi}")
 
-        if not hasattr(va, "syncMeanBetweenRewardMaxDist") or not hasattr(
-            va, "syncMeanBetweenRewardMaxDistN"
-        ):
-            try:
-                va.bySyncBucketMeanBetweenRewardMaxDist(
-                    exclude_wall_contact=bool(
-                        getattr(
-                            opts,
-                            "between_reward_maxdist_exclude_wall_contact",
-                            False,
-                        )
+        try:
+            va.bySyncBucketMeanBetweenRewardMaxDist(
+                exclude_wall_contact=bool(
+                    getattr(
+                        opts,
+                        "between_reward_maxdist_exclude_wall_contact",
+                        False,
                     )
                 )
-            except Exception as exc:
-                _dbg(
-                    opts,
-                    f"[between-reward-maxdist-export] {vid}: FAILED to compute bySyncBucketMeanBetweenRewardMaxDist ({type(exc).__name__}: {exc})",
-                )
-                continue
+            )
+        except Exception as exc:
+            _dbg(
+                opts,
+                f"[between-reward-maxdist-export] {vid}: FAILED to compute bySyncBucketMeanBetweenRewardMaxDist ({type(exc).__name__}: {exc})",
+            )
+            continue
 
         means = getattr(va, "syncMeanBetweenRewardMaxDist", None)
         counts = getattr(va, "syncMeanBetweenRewardMaxDistN", None)
