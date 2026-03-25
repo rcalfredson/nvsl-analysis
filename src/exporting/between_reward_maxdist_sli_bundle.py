@@ -52,7 +52,15 @@ def _extract_between_reward_maxdist_arrays(vas, opts=None):
             va, "syncMeanBetweenRewardMaxDistN"
         ):
             try:
-                va.bySyncBucketMeanBetweenRewardMaxDist()
+                va.bySyncBucketMeanBetweenRewardMaxDist(
+                    exclude_wall_contact=bool(
+                        getattr(
+                            opts,
+                            "between_reward_maxdist_exclude_wall_contact",
+                            False,
+                        )
+                    )
+                )
             except Exception as exc:
                 _dbg(
                     opts,

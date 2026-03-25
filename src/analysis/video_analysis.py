@@ -4180,7 +4180,7 @@ class VideoAnalysis:
             self.syncMeanLgTurnStartDist.append(this_training)
             self.syncMeanLgTurnStartDistN.append(this_training_n)
 
-    def bySyncBucketMeanBetweenRewardMaxDist(self):
+    def bySyncBucketMeanBetweenRewardMaxDist(self, exclude_wall_contact=None):
         """
         For each sync bucket, compute the mean per-segment maximum distance (mm)
         from the reward-circle center across between-reward trajectories.
@@ -4196,6 +4196,29 @@ class VideoAnalysis:
         self.syncMeanBetweenRewardMaxDistN = []
 
         fly_keys = ("exp", "ctrl") if len(self.trx) > 1 else ("exp",)
+        exclude_wall_contact = bool(
+            getattr(self.opts, "between_reward_maxdist_exclude_wall_contact", False)
+            if exclude_wall_contact is None
+            else exclude_wall_contact
+        )
+
+        def _slice_start_stop(sl) -> tuple[int, int]:
+            a = 0 if getattr(sl, "start", None) is None else int(sl.start)
+            b = 0 if getattr(sl, "stop", None) is None else int(sl.stop)
+            return a, b
+
+        def _any_overlap_with_wall_regions(wall_regions, s: int, e: int) -> bool:
+            if not wall_regions:
+                return False
+            s = int(s)
+            e = int(e)
+            for sl in wall_regions:
+                a, b = _slice_start_stop(sl)
+                if min(b, e) > max(a, s):
+                    return True
+            return False
+
+        warned_missing_wall_contact = [False]
 
         for trn in self.trns:
             fi, n_buckets, _ = self._syncBucket(trn, df)
@@ -4224,6 +4247,22 @@ class VideoAnalysis:
                     this_training_n[fly_key] = [0] * n_buckets
                     continue
 
+                wall_regions = None
+                wc = None
+                if exclude_wall_contact:
+                    wall_regions = self._extract_wall_contact_regions(traj)
+                    if wall_regions is None:
+                        n_win = int(max(0, n_buckets * int(df)))
+                        wc = build_wall_contact_mask_for_window(
+                            self,
+                            traj.f,
+                            fi=int(fi),
+                            n_frames=int(n_win),
+                            enabled=True,
+                            warned_missing_wc=warned_missing_wall_contact,
+                            log_tag="between_reward_maxdist",
+                        )
+
                 sums = np.zeros(n_buckets, dtype=float)
                 counts = np.zeros(n_buckets, dtype=int)
 
@@ -4247,10 +4286,22 @@ class VideoAnalysis:
                 ):
                     b_idx = int(getattr(seg, "b_idx", -1))
                     max_d_mm = float(getattr(seg, "max_d_mm", np.nan))
+                    s = int(getattr(seg, "s", -1))
+                    e = int(getattr(seg, "e", -1))
                     if b_idx < 0 or b_idx >= n_buckets:
                         continue
                     if not complete[b_idx]:
                         continue
+                    if exclude_wall_contact:
+                        if wall_regions is not None and _any_overlap_with_wall_regions(
+                            wall_regions, s, e
+                        ):
+                            continue
+                        if wc is not None:
+                            s2 = max(0, min(s - int(fi), len(wc)))
+                            e2 = max(0, min(e - int(fi), len(wc)))
+                            if e2 > s2 and np.any(wc[s2:e2]):
+                                continue
                     if not np.isfinite(max_d_mm):
                         continue
                     sums[b_idx] += max_d_mm
@@ -5672,6 +5723,18 @@ class VideoAnalysis:
         if m.ndim != 1:
             return None
         return m.astype(bool, copy=False)
+
+    def _extract_wall_contact_regions(self, traj):
+        """
+        Returns wall-contact regions as absolute-frame half-open intervals, or
+        None if unavailable.
+        """
+        try:
+            return traj.boundary_event_stats["wall"]["all"]["edge"][
+                "boundary_contact_regions"
+            ]
+        except Exception:
+            return None
 
     def contactEventsBySyncBucket(self, evt_name):
         """

@@ -3742,6 +3742,14 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--between-reward-maxdist-exclude-wall-contact",
+    action="store_true",
+    help=(
+        "When exporting between-reward-maxdist bundles, exclude any between-reward "
+        "trajectory that contains wall contact from the sync-bucket mean."
+    ),
+)
+g.add_argument(
     "--export-turnback-sli-bundle",
     type=str,
     default=None,
@@ -11644,6 +11652,14 @@ if __name__ == "__main__":
             print(
                 f"[com] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
                 "because --com-exclude-wall-contact was set"
+            )
+            opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
+    if getattr(opts, "between_reward_maxdist_exclude_wall_contact", False):
+        if getattr(opts, "wall", None) is None:
+            print(
+                f"[between_reward_maxdist] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
+                "because --between-reward-maxdist-exclude-wall-contact was set"
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 
