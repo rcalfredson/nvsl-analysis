@@ -83,6 +83,9 @@ from src.utils.constants import (
 )
 from src.analysis.motion import CircularMotionDetector
 from src.exporting.agarose_sli_bundle import export_agarose_sli_bundle
+from src.exporting.between_reward_maxdist_sli_bundle import (
+    export_between_reward_maxdist_sli_bundle,
+)
 from src.exporting.com_sli_bundle import export_com_sli_bundle
 from src.exporting.cum_reward_sli_bundle import export_cum_reward_sli_bundle
 from src.exporting.lgturn_startdist_sli_bundle import export_lgturn_startdist_sli_bundle
@@ -3720,6 +3723,23 @@ g.add_argument(
     default=None,
     help="Write an .npz bundle with per-video SLI and COM magnitude time-series "
     "for this run's vas (used for cross-run top-SLI COM plots).",
+)
+g.add_argument(
+    "--export-between-reward-maxdist-sli-bundle",
+    type=str,
+    default=None,
+    help=(
+        "Write an .npz bundle with mean between-reward max distance by sync bucket "
+        "+ SLI for multi-group overlays."
+    ),
+)
+g.add_argument(
+    "--between-reward-maxdist-sli-debug",
+    action="store_true",
+    help=(
+        "Debug export of between-reward-maxdist+SLI bundle: print per-video finite "
+        "counts and bucket inference warnings."
+    ),
 )
 g.add_argument(
     "--export-turnback-sli-bundle",
@@ -8324,6 +8344,11 @@ def postAnalyze(vas):
 
     if getattr(opts, "export_com_sli_bundle", None):
         export_com_sli_bundle(vas, opts, gls, opts.export_com_sli_bundle)
+
+    if getattr(opts, "export_between_reward_maxdist_sli_bundle", None):
+        export_between_reward_maxdist_sli_bundle(
+            vas, opts, gls, opts.export_between_reward_maxdist_sli_bundle
+        )
 
     if getattr(opts, "export_cum_reward_sli_bundle", None):
         if getattr(opts, "cum_reward_sli_group", None) is not None:

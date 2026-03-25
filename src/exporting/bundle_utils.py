@@ -106,10 +106,10 @@ def save_metric_plus_sli_bundle(
     payload = dict(
         sli=np.asarray(sli, dtype=float),
         sli_ts=np.asarray(sli_ts, dtype=float),
-        group_label=np.array(group_label, dtype=object),
+        group_label=np.asarray(group_label),
         bucket_len_min=np.array(bucket_len_min, dtype=float),
-        training_names=training_names,
-        video_ids=video_ids,
+        training_names=np.asarray(training_names, dtype=str),
+        video_ids=np.asarray(video_ids, dtype=str),
         sli_training_idx=np.array(getattr(opts, "best_worst_trn", 1) - 1, dtype=int),
         sli_use_training_mean=np.array(
             bool(getattr(opts, "sli_use_training_mean", False))

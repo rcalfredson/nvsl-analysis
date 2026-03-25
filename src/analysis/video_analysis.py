@@ -4180,6 +4180,97 @@ class VideoAnalysis:
             self.syncMeanLgTurnStartDist.append(this_training)
             self.syncMeanLgTurnStartDistN.append(this_training_n)
 
+    def bySyncBucketMeanBetweenRewardMaxDist(self):
+        """
+        For each sync bucket, compute the mean per-segment maximum distance (mm)
+        from the reward-circle center across between-reward trajectories.
+
+        Results:
+            self.syncMeanBetweenRewardMaxDist: list (per training) of dicts with
+                'exp' and optionally 'ctrl' keys mapping to per-bucket means.
+            self.syncMeanBetweenRewardMaxDistN: same shape, but counts per bucket.
+        """
+        df = self._numRewardsMsg(True, silent=True)
+
+        self.syncMeanBetweenRewardMaxDist = []
+        self.syncMeanBetweenRewardMaxDistN = []
+
+        fly_keys = ("exp", "ctrl") if len(self.trx) > 1 else ("exp",)
+
+        for trn in self.trns:
+            fi, n_buckets, _ = self._syncBucket(trn, df)
+            n_buckets = int(n_buckets or 0)
+
+            this_training = {}
+            this_training_n = {}
+
+            if fi is None or n_buckets == 0:
+                for fly_key in fly_keys:
+                    this_training[fly_key] = [np.nan] * n_buckets
+                    this_training_n[fly_key] = [0] * n_buckets
+                self.syncMeanBetweenRewardMaxDist.append(this_training)
+                self.syncMeanBetweenRewardMaxDistN.append(this_training_n)
+                continue
+
+            starts = [int(fi + k * df) for k in range(n_buckets)]
+            complete = [(trn.stop - s) >= df for s in starts]
+
+            for fly_key in fly_keys:
+                fly_idx = 0 if fly_key == "exp" else 1
+                traj = self.trx[fly_idx]
+
+                if getattr(traj, "_bad", False) or traj.bad():
+                    this_training[fly_key] = [np.nan] * n_buckets
+                    this_training_n[fly_key] = [0] * n_buckets
+                    continue
+
+                sums = np.zeros(n_buckets, dtype=float)
+                counts = np.zeros(n_buckets, dtype=int)
+
+                for seg in self._iter_between_reward_segment_com(
+                    trn,
+                    fly_idx,
+                    fi=fi,
+                    df=df,
+                    n_buckets=n_buckets,
+                    complete=complete,
+                    relative_to_reward=True,
+                    per_segment_min_meddist_mm=0.0,
+                    exclude_wall=False,
+                    wc=None,
+                    exclude_nonwalk=False,
+                    nonwalk_mask=None,
+                    min_walk_frames=2,
+                    dist_stats=("max",),
+                    debug=False,
+                    yield_skips=False,
+                ):
+                    b_idx = int(getattr(seg, "b_idx", -1))
+                    max_d_mm = float(getattr(seg, "max_d_mm", np.nan))
+                    if b_idx < 0 or b_idx >= n_buckets:
+                        continue
+                    if not complete[b_idx]:
+                        continue
+                    if not np.isfinite(max_d_mm):
+                        continue
+                    sums[b_idx] += max_d_mm
+                    counts[b_idx] += 1
+
+                means = [np.nan] * n_buckets
+                ns = [0] * n_buckets
+                for b_idx in range(n_buckets):
+                    if not complete[b_idx]:
+                        continue
+                    if counts[b_idx] > 0:
+                        means[b_idx] = sums[b_idx] / counts[b_idx]
+                        ns[b_idx] = int(counts[b_idx])
+
+                this_training[fly_key] = means
+                this_training_n[fly_key] = ns
+
+            self.syncMeanBetweenRewardMaxDist.append(this_training)
+            self.syncMeanBetweenRewardMaxDistN.append(this_training_n)
+
     def bySyncBucketMedDist(self):
         """
         For each sync-bucket, compute the median of per-frame distances to the

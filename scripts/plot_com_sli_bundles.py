@@ -18,6 +18,7 @@ def main():
             "commag",
             "sli",
             "weaving",
+            "between_reward_maxdist",
             "turnback",
             "agarose",
             "wallpct",

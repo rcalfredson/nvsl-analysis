@@ -40,6 +40,7 @@ def load_sli_bundle(path: str) -> dict:
 
     prefixes = (
         "commag_",
+        "between_reward_",
         "cum_reward_sli_",
         "weaving_",
         "wallpct_",
