@@ -49,6 +49,7 @@ def load_sli_bundle(path: str) -> dict:
         "lgturn_",
         "reward_lgturn_",
         "reward_lv_",
+        "return_prob_",
         "sli_",
     )
     for k in d.files:

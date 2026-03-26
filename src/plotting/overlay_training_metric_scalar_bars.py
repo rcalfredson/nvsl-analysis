@@ -222,6 +222,42 @@ def _legend_n_for_group(x: ExportedTrainingScalarBars) -> int | None:
     return None
 
 
+def _constant_group_n(x: ExportedTrainingScalarBars) -> int | None:
+    """
+    Return a group's single constant positive n across all panels, or None if the
+    sample size varies by panel or is unavailable.
+    """
+    if x.n_units_panel is None:
+        return None
+    n = np.asarray(x.n_units_panel, int).ravel()
+    n = n[np.isfinite(n) & (n > 0)]
+    if n.size == 0:
+        return None
+    uniq = np.unique(n)
+    if uniq.size != 1:
+        return None
+    return int(uniq[0])
+
+
+def _global_constant_legend_n(xs: list[ExportedTrainingScalarBars]) -> int | None:
+    """
+    Return a single legend n only when every plotted group has the same constant
+    positive n across all panels. Otherwise return None and prefer per-panel labels.
+    """
+    if not xs:
+        return None
+    ns = []
+    for x in xs:
+        n = _constant_group_n(x)
+        if n is None:
+            return None
+        ns.append(int(n))
+    uniq = np.unique(np.asarray(ns, dtype=int))
+    if uniq.size != 1:
+        return None
+    return int(uniq[0])
+
+
 def _legend_n_from_paired(paired_n_per_panel: np.ndarray, P: int) -> int | None:
     if paired_n_per_panel is None or P <= 0:
         return None
@@ -358,17 +394,18 @@ def plot_overlays(
             lo_plot.append(np.asarray(x.ci_lo, float))
             hi_plot.append(np.asarray(x.ci_hi, float))
 
+    if stats and stats_paired and paired_n_per_panel is not None:
+        global_legend_n = _legend_n_from_paired(paired_n_per_panel, P)
+    else:
+        global_legend_n = _global_constant_legend_n(xs)
+
     for gi, x in enumerate(xs):
         xg = x_centers + offsets[gi]
         xpos_by_group.append(np.asarray(xg, float))
 
         y = np.asarray(means_plot[gi], float)
         y_plot = np.where(np.isfinite(y), y, 0.0)
-        # n_leg = _legend_n_for_group(x)
-        if stats and stats_paired and paired_n_per_panel is not None:
-            n_leg = _legend_n_from_paired(paired_n_per_panel, P)
-        else:
-            n_leg = _legend_n_for_group(x)
+        n_leg = global_legend_n
         label = f"{x.group} (n={n_leg})" if n_leg is not None else f"{x.group}"
         ax.bar(xg, y_plot, width=bar_w, align="center", label=label)
 
@@ -400,11 +437,7 @@ def plot_overlays(
 
     # ---- per-panel n labels (only when legend n is omitted) ----
     # Show per-panel n centered on each tick, above the tallest bar/CI in that panel.
-    need_per_panel_n = (
-        (P > 1)
-        and any(_legend_n_for_group(x) is None for x in xs)
-        and not (stats and stats_paired)
-    )
+    need_per_panel_n = (global_legend_n is None) and not (stats and stats_paired)
 
     if need_per_panel_n:
         ylim0, ylim1 = ax.get_ylim()
@@ -423,7 +456,7 @@ def plot_overlays(
 
             uniq = sorted(set(ns))
             n_text = (
-                f"n={uniq[0]}" if len(uniq) == 1 else "n=" + "/".join(map(str, uniq))
+                f"n={uniq[0]}" if len(uniq) == 1 else "n=" + "/".join(map(str, ns))
             )
 
             # baseline above tallest bar/CI at this panel
