@@ -25,6 +25,7 @@ class EventChainPlotter:
         # key: (trn_index, bucket_index) -> set of (start_reward, end_reward)
         self._used_between_reward_pairs = {}
         self._used_reward_return_episodes = {}
+        self._used_return_prob_episodes = {}
 
     def _get_bucket_range(
         self, *, trn_index: int, bucket_index: int
@@ -51,6 +52,98 @@ class EventChainPlotter:
         if bucket_index < 0 or bucket_index >= len(buckets) - 1:
             return None
         return int(buckets[bucket_index]), int(buckets[bucket_index + 1])
+
+    def _return_prob_windowing(self) -> Tuple[int, int, int]:
+        opts = getattr(self.va, "opts", None)
+        raw_skip = getattr(opts, "return_prob_outer_radius_skip_first_sync_buckets", None)
+        raw_keep = getattr(opts, "return_prob_outer_radius_keep_first_sync_buckets", None)
+        skip_first = (
+            getattr(opts, "skip_first_sync_buckets", 0) if raw_skip is None else raw_skip
+        )
+        keep_first = (
+            getattr(opts, "keep_first_sync_buckets", 0) if raw_keep is None else raw_keep
+        )
+        last_sync = int(
+            getattr(opts, "return_prob_outer_radius_last_sync_buckets", 0) or 0
+        )
+        return max(0, int(skip_first or 0)), max(0, int(keep_first or 0)), max(
+            0, last_sync
+        )
+
+    def _selected_return_prob_windows_for_training(self, trn_index: int):
+        sync_ranges = getattr(self.va, "sync_bucket_ranges", None)
+        if trn_index < 0 or trn_index >= len(getattr(self.va, "trns", [])):
+            return []
+        trn = self.va.trns[trn_index]
+        if trn is None or not trn.isCircle():
+            return []
+
+        skip_first, keep_first, last_sync_buckets = self._return_prob_windowing()
+        if sync_ranges and trn_index < len(sync_ranges) and sync_ranges[trn_index]:
+            rr = list(sync_ranges[trn_index])
+            rr = rr[max(0, int(skip_first)) :]
+            if keep_first > 0:
+                rr = rr[: int(keep_first)]
+            if last_sync_buckets > 0:
+                rr = rr[-int(last_sync_buckets) :]
+            if not rr:
+                return []
+            return [(int(a), int(b)) for (a, b) in rr]
+
+        return [(int(trn.start), int(trn.stop))]
+
+    @staticmethod
+    def _frame_in_ranges(frame: int, ranges) -> bool:
+        for a, b in ranges:
+            if int(a) <= frame < int(b):
+                return True
+        return False
+
+    def _return_prob_window_counts(
+        self,
+        *,
+        trn_index: int,
+        outer_delta_mm: float,
+        reward_delta_mm: float,
+        border_width_mm: float,
+        ctrl: bool,
+    ) -> Tuple[Optional[Tuple[int, int, int]], str]:
+        ranges = self._selected_return_prob_windows_for_training(trn_index)
+        if not ranges:
+            return None, "no selected window"
+
+        trn = self.va.trns[trn_index]
+        episodes = self.trj.reward_return_probability_episodes_for_training(
+            trn=trn,
+            outer_delta_mm=outer_delta_mm,
+            reward_delta_mm=reward_delta_mm,
+            border_width_mm=border_width_mm,
+            ctrl=ctrl,
+            debug=False,
+        )
+        if not episodes:
+            return (0, 0, 0), self._return_prob_window_label(ranges)
+
+        succ = 0
+        fail = 0
+        for ep in episodes:
+            event_t = int(ep["stop"]) - 1
+            if not self._frame_in_ranges(event_t, ranges):
+                continue
+            if bool(ep.get("returns", False)):
+                succ += 1
+            else:
+                fail += 1
+        return (succ, fail, succ + fail), self._return_prob_window_label(ranges)
+
+    @staticmethod
+    def _return_prob_window_label(ranges) -> str:
+        if not ranges:
+            return "window"
+        if len(ranges) == 1:
+            a, b = ranges[0]
+            return f"[{int(a)},{int(b)})"
+        return f"{len(ranges)} buckets"
 
     def draw_custom_arrowhead(
         self,
@@ -1931,6 +2024,360 @@ class EventChainPlotter:
             f"imgs/reward_return_distance/"
             f"{video_id}__fly{fly_idx}_role{role_idx}_"
             f"trn{trn_index + 1}_bkt{bucket_index + 1}_"
+            f"N{n_examples}_seed{seed_str}_{mode}."
+            f"{image_format}"
+        )
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+        fig.subplots_adjust(
+            left=0.04, right=0.98, top=0.9, bottom=0.20, wspace=0.01, hspace=0.25
+        )
+        writeImage(output_path, format=image_format)
+        plt.close(fig)
+
+    def plot_return_prob_chain(
+        self,
+        trn_index: int,
+        bucket_index: int,
+        *,
+        outer_delta_mm: float,
+        reward_delta_mm: float = 0.0,
+        border_width_mm: float = 0.1,
+        seed: Optional[int] = None,
+        image_format: Optional[str] = None,
+        role_idx: Optional[int] = None,
+        num_examples: int = 1,
+        include_failures: bool = False,
+        pad_frames: int = 5,
+    ) -> None:
+        """
+        Plot one or more return-probability trajectory segments for this fly,
+        sampled within the specified training and sync bucket.
+
+        Episodes are sourced from Trajectory.reward_return_probability_episodes_for_training().
+        Bucket assignment follows the exported metric: an episode belongs to a sync bucket
+        according to its outcome frame (stop - 1).
+        """
+        image_format = image_format or self.image_format
+        num_examples = max(1, int(num_examples))
+        pad_frames = max(0, int(pad_frames))
+
+        if trn_index < 0 or trn_index >= len(getattr(self.va, "trns", [])):
+            print(
+                f"[plot_return_prob_chain] Invalid trn_index={trn_index}; "
+                f"valid range is 0..{len(self.va.trns) - 1}"
+            )
+            return
+
+        trn = self.va.trns[trn_index]
+        if trn is None or not trn.isCircle():
+            print(
+                f"[plot_return_prob_chain] Training {trn_index + 1} is not a circle."
+            )
+            return
+
+        bucket_range = self._get_bucket_range(
+            trn_index=trn_index, bucket_index=bucket_index
+        )
+        if bucket_range is None:
+            print(
+                f"[plot_return_prob_chain] Invalid bucket_index={bucket_index} "
+                f"for trn_index={trn_index}."
+            )
+            return
+        bkt_start, bkt_end = bucket_range
+
+        if role_idx is None:
+            try:
+                role_idx = self.va.flies.index(self.trj.f)
+            except Exception:
+                role_idx = 0
+        ctrl = bool(role_idx == 1)
+        window_counts, window_label = self._return_prob_window_counts(
+            trn_index=trn_index,
+            outer_delta_mm=outer_delta_mm,
+            reward_delta_mm=reward_delta_mm,
+            border_width_mm=border_width_mm,
+            ctrl=ctrl,
+        )
+
+        episodes = self.trj.reward_return_probability_episodes_for_training(
+            trn=trn,
+            outer_delta_mm=outer_delta_mm,
+            reward_delta_mm=reward_delta_mm,
+            border_width_mm=border_width_mm,
+            ctrl=ctrl,
+            debug=False,
+        )
+        if not episodes:
+            print(
+                f"[plot_return_prob_chain] No return-probability episodes for fly {self.trj.f}, "
+                f"training {trn_index + 1}."
+            )
+            return
+
+        eps_in_bucket = []
+        for ep in episodes:
+            event_t = int(ep["stop"]) - 1
+            if bkt_start <= event_t < bkt_end:
+                if include_failures or bool(ep.get("returns", False)):
+                    eps_in_bucket.append(ep)
+
+        if not eps_in_bucket:
+            mode = "incl failures" if include_failures else "success-only"
+            print(
+                f"[plot_return_prob_chain] No return-probability episodes in bucket "
+                f"{bucket_index + 1} ({mode}) for fly {self.trj.f}, trn {trn_index + 1}."
+            )
+            return
+
+        key = (trn_index, bucket_index, float(outer_delta_mm), bool(ctrl))
+        used = self._used_return_prob_episodes.setdefault(key, set())
+
+        def _ep_key(ep) -> Tuple[int, int, str]:
+            return (
+                int(ep["start"]),
+                int(ep.get("stop", -1)),
+                str(ep.get("end_reason", "")),
+            )
+
+        candidates = [ep for ep in eps_in_bucket if _ep_key(ep) not in used]
+        if not candidates:
+            print(
+                f"[plot_return_prob_chain] All return-probability episodes already used "
+                f"for fly {self.trj.f}, trn {trn_index + 1}, bucket {bucket_index + 1}."
+            )
+            return
+
+        rng = random.Random(seed) if seed is not None else random
+        rng.shuffle(candidates)
+
+        n_frames = len(self.x)
+        selected = []
+        for ep in candidates:
+            s_abs = int(ep["start"])
+            end_abs = int(ep["stop"]) - 1
+            start_frame = max(0, s_abs - pad_frames)
+            end_frame = min(n_frames - 1, end_abs + pad_frames)
+            if start_frame < end_frame:
+                selected.append((ep, start_frame, end_frame, end_abs))
+                used.add(_ep_key(ep))
+                if len(selected) >= num_examples:
+                    break
+
+        if not selected:
+            print(
+                f"[plot_return_prob_chain] No valid frame ranges after padding for fly {self.trj.f}, "
+                f"trn {trn_index + 1}, bucket {bucket_index + 1}."
+            )
+            return
+
+        floor_coords = list(
+            self.va.ct.floor(self.va.xf, f=self.va.nef * (self.trj.f) + self.va.ef)
+        )
+        top_left, bottom_right = floor_coords[0], floor_coords[1]
+
+        contact_buffer_mm = CONTACT_BUFFER_OFFSETS["wall"]["max"]
+        contact_buffer_px = (
+            self.va.ct.pxPerMmFloor() * self.va.xf.fctr * contact_buffer_mm
+        )
+
+        reward_circle = None
+        try:
+            reward_circle = trn.circles(self.trj.f)[0]
+        except Exception:
+            reward_circle = None
+
+        px_per_mm = float(self.va.ct.pxPerMmFloor()) * float(
+            getattr(self.va.xf, "fctr", 1.0) or 1.0
+        )
+        outer_circle = None
+        if reward_circle is not None:
+            rcx, rcy, rcr = reward_circle
+            outer_circle = (rcx, rcy, float(rcr) + float(outer_delta_mm) * px_per_mm)
+            reward_circle = (rcx, rcy, float(rcr) + float(reward_delta_mm) * px_per_mm)
+
+        padding_x = (bottom_right[0] - top_left[0]) * 0.1
+        padding_y = (top_left[1] - bottom_right[1]) * 0.1
+
+        n_examples = len(selected)
+        n_cols = min(5, n_examples)
+        n_rows = int(math.ceil(n_examples / n_cols))
+
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(4 * n_cols, 8 * n_rows))
+        axes = np.atleast_1d(axes).ravel()
+
+        big_arrow_kwargs = {"length": 3.0, "linewidth": 2.0}
+
+        for idx, (ep, start_frame, end_frame, end_abs) in enumerate(selected):
+            ax = axes[idx]
+            plt.sca(ax)
+
+            rect = patches.FancyBboxPatch(
+                (top_left[0], top_left[1]),
+                bottom_right[0] - top_left[0],
+                bottom_right[1] - top_left[1],
+                boxstyle="round,pad=0.05,rounding_size=2",
+                linewidth=1,
+                edgecolor="black",
+                facecolor="none",
+                zorder=2,
+            )
+            ax.add_patch(rect)
+
+            self._draw_sidewall_contact_region(
+                lower_left_x=top_left[0],
+                lower_left_y=top_left[1],
+                top_left=top_left,
+                bottom_right=bottom_right,
+                contact_buffer_px=contact_buffer_px,
+            )
+
+            if reward_circle is not None:
+                rcx, rcy, rcr = reward_circle
+                ax.add_patch(
+                    plt.Circle(
+                        (rcx, rcy),
+                        rcr,
+                        color="lightgray",
+                        fill=False,
+                        linestyle="-",
+                        linewidth=1.5,
+                        zorder=3,
+                        label="Reward circle",
+                    )
+                )
+            if outer_circle is not None:
+                ox, oy, orad = outer_circle
+                ax.add_patch(
+                    plt.Circle(
+                        (ox, oy),
+                        orad,
+                        color="lightgray",
+                        fill=False,
+                        linestyle="--",
+                        linewidth=1.2,
+                        zorder=3,
+                        label="Outer circle",
+                    )
+                )
+
+            ax.set_aspect("equal", adjustable="box")
+            ax.axis("off")
+            ax.set_xlim(top_left[0] - padding_x, bottom_right[0] + padding_x)
+            ax.set_ylim(bottom_right[1] - padding_y, top_left[1] + padding_y)
+
+            last_arrow_idx = None
+            arrow_interval = 3
+
+            for i in range(start_frame, end_frame):
+                if (
+                    np.isnan(self.x[i])
+                    or np.isnan(self.y[i])
+                    or np.isnan(self.x[i + 1])
+                    or np.isnan(self.y[i + 1])
+                ):
+                    continue
+
+                x_start, x_end = self.x[i], self.x[i + 1]
+                y_start, y_end = self.y[i], self.y[i + 1]
+
+                x_start = max(min(x_start, bottom_right[0]), top_left[0])
+                x_end = max(min(x_end, bottom_right[0]), top_left[0])
+
+                ax.plot([x_start, x_end], [y_start, y_end], linewidth=0.75, zorder=3)
+
+                if getattr(self.trj, "walking", None) is not None:
+                    if not self.trj.walking[i + 1]:
+                        continue
+
+                speed = np.hypot(x_end - x_start, y_end - y_start)
+                last_arrow_idx = self._draw_arrow_for_speed(
+                    i,
+                    x_start,
+                    x_end,
+                    y_start,
+                    y_end,
+                    last_arrow_idx,
+                    arrow_interval,
+                    speed,
+                    arrow_kwargs=big_arrow_kwargs,
+                )
+
+            s_abs = int(ep["start"])
+            s_ok = 0 <= s_abs < len(self.x)
+            e_ok = 0 <= end_abs < len(self.x)
+
+            if s_ok:
+                ax.plot(
+                    self.x[s_abs],
+                    self.y[s_abs],
+                    marker="o",
+                    markersize=6,
+                    zorder=4,
+                    label="Reward exit (start)",
+                )
+
+            success = bool(ep.get("returns", False))
+            if e_ok:
+                ax.plot(
+                    self.x[end_abs],
+                    self.y[end_abs],
+                    marker="o",
+                    markersize=6,
+                    zorder=4,
+                    label=("Reward return" if success else "Outer-circle exit"),
+                )
+
+            end_reason = str(ep.get("end_reason", ""))
+            ax.set_title(
+                f"seg {idx + 1}: frames {start_frame}-{end_frame}\n"
+                f"start {s_abs} → end {end_abs} ({end_reason})",
+                fontsize=9,
+            )
+
+            if idx == 0:
+                handles, labels = ax.get_legend_handles_labels()
+                if handles:
+                    ax.legend(
+                        handles=handles,
+                        labels=labels,
+                        loc="lower center",
+                        bbox_to_anchor=(0.7, -0.15),
+                        fancybox=True,
+                        shadow=True,
+                        ncol=2,
+                        fontsize=8,
+                    )
+
+        for ax in axes[n_examples:]:
+            ax.axis("off")
+
+        video_id = os.path.splitext(os.path.basename(self.va.fn))[0]
+        fly_idx = self.va.f
+
+        seed_str = f"{seed}" if seed is not None else "rand"
+        fly_role = "exp" if role_idx == 0 else "yok"
+        mode = "succ+fail" if include_failures else "succ"
+        window_line = ""
+        if window_counts is not None:
+            succ_n, fail_n, total_n = window_counts
+            window_line = (
+                f"\nwindow {window_label}: succ={succ_n} fail={fail_n} total={total_n}"
+            )
+        fig.suptitle(
+            "Return-probability trajectories\n"
+            f"{video_id}, fly {fly_idx}, {fly_role}\n"
+            f"trn {trn_index + 1}, bucket {bucket_index + 1}, outer+{float(outer_delta_mm):g} mm ({mode})"
+            f"{window_line}",
+            fontsize=12,
+        )
+
+        output_path = (
+            f"imgs/return_probability/"
+            f"{video_id}__fly{fly_idx}_role{role_idx}_"
+            f"trn{trn_index + 1}_bkt{bucket_index + 1}_"
+            f"outer{float(outer_delta_mm):g}mm_"
             f"N{n_examples}_seed{seed_str}_{mode}."
             f"{image_format}"
         )

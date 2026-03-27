@@ -284,6 +284,8 @@ class VideoAnalysis:
             if getattr(opts, "reward_return_distance", False):
                 self.analyzeRewardReturnDistance()
                 self._maybe_plot_rrd_segments(self.opts)
+            if getattr(opts, "return_prob_seg_plots", False):
+                self._maybe_plot_return_prob_segments(self.opts)
             if getattr(opts, "btw_rwd_shortest_tail", False):
                 self.byShortestBetweenRewardDistances(
                     trainings=getattr(opts, "btw_rwd_shortest_tail_trainings", None),
@@ -1327,6 +1329,73 @@ class VideoAnalysis:
                 min_inside_return_frames=min_inside_return_frames,
                 border_width_mm=border_width_mm,
                 exclude_wall_contact=exclude_wall_contact,
+                seed=seed,
+                image_format=opts.imageFormat,
+                role_idx=role_idx,
+                num_examples=num_examples,
+                include_failures=include_failures,
+            )
+
+    def _maybe_plot_return_prob_segments(self, opts) -> None:
+        """
+        Optional debug/inspection plot: return-probability trajectory segments in a
+        chosen (trn, bucket) at a fixed outer radius.
+
+        Expects opts:
+        - return_prob_seg_plots (bool)
+        - return_prob_seg_trn (int, 1-based)
+        - return_prob_seg_bkt (int, 1-based)
+        - return_prob_seg_outer_delta_mm (float)
+        - return_prob_seg_num (int)
+        - return_prob_seg_seed (int|None)
+        - return_prob_seg_include_failures (bool)
+        """
+        if not (
+            getattr(opts, "return_prob_seg_plots", False)
+            and getattr(opts, "return_prob_seg_trn", None) is not None
+            and getattr(opts, "return_prob_seg_bkt", None) is not None
+        ):
+            return
+
+        trn_index = int(opts.return_prob_seg_trn) - 1
+        bucket_index = int(opts.return_prob_seg_bkt) - 1
+        outer_delta_mm = float(
+            getattr(opts, "return_prob_seg_outer_delta_mm", 6.0) or 6.0
+        )
+        num_examples = int(getattr(opts, "return_prob_seg_num", 1) or 1)
+        seed = getattr(opts, "return_prob_seg_seed", None)
+        include_failures = bool(
+            getattr(opts, "return_prob_seg_include_failures", False)
+        )
+        reward_delta_mm = float(
+            getattr(opts, "return_prob_reward_delta_mm", 0.0) or 0.0
+        )
+        border_width_mm = float(
+            getattr(opts, "return_prob_border_width_mm", 0.1) or 0.1
+        )
+
+        for trj in self.trx:
+            if self._bad(trj.f):
+                continue
+
+            plotter = EventChainPlotter(
+                trj,
+                self,
+                y_bounds=None,
+                image_format=opts.imageFormat,
+            )
+
+            try:
+                role_idx = self.flies.index(trj.f)
+            except Exception:
+                role_idx = 0
+
+            plotter.plot_return_prob_chain(
+                trn_index=trn_index,
+                bucket_index=bucket_index,
+                outer_delta_mm=outer_delta_mm,
+                reward_delta_mm=reward_delta_mm,
+                border_width_mm=border_width_mm,
                 seed=seed,
                 image_format=opts.imageFormat,
                 role_idx=role_idx,

@@ -2816,6 +2816,49 @@ rrd.add_argument(
     help="Include failure episodes (exit_return/trn_end/dropped_wall) in plotted segments.",
 )
 
+rpseg = p.add_argument_group("Return-probability segment plots")
+
+rpseg.add_argument(
+    "--return-prob-seg-plots",
+    action="store_true",
+    help="Write debug plots of return-probability trajectory segments for a chosen training/bucket.",
+)
+rpseg.add_argument(
+    "--return-prob-seg-trn",
+    type=int,
+    default=None,
+    help="1-based training index for --return-prob-seg-plots.",
+)
+rpseg.add_argument(
+    "--return-prob-seg-bkt",
+    type=int,
+    default=None,
+    help="1-based sync bucket index for --return-prob-seg-plots.",
+)
+rpseg.add_argument(
+    "--return-prob-seg-outer-delta-mm",
+    type=float,
+    default=6.0,
+    help="Outer-circle radius offset from reward circle (mm) for plotted segments.",
+)
+rpseg.add_argument(
+    "--return-prob-seg-num",
+    type=int,
+    default=1,
+    help="Max number of segments to plot per fly (default: 1).",
+)
+rpseg.add_argument(
+    "--return-prob-seg-seed",
+    type=int,
+    default=None,
+    help="Random seed for choosing segments (default: random).",
+)
+rpseg.add_argument(
+    "--return-prob-seg-include-failures",
+    action="store_true",
+    help="Include failure episodes (exit_outer) in plotted segments.",
+)
+
 g.add_argument(
     "--btw-rwd-polar",
     action="store_true",

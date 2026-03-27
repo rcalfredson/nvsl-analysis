@@ -4,6 +4,7 @@ import argparse
 import matplotlib.pyplot as plt
 
 from src.plotting.return_prob_outer_radius_sli_bundle_plotter import (
+    export_return_prob_outer_radius_csv,
     plot_return_prob_outer_radius_sli_bundles,
 )
 
@@ -26,6 +27,12 @@ def main():
         default="exp",
         choices=["exp", "ctrl", "exp_minus_ctrl"],
         help="Which return-probability curve to plot.",
+    )
+    p.add_argument(
+        "--metric",
+        default="ratio",
+        choices=["ratio", "success", "failure", "total", "stacked"],
+        help="Which value to plot from the bundle (default: ratio).",
     )
     p.add_argument(
         "--title",
@@ -88,6 +95,17 @@ def main():
         action="store_true",
         help="Additional debug output when stats are enabled.",
     )
+    p.add_argument(
+        "--csv-out",
+        default=None,
+        help="Optional CSV output path for per-fly rows behind one chosen outer-radius delta.",
+    )
+    p.add_argument(
+        "--csv-outer-delta-mm",
+        type=float,
+        default=None,
+        help="Outer-radius delta to export to CSV. Required when --csv-out is used.",
+    )
     args = p.parse_args()
 
     shared_frac = getattr(args, "best_worst_fraction", None)
@@ -111,11 +129,28 @@ def main():
     if args.labels:
         labels = [s.strip() for s in args.labels.split(",") if s.strip()]
 
+    if args.csv_out is not None:
+        if args.csv_outer_delta_mm is None:
+            raise SystemExit("--csv-outer-delta-mm is required when --csv-out is used.")
+        export_return_prob_outer_radius_csv(
+            bundles,
+            args.csv_out,
+            labels=labels,
+            mode=args.mode,
+            outer_delta_mm=float(args.csv_outer_delta_mm),
+            sli_extremes=args.sli_extremes,
+            sli_fraction=shared_frac,
+            sli_top_fraction=top_frac,
+            sli_bottom_fraction=bottom_frac,
+            standalone_extreme_labels=bool(args.standalone_extreme_labels),
+        )
+
     fig = plot_return_prob_outer_radius_sli_bundles(
         bundles,
         args.out,
         labels=labels,
         mode=args.mode,
+        metric=args.metric,
         sli_extremes=args.sli_extremes,
         sli_fraction=shared_frac,
         sli_top_fraction=top_frac,
