@@ -28,11 +28,17 @@ BBOX_STYLE = dict(
 @dataclass
 class CorrelationPlotConfig:
     out_dir: Path
+    image_format: str = "png"
     dot_color: str = "#005bbb"
     alpha: float = 0.85
     figsize: tuple = (5.5, 4.5)
     xlim: Optional[Tuple[float, float]] = None
     ylim: Optional[Tuple[float, float]] = None
+
+
+def _correlation_out_path(out_dir: Path, filename: str, image_format: str) -> Path:
+    ext = image_format or "png"
+    return out_dir / f"{filename}.{ext}"
 
 
 @dataclass(frozen=True)
@@ -353,6 +359,7 @@ def plot_selected_group_scatter(
     xlim: tuple[float, float] | None = None,
     ylim: tuple[float, float] | None = None,
     include_all_corr: bool = False,
+    image_format: str = "png",
 ):
     """
     Plot all points, highlighting selected top/bottom SLI groups and reporting
@@ -500,7 +507,8 @@ def plot_selected_group_scatter(
 
     customizer.adjust_padding_proportionally()
     fig.tight_layout(rect=(0, 0, 1, 0.98))
-    writeImage(str(out_dir / f"{filename}.png"), format="png")
+    out_path = _correlation_out_path(out_dir, filename, image_format)
+    writeImage(str(out_path), format=image_format)
     plt.close(fig)
 
 
@@ -544,7 +552,8 @@ def _scatter_with_corr(
 
     customizer.adjust_padding_proportionally()
     fig.tight_layout()
-    writeImage(str(cfg.out_dir / f"{filename}.png"), format="png")
+    out_path = _correlation_out_path(cfg.out_dir, filename, cfg.image_format)
+    writeImage(str(out_path), format=cfg.image_format)
     plt.close(fig)
 
 
@@ -837,6 +846,7 @@ def plot_fast_vs_strong_scatter(
     strong_y_label: str,
     strong_title_suffix: str,
     x_label: str,
+    image_format: str = "png",
 ):
     """
     Scatter plot of:
@@ -999,8 +1009,8 @@ def plot_fast_vs_strong_scatter(
     customizer.adjust_padding_proportionally()
 
     fig.tight_layout(rect=(0, 0, 1, 0.96))
-    out_path = out_dir / "scatter_fast_vs_strong.png"
-    writeImage(str(out_path), format="png")
+    out_path = _correlation_out_path(out_dir, "scatter_fast_vs_strong", image_format)
+    writeImage(str(out_path), format=image_format)
     plt.close(fig)
 
 
@@ -1013,6 +1023,7 @@ def plot_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow(
     frac: float,
     customizer: PlotCustomizer,
     early_label: str,
+    image_format: str = "png",
 ):
     """
     Correlation plot:
@@ -1131,8 +1142,12 @@ def plot_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow(
 
     customizer.adjust_padding_proportionally()
 
-    out_path = out_dir / "corr_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow.png"
-    writeImage(str(out_path), format="png")
+    out_path = _correlation_out_path(
+        out_dir,
+        "corr_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow",
+        image_format,
+    )
+    writeImage(str(out_path), format=image_format)
     plt.close(fig)
 
 
@@ -1176,6 +1191,7 @@ def plot_cross_fly_correlations(
 
     cfg = CorrelationPlotConfig(
         out_dir=out_dir,
+        image_format=getattr(opts, "imageFormat", "png"),
         xlim=getattr(opts, "corr_xlim", None),
         ylim=getattr(opts, "corr_ylim", None),
     )
@@ -1482,6 +1498,7 @@ def plot_cross_fly_correlations(
             bottom_label=bottom_sel_label,
             xlim=cfg.xlim,
             ylim=cfg.ylim,
+            image_format=cfg.image_format,
         )
 
     # --- Plot 1b: SLI_final vs reward-per-time (SLI on Y axis) ---
@@ -1524,6 +1541,7 @@ def plot_cross_fly_correlations(
             xlim=cfg.xlim,
             ylim=cfg.ylim,
             include_all_corr=True,
+            image_format=cfg.image_format,
         )
 
     # --- Plot 2: SLI_final vs median training distance ---
@@ -1597,6 +1615,7 @@ def plot_cross_fly_correlations(
                 bottom_label=bottom_sel_label,
                 xlim=cfg.xlim,
                 ylim=cfg.ylim,
+                image_format=cfg.image_format,
             )
     else:
         print(
@@ -1649,6 +1668,7 @@ def plot_cross_fly_correlations(
             bottom_label=bottom_sel_label,
             xlim=cfg.xlim,
             ylim=cfg.ylim,
+            image_format=cfg.image_format,
         )
 
     if reward_pi_training_vals is not None:
@@ -1721,6 +1741,7 @@ def plot_cross_fly_correlations(
                 frac=frac,
                 customizer=customizer,
                 early_label=early_lbl,
+                image_format=cfg.image_format,
             )
 
         # --- Plot 5d: Baseline PI vs early SLI for selected SLI groups ---
@@ -1759,6 +1780,7 @@ def plot_cross_fly_correlations(
                 bottom_label=bottom_sel_label,
                 xlim=cfg.xlim,
                 ylim=cfg.ylim,
+                image_format=cfg.image_format,
             )
 
     else:
@@ -1780,4 +1802,5 @@ def plot_cross_fly_correlations(
             strong_y_label=x_label_sli,
             strong_title_suffix=sli_ctx.label_short(),
             x_label=t1_sb1_lbl,
+            image_format=cfg.image_format,
         )
