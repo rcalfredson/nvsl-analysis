@@ -193,7 +193,7 @@ def export_reward_lgturn_pathlen_sli_bundle(vas, opts, gls, out_fn):
     _dbg(opts, f"[reward-lgturn-pathlen-export] out={out_fn}")
     _dbg(
         opts,
-        f"[reward-lgturn-pathlen-export] group_label={group_label!r} n_videos={len(vas_ok)} noyc={getattr(va0, "noyc", None)}",
+        f"[reward-lgturn-pathlen-export] group_label={group_label!r} n_videos={len(vas_ok)} noyc={getattr(va0, 'noyc', None)}",
     )
 
     mean_exp, mean_ctrl, n_exp, n_ctrl, n_rewards, bucket_len_min = (
