@@ -4,19 +4,12 @@
 from __future__ import annotations
 
 import argparse
-import os
+from types import SimpleNamespace
 
 import matplotlib.pyplot as plt
 
 from src.plotting.overlay_training_metric_hist import load_export_npz, plot_overlays
-
-
-def _savefig(out_path: str) -> None:
-    base, ext = os.path.splitext(out_path)
-    if ext == "":
-        out_path = base + ".png"
-    plt.savefig(out_path, bbox_inches="tight")
-    print(f"[overlay_hist] wrote {out_path}")
+from src.utils.common import writeImage
 
 
 def parse_args() -> argparse.Namespace:
@@ -30,6 +23,27 @@ def parse_args() -> argparse.Namespace:
         help="Repeatable: 'GroupLabel=/path/to/export.npz'",
     )
     p.add_argument("--out", required=True, help="Output image path (png/pdf/etc).")
+    p.add_argument(
+        "--image-format",
+        "--imgFormat",
+        dest="image_format",
+        default="png",
+        help="Output image format (for example png, pdf, or svg).",
+    )
+    p.add_argument(
+        "--fontFamily",
+        dest="font_family",
+        type=str,
+        default=None,
+        help="Override the default font family for plots.",
+    )
+    p.add_argument(
+        "--fs",
+        dest="font_size",
+        type=float,
+        default=None,
+        help="Font size for plot text.",
+    )
     p.add_argument(
         "--mode",
         choices=("pdf", "cdf"),
@@ -105,7 +119,13 @@ def main() -> None:
     title = args.title
     if title is None and args.suptitle:
         base = hists[0].meta.get("base_title", "Overlay histogram")
-        args.title = f"{base}\n({args.mode.upper()} overlay)"
+        title = f"{base}\n({args.mode.upper()} overlay)"
+
+    opts = SimpleNamespace(
+        imageFormat=args.image_format,
+        fontFamily=args.font_family,
+        fontSize=args.font_size,
+    )
 
     fig = plot_overlays(
         hists,
@@ -120,8 +140,9 @@ def main() -> None:
         stats_paired=args.stats_paired,
         xmax_plot=args.xmax_plot,
         debug=args.stats_debug,
+        opts=opts,
     )
-    _savefig(args.out)
+    writeImage(args.out, format=args.image_format)
     plt.close(fig)
 
 

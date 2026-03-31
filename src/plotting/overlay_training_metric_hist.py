@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import math
+from types import SimpleNamespace
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -14,6 +15,7 @@ from src.plotting.bin_edges import (
     normalize_panel_edges,
     geom_from_edges,
 )
+from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.stats_bars import StatAnnotConfig, annotate_grouped_bars_per_bin
 from src.utils.util import meanConfInt
 
@@ -92,6 +94,94 @@ def _maybe_none_array(x) -> np.ndarray | None:
         except Exception:
             pass
     return arr
+
+
+def _wrapped_xlabel_text(text: str) -> str:
+    text = str(text)
+    if "\n" in text:
+        return text
+    if " from " in text:
+        return text.replace(" from ", "\nfrom ", 1)
+    if " (" in text:
+        return text.replace(" (", "\n(", 1)
+    return text
+
+
+def _ensure_xlabel_visible(fig: plt.Figure, axes: list[plt.Axes]) -> None:
+    if not axes:
+        return
+
+    labels = [ax.xaxis.get_label() for ax in axes if ax.xaxis.get_label().get_text()]
+    if not labels:
+        return
+
+    pad_y_px = 6.0
+    pad_x_px = max(
+        18.0, max(0.9 * float(label.get_fontsize()) + 8.0 for label in labels)
+    )
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    fig_bbox = fig.bbox
+
+    def _labels_within_bounds() -> bool:
+        for label in labels:
+            bbox = label.get_window_extent(renderer=renderer)
+            x_ok = (
+                bbox.x0 >= fig_bbox.x0 + pad_x_px
+                and bbox.x1 <= fig_bbox.x1 - pad_x_px
+            )
+            y_ok = bbox.y0 >= fig_bbox.y0 + pad_y_px
+            if not (x_ok and y_ok):
+                return False
+        return True
+
+    if _labels_within_bounds():
+        return
+
+    changed = False
+    for label in labels:
+        wrapped = _wrapped_xlabel_text(label.get_text())
+        if wrapped != label.get_text():
+            label.set_text(wrapped)
+            changed = True
+
+    if changed:
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        if _labels_within_bounds():
+            return
+
+    overflow_bottom_px = 0.0
+    overflow_left_px = 0.0
+    overflow_right_px = 0.0
+    for label in labels:
+        bbox = label.get_window_extent(renderer=renderer)
+        overflow_bottom_px = max(
+            overflow_bottom_px, max((fig_bbox.y0 + pad_y_px) - bbox.y0, 0.0)
+        )
+        overflow_left_px = max(
+            overflow_left_px, max((fig_bbox.x0 + pad_x_px) - bbox.x0, 0.0)
+        )
+        overflow_right_px = max(
+            overflow_right_px, max(bbox.x1 - (fig_bbox.x1 - pad_x_px), 0.0)
+        )
+
+    fig_h_px = max(fig.get_size_inches()[1] * fig.dpi, 1.0)
+    fig_w_px = max(fig.get_size_inches()[0] * fig.dpi, 1.0)
+
+    extra_bottom = float(overflow_bottom_px / fig_h_px) + 0.01
+    extra_left = float(overflow_left_px / fig_w_px) + 0.005
+    extra_right = float(overflow_right_px / fig_w_px) + 0.005
+
+    new_bottom = min(fig.subplotpars.bottom + extra_bottom, 0.38)
+    new_left = min(fig.subplotpars.left + extra_left, 0.20)
+    new_right = max(fig.subplotpars.right - extra_right, 0.82)
+    if new_right <= new_left:
+        new_left = fig.subplotpars.left
+        new_right = fig.subplotpars.right
+
+    fig.subplots_adjust(bottom=new_bottom, left=new_left, right=new_right)
+    fig.canvas.draw()
 
 
 def _edges_equal(a_item, b_item) -> bool:
@@ -251,7 +341,11 @@ def plot_overlays(
     xmax_plot: float | None = None,
     categorical_bin_ratio_max: float = 4.0,
     debug: bool = False,
+    opts=None,
 ) -> plt.Figure:
+    if opts is None:
+        opts = SimpleNamespace(imageFormat="png", fontSize=None, fontFamily=None)
+
     if mode not in ("pdf", "cdf"):
         raise ValueError("mode must be 'pdf' or 'cdf'")
     if layout not in ("overlay", "grouped"):
@@ -260,6 +354,20 @@ def plot_overlays(
         raise ValueError("layout='grouped' is implemented for mode='pdf' only")
 
     validate_alignment(hists)
+    customizer = PlotCustomizer()
+    font_size = getattr(opts, "fontSize", None)
+    if font_size is not None:
+        customizer.update_font_size(font_size)
+    customizer.update_font_family(getattr(opts, "fontFamily", None))
+    font_scale = max(float(customizer.increase_factor), 1.0)
+    annotation_font_size = max(
+        7,
+        min(float(customizer.in_plot_font_size) - 1.0, 11.0),
+    )
+    legend_font_size = max(
+        8,
+        min(float(customizer.in_plot_font_size), 14.0),
+    )
     panel_labels = hists[0].panel_labels
     n_panels = len(panel_labels)
 
@@ -276,8 +384,12 @@ def plot_overlays(
     else:
         panel_width = 4.0
 
-    fig_width = panel_width * n_panels
-    fig_height = 4.5
+    if layout == "grouped" and bins >= 10:
+        width_scale = min(1.0 + 0.18 * (font_scale - 1.0), 1.25)
+    else:
+        width_scale = min(1.0 + 0.10 * (font_scale - 1.0), 1.18)
+    fig_width = panel_width * n_panels * width_scale
+    fig_height = 4.5 * min(1.0 + 0.10 * (font_scale - 1.0), 1.20)
     capsize = 1.25 if layout == "grouped" else 2.0
 
     fig, axes = plt.subplots(
@@ -772,7 +884,18 @@ def plot_overlays(
                     # Non-integer-ish bins: keep compact float formatting
                     labels_xt.append(f"{a:g}-{b:g}")
 
-            ax.set_xticklabels(labels_xt, rotation=0, fontsize=8)
+            tick_rotation = 0
+            if bins >= 6 and font_scale >= 1.15:
+                tick_rotation = 20
+            if bins >= 7 and font_scale >= 1.25:
+                tick_rotation = 28
+            if bins >= 8 and font_scale >= 1.35:
+                tick_rotation = 35
+            ax.set_xticklabels(
+                labels_xt,
+                rotation=tick_rotation,
+                ha="right" if tick_rotation else "center",
+            )
 
         if mode == "pdf" and layout == "grouped":
             if categorical_x:
@@ -848,15 +971,39 @@ def plot_overlays(
                     f"n={nbin}",
                     ha="center",
                     va="bottom",
-                    fontsize=7,
+                    fontsize=annotation_font_size,
                     color="0.2",
                     clip_on=False,
                     zorder=9,
                 )
 
-        ax.legend(fontsize=8)
+        ax.legend(fontsize=legend_font_size)
 
     if title:
         fig.suptitle(title)
-    fig.tight_layout()
+    if customizer.customized:
+        customizer.adjust_padding_proportionally()
+        xlabel_text = next(
+            (
+                ax.xaxis.get_label().get_text()
+                for ax in axes
+                if ax.xaxis.get_label().get_text()
+            ),
+            "",
+        )
+        xlabel_lines = max(1, str(xlabel_text).count("\n") + 1)
+        long_xlabel = len(str(xlabel_text).replace("\n", " ")) >= 36
+        dense_grouped_layout = mode == "pdf" and layout == "grouped" and bins >= 6
+        if dense_grouped_layout or (long_xlabel and font_scale >= 1.15):
+            bottom = 0.13 + 0.05 * max(font_scale - 1.0, 0.0)
+            if dense_grouped_layout:
+                bottom += 0.02
+            if xlabel_lines == 1 and long_xlabel and font_scale >= 1.15:
+                bottom += 0.03
+            if xlabel_lines >= 2:
+                bottom += 0.05
+            fig.subplots_adjust(bottom=min(bottom, 0.30), right=0.97, top=0.96)
+    else:
+        fig.tight_layout()
+    _ensure_xlabel_visible(fig, list(axes))
     return fig
