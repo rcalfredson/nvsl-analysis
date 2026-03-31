@@ -54,8 +54,12 @@ class SLIContext:
     average_over_buckets: bool = False
     skip_first_sync_buckets: int = 0
     keep_first_sync_buckets: int = 0
+    explicit_bucket_idx: int | None = None
 
     def _window_bounds(self) -> tuple[int, int | None]:
+        if self.explicit_bucket_idx is not None:
+            sb = int(self.explicit_bucket_idx) + 1
+            return sb, sb
         start_sb = int(self.skip_first_sync_buckets or 0) + 1  # 1-based
         keep = int(self.keep_first_sync_buckets or 0)
         end_sb = None if keep <= 0 else start_sb + keep - 1
@@ -79,6 +83,8 @@ class SLIContext:
     def label_long(self) -> str:
         trn = self.training_idx + 1
         start_sb, end_sb = self._window_bounds()
+        if start_sb == end_sb:
+            return f"SLI (sync bucket {start_sb}, training {trn})"
         window_txt = (
             f", sync buckets {start_sb}-end"
             if end_sb is None
@@ -91,6 +97,8 @@ class SLIContext:
     def label_short(self, abbrev_sb=True) -> str:
         trn = self.training_idx + 1
         window_txt = self._window_text(abbrev_sb=abbrev_sb)
+        if self._window_bounds()[0] == self._window_bounds()[1]:
+            return f"SLI (T{trn}, {window_txt})"
         if self.average_over_buckets:
             return f"SLI (T{trn}, mean, {window_txt})"
         return f"SLI (T{trn}, last, {window_txt})"
@@ -99,6 +107,9 @@ class SLIContext:
 def _window_context_suffix(ctx: SLIContext, *, prefix: str) -> str:
     mode = "mean" if ctx.average_over_buckets else "last"
     parts = [f"{prefix}T{ctx.training_idx + 1}", mode]
+    if ctx.explicit_bucket_idx is not None:
+        parts.append(f"sb{int(ctx.explicit_bucket_idx) + 1}")
+        return "_".join(parts)
     skip_k = max(0, int(ctx.skip_first_sync_buckets or 0))
     keep_k = max(0, int(ctx.keep_first_sync_buckets or 0))
     if skip_k:
@@ -112,6 +123,8 @@ def _windowed_metric_label(metric_name: str, ctx: SLIContext) -> str:
     window_txt = ctx._window_text(abbrev_sb=True)
     if ctx.average_over_buckets:
         return f"{metric_name}\n(mean {window_txt}, T{ctx.training_idx + 1})"
+    if ctx._window_bounds()[0] == ctx._window_bounds()[1]:
+        return f"{metric_name}\n(T{ctx.training_idx + 1}, {window_txt})"
     if ctx.skip_first_sync_buckets or ctx.keep_first_sync_buckets:
         return f"{metric_name}\n(last valid, {window_txt}, T{ctx.training_idx + 1})"
     if ctx.training_idx != 0:
@@ -1244,12 +1257,14 @@ def plot_cross_fly_correlations(
     skip_k = max(0, skip_k)
     keep_k = int(getattr(sli_ctx, "keep_first_sync_buckets", 0) or 0)
     keep_k = max(0, keep_k)
+    sli_bucket_idx = getattr(sli_ctx, "explicit_bucket_idx", None)
     reward_training_idx = int(getattr(reward_rate_ctx, "training_idx", training_idx) or 0)
     reward_avg = bool(getattr(reward_rate_ctx, "average_over_buckets", False))
     reward_skip_k = int(getattr(reward_rate_ctx, "skip_first_sync_buckets", 0) or 0)
     reward_skip_k = max(0, reward_skip_k)
     reward_keep_k = int(getattr(reward_rate_ctx, "keep_first_sync_buckets", 0) or 0)
     reward_keep_k = max(0, reward_keep_k)
+    reward_bucket_idx = getattr(reward_rate_ctx, "explicit_bucket_idx", None)
     reward_first_n = int(getattr(opts, "corr_reward_rate_first_n_rewards", 0) or 0)
     reward_first_n = max(0, reward_first_n)
     reward_max_time_to_nth_s = getattr(opts, "corr_reward_rate_max_time_to_nth_s", None)
@@ -1280,7 +1295,7 @@ def plot_cross_fly_correlations(
                 exp_row = va.rwdsPerDist[row_idx]
                 rpd_val = _reduce_sync_bucket_series(
                     exp_row,
-                    bucket_idx=None,
+                    bucket_idx=sli_bucket_idx,
                     average_over_buckets=bool(sli_ctx.average_over_buckets),
                     skip_first_sync_buckets=skip_k,
                     keep_first_sync_buckets=keep_k,
@@ -1307,7 +1322,7 @@ def plot_cross_fly_correlations(
                 exp_row = va.rwdsPerMinBySyncBucket[row_idx]
                 rpt_val = _reduce_sync_bucket_series(
                     exp_row,
-                    bucket_idx=None,
+                    bucket_idx=reward_bucket_idx,
                     average_over_buckets=reward_avg,
                     skip_first_sync_buckets=reward_skip_k,
                     keep_first_sync_buckets=reward_keep_k,
@@ -1454,7 +1469,10 @@ def plot_cross_fly_correlations(
         window_txt = sli_ctx._window_text(abbrev_sb=True)
         rpd_y_label = f"rewards per distance $[m^{{-1}}]$\n(mean {window_txt})"
     else:
-        if skip_k or keep_k:
+        if sli_bucket_idx is not None:
+            window_txt = sli_ctx._window_text(abbrev_sb=True)
+            rpd_y_label = f"rewards per distance $[m^{{-1}}]$\n(T{sli_ctx.training_idx + 1}, {window_txt})"
+        elif skip_k or keep_k:
             window_txt = sli_ctx._window_text(abbrev_sb=True)
             rpd_y_label = f"rewards per distance $[m^{{-1}}]$\n(last valid, {window_txt})"
 

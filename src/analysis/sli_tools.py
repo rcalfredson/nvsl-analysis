@@ -12,6 +12,79 @@ class SLISelectionSpec:
     average_over_buckets: bool = False
 
 
+def default_single_bucket_idx(start: int, end: int) -> int:
+    """
+    Historical single-bucket SLI selection.
+
+    The sync-bucket arrays may include a final theoretical slot that is not
+    practically occupiable for reward-anchored buckets, so the legacy code uses
+    ``end - 2`` rather than ``end - 1`` whenever the window spans at least two
+    slots.
+    """
+    start = int(start)
+    end = int(end)
+    if end <= start:
+        return start
+    if end - start <= 1:
+        return start
+    return end - 2
+
+
+def resolve_sync_bucket_selector(
+    bucket_selector: Optional[str],
+    *,
+    nb: int,
+    skip_first_sync_buckets: int = 0,
+    keep_first_sync_buckets: int = 0,
+) -> Optional[int]:
+    """
+    Resolve a user-facing sync-bucket selector to a 0-based bucket index.
+
+    Parameters
+    ----------
+    bucket_selector
+        Either ``None`` (no explicit bucket), ``"first"``, ``"last"``, or a
+        1-based bucket index encoded as a string.
+    nb
+        Total number of sync buckets available for the training.
+    skip_first_sync_buckets, keep_first_sync_buckets
+        Optional windowing constraints. The resolved bucket must lie inside the
+        included window after these constraints are applied.
+    """
+    if bucket_selector is None:
+        return None
+
+    token = str(bucket_selector).strip().lower()
+    if not token:
+        return None
+
+    start = max(0, min(int(skip_first_sync_buckets or 0), nb))
+    keep = max(0, int(keep_first_sync_buckets or 0))
+    end = nb if keep == 0 else min(nb, start + keep)
+    if end <= start:
+        return None
+
+    if token == "first":
+        return start
+    if token == "last":
+        return default_single_bucket_idx(start, end)
+
+    try:
+        bucket_1based = int(token)
+    except Exception as exc:
+        raise ValueError(
+            "sync-bucket selector must be 'first', 'last', or a 1-based integer"
+        ) from exc
+
+    bucket_idx = bucket_1based - 1
+    if bucket_idx < start or bucket_idx >= end:
+        raise ValueError(
+            f"requested sync bucket SB{bucket_1based} lies outside the included "
+            f"window SB{start + 1}-SB{end}"
+        )
+    return bucket_idx
+
+
 def compute_sli_per_fly(
     perf4: np.ndarray,
     training_idx: int,
@@ -62,8 +135,7 @@ def compute_sli_per_fly(
         }
     else:
         if bucket_idx is None:
-            default_idx = end - 2
-            bucket_idx = max(start, default_idx)
+            bucket_idx = default_single_bucket_idx(start, end)
 
         # Disallow buckets outside the window
         if bucket_idx < start or bucket_idx >= end:

@@ -1,6 +1,8 @@
 import numpy as np
 import os
 
+from src.analysis.sli_tools import resolve_sync_bucket_selector
+
 
 def _safe_group_label(opts, gls):
     # Priority: explicit CLI label > groupLabels[0] > fallback
@@ -84,11 +86,19 @@ def _compute_sli_scalar_and_timeseries_from_rpid(vas, opts):
     raw_sel_keep = getattr(opts, "sli_select_keep_first_sync_buckets", None)
     sel_skip_k = 0 if raw_sel_skip is None else max(0, int(raw_sel_skip))
     sel_keep_k = 0 if raw_sel_keep is None else max(0, int(raw_sel_keep))
+    sel_bucket_idx = None
+    if not use_training_mean:
+        sel_bucket_idx = resolve_sync_bucket_selector(
+            getattr(opts, "sli_select_bucket", None),
+            nb=nb,
+            skip_first_sync_buckets=sel_skip_k,
+            keep_first_sync_buckets=sel_keep_k,
+        )
 
     sli_scalar = compute_sli_per_fly(
         raw_4,
         sli_training_idx,
-        bucket_idx=None,
+        bucket_idx=sel_bucket_idx,
         average_over_buckets=use_training_mean,
         skip_first_sync_buckets=sel_skip_k,
         keep_first_sync_buckets=sel_keep_k,

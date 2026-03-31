@@ -143,6 +143,7 @@ from src.analysis.sli_tools import (
     select_fractional_groups,
     SLISelectionSpec,
     compute_sli_set_groups,
+    resolve_sync_bucket_selector,
 )
 from src.analysis.training import Training
 from src.analysis.trajectory import Trajectory
@@ -388,6 +389,31 @@ def _effective_keep_first_sync_buckets_opts_only(opts, *local_attr_names: str) -
     return min(gkeep, lkeep)
 
 
+def _resolve_sli_select_bucket_idx(
+    opts,
+    *,
+    nb: int,
+    skip_first_sync_buckets: int,
+    keep_first_sync_buckets: int,
+    average_over_buckets: bool,
+) -> int | None:
+    bucket_selector = getattr(opts, "sli_select_bucket", None)
+    if bucket_selector is None:
+        return None
+    if average_over_buckets:
+        print(
+            "[SLI] NOTE: --sli-select-bucket is ignored when "
+            "--sli-use-training-mean is enabled."
+        )
+        return None
+    return resolve_sync_bucket_selector(
+        bucket_selector,
+        nb=nb,
+        skip_first_sync_buckets=skip_first_sync_buckets,
+        keep_first_sync_buckets=keep_first_sync_buckets,
+    )
+
+
 def _tp_supports_sli_defined_subsets(tp: str) -> bool:
     return tp in ("rpid", "rpipd", "commag", "commag_exp_min_yok")
 
@@ -460,7 +486,8 @@ g.add_argument(
         "bottom 10%% of learners, selected based on their SLI score in the final "
         "sync bucket of training session 2, or the session specified by "
         "--best-worst-trn. Use --top-sli-fraction and/or --bottom-sli-fraction "
-        "to customize the selected fractions."
+        "to customize the selected fractions. "
+        "Use --sli-select-bucket to explicitly choose 'last' or another bucket."
     ),
 )
 g.add_argument(
@@ -491,7 +518,8 @@ g.add_argument(
     help=(
         "Specify which training session index to use when determining the top "
         "and bottom 10%% of learners for --best-worst-sli. The SLI is taken "
-        "from the final sync bucket of the specified training session. Default is 2."
+        "from the selected sync bucket of the specified training session "
+        "(see --sli-select-bucket). Default is 2."
     ),
 )
 g.add_argument(
@@ -3507,6 +3535,19 @@ g.add_argument(
         "Cap SLI-based selections to the first K sync buckets (applied after selection skip). "
         "Affects only SLI used for best/worst (and SLI set-op) selection. "
         "If omitted, defaults to no cap."
+    ),
+)
+g.add_argument(
+    "--sli-select-bucket",
+    type=str,
+    default=None,
+    help=(
+        "Use a single sync bucket for SLI-based selection and correlation labels. "
+        "Accepts 'first', 'last', or a 1-based sync bucket index. "
+        "'last' follows the historical SLI convention of using the last "
+        "practically populated sync bucket rather than a padded theoretical slot. "
+        "Applied within the SLI selection window after "
+        "--sli-select-skip-first-sync-buckets / --sli-select-keep-first-sync-buckets."
     ),
 )
 g.add_argument(
@@ -8693,11 +8734,18 @@ def postAnalyze(vas):
             n_flies = len(va.flies)
             nb_sli = raw_perf.shape[2] // n_flies
             raw_4 = raw_perf.reshape((n_videos, n_trains, n_flies, nb_sli))
+            sel_bucket_idx = _resolve_sli_select_bucket_idx(
+                opts,
+                nb=nb_sli,
+                skip_first_sync_buckets=sel_skip_k,
+                keep_first_sync_buckets=sel_keep_k,
+                average_over_buckets=use_training_mean,
+            )
 
             sli_ser = compute_sli_per_fly(
                 raw_4,
                 sli_training_idx,
-                bucket_idx=None,
+                bucket_idx=sel_bucket_idx,
                 average_over_buckets=use_training_mean,
                 skip_first_sync_buckets=sel_skip_k,
                 keep_first_sync_buckets=sel_keep_k,
@@ -8956,6 +9004,15 @@ def postAnalyze(vas):
                     average_over_buckets=use_training_mean,
                     skip_first_sync_buckets=sel_skip_k,
                     keep_first_sync_buckets=sel_keep_k,
+                    explicit_bucket_idx=sel_bucket_idx,
+                )
+                reward_rate_inherits_sli_bucket = (
+                    getattr(opts, "corr_reward_rate_trn", None) is None
+                    and getattr(opts, "corr_reward_rate_use_training_mean", None) is None
+                    and getattr(opts, "corr_reward_rate_skip_first_sync_buckets", None)
+                    is None
+                    and getattr(opts, "corr_reward_rate_keep_first_sync_buckets", None)
+                    is None
                 )
                 reward_rate_ctx = SLIContext(
                     training_idx=(
@@ -9000,6 +9057,11 @@ def postAnalyze(vas):
                                 )
                             ),
                         )
+                    ),
+                    explicit_bucket_idx=(
+                        sli_ctx.explicit_bucket_idx
+                        if reward_rate_inherits_sli_bucket
+                        else None
                     ),
                 )
                 plot_cross_fly_correlations(
