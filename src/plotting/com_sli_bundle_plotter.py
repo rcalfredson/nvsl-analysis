@@ -225,6 +225,8 @@ def plot_com_sli_bundles(
         opts = SimpleNamespace(
             wspace=0.35,
             imageFormat="png",
+            fontSize=None,
+            fontFamily=None,
         )
 
     if sli_top_fraction is None:
@@ -596,6 +598,10 @@ def plot_com_sli_bundles(
     linestyles = ["-", "--", ":", "-."]  # extend if needed
 
     customizer = PlotCustomizer()
+    font_size = getattr(opts, "fontSize", None)
+    if font_size is not None:
+        customizer.update_font_size(font_size)
+    customizer.update_font_family(getattr(opts, "fontFamily", None))
 
     nc = n_trains
     figsize = pch(
