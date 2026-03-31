@@ -322,7 +322,7 @@ def plot_cum_reward_sli_bundles(
     opts=None,
 ):
     if opts is None:
-        opts = SimpleNamespace(imageFormat="png")
+        opts = SimpleNamespace(imageFormat="png", fontSize=None, fontFamily=None)
 
     if sli_top_fraction is None:
         sli_top_fraction = sli_fraction
@@ -362,6 +362,10 @@ def plot_cum_reward_sli_bundles(
         raise ValueError("sli_extremes='both' is supported only for a single bundle.")
 
     customizer = PlotCustomizer()
+    font_size = getattr(opts, "fontSize", None)
+    if font_size is not None:
+        customizer.update_font_size(font_size)
+    customizer.update_font_family(getattr(opts, "fontFamily", None))
     fig = plt.figure(figsize=(7.5, 4.8))
     ax = plt.gca()
     individual_mode = (

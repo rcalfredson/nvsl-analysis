@@ -110,7 +110,27 @@ def main():
         default=argparse.SUPPRESS,
         help="Fraction of videos to include in the bottom-SLI subset.",
     )
-    p.add_argument("--image-format", default="png")
+    p.add_argument(
+        "--image-format",
+        "--imgFormat",
+        dest="image_format",
+        default="png",
+        help="Output image format (for example png, pdf, or svg).",
+    )
+    p.add_argument(
+        "--fs",
+        dest="font_size",
+        type=float,
+        default=None,
+        help="Font size for plot text.",
+    )
+    p.add_argument(
+        "--fontFamily",
+        dest="font_family",
+        type=str,
+        default=None,
+        help="Override the default font family for plots.",
+    )
     args = p.parse_args()
 
     shared_frac = getattr(args, "best_worst_fraction", None)
@@ -141,7 +161,11 @@ def main():
     if args.labels:
         labels = [s.strip() for s in args.labels.split(",")]
 
-    opts = SimpleNamespace(imageFormat=args.image_format)
+    opts = SimpleNamespace(
+        imageFormat=args.image_format,
+        fontSize=args.font_size,
+        fontFamily=args.font_family,
+    )
     plot_cum_reward_sli_bundles(
         bundles,
         args.out,
