@@ -61,6 +61,72 @@ def _maybe_none_array(x) -> np.ndarray | None:
     return arr
 
 
+def _wrapped_xlabel_text(text: str) -> str:
+    text = str(text)
+    if "\n" in text:
+        return text
+    if " from " in text:
+        return text.replace(" from ", "\nfrom ", 1)
+    if " (" in text:
+        return text.replace(" (", "\n(", 1)
+    return text
+
+
+def _ensure_xlabel_visible(fig: plt.Figure, ax: plt.Axes) -> None:
+    label = ax.xaxis.get_label()
+    if not label.get_text():
+        return
+
+    pad_y_px = 6.0
+    pad_x_px = max(18.0, 0.9 * float(label.get_fontsize()) + 8.0)
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    bbox = label.get_window_extent(renderer=renderer)
+    fig_bbox = fig.bbox
+    x_ok = (
+        bbox.x0 >= fig_bbox.x0 + pad_x_px and bbox.x1 <= fig_bbox.x1 - pad_x_px
+    )
+    y_ok = bbox.y0 >= fig_bbox.y0 + pad_y_px
+
+    if x_ok and y_ok:
+        return
+
+    wrapped = _wrapped_xlabel_text(label.get_text())
+    if wrapped != label.get_text():
+        label.set_text(wrapped)
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        bbox = label.get_window_extent(renderer=renderer)
+        x_ok = (
+            bbox.x0 >= fig_bbox.x0 + pad_x_px and bbox.x1 <= fig_bbox.x1 - pad_x_px
+        )
+        y_ok = bbox.y0 >= fig_bbox.y0 + pad_y_px
+
+    if x_ok and y_ok:
+        return
+
+    overflow_bottom_px = max((fig_bbox.y0 + pad_y_px) - bbox.y0, 0.0)
+    overflow_left_px = max((fig_bbox.x0 + pad_x_px) - bbox.x0, 0.0)
+    overflow_right_px = max(bbox.x1 - (fig_bbox.x1 - pad_x_px), 0.0)
+
+    fig_h_px = max(fig.get_size_inches()[1] * fig.dpi, 1.0)
+    fig_w_px = max(fig.get_size_inches()[0] * fig.dpi, 1.0)
+
+    extra_bottom = float(overflow_bottom_px / fig_h_px) + 0.01
+    extra_left = float(overflow_left_px / fig_w_px) + 0.005
+    extra_right = float(overflow_right_px / fig_w_px) + 0.005
+
+    new_bottom = min(fig.subplotpars.bottom + extra_bottom, 0.38)
+    new_left = min(fig.subplotpars.left + extra_left, 0.20)
+    new_right = max(fig.subplotpars.right - extra_right, 0.82)
+    if new_right <= new_left:
+        new_left = fig.subplotpars.left
+        new_right = fig.subplotpars.right
+
+    fig.subplots_adjust(bottom=new_bottom, left=new_left, right=new_right)
+    fig.canvas.draw()
+
+
 def _paired_filter_mats_all_panels(
     mats: list[np.ndarray],
     ids: list[np.ndarray],
@@ -631,11 +697,12 @@ def plot_overlays(
     ax.legend(fontsize=legend_font_size)
     if customizer.customized:
         customizer.adjust_padding_proportionally()
-        if dense_bar_layout:
-            xlabel_text = ax.xaxis.get_label().get_text()
-            xlabel_lines = max(1, str(xlabel_text).count("\n") + 1)
-            bottom = 0.16 + 0.05 * max(font_scale - 1.0, 0.0)
-            if xlabel_lines == 1 and font_scale >= 1.15:
+        xlabel_text = ax.xaxis.get_label().get_text()
+        xlabel_lines = max(1, str(xlabel_text).count("\n") + 1)
+        long_xlabel = len(str(xlabel_text).replace("\n", " ")) >= 36
+        if dense_bar_layout or (long_xlabel and font_scale >= 1.15):
+            bottom = 0.13 + 0.05 * max(font_scale - 1.0, 0.0)
+            if xlabel_lines == 1 and long_xlabel and font_scale >= 1.15:
                 bottom += 0.03
             if xlabel_lines >= 2:
                 bottom += 0.05
@@ -648,4 +715,5 @@ def plot_overlays(
             )
     else:
         fig.tight_layout()
+    _ensure_xlabel_visible(fig, ax)
     return fig
