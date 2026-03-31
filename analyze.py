@@ -2109,7 +2109,7 @@ g.add_argument(
     help=(
         "Compute a per-training 'best-case' between-reward efficiency metric: "
         "for each fly and training, take the shortest-tail of between-reward "
-        "segment lengths (default: shortest 5% with k>=3), average within that tail, "
+        "segment lengths (default: shortest 5%% with k>=3), average within that tail, "
         "then aggregate across flies. Stores results on each VideoAnalysis instance."
     ),
 )
