@@ -163,12 +163,15 @@ class PlotCustomizer:
                         if leg.get_title() is not None:
                             leg.get_title().set_fontsize(new_size)
 
-        # --- Step 2: Scale figure size based on font size increase (scaled down by 2)
+        # --- Step 2: Scale figure size only modestly as fonts increase.
+        # Keep most of the visual effect in the text itself instead of making
+        # the whole canvas grow in near-lockstep, which would preserve the
+        # text-to-plot ratio when the image is viewed "fit to window".
         w, h = fig.get_size_inches()
-        effective_factor_x = 1 + 0.6 * (self.increase_factor - 1)
-        effective_factor_y = effective_factor_x
-        new_w = w * effective_factor_x / 2
-        new_h = h * effective_factor_y / 2
+        effective_factor_x = min(1 + 0.18 * (self.increase_factor - 1), 1.25)
+        effective_factor_y = min(1 + 0.12 * (self.increase_factor - 1), 1.18)
+        new_w = w * effective_factor_x
+        new_h = h * effective_factor_y
 
         if new_w > w or new_h > h:
             fig.set_size_inches(new_w, new_h, forward=True)
@@ -290,10 +293,7 @@ class PlotCustomizer:
                     fontsize=fontsize,
                 )
 
-            # --- Step 6b: Reduce horizontal spacing if shared Y label is used ---
-            wspace *= 0
-
-            # --- Step 6c: Single X label (centered) ---
+            # --- Step 6b: Single X label (centered) ---
             shared_x_label = next(
                 (
                     ax.xaxis.get_label().get_text()
@@ -319,4 +319,12 @@ class PlotCustomizer:
             ax.set_box_aspect(aspect_ratio)
 
         # --- Step 8: Apply subplot spacing ---
-        fig.subplots_adjust(left=0.12, right=0.88, wspace=wspace, hspace=base_hspace)
+        # When the figure is enlarged for bigger fonts, keep subplot gaps from
+        # growing too much by scaling wspace back down proportionally.
+        scaled_wspace = wspace / max(effective_factor_x, 1.0)
+        fig.subplots_adjust(
+            left=0.12,
+            right=0.88,
+            wspace=scaled_wspace,
+            hspace=base_hspace,
+        )
