@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import os
+from types import SimpleNamespace
 
 import matplotlib.pyplot as plt
 
@@ -14,11 +15,15 @@ from src.plotting.overlay_training_metric_scalar_bars import (
 )
 
 
-def _savefig(out_path: str) -> None:
+def _savefig(out_path: str, image_format: str) -> None:
+    file_extension = "." + str(image_format).lstrip(".")
     base, ext = os.path.splitext(out_path)
-    if ext == "":
-        out_path = base + ".png"
-    plt.savefig(out_path, bbox_inches="tight")
+    if ext.lower() != file_extension.lower():
+        out_path = base + file_extension
+        print(
+            f"The file extension has been changed to {file_extension} to coincide with the specified format."
+        )
+    plt.savefig(out_path, bbox_inches="tight", format=image_format)
     print(f"[overlay_scalar_bars] wrote {out_path}")
 
 
@@ -33,6 +38,27 @@ def parse_args() -> argparse.Namespace:
         help="Repeatable: 'GroupLabel=/path/to/export.npz'",
     )
     p.add_argument("--out", required=True, help="Output image path (png/pdf/etc).")
+    p.add_argument(
+        "--image-format",
+        "--imgFormat",
+        dest="image_format",
+        default="png",
+        help="Output image format (for example png, pdf, or svg).",
+    )
+    p.add_argument(
+        "--fs",
+        dest="font_size",
+        type=float,
+        default=None,
+        help="Font size for plot text.",
+    )
+    p.add_argument(
+        "--fontFamily",
+        dest="font_family",
+        type=str,
+        default=None,
+        help="Override the default font family for plots.",
+    )
     p.add_argument("--title", default=None, help="Figure title override.")
     p.add_argument(
         "--suptitle",
@@ -93,6 +119,12 @@ def main() -> None:
     if title is None and args.suptitle:
         title = xs[0].meta.get("base_title", "Overlay bars")
 
+    opts = SimpleNamespace(
+        imageFormat=args.image_format,
+        fontSize=args.font_size,
+        fontFamily=args.font_family,
+    )
+
     fig = plot_overlays(
         xs,
         title=title,
@@ -103,8 +135,9 @@ def main() -> None:
         stats_alpha=args.stats_alpha,
         stats_paired=args.stats_paired,
         debug=args.stats_debug,
+        opts=opts,
     )
-    _savefig(args.out)
+    _savefig(args.out, args.image_format)
     plt.close(fig)
 
 

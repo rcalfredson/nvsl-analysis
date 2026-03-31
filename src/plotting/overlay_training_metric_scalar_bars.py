@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+from types import SimpleNamespace
 
 import numpy as np
 import matplotlib.pyplot as plt
 
+from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.stats_bars import StatAnnotConfig, annotate_grouped_bars_per_bin
 from src.utils.util import meanConfInt
 
@@ -325,8 +327,18 @@ def plot_overlays(
     stats_alpha: float = 0.05,
     stats_paired: bool = False,
     debug: bool = False,
+    opts=None,
 ) -> plt.Figure:
+    if opts is None:
+        opts = SimpleNamespace(imageFormat="png", fontSize=None, fontFamily=None)
+
     validate_alignment(xs)
+
+    customizer = PlotCustomizer()
+    font_size = getattr(opts, "fontSize", None)
+    if font_size is not None:
+        customizer.update_font_size(font_size)
+    customizer.update_font_family(getattr(opts, "fontFamily", None))
 
     panel_labels = xs[0].panel_labels
     P = len(panel_labels)
@@ -477,7 +489,7 @@ def plot_overlays(
                 n_text,
                 ha="center",
                 va="bottom",
-                fontsize=7,
+                fontsize=max(7, customizer.in_plot_font_size - 2),
                 color="0.2",
                 clip_on=False,
                 zorder=9,
@@ -546,7 +558,7 @@ def plot_overlays(
                             f"n={npp}",
                             ha="center",
                             va="bottom",
-                            fontsize=7,
+                            fontsize=max(7, customizer.in_plot_font_size - 2),
                             color="0.2",
                             clip_on=False,
                             zorder=9,
@@ -555,6 +567,9 @@ def plot_overlays(
     if title:
         fig.suptitle(title)
 
-    ax.legend(fontsize=8)
-    fig.tight_layout()
+    ax.legend(fontsize=max(8, customizer.in_plot_font_size))
+    if customizer.customized:
+        customizer.adjust_padding_proportionally()
+    else:
+        fig.tight_layout()
     return fig
