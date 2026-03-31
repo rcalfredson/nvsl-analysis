@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+from types import SimpleNamespace
 from typing import Iterable
 
 import matplotlib.patches as mpatches
@@ -13,6 +14,8 @@ from src.plotting.overlay_training_metric_scalar_bars import (
     ExportedTrainingScalarBars,
     plot_overlays,
 )
+from src.plotting.plot_customizer import PlotCustomizer
+from src.utils.common import writeImage
 from src.utils.util import meanConfInt
 
 
@@ -515,8 +518,17 @@ def _plot_return_prob_outer_radius_stacked(
     standalone_extreme_labels: bool = False,
     title: str | None = None,
     ymax: float | None = None,
+    opts=None,
 ):
+    if opts is None:
+        opts = SimpleNamespace(imageFormat="png", fontSize=None, fontFamily=None)
+
     loaded = [np.load(path, allow_pickle=True) for path in bundles]
+    customizer = PlotCustomizer()
+    font_size = getattr(opts, "fontSize", None)
+    if font_size is not None:
+        customizer.update_font_size(font_size)
+    customizer.update_font_family(getattr(opts, "fontFamily", None))
 
     if sli_top_fraction is None:
         sli_top_fraction = sli_fraction
@@ -673,7 +685,7 @@ def _plot_return_prob_outer_radius_stacked(
                 n_text,
                 ha="center",
                 va="bottom",
-                fontsize=7,
+                fontsize=max(7, customizer.in_plot_font_size - 2),
                 color="0.2",
                 clip_on=False,
                 zorder=9,
@@ -705,12 +717,23 @@ def _plot_return_prob_outer_radius_stacked(
         )
     fig.suptitle(title_use)
 
-    group_legend = ax.legend(handles=group_handles, loc="upper right", fontsize=8)
+    group_legend = ax.legend(
+        handles=group_handles,
+        loc="upper right",
+        fontsize=max(8, customizer.in_plot_font_size),
+    )
     ax.add_artist(group_legend)
-    ax.legend(handles=component_handles, loc="upper left", fontsize=8)
+    ax.legend(
+        handles=component_handles,
+        loc="upper left",
+        fontsize=max(8, customizer.in_plot_font_size),
+    )
 
-    fig.tight_layout()
-    fig.savefig(out, bbox_inches="tight")
+    if customizer.customized:
+        customizer.adjust_padding_proportionally()
+    else:
+        fig.tight_layout()
+    writeImage(out, format=getattr(opts, "imageFormat", "png"))
     return fig
 
 
@@ -732,7 +755,11 @@ def plot_return_prob_outer_radius_sli_bundles(
     stats_alpha: float = 0.05,
     stats_paired: bool = False,
     debug: bool = False,
+    opts=None,
 ):
+    if opts is None:
+        opts = SimpleNamespace(imageFormat="png", fontSize=None, fontFamily=None)
+
     if metric == "stacked":
         if stats:
             raise ValueError("metric='stacked' does not currently support --stats.")
@@ -748,6 +775,7 @@ def plot_return_prob_outer_radius_sli_bundles(
             standalone_extreme_labels=standalone_extreme_labels,
             title=title,
             ymax=ymax,
+            opts=opts,
         )
 
     loaded = [np.load(path, allow_pickle=True) for path in bundles]
@@ -781,6 +809,7 @@ def plot_return_prob_outer_radius_sli_bundles(
         stats_alpha=float(stats_alpha),
         stats_paired=bool(stats_paired),
         debug=bool(debug),
+        opts=opts,
     )
-    fig.savefig(out, bbox_inches="tight")
+    writeImage(out, format=getattr(opts, "imageFormat", "png"))
     return fig

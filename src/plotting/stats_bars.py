@@ -176,6 +176,7 @@ def draw_sig_bracket(
     h: float,
     text: str,
     lw: float = 1.2,
+    fontsize: float = 10,
     color: str = "0.15",
     zorder: int = 10,
 ) -> None:
@@ -195,7 +196,7 @@ def draw_sig_bracket(
         text,
         ha="center",
         va="bottom",
-        fontsize=10,
+        fontsize=fontsize,
         color=color,
         zorder=zorder + 1,
         clip_on=False,
@@ -211,6 +212,7 @@ class StatAnnotConfig:
     stack_gap_frac: float = 0.060
     gap_above_bars_frac: float = 0.045
     nlabel_off_frac: float = 0.04  # set 0.0 if no n labels
+    bracket_fontsize: float = 10.0
 
 
 def annotate_grouped_bars_per_bin(
@@ -340,5 +342,13 @@ def annotate_grouped_bars_per_bin(
                 continue
 
             y = float(bracket_base + level * step)
-            draw_sig_bracket(ax, x1=x1, x2=x2, y=y, h=bracket_h, text=stars)
+            draw_sig_bracket(
+                ax,
+                x1=x1,
+                x2=x2,
+                y=y,
+                h=bracket_h,
+                text=stars,
+                fontsize=float(cfg.bracket_fontsize),
+            )
             level += 1

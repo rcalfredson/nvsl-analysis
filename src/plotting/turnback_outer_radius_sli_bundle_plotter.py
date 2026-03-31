@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Iterable
 
 import numpy as np
@@ -10,6 +11,7 @@ from src.plotting.overlay_training_metric_scalar_bars import (
     ExportedTrainingScalarBars,
     plot_overlays,
 )
+from src.utils.common import writeImage
 from src.utils.util import meanConfInt
 
 
@@ -244,7 +246,11 @@ def plot_turnback_outer_radius_sli_bundles(
     stats_alpha: float = 0.05,
     stats_paired: bool = False,
     debug: bool = False,
+    opts=None,
 ):
+    if opts is None:
+        opts = SimpleNamespace(imageFormat="png", fontSize=None, fontFamily=None)
+
     loaded = [np.load(path, allow_pickle=True) for path in bundles]
 
     if sli_top_fraction is None:
@@ -275,6 +281,7 @@ def plot_turnback_outer_radius_sli_bundles(
         stats_alpha=float(stats_alpha),
         stats_paired=bool(stats_paired),
         debug=bool(debug),
+        opts=opts,
     )
-    fig.savefig(out, bbox_inches="tight")
+    writeImage(out, format=getattr(opts, "imageFormat", "png"))
     return fig

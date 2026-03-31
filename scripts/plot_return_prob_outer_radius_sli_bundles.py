@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+from types import SimpleNamespace
 
 import matplotlib.pyplot as plt
 
@@ -106,6 +107,27 @@ def main():
         default=None,
         help="Outer-radius delta to export to CSV. Required when --csv-out is used.",
     )
+    p.add_argument(
+        "--image-format",
+        "--imgFormat",
+        dest="image_format",
+        default="png",
+        help="Output image format (for example png, pdf, or svg).",
+    )
+    p.add_argument(
+        "--fs",
+        dest="font_size",
+        type=float,
+        default=None,
+        help="Font size for plot text.",
+    )
+    p.add_argument(
+        "--fontFamily",
+        dest="font_family",
+        type=str,
+        default=None,
+        help="Override the default font family for plots.",
+    )
     args = p.parse_args()
 
     shared_frac = getattr(args, "best_worst_fraction", None)
@@ -128,6 +150,12 @@ def main():
     labels = None
     if args.labels:
         labels = [s.strip() for s in args.labels.split(",") if s.strip()]
+
+    opts = SimpleNamespace(
+        imageFormat=args.image_format,
+        fontSize=args.font_size,
+        fontFamily=args.font_family,
+    )
 
     if args.csv_out is not None:
         if args.csv_outer_delta_mm is None:
@@ -162,6 +190,7 @@ def main():
         stats_alpha=float(args.stats_alpha),
         stats_paired=bool(args.stats_paired),
         debug=bool(args.stats_debug),
+        opts=opts,
     )
     plt.close(fig)
 

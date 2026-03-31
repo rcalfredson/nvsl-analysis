@@ -339,15 +339,33 @@ def plot_overlays(
     if font_size is not None:
         customizer.update_font_size(font_size)
     customizer.update_font_family(getattr(opts, "fontFamily", None))
+    font_scale = max(float(customizer.increase_factor), 1.0)
+    annotation_font_size = max(
+        7,
+        min(float(customizer.in_plot_font_size) - 5.0, 10.0),
+    )
+    legend_font_size = max(
+        8,
+        min(float(customizer.in_plot_font_size), 14.0),
+    )
 
     panel_labels = xs[0].panel_labels
     P = len(panel_labels)
     G = len(xs)
-
-    fig_w = max(6.0, 1.2 * P)
-    fig, ax = plt.subplots(1, 1, figsize=(fig_w, 4.5))
+    if P >= 10:
+        width_scale = min(1.0 + 0.32 * (font_scale - 1.0), 1.55)
+    elif P >= 8:
+        width_scale = min(1.0 + 0.24 * (font_scale - 1.0), 1.40)
+    else:
+        width_scale = min(1.0 + 0.10 * (font_scale - 1.0), 1.20)
+    fig_w = max(6.0, 1.2 * P * width_scale)
+    fig_h = 4.5 * min(1.0 + 0.12 * (font_scale - 1.0), 1.24)
+    fig, ax = plt.subplots(1, 1, figsize=(fig_w, fig_h))
 
     x_centers = np.arange(P, dtype=float)
+    dense_bar_layout = P >= 10
+    compact_n_labels = dense_bar_layout and font_scale >= 1.15
+    n_label_rotation = 28 if compact_n_labels else 0
 
     # grouped/dodged bars
     group_band = 0.80
@@ -454,7 +472,7 @@ def plot_overlays(
     if need_per_panel_n:
         ylim0, ylim1 = ax.get_ylim()
         y_rng = float(ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 1.0
-        y_pad = 0.015 * y_rng
+        y_pad = (0.018 + 0.012 * max(font_scale - 1.0, 0.0)) * y_rng
 
         for p in range(P):
             # if all groups share same n at this panel, show a single "n=.."
@@ -467,9 +485,12 @@ def plot_overlays(
                 continue
 
             uniq = sorted(set(ns))
-            n_text = (
-                f"n={uniq[0]}" if len(uniq) == 1 else "n=" + "/".join(map(str, ns))
-            )
+            if len(uniq) == 1:
+                n_text = f"n={uniq[0]}"
+            else:
+                n_text = "/".join(map(str, ns)) if compact_n_labels else (
+                    "n=" + "/".join(map(str, ns))
+                )
 
             # baseline above tallest bar/CI at this panel
             y_top = np.nan
@@ -485,21 +506,48 @@ def plot_overlays(
 
             ax.text(
                 float(x_centers[p]),
-                float(y_top + y_pad),
+                float(
+                    y_top
+                    + y_pad
+                    + (
+                        (0.018 * y_rng)
+                        if dense_bar_layout and (p % 2 == 1)
+                        else 0.0
+                    )
+                ),
                 n_text,
                 ha="center",
                 va="bottom",
-                fontsize=max(7, customizer.in_plot_font_size - 2),
+                fontsize=annotation_font_size,
+                rotation=n_label_rotation,
                 color="0.2",
                 clip_on=False,
                 zorder=9,
             )
 
+    tick_rotation = 30
+    if P >= 8:
+        tick_rotation = 40
+    if P >= 10 and font_scale >= 1.15:
+        tick_rotation = 55
+    if P >= 10 and font_scale >= 1.35:
+        tick_rotation = 60
     ax.set_xticks(x_centers)
-    ax.set_xticklabels(panel_labels, rotation=30, ha="right")
+    ax.set_xticklabels(panel_labels, rotation=tick_rotation, ha="right")
 
     if xlabel:
-        ax.set_xlabel(xlabel)
+        xlabel_use = str(xlabel)
+        if (
+            dense_bar_layout
+            and font_scale >= 1.15
+            and "\n" not in xlabel_use
+            and len(xlabel_use) >= 36
+        ):
+            if " from " in xlabel_use:
+                xlabel_use = xlabel_use.replace(" from ", "\nfrom ", 1)
+            elif " (" in xlabel_use:
+                xlabel_use = xlabel_use.replace(" (", "\n(", 1)
+        ax.set_xlabel(xlabel_use)
     if ylabel:
         ax.set_ylabel(ylabel)
 
@@ -511,7 +559,11 @@ def plot_overlays(
         cfg_stats = StatAnnotConfig(
             alpha=float(stats_alpha),
             min_n_per_group=3,
-            nlabel_off_frac=0.0,
+            headroom_frac=0.30 + 0.10 * max(font_scale - 1.0, 0.0),
+            stack_gap_frac=0.070 + 0.018 * max(font_scale - 1.0, 0.0),
+            gap_above_bars_frac=0.055 + 0.015 * max(font_scale - 1.0, 0.0),
+            nlabel_off_frac=0.055 + 0.015 * max(font_scale - 1.0, 0.0),
+            bracket_fontsize=annotation_font_size,
         )
         annotate_grouped_bars_per_bin(
             ax,
@@ -536,7 +588,7 @@ def plot_overlays(
             if n_constant is None:
                 ylim0, ylim1 = ax.get_ylim()
                 y_rng = float(ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 1.0
-                y_pad = 0.015 * y_rng
+                y_pad = (0.018 + 0.012 * max(font_scale - 1.0, 0.0)) * y_rng
                 for p in range(P):
                     npp = int(paired_n_per_panel[p])
                     if npp <= 0:
@@ -554,11 +606,20 @@ def plot_overlays(
                     if np.isfinite(y_top):
                         ax.text(
                             float(x_centers[p]),
-                            float(y_top + y_pad),
+                            float(
+                                y_top
+                                + y_pad
+                                + (
+                                    (0.018 * y_rng)
+                                    if dense_bar_layout and (p % 2 == 1)
+                                    else 0.0
+                                )
+                            ),
                             f"n={npp}",
                             ha="center",
                             va="bottom",
-                            fontsize=max(7, customizer.in_plot_font_size - 2),
+                            fontsize=annotation_font_size,
+                            rotation=n_label_rotation,
                             color="0.2",
                             clip_on=False,
                             zorder=9,
@@ -567,9 +628,24 @@ def plot_overlays(
     if title:
         fig.suptitle(title)
 
-    ax.legend(fontsize=max(8, customizer.in_plot_font_size))
+    ax.legend(fontsize=legend_font_size)
     if customizer.customized:
         customizer.adjust_padding_proportionally()
+        if dense_bar_layout:
+            xlabel_text = ax.xaxis.get_label().get_text()
+            xlabel_lines = max(1, str(xlabel_text).count("\n") + 1)
+            bottom = 0.16 + 0.05 * max(font_scale - 1.0, 0.0)
+            if xlabel_lines == 1 and font_scale >= 1.15:
+                bottom += 0.03
+            if xlabel_lines >= 2:
+                bottom += 0.05
+            right = 0.97
+            top = 0.96
+            fig.subplots_adjust(
+                bottom=min(bottom, 0.28),
+                right=right,
+                top=top,
+            )
     else:
         fig.tight_layout()
     return fig
