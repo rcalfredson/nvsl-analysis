@@ -692,8 +692,6 @@ def plot_com_sli_bundles(
             )
         sli_mode = "mean over buckets" if bool(means[0]) else "single bucket"
         sli_mode_window = ""
-        print('skips:', skips)
-        print('keeps:', keeps)
         if bool(means[0]):
             sli_mode_window = "; " + _format_sli_training_mean_window(
                 skips[0], keeps[0]
