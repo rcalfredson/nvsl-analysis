@@ -114,6 +114,71 @@ def _anova_p(groups, *, min_n_per_group=3) -> float:
         return np.nan
 
 
+def _wrapped_ylabel_text(text: str) -> str:
+    text = str(text)
+    if "\n" in text:
+        return text
+    if ", " in text:
+        return text.replace(", ", ",\n", 1)
+    if " (" in text:
+        return text.replace(" (", "\n(", 1)
+    return text
+
+
+def _ensure_ylabel_visible(fig: plt.Figure, ax: plt.Axes) -> None:
+    label = ax.yaxis.get_label()
+    if not label.get_text():
+        return
+
+    pad_x_px = max(8.0, 0.55 * float(label.get_fontsize()) + 4.0)
+    pad_y_px = max(10.0, 0.45 * float(label.get_fontsize()) + 4.0)
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    fig_bbox = fig.bbox
+
+    def _within_bounds() -> bool:
+        bbox = label.get_window_extent(renderer=renderer)
+        x_ok = bbox.x0 >= fig_bbox.x0 + pad_x_px
+        y_ok = (
+            bbox.y0 >= fig_bbox.y0 + pad_y_px
+            and bbox.y1 <= fig_bbox.y1 - pad_y_px
+        )
+        return x_ok and y_ok
+
+    if _within_bounds():
+        return
+
+    wrapped = _wrapped_ylabel_text(label.get_text())
+    if wrapped != label.get_text():
+        label.set_text(wrapped)
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        if _within_bounds():
+            return
+
+    bbox = label.get_window_extent(renderer=renderer)
+    overflow_left_px = max((fig_bbox.x0 + pad_x_px) - bbox.x0, 0.0)
+    overflow_bottom_px = max((fig_bbox.y0 + pad_y_px) - bbox.y0, 0.0)
+    overflow_top_px = max(bbox.y1 - (fig_bbox.y1 - pad_y_px), 0.0)
+
+    fig_h_px = max(fig.get_size_inches()[1] * fig.dpi, 1.0)
+    fig_w_px = max(fig.get_size_inches()[0] * fig.dpi, 1.0)
+
+    extra_left = float(overflow_left_px / fig_w_px) + 0.01
+    extra_bottom = float(overflow_bottom_px / fig_h_px) + 0.005
+    extra_top = float(overflow_top_px / fig_h_px) + 0.005
+
+    new_left = min(fig.subplotpars.left + extra_left, 0.22)
+    new_bottom = min(fig.subplotpars.bottom + extra_bottom, 0.16)
+    new_top = max(fig.subplotpars.top - extra_top, 0.82)
+    if new_top <= new_bottom:
+        new_bottom = fig.subplotpars.bottom
+        new_top = fig.subplotpars.top
+
+    fig.subplots_adjust(left=new_left, bottom=new_bottom, top=new_top)
+    fig.canvas.draw()
+
+
 def plot_btw_rwd_shortest_tail_bundles(
     bundle_paths,
     out_fn,
@@ -135,7 +200,12 @@ def plot_btw_rwd_shortest_tail_bundles(
         * 3+ bundles: one-way ANOVA per training (stars)
     """
     if opts is None:
-        opts = SimpleNamespace(wspace=0.35, imageFormat="png")
+        opts = SimpleNamespace(
+            wspace=0.35,
+            imageFormat="png",
+            fontSize=None,
+            fontFamily=None,
+        )
 
     bundles = [_load_bundle(p) for p in bundle_paths]
     ng = len(bundles)
@@ -177,6 +247,10 @@ def plot_btw_rwd_shortest_tail_bundles(
     xs = np.arange(1, n_trn + 1, dtype=float)
 
     customizer = PlotCustomizer()
+    font_size = getattr(opts, "fontSize", None)
+    if font_size is not None:
+        customizer.update_font_size(font_size)
+    customizer.update_font_family(getattr(opts, "fontFamily", None))
     figsize = pch((7.0, 4.2), (10, 5))
     fig, ax = plt.subplots(1, 1, figsize=figsize)
     plt.sca(ax)
@@ -188,6 +262,8 @@ def plot_btw_rwd_shortest_tail_bundles(
     # compute + plot each group
     mci_by_group = []
     raw_by_group = []  # list of list-of-arrays per training (for stats)
+    pending_n_labels = []
+    lbls = defaultdict(list)
     ylim = [0.0, 20.0]
 
     for gi, b in enumerate(bundles):
@@ -227,125 +303,21 @@ def plot_btw_rwd_shortest_tail_bundles(
         if np.isfinite(lo).any() and np.isfinite(hi).any():
             plt.fill_between(xs[fin], lo[fin], hi[fin], color=exp_color, alpha=0.15)
 
-        # n labels (like your other plotters)
-        span_guess = (
-            np.nanmax(hi) - np.nanmin(lo)
-            if np.isfinite(lo).any() and np.isfinite(hi).any()
-            else 1.0
-        )
-        if not np.isfinite(span_guess) or span_guess <= 0:
-            span_guess = 1.0
         for ti in range(n_trn):
             if not np.isfinite(ys[ti]) or ns[ti] <= 0:
                 continue
-            util.pltText(
-                xs[ti],
-                ys[ti] + 0.06 * span_guess,
-                f"{int(ns[ti])}",
-                ha="center",
-                size=customizer.in_plot_font_size,
-                color=".2",
+            anchor_candidates = [ys[ti]]
+            if np.isfinite(hi[ti]):
+                anchor_candidates.append(hi[ti])
+            anchor_y = float(np.nanmax(anchor_candidates))
+            pending_n_labels.append(
+                (
+                    ti,
+                    float(xs[ti]),
+                    anchor_y,
+                    f"{int(ns[ti])}",
+                )
             )
-
-    # ---- stats annotations ----
-    if stats and ng >= 2:
-        # store per-x bucket existing text y-positions to avoid collisions
-        lbls = defaultdict(list)
-
-        # first pass: gather “label-ish” objects from axes (best-effort)
-        # (We keep this lightweight; pick_non_overlapping_y does most of the work.)
-        # You can extend this if you want stricter bookkeeping.
-        for ti in range(n_trn):
-            lbls[ti] = []
-
-        # choose a usable span for star offsets
-        span = (
-            (ylim[1] - ylim[0])
-            if np.isfinite(ylim[0]) and np.isfinite(ylim[1])
-            else 1.0
-        )
-        if not np.isfinite(span) or span <= 0:
-            span = 1.0
-
-        if ng == 2:
-            for ti in range(n_trn):
-                x0 = raw_by_group[0][ti]
-                x1 = raw_by_group[1][ti]
-                if x0.size < 2 or x1.size < 2:
-                    continue
-                try:
-                    _t, p = ttest_ind(x0, x1)[:2]
-                except Exception:
-                    continue
-                stars = util.p2stars(p, nanR="")
-                if not stars:
-                    continue
-
-                # anchor at higher mean at this training
-                mu0 = np.nanmean(x0) if x0.size else np.nan
-                mu1 = np.nanmean(x1) if x1.size else np.nan
-                if not (np.isfinite(mu0) or np.isfinite(mu1)):
-                    continue
-                anchor_y = float(np.nanmax([mu0, mu1]))
-
-                base_y = anchor_y + 0.10 * span
-                prefer = "above"
-                margin = 0.06 * span
-                # if near top, flip below
-                if np.isfinite(ylim[1]) and base_y + 0.20 * span > (ylim[1] - margin):
-                    prefer = "below"
-
-                avoid_ys = [anchor_y]
-                ys_star, va_align = pick_non_overlapping_y(
-                    base_y, avoid_ys, ylim, prefer=prefer
-                )
-
-                util.pltText(
-                    xs[ti],
-                    ys_star,
-                    stars,
-                    ha="center",
-                    va=va_align,
-                    size=customizer.in_plot_font_size,
-                    color="0",
-                    weight="bold",
-                )
-        else:
-            # omnibus ANOVA per training
-            for ti in range(n_trn):
-                groups_here = [raw_by_group[gi][ti] for gi in range(ng)]
-                p = _anova_p(groups_here, min_n_per_group=min_n_per_group_anova)
-                stars = util.p2stars(p, nanR="")
-                if not stars:
-                    continue
-
-                # anchor at max plotted mean among groups (use mci means)
-                mus = [mci_by_group[gi][0, ti] for gi in range(ng)]
-                if not np.any(np.isfinite(mus)):
-                    continue
-                anchor_y = float(np.nanmax(mus))
-
-                base_y = anchor_y + 0.10 * span
-                prefer = "above"
-                margin = 0.06 * span
-                if np.isfinite(ylim[1]) and base_y + 0.20 * span > (ylim[1] - margin):
-                    prefer = "below"
-
-                avoid_ys = [anchor_y]
-                ys_star, va_align = pick_non_overlapping_y(
-                    base_y, avoid_ys, ylim, prefer=prefer
-                )
-
-                util.pltText(
-                    xs[ti],
-                    ys_star,
-                    stars,
-                    ha="center",
-                    va=va_align,
-                    size=customizer.in_plot_font_size,
-                    color="0",
-                    weight="bold",
-                )
 
     # axes cosmetics
     plt.xticks(xs, [maybe_sentence_case(str(t)) for t in tnames])
@@ -369,12 +341,121 @@ def plot_btw_rwd_shortest_tail_bundles(
         pad = 0.12 * (ylim[1] - ylim[0])
         ax.set_ylim(ylim[0] - pad, ylim[1] + pad)
 
-    if customizer.font_size_customized:
-        customizer.adjust_padding_proportionally(wspace=getattr(opts, "wspace", 0.35))
+    span = (ylim[1] - ylim[0]) if np.isfinite(ylim[1] - ylim[0]) else 1.0
+    if not np.isfinite(span) or span <= 0:
+        span = 1.0
 
-    base, ext = os.path.splitext(out_fn)
-    if ext == "":
-        out_fn = base + ".png"
+    # n labels (placed after y-lims are known so collision avoidance is meaningful)
+    for ti, x_pos, anchor_y, n_text in sorted(
+        pending_n_labels, key=lambda item: (item[0], item[2])
+    ):
+        base_y = anchor_y + 0.05 * span
+        avoid_ys = [anchor_y] + lbls[ti]
+        y_n, va_align = pick_non_overlapping_y(
+            base_y,
+            avoid_ys,
+            ylim,
+            prefer="above",
+            gap=0.065,
+            step=0.024,
+        )
+        util.pltText(
+            x_pos,
+            y_n,
+            n_text,
+            ha="center",
+            va=va_align,
+            size=customizer.in_plot_font_size,
+            color=".2",
+        )
+        lbls[ti].append(float(y_n))
+
+    # ---- stats annotations ----
+    if stats and ng >= 2:
+        if ng == 2:
+            for ti in range(n_trn):
+                x0 = raw_by_group[0][ti]
+                x1 = raw_by_group[1][ti]
+                if x0.size < 2 or x1.size < 2:
+                    continue
+                try:
+                    _t, p = ttest_ind(x0, x1)[:2]
+                except Exception:
+                    continue
+                stars = util.p2stars(p, nanR="")
+                if not stars:
+                    continue
+
+                mu0 = np.nanmean(x0) if x0.size else np.nan
+                mu1 = np.nanmean(x1) if x1.size else np.nan
+                if not (np.isfinite(mu0) or np.isfinite(mu1)):
+                    continue
+                anchor_y = float(np.nanmax([mu0, mu1]))
+
+                base_y = anchor_y + 0.10 * span
+                prefer = "above"
+                margin = 0.06 * span
+                if np.isfinite(ylim[1]) and base_y + 0.20 * span > (ylim[1] - margin):
+                    prefer = "below"
+
+                avoid_ys = [anchor_y] + lbls[ti]
+                ys_star, va_align = pick_non_overlapping_y(
+                    base_y, avoid_ys, ylim, prefer=prefer
+                )
+
+                util.pltText(
+                    xs[ti],
+                    ys_star,
+                    stars,
+                    ha="center",
+                    va=va_align,
+                    size=customizer.in_plot_font_size,
+                    color="0",
+                    weight="bold",
+                )
+                lbls[ti].append(float(ys_star))
+        else:
+            for ti in range(n_trn):
+                groups_here = [raw_by_group[gi][ti] for gi in range(ng)]
+                p = _anova_p(groups_here, min_n_per_group=min_n_per_group_anova)
+                stars = util.p2stars(p, nanR="")
+                if not stars:
+                    continue
+
+                mus = [mci_by_group[gi][0, ti] for gi in range(ng)]
+                if not np.any(np.isfinite(mus)):
+                    continue
+                anchor_y = float(np.nanmax(mus))
+
+                base_y = anchor_y + 0.10 * span
+                prefer = "above"
+                margin = 0.06 * span
+                if np.isfinite(ylim[1]) and base_y + 0.20 * span > (ylim[1] - margin):
+                    prefer = "below"
+
+                avoid_ys = [anchor_y] + lbls[ti]
+                ys_star, va_align = pick_non_overlapping_y(
+                    base_y, avoid_ys, ylim, prefer=prefer
+                )
+
+                util.pltText(
+                    xs[ti],
+                    ys_star,
+                    stars,
+                    ha="center",
+                    va=va_align,
+                    size=customizer.in_plot_font_size,
+                    color="0",
+                    weight="bold",
+                )
+                lbls[ti].append(float(ys_star))
+
+    if customizer.customized:
+        customizer.adjust_padding_proportionally(wspace=getattr(opts, "wspace", 0.35))
+    else:
+        fig.tight_layout()
+
     ax.set_ylim(*ylim)
+    _ensure_ylabel_visible(fig, ax)
     writeImage(out_fn, format=getattr(opts, "imageFormat", "png"))
     plt.close()
