@@ -5,6 +5,7 @@ from collections import defaultdict
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 from scipy.stats import f_oneway
 
 from src.plotting.palettes import get_palette, FLY_COLS
@@ -41,6 +42,29 @@ def _format_sli_training_mean_window(skip_first_sync_buckets, keep_first_sync_bu
     if skip_k > 0:
         return f"skip first {skip_k} bucket(s)"
     return f"keep first {keep_k} bucket(s)"
+
+
+def _legend_handle_for_group(label, color, linestyle):
+    handle = Line2D(
+        [0, 1, 2, 3],
+        [0, 0, 0, 0],
+        color=color,
+        marker="o",
+        markersize=4,
+        markerfacecolor=color,
+        markeredgecolor=color,
+        linewidth=2,
+        linestyle=linestyle,
+        label=label,
+    )
+    if linestyle == "--":
+        # Make the dashed legend entry more exaggerated than the plotted line so it
+        # remains visibly dashed even with a marker present.
+        handle.set_linestyle((4, (8, 4)))
+        handle.set_markevery([3])
+    else:
+        handle.set_markevery([2])
+    return handle
 
 
 def _bundle_metric_palette(metric):
@@ -1204,7 +1228,21 @@ def plot_com_sli_bundles(
     if len(leg_labels) == 1:
         fig.suptitle(leg_labels[0], y=0.995)
     else:
-        axs[0].legend(frameon=False)
+        legend_handles = []
+        for handle, label in zip(handles, leg_labels):
+            legend_handles.append(
+                _legend_handle_for_group(
+                    label=label,
+                    color=handle.get_color(),
+                    linestyle=handle.get_linestyle(),
+                )
+            )
+        axs[0].legend(
+            handles=legend_handles,
+            labels=leg_labels,
+            frameon=False,
+            handlelength=3.2,
+        )
     if customizer.font_size_customized:
         customizer.adjust_padding_proportionally(wspace=getattr(opts, "wspace", 0.35))
 
