@@ -129,6 +129,7 @@ from src.plotting.reward_count_totals import (
     RewardCountTotalsPlotter,
 )
 from src.plotting.cross_fly_correlations import plot_cross_fly_correlations, SLIContext
+from src.plotting.event_chain_plotter import EventChainPlotter
 from src.plotting.individual_strategy_plotter import plot_individual_strategy_overlays
 from src.plotting.outside_circle_duration_plotter import OutsideCircleDurationPlotter
 from src.plotting.palettes import (
@@ -915,6 +916,18 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--btw-rwd-mode",
+    type=str,
+    choices=("bucket_random", "first_n_training"),
+    default="bucket_random",
+    help=(
+        "Selection mode for --btw-rwd-plots. 'bucket_random' preserves the current "
+        "behavior of sampling intervals from one sync bucket. 'first_n_training' "
+        "plots the first N between-reward segments within the selected training for "
+        "the experimental fly, with one color per segment. Default: %(default)s."
+    ),
+)
+g.add_argument(
     "--reward-raster",
     action="store_true",
     help=(
@@ -1318,7 +1331,10 @@ g.add_argument(
 g.add_argument(
     "--btw-rwd-bkt",
     type=int,
-    help="1-based sync bucket index within the specified training.",
+    help=(
+        "1-based sync bucket index within the specified training. Required for "
+        "--btw-rwd-mode=bucket_random."
+    ),
 )
 g.add_argument(
     "--btw-rwd-num",
@@ -1326,7 +1342,8 @@ g.add_argument(
     default=1,
     help=(
         "Number of between-reward trajectory examples to plot per fly "
-        "for the specified training and sync bucket."
+        "for the selected mode. In --btw-rwd-mode=first_n_training, this is the "
+        "number of earliest between-reward segments to overlay."
     ),
 )
 g.add_argument(
@@ -8494,8 +8511,112 @@ def plotTlenDist(vas, gis, gls, tp):
 
 
 # "post analyze" the given VideoAnalysis objects
+def _sli_bracket_dirnames(va_idx, saved_bottom, saved_top, opts):
+    dirnames = []
+    top_fraction = getattr(opts, "top_sli_fraction", None)
+    bottom_fraction = getattr(opts, "bottom_sli_fraction", None)
+
+    def _pct_str(frac):
+        return str(int(round(float(frac) * 100)))
+
+    if saved_top is not None and va_idx in saved_top and top_fraction is not None:
+        dirnames.append(f"top_{_pct_str(top_fraction)}pct_learners")
+    if (
+        saved_bottom is not None
+        and va_idx in saved_bottom
+        and bottom_fraction is not None
+    ):
+        dirnames.append(f"bottom_{_pct_str(bottom_fraction)}pct_learners")
+    return dirnames
+
+
+def _generate_between_reward_plots(vas, *, saved_bottom=None, saved_top=None):
+    if not getattr(opts, "btw_rwd_plots", False):
+        return
+    if getattr(opts, "btw_rwd_trn", None) is None:
+        return
+
+    trn_index = int(opts.btw_rwd_trn) - 1
+    btw_rwd_mode = str(getattr(opts, "btw_rwd_mode", "bucket_random"))
+    bucket_index = (
+        int(opts.btw_rwd_bkt) - 1
+        if getattr(opts, "btw_rwd_bkt", None) is not None
+        else None
+    )
+    if btw_rwd_mode == "bucket_random" and bucket_index is None:
+        print(
+            "[btw_rwd_plots] --btw-rwd-bkt is required when "
+            "--btw-rwd-mode=bucket_random"
+        )
+        return
+
+    num_examples = int(getattr(opts, "btw_rwd_num", 1) or 1)
+    saved_top = set(saved_top or [])
+    saved_bottom = set(saved_bottom or [])
+
+    for va_idx, va in enumerate(vas):
+        dirnames = _sli_bracket_dirnames(va_idx, saved_bottom, saved_top, opts)
+        out_dirs = (
+            [os.path.join("imgs", "between_rewards", dn) for dn in dirnames]
+            if dirnames
+            else [os.path.join("imgs", "between_rewards")]
+        )
+
+        for trj in va.trx:
+            if va._bad(trj.f):
+                continue
+
+            plotter = EventChainPlotter(
+                trj,
+                va,
+                y_bounds=None,
+                image_format=opts.imageFormat,
+            )
+
+            try:
+                role_idx = va.flies.index(trj.f)
+            except Exception:
+                role_idx = int(trj.f)
+
+            if btw_rwd_mode == "first_n_training" and role_idx != 0:
+                continue
+
+            for out_dir in out_dirs:
+                if btw_rwd_mode == "first_n_training":
+                    plotter.plot_first_n_between_reward_training_segments(
+                        trn_index=trn_index,
+                        first_n=num_examples,
+                        image_format=opts.imageFormat,
+                        role_idx=role_idx,
+                        zoom=bool(getattr(opts, "btw_rwd_zoom", False)),
+                        zoom_radius_mm=getattr(opts, "btw_rwd_zoom_radius_mm", None),
+                        zoom_radius_mult=float(
+                            getattr(opts, "btw_rwd_zoom_radius_mult", 3.0) or 3.0
+                        ),
+                        out_dir=out_dir,
+                    )
+                else:
+                    plotter.plot_between_reward_chain(
+                        trn_index=trn_index,
+                        bucket_index=bucket_index,
+                        seed=opts.btw_rwd_seed,
+                        image_format=opts.imageFormat,
+                        role_idx=role_idx,
+                        num_examples=num_examples,
+                        max_dist_mm=getattr(opts, "btw_rwd_max_dist_mm", None),
+                        short_strict=bool(getattr(opts, "btw_rwd_short_strict", False)),
+                        zoom=bool(getattr(opts, "btw_rwd_zoom", False)),
+                        zoom_radius_mm=getattr(opts, "btw_rwd_zoom_radius_mm", None),
+                        zoom_radius_mult=float(
+                            getattr(opts, "btw_rwd_zoom_radius_mult", 3.0) or 3.0
+                        ),
+                        out_dir=out_dir,
+                    )
+
+
 def postAnalyze(vas):
     if len(vas) <= 1:
+        _generate_between_reward_plots(vas)
         return
 
     run_turn_prob = (
@@ -8844,6 +8965,12 @@ def postAnalyze(vas):
                     elif op == "union":
                         saved_custom_selection = groups.get("union", [])
                         custom_label = "Union (top)"
+
+    _generate_between_reward_plots(
+        vas,
+        saved_bottom=saved_bottom,
+        saved_top=saved_top,
+    )
 
     for tc in tcs:
         tp, calc = typeCalc(tc)

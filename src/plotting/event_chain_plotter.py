@@ -234,6 +234,7 @@ class EventChainPlotter:
         arrow_interval,
         speed,
         arrow_kwargs=None,
+        arrow_color="black",
     ):
         """Draws an arrow if the conditions for speed are met."""
         if last_arrow_idx is None or i >= last_arrow_idx + arrow_interval:
@@ -242,9 +243,323 @@ class EventChainPlotter:
             dx = x_end - x_start
             dy = y_end - y_start
             kw = arrow_kwargs or {}
-            self.draw_custom_arrowhead(plt.gca(), x_mid, y_mid, dx, dy, "black", **kw)
+            self.draw_custom_arrowhead(
+                plt.gca(), x_mid, y_mid, dx, dy, arrow_color, **kw
+            )
             return i  # Update last_arrow_idx
         return last_arrow_idx
+
+    def plot_first_n_between_reward_training_segments(
+        self,
+        trn_index: int,
+        *,
+        first_n: int = 10,
+        image_format: str | None = None,
+        role_idx: int | None = None,
+        zoom: bool = False,
+        zoom_radius_mm: float | None = None,
+        zoom_radius_mult: float = 3.0,
+        out_dir: str | None = None,
+    ):
+        """
+        Plot the first N between-reward trajectory segments within a training on a
+        single arena plot, using a distinct color for each segment.
+        """
+
+        image_format = image_format or self.image_format
+        first_n = max(1, int(first_n))
+
+        if trn_index < 0 or trn_index >= len(self.va.trns):
+            print(
+                f"[plot_first_n_between_reward_training_segments] Invalid trn_index={trn_index}; "
+                f"valid range is 0..{len(self.va.trns) - 1}"
+            )
+            return
+
+        trn = self.va.trns[trn_index]
+        f_idx = self.trj.f
+
+        try:
+            reward_frames = np.array(self.va._getOn(trn, calc=True, f=f_idx), dtype=int)
+        except Exception as e:
+            print(
+                "[plot_first_n_between_reward_training_segments] "
+                f"Error getting rewards for fly {f_idx}, training {trn_index + 1}: {e}"
+            )
+            return
+
+        if reward_frames.size == 0:
+            print(
+                "[plot_first_n_between_reward_training_segments] "
+                f"No rewards for fly {f_idx}, training {trn_index + 1}"
+            )
+            return
+
+        in_training = (reward_frames > int(trn.start)) & (reward_frames <= int(trn.stop))
+        training_rewards = np.array(reward_frames[in_training], dtype=int)
+        training_rewards.sort()
+
+        if training_rewards.size < 2:
+            print(
+                "[plot_first_n_between_reward_training_segments] "
+                f"Not enough rewards in training {trn_index + 1} for fly {f_idx} "
+                f"(found {training_rewards.size})"
+            )
+            return
+
+        reward_pairs = list(zip(training_rewards[:-1], training_rewards[1:]))
+        selected_pairs = reward_pairs[:first_n]
+        if not selected_pairs:
+            print(
+                "[plot_first_n_between_reward_training_segments] "
+                f"No between-reward intervals found in training {trn_index + 1} for fly {f_idx}"
+            )
+            return
+
+        n_frames = len(self.x)
+        selected_segments = []
+        for start_reward, end_reward in selected_pairs:
+            start_frame = max(0, int(start_reward))
+            end_frame = min(n_frames - 1, int(end_reward))
+            if start_frame < end_frame:
+                selected_segments.append((start_reward, end_reward, start_frame, end_frame))
+
+        if not selected_segments:
+            print(
+                "[plot_first_n_between_reward_training_segments] "
+                f"No valid frame ranges for fly {f_idx}, training {trn_index + 1}"
+            )
+            return
+
+        # Conversion: px -> mm for floor coords
+        px_per_mm = self.va.ct.pxPerMmFloor() * self.va.xf.fctr
+        if not np.isfinite(px_per_mm) or px_per_mm <= 0:
+            px_per_mm = None
+
+        floor_coords = list(
+            self.va.ct.floor(self.va.xf, f=self.va.nef * (self.trj.f) + self.va.ef)
+        )
+        top_left, bottom_right = floor_coords[0], floor_coords[1]
+
+        contact_buffer_mm = CONTACT_BUFFER_OFFSETS["wall"]["max"]
+        contact_buffer_px = (
+            self.va.ct.pxPerMmFloor() * self.va.xf.fctr * contact_buffer_mm
+        )
+
+        reward_circle = None
+        try:
+            reward_circle = trn.circles(self.trj.f)[0]
+        except Exception:
+            reward_circle = None
+
+        padding_x = (bottom_right[0] - top_left[0]) * 0.1
+        padding_y = (top_left[1] - bottom_right[1]) * 0.1
+
+        def _ylim_is_inverted_for_full_view() -> bool:
+            yA = bottom_right[1] - padding_y
+            yB = top_left[1] + padding_y
+            return yA > yB
+
+        fig, ax = plt.subplots(1, 1, figsize=(8.5, 7.5))
+        plt.sca(ax)
+
+        rect = patches.FancyBboxPatch(
+            (top_left[0], top_left[1]),
+            bottom_right[0] - top_left[0],
+            bottom_right[1] - top_left[1],
+            boxstyle="round,pad=0.05,rounding_size=2",
+            linewidth=1,
+            edgecolor="black",
+            facecolor="none",
+            zorder=2,
+        )
+        ax.add_patch(rect)
+
+        self._draw_sidewall_contact_region(
+            lower_left_x=top_left[0],
+            lower_left_y=top_left[1],
+            top_left=top_left,
+            bottom_right=bottom_right,
+            contact_buffer_px=contact_buffer_px,
+        )
+
+        if reward_circle is not None:
+            rcx, rcy, rcr = reward_circle
+            rc_patch = plt.Circle(
+                (rcx, rcy),
+                rcr,
+                color="lightgray",
+                fill=False,
+                linestyle="-",
+                linewidth=1.5,
+                zorder=3,
+                label="Reward circle",
+            )
+            ax.add_patch(rc_patch)
+
+        ax.set_aspect("equal", adjustable="box")
+        ax.axis("off")
+
+        x0 = x1 = y0 = y1 = None
+        if zoom and reward_circle is not None and px_per_mm is not None:
+            rcx, rcy, rcr = reward_circle
+
+            if zoom_radius_mm is not None:
+                win_rad_px = float(zoom_radius_mm) * float(px_per_mm)
+            else:
+                win_rad_px = float(rcr) * float(zoom_radius_mult)
+
+            win_rad_px = max(win_rad_px, float(rcr) * 1.25)
+
+            floor_y_min = min(top_left[1], bottom_right[1])
+            floor_y_max = max(top_left[1], bottom_right[1])
+            y0 = max(floor_y_min, rcy - win_rad_px)
+            y1 = min(floor_y_max, rcy + win_rad_px)
+
+            floor_x_min = min(top_left[0], bottom_right[0])
+            floor_x_max = max(top_left[0], bottom_right[0])
+            x0 = max(floor_x_min, rcx - win_rad_px)
+            x1 = min(floor_x_max, rcx + win_rad_px)
+
+            if (x1 - x0) < 5 or (y1 - y0) < 5:
+                ax.set_xlim(top_left[0] - padding_x, bottom_right[0] + padding_x)
+                ax.set_ylim(bottom_right[1] - padding_y, top_left[1] + padding_y)
+                x0 = x1 = y0 = y1 = None
+            else:
+                ax.set_xlim(x0, x1)
+                if _ylim_is_inverted_for_full_view():
+                    ax.set_ylim(y1, y0)
+                else:
+                    ax.set_ylim(y0, y1)
+        else:
+            ax.set_xlim(top_left[0] - padding_x, bottom_right[0] + padding_x)
+            ax.set_ylim(bottom_right[1] - padding_y, top_left[1] + padding_y)
+
+        arrow_kwargs = {"length": 1.5, "linewidth": 1.0} if zoom else {
+            "length": 3.0,
+            "linewidth": 2.0,
+        }
+
+        cmap = plt.get_cmap("tab10")
+        handles = []
+        labels = []
+
+        for idx, (start_reward, end_reward, start_frame, end_frame) in enumerate(
+            selected_segments
+        ):
+            color = cmap(idx % 10)
+            last_arrow_idx = None
+            arrow_interval = 3
+
+            for i in range(start_frame, end_frame):
+                if (
+                    np.isnan(self.x[i])
+                    or np.isnan(self.y[i])
+                    or np.isnan(self.x[i + 1])
+                    or np.isnan(self.y[i + 1])
+                ):
+                    continue
+
+                x_start, x_end = self.x[i], self.x[i + 1]
+                y_start, y_end = self.y[i], self.y[i + 1]
+
+                x_start = max(min(x_start, bottom_right[0]), top_left[0])
+                x_end = max(min(x_end, bottom_right[0]), top_left[0])
+
+                ax.plot(
+                    [x_start, x_end],
+                    [y_start, y_end],
+                    color=color,
+                    linewidth=1.3,
+                    alpha=0.95,
+                    zorder=4,
+                )
+
+                if getattr(self.trj, "walking", None) is not None and not self.trj.walking[i + 1]:
+                    continue
+
+                speed = np.hypot(x_end - x_start, y_end - y_start)
+                try:
+                    last_arrow_idx = self._draw_arrow_for_speed(
+                        i,
+                        x_start,
+                        x_end,
+                        y_start,
+                        y_end,
+                        last_arrow_idx,
+                        arrow_interval,
+                        speed,
+                        arrow_kwargs=arrow_kwargs,
+                        arrow_color=color,
+                    )
+                except Exception:
+                    pass
+
+            ax.plot(
+                self.x[start_reward],
+                self.y[start_reward],
+                marker="o",
+                color=color,
+                markerfacecolor="white",
+                markersize=5,
+                zorder=5,
+            )
+            ax.plot(
+                self.x[end_reward],
+                self.y[end_reward],
+                marker="o",
+                color=color,
+                markersize=5,
+                zorder=5,
+            )
+
+            handles.append(plt.Line2D([0], [0], color=color, lw=2))
+            labels.append(f"seg {idx + 1}: {start_reward}->{end_reward}")
+
+        video_id = os.path.splitext(os.path.basename(self.va.fn))[0]
+        fly_idx = self.va.f
+
+        if role_idx is None:
+            try:
+                role_idx = self.va.flies.index(self.trj.f)
+            except Exception:
+                role_idx = int(self.trj.f)
+
+        fly_role = "exp" if role_idx == 0 else "yok"
+        fig.suptitle(
+            "First between-reward trajectories in training\n"
+            f"{video_id}, fly {fly_idx}, {fly_role} | trn {trn_index + 1} | "
+            f"first {len(selected_segments)} segments",
+            fontsize=12,
+        )
+
+        if handles:
+            ax.legend(
+                handles=handles,
+                labels=labels,
+                loc="center left",
+                bbox_to_anchor=(1.02, 0.5),
+                frameon=True,
+                fontsize=8,
+            )
+
+        output_dir = out_dir or "imgs/between_rewards"
+        output_path = (
+            f"{output_dir}/"
+            f"{video_id}__fly{fly_idx}_role{role_idx}_"
+            f"trn{trn_index + 1}_first{len(selected_segments)}"
+            f"{'_zoom' if zoom else ''}."
+            f"{image_format}"
+        )
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        fig.subplots_adjust(left=0.04, right=0.80, top=0.90, bottom=0.04)
+        writeImage(output_path, format=image_format)
+        plt.close(fig)
+
+        print(
+            "[plot_first_n_between_reward_training_segments] wrote "
+            f"{output_path}"
+        )
 
     def _draw_sidewall_contact_region(
         self, lower_left_x, lower_left_y, top_left, bottom_right, contact_buffer_px
@@ -1074,9 +1389,9 @@ class EventChainPlotter:
 
         if role_idx is None:
             try:
-                role_idx = self.va.flies.index(fly_idx)
+                role_idx = self.va.flies.index(self.trj.f)
             except Exception:
-                role_idx = 0
+                role_idx = int(self.trj.f)
 
         fly_role = "exp" if role_idx == 0 else "yok"
 
@@ -1147,6 +1462,7 @@ class EventChainPlotter:
         zoom: bool = False,
         zoom_radius_mm: float | None = None,
         zoom_radius_mult: float = 3.0,
+        out_dir: str | None = None,
     ):
         """
         Plot one or more between-reward trajectory segments for this fly, sampled
@@ -1621,9 +1937,9 @@ class EventChainPlotter:
 
         if role_idx is None:
             try:
-                role_idx = self.va.flies.index(fly_idx)
+                role_idx = self.va.flies.index(self.trj.f)
             except Exception:
-                role_idx = 0  # fallback if not resolvable, but keep going
+                role_idx = int(self.trj.f)
 
         seed_str = f"{seed}" if seed is not None else "rand"
         fly_role = "exp" if role_idx == 0 else "yok"
@@ -1643,8 +1959,9 @@ class EventChainPlotter:
             else:
                 zoom_str = f"_zoomx{zoom_radius_mult:g}"
 
+        output_dir = out_dir or "imgs/between_rewards"
         output_path = (
-            f"imgs/between_rewards/"
+            f"{output_dir}/"
             f"{video_id}__fly{fly_idx}_role{role_idx}_"
             f"trn{trn_index + 1}_bkt{bucket_index + 1}_"
             f"N{n_examples}_seed{seed_str}"
@@ -2005,9 +2322,9 @@ class EventChainPlotter:
 
         if role_idx is None:
             try:
-                role_idx = self.va.flies.index(fly_idx)
+                role_idx = self.va.flies.index(self.trj.f)
             except Exception:
-                role_idx = 0
+                role_idx = int(self.trj.f)
 
         seed_str = f"{seed}" if seed is not None else "rand"
         fly_role = "exp" if role_idx == 0 else "yok"
@@ -2355,6 +2672,12 @@ class EventChainPlotter:
 
         video_id = os.path.splitext(os.path.basename(self.va.fn))[0]
         fly_idx = self.va.f
+
+        if role_idx is None:
+            try:
+                role_idx = self.va.flies.index(self.trj.f)
+            except Exception:
+                role_idx = int(self.trj.f)
 
         seed_str = f"{seed}" if seed is not None else "rand"
         fly_role = "exp" if role_idx == 0 else "yok"

@@ -420,48 +420,6 @@ class VideoAnalysis:
 
             if opts.timeit:
                 per_lgt_processing_times.append(timeit.default_timer() - r_turn_start)
-        if (
-            getattr(opts, "btw_rwd_plots", False)
-            and getattr(opts, "btw_rwd_trn", None) is not None
-            and getattr(opts, "btw_rwd_bkt", None) is not None
-        ):
-            # Convert from 1-based CLI indices to 0-based internal indices
-            trn_index = opts.btw_rwd_trn - 1
-            bucket_index = opts.btw_rwd_bkt - 1
-
-            # Generate plots for each trajectory/fly in this VideoAnalysis
-            num_examples = getattr(opts, "btw_rwd_num", 1)
-            for trj in self.trx:
-                if self._bad(trj.f):
-                    continue
-
-                plotter = EventChainPlotter(
-                    trj,
-                    self,
-                    y_bounds=None,
-                    image_format=opts.imageFormat,
-                )
-
-                try:
-                    role_idx = self.flies.index(trj.f)
-                except Exception:
-                    role_idx = 0  # fallback if flies / mapping not as expected
-
-                plotter.plot_between_reward_chain(
-                    trn_index=trn_index,
-                    bucket_index=bucket_index,
-                    seed=opts.btw_rwd_seed,
-                    image_format=opts.imageFormat,
-                    role_idx=role_idx,
-                    num_examples=num_examples,
-                    max_dist_mm=getattr(opts, "btw_rwd_max_dist_mm", None),
-                    short_strict=bool(getattr(opts, "btw_rwd_short_strict", False)),
-                    zoom=bool(getattr(opts, "btw_rwd_zoom", False)),
-                    zoom_radius_mm=getattr(opts, "btw_rwd_zoom_radius_mm", None),
-                    zoom_radius_mult=float(
-                        getattr(opts, "btw_rwd_zoom_radius_mult", 3.0) or 3.0
-                    ),
-                )
         if needs_tp:
             turn_prob_dist_collator = VATurnProbabilityDistanceCollator(self, opts)
             turn_prob_dist_collator.calcTurnProbabilitiesByDistance()
