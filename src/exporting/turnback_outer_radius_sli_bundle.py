@@ -378,6 +378,22 @@ def export_turnback_outer_radius_sli_bundle(vas, opts, gls, out_fn):
         sli_use_training_mean=np.array(
             bool(getattr(opts, "sli_use_training_mean", False))
         ),
+        sli_select_skip_first_sync_buckets=np.array(
+            (
+                0
+                if getattr(opts, "sli_select_skip_first_sync_buckets", None) is None
+                else max(0, int(getattr(opts, "sli_select_skip_first_sync_buckets")))
+            ),
+            dtype=int,
+        ),
+        sli_select_keep_first_sync_buckets=np.array(
+            (
+                0
+                if getattr(opts, "sli_select_keep_first_sync_buckets", None) is None
+                else max(0, int(getattr(opts, "sli_select_keep_first_sync_buckets")))
+            ),
+            dtype=int,
+        ),
     )
     print(
         "[export] Wrote turnback-outer-radius+SLI bundle: "

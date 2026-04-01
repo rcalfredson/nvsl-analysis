@@ -37,6 +37,16 @@ def load_sli_bundle(path: str) -> dict:
     out["bucket_len_min"] = float(as_scalar(out["bucket_len_min"]))
     out["sli_training_idx"] = int(as_scalar(out["sli_training_idx"]))
     out["sli_use_training_mean"] = bool(as_scalar(out["sli_use_training_mean"]))
+    out["sli_select_skip_first_sync_buckets"] = (
+        int(as_scalar(d["sli_select_skip_first_sync_buckets"]))
+        if "sli_select_skip_first_sync_buckets" in d.files
+        else 0
+    )
+    out["sli_select_keep_first_sync_buckets"] = (
+        int(as_scalar(d["sli_select_keep_first_sync_buckets"]))
+        if "sli_select_keep_first_sync_buckets" in d.files
+        else 0
+    )
 
     prefixes = (
         "commag_",

@@ -31,6 +31,18 @@ def _pct_label(prefix, frac):
     return f"{prefix} {int(round(frac * 100))}%"
 
 
+def _format_sli_training_mean_window(skip_first_sync_buckets, keep_first_sync_buckets):
+    skip_k = max(0, int(skip_first_sync_buckets))
+    keep_k = max(0, int(keep_first_sync_buckets))
+    if skip_k == 0 and keep_k == 0:
+        return "full training"
+    if skip_k > 0 and keep_k > 0:
+        return f"skip first {skip_k} bucket(s), then keep first {keep_k}"
+    if skip_k > 0:
+        return f"skip first {skip_k} bucket(s)"
+    return f"keep first {keep_k} bucket(s)"
+
+
 def _bundle_metric_palette(metric):
     if metric == "commag":
         return get_palette("commag")
@@ -667,11 +679,25 @@ def plot_com_sli_bundles(
         # Assume consistent SLI settings; if not, still show the first and warn.
         stis = [b["sli_training_idx"] for b in bundles]
         means = [b["sli_use_training_mean"] for b in bundles]
-        if len(set(stis)) > 1 or len(set(means)) > 1:
+        skips = [b.get("sli_select_skip_first_sync_buckets", 0) for b in bundles]
+        keeps = [b.get("sli_select_keep_first_sync_buckets", 0) for b in bundles]
+        if (
+            len(set(stis)) > 1
+            or len(set(means)) > 1
+            or len(set(skips)) > 1
+            or len(set(keeps)) > 1
+        ):
             warnings.warn(
-                "Bundles disagree on sli_training_idx and/or sli_use_training_mean; annotation may be misleading."
+                "Bundles disagree on SLI selection metadata; annotation may be misleading."
             )
         sli_mode = "mean over buckets" if bool(means[0]) else "single bucket"
+        sli_mode_window = ""
+        print('skips:', skips)
+        print('keeps:', keeps)
+        if bool(means[0]):
+            sli_mode_window = "; " + _format_sli_training_mean_window(
+                skips[0], keeps[0]
+            )
         if sli_extremes == "top":
             sel_txt = _pct_label("Top", sli_top_fraction)
         elif sli_extremes == "bottom":
@@ -688,7 +714,7 @@ def plot_com_sli_bundles(
             fig.text(
                 0.1,
                 0.98,
-                f"SLI filter: {sel_txt} within group; T{stis[0]+1}; {sli_mode}",
+                f"SLI filter: {sel_txt} within group; T{stis[0]+1}; {sli_mode}{sli_mode_window}",
                 ha="left",
                 va="top",
                 fontsize=customizer.in_plot_font_size,
