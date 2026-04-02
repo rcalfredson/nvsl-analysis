@@ -1045,13 +1045,13 @@ g.add_argument(
 g.add_argument(
     "--first-n-reward-diagnostics-sli-group",
     type=str,
-    choices=("top", "bottom"),
-    default=None,
+    choices=("all", "top", "bottom"),
+    default="all",
     help=(
-        "Restrict first-n reward diagnostics to a selected SLI subset: 'top' or "
-        "'bottom'. Uses the same SLI selection configured by --best-worst-sli "
-        "together with --best-worst-fraction and/or the side-specific flags "
-        "--top-sli-fraction and --bottom-sli-fraction."
+        "Subset to use for first-n reward diagnostics: all flies, top-SLI flies, "
+        "or bottom-SLI flies. Top/bottom use the same SLI selection configured by "
+        "--best-worst-sli together with --best-worst-fraction and/or the side-"
+        "specific flags --top-sli-fraction and --bottom-sli-fraction."
     ),
 )
 g.add_argument(
@@ -1138,6 +1138,7 @@ g.add_argument(
         "time_to_first_selected_reward_s",
         "time_to_nth_selected_reward_s",
         "first_n_selected_reward_span_s",
+        "selected_reward_rate_to_nth_per_min",
     ),
     default="first_n_reward_span_s",
     help="Metric used for the x-axis of the first-n reward diagnostics scatter plot.",
@@ -1169,6 +1170,7 @@ g.add_argument(
         "time_to_first_selected_reward_s",
         "time_to_nth_selected_reward_s",
         "first_n_selected_reward_span_s",
+        "selected_reward_rate_to_nth_per_min",
     ),
     default="sli",
     help="Metric used for the y-axis of the first-n reward diagnostics scatter plot.",
@@ -1199,6 +1201,7 @@ g.add_argument(
         "time_to_first_selected_reward_s",
         "time_to_nth_selected_reward_s",
         "first_n_selected_reward_span_s",
+        "selected_reward_rate_to_nth_per_min",
     ),
     default="control_circle_entry_count_by_cutoff",
     help="Metric used to color the first-n reward diagnostics scatter plot.",
@@ -8832,6 +8835,9 @@ def postAnalyze(vas):
     need_reward_raster_sli_sort = (
         getattr(opts, "reward_raster_sort", "none") == "sli"
     )
+    need_first_n_reward_diagnostics = bool(
+        getattr(opts, "first_n_reward_diagnostics", False)
+    )
     need_first_n_reward_sli_comparison = bool(
         getattr(opts, "first_n_reward_sli_comparison", False)
     )
@@ -8841,6 +8847,7 @@ def postAnalyze(vas):
         or using_sli_set_op
         or need_reward_raster_sli_group
         or need_reward_raster_sli_sort
+        or need_first_n_reward_diagnostics
         or need_first_n_reward_sli_comparison
     ) and (not va.noyc) and (not va.choice):
         tp_sli, calc_sli = typeCalc("rpid")
@@ -8875,17 +8882,25 @@ def postAnalyze(vas):
             if (
                 opts.best_worst_sli
                 or need_reward_raster_sli_group
+                or need_first_n_reward_diagnostics
                 or need_first_n_reward_sli_comparison
             ):
                 top_fraction = getattr(opts, "top_sli_fraction", None)
                 bottom_fraction = getattr(opts, "bottom_sli_fraction", None)
                 if (
-                    (need_reward_raster_sli_group or need_first_n_reward_sli_comparison)
+                    (
+                        need_reward_raster_sli_group
+                        or need_first_n_reward_diagnostics
+                        or need_first_n_reward_sli_comparison
+                    )
                     and not opts.best_worst_sli
                     and top_fraction is None
                     and bottom_fraction is None
                 ):
-                    if need_first_n_reward_sli_comparison:
+                    if (
+                        need_first_n_reward_diagnostics
+                        or need_first_n_reward_sli_comparison
+                    ):
                         top_fraction = 0.1
                         bottom_fraction = 0.1
                     elif getattr(opts, "reward_raster_sli_group", None) == "top":
@@ -9532,6 +9547,8 @@ def postAnalyze(vas):
     if getattr(opts, "first_n_reward_diagnostics", False):
         vas_for_diag = vas
         diag_sli_group = getattr(opts, "first_n_reward_diagnostics_sli_group", None)
+        if diag_sli_group in (None, ""):
+            diag_sli_group = "all"
 
         if diag_sli_group == "top":
             if saved_top is None:
@@ -9557,7 +9574,9 @@ def postAnalyze(vas):
                 )
 
         diag_subset_label = None
-        if diag_sli_group == "top" and saved_top is not None:
+        if diag_sli_group == "all":
+            diag_subset_label = "All flies"
+        elif diag_sli_group == "top" and saved_top is not None:
             frac = getattr(opts, "top_sli_fraction", None)
             if frac is None:
                 frac = getattr(opts, "best_worst_fraction", 0.1)

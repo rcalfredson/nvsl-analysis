@@ -77,6 +77,7 @@ class FirstNRewardDiagnosticRow:
     time_to_first_selected_reward_s: float
     time_to_nth_selected_reward_s: float
     first_n_selected_reward_span_s: float
+    selected_reward_rate_to_nth_per_min: float
 
 
 class FirstNRewardDiagnosticsPlotter:
@@ -106,7 +107,10 @@ class FirstNRewardDiagnosticsPlotter:
 
     @staticmethod
     def _metric_label(name: str) -> str:
-        return str(name).replace("_", " ")
+        labels = {
+            "selected_reward_rate_to_nth_per_min": "Rate to nth selected reward (/min)",
+        }
+        return labels.get(str(name), str(name).replace("_", " "))
 
     def _resolve_metric_name(self, name: str | None, *, fallback: str) -> str:
         candidate = str(name or fallback)
@@ -238,6 +242,7 @@ class FirstNRewardDiagnosticsPlotter:
             time_to_first_selected_s = np.nan
             time_to_nth_selected_s = np.nan
             selected_span_s = np.nan
+            selected_reward_rate_to_nth_per_min = np.nan
 
             if n_actual > 0:
                 time_to_first_s = cumulative_window_seconds_for_frame(
@@ -263,6 +268,10 @@ class FirstNRewardDiagnosticsPlotter:
                 ):
                     selected_span_s = float(
                         time_to_nth_selected_s - time_to_first_selected_s
+                    )
+                if np.isfinite(time_to_nth_selected_s) and time_to_nth_selected_s > 0:
+                    selected_reward_rate_to_nth_per_min = float(
+                        n_target * 60.0 / time_to_nth_selected_s
                     )
 
                 cutoff_window = locate_window_for_frame(
@@ -359,6 +368,7 @@ class FirstNRewardDiagnosticsPlotter:
                     time_to_first_selected_reward_s=time_to_first_selected_s,
                     time_to_nth_selected_reward_s=time_to_nth_selected_s,
                     first_n_selected_reward_span_s=selected_span_s,
+                    selected_reward_rate_to_nth_per_min=selected_reward_rate_to_nth_per_min,
                 )
             )
 

@@ -70,15 +70,15 @@ class FirstNRewardSLIComparisonPlotter:
     def _metric_field_names() -> list[str]:
         return list(FirstNRewardDiagnosticRow.__dataclass_fields__.keys())
 
-    def _resolve_metric_name(self, name: str | None) -> str:
-        candidate = str(name or "time_to_nth_actual_reward_s")
+    def _resolve_metric_name(self, name: str | None, *, fallback: str) -> str:
+        candidate = str(name or fallback)
         if candidate in self._metric_field_names():
             return candidate
         print(
             f"[{self.log_tag}] WARNING: unknown metric '{candidate}'; "
-            "falling back to 'time_to_nth_actual_reward_s'."
+            f"falling back to '{fallback}'."
         )
-        return "time_to_nth_actual_reward_s"
+        return fallback
 
     @staticmethod
     def _pretty_phrase(name: str) -> str:
@@ -151,7 +151,9 @@ class FirstNRewardSLIComparisonPlotter:
         )
 
     def _comparison_df(self) -> tuple[pd.DataFrame, dict[str, _GroupComputation]]:
-        metric = self._resolve_metric_name(self.cfg.metric)
+        metric = self._resolve_metric_name(
+            self.cfg.metric, fallback="time_to_nth_actual_reward_s"
+        )
         rows_top = self._compute_rows_for_group(
             self.vas_top,
             sli_values=self.top_sli_values,
@@ -209,7 +211,9 @@ class FirstNRewardSLIComparisonPlotter:
         return float(t_stat), float(p_value)
 
     def _ttest_text(self, df: pd.DataFrame, groups: dict[str, _GroupComputation]) -> str:
-        metric = self._resolve_metric_name(self.cfg.metric)
+        metric = self._resolve_metric_name(
+            self.cfg.metric, fallback="time_to_nth_actual_reward_s"
+        )
         vals_bottom = (
             df.loc[df["sli_group"] == self.cfg.bottom_label, "comparison_value"]
             .to_numpy(dtype=float)
@@ -480,10 +484,14 @@ class FirstNRewardSLIComparisonPlotter:
                 writer.writerow(row)
         print(f"[{self.log_tag}] wrote CSV: {path}")
 
-    def _write_plot(self, df: pd.DataFrame, groups: dict[str, _GroupComputation]) -> None:
+    def _write_plot(
+        self, df: pd.DataFrame, groups: dict[str, _GroupComputation]
+    ) -> None:
         path = self.cfg.plot_out
         util.ensureDir(path)
-        metric = self._resolve_metric_name(self.cfg.metric)
+        metric = self._resolve_metric_name(
+            self.cfg.metric, fallback="time_to_nth_actual_reward_s"
+        )
 
         fig, ax = plt.subplots(1, 1, figsize=(7.2, 5.6))
         order = [self.cfg.bottom_label, self.cfg.top_label]
