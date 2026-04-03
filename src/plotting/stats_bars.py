@@ -228,17 +228,18 @@ def annotate_grouped_bars_per_bin(
     paired: bool = False,
     panel_label: str | None = None,
     debug: bool = False,
-) -> None:
+) -> np.ndarray:
     # Expand ylim for headroom
     ylim0, ylim1 = ax.get_ylim()
     y_rng0 = float(ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 1.0
     ax.set_ylim(ylim0, ylim1 + cfg.headroom_frac * y_rng0)
 
     B = int(x_centers.size)
+    top_by_bin = np.full((B,), np.nan, dtype=float)
     if any(x.shape[0] != B for x in xpos_by_group):
-        return
+        return top_by_bin
     if any(h.shape[0] != B for h in hi_by_group):
-        return
+        return top_by_bin
 
     ylim0, ylim1 = ax.get_ylim()
     y_rng = float(ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 1.0
@@ -351,4 +352,10 @@ def annotate_grouped_bars_per_bin(
                 text=stars,
                 fontsize=float(cfg.bracket_fontsize),
             )
+            top_by_bin[j] = (
+                float(y + bracket_h)
+                if not np.isfinite(top_by_bin[j])
+                else max(float(top_by_bin[j]), float(y + bracket_h))
+            )
             level += 1
+    return top_by_bin

@@ -326,6 +326,20 @@ def _global_constant_legend_n(xs: list[ExportedTrainingScalarBars]) -> int | Non
     return int(uniq[0])
 
 
+def _all_groups_have_constant_legend_n(
+    xs: list[ExportedTrainingScalarBars],
+) -> list[int] | None:
+    if not xs:
+        return None
+    ns = []
+    for x in xs:
+        n = _legend_n_for_group(x)
+        if n is None:
+            return None
+        ns.append(int(n))
+    return ns
+
+
 def _legend_n_from_paired(paired_n_per_panel: np.ndarray, P: int) -> int | None:
     if paired_n_per_panel is None or P <= 0:
         return None
@@ -343,6 +357,164 @@ def _panel_n_label(x: ExportedTrainingScalarBars, p_idx: int) -> str:
     if x.n_units_panel is not None and x.n_units_panel.shape[0] > p_idx:
         return str(int(x.n_units_panel[p_idx]))
     return "?"
+
+
+def _per_panel_n_text(
+    ns: list[int],
+    *,
+    compact_n_labels: bool,
+) -> str | None:
+    ns = [int(n) for n in ns if n is not None and int(n) > 0]
+    if not ns:
+        return None
+    uniq = sorted(set(ns))
+    if len(uniq) == 1:
+        return f"n={uniq[0]}"
+    joined = "/".join(map(str, ns))
+    return joined if compact_n_labels else f"n={joined}"
+
+
+def _draw_panel_n_labels(
+    ax: plt.Axes,
+    *,
+    x_centers: np.ndarray,
+    hi_by_group: list[np.ndarray],
+    panel_n_texts: list[str | None],
+    bracket_tops: np.ndarray | None,
+    annotation_font_size: float,
+    compact_n_labels: bool,
+    dense_bar_layout: bool,
+    font_scale: float,
+    n_label_rotation: float,
+) -> None:
+    if not panel_n_texts:
+        return
+
+    ylim0, ylim1 = ax.get_ylim()
+    y_rng = float(ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 1.0
+    y_pad = (0.018 + 0.012 * max(font_scale - 1.0, 0.0)) * y_rng
+
+    for p, n_text in enumerate(panel_n_texts):
+        if not n_text:
+            continue
+
+        y_top = np.nan
+        for hi in hi_by_group:
+            if p < hi.shape[0] and np.isfinite(hi[p]):
+                y_top = float(hi[p]) if not np.isfinite(y_top) else max(float(y_top), float(hi[p]))
+        if bracket_tops is not None and p < bracket_tops.shape[0] and np.isfinite(bracket_tops[p]):
+            y_top = (
+                float(bracket_tops[p])
+                if not np.isfinite(y_top)
+                else max(float(y_top), float(bracket_tops[p]))
+            )
+        if not np.isfinite(y_top):
+            continue
+
+        ax.text(
+            float(x_centers[p]),
+            float(
+                y_top
+                + y_pad
+                + ((0.018 * y_rng) if dense_bar_layout and (p % 2 == 1) else 0.0)
+            ),
+            n_text,
+            ha="center",
+            va="bottom",
+            fontsize=annotation_font_size,
+            rotation=n_label_rotation,
+            color="0.2",
+            clip_on=False,
+            zorder=9,
+        )
+
+
+def _ensure_top_text_visible(
+    fig: plt.Figure,
+    ax: plt.Axes,
+    *,
+    texts: list,
+    top_pad_px: float = 4.0,
+    max_iter: int = 3,
+) -> None:
+    if not texts:
+        return
+
+    for _ in range(max_iter):
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        ax_bbox = ax.get_window_extent(renderer=renderer)
+        ax_h_px = max(float(ax_bbox.height), 1.0)
+        ylim0, ylim1 = ax.get_ylim()
+        y_rng = float(ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 1.0
+
+        overflow_px = 0.0
+        for txt in texts:
+            if not txt.get_visible():
+                continue
+            bbox = txt.get_window_extent(renderer=renderer)
+            overflow_px = max(overflow_px, float(bbox.y1 - (ax_bbox.y1 - top_pad_px)))
+
+        if overflow_px <= 0.0:
+            break
+
+        extra_data = (overflow_px / ax_h_px) * y_rng + 0.01 * y_rng
+        ax.set_ylim(ylim0, ylim1 + extra_data)
+
+
+def _expand_bbox(bbox, pad_px: float):
+    return bbox.expanded(
+        (float(bbox.width) + 2.0 * pad_px) / max(float(bbox.width), 1.0),
+        (float(bbox.height) + 2.0 * pad_px) / max(float(bbox.height), 1.0),
+    )
+
+
+def _ensure_legend_clear_of_annotations(
+    fig: plt.Figure,
+    ax: plt.Axes,
+    *,
+    legend,
+    texts: list,
+    lines: list,
+    pad_px: float = 6.0,
+    max_iter: int = 4,
+) -> None:
+    if legend is None:
+        return
+    if not texts and not lines:
+        return
+
+    for _ in range(max_iter):
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        legend_bbox = legend.get_window_extent(renderer=renderer)
+        legend_bbox = _expand_bbox(legend_bbox, pad_px=float(pad_px))
+        ax_bbox = ax.get_window_extent(renderer=renderer)
+        ax_h_px = max(float(ax_bbox.height), 1.0)
+        ylim0, ylim1 = ax.get_ylim()
+        y_rng = float(ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 1.0
+
+        overlap_px = 0.0
+        for artist in [*texts, *lines]:
+            if hasattr(artist, "get_visible") and not artist.get_visible():
+                continue
+            try:
+                bbox = artist.get_window_extent(renderer=renderer)
+            except Exception:
+                continue
+            if bbox is None:
+                continue
+            if legend_bbox.overlaps(bbox):
+                overlap_px = max(
+                    overlap_px,
+                    float(min(legend_bbox.y1, bbox.y1) - max(legend_bbox.y0, bbox.y0)),
+                )
+
+        if overlap_px <= 0.0:
+            break
+
+        extra_data = (overlap_px / ax_h_px) * y_rng + 0.02 * y_rng
+        ax.set_ylim(ylim0, ylim1 + extra_data)
 
 
 def _group_union_matrix(
@@ -490,10 +662,12 @@ def plot_overlays(
             lo_plot.append(np.asarray(x.ci_lo, float))
             hi_plot.append(np.asarray(x.ci_hi, float))
 
+    per_group_legend_ns = None
+    global_legend_n = None
     if stats and stats_paired and paired_n_per_panel is not None:
         global_legend_n = _legend_n_from_paired(paired_n_per_panel, P)
     else:
-        global_legend_n = _global_constant_legend_n(xs)
+        per_group_legend_ns = _all_groups_have_constant_legend_n(xs)
 
     for gi, x in enumerate(xs):
         xg = x_centers + offsets[gi]
@@ -502,6 +676,8 @@ def plot_overlays(
         y = np.asarray(means_plot[gi], float)
         y_plot = np.where(np.isfinite(y), y, 0.0)
         n_leg = global_legend_n
+        if per_group_legend_ns is not None and gi < len(per_group_legend_ns):
+            n_leg = per_group_legend_ns[gi]
         label = f"{x.group} (n={n_leg})" if n_leg is not None else f"{x.group}"
         ax.bar(xg, y_plot, width=bar_w, align="center", label=label)
 
@@ -531,65 +707,10 @@ def plot_overlays(
             per_unit_by_group.append(mats[gi])  # (N_union, P)
             per_unit_ids_by_group.append(ids_union[gi])  # (N_union,)
 
-    # ---- per-panel n labels (only when legend n is omitted) ----
-    # Show per-panel n centered on each tick, above the tallest bar/CI in that panel.
-    need_per_panel_n = (global_legend_n is None) and not (stats and stats_paired)
-
-    if need_per_panel_n:
-        ylim0, ylim1 = ax.get_ylim()
-        y_rng = float(ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 1.0
-        y_pad = (0.018 + 0.012 * max(font_scale - 1.0, 0.0)) * y_rng
-
-        for p in range(P):
-            # if all groups share same n at this panel, show a single "n=.."
-            ns = []
-            for x in xs:
-                npp = _panel_n(x, p)
-                if npp is not None and npp > 0:
-                    ns.append(npp)
-            if not ns:
-                continue
-
-            uniq = sorted(set(ns))
-            if len(uniq) == 1:
-                n_text = f"n={uniq[0]}"
-            else:
-                n_text = "/".join(map(str, ns)) if compact_n_labels else (
-                    "n=" + "/".join(map(str, ns))
-                )
-
-            # baseline above tallest bar/CI at this panel
-            y_top = np.nan
-            for gi in range(G):
-                if p < hi_by_group[gi].shape[0] and np.isfinite(hi_by_group[gi][p]):
-                    y_top = (
-                        float(hi_by_group[gi][p])
-                        if not np.isfinite(y_top)
-                        else max(float(y_top), float(hi_by_group[gi][p]))
-                    )
-            if not np.isfinite(y_top):
-                continue
-
-            ax.text(
-                float(x_centers[p]),
-                float(
-                    y_top
-                    + y_pad
-                    + (
-                        (0.018 * y_rng)
-                        if dense_bar_layout and (p % 2 == 1)
-                        else 0.0
-                    )
-                ),
-                n_text,
-                ha="center",
-                va="bottom",
-                fontsize=annotation_font_size,
-                rotation=n_label_rotation,
-                color="0.2",
-                clip_on=False,
-                zorder=9,
-            )
+    panel_n_texts: list[str | None] = []
+    bracket_tops = None
+    base_text_count = len(ax.texts)
+    base_line_count = len(ax.lines)
 
     tick_rotation = 30
     if P >= 8:
@@ -626,12 +747,12 @@ def plot_overlays(
             alpha=float(stats_alpha),
             min_n_per_group=3,
             headroom_frac=0.30 + 0.10 * max(font_scale - 1.0, 0.0),
-            stack_gap_frac=0.070 + 0.018 * max(font_scale - 1.0, 0.0),
-            gap_above_bars_frac=0.055 + 0.015 * max(font_scale - 1.0, 0.0),
-            nlabel_off_frac=0.055 + 0.015 * max(font_scale - 1.0, 0.0),
+            stack_gap_frac=0.050 + 0.014 * max(font_scale - 1.0, 0.0),
+            gap_above_bars_frac=0.045 + 0.012 * max(font_scale - 1.0, 0.0),
+            nlabel_off_frac=0.0,
             bracket_fontsize=annotation_font_size,
         )
-        annotate_grouped_bars_per_bin(
+        bracket_tops = annotate_grouped_bars_per_bin(
             ax,
             x_centers=x_centers,
             xpos_by_group=xpos_by_group,
@@ -652,49 +773,51 @@ def plot_overlays(
             n_constant = int(uniq[0]) if uniq.size == 1 else None
 
             if n_constant is None:
-                ylim0, ylim1 = ax.get_ylim()
-                y_rng = float(ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 1.0
-                y_pad = (0.018 + 0.012 * max(font_scale - 1.0, 0.0)) * y_rng
+                panel_n_texts = [None] * P
                 for p in range(P):
                     npp = int(paired_n_per_panel[p])
                     if npp <= 0:
                         continue
-                    y_top = np.nan
-                    for gi in range(G):
-                        if p < hi_by_group[gi].shape[0] and np.isfinite(
-                            hi_by_group[gi][p]
-                        ):
-                            y_top = (
-                                hi_by_group[gi][p]
-                                if not np.isfinite(y_top)
-                                else max(y_top, hi_by_group[gi][p])
-                            )
-                    if np.isfinite(y_top):
-                        ax.text(
-                            float(x_centers[p]),
-                            float(
-                                y_top
-                                + y_pad
-                                + (
-                                    (0.018 * y_rng)
-                                    if dense_bar_layout and (p % 2 == 1)
-                                    else 0.0
-                                )
-                            ),
-                            f"n={npp}",
-                            ha="center",
-                            va="bottom",
-                            fontsize=annotation_font_size,
-                            rotation=n_label_rotation,
-                            color="0.2",
-                            clip_on=False,
-                            zorder=9,
-                        )
+                    panel_n_texts[p] = f"n={npp}"
+        elif per_group_legend_ns is None:
+            for p in range(P):
+                ns = []
+                for x in xs:
+                    npp = _panel_n(x, p)
+                    if npp is not None and npp > 0:
+                        ns.append(int(npp))
+                panel_n_texts.append(
+                    _per_panel_n_text(ns, compact_n_labels=compact_n_labels)
+                )
+    elif per_group_legend_ns is None:
+        for p in range(P):
+            ns = []
+            for x in xs:
+                npp = _panel_n(x, p)
+                if npp is not None and npp > 0:
+                    ns.append(int(npp))
+            panel_n_texts.append(
+                _per_panel_n_text(ns, compact_n_labels=compact_n_labels)
+            )
+
+    if panel_n_texts:
+        _draw_panel_n_labels(
+            ax,
+            x_centers=x_centers,
+            hi_by_group=hi_by_group,
+            panel_n_texts=panel_n_texts,
+            bracket_tops=bracket_tops,
+            annotation_font_size=annotation_font_size,
+            compact_n_labels=compact_n_labels,
+            dense_bar_layout=dense_bar_layout,
+            font_scale=font_scale,
+            n_label_rotation=n_label_rotation,
+        )
 
     if title:
         fig.suptitle(title)
 
-    ax.legend(fontsize=legend_font_size)
+    legend = ax.legend(fontsize=legend_font_size)
     if customizer.customized:
         customizer.adjust_padding_proportionally()
         xlabel_text = ax.xaxis.get_label().get_text()
@@ -716,4 +839,12 @@ def plot_overlays(
     else:
         fig.tight_layout()
     _ensure_xlabel_visible(fig, ax)
+    _ensure_legend_clear_of_annotations(
+        fig,
+        ax,
+        legend=legend,
+        texts=ax.texts[base_text_count:],
+        lines=ax.lines[base_line_count:],
+    )
+    _ensure_top_text_visible(fig, ax, texts=ax.texts[base_text_count:])
     return fig
