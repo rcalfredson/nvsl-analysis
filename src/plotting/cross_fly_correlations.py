@@ -244,8 +244,22 @@ def _place_legend_without_point_overlap(
     y_f = y[finite]
 
     legend = ax.legend(handles=handles, loc="best", frameon=frameon)
+    legend_fontsize = None
     if x_f.size == 0:
         return legend
+
+    n_entries = len(handles)
+    if n_entries > 3:
+        base_fontsize = legend.get_texts()[0].get_fontsize() if legend.get_texts() else 10
+        if n_entries == 4:
+            scale = 0.75
+        else:
+            scale = max(0.75 - 0.05 * (n_entries - 4), 0.5)
+        legend_fontsize = max(base_fontsize * scale, 6)
+        for text in legend.get_texts():
+            text.set_fontsize(legend_fontsize)
+        if legend.get_title() is not None:
+            legend.get_title().set_fontsize(legend_fontsize)
 
     fig = ax.figure
     fig.canvas.draw()
@@ -281,7 +295,12 @@ def _place_legend_without_point_overlap(
 
     for loc in candidates:
         legend.remove()
-        legend = ax.legend(handles=handles, loc=loc, frameon=frameon)
+        legend = ax.legend(
+            handles=handles,
+            loc=loc,
+            frameon=frameon,
+            fontsize=legend_fontsize,
+        )
         fig.canvas.draw()
         legend_bbox_raw = legend.get_window_extent(renderer=renderer)
         legend_bbox = legend_bbox_raw.expanded(
@@ -329,7 +348,12 @@ def _place_legend_without_point_overlap(
         pts_display = ax.transData.transform(np.column_stack([x_f, y_f]))
 
         legend.remove()
-        legend = ax.legend(handles=handles, loc=fallback_loc, frameon=frameon)
+        legend = ax.legend(
+            handles=handles,
+            loc=fallback_loc,
+            frameon=frameon,
+            fontsize=legend_fontsize,
+        )
         fig.canvas.draw()
         legend_bbox_raw = legend.get_window_extent(renderer=renderer)
         legend_bbox = legend_bbox_raw.expanded(
