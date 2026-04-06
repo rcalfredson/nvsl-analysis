@@ -246,6 +246,15 @@ def annotate_grouped_bars_per_bin(
     y_rng = float(ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 1.0
     bracket_h = cfg.bracket_h_frac * y_rng
     step = bracket_h + cfg.stack_gap_frac * y_rng
+    fig = ax.figure
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    ax_bbox = ax.get_window_extent(renderer=renderer)
+    ax_h_px = max(float(ax_bbox.height), 1.0)
+    data_per_px = y_rng / ax_h_px
+    fontsize_px = float(cfg.bracket_fontsize) * float(fig.dpi) / 72.0
+    star_text_pad = max(2.0, 0.15 * fontsize_px) * data_per_px
+    star_text_height = 1.05 * fontsize_px * data_per_px
 
     gidx = {name: i for i, name in enumerate(group_names)}
     for j in range(B):
@@ -354,9 +363,12 @@ def annotate_grouped_bars_per_bin(
                 fontsize=float(cfg.bracket_fontsize),
             )
             top_by_bin[j] = (
-                float(y + bracket_h)
+                float(y + bracket_h + star_text_pad + star_text_height)
                 if not np.isfinite(top_by_bin[j])
-                else max(float(top_by_bin[j]), float(y + bracket_h))
+                else max(
+                    float(top_by_bin[j]),
+                    float(y + bracket_h + star_text_pad + star_text_height),
+                )
             )
             level += 1
     return top_by_bin

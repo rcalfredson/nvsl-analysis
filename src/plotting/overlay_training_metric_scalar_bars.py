@@ -393,7 +393,17 @@ def _draw_panel_n_labels(
 
     ylim0, ylim1 = ax.get_ylim()
     y_rng = float(ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 1.0
-    y_pad = (0.018 + 0.012 * max(font_scale - 1.0, 0.0)) * y_rng
+    fig = ax.figure
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    ax_bbox = ax.get_window_extent(renderer=renderer)
+    ax_h_px = max(float(ax_bbox.height), 1.0)
+    data_per_px = y_rng / ax_h_px
+    font_px = float(annotation_font_size) * float(fig.dpi) / 72.0
+    text_clearance = (0.45 * font_px + 2.0) * data_per_px
+    y_pad = (
+        (0.024 + 0.016 * max(font_scale - 1.0, 0.0)) * y_rng + text_clearance
+    )
 
     for p, n_text in enumerate(panel_n_texts):
         if not n_text:

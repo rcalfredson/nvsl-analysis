@@ -958,7 +958,13 @@ def plot_overlays(
             # Put n labels just above the tallest bar/CI in that bin
             ylim0, ylim1 = ax.get_ylim()
             y_rng = float(ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 1.0
-            y_pad = 0.015 * y_rng
+            fig.canvas.draw()
+            renderer = fig.canvas.get_renderer()
+            ax_bbox = ax.get_window_extent(renderer=renderer)
+            ax_h_px = max(float(ax_bbox.height), 1.0)
+            data_per_px = y_rng / ax_h_px
+            font_px = float(annotation_font_size) * float(fig.dpi) / 72.0
+            y_pad = 0.020 * y_rng + (0.45 * font_px + 2.0) * data_per_px
             for j in range(int(centers_x.size)):
                 nbin = int(paired_n_per_bin[j])
                 if nbin <= 0:
