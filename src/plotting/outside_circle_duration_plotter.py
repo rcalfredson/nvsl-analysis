@@ -1,13 +1,14 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+from src.plotting.palettes import group_accent_color, group_fill_color
 from src.utils.common import writeImage
 from src.utils.util import slugify
 
 
 class OutsideCircleDurationPlotter:
-    PATCH_PALETTE = ["tomato", "forestgreen"]
-    EDGE_PALETTE = ["darkred", "darkgreen"]
+    PATCH_PALETTE = [group_fill_color(0), group_fill_color(2)]
+    EDGE_PALETTE = [group_accent_color(0), group_accent_color(2)]
     OUTSIDE_CIRCLE_NBINS = 15  # Number of bins for histogram plotting
     MIN_NUM_DURATIONS = (
         10  # Minimum number of durations required for inclusion in plots
@@ -164,10 +165,10 @@ class OutsideCircleDurationPlotter:
                 width=np.diff(self.bins),
                 align="edge",
                 color=colors[group][0],
-                alpha=0.5,
+                alpha=0.90,
                 label=f"{labels[group]} (n={len(histograms_by_group[group])})",
                 edgecolor=colors[group][1],
-                linewidth=0.5,
+                linewidth=0.9,
             )
 
         ax.set_xlabel("Duration Outside Circle (seconds)")

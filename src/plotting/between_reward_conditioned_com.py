@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import src.utils.util as util
+from src.plotting.palettes import NEUTRAL_DARK, group_accent_color, group_fill_color
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.stats_bars import StatAnnotConfig, annotate_grouped_bars_per_bin
 from src.plotting.wall_contact_utils import build_wall_contact_mask_for_window
@@ -1136,7 +1137,8 @@ class BetweenRewardConditionedCOMPlotter:
             ax.text(0.5, 0.5, "no data", ha="center", va="center")
         else:
             # Histogram-like bars: one bar per distance bin (height = mean over flies)
-            color = "C0"
+            color = group_fill_color(0)
+            edge_color = group_accent_color(0)
             edges = np.asarray(data["x_edges"], dtype=float)
             widths = edges[1:] - edges[:-1]
 
@@ -1148,9 +1150,9 @@ class BetweenRewardConditionedCOMPlotter:
                 width=0.92 * widths[fin],
                 align="center",
                 color=color,
-                alpha=0.75,
-                edgecolor=color,
-                linewidth=0.8,
+                alpha=0.90,
+                edgecolor=edge_color,
+                linewidth=0.9,
             )
 
             # CI as asymmetric error bars derived from (lo, hi)
@@ -1162,7 +1164,7 @@ class BetweenRewardConditionedCOMPlotter:
                     y[fin_ci],
                     yerr=yerr,
                     fmt="none",
-                    ecolor=color,
+                    ecolor=NEUTRAL_DARK,
                     elinewidth=1.2,
                     capsize=2.5,
                     alpha=0.9,
@@ -1378,14 +1380,18 @@ def plot_btw_rwd_conditioned_com_overlay(
             continue
         any_data = True
         active.append((gi, res, lab, x_bar, fin))
+        bar_color = group_fill_color(gi)
+        edge_color = group_accent_color(gi)
 
         ax.bar(
             x_bar[fin],
             y[fin],
             width=bar_w[fin],
             align="center",
-            alpha=0.75,
-            linewidth=0.8,
+            color=bar_color,
+            edgecolor=edge_color,
+            alpha=0.90,
+            linewidth=0.9,
             label=str(lab),
         )
 
@@ -1409,6 +1415,7 @@ def plot_btw_rwd_conditioned_com_overlay(
                 y[fin_ci],
                 yerr=yerr,
                 fmt="none",
+                ecolor=NEUTRAL_DARK,
                 elinewidth=1.1,
                 capsize=2.0,
                 alpha=0.9,

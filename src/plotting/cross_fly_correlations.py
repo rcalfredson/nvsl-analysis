@@ -12,6 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
 
+from src.plotting.palettes import MUTED_CATEGORICAL, NEUTRAL_LIGHT, NEUTRAL_MID
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.reward_window_utils import (
     cumulative_window_seconds_for_frame,
@@ -68,7 +69,7 @@ _maybe_init_correlation_layout_logging_from_env()
 class CorrelationPlotConfig:
     out_dir: Path
     image_format: str = "png"
-    dot_color: str = "#005bbb"
+    dot_color: str = MUTED_CATEGORICAL[0]
     alpha: float = 0.85
     figsize: tuple = (5.5, 4.5)
     xlim: Optional[Tuple[float, float]] = None
@@ -700,9 +701,9 @@ def plot_selected_group_scatter(
     top_label: str = "Top SLI-selected",
     bottom_label: str = "Bottom SLI-selected",
     other_label: str = "Other",
-    top_color: str = "#1f77b4",
-    bottom_color: str = "#cc0000",
-    other_color: str = "#aaaaaa",
+    top_color: str = MUTED_CATEGORICAL[0],
+    bottom_color: str = MUTED_CATEGORICAL[3],
+    other_color: str = NEUTRAL_MID,
     alpha: float = 0.85,
     figsize: tuple = (5.5, 4.5),
     xlim: tuple[float, float] | None = None,
@@ -1275,10 +1276,10 @@ def plot_fast_vs_strong_scatter(
 
     # Colors (simple, can be refined)
     color_map = {
-        "overlap": "#cc0000",  # red
-        "fast": "#1f77b4",  # blue
-        "strong": "#2ca02c",  # green
-        "other": "#aaaaaa",  # gray
+        "overlap": MUTED_CATEGORICAL[4],
+        "fast": MUTED_CATEGORICAL[0],
+        "strong": MUTED_CATEGORICAL[2],
+        "other": NEUTRAL_MID,
     }
 
     point_colors = [color_map[c] for c in classes]
@@ -1412,9 +1413,9 @@ def plot_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow(
     slow_set = set(np.asarray(slow_idx, dtype=int).tolist())
 
     color_map = {
-        "fast": "#1f77b4",  # blue
-        "slow": "#cc0000",  # red
-        "other": "#aaaaaa",  # gray
+        "fast": MUTED_CATEGORICAL[0],
+        "slow": MUTED_CATEGORICAL[3],
+        "other": NEUTRAL_LIGHT,
     }
 
     classes = []

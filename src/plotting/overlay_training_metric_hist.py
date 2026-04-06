@@ -15,6 +15,7 @@ from src.plotting.bin_edges import (
     normalize_panel_edges,
     geom_from_edges,
 )
+from src.plotting.palettes import NEUTRAL_DARK, group_accent_color, group_fill_color
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.stats_bars import StatAnnotConfig, annotate_grouped_bars_per_bin
 from src.utils.util import meanConfInt
@@ -737,12 +738,18 @@ def plot_overlays(
 
                     # bar() ignores NaNs poorly; replace NaNs with 0-height bars
                     y_plot = np.where(np.isfinite(y_bins), y_bins, 0.0)
+                    bar_color = group_fill_color(g_idx)
+                    edge_color = group_accent_color(g_idx)
                     ax.bar(
                         x,
                         y_plot,
                         width=bar_w,
                         align="center",
                         label=_legend_label(h),
+                        color=bar_color,
+                        edgecolor=edge_color,
+                        alpha=0.90,
+                        linewidth=0.9,
                     )
 
                 # CI whiskers: only meaningful for per-fly PDF overlays
@@ -783,7 +790,7 @@ def plot_overlays(
                         y[mask],
                         yerr=np.vstack([y[mask] - lo[mask], hi[mask] - y[mask]]),
                         fmt="none",
-                        ecolor="0.15",
+                        ecolor=NEUTRAL_DARK,
                         capsize=capsize,
                         capthick=1.0,
                         elinewidth=1.0,
@@ -824,6 +831,7 @@ def plot_overlays(
                             y_step,
                             where="post",
                             label=(_legend_label(h) if gi == 0 else None),
+                            color=group_accent_color(g_idx),
                         )
                         cprev = float(cdf_seg[-1]) if cdf_seg.size else cprev
                         pos += nb
@@ -835,6 +843,7 @@ def plot_overlays(
                         y_step,
                         where="post",
                         label=_legend_label(h),
+                        color=group_accent_color(g_idx),
                     )
 
         if not any_data:

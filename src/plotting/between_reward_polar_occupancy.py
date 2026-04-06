@@ -12,6 +12,7 @@ from typing import Optional, Sequence
 import numpy as np
 import matplotlib.pyplot as plt
 
+from src.plotting.palettes import group_accent_color, group_fill_color
 from src.plotting.plot_customizer import PlotCustomizer
 from src.utils.common import CT, writeImage
 
@@ -916,7 +917,16 @@ class BetweenRewardPolarOccupancyPlotter:
                     continue
 
                 vals = np.mean(np.stack(fly_hists, axis=0), axis=0)
-            ax.bar(bin_centers, vals, width=widths, align="center")
+            ax.bar(
+                bin_centers,
+                vals,
+                width=widths,
+                align="center",
+                color=group_fill_color(0),
+                edgecolor=group_accent_color(0),
+                alpha=0.90,
+                linewidth=0.9,
+            )
 
             # display convention (does not change histogram bins)
             ax.set_theta_zero_location("N")

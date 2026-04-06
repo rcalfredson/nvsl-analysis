@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import numpy as np
 import matplotlib.pyplot as plt
 
+from src.plotting.palettes import NEUTRAL_DARK, group_accent_color, group_fill_color
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.stats_bars import StatAnnotConfig, annotate_grouped_bars_per_bin
 from src.utils.util import meanConfInt
@@ -679,7 +680,19 @@ def plot_overlays(
         if per_group_legend_ns is not None and gi < len(per_group_legend_ns):
             n_leg = per_group_legend_ns[gi]
         label = f"{x.group} (n={n_leg})" if n_leg is not None else f"{x.group}"
-        ax.bar(xg, y_plot, width=bar_w, align="center", label=label)
+        bar_color = group_fill_color(gi)
+        edge_color = group_accent_color(gi)
+        ax.bar(
+            xg,
+            y_plot,
+            width=bar_w,
+            align="center",
+            label=label,
+            color=bar_color,
+            edgecolor=edge_color,
+            alpha=0.90,
+            linewidth=0.9,
+        )
 
         # CI whiskers (only if export had CI; in paired-mode we recomputed them anyway)
         lo = np.asarray(lo_plot[gi], float)
@@ -691,7 +704,7 @@ def plot_overlays(
                 y[mask],
                 yerr=np.vstack([y[mask] - lo[mask], hi[mask] - y[mask]]),
                 fmt="none",
-                ecolor="0.15",
+                ecolor=NEUTRAL_DARK,
                 capsize=3,
                 capthick=1.0,
                 elinewidth=1.0,

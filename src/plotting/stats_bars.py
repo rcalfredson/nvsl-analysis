@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import f_oneway, ttest_ind, ttest_rel
 
+from src.plotting.palettes import NEUTRAL_DARK
 from src.utils.util import p2stars
 
 
@@ -177,7 +178,7 @@ def draw_sig_bracket(
     text: str,
     lw: float = 1.2,
     fontsize: float = 10,
-    color: str = "0.15",
+    color: str = NEUTRAL_DARK,
     zorder: int = 10,
 ) -> None:
     if not text:

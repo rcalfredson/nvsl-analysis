@@ -9,6 +9,7 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 
+from src.plotting.palettes import NEUTRAL_DARK, group_accent_color, group_fill_color
 from src.plotting.plot_customizer import PlotCustomizer
 from src.utils.common import writeImage
 from src.utils.util import meanConfInt
@@ -260,7 +261,16 @@ class TrainingMetricScalarBarsPlotter:
         fig, ax = plt.subplots(1, 1, figsize=(max(6.0, 1.2 * len(labels)), 4.0))
 
         x = np.arange(len(labels))
-        ax.bar(x, means)
+        bar_color = group_fill_color(0)
+        edge_color = group_accent_color(0)
+        ax.bar(
+            x,
+            means,
+            color=bar_color,
+            edgecolor=edge_color,
+            alpha=0.90,
+            linewidth=0.9,
+        )
 
         if self.cfg.ci:
             lo = data["ci_lo"]
@@ -273,7 +283,7 @@ class TrainingMetricScalarBarsPlotter:
                 yerr=yerr,
                 fmt="none",
                 capsize=3,
-                ecolor="0.2",
+                ecolor=NEUTRAL_DARK,
                 elinewidth=1.0,
                 zorder=3,
             )
@@ -289,6 +299,7 @@ class TrainingMetricScalarBarsPlotter:
                         np.full(vals.size, x[i]) + jitter,
                         vals,
                         "o",
+                        color=edge_color,
                         markersize=3,
                         alpha=0.6,
                     )

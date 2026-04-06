@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 
 import src.utils.util as util
 from src.utils.common import maybe_sentence_case, writeImage
+from src.plotting.palettes import NEUTRAL_DARK, group_accent_color, group_fill_color
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.stats_bars import StatAnnotConfig, annotate_grouped_bars_per_bin
 
@@ -483,14 +484,18 @@ def plot_wall_contacts_pmf_overlay(
         if not fin.any():
             continue
         any_data = True
+        bar_color = group_fill_color(gi)
+        edge_color = group_accent_color(gi)
 
         ax.bar(
             xb[fin],
             y[fin],
             width=bar_w[fin],
             align="center",
-            alpha=0.75,
-            linewidth=0.8,
+            color=bar_color,
+            edgecolor=edge_color,
+            alpha=0.90,
+            linewidth=0.9,
             label=f"{group_labels[gi]} (n={ns[gi]})",
         )
 
@@ -502,6 +507,7 @@ def plot_wall_contacts_pmf_overlay(
                 y[fin_ci],
                 yerr=yerr,
                 fmt="none",
+                ecolor=NEUTRAL_DARK,
                 elinewidth=1.1,
                 capsize=2.0,
                 alpha=0.9,

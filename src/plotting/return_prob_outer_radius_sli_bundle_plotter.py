@@ -14,6 +14,7 @@ from src.plotting.overlay_training_metric_scalar_bars import (
     ExportedTrainingScalarBars,
     plot_overlays,
 )
+from src.plotting.palettes import NEUTRAL_DARK, stacked_group_colors
 from src.plotting.plot_customizer import PlotCustomizer
 from src.utils.common import writeImage
 from src.utils.util import meanConfInt
@@ -610,7 +611,6 @@ def _plot_return_prob_outer_radius_stacked(
     gpos = np.arange(G) - (G - 1) / 2.0
     offsets = gpos * bar_w
 
-    colors = list(plt.cm.tab10.colors)
     all_n = [d["n_units_panel"] for d in plotted]
     const_ns = [_constant_positive_n(n) for n in all_n]
     global_legend_n = None
@@ -622,7 +622,7 @@ def _plot_return_prob_outer_radius_stacked(
     group_handles = []
     max_height = 0.0
     for gi, d in enumerate(plotted):
-        color = colors[gi % len(colors)]
+        color, color_secondary, edge_color = stacked_group_colors(gi)
         xg = x_centers + offsets[gi]
         succ = np.asarray(d["succ_mean"], dtype=float)
         fail = np.asarray(d["fail_mean"], dtype=float)
@@ -638,8 +638,9 @@ def _plot_return_prob_outer_radius_stacked(
             width=bar_w,
             align="center",
             color=color,
-            edgecolor=color,
-            linewidth=0.8,
+            edgecolor=edge_color,
+            alpha=0.90,
+            linewidth=0.9,
         )
         ax.bar(
             xg,
@@ -647,10 +648,10 @@ def _plot_return_prob_outer_radius_stacked(
             width=bar_w,
             align="center",
             bottom=succ_plot,
-            color=color,
-            alpha=0.30,
-            edgecolor=color,
-            linewidth=0.8,
+            color=color_secondary,
+            alpha=0.90,
+            edgecolor=edge_color,
+            linewidth=0.9,
             hatch="//",
         )
         label = (
@@ -658,7 +659,9 @@ def _plot_return_prob_outer_radius_stacked(
             if global_legend_n is not None
             else d["label"]
         )
-        group_handles.append(mpatches.Patch(facecolor=color, edgecolor=color, label=label))
+        group_handles.append(
+            mpatches.Patch(facecolor=color, edgecolor=edge_color, label=label)
+        )
 
     need_per_panel_n = global_legend_n is None
     if need_per_panel_n and max_height > 0:
@@ -686,15 +689,18 @@ def _plot_return_prob_outer_radius_stacked(
                 ha="center",
                 va="bottom",
                 fontsize=max(7, customizer.in_plot_font_size - 2),
-                color="0.2",
+                color=NEUTRAL_DARK,
                 clip_on=False,
                 zorder=9,
             )
 
     component_handles = [
-        mpatches.Patch(facecolor="0.35", edgecolor="0.35", label="Success"),
+        mpatches.Patch(facecolor=NEUTRAL_DARK, edgecolor=NEUTRAL_DARK, label="Success"),
         mpatches.Patch(
-            facecolor="0.75", edgecolor="0.35", hatch="//", label="Failure"
+            facecolor="#D6DCE2",
+            edgecolor=NEUTRAL_DARK,
+            hatch="//",
+            label="Failure",
         ),
     ]
 

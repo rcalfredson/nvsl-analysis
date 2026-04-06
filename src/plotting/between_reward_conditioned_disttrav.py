@@ -16,6 +16,7 @@ from src.plotting.between_reward_segment_binning import (
 )
 from src.plotting.between_reward_segment_metrics import dist_traveled_mm_masked
 from src.plotting.grouped_bar_layout import grouped_bar_layout_from_edges
+from src.plotting.palettes import NEUTRAL_DARK, group_accent_color, group_fill_color
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.stats_bars import StatAnnotConfig, annotate_grouped_bars_per_bin
 from src.utils.common import maybe_sentence_case, writeImage
@@ -1172,8 +1173,10 @@ class BetweenRewardConditionedDistTravPlotter:
                     y[fin],
                     width=0.92 * widths[fin],
                     align="center",
-                    alpha=0.75,
-                    linewidth=0.8,
+                    color=group_fill_color(0),
+                    edgecolor=group_accent_color(0),
+                    alpha=0.90,
+                    linewidth=0.9,
                 )
 
                 fin_ci = fin & np.isfinite(lo) & np.isfinite(hi)
@@ -1184,6 +1187,7 @@ class BetweenRewardConditionedDistTravPlotter:
                         y[fin_ci],
                         yerr=yerr,
                         fmt="none",
+                        ecolor=NEUTRAL_DARK,
                         elinewidth=1.1,
                         capsize=2.0,
                         alpha=0.9,
@@ -1452,14 +1456,18 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
             if not fin.any():
                 continue
             any_data = True
+            bar_color = group_fill_color(gi)
+            edge_color = group_accent_color(gi)
 
             ax.bar(
                 xb[fin],
                 y[fin],
                 width=bar_w[fin],
                 align="center",
-                alpha=0.75,
-                linewidth=0.8,
+                color=bar_color,
+                edgecolor=edge_color,
+                alpha=0.90,
+                linewidth=0.9,
                 label=str(labels[gi]),
             )
 
@@ -1471,6 +1479,7 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
                     y[fin_ci],
                     yerr=yerr,
                     fmt="none",
+                    ecolor=NEUTRAL_DARK,
                     elinewidth=1.1,
                     capsize=2.0,
                     alpha=0.9,
