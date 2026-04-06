@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
+import os
 from pathlib import Path
 from typing import Optional, Sequence, Tuple
 
@@ -23,6 +25,43 @@ from src.utils.debug_fly_groups import log_fly_group
 BBOX_STYLE = dict(
     facecolor="white", alpha=0.80, edgecolor="none", boxstyle="round,pad=0.25"
 )
+
+
+_layout_logger = logging.getLogger("cross_fly_corr_layout")
+_layout_logger.setLevel(logging.INFO)
+_layout_logger_initialized = False
+
+
+def init_correlation_layout_logging(log_path="debug_correlation_layout.log"):
+    """
+    Initialize file logging for stats-box/legend layout debugging.
+    """
+    global _layout_logger_initialized
+    if _layout_logger_initialized:
+        return
+
+    handler = logging.FileHandler(str(log_path))
+    formatter = logging.Formatter("%(asctime)s - %(message)s")
+    handler.setFormatter(formatter)
+    _layout_logger.addHandler(handler)
+    _layout_logger_initialized = True
+
+
+def _maybe_init_correlation_layout_logging_from_env():
+    log_path = os.environ.get("CROSS_FLY_LAYOUT_DEBUG_LOG", "").strip()
+    if not log_path:
+        return
+    init_correlation_layout_logging(
+        "debug_correlation_layout.log" if log_path == "1" else log_path
+    )
+
+
+def _log_correlation_layout(message: str):
+    if _layout_logger_initialized:
+        _layout_logger.info(message)
+
+
+_maybe_init_correlation_layout_logging_from_env()
 
 
 @dataclass
@@ -182,6 +221,141 @@ def _compute_group_corr(
     return pearsonr(x_g[mask], y_g[mask])
 
 
+def _place_legend_without_point_overlap(
+    ax,
+    handles,
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    scatter_artist=None,
+    frameon: bool = True,
+):
+    """
+    Place a legend so that its frame does not overlap any plotted markers.
+
+    The helper first searches a set of standard in-axes locations. If none of
+    them are clean, it adds a modest upper y headroom band and places the
+    legend there.
+    """
+    x = np.asarray(x, float)
+    y = np.asarray(y, float)
+    finite = np.isfinite(x) & np.isfinite(y)
+    x_f = x[finite]
+    y_f = y[finite]
+
+    legend = ax.legend(handles=handles, loc="best", frameon=frameon)
+    if x_f.size == 0:
+        return legend
+
+    fig = ax.figure
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    pts_display = ax.transData.transform(np.column_stack([x_f, y_f]))
+
+    marker_pad_px = 2.0
+    if scatter_artist is not None:
+        try:
+            sizes = np.asarray(scatter_artist.get_sizes(), float)
+            if sizes.size:
+                marker_pad_px = max(
+                    marker_pad_px,
+                    float(np.sqrt(np.nanmax(sizes) / np.pi) * fig.dpi / 72.0 + 1.5),
+                )
+        except Exception:
+            pass
+
+    candidates = [
+        "upper left",
+        "upper right",
+        "lower left",
+        "lower right",
+        "center left",
+        "center right",
+        "upper center",
+        "lower center",
+    ]
+
+    best_loc = None
+    best_overlap = None
+    best_height_frac = 0.0
+
+    for loc in candidates:
+        legend.remove()
+        legend = ax.legend(handles=handles, loc=loc, frameon=frameon)
+        fig.canvas.draw()
+        legend_bbox_raw = legend.get_window_extent(renderer=renderer)
+        legend_bbox = legend_bbox_raw.expanded(
+            (legend_bbox_raw.width + 2 * marker_pad_px) / max(legend_bbox_raw.width, 1.0),
+            (legend_bbox_raw.height + 2 * marker_pad_px)
+            / max(legend_bbox_raw.height, 1.0),
+        )
+        inside = (
+            (pts_display[:, 0] >= legend_bbox.x0)
+            & (pts_display[:, 0] <= legend_bbox.x1)
+            & (pts_display[:, 1] >= legend_bbox.y0)
+            & (pts_display[:, 1] <= legend_bbox.y1)
+        )
+        overlap = int(np.sum(inside))
+        best_height_frac = max(
+            best_height_frac,
+            legend_bbox_raw.height / max(ax.bbox.height, 1.0),
+        )
+        if best_overlap is None or overlap < best_overlap:
+            best_overlap = overlap
+            best_loc = loc
+        if overlap == 0:
+            _log_correlation_layout(
+                f"title={ax.get_title()!r} legend_mode=in_axes loc={loc!r} "
+                f"overlap_points=0 marker_pad_px={marker_pad_px:.2f}"
+            )
+            return legend
+
+    y0, y1 = ax.get_ylim()
+    y_span = y1 - y0
+    if not np.isfinite(y_span) or y_span <= 0:
+        y_span = max(float(np.nanmax(y_f) - np.nanmin(y_f)), 1.0)
+
+    extra_top = max((best_height_frac + 0.06) * y_span, 0.16 * y_span)
+    original_top = y1
+
+    fallback_loc = "upper right"
+    if best_loc in ("upper left", "lower left", "center left"):
+        fallback_loc = "upper left"
+
+    overlap = None
+    for _ in range(8):
+        ax.set_ylim(y0, original_top + extra_top)
+        fig.canvas.draw()
+        pts_display = ax.transData.transform(np.column_stack([x_f, y_f]))
+
+        legend.remove()
+        legend = ax.legend(handles=handles, loc=fallback_loc, frameon=frameon)
+        fig.canvas.draw()
+        legend_bbox_raw = legend.get_window_extent(renderer=renderer)
+        legend_bbox = legend_bbox_raw.expanded(
+            (legend_bbox_raw.width + 2 * marker_pad_px)
+            / max(legend_bbox_raw.width, 1.0),
+            (legend_bbox_raw.height + 2 * marker_pad_px)
+            / max(legend_bbox_raw.height, 1.0),
+        )
+        inside = (
+            (pts_display[:, 0] >= legend_bbox.x0)
+            & (pts_display[:, 0] <= legend_bbox.x1)
+            & (pts_display[:, 1] >= legend_bbox.y0)
+            & (pts_display[:, 1] <= legend_bbox.y1)
+        )
+        overlap = int(np.sum(inside))
+        if overlap == 0:
+            break
+        extra_top *= 1.35
+    _log_correlation_layout(
+        f"title={ax.get_title()!r} legend_mode=headroom loc={fallback_loc!r} "
+        f"best_in_axes_loc={best_loc!r} overlap_points={overlap} "
+        f"extra_top={extra_top:.4f} original_top={original_top:.4f}"
+    )
+    return legend
+
+
 def _add_smart_stats_box(
     ax,
     text: str,
@@ -234,6 +408,38 @@ def _add_smart_stats_box(
     fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
     pts_display = ax.transData.transform(np.column_stack([x_f, y_f]))
+    legend = ax.get_legend()
+
+    def _legend_metrics():
+        if legend is None:
+            return None, None, None, None
+        legend_bbox_local = legend.get_window_extent(renderer=renderer)
+        legend_pts_axes = ax.transAxes.inverted().transform(
+            np.array(
+                [
+                    [legend_bbox_local.x0, legend_bbox_local.y0],
+                    [legend_bbox_local.x1, legend_bbox_local.y1],
+                ]
+            )
+        )
+        legend_axes_bbox_local = (
+            float(np.min(legend_pts_axes[:, 0])),
+            float(np.min(legend_pts_axes[:, 1])),
+            float(np.max(legend_pts_axes[:, 0])),
+            float(np.max(legend_pts_axes[:, 1])),
+        )
+        legend_top_frac_local = float(np.max(legend_pts_axes[:, 1]))
+        legend_center_x_frac_local = float(np.mean(legend_pts_axes[:, 0]))
+        return (
+            legend_bbox_local,
+            legend_top_frac_local,
+            legend_center_x_frac_local,
+            legend_axes_bbox_local,
+        )
+
+    legend_bbox, legend_top_frac, legend_center_x_frac, legend_axes_bbox = (
+        _legend_metrics()
+    )
 
     candidates = [
         dict(x=0.05, y=0.95, ha="left", va="top"),
@@ -245,6 +451,7 @@ def _add_smart_stats_box(
     best_candidate = None
     best_overlap = None
     best_patch_bbox = None
+    best_raw_overlap = None
 
     for candidate in candidates:
         probe.set_position((candidate["x"], candidate["y"]))
@@ -258,17 +465,28 @@ def _add_smart_stats_box(
             & (pts_display[:, 1] >= patch_bbox.y0)
             & (pts_display[:, 1] <= patch_bbox.y1)
         )
-        overlap = float(np.mean(inside))
+        raw_overlap = float(np.mean(inside))
+        overlap = raw_overlap
+        if legend_bbox is not None:
+            overlaps_legend = not (
+                patch_bbox.x1 < legend_bbox.x0
+                or patch_bbox.x0 > legend_bbox.x1
+                or patch_bbox.y1 < legend_bbox.y0
+                or patch_bbox.y0 > legend_bbox.y1
+            )
+            if overlaps_legend:
+                overlap = 1.0 + overlap
         if best_overlap is None or overlap < best_overlap:
             best_overlap = overlap
             best_candidate = candidate
             best_patch_bbox = patch_bbox
+            best_raw_overlap = raw_overlap
 
     probe.remove()
 
     if best_candidate is not None and best_overlap is not None:
         if best_overlap <= max_overlap_frac:
-            return ax.text(
+            text_artist = ax.text(
                 best_candidate["x"],
                 best_candidate["y"],
                 text,
@@ -279,6 +497,33 @@ def _add_smart_stats_box(
                 zorder=5,
                 bbox=BBOX_STYLE,
             )
+            fig.canvas.draw()
+            stats_bbox = text_artist.get_bbox_patch().get_window_extent(renderer=renderer)
+            intersects_legend = (
+                legend_bbox is not None
+                and not (
+                    stats_bbox.x1 < legend_bbox.x0
+                    or stats_bbox.x0 > legend_bbox.x1
+                    or stats_bbox.y1 < legend_bbox.y0
+                    or stats_bbox.y0 > legend_bbox.y1
+                )
+            )
+            stats_pts_axes = ax.transAxes.inverted().transform(
+                np.array([[stats_bbox.x0, stats_bbox.y0], [stats_bbox.x1, stats_bbox.y1]])
+            )
+            stats_axes_bbox = (
+                float(np.min(stats_pts_axes[:, 0])),
+                float(np.min(stats_pts_axes[:, 1])),
+                float(np.max(stats_pts_axes[:, 0])),
+                float(np.max(stats_pts_axes[:, 1])),
+            )
+            _log_correlation_layout(
+                f"title={ax.get_title()!r} mode=corner candidate={best_candidate} "
+                f"raw_overlap={best_raw_overlap:.4f} score={best_overlap:.4f} "
+                f"legend_axes_bbox={legend_axes_bbox} stats_axes_bbox={stats_axes_bbox} "
+                f"intersects_legend={intersects_legend}"
+            )
+            return text_artist
 
     y0, y1 = ax.get_ylim()
     y_span = y1 - y0
@@ -289,7 +534,33 @@ def _add_smart_stats_box(
     if best_patch_bbox is not None and ax.bbox.height > 0:
         box_height_frac = best_patch_bbox.height / ax.bbox.height
 
+    legend_nudge_down = 0.0
+    if legend is not None and legend_top_frac is not None:
+        desired_legend_top_frac = max(0.55, 0.97 - box_height_frac - 0.02)
+        if legend_top_frac > desired_legend_top_frac:
+            legend_nudge_down = legend_top_frac - desired_legend_top_frac
+            anchor_bbox = legend.get_bbox_to_anchor().transformed(
+                ax.transAxes.inverted()
+            )
+            legend.set_bbox_to_anchor(
+                (
+                    float(anchor_bbox.x0),
+                    float(anchor_bbox.y0),
+                    float(anchor_bbox.width),
+                    max(float(anchor_bbox.height) - legend_nudge_down, 0.20),
+                ),
+                transform=ax.transAxes,
+            )
+            fig.canvas.draw()
+            legend_bbox, legend_top_frac, legend_center_x_frac, legend_axes_bbox = (
+                _legend_metrics()
+            )
+
     extra_top = max((box_height_frac + 0.08) * y_span, 0.18 * y_span)
+    legend_clear_frac = None
+    if legend_top_frac is not None:
+        legend_clear_frac = np.clip(legend_top_frac - 0.03, 0.10, 0.95)
+        extra_top = max(extra_top, y_span * (1.0 / legend_clear_frac - 1.0))
     original_top = y1
     ax.set_ylim(y0, y1 + extra_top)
 
@@ -298,16 +569,57 @@ def _add_smart_stats_box(
     if not np.isfinite(x_span) or x_span <= 0:
         x_span = max(float(np.nanmax(x_f) - np.nanmin(x_f)), 1.0)
 
-    return ax.text(
-        x0 + 0.02 * x_span,
-        original_top + 0.97 * extra_top,
+    stats_x = x0 + 0.02 * x_span
+    stats_ha = "left"
+    if legend_center_x_frac is not None and legend_center_x_frac < 0.5:
+        stats_x = x1 - 0.02 * x_span
+        stats_ha = "right"
+
+    top_margin_frac = 0.03
+    text_artist = ax.text(
+        0.98 if stats_ha == "right" else 0.02,
+        1.0 - top_margin_frac,
         text,
+        transform=ax.transAxes,
         va="top",
-        ha="left",
+        ha=stats_ha,
         fontsize=fontsize,
         zorder=5,
         bbox=BBOX_STYLE,
     )
+    fig.canvas.draw()
+    stats_bbox = text_artist.get_bbox_patch().get_window_extent(renderer=renderer)
+    intersects_legend = (
+        legend_bbox is not None
+        and not (
+            stats_bbox.x1 < legend_bbox.x0
+            or stats_bbox.x0 > legend_bbox.x1
+            or stats_bbox.y1 < legend_bbox.y0
+            or stats_bbox.y0 > legend_bbox.y1
+        )
+    )
+    vertical_gap_px = None
+    if legend_bbox is not None:
+        vertical_gap_px = max(stats_bbox.y0 - legend_bbox.y1, legend_bbox.y0 - stats_bbox.y1)
+    stats_pts_axes = ax.transAxes.inverted().transform(
+        np.array([[stats_bbox.x0, stats_bbox.y0], [stats_bbox.x1, stats_bbox.y1]])
+    )
+    stats_axes_bbox = (
+        float(np.min(stats_pts_axes[:, 0])),
+        float(np.min(stats_pts_axes[:, 1])),
+        float(np.max(stats_pts_axes[:, 0])),
+        float(np.max(stats_pts_axes[:, 1])),
+    )
+    _log_correlation_layout(
+        f"title={ax.get_title()!r} mode=headroom candidate={best_candidate} "
+        f"raw_overlap={best_raw_overlap:.4f} score={best_overlap:.4f} "
+        f"box_height_frac={box_height_frac:.4f} legend_top_frac={legend_top_frac} "
+        f"legend_nudge_down={legend_nudge_down:.4f} "
+        f"legend_clear_frac={legend_clear_frac} extra_top={extra_top:.4f} "
+        f"legend_axes_bbox={legend_axes_bbox} stats_axes_bbox={stats_axes_bbox} "
+        f"vertical_gap_px={vertical_gap_px} intersects_legend={intersects_legend}"
+    )
+    return text_artist
 
 
 def _normalize_selected_groups(
@@ -422,7 +734,7 @@ def plot_selected_group_scatter(
     classes_arr = np.asarray(classes, dtype=object)
 
     fig, ax = plt.subplots(figsize=figsize)
-    ax.scatter(x_f, y_f, c=point_colors, alpha=alpha)
+    scatter_artist = ax.scatter(x_f, y_f, c=point_colors, alpha=alpha)
 
     if xlim is not None:
         ax.set_xlim(xlim)
@@ -476,8 +788,6 @@ def plot_selected_group_scatter(
         else:
             lines.append(f"{bottom_label}: r = n/a")
 
-    _add_smart_stats_box(ax, "\n".join(lines), x_f, y_f)
-
     handles = []
     if mode in ("both", "top"):
         handles.append(
@@ -516,7 +826,10 @@ def plot_selected_group_scatter(
             label=other_label,
         )
     )
-    ax.legend(handles=handles, loc="best", frameon=True)
+    _place_legend_without_point_overlap(
+        ax, handles, x_f, y_f, scatter_artist=scatter_artist, frameon=True
+    )
+    _add_smart_stats_box(ax, "\n".join(lines), x_f, y_f)
 
     customizer.adjust_padding_proportionally()
     fig.tight_layout(rect=(0, 0, 1, 0.98))
@@ -947,7 +1260,7 @@ def plot_fast_vs_strong_scatter(
     point_colors = [color_map[c] for c in classes]
 
     fig, ax = plt.subplots(figsize=(5.5, 4.5))
-    ax.scatter(x_f, y_f, c=point_colors, alpha=0.85)
+    scatter_artist = ax.scatter(x_f, y_f, c=point_colors, alpha=0.85)
 
     ax.set_xlabel(x_label)
     ax.set_ylabel(strong_y_label)
@@ -974,8 +1287,6 @@ def plot_fast_vs_strong_scatter(
         lines.append(f"Strong (incl overlap): r = {r_s:.3f}, p = {p_s:.3g} (n={n_s})")
     else:
         lines.append("Strong (incl overlap): r = n/a")
-
-    _add_smart_stats_box(ax, "\n".join(lines), x_f, y_f)
 
     # Legend
     handles = [
@@ -1016,7 +1327,10 @@ def plot_fast_vs_strong_scatter(
             label="Other",
         ),
     ]
-    ax.legend(handles=handles, loc="best", frameon=True)
+    _place_legend_without_point_overlap(
+        ax, handles, x_f, y_f, scatter_artist=scatter_artist, frameon=True
+    )
+    _add_smart_stats_box(ax, "\n".join(lines), x_f, y_f)
 
     # Optional proportional padding
     customizer.adjust_padding_proportionally()
@@ -1093,7 +1407,7 @@ def plot_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow(
         point_colors.append(color_map[cls])
 
     fig, ax = plt.subplots(figsize=(5.5, 4.5))
-    ax.scatter(x_f, y_f, c=point_colors, alpha=0.85)
+    scatter_artist = ax.scatter(x_f, y_f, c=point_colors, alpha=0.85)
 
     ax.set_xlabel("\nBPI\n(exp - yok, pre-training)")
     ax.set_ylabel(early_label.replace("SLI", "SLI\n"))
@@ -1132,7 +1446,9 @@ def plot_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow(
             label="Other",
         ),
     ]
-    ax.legend(handles=handles, loc="best", frameon=True)
+    _place_legend_without_point_overlap(
+        ax, handles, x_f, y_f, scatter_artist=scatter_artist, frameon=True
+    )
 
     # Correlations for each group
     corr_fast = _compute_group_corr(x, y, fast_idx)
