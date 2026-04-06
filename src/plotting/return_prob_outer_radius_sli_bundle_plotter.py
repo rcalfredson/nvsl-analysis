@@ -519,6 +519,7 @@ def _plot_return_prob_outer_radius_stacked(
     standalone_extreme_labels: bool = False,
     title: str | None = None,
     ymax: float | None = None,
+    bar_alpha: float = 0.90,
     opts=None,
 ):
     if opts is None:
@@ -639,7 +640,7 @@ def _plot_return_prob_outer_radius_stacked(
             align="center",
             color=color,
             edgecolor=edge_color,
-            alpha=0.90,
+            alpha=bar_alpha,
             linewidth=0.9,
         )
         ax.bar(
@@ -649,7 +650,7 @@ def _plot_return_prob_outer_radius_stacked(
             align="center",
             bottom=succ_plot,
             color=color_secondary,
-            alpha=0.90,
+            alpha=bar_alpha,
             edgecolor=edge_color,
             linewidth=0.9,
             hatch="//",
@@ -761,6 +762,7 @@ def plot_return_prob_outer_radius_sli_bundles(
     stats_alpha: float = 0.05,
     stats_paired: bool = False,
     debug: bool = False,
+    bar_alpha: float = 0.90,
     opts=None,
 ):
     if opts is None:
@@ -781,6 +783,7 @@ def plot_return_prob_outer_radius_sli_bundles(
             standalone_extreme_labels=standalone_extreme_labels,
             title=title,
             ymax=ymax,
+            bar_alpha=bar_alpha,
             opts=opts,
         )
 
@@ -815,6 +818,7 @@ def plot_return_prob_outer_radius_sli_bundles(
         stats_alpha=float(stats_alpha),
         stats_paired=bool(stats_paired),
         debug=bool(debug),
+        bar_alpha=bar_alpha,
         opts=opts,
     )
     writeImage(out, format=getattr(opts, "imageFormat", "png"))

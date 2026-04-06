@@ -576,6 +576,7 @@ def plot_overlays(
     stats_alpha: float = 0.05,
     stats_paired: bool = False,
     debug: bool = False,
+    bar_alpha: float = 0.90,
     opts=None,
 ) -> plt.Figure:
     if opts is None:
@@ -700,7 +701,7 @@ def plot_overlays(
             label=label,
             color=bar_color,
             edgecolor=edge_color,
-            alpha=0.90,
+            alpha=bar_alpha,
             linewidth=0.9,
         )
 

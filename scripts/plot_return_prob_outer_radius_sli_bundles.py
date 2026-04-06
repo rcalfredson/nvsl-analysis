@@ -47,6 +47,12 @@ def main():
         help="Optional fixed y-axis max.",
     )
     p.add_argument(
+        "--bar-alpha",
+        type=float,
+        default=0.90,
+        help="Transparency for bar fills, from 0 to 1 (default 0.90).",
+    )
+    p.add_argument(
         "--sli-extremes",
         default=None,
         choices=["top", "bottom", "both"],
@@ -145,6 +151,8 @@ def main():
     ):
         if frac is not None and not (0 < float(frac) <= 1):
             raise SystemExit(f"{opt_name} must be in the interval (0, 1].")
+    if not (0.0 <= float(args.bar_alpha) <= 1.0):
+        raise SystemExit("--bar-alpha must be in the interval [0, 1].")
 
     bundles = [s.strip() for s in args.bundles.split(",") if s.strip()]
     labels = None
@@ -190,6 +198,7 @@ def main():
         stats_alpha=float(args.stats_alpha),
         stats_paired=bool(args.stats_paired),
         debug=bool(args.stats_debug),
+        bar_alpha=float(args.bar_alpha),
         opts=opts,
     )
     plt.close(fig)
