@@ -19,6 +19,7 @@ def main():
             "sli",
             "weaving",
             "between_reward_maxdist",
+            "between_reward_return_leg_dist",
             "turnback",
             "agarose",
             "wallpct",

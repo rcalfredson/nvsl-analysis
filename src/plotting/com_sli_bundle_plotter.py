@@ -315,6 +315,26 @@ def plot_com_sli_bundles(
             raise ValueError(
                 f"Unknown mode={turnback_mode!r} for metric=between_reward_maxdist"
             )
+    elif metric == "between_reward_return_leg_dist":
+        if turnback_mode == "exp":
+            series_key = "between_reward_return_leg_dist_exp"
+            need_keys = ["between_reward_return_leg_dist_exp"]
+            include_ctrl = False
+        elif turnback_mode == "ctrl":
+            series_key = "between_reward_return_leg_dist_ctrl"
+            need_keys = ["between_reward_return_leg_dist_ctrl"]
+            include_ctrl = False
+        elif turnback_mode == "exp_minus_ctrl":
+            series_key = "between_reward_return_leg_dist_exp"
+            need_keys = [
+                "between_reward_return_leg_dist_exp",
+                "between_reward_return_leg_dist_ctrl",
+            ]
+            include_ctrl = False
+        else:
+            raise ValueError(
+                f"Unknown mode={turnback_mode!r} for metric=between_reward_return_leg_dist"
+            )
     elif metric == "turnback":
         if turnback_mode == "exp":
             series_key = "turnback_ratio_exp"
@@ -436,7 +456,8 @@ def plot_com_sli_bundles(
     else:
         raise ValueError(
             "Invalid metric specified; supported: 'commag', 'sli', "
-            "'between_reward_maxdist', 'turnback', 'agarose', 'wallpct', "
+            "'between_reward_maxdist', 'between_reward_return_leg_dist', "
+            "'turnback', 'agarose', 'wallpct', "
             "'lgturn_startdist', 'reward_lgturn_pathlen', 'reward_lv', "
             "'reward_lgturn_prevalence', 'weaving'."
         )
@@ -455,6 +476,13 @@ def plot_com_sli_bundles(
         if metric == "between_reward_maxdist" and turnback_mode == "exp_minus_ctrl":
             exp_arr = np.asarray(b["between_reward_maxdist_exp"], dtype=float)
             ctrl_arr = np.asarray(b["between_reward_maxdist_ctrl"], dtype=float)
+            return exp_arr - ctrl_arr
+        if (
+            metric == "between_reward_return_leg_dist"
+            and turnback_mode == "exp_minus_ctrl"
+        ):
+            exp_arr = np.asarray(b["between_reward_return_leg_dist_exp"], dtype=float)
+            ctrl_arr = np.asarray(b["between_reward_return_leg_dist_ctrl"], dtype=float)
             return exp_arr - ctrl_arr
         if metric == "weaving" and turnback_mode == "exp_minus_ctrl":
             exp_arr = np.asarray(b["weaving_ratio_exp"], dtype=float)
@@ -654,6 +682,8 @@ def plot_com_sli_bundles(
         ylim = [0.0, 100.0]
     elif metric == "between_reward_maxdist":
         ylim = [-2.0, 2.0] if turnback_mode == "exp_minus_ctrl" else [0.0, 20.0]
+    elif metric == "between_reward_return_leg_dist":
+        ylim = [-5.0, 5.0] if turnback_mode == "exp_minus_ctrl" else [0.0, 20.0]
     elif metric == "turnback":
         ylim = [-0.5, 0.5] if turnback_mode == "exp_minus_ctrl" else [0.0, 0.5]
     elif metric == "agarose":
@@ -908,6 +938,8 @@ def plot_com_sli_bundles(
                     ctrl_key = "wallpct_ctrl"
                 elif metric == "between_reward_maxdist":
                     ctrl_key = "between_reward_maxdist_ctrl"
+                elif metric == "between_reward_return_leg_dist":
+                    ctrl_key = "between_reward_return_leg_dist_ctrl"
                 elif metric == "turnback":
                     ctrl_key = "turnback_ratio_ctrl"
                 elif metric == "agarose":
@@ -1127,6 +1159,12 @@ def plot_com_sli_bundles(
                 y_label = "Turnback ratio"
         elif metric == "between_reward_maxdist":
             y_label = "Mean between-reward max dist. [mm]"
+            if turnback_mode == "exp_minus_ctrl":
+                y_label += "\n(exp - yok)"
+            elif turnback_mode == "ctrl":
+                y_label += "\n(yok)"
+        elif metric == "between_reward_return_leg_dist":
+            y_label = "Mean between-reward return-leg dist. [mm]"
             if turnback_mode == "exp_minus_ctrl":
                 y_label += "\n(exp - yok)"
             elif turnback_mode == "ctrl":

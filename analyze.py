@@ -109,6 +109,9 @@ from src.exporting.weaving_sli_bundle import export_weaving_sli_bundle
 from src.exporting.btw_rwd_shortest_tail_bundle import (
     export_btw_rwd_shortest_tail_bundle,
 )
+from src.exporting.btw_rwd_return_leg_dist_sli_bundle import (
+    export_btw_rwd_return_leg_dist_sli_bundle,
+)
 from src.exporting.exit_events_from_csv import (
     export_exit_event_images_from_csv,
     ExitEventImageConfig,
@@ -3838,6 +3841,15 @@ g.add_argument(
     help=(
         "Write an .npz bundle with mean between-reward max distance by sync bucket "
         "+ SLI for multi-group overlays."
+    ),
+)
+g.add_argument(
+    "--export-btw-rwd-return-leg-dist-sli-bundle",
+    type=str,
+    default=None,
+    help=(
+        "Write an .npz bundle with mean between-reward return-leg distance by sync "
+        "bucket + SLI for multi-group overlays."
     ),
 )
 g.add_argument(
@@ -8642,6 +8654,11 @@ def postAnalyze(vas):
     if getattr(opts, "export_between_reward_maxdist_sli_bundle", None):
         export_between_reward_maxdist_sli_bundle(
             vas, opts, gls, opts.export_between_reward_maxdist_sli_bundle
+        )
+
+    if getattr(opts, "export_btw_rwd_return_leg_dist_sli_bundle", None):
+        export_btw_rwd_return_leg_dist_sli_bundle(
+            vas, opts, gls, opts.export_btw_rwd_return_leg_dist_sli_bundle
         )
 
     if getattr(opts, "export_cum_reward_sli_bundle", None):
