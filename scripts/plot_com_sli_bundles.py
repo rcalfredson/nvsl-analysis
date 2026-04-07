@@ -56,6 +56,12 @@ def main():
             "Example: 'Δ(Δ turnback ratio)' or 'Contrast shift in turnback ratio'."
         ),
     )
+    p.add_argument(
+        "--ymax",
+        type=float,
+        default=None,
+        help="Optional y-axis maximum override for the plotted metric.",
+    )
 
     p.add_argument(
         "--delta-allow-unpaired",
@@ -187,6 +193,7 @@ def main():
         delta_vs_path=args.delta_vs,
         delta_label=delta_label,
         delta_ylabel=args.delta_ylabel,
+        ymax=args.ymax,
         delta_allow_unpaired=args.delta_allow_unpaired,
         include_pre=args.include_pre,
     )

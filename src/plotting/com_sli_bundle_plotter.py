@@ -246,6 +246,7 @@ def plot_com_sli_bundles(
     delta_vs_path=None,  # baseline bundle path; if set, plot (bundle - baseline)
     delta_label=None,  # label prefix in delta mode
     delta_ylabel=None,
+    ymax=None,
     delta_allow_unpaired=False,
     include_pre=False,
 ):
@@ -1256,6 +1257,16 @@ def plot_com_sli_bundles(
         if mci_min is not None and np.isfinite(mci_min):
             if mci_min < ylim[0]:
                 ylim[0] = mci_min * 1.2
+
+    if ymax is not None:
+        ymax = float(ymax)
+        if not np.isfinite(ymax):
+            raise ValueError("--ymax must be finite when provided.")
+        if ymax <= ylim[0]:
+            raise ValueError(
+                f"--ymax ({ymax:g}) must be greater than the lower y-limit ({ylim[0]:g})."
+            )
+        ylim[1] = ymax
 
     for ax in fig.get_axes():
         ax.set_ylim(ylim[0], ylim[1])
