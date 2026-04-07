@@ -1149,6 +1149,151 @@ class Trajectory:
 
         return episodes
 
+    def reward_return_excursion_episodes_for_training(
+        self,
+        *,
+        trn,
+        reward_delta_mm: float = 0.0,
+        border_width_mm: float = 0.1,
+        ctrl: bool = False,
+        debug: bool = False,
+    ) -> list[dict]:
+        """
+        Return reward-exit excursions for one training, independent of any outer radius.
+
+        Episode definition:
+          - anchor on a calculated reward entry for the selected fly/role
+          - start at the first frame after that reward where the fly exits the
+            reward circle
+          - stop at the next calculated reward entry if one exists, otherwise at
+            training end
+
+        Each returned episode includes the observed maximum excursion beyond the
+        reward-circle radius, so downstream code can condition on bins of realized
+        excursion size instead of re-solving the metric for many fixed thresholds.
+
+        Candidate anchors with no observed exit from the reward circle before the
+        next reward (or training end) are ignored because they do not form an
+        excursion episode.
+        """
+        episodes: list[dict] = []
+
+        if not self.va:
+            return episodes
+        if not trn or not trn.isCircle():
+            return episodes
+
+        cs = trn.circles(self.f)
+        if not cs:
+            return episodes
+
+        cx, cy, r_px = cs[0]
+        if cx is None or cy is None or r_px is None:
+            return episodes
+        if np.isnan(cx) or np.isnan(cy) or np.isnan(r_px):
+            return episodes
+
+        reward_entries = np.asarray(
+            self.va._getOn(trn, calc=True, ctrl=ctrl, f=self.f), dtype=int
+        ).reshape(-1)
+        if reward_entries.size == 0:
+            return episodes
+
+        fctr = float(getattr(self.va.xf, "fctr", 1.0) or 1.0)
+        px_per_mm = float(self.va.ct.pxPerMmFloor()) * fctr
+        reward_r_px = float(r_px) + float(reward_delta_mm) * px_per_mm
+        border_width_px = float(border_width_mm) * px_per_mm
+
+        t0 = int(trn.start)
+        t1 = int(trn.stop)
+        if t1 <= t0 + 1:
+            return episodes
+
+        xs = self.x[t0:t1]
+        ys = self.y[t0:t1]
+        good = np.isfinite(xs) & np.isfinite(ys)
+
+        in_reward = np.zeros(t1 - t0, dtype=bool)
+        dist_px = np.full(t1 - t0, np.nan, dtype=float)
+        if np.any(good):
+            reward_state = self.calc_in_circle(
+                xs[good],
+                ys[good],
+                cx,
+                cy,
+                reward_r_px,
+                border_width_px=border_width_px,
+            )
+            in_reward[good] = reward_state > 0
+            dist_px[good] = np.hypot(xs[good] - float(cx), ys[good] - float(cy))
+
+        reward_entries = reward_entries[(reward_entries >= t0) & (reward_entries < t1)]
+        if reward_entries.size == 0:
+            return episodes
+
+        if debug:
+            print(
+                f"{flyDesc(self.f)} {trn.sname()}: "
+                f"reward_r={reward_r_px:.2f}px calc_rewards={len(reward_entries)} "
+                f"ctrl={bool(ctrl)}"
+            )
+
+        for i, reward_frame in enumerate(reward_entries):
+            reward_rel = int(reward_frame) - t0
+            next_reward = (
+                int(reward_entries[i + 1]) if i + 1 < reward_entries.size else None
+            )
+            stop_rel = (next_reward - t0) if next_reward is not None else (t1 - t0)
+            if stop_rel <= reward_rel:
+                continue
+
+            exit_rel = reward_rel
+            while exit_rel < stop_rel and in_reward[exit_rel]:
+                exit_rel += 1
+            if exit_rel >= stop_rel:
+                continue
+
+            seg_dist_px = dist_px[exit_rel:stop_rel]
+            max_dist_px = np.nan
+            max_frame = None
+            if seg_dist_px.size > 0 and np.any(np.isfinite(seg_dist_px)):
+                try:
+                    k = int(np.nanargmax(seg_dist_px))
+                except Exception:
+                    k = None
+                if k is not None and 0 <= k < seg_dist_px.size:
+                    max_dist_px = float(seg_dist_px[k])
+                    max_frame = int(t0 + exit_rel + k)
+
+            max_dist_mm = (
+                float(max_dist_px) / float(px_per_mm)
+                if np.isfinite(max_dist_px)
+                else np.nan
+            )
+            max_excursion_mm = (
+                max(0.0, float(max_dist_px - reward_r_px)) / float(px_per_mm)
+                if np.isfinite(max_dist_px)
+                else np.nan
+            )
+
+            returns = next_reward is not None
+            episodes.append(
+                {
+                    "start": int(t0 + exit_rel),
+                    "stop": int(t0 + stop_rel),
+                    "reward_entry": int(next_reward) if next_reward is not None else None,
+                    "returns": bool(returns),
+                    "end_reason": "reenter_reward" if returns else "training_end",
+                    "anchor_reward": int(reward_frame),
+                    "max_dist_px": float(max_dist_px) if np.isfinite(max_dist_px) else np.nan,
+                    "max_dist_mm": float(max_dist_mm),
+                    "max_excursion_mm": float(max_excursion_mm),
+                    "max_dist_frame": max_frame,
+                }
+            )
+
+        return episodes
+
     def calc_agarose_dual_circle_episodes(self, delta_mm=0.5, debug=False):
         """
         Identify 'dual-circle' agarose avoidance episodes for this fly.
