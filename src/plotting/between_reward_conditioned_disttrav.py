@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import src.utils.util as util
+from src.plotting.event_chain_plotter import EventChainPlotter
 from src.plotting.between_reward_segment_binning import (
     x_edges as make_x_edges,
     sync_bucket_window,
@@ -155,6 +156,15 @@ def _exclude_wall_contact_enabled(opts) -> bool:
         getattr(opts, "btw_rwd_conditioned_disttrav_exclude_wall_contact", False)
         or getattr(opts, "com_exclude_wall_contact", False)
     )
+
+
+def _swarm_offsets(n: int, span: float) -> np.ndarray:
+    n = int(n)
+    if n <= 0:
+        return np.zeros((0,), dtype=float)
+    if n == 1:
+        return np.array([0.0], dtype=float)
+    return np.linspace(-0.5 * span, 0.5 * span, n, dtype=float)
 
 
 @dataclass
@@ -381,9 +391,36 @@ class BetweenRewardConditionedDistTravPlotter:
     def _fly_role(self, role_idx: int) -> str:
         return "exp" if int(role_idx) == 0 else "yok"
 
-    def _write_sampled_segments_tsv(self, path: str) -> None:
+    @staticmethod
+    def _fmt_bin_edge(v: float) -> str:
+        if not np.isfinite(v):
+            return "nan"
+        if np.isclose(v, round(v)):
+            return str(int(round(v)))
+        return f"{float(v):g}"
+
+    @classmethod
+    def _bin_label(cls, lo: float, hi: float) -> str:
+        return f"{cls._fmt_bin_edge(lo)}-{cls._fmt_bin_edge(hi)} mm"
+
+    @classmethod
+    def _bin_dirname(cls, lo: float, hi: float) -> str:
+        def _safe(s: str) -> str:
+            out = []
+            for ch in s:
+                if ch.isalnum():
+                    out.append(ch)
+                elif ch in (".", "-", "_"):
+                    out.append(ch)
+                else:
+                    out.append("_")
+            return "".join(out)
+
+        return f"bin_{_safe(cls._fmt_bin_edge(lo))}-{_safe(cls._fmt_bin_edge(hi))}mm"
+
+    def _collect_sampled_segments(self) -> tuple[list[dict], np.ndarray]:
         """
-        Write per-bin top-K and random-K segment examples.
+        Collect per-bin sampled segment examples used for debug TSV/image export.
         Uses dt_total and dt_tail computed with the same masking as the metric.
         """
         import heapq
@@ -552,6 +589,7 @@ class BetweenRewardConditionedDistTravPlotter:
                         role_idx=int(role_idx),
                         fly_role=str(self._fly_role(role_idx)),
                         training_index=int(self.cfg.training_index),
+                        va=va,
                     )
 
                     # --- update top-K heaps
@@ -577,7 +615,37 @@ class BetweenRewardConditionedDistTravPlotter:
                             r = int(rng.integers(0, seen[j]))
                             if r < rand_k:
                                 rand[j][r] = row
-        # --- write TSV
+
+        rows: list[dict] = []
+
+        for j in range(B):
+            heap = sorted(top_total[j], key=lambda t: t[0], reverse=True)
+            for rnk, (_val, row) in enumerate(heap, start=1):
+                row_out = dict(row)
+                row_out["sample_type"] = "top_total"
+                row_out["rank"] = int(rnk)
+                rows.append(row_out)
+
+        for j in range(B):
+            heap = sorted(top_tail[j], key=lambda t: t[0], reverse=True)
+            for rnk, (_val, row) in enumerate(heap, start=1):
+                row_out = dict(row)
+                row_out["sample_type"] = "top_tail"
+                row_out["rank"] = int(rnk)
+                rows.append(row_out)
+
+        for j in range(B):
+            for rnk, row in enumerate(rand[j], start=1):
+                row_out = dict(row)
+                row_out["sample_type"] = "random"
+                row_out["rank"] = int(rnk)
+                rows.append(row_out)
+
+        return rows, edges
+
+    def _write_sampled_segments_tsv(self, path: str) -> None:
+        rows, _edges = self._collect_sampled_segments()
+
         util.ensureDir(path)
         with open(path, "w", encoding="utf-8") as f:
             f.write(
@@ -606,111 +674,114 @@ class BetweenRewardConditionedDistTravPlotter:
                 + "\n"
             )
 
-            # top_total per bin
-            for j in range(B):
-                heap = sorted(top_total[j], key=lambda t: t[0], reverse=True)
-                for rnk, (_val, row) in enumerate(heap, start=1):
-                    f.write(
-                        "\t".join(
-                            map(
-                                str,
-                                [
-                                    "top_total",
-                                    rnk,
-                                    *[
-                                        row["bin_lo_mm"],
-                                        row["bin_hi_mm"],
-                                        row["x_center_mm"],
-                                        row["dt_total_mm"],
-                                        row["dt_tail_mm"],
-                                        row["max_d_mm"],
-                                        row["s"],
-                                        row["e"],
-                                        row["max_d_i"],
-                                        row["b_idx"],
-                                        row["video_id"],
-                                        row["fly_id"],
-                                        row["trx_idx"],
-                                        row["role_idx"],
-                                        row["fly_role"],
-                                        row["training_index"],
-                                    ],
-                                ],
-                            )
+            for row in rows:
+                f.write(
+                    "\t".join(
+                        map(
+                            str,
+                            [
+                                row["sample_type"],
+                                row["rank"],
+                                row["bin_lo_mm"],
+                                row["bin_hi_mm"],
+                                row["x_center_mm"],
+                                row["dt_total_mm"],
+                                row["dt_tail_mm"],
+                                row["max_d_mm"],
+                                row["s"],
+                                row["e"],
+                                row["max_d_i"],
+                                row["b_idx"],
+                                row["video_id"],
+                                row["fly_id"],
+                                row["trx_idx"],
+                                row["role_idx"],
+                                row["fly_role"],
+                                row["training_index"],
+                            ],
                         )
-                        + "\n"
                     )
-
-            # top_tail per bin
-            for j in range(B):
-                heap = sorted(top_tail[j], key=lambda t: t[0], reverse=True)
-                for rnk, (_val, row) in enumerate(heap, start=1):
-                    f.write(
-                        "\t".join(
-                            map(
-                                str,
-                                [
-                                    "top_tail",
-                                    rnk,
-                                    *[
-                                        row["bin_lo_mm"],
-                                        row["bin_hi_mm"],
-                                        row["x_center_mm"],
-                                        row["dt_total_mm"],
-                                        row["dt_tail_mm"],
-                                        row["max_d_mm"],
-                                        row["s"],
-                                        row["e"],
-                                        row["max_d_i"],
-                                        row["b_idx"],
-                                        row["video_id"],
-                                        row["fly_id"],
-                                        row["trx_idx"],
-                                        row["role_idx"],
-                                        row["fly_role"],
-                                        row["training_index"],
-                                    ],
-                                ],
-                            )
-                        )
-                        + "\n"
-                    )
-
-            # random per bin
-            for j in range(B):
-                for rnk, row in enumerate(rand[j], start=1):
-                    f.write(
-                        "\t".join(
-                            map(
-                                str,
-                                [
-                                    "random",
-                                    rnk,
-                                    *[
-                                        row["bin_lo_mm"],
-                                        row["bin_hi_mm"],
-                                        row["x_center_mm"],
-                                        row["dt_total_mm"],
-                                        row["dt_tail_mm"],
-                                        row["max_d_mm"],
-                                        row["s"],
-                                        row["e"],
-                                        row["max_d_i"],
-                                        row["b_idx"],
-                                        row["video_id"],
-                                        row["fly_id"],
-                                        row["trx_idx"],
-                                        row["role_idx"],
-                                        row["fly_role"],
-                                        row["training_index"],
-                                    ],
-                                ],
-                            )
-                        )
-                        + "\n"
-                    )
+                    + "\n"
+                )
 
         print(f"[{self.log_tag}] wrote segment-samples TSV: {path}")
+
+    def _write_sampled_segment_plots(self, out_dir: str) -> None:
+        rows, _edges = self._collect_sampled_segments()
+        if not rows:
+            print(f"[{self.log_tag}] no sampled segments to plot")
+            return
+
+        image_format = str(getattr(self.opts, "imageFormat", "png")).lstrip(".")
+        zoom = bool(
+            getattr(self.opts, "btw_rwd_conditioned_disttrav_segs_plot_zoom", False)
+        )
+        zoom_radius_mm = getattr(
+            self.opts, "btw_rwd_conditioned_disttrav_segs_plot_zoom_radius_mm", None
+        )
+        pad = int(
+            getattr(self.opts, "btw_rwd_conditioned_disttrav_segs_plot_pad", 5) or 5
+        )
+
+        os.makedirs(out_dir, exist_ok=True)
+        wrote = 0
+        for row in rows:
+            va = row.get("va")
+            trx_idx = row.get("trx_idx")
+            role_idx = row.get("role_idx")
+            if va is None or trx_idx is None:
+                continue
+            try:
+                trj = va.trx[int(trx_idx)]
+            except Exception:
+                continue
+
+            bin_dir = os.path.join(
+                out_dir,
+                self._bin_dirname(float(row["bin_lo_mm"]), float(row["bin_hi_mm"])),
+            )
+            os.makedirs(bin_dir, exist_ok=True)
+
+            out_path = os.path.join(
+                bin_dir,
+                (
+                    f"{row['sample_type']}_rank{int(row['rank']):02d}_"
+                    f"{row['video_id']}_fly{int(row['fly_id'])}_"
+                    f"role{int(role_idx)}_trx{int(trx_idx)}_"
+                    f"trn{int(row['training_index']) + 1}_"
+                    f"rw{int(row['s'])}-{int(row['e'])}."
+                    f"{image_format}"
+                ),
+            )
+
+            title_suffix = (
+                f"| {row['sample_type']} #{int(row['rank'])} | "
+                f"bin {self._bin_label(float(row['bin_lo_mm']), float(row['bin_hi_mm']))} | "
+                f"Dmax {float(row['max_d_mm']):.2f} mm | "
+                f"Ltotal {float(row['dt_total_mm']):.2f} mm | "
+                f"Ltail {float(row['dt_tail_mm']):.2f} mm"
+            )
+
+            plotter = EventChainPlotter(
+                trj=trj,
+                va=va,
+                image_format=image_format,
+            )
+            plotter.plot_between_reward_interval(
+                trn_index=int(row["training_index"]),
+                start_reward=int(row["s"]),
+                end_reward=int(row["e"]),
+                image_format=image_format,
+                role_idx=int(role_idx),
+                pad=pad,
+                zoom=zoom,
+                zoom_radius_mm=zoom_radius_mm,
+                out_path=out_path,
+                title_suffix=title_suffix,
+            )
+            wrote += 1
+
+        print(f"[{self.log_tag}] wrote {wrote} sampled segment image(s) to {out_dir}")
 
     def _x_edges(self) -> np.ndarray:
         custom_edges = _validated_custom_x_edges(
@@ -1190,7 +1261,11 @@ class BetweenRewardConditionedDistTravPlotter:
         out_total = f"{root}_total{ext}"
         out_tail = f"{root}_tail{ext}"
 
-        def _plot_one(*, y, lo, hi, title, ylabel, out_file) -> None:
+        show_swarm = bool(
+            getattr(self.opts, "btw_rwd_conditioned_disttrav_show_swarm", False)
+        )
+
+        def _plot_one(*, y, lo, hi, title, ylabel, out_file, per_unit) -> None:
             fig, ax = plt.subplots(1, 1, figsize=(6.8, 4.2))
 
             if not np.any(np.isfinite(y)):
@@ -1210,6 +1285,29 @@ class BetweenRewardConditionedDistTravPlotter:
                     alpha=0.90,
                     linewidth=0.9,
                 )
+
+                if show_swarm and per_unit is not None:
+                    pu = np.asarray(per_unit, dtype=float)
+                    if pu.ndim == 2 and pu.shape[1] == x.size:
+                        for j in range(x.size):
+                            vals = np.asarray(pu[:, j], dtype=float)
+                            vals = vals[np.isfinite(vals)]
+                            if vals.size == 0 or not np.isfinite(x[j]):
+                                continue
+                            vals = np.sort(vals)
+                            xj = float(x[j]) + _swarm_offsets(
+                                vals.size, 0.28 * float(widths[j])
+                            )
+                            ax.plot(
+                                xj,
+                                vals,
+                                "o",
+                                color=group_accent_color(0),
+                                markersize=3.0,
+                                alpha=0.6,
+                                markeredgewidth=0.0,
+                                zorder=3.6,
+                            )
 
                 fin_ci = fin & np.isfinite(lo) & np.isfinite(hi)
                 if fin_ci.any():
@@ -1293,6 +1391,7 @@ class BetweenRewardConditionedDistTravPlotter:
             title="between-reward distance traveled vs max distance-from-reward (total)",
             ylabel="mean distance traveled per fly [mm]",
             out_file=out_total,
+            per_unit=res.per_unit_total,
         )
 
         _plot_one(
@@ -1302,6 +1401,7 @@ class BetweenRewardConditionedDistTravPlotter:
             title="between-reward distance traveled vs max distance-from-reward (max→end)",
             ylabel="mean distance traveled per fly [mm]",
             out_file=out_tail,
+            per_unit=res.per_unit_tail,
         )
 
         q_path = getattr(self.opts, "btw_rwd_conditioned_disttrav_quantiles_out", None)
@@ -1318,6 +1418,17 @@ class BetweenRewardConditionedDistTravPlotter:
             except Exception as e:
                 print(
                     f"[{self.log_tag}] WARNING: failed to write segment samples TSV: {e}"
+                )
+
+        seg_plot_dir = getattr(
+            self.opts, "btw_rwd_conditioned_disttrav_segs_plot_dir", None
+        )
+        if seg_plot_dir:
+            try:
+                self._write_sampled_segment_plots(str(seg_plot_dir))
+            except Exception as e:
+                print(
+                    f"[{self.log_tag}] WARNING: failed to write segment sample images: {e}"
                 )
 
 
@@ -1384,6 +1495,9 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
     ) -> None:
 
         n_groups = len(means)
+        show_swarm = bool(
+            getattr(opts, "btw_rwd_conditioned_disttrav_show_swarm", False)
+        )
 
         # grouped bar geometry
         fig_w, centers_x, bar_w, offsets, bin_ranges, xlim, categorical_used = (
@@ -1502,6 +1616,31 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
                 linewidth=0.9,
                 label=str(labels[gi]),
             )
+
+            if show_swarm and gi < len(per_unit):
+                pu_g = per_unit[gi]
+                if pu_g is not None:
+                    pu = np.asarray(pu_g, dtype=float)
+                    if pu.ndim == 2 and pu.shape[1] == centers_x.size:
+                        for j in range(centers_x.size):
+                            vals = np.asarray(pu[:, j], dtype=float)
+                            vals = vals[np.isfinite(vals)]
+                            if vals.size == 0 or not np.isfinite(xb[j]):
+                                continue
+                            vals = np.sort(vals)
+                            xj = float(xb[j]) + _swarm_offsets(
+                                vals.size, 0.6 * float(bar_w[j])
+                            )
+                            ax.plot(
+                                xj,
+                                vals,
+                                "o",
+                                color=edge_color,
+                                markersize=2.8,
+                                alpha=0.55,
+                                markeredgewidth=0.0,
+                                zorder=3.6,
+                            )
 
             fin_ci = fin & np.isfinite(lo_i) & np.isfinite(hi_i)
             if fin_ci.any():

@@ -2646,6 +2646,14 @@ g.add_argument(
     default=None,
     help="Optional fixed y-axis max for distance-traveled plots.",
 )
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-show-swarm",
+    action="store_true",
+    help=(
+        "Overlay per-fly points on --btw-rwd-conditioned-disttrav plots so the "
+        "distribution within each max-distance bin is visible."
+    ),
+)
 
 g.add_argument(
     "--btw-rwd-conditioned-disttrav-top-sli",
@@ -2760,6 +2768,41 @@ g.add_argument(
     help=(
         "Optional TSV debug export: top-K and random-K segment examples per x-bin, including "
         "video_id, s:e, max_d_i, dt_total, dt_tail, etc., for lookup in the annotated player."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-segs-plot-dir",
+    type=str,
+    default=None,
+    help=(
+        "Optional debug export: write sampled between-reward trajectory images for "
+        "--btw-rwd-conditioned-disttrav, organized into directories by max-distance bin."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-segs-plot-zoom",
+    action="store_true",
+    help=(
+        "When writing sampled segment images for --btw-rwd-conditioned-disttrav, "
+        "zoom the plotted view around the reward circle."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-segs-plot-zoom-radius-mm",
+    type=float,
+    default=None,
+    help=(
+        "Optional zoom radius in mm for --btw-rwd-conditioned-disttrav-segs-plot-zoom. "
+        "If omitted, EventChainPlotter uses its default reward-radius multiplier."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-segs-plot-pad",
+    type=int,
+    default=5,
+    help=(
+        "Frame padding on either side of each sampled between-reward interval when "
+        "writing debug segment images. Default: %(default)s."
     ),
 )
 g.add_argument(
