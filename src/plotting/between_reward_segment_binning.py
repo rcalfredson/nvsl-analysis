@@ -137,9 +137,21 @@ def build_nonwalk_mask(opts, va, trx_idx: int, fi: int, n_frames: int):
 
 
 def wall_contact_mask(
-    opts, va, trx_idx: int, *, fi: int, n_frames: int, log_tag: str, warned_missing_wc
+    opts,
+    va,
+    trx_idx: int,
+    *,
+    fi: int,
+    n_frames: int,
+    log_tag: str,
+    warned_missing_wc,
+    enabled: bool | None = None,
 ):
-    exclude_wall = bool(getattr(opts, "com_exclude_wall_contact", False))
+    exclude_wall = (
+        bool(enabled)
+        if enabled is not None
+        else bool(getattr(opts, "com_exclude_wall_contact", False))
+    )
     return build_wall_contact_mask_for_window(
         va,
         trx_idx,

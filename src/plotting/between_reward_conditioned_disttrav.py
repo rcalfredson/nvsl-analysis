@@ -133,6 +133,30 @@ def _paired_filter_and_recompute(
     return pu_filt_list, ids_filt_list, means, lo, hi, n_list
 
 
+def _validated_custom_x_edges(edges_like) -> np.ndarray | None:
+    if edges_like is None:
+        return None
+
+    edges = np.asarray(edges_like, dtype=float)
+    if edges.size == 0:
+        return None
+    if edges.ndim != 1 or edges.size < 2:
+        raise ValueError("custom x bin edges must contain at least 2 values")
+    edges = edges.reshape(-1)
+    if not np.all(np.isfinite(edges)):
+        raise ValueError("custom x bin edges must all be finite")
+    if not np.all(np.diff(edges) > 0):
+        raise ValueError("custom x bin edges must be strictly increasing")
+    return edges
+
+
+def _exclude_wall_contact_enabled(opts) -> bool:
+    return bool(
+        getattr(opts, "btw_rwd_conditioned_disttrav_exclude_wall_contact", False)
+        or getattr(opts, "com_exclude_wall_contact", False)
+    )
+
+
 @dataclass
 class BetweenRewardConditionedDistTravConfig:
     """
@@ -163,6 +187,7 @@ class BetweenRewardConditionedDistTravConfig:
     x_bin_width_mm: float = 2.0
     x_min_mm: float = 0.0
     x_max_mm: float = 20.0
+    x_bin_edges_mm: Sequence[float] | None = None
 
     # Plot options
     ci_conf: float = 0.95
@@ -384,7 +409,7 @@ class BetweenRewardConditionedDistTravPlotter:
         rand = [[] for _ in range(B)]
         seen = np.zeros((B,), dtype=int)
 
-        exclude_wall = bool(getattr(self.opts, "com_exclude_wall_contact", False))
+        exclude_wall = _exclude_wall_contact_enabled(self.opts)
         min_med_mm = float(
             getattr(self.opts, "com_per_segment_min_meddist_mm", 0.0) or 0.0
         )
@@ -439,6 +464,7 @@ class BetweenRewardConditionedDistTravPlotter:
                     n_frames=n_frames,
                     log_tag=self.log_tag,
                     warned_missing_wc=warned_missing_wc,
+                    enabled=exclude_wall,
                 )
                 nonwalk_mask = build_nonwalk_mask(self.opts, va, trx_idx, fi, n_frames)
 
@@ -687,6 +713,11 @@ class BetweenRewardConditionedDistTravPlotter:
         print(f"[{self.log_tag}] wrote segment-samples TSV: {path}")
 
     def _x_edges(self) -> np.ndarray:
+        custom_edges = _validated_custom_x_edges(
+            getattr(self.cfg, "x_bin_edges_mm", None)
+        )
+        if custom_edges is not None:
+            return custom_edges
         return make_x_edges(
             x_bin_width_mm=float(self.cfg.x_bin_width_mm),
             x_min_mm=float(self.cfg.x_min_mm),
@@ -708,7 +739,7 @@ class BetweenRewardConditionedDistTravPlotter:
         edges = self._x_edges()
         B = int(max(1, edges.size - 1))
 
-        exclude_wall = bool(getattr(self.opts, "com_exclude_wall_contact", False))
+        exclude_wall = _exclude_wall_contact_enabled(self.opts)
         min_med_mm = float(
             getattr(self.opts, "com_per_segment_min_meddist_mm", 0.0) or 0.0
         )
@@ -767,6 +798,7 @@ class BetweenRewardConditionedDistTravPlotter:
                     n_frames=n_frames,
                     log_tag=self.log_tag,
                     warned_missing_wc=warned_missing_wc,
+                    enabled=exclude_wall,
                 )
                 nonwalk_mask = build_nonwalk_mask(self.opts, va, trx_idx, fi, n_frames)
 
@@ -889,11 +921,14 @@ class BetweenRewardConditionedDistTravPlotter:
                 "x_bin_width_mm": float(self.cfg.x_bin_width_mm),
                 "x_min_mm": float(self.cfg.x_min_mm),
                 "x_max_mm": float(self.cfg.x_max_mm),
+                "x_bin_edges_mm": (
+                    np.asarray(self.cfg.x_bin_edges_mm, dtype=float).tolist()
+                    if getattr(self.cfg, "x_bin_edges_mm", None) is not None
+                    else None
+                ),
                 "ci_conf": float(self.cfg.ci_conf),
                 "n_fly_units": 0,
-                "exclude_wall_contact": bool(
-                    getattr(self.opts, "com_exclude_wall_contact", False)
-                ),
+                "exclude_wall_contact": bool(_exclude_wall_contact_enabled(self.opts)),
                 "exclude_nonwalking_frames": bool(exclude_nonwalk),
                 "min_walk_frames": int(min_walk_frames),
                 "units": "mm",
@@ -918,11 +953,14 @@ class BetweenRewardConditionedDistTravPlotter:
             "x_bin_width_mm": float(self.cfg.x_bin_width_mm),
             "x_min_mm": float(self.cfg.x_min_mm),
             "x_max_mm": float(self.cfg.x_max_mm),
+            "x_bin_edges_mm": (
+                np.asarray(self.cfg.x_bin_edges_mm, dtype=float).tolist()
+                if getattr(self.cfg, "x_bin_edges_mm", None) is not None
+                else None
+            ),
             "ci_conf": float(self.cfg.ci_conf),
             "n_fly_units": int(Y_total.shape[0]),
-            "exclude_wall_contact": bool(
-                getattr(self.opts, "com_exclude_wall_contact", False)
-            ),
+            "exclude_wall_contact": bool(_exclude_wall_contact_enabled(self.opts)),
             "exclude_nonwalking_frames": bool(exclude_nonwalk),
             "min_walk_frames": int(min_walk_frames),
             "units": "mm",
@@ -1064,13 +1102,7 @@ class BetweenRewardConditionedDistTravPlotter:
                                 int(self.cfg.training_index),
                                 int(self.cfg.skip_first_sync_buckets),
                                 int(self.cfg.keep_first_sync_buckets),
-                                int(
-                                    bool(
-                                        getattr(
-                                            self.opts, "com_exclude_wall_contact", False
-                                        )
-                                    )
-                                ),
+                                int(bool(_exclude_wall_contact_enabled(self.opts))),
                                 int(
                                     bool(
                                         getattr(

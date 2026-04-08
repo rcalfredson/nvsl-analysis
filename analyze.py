@@ -2589,6 +2589,17 @@ g.add_argument(
 )
 
 g.add_argument(
+    "--btw-rwd-conditioned-disttrav-exclude-wall-contact",
+    action="store_true",
+    help=(
+        "Exclude wall-contact-contaminated between-reward segments from "
+        "--btw-rwd-conditioned-disttrav. "
+        "This is an analysis-specific alias for the older "
+        "--com-exclude-wall-contact behavior."
+    ),
+)
+
+g.add_argument(
     "--btw-rwd-conditioned-disttrav-xbin",
     type=float,
     default=2.0,
@@ -2607,6 +2618,19 @@ g.add_argument(
     type=float,
     default=20.0,
     help="Maximum x (mm) for distance bins. Default: %(default)s.",
+)
+
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-bin-edges",
+    type=str,
+    default=None,
+    help=(
+        "Explicit comma-separated bin edges for the max-distance-from-reward axis "
+        "used by --btw-rwd-conditioned-disttrav. "
+        "If provided, overrides --btw-rwd-conditioned-disttrav-xbin/"
+        "--btw-rwd-conditioned-disttrav-xmin/"
+        "--btw-rwd-conditioned-disttrav-xmax."
+    ),
 )
 
 g.add_argument(
@@ -10753,6 +10777,13 @@ def postAnalyze(vas):
                     x_max_mm=float(
                         getattr(opts, "btw_rwd_conditioned_disttrav_xmax", 20.0)
                     ),
+                    x_bin_edges_mm=_parse_float_csv_or_edge_groups_or_none(
+                        getattr(
+                            opts,
+                            "btw_rwd_conditioned_disttrav_bin_edges",
+                            None,
+                        )
+                    ),
                     ci_conf=float(
                         getattr(opts, "btw_rwd_conditioned_disttrav_ci_conf", 0.95)
                     ),
@@ -12092,6 +12123,14 @@ if __name__ == "__main__":
             print(
                 f"[com] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
                 "because --com-exclude-wall-contact was set"
+            )
+            opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
+    if getattr(opts, "btw_rwd_conditioned_disttrav_exclude_wall_contact", False):
+        if getattr(opts, "wall", None) is None:
+            print(
+                f"[btw_rwd_dist_binned_disttrav] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
+                "because --btw-rwd-conditioned-disttrav-exclude-wall-contact was set"
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 
