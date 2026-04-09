@@ -2,9 +2,9 @@
 
 This directory holds Jupyter notebooks used to assemble paper-ready figure panels.
 
-The starter notebook is:
+The main notebook is:
 
-- `paper_figure_panels_template.ipynb`
+- `paper_figure_panels.ipynb`
 
 The intended pattern for each panel is:
 
@@ -12,7 +12,7 @@ The intended pattern for each panel is:
 2. One or more data export commands that write `.npz` bundles.
 3. One or more plotting commands that consume those bundles and generate the final panel image.
 
-The prototype notebook keeps export and plotting commands separate so each panel can be rerun in stages.
+The notebook keeps export and plotting commands separate so each panel can be rerun in stages.
 
 Notes:
 
