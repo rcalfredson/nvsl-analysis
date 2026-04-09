@@ -1356,6 +1356,19 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--btw-rwd-schematic",
+    type=str,
+    choices=("none", "maxdist", "maxdist_synth"),
+    default="none",
+    help=(
+        "Optional metric-annotation overlay for --btw-rwd-plots. "
+        "'maxdist' marks the farthest point from the reward center and draws "
+        "the Dmax radius using a real trajectory; 'maxdist_synth' draws a "
+        "synthetic explanatory trajectory with a symbolic Dmax label. "
+        "Default: %(default)s."
+    ),
+)
+g.add_argument(
     "--btw-rwd-seed",
     type=int,
     default=None,
@@ -8717,8 +8730,16 @@ def _generate_between_reward_plots(vas, *, saved_bottom=None, saved_top=None):
         return
 
     num_examples = int(getattr(opts, "btw_rwd_num", 1) or 1)
+    schematic_metric = str(getattr(opts, "btw_rwd_schematic", "none") or "none").lower()
     saved_top = set(saved_top or [])
     saved_bottom = set(saved_bottom or [])
+
+    if btw_rwd_mode == "first_n_training" and schematic_metric != "none":
+        print(
+            "[btw_rwd_plots] --btw-rwd-schematic currently supports "
+            "--btw-rwd-mode=bucket_random only; ignoring schematic overlay."
+        )
+        schematic_metric = "none"
 
     for va_idx, va in enumerate(vas):
         dirnames = _sli_bracket_dirnames(va_idx, saved_bottom, saved_top, opts)
@@ -8775,6 +8796,9 @@ def _generate_between_reward_plots(vas, *, saved_bottom=None, saved_top=None):
                         zoom_radius_mm=getattr(opts, "btw_rwd_zoom_radius_mm", None),
                         zoom_radius_mult=float(
                             getattr(opts, "btw_rwd_zoom_radius_mult", 3.0) or 3.0
+                        ),
+                        schematic_metric=(
+                            None if schematic_metric == "none" else schematic_metric
                         ),
                         out_dir=out_dir,
                     )

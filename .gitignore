@@ -5,6 +5,7 @@
 imgs/**/*.png*
 imgs/**/*.jpg*
 imgs/**/*.pdf*
+imgs/**/*.svg*
 imgs/**/*.tsv*
 plots*/*
 

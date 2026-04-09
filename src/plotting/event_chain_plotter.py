@@ -27,6 +27,494 @@ class EventChainPlotter:
         self._used_reward_return_episodes = {}
         self._used_return_prob_episodes = {}
 
+    @staticmethod
+    def _clamp_point_to_floor(x, y, top_left, bottom_right):
+        x = max(min(float(x), float(bottom_right[0])), float(top_left[0]))
+        y_min = min(float(top_left[1]), float(bottom_right[1]))
+        y_max = max(float(top_left[1]), float(bottom_right[1]))
+        y = max(min(float(y), y_max), y_min)
+        return x, y
+
+    @staticmethod
+    def _draw_fly_icon(
+        ax,
+        x,
+        y,
+        *,
+        angle_deg=25.0,
+        body_len=10.0,
+        body_w=4.8,
+        wing_len=7.0,
+        wing_w=3.8,
+        body_fc="#202020",
+        wing_fc="#d9ecff",
+    ):
+        body = patches.Ellipse(
+            (x, y),
+            width=body_w,
+            height=body_len,
+            angle=angle_deg,
+            facecolor=body_fc,
+            edgecolor="white",
+            linewidth=0.6,
+            zorder=8,
+        )
+        wing_left = patches.Ellipse(
+            (x - 1.4, y + 1.2),
+            width=wing_w,
+            height=wing_len,
+            angle=angle_deg + 38.0,
+            facecolor=wing_fc,
+            edgecolor="#7fa9c9",
+            linewidth=0.6,
+            alpha=0.95,
+            zorder=7,
+        )
+        wing_right = patches.Ellipse(
+            (x + 1.4, y + 1.2),
+            width=wing_w,
+            height=wing_len,
+            angle=angle_deg - 38.0,
+            facecolor=wing_fc,
+            edgecolor="#7fa9c9",
+            linewidth=0.6,
+            alpha=0.95,
+            zorder=7,
+        )
+        ax.add_patch(wing_left)
+        ax.add_patch(wing_right)
+        ax.add_patch(body)
+
+    @staticmethod
+    def _between_reward_maxdist_geometry(
+        x,
+        y,
+        start_reward,
+        end_reward,
+        reward_circle,
+        *,
+        exclude_reward_endpoints=False,
+    ):
+        if reward_circle is None:
+            return None
+
+        sr = int(start_reward)
+        er = int(end_reward)
+        s_seg = sr + 1 if exclude_reward_endpoints else sr
+        e_seg = er - 1 if exclude_reward_endpoints else er
+        if e_seg <= s_seg:
+            return None
+
+        xs = np.asarray(x[s_seg:e_seg], dtype=float)
+        ys = np.asarray(y[s_seg:e_seg], dtype=float)
+        if xs.size == 0 or ys.size == 0:
+            return None
+
+        idx = np.arange(s_seg, e_seg, dtype=int)
+        fin = np.isfinite(xs) & np.isfinite(ys)
+        if not fin.any():
+            return None
+
+        xs = xs[fin]
+        ys = ys[fin]
+        idx = idx[fin]
+
+        cx, cy, r = reward_circle
+        d = np.hypot(xs - float(cx), ys - float(cy))
+        if d.size == 0 or not np.isfinite(d).any():
+            return None
+
+        try:
+            k = int(np.nanargmax(d))
+        except Exception:
+            return None
+
+        if k < 0 or k >= d.size:
+            return None
+
+        return {
+            "frame": int(idx[k]),
+            "x": float(xs[k]),
+            "y": float(ys[k]),
+            "d_px": float(d[k]),
+            "cx": float(cx),
+            "cy": float(cy),
+            "r_px": float(r),
+        }
+
+    def _overlay_maxdist_schematic(
+        self,
+        ax,
+        *,
+        reward_circle,
+        start_reward,
+        end_reward,
+        top_left,
+        bottom_right,
+        px_per_mm,
+        show_label=True,
+    ):
+        geom = self._between_reward_maxdist_geometry(
+            self.x,
+            self.y,
+            start_reward,
+            end_reward,
+            reward_circle,
+            exclude_reward_endpoints=False,
+        )
+        if geom is None:
+            return None
+
+        cx = geom["cx"]
+        cy = geom["cy"]
+        x_max = geom["x"]
+        y_max = geom["y"]
+
+        ax.plot(
+            [cx, x_max],
+            [cy, y_max],
+            linestyle=(0, (5, 3)),
+            color="#c45a1c",
+            linewidth=2.0,
+            zorder=5,
+            label="Dmax",
+        )
+        ax.scatter(
+            [x_max],
+            [y_max],
+            s=44,
+            color="#c45a1c",
+            edgecolors="white",
+            linewidths=0.8,
+            zorder=6,
+            label="Max-distance point",
+        )
+
+        fly_angle = np.degrees(np.arctan2(y_max - cy, x_max - cx)) - 90.0
+        self._draw_fly_icon(
+            ax,
+            x_max,
+            y_max,
+            angle_deg=float(fly_angle),
+            body_len=10.0,
+            body_w=5.2,
+            wing_len=7.4,
+            wing_w=4.2,
+        )
+
+        if show_label:
+            midx = 0.5 * (cx + x_max)
+            midy = 0.5 * (cy + y_max)
+            dx = x_max - cx
+            dy = y_max - cy
+            norm = float(np.hypot(dx, dy))
+            if norm > 0:
+                off_x = -dy / norm * 12.0
+                off_y = dx / norm * 12.0
+            else:
+                off_x = 0.0
+                off_y = -12.0
+
+            tx, ty = self._clamp_point_to_floor(
+                midx + off_x, midy + off_y, top_left, bottom_right
+            )
+            if px_per_mm is not None and np.isfinite(geom["d_px"]):
+                dmm = float(geom["d_px"]) / float(px_per_mm)
+                label = f"dMax = {dmm:.2f} mm"
+            else:
+                label = "dMax"
+
+            ax.text(
+                tx,
+                ty,
+                label,
+                fontsize=9,
+                color="#7a3100",
+                ha="center",
+                va="center",
+                zorder=9,
+                bbox=dict(
+                    boxstyle="round,pad=0.2",
+                    facecolor="white",
+                    edgecolor="#c45a1c",
+                    linewidth=0.9,
+                    alpha=0.92,
+                ),
+            )
+
+        return geom
+
+    @staticmethod
+    def _synthetic_maxdist_path(
+        reward_circle, *, variant=0, rng=None, excursion_scale=1.0
+    ):
+        if reward_circle is None:
+            return None
+
+        rng = rng or random.Random(variant)
+        cx, cy, r = (float(v) for v in reward_circle)
+        n = 180
+        t = np.linspace(0.0, 1.0, n)
+
+        style = rng.choice(("arc", "loop", "wander"))
+        theta0 = np.deg2rad(rng.uniform(105.0, 170.0))
+        theta1 = theta0 - np.deg2rad(rng.uniform(80.0, 190.0))
+        loop_env = np.sin(np.pi * t) ** 1.45
+
+        if style == "arc":
+            radial_peak = (2.00 + rng.uniform(-0.30, 0.60)) * float(excursion_scale)
+            base_radial = (
+                0.60
+                + radial_peak * (np.sin(np.pi * t) ** 1.10)
+                + 0.16 * np.sin(2.0 * np.pi * t + rng.uniform(-1.4, 1.4))
+            )
+            radial = (
+                base_radial
+                + (0.28 + rng.uniform(-0.08, 0.10))
+                * loop_env
+                * np.sin(4.1 * np.pi * t + rng.uniform(-1.3, 1.3))
+                + (0.12 + rng.uniform(-0.05, 0.06))
+                * loop_env
+                * np.sin(7.2 * np.pi * t + rng.uniform(-1.2, 1.2))
+            )
+            angle = (
+                theta0
+                + (theta1 - theta0) * t
+                + (0.55 + rng.uniform(-0.18, 0.22))
+                * loop_env
+                * np.sin(2.6 * np.pi * t + rng.uniform(-1.0, 1.0))
+                + (0.20 + rng.uniform(-0.08, 0.10))
+                * loop_env
+                * np.sin(6.8 * np.pi * t + rng.uniform(-1.0, 1.0))
+            )
+        elif style == "loop":
+            radial_peak = (1.75 + rng.uniform(-0.20, 0.45)) * float(excursion_scale)
+            base_radial = (
+                0.58
+                + radial_peak * (np.sin(np.pi * t) ** 1.05)
+                + 0.10 * np.sin(2.0 * np.pi * t + rng.uniform(-1.2, 1.2))
+            )
+            radial = (
+                base_radial
+                + (0.34 + rng.uniform(-0.10, 0.10))
+                * loop_env
+                * np.sin(5.4 * np.pi * t + rng.uniform(-1.4, 1.4))
+                + (0.18 + rng.uniform(-0.06, 0.08))
+                * loop_env
+                * np.sin(9.8 * np.pi * t + rng.uniform(-1.4, 1.4))
+            )
+            angle_mid = (
+                1.35
+                + rng.uniform(-0.35, 0.45)
+                + 0.35 * np.sin(2.0 * np.pi * t + rng.uniform(-1.0, 1.0))
+            )
+            angle = (
+                theta0
+                + (theta1 - theta0) * t
+                + angle_mid * loop_env * np.sin(2.0 * np.pi * t + rng.uniform(-1.0, 1.0))
+                + (0.30 + rng.uniform(-0.10, 0.10))
+                * loop_env
+                * np.sin(7.0 * np.pi * t + rng.uniform(-1.1, 1.1))
+            )
+        else:
+            radial_peak = (1.65 + rng.uniform(-0.25, 0.55)) * float(excursion_scale)
+            rw = np.cumsum(np.array([rng.uniform(-0.11, 0.11) for _ in range(n)]))
+            rw = rw - np.linspace(rw[0], rw[-1], n)
+            rw = rw / max(1e-6, np.max(np.abs(rw)))
+            base_radial = 0.60 + radial_peak * (np.sin(np.pi * t) ** 1.22)
+            radial = (
+                base_radial
+                + 0.24 * loop_env * rw
+                + (0.12 + rng.uniform(-0.04, 0.05))
+                * loop_env
+                * np.sin(6.0 * np.pi * t + rng.uniform(-1.1, 1.1))
+            )
+            rw2 = np.cumsum(np.array([rng.uniform(-0.08, 0.08) for _ in range(n)]))
+            rw2 = rw2 - np.linspace(rw2[0], rw2[-1], n)
+            rw2 = rw2 / max(1e-6, np.max(np.abs(rw2)))
+            angle = (
+                theta0
+                + (theta1 - theta0) * t
+                + 0.40 * loop_env * rw2
+                + (0.24 + rng.uniform(-0.09, 0.11))
+                * loop_env
+                * np.sin(4.7 * np.pi * t + rng.uniform(-1.2, 1.2))
+            )
+
+        radial[0] = rng.uniform(0.54, 0.66)
+        radial[-1] = rng.uniform(0.56, 0.70)
+        radial = np.clip(radial, 0.50, 3.90)
+
+        xs = cx + (r * radial) * np.cos(angle)
+        ys = cy + (r * radial) * np.sin(angle)
+
+        # Guarantee the endpoints remain inside the reward circle.
+        xs[0] = cx + (r * radial[0]) * np.cos(theta0)
+        ys[0] = cy + (r * radial[0]) * np.sin(theta0)
+        xs[-1] = cx + (r * radial[-1]) * np.cos(theta1)
+        ys[-1] = cy + (r * radial[-1]) * np.sin(theta1)
+
+        # Confirm there is a real excursion outside the reward circle.
+        if not np.any(np.hypot(xs - cx, ys - cy) > (1.05 * r)):
+            k_mid = int(0.56 * (n - 1))
+            xs[k_mid] = cx + (r * max(2.20, 2.8 * float(excursion_scale))) * np.cos(
+                angle[k_mid]
+            )
+            ys[k_mid] = cy + (r * max(2.20, 2.8 * float(excursion_scale))) * np.sin(
+                angle[k_mid]
+            )
+
+        d = np.hypot(xs - cx, ys - cy)
+        k = int(np.argmax(d))
+        return {
+            "x": xs,
+            "y": ys,
+            "start_x": float(xs[0]),
+            "start_y": float(ys[0]),
+            "end_x": float(xs[-1]),
+            "end_y": float(ys[-1]),
+            "max_x": float(xs[k]),
+            "max_y": float(ys[k]),
+            "cx": cx,
+            "cy": cy,
+            "r_px": r,
+            "k": k,
+        }
+
+    def _overlay_synthetic_maxdist_schematic(
+        self,
+        ax,
+        *,
+        reward_circle,
+        top_left,
+        bottom_right,
+        rng=None,
+        excursion_scale=1.0,
+        variant=0,
+    ):
+        synth = self._synthetic_maxdist_path(
+            reward_circle,
+            variant=variant,
+            rng=rng,
+            excursion_scale=excursion_scale,
+        )
+        if synth is None:
+            return None
+
+        xs = np.asarray(synth["x"], dtype=float)
+        ys = np.asarray(synth["y"], dtype=float)
+        ax.plot(
+            xs,
+            ys,
+            color="#1f5a7a",
+            linewidth=2.1,
+            zorder=4,
+            label="Synthetic path",
+        )
+
+        step = max(1, int(len(xs) / 5))
+        for i in range(step, len(xs) - 1, step):
+            dx = xs[i + 1] - xs[i]
+            dy = ys[i + 1] - ys[i]
+            if not (np.isfinite(dx) and np.isfinite(dy)):
+                continue
+            ax.annotate(
+                "",
+                xy=(xs[i + 1], ys[i + 1]),
+                xytext=(xs[i], ys[i]),
+                arrowprops=dict(
+                    arrowstyle="->",
+                    color="#1f5a7a",
+                    lw=1.0,
+                    shrinkA=0.0,
+                    shrinkB=0.0,
+                    alpha=0.85,
+                ),
+                zorder=4,
+            )
+
+        ax.scatter(
+            [synth["start_x"]],
+            [synth["start_y"]],
+            s=30,
+            color="#2c9b45",
+            edgecolors="white",
+            linewidths=0.8,
+            zorder=5,
+            label="Segment start",
+        )
+        ax.scatter(
+            [synth["end_x"]],
+            [synth["end_y"]],
+            s=30,
+            color="#b33c2f",
+            edgecolors="white",
+            linewidths=0.8,
+            zorder=5,
+            label="Segment end",
+        )
+
+        cx = synth["cx"]
+        cy = synth["cy"]
+        x_max = synth["max_x"]
+        y_max = synth["max_y"]
+        ax.plot(
+            [cx, x_max],
+            [cy, y_max],
+            linestyle=(0, (5, 3)),
+            color="#c45a1c",
+            linewidth=2.1,
+            zorder=5,
+            label="Dmax",
+        )
+        ax.scatter(
+            [x_max],
+            [y_max],
+            s=44,
+            color="#c45a1c",
+            edgecolors="white",
+            linewidths=0.8,
+            zorder=6,
+            label="Max-distance point",
+        )
+
+        fly_angle = np.degrees(np.arctan2(y_max - cy, x_max - cx)) - 90.0
+        self._draw_fly_icon(ax, x_max, y_max, angle_deg=float(fly_angle))
+
+        midx = 0.5 * (cx + x_max)
+        midy = 0.5 * (cy + y_max)
+        dx = x_max - cx
+        dy = y_max - cy
+        norm = float(np.hypot(dx, dy))
+        if norm > 0:
+            off_x = -dy / norm * 12.0
+            off_y = dx / norm * 12.0
+        else:
+            off_x = 0.0
+            off_y = -12.0
+        tx, ty = self._clamp_point_to_floor(
+            midx + off_x, midy + off_y, top_left, bottom_right
+        )
+        ax.text(
+            tx,
+            ty,
+            "Dmax",
+            fontsize=9,
+            color="#7a3100",
+            ha="center",
+            va="center",
+            zorder=9,
+            bbox=dict(
+                boxstyle="round,pad=0.2",
+                facecolor="white",
+                edgecolor="#c45a1c",
+                linewidth=0.9,
+                alpha=0.92,
+            ),
+        )
+
+        return synth
+
     def _get_bucket_range(
         self, *, trn_index: int, bucket_index: int
     ) -> Optional[Tuple[int, int]]:
@@ -1462,6 +1950,7 @@ class EventChainPlotter:
         zoom: bool = False,
         zoom_radius_mm: float | None = None,
         zoom_radius_mult: float = 3.0,
+        schematic_metric: str | None = None,
         out_dir: str | None = None,
     ):
         """
@@ -1643,6 +2132,7 @@ class EventChainPlotter:
             )
 
         n_examples = len(selected_segments)
+        synth_master_rng = random.Random(seed) if seed is not None else random.Random()
 
         # --- Prepare arena / floor and overlays shared across subplots ----------
         floor_coords = list(
@@ -1831,71 +2321,97 @@ class EventChainPlotter:
             else:
                 arrow_kwargs = arrow_kwargs_default
 
-            # Base trajectory line + arrows
-            last_arrow_idx = None
-            arrow_interval = 3
+            metric_key = str(schematic_metric or "").lower()
 
-            for i in range(start_frame, end_frame):
-                if (
-                    np.isnan(self.x[i])
-                    or np.isnan(self.y[i])
-                    or np.isnan(self.x[i + 1])
-                    or np.isnan(self.y[i + 1])
-                ):
-                    continue
-
-                x_start, x_end = self.x[i], self.x[i + 1]
-                y_start, y_end = self.y[i], self.y[i + 1]
-
-                x_start = max(min(x_start, bottom_right[0]), top_left[0])
-                x_end = max(min(x_end, bottom_right[0]), top_left[0])
-
-                ax.plot(
-                    [x_start, x_end],
-                    [y_start, y_end],
-                    color="black",
-                    linewidth=0.75,
-                    zorder=3,
+            if metric_key == "maxdist_synth":
+                synth_rng = random.Random(synth_master_rng.random() + idx)
+                self._overlay_synthetic_maxdist_schematic(
+                    ax,
+                    reward_circle=reward_circle,
+                    top_left=top_left,
+                    bottom_right=bottom_right,
+                    rng=synth_rng,
+                    excursion_scale=(2.10 if not zoom else 1.0),
+                    variant=idx,
                 )
+            else:
+                # Base trajectory line + arrows
+                last_arrow_idx = None
+                arrow_interval = 3
 
-                if getattr(self.trj, "walking", None) is not None:
-                    if not self.trj.walking[i + 1]:
+                for i in range(start_frame, end_frame):
+                    if (
+                        np.isnan(self.x[i])
+                        or np.isnan(self.y[i])
+                        or np.isnan(self.x[i + 1])
+                        or np.isnan(self.y[i + 1])
+                    ):
                         continue
 
-                speed = np.hypot(x_end - x_start, y_end - y_start)
-                last_arrow_idx = self._draw_arrow_for_speed(
-                    i,
-                    x_start,
-                    x_end,
-                    y_start,
-                    y_end,
-                    last_arrow_idx,
-                    arrow_interval,
-                    speed,
-                    arrow_kwargs=arrow_kwargs,
+                    x_start, x_end = self.x[i], self.x[i + 1]
+                    y_start, y_end = self.y[i], self.y[i + 1]
+
+                    x_start = max(min(x_start, bottom_right[0]), top_left[0])
+                    x_end = max(min(x_end, bottom_right[0]), top_left[0])
+
+                    ax.plot(
+                        [x_start, x_end],
+                        [y_start, y_end],
+                        color="black",
+                        linewidth=0.75,
+                        zorder=3,
+                    )
+
+                    if getattr(self.trj, "walking", None) is not None:
+                        if not self.trj.walking[i + 1]:
+                            continue
+
+                    speed = np.hypot(x_end - x_start, y_end - y_start)
+                    last_arrow_idx = self._draw_arrow_for_speed(
+                        i,
+                        x_start,
+                        x_end,
+                        y_start,
+                        y_end,
+                        last_arrow_idx,
+                        arrow_interval,
+                        speed,
+                        arrow_kwargs=arrow_kwargs,
+                    )
+
+                # Mark the two reward frames themselves
+                start_y = self.y[start_reward]
+                end_y = self.y[end_reward]
+                ax.plot(
+                    self.x[start_reward],
+                    start_y,
+                    marker="o",
+                    color="green",
+                    markersize=6,
+                    zorder=4,
+                    label="Reward (start)",
+                )
+                ax.plot(
+                    self.x[end_reward],
+                    end_y,
+                    marker="o",
+                    color="red",
+                    markersize=6,
+                    zorder=4,
+                    label="Reward (end)",
                 )
 
-            # Mark the two reward frames themselves
-            start_y = self.y[start_reward]
-            end_y = self.y[end_reward]
-            ax.plot(
-                self.x[start_reward],
-                start_y,
-                marker="o",
-                color="green",
-                markersize=6,
-                zorder=4,
-                label="Reward (start)",
-            )
-            ax.plot(
-                self.x[end_reward],
-                end_y,
-                marker="o",
-                color="red",
-                markersize=6,
-                zorder=4,
-                label="Reward (end)",
-            )
+            if metric_key == "maxdist":
+                self._overlay_maxdist_schematic(
+                    ax,
+                    reward_circle=reward_circle,
+                    start_reward=start_reward,
+                    end_reward=end_reward,
+                    top_left=top_left,
+                    bottom_right=bottom_right,
+                    px_per_mm=px_per_mm,
+                    show_label=True,
+                )
 
             # Per-subplot title: just the varying info
             dmm = (
@@ -1906,9 +2422,25 @@ class EventChainPlotter:
             dist_line = (
                 f"\ndist {dmm:.2f} mm" if dmm is not None and np.isfinite(dmm) else ""
             )
+            metric_line = (
+                "\nmetric schematic: max distance"
+                if metric_key == "maxdist"
+                else (
+                    "\nmetric schematic: synthetic max distance example"
+                    if metric_key == "maxdist_synth"
+                    else ""
+                )
+            )
+            title_line = (
+                f"seg {idx + 1}: synthetic example\nsymbolic trajectory"
+                if metric_key == "maxdist_synth"
+                else (
+                    f"seg {idx + 1}: frames {start_frame}-{end_frame}\n"
+                    f"rewards {start_reward}->{end_reward}{dist_line}"
+                )
+            )
             ax.set_title(
-                f"seg {idx + 1}: frames {start_frame}-{end_frame}\n"
-                f"rewards {start_reward}->{end_reward}{dist_line}",
+                f"{title_line}{metric_line}",
                 fontsize=9,
             )
 
@@ -1945,13 +2477,26 @@ class EventChainPlotter:
         fly_role = "exp" if role_idx == 0 else "yok"
 
         global_title = (
-            "Between-reward trajectories\n"
-            f"{video_id}, fly {fly_idx}, {fly_role}\n"
-            f"trn {trn_index + 1}, bucket {bucket_index + 1}"
+            (
+                "Between-reward schematic examples\n"
+                if str(schematic_metric or "").lower() == "maxdist_synth"
+                else "Between-reward trajectories\n"
+            )
+            + f"{video_id}, fly {fly_idx}, {fly_role}\n"
+            + (
+                f"trn {trn_index + 1}, bucket {bucket_index + 1} | synthetic Dmax example"
+                if str(schematic_metric or "").lower() == "maxdist_synth"
+                else f"trn {trn_index + 1}, bucket {bucket_index + 1}"
+            )
         )
         fig.suptitle(global_title, fontsize=12)
 
         short_str = f"_maxd{max_dist_mm:g}mm" if max_dist_mm is not None else ""
+        schematic_str = (
+            f"_schematic-{str(schematic_metric).lower()}"
+            if str(schematic_metric or "").strip()
+            else ""
+        )
         zoom_str = ""
         if zoom:
             if zoom_radius_mm is not None:
@@ -1965,7 +2510,7 @@ class EventChainPlotter:
             f"{video_id}__fly{fly_idx}_role{role_idx}_"
             f"trn{trn_index + 1}_bkt{bucket_index + 1}_"
             f"N{n_examples}_seed{seed_str}"
-            f"{short_str}{zoom_str}."
+            f"{short_str}{schematic_str}{zoom_str}."
             f"{image_format}"
         )
         output_dir = os.path.dirname(output_path)
