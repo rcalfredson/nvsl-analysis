@@ -86,6 +86,14 @@ def main():
         help="Overlay ctrl curves (same linestyle as group, different color).",
     )
     p.add_argument(
+        "--show-legend",
+        action="store_true",
+        help=(
+            "Render a legend instead of collapsing to a suptitle when possible. "
+            "Useful with --include-ctrl to distinguish experimental vs yoked lines."
+        ),
+    )
+    p.add_argument(
         "--include-pre",
         action="store_true",
         help=(
@@ -196,6 +204,7 @@ def main():
         ymax=args.ymax,
         delta_allow_unpaired=args.delta_allow_unpaired,
         include_pre=args.include_pre,
+        show_legend=args.show_legend,
     )
 
 

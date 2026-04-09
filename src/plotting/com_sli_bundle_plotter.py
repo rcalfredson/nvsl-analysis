@@ -285,6 +285,7 @@ def plot_com_sli_bundles(
     ymax=None,
     delta_allow_unpaired=False,
     include_pre=False,
+    show_legend=False,
 ):
     """
     Plot COM magnitude or SLI vs sync bucket from one or more exported bundles.
@@ -1282,22 +1283,46 @@ def plot_com_sli_bundles(
 
     # legend (or suptitle if only one entry)
     handles, leg_labels = axs[0].get_legend_handles_labels()
-    # Only promote to suptitle when there is exactly one legend entry
-    if len(leg_labels) == 1:
-        fig.suptitle(leg_labels[0], y=0.995)
-    else:
-        legend_handles = []
-        for handle, label in zip(handles, leg_labels):
-            legend_handles.append(
-                _legend_handle_for_group(
-                    label=label,
-                    color=handle.get_color(),
-                    linestyle=handle.get_linestyle(),
-                )
+    legend_handles = []
+    legend_labels = []
+    for handle, label in zip(handles, leg_labels):
+        legend_handles.append(
+            _legend_handle_for_group(
+                label=label,
+                color=handle.get_color(),
+                linestyle=handle.get_linestyle(),
             )
+        )
+        legend_labels.append(label)
+
+    if show_legend and include_ctrl:
+        ctrl_condition_handles = [
+            _legend_handle_for_group(
+                label="Experimental",
+                color=exp_color,
+                linestyle="-",
+            ),
+            _legend_handle_for_group(
+                label="Yoked",
+                color=ctrl_color,
+                linestyle="-",
+            ),
+        ]
+        ctrl_condition_labels = ["Experimental", "Yoked"]
+        if len(legend_labels) == 1:
+            legend_handles = ctrl_condition_handles
+            legend_labels = ctrl_condition_labels
+        else:
+            legend_handles.extend(ctrl_condition_handles)
+            legend_labels.extend(ctrl_condition_labels)
+
+    # Only promote to suptitle when there is exactly one legend entry and no explicit legend was requested.
+    if not show_legend and len(legend_labels) == 1:
+        fig.suptitle(leg_labels[0], y=0.995)
+    elif legend_labels:
         axs[0].legend(
             handles=legend_handles,
-            labels=leg_labels,
+            labels=legend_labels,
             frameon=False,
             handlelength=3.2,
         )
