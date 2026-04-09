@@ -75,6 +75,27 @@ def _bundle_metric_palette(metric):
     else:
         return FLY_COLS
 
+
+def _ctrl_overlay_key(metric):
+    if metric == "commag":
+        return "commag_ctrl"
+    if metric == "wallpct":
+        return "wallpct_ctrl"
+    if metric == "between_reward_maxdist":
+        return "between_reward_maxdist_ctrl"
+    if metric == "between_reward_return_leg_dist":
+        return "between_reward_return_leg_dist_ctrl"
+    if metric == "turnback":
+        return "turnback_ratio_ctrl"
+    if metric == "agarose":
+        return "agarose_ratio_ctrl"
+    if metric == "lgturn_startdist":
+        return "lgturn_startdist_ctrl"
+    if metric == "reward_lgturn_pathlen":
+        return "reward_lgturn_pathlen_ctrl"
+    return None
+
+
 def _check_delta_compat(base, comp, *, keys, metric_label="metric"):
     """
     Basic sanity checks so we don't silently subtract apples from wheelbarrows.
@@ -206,6 +227,21 @@ def _mean_ci_over_videos(vals_2d):
     return mci
 
 
+def _update_y_bounds(plot_mci, y_bounds):
+    ymin, ymax = y_bounds
+    lo = np.asarray(plot_mci[1, :], dtype=float)
+    hi = np.asarray(plot_mci[2, :], dtype=float)
+
+    if np.isfinite(lo).any():
+        lo_min = float(np.nanmin(lo))
+        ymin = lo_min if ymin is None else min(ymin, lo_min)
+    if np.isfinite(hi).any():
+        hi_max = float(np.nanmax(hi))
+        ymax = hi_max if ymax is None else max(ymax, hi_max)
+
+    return ymin, ymax
+
+
 def _anova_p_per_bucket(group_samples, *, min_n_per_group=3):
     """
     group_samples: list[np.ndarray], each 1D
@@ -266,6 +302,9 @@ def plot_com_sli_bundles(
             fontFamily=None,
         )
 
+    requested_include_ctrl = bool(include_ctrl)
+    include_ctrl = False
+
     if sli_top_fraction is None:
         sli_top_fraction = sli_fraction
     if sli_bottom_fraction is None:
@@ -290,28 +329,26 @@ def plot_com_sli_bundles(
     if metric == "commag":
         series_key = "commag_exp"
         need_keys = ["commag_exp"]
+        include_ctrl = requested_include_ctrl
     elif metric == "sli":
         if any("sli_ts" not in b for b in bundles):
             raise ValueError("One or more bundles are missing sli_ts; re-export them.")
         series_key = "sli_ts"
         need_keys = ["sli_ts"]
-        include_ctrl = False
     elif metric == "between_reward_maxdist":
         if turnback_mode == "exp":
             series_key = "between_reward_maxdist_exp"
             need_keys = ["between_reward_maxdist_exp"]
-            include_ctrl = False
+            include_ctrl = requested_include_ctrl
         elif turnback_mode == "ctrl":
             series_key = "between_reward_maxdist_ctrl"
             need_keys = ["between_reward_maxdist_ctrl"]
-            include_ctrl = False
         elif turnback_mode == "exp_minus_ctrl":
             series_key = "between_reward_maxdist_exp"
             need_keys = [
                 "between_reward_maxdist_exp",
                 "between_reward_maxdist_ctrl",
             ]
-            include_ctrl = False
         else:
             raise ValueError(
                 f"Unknown mode={turnback_mode!r} for metric=between_reward_maxdist"
@@ -320,18 +357,16 @@ def plot_com_sli_bundles(
         if turnback_mode == "exp":
             series_key = "between_reward_return_leg_dist_exp"
             need_keys = ["between_reward_return_leg_dist_exp"]
-            include_ctrl = False
+            include_ctrl = requested_include_ctrl
         elif turnback_mode == "ctrl":
             series_key = "between_reward_return_leg_dist_ctrl"
             need_keys = ["between_reward_return_leg_dist_ctrl"]
-            include_ctrl = False
         elif turnback_mode == "exp_minus_ctrl":
             series_key = "between_reward_return_leg_dist_exp"
             need_keys = [
                 "between_reward_return_leg_dist_exp",
                 "between_reward_return_leg_dist_ctrl",
             ]
-            include_ctrl = False
         else:
             raise ValueError(
                 f"Unknown mode={turnback_mode!r} for metric=between_reward_return_leg_dist"
@@ -340,30 +375,25 @@ def plot_com_sli_bundles(
         if turnback_mode == "exp":
             series_key = "turnback_ratio_exp"
             need_keys = ["turnback_ratio_exp"]
-            include_ctrl = False
+            include_ctrl = requested_include_ctrl
         elif turnback_mode == "ctrl":
             series_key = "turnback_ratio_ctrl"
             need_keys = ["turnback_ratio_ctrl"]
-            include_ctrl = False
         elif turnback_mode == "exp_minus_ctrl":
             series_key = "turnback_ratio_exp"
             need_keys = ["turnback_ratio_exp", "turnback_ratio_ctrl"]
-            include_ctrl = False
         else:
             raise ValueError(f"Unknown turnback_mode={turnback_mode!r}")
     elif metric == "weaving":
         if turnback_mode == "exp":
             series_key = "weaving_ratio_exp"
             need_keys = ["weaving_ratio_exp"]
-            include_ctrl = False
         elif turnback_mode == "ctrl":
             series_key = "weaving_ratio_ctrl"
             need_keys = ["weaving_ratio_ctrl"]
-            include_ctrl = False
         elif turnback_mode == "exp_minus_ctrl":
             series_key = "weaving_ratio_exp"
             need_keys = ["weaving_ratio_exp", "weaving_ratio_ctrl"]
-            include_ctrl = False
         else:
             raise ValueError(
                 f"Unknown turnback_mode={turnback_mode!r} for metric=weaving"
@@ -372,15 +402,13 @@ def plot_com_sli_bundles(
         if turnback_mode == "exp":
             series_key = "agarose_ratio_exp"
             need_keys = ["agarose_ratio_exp"]
-            include_ctrl = False
+            include_ctrl = requested_include_ctrl
         elif turnback_mode == "ctrl":
             series_key = "agarose_ratio_ctrl"
             need_keys = ["agarose_ratio_ctrl"]
-            include_ctrl = False
         elif turnback_mode == "exp_minus_ctrl":
             series_key = "agarose_ratio_exp"
             need_keys = ["agarose_ratio_exp", "agarose_ratio_ctrl"]
-            include_ctrl = False
         else:
             raise ValueError(f"Unknown mode={turnback_mode!r} for metric=agarose")
         if include_pre:
@@ -396,22 +424,22 @@ def plot_com_sli_bundles(
     elif metric == "wallpct":
         series_key = "wallpct_exp"
         need_keys = ["wallpct_exp"]
+        include_ctrl = requested_include_ctrl
     elif metric == "lgturn_startdist":
         series_key = "lgturn_startdist_exp"
         need_keys = ["lgturn_startdist_exp"]
+        include_ctrl = requested_include_ctrl
     elif metric == "reward_lgturn_pathlen":
         if turnback_mode == "exp":
             series_key = "reward_lgturn_pathlen_exp"
             need_keys = ["reward_lgturn_pathlen_exp"]
-            include_ctrl = False
+            include_ctrl = requested_include_ctrl
         elif turnback_mode == "ctrl":
             series_key = "reward_lgturn_pathlen_ctrl"
             need_keys = ["reward_lgturn_pathlen_ctrl"]
-            include_ctrl = False
         elif turnback_mode == "exp_minus_ctrl":
             series_key = "reward_lgturn_pathlen_exp"
             need_keys = ["reward_lgturn_pathlen_exp", "reward_lgturn_pathlen_ctrl"]
-            include_ctrl = False
         else:
             raise ValueError(
                 f"Unknown mode={turnback_mode!r} for metric=reward_lgturn_pathlen"
@@ -420,15 +448,12 @@ def plot_com_sli_bundles(
         if turnback_mode == "exp":
             series_key = "reward_lv_exp"
             need_keys = ["reward_lv_exp"]
-            include_ctrl = False
         elif turnback_mode == "ctrl":
             series_key = "reward_lv_ctrl"
             need_keys = ["reward_lv_ctrl"]
-            include_ctrl = False
         elif turnback_mode == "exp_minus_ctrl":
             series_key = "reward_lv_exp"
             need_keys = ["reward_lv_exp", "reward_lv_ctrl"]
-            include_ctrl = False
         else:
             raise ValueError(f"Unknown mode={turnback_mode!r} for metric=reward_lv")
     elif metric == "reward_lgturn_prevalence":
@@ -437,11 +462,9 @@ def plot_com_sli_bundles(
         if turnback_mode == "exp":
             series_key = "reward_lgturn_pathlenN_exp"
             need_keys = ["reward_lgturn_pathlenN_exp", "reward_lgturn_rewards"]
-            include_ctrl = False
         elif turnback_mode == "ctrl":
             series_key = "reward_lgturn_pathlenN_ctrl"
             need_keys = ["reward_lgturn_pathlenN_ctrl", "reward_lgturn_rewards"]
-            include_ctrl = False
         elif turnback_mode == "exp_minus_ctrl":
             series_key = "reward_lgturn_pathlenN_exp"
             need_keys = [
@@ -449,7 +472,6 @@ def plot_com_sli_bundles(
                 "reward_lgturn_pathlenN_ctrl",
                 "reward_lgturn_rewards",
             ]
-            include_ctrl = False
         else:
             raise ValueError(
                 f"Unknown mode={turnback_mode!r} for metric=reward_lgturn_prevalence"
@@ -465,6 +487,22 @@ def plot_com_sli_bundles(
 
     if include_pre and metric != "agarose":
         raise ValueError("--include-pre is currently supported only for metric='agarose'.")
+
+    ctrl_key = _ctrl_overlay_key(metric) if include_ctrl else None
+    if include_ctrl and ctrl_key is None:
+        warnings.warn(
+            f"--include-ctrl is not supported for metric={metric!r}; ignoring it."
+        )
+        include_ctrl = False
+    elif include_ctrl and turnback_mode != "exp":
+        warnings.warn(
+            f"--include-ctrl is redundant for metric={metric!r} with mode={turnback_mode!r}; ignoring it."
+        )
+        include_ctrl = False
+    elif include_ctrl:
+        need_keys = need_keys + [ctrl_key]
+        if metric == "agarose" and include_pre:
+            need_keys = need_keys + ["agarose_pre_ratio_ctrl"]
 
     def _series_for_bundle(b):
         """
@@ -859,25 +897,13 @@ def plot_com_sli_bundles(
                 plot_mci = np.concatenate((pre_mci, plot_mci), axis=1)
                 exp_for_test = np.concatenate((pre_vals[:, None], exp_for_test), axis=1)
 
-            # update global min/max for dynamic y-lims
-            if not np.all(np.isnan(plot_mci[1, :])):
-                mci_min = (
-                    np.nanmin(plot_mci[1, :])
-                    if mci_min is None
-                    else min(mci_min, np.nanmin(plot_mci[1, :]))
-                )
-            if not np.all(np.isnan(plot_mci[2, :])):
-                mci_max = (
-                    np.nanmax(plot_mci[2, :])
-                    if mci_max is None
-                    else max(mci_max, np.nanmax(plot_mci[2, :]))
-                )
-
             if metric == "wallpct":
                 plot_mci = plot_mci.copy()
                 plot_mci[0, :] *= 100.0
                 plot_mci[1, :] *= 100.0
                 plot_mci[2, :] *= 100.0
+
+            mci_min, mci_max = _update_y_bounds(plot_mci, (mci_min, mci_max))
 
             # For t-tests we compare what we're plotting (wallpct is scaled by 100)
             if do_ttests or do_anova:
@@ -933,24 +959,6 @@ def plot_com_sli_bundles(
 
             # ctrl overlay (optional)
             if include_ctrl:
-                if metric == "commag":
-                    ctrl_key = "commag_ctrl"
-                elif metric == "wallpct":
-                    ctrl_key = "wallpct_ctrl"
-                elif metric == "between_reward_maxdist":
-                    ctrl_key = "between_reward_maxdist_ctrl"
-                elif metric == "between_reward_return_leg_dist":
-                    ctrl_key = "between_reward_return_leg_dist_ctrl"
-                elif metric == "turnback":
-                    ctrl_key = "turnback_ratio_ctrl"
-                elif metric == "agarose":
-                    ctrl_key = "agarose_ratio_ctrl"
-                elif metric == "lgturn_startdist":
-                    ctrl_key = "lgturn_startdist_ctrl"
-                elif metric == "reward_lgturn_pathlen":
-                    ctrl_key = "reward_lgturn_pathlen_ctrl"
-                else:
-                    ctrl_key = None
                 if ctrl_key is None:
                     continue
 
@@ -976,6 +984,7 @@ def plot_com_sli_bundles(
                     plot_mci_c[0, :] *= 100.0
                     plot_mci_c[1, :] *= 100.0
                     plot_mci_c[2, :] *= 100.0
+                mci_min, mci_max = _update_y_bounds(plot_mci_c, (mci_min, mci_max))
                 ys_c = plot_mci_c[0, :]
                 fin_c = np.isfinite(ys_c)
                 if fin_c.any():
