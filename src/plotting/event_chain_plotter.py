@@ -1018,6 +1018,438 @@ class EventChainPlotter:
 
         return synth
 
+    def _turnback_schematic_geometry(self, reward_circle):
+        if reward_circle is None or self.va is None:
+            return None
+
+        try:
+            px_per_mm = float(self.va.ct.pxPerMmFloor()) * float(self.va.xf.fctr)
+        except Exception:
+            return None
+        if not np.isfinite(px_per_mm) or px_per_mm <= 0:
+            return None
+
+        opts = getattr(self.va, "opts", None)
+        inner_delta_mm = float(getattr(opts, "turnback_inner_delta_mm", 0.0) or 0.0)
+        outer_delta_mm = float(getattr(opts, "turnback_outer_delta_mm", 2.0) or 2.0)
+        border_width_mm = float(
+            getattr(opts, "turnback_border_width_mm", 0.1) or 0.1
+        )
+        inner_radius_offset_px = float(
+            getattr(opts, "turnback_inner_radius_offset_px", 0.0) or 0.0
+        )
+
+        cx, cy, reward_r_px = (float(v) for v in reward_circle)
+        inner_r_px = (
+            float(reward_r_px)
+            + float(inner_delta_mm) * float(px_per_mm)
+            + float(inner_radius_offset_px)
+        )
+        outer_r_px = float(reward_r_px) + float(outer_delta_mm) * float(px_per_mm)
+        border_width_px = float(border_width_mm) * float(px_per_mm)
+
+        if not np.isfinite(inner_r_px) or not np.isfinite(outer_r_px):
+            return None
+        if outer_r_px <= inner_r_px:
+            return None
+
+        return {
+            "cx": cx,
+            "cy": cy,
+            "reward_r_px": float(reward_r_px),
+            "inner_r_px": float(inner_r_px),
+            "outer_r_px": float(outer_r_px),
+            "border_width_px": float(max(0.0, border_width_px)),
+            "px_per_mm": float(px_per_mm),
+        }
+
+    @staticmethod
+    def _polar_path_to_xy(cx, cy, polar_points):
+        return np.asarray(
+            [
+                [float(cx) + float(rad) * np.cos(theta), float(cy) + float(rad) * np.sin(theta)]
+                for theta, rad in polar_points
+            ],
+            dtype=float,
+        )
+
+    @staticmethod
+    def _first_state_transition(mask, *, start_idx=1, from_state, to_state):
+        arr = np.asarray(mask, dtype=bool)
+        if arr.size < 2:
+            return None
+
+        lo = max(1, int(start_idx))
+        for idx in range(lo, arr.size):
+            if bool(arr[idx - 1]) == bool(from_state) and bool(arr[idx]) == bool(to_state):
+                return int(idx)
+        return None
+
+    @classmethod
+    def _turnback_path_event_indices(cls, xs, ys, cx, cy, inner_r_px, outer_r_px):
+        xs = np.asarray(xs, dtype=float)
+        ys = np.asarray(ys, dtype=float)
+        if xs.size == 0 or ys.size == 0 or xs.size != ys.size:
+            return None
+
+        d = np.hypot(xs - float(cx), ys - float(cy))
+        in_inner = d <= float(inner_r_px)
+        in_outer = d <= float(outer_r_px)
+
+        exit_inner_idx = cls._first_state_transition(
+            in_inner, start_idx=1, from_state=True, to_state=False
+        )
+        if exit_inner_idx is None:
+            outside_inner = np.flatnonzero(~in_inner)
+            if outside_inner.size == 0:
+                return None
+            exit_inner_idx = int(outside_inner[0])
+
+        reenter_idx = cls._first_state_transition(
+            in_inner, start_idx=exit_inner_idx + 1, from_state=False, to_state=True
+        )
+        exit_outer_idx = cls._first_state_transition(
+            in_outer, start_idx=exit_inner_idx + 1, from_state=True, to_state=False
+        )
+
+        return {
+            "exit_inner_idx": int(exit_inner_idx),
+            "reenter_idx": None if reenter_idx is None else int(reenter_idx),
+            "exit_outer_idx": None if exit_outer_idx is None else int(exit_outer_idx),
+        }
+
+    def _synthetic_turnback_ratio_paths(self, reward_circle, *, variant=0, rng=None):
+        geom = self._turnback_schematic_geometry(reward_circle)
+        if geom is None:
+            return None
+
+        rng = rng or random.Random(int(variant) + 17)
+        cx = geom["cx"]
+        cy = geom["cy"]
+        inner_r_px = geom["inner_r_px"]
+        outer_r_px = geom["outer_r_px"]
+
+        gap_px = max(outer_r_px - inner_r_px, 1.0)
+        success_mid_r = min(
+            0.86 * outer_r_px,
+            inner_r_px + rng.uniform(0.42, 0.72) * gap_px,
+        )
+        success_wide_r = min(
+            0.90 * outer_r_px,
+            inner_r_px + rng.uniform(0.55, 0.84) * gap_px,
+        )
+        fail_mid_r = min(
+            0.92 * outer_r_px,
+            inner_r_px + rng.uniform(0.54, 0.82) * gap_px,
+        )
+        fail_exit_r = max(
+            1.03 * outer_r_px,
+            outer_r_px + rng.uniform(0.05, 0.18) * gap_px,
+        )
+        fail_far_r = max(
+            1.10 * outer_r_px,
+            outer_r_px + rng.uniform(0.12, 0.28) * gap_px,
+        )
+
+        success_pts = [
+            (
+                np.deg2rad(rng.uniform(122.0, 168.0)),
+                rng.uniform(0.48, 0.64) * inner_r_px,
+            ),
+            (
+                np.deg2rad(rng.uniform(152.0, 192.0)),
+                rng.uniform(1.00, 1.08) * inner_r_px,
+            ),
+            (
+                np.deg2rad(rng.uniform(184.0, 226.0)),
+                success_mid_r,
+            ),
+            (
+                np.deg2rad(rng.uniform(220.0, 278.0)),
+                success_wide_r,
+            ),
+            (
+                np.deg2rad(rng.uniform(256.0, 320.0)),
+                rng.uniform(0.88, 0.98) * inner_r_px,
+            ),
+            (
+                np.deg2rad(rng.uniform(286.0, 338.0)),
+                rng.uniform(0.48, 0.68) * inner_r_px,
+            ),
+        ]
+        fail_pts = [
+            (
+                np.deg2rad(rng.uniform(10.0, 52.0)),
+                rng.uniform(0.50, 0.66) * inner_r_px,
+            ),
+            (
+                np.deg2rad(rng.uniform(2.0, 30.0)),
+                rng.uniform(1.00, 1.08) * inner_r_px,
+            ),
+            (
+                np.deg2rad(rng.uniform(-18.0, 16.0)),
+                fail_mid_r,
+            ),
+            (
+                np.deg2rad(rng.uniform(-52.0, -18.0)),
+                fail_exit_r,
+            ),
+            (
+                np.deg2rad(rng.uniform(-72.0, -34.0)),
+                fail_far_r,
+            ),
+        ]
+
+        success_xy = self._catmull_rom_chain(
+            self._polar_path_to_xy(cx, cy, success_pts), samples_per_seg=26
+        )
+        fail_xy = self._catmull_rom_chain(
+            self._polar_path_to_xy(cx, cy, fail_pts), samples_per_seg=24
+        )
+        if success_xy.shape[0] < 2 or fail_xy.shape[0] < 2:
+            return None
+
+        success_events = self._turnback_path_event_indices(
+            success_xy[:, 0],
+            success_xy[:, 1],
+            cx,
+            cy,
+            inner_r_px,
+            outer_r_px,
+        )
+        fail_events = self._turnback_path_event_indices(
+            fail_xy[:, 0],
+            fail_xy[:, 1],
+            cx,
+            cy,
+            inner_r_px,
+            outer_r_px,
+        )
+        if success_events is None or fail_events is None:
+            return None
+
+        success_cross_idx = success_events.get("reenter_idx")
+        if success_cross_idx is None:
+            return None
+        fail_cross_idx = fail_events.get("exit_outer_idx")
+        if fail_cross_idx is None:
+            return None
+
+        return {
+            "geom": geom,
+            "success": {
+                "x": np.asarray(success_xy[:, 0], dtype=float),
+                "y": np.asarray(success_xy[:, 1], dtype=float),
+                "start_idx": int(success_events["exit_inner_idx"]),
+                "event_idx": int(success_cross_idx),
+                "event_label": "re-enter inner",
+                "label": "turnback",
+                "callout": "turnback\nre-enters inner circle",
+                "color": "#1f8a70",
+                "event_color": "#0d5c4f",
+            },
+            "failure": {
+                "x": np.asarray(fail_xy[:, 0], dtype=float),
+                "y": np.asarray(fail_xy[:, 1], dtype=float),
+                "start_idx": int(fail_events["exit_inner_idx"]),
+                "event_idx": int(fail_cross_idx),
+                "event_label": "exit outer",
+                "label": "no turnback",
+                "callout": "no turnback\nexits outer circle",
+                "color": "#d95f02",
+                "event_color": "#8c3b00",
+            },
+        }
+
+    def _overlay_synthetic_turnback_ratio_schematic(
+        self,
+        ax,
+        *,
+        reward_circle,
+        top_left,
+        bottom_right,
+        rng=None,
+        variant=0,
+    ):
+        synth = self._synthetic_turnback_ratio_paths(
+            reward_circle,
+            variant=variant,
+            rng=rng,
+        )
+        if synth is None:
+            return None
+
+        geom = synth["geom"]
+        cx = geom["cx"]
+        cy = geom["cy"]
+        reward_r_px = geom["reward_r_px"]
+        inner_r_px = geom["inner_r_px"]
+        outer_r_px = geom["outer_r_px"]
+        border_width_px = geom["border_width_px"]
+
+        inner_band = patches.Circle(
+            (cx, cy),
+            inner_r_px,
+            fill=False,
+            linestyle="-",
+            linewidth=max(1.6, 0.45 * border_width_px),
+            edgecolor="#3a7ca5",
+            alpha=0.92,
+            zorder=4,
+            label="Inner circle",
+        )
+        outer_band = patches.Circle(
+            (cx, cy),
+            outer_r_px,
+            fill=False,
+            linestyle=(0, (6, 3)),
+            linewidth=max(1.8, 0.35 * border_width_px),
+            edgecolor="#6b7280",
+            alpha=0.95,
+            zorder=3,
+            label="Outer circle",
+        )
+        reward_ring = patches.Circle(
+            (cx, cy),
+            reward_r_px,
+            fill=False,
+            linestyle="-",
+            linewidth=1.5,
+            edgecolor="#b8b8b8",
+            alpha=0.95,
+            zorder=2,
+            label="Reward circle",
+        )
+        ax.add_patch(reward_ring)
+        ax.add_patch(outer_band)
+        ax.add_patch(inner_band)
+
+        def _label_anchor_for_event(x_event, y_event):
+            dx = float(x_event) - float(cx)
+            dy = float(y_event) - float(cy)
+            norm = float(np.hypot(dx, dy))
+            if norm <= 1e-6:
+                ux, uy = 1.0, 0.0
+            else:
+                ux, uy = dx / norm, dy / norm
+
+            # Push labels clearly outside the outer circle so they read as callouts.
+            radial_pad = max(22.0, 0.28 * outer_r_px)
+            tangential_pad = 0.22 * outer_r_px
+            side = -1.0 if ux < 0 else 1.0
+            tx = float(x_event) + ux * radial_pad
+            ty = float(y_event) + uy * radial_pad + side * tangential_pad
+            return self._clamp_point_to_floor(tx, ty, top_left, bottom_right)
+
+        for key in ("success", "failure"):
+            spec = synth[key]
+            xs = np.asarray(spec["x"], dtype=float)
+            ys = np.asarray(spec["y"], dtype=float)
+            color = str(spec["color"])
+            event_idx = int(np.clip(spec["event_idx"], 0, len(xs) - 1))
+            start_idx = int(np.clip(spec.get("start_idx", 0), 0, event_idx))
+
+            ax.plot(
+                xs,
+                ys,
+                color=color,
+                linewidth=2.5,
+                zorder=5,
+                label=spec["label"],
+            )
+
+            step = max(1, int((len(xs) - 1) / 4))
+            for i in range(0, len(xs) - 1, step):
+                j = min(len(xs) - 1, i + 1)
+                if j <= i:
+                    continue
+                ax.annotate(
+                    "",
+                    xy=(xs[j], ys[j]),
+                    xytext=(xs[i], ys[i]),
+                    arrowprops=dict(
+                        arrowstyle="->",
+                        color=color,
+                        lw=1.1,
+                        shrinkA=0.0,
+                        shrinkB=0.0,
+                        alpha=0.88,
+                    ),
+                    zorder=5,
+                )
+
+            ax.scatter(
+                [xs[start_idx]],
+                [ys[start_idx]],
+                s=28,
+                color=color,
+                edgecolors="white",
+                linewidths=0.8,
+                zorder=6,
+            )
+            ax.scatter(
+                [xs[event_idx]],
+                [ys[event_idx]],
+                s=48,
+                color=spec["event_color"],
+                edgecolors="white",
+                linewidths=0.9,
+                zorder=7,
+            )
+
+            if event_idx > 0:
+                dx = float(xs[event_idx] - xs[event_idx - 1])
+                dy = float(ys[event_idx] - ys[event_idx - 1])
+            else:
+                dx = float(xs[min(len(xs) - 1, 1)] - xs[0])
+                dy = float(ys[min(len(xs) - 1, 1)] - ys[0])
+            if np.hypot(dx, dy) > 1e-6:
+                fly_angle = np.degrees(np.arctan2(dy, dx)) - 90.0
+                self._draw_fly_icon(
+                    ax,
+                    float(xs[event_idx]),
+                    float(ys[event_idx]),
+                    angle_deg=float(fly_angle),
+                )
+
+            label_x = float(xs[event_idx])
+            label_y = float(ys[event_idx])
+            end_tx, end_ty = _label_anchor_for_event(label_x, label_y)
+            ha = "right" if end_tx < label_x else "left"
+            ax.text(
+                end_tx,
+                end_ty,
+                spec["callout"],
+                fontsize=8.5,
+                color=color,
+                ha=ha,
+                va="center",
+                zorder=8,
+                bbox=dict(
+                    boxstyle="round,pad=0.18",
+                    facecolor="white",
+                    edgecolor=color,
+                    linewidth=0.8,
+                    alpha=0.82,
+                ),
+            )
+            ax.annotate(
+                "",
+                xy=(label_x, label_y),
+                xytext=(end_tx, end_ty),
+                arrowprops=dict(
+                    arrowstyle="-",
+                    color=color,
+                    lw=0.9,
+                    alpha=0.62,
+                    shrinkA=4.0,
+                    shrinkB=4.0,
+                ),
+                zorder=7,
+            )
+
+        return synth
+
     def _get_bucket_range(
         self, *, trn_index: int, bucket_index: int
     ) -> Optional[Tuple[int, int]]:
@@ -2848,6 +3280,16 @@ class EventChainPlotter:
                     excursion_scale=(2.10 if not zoom else 1.0),
                     variant=idx,
                 )
+            elif metric_key == "turnback_ratio_synth":
+                synth_rng = random.Random(synth_master_rng.random() + idx)
+                self._overlay_synthetic_turnback_ratio_schematic(
+                    ax,
+                    reward_circle=reward_circle,
+                    top_left=top_left,
+                    bottom_right=bottom_right,
+                    rng=synth_rng,
+                    variant=idx,
+                )
             else:
                 # Base trajectory line + arrows
                 last_arrow_idx = None
@@ -2958,14 +3400,19 @@ class EventChainPlotter:
                         else (
                             "\nmetric schematic: synthetic return-leg distance example"
                             if metric_key == "return_leg_dist_synth"
-                            else ""
+                            else (
+                                "\nmetric schematic: synthetic turnback-ratio example"
+                                if metric_key == "turnback_ratio_synth"
+                                else ""
+                            )
                         )
                     )
                 )
             )
             title_line = (
                 f"seg {idx + 1}: synthetic example\nsymbolic trajectory"
-                if metric_key in ("maxdist_synth", "return_leg_dist_synth")
+                if metric_key
+                in ("maxdist_synth", "return_leg_dist_synth", "turnback_ratio_synth")
                 else (
                     f"seg {idx + 1}: frames {start_frame}-{end_frame}\n"
                     f"rewards {start_reward}->{end_reward}{dist_line}"
@@ -3012,7 +3459,7 @@ class EventChainPlotter:
             (
                 "Between-reward schematic examples\n"
                 if str(schematic_metric or "").lower()
-                in ("maxdist_synth", "return_leg_dist_synth")
+                in ("maxdist_synth", "return_leg_dist_synth", "turnback_ratio_synth")
                 else "Between-reward trajectories\n"
             )
             + f"{video_id}, fly {fly_idx}, {fly_role}\n"
@@ -3022,7 +3469,12 @@ class EventChainPlotter:
                 else (
                     f"trn {trn_index + 1}, bucket {bucket_index + 1} | synthetic return-leg example"
                     if str(schematic_metric or "").lower() == "return_leg_dist_synth"
-                    else f"trn {trn_index + 1}, bucket {bucket_index + 1}"
+                    else (
+                        f"trn {trn_index + 1}, bucket {bucket_index + 1} | synthetic turnback-ratio example"
+                        if str(schematic_metric or "").lower()
+                        == "turnback_ratio_synth"
+                        else f"trn {trn_index + 1}, bucket {bucket_index + 1}"
+                    )
                 )
             )
         )

@@ -1364,6 +1364,7 @@ g.add_argument(
         "maxdist_synth",
         "return_leg_dist",
         "return_leg_dist_synth",
+        "turnback_ratio_synth",
     ),
     default="none",
     help=(
@@ -1373,7 +1374,9 @@ g.add_argument(
         "synthetic explanatory trajectory with a symbolic Dmax label; "
         "'return_leg_dist' highlights the trajectory segment after dMax on a "
         "real between-reward path; 'return_leg_dist_synth' draws a synthetic "
-        "explanatory return-leg example. "
+        "explanatory return-leg example; 'turnback_ratio_synth' draws a "
+        "synthetic dual-circle turnback-ratio schematic using the current "
+        "turnback radius parameters. "
         "Default: %(default)s."
     ),
 )
