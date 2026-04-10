@@ -336,6 +336,190 @@ class EventChainPlotter:
         return geom
 
     @staticmethod
+    def _between_reward_return_leg_geometry(
+        x,
+        y,
+        start_reward,
+        end_reward,
+        reward_circle,
+    ):
+        geom = EventChainPlotter._between_reward_maxdist_geometry(
+            x,
+            y,
+            start_reward,
+            end_reward,
+            reward_circle,
+            exclude_reward_endpoints=False,
+        )
+        if geom is None:
+            return None
+
+        sr = max(0, int(start_reward))
+        er = max(sr, int(end_reward))
+        max_frame = int(geom["frame"])
+        if max_frame > er:
+            return None
+
+        idx = np.arange(max_frame, er + 1, dtype=int)
+        if idx.size < 2:
+            return None
+
+        xs = np.asarray(x[idx], dtype=float)
+        ys = np.asarray(y[idx], dtype=float)
+        fin = np.isfinite(xs) & np.isfinite(ys)
+        if fin.sum() < 2:
+            return None
+
+        pair_fin = fin[:-1] & fin[1:]
+        if not pair_fin.any():
+            return None
+        step_dx = np.diff(xs)
+        step_dy = np.diff(ys)
+        d_px = float(np.sum(np.hypot(step_dx[pair_fin], step_dy[pair_fin])))
+        if not np.isfinite(d_px):
+            return None
+
+        valid_last = int(np.flatnonzero(fin)[-1])
+
+        return {
+            **geom,
+            "return_x": xs,
+            "return_y": ys,
+            "return_idx": idx,
+            "return_d_px": d_px,
+            "end_x": float(xs[valid_last]),
+            "end_y": float(ys[valid_last]),
+        }
+
+    def _overlay_return_leg_dist_schematic(
+        self,
+        ax,
+        *,
+        reward_circle,
+        start_reward,
+        end_reward,
+        top_left,
+        bottom_right,
+        px_per_mm,
+        show_label=True,
+    ):
+        geom = self._between_reward_return_leg_geometry(
+            self.x,
+            self.y,
+            start_reward,
+            end_reward,
+            reward_circle,
+        )
+        if geom is None:
+            return None
+
+        xs = np.asarray(geom["return_x"], dtype=float)
+        ys = np.asarray(geom["return_y"], dtype=float)
+        fin = np.isfinite(xs) & np.isfinite(ys)
+        if xs.size < 2 or ys.size < 2 or fin.sum() < 2:
+            return None
+        valid_idx = np.flatnonzero(fin)
+        xs_valid = xs[valid_idx]
+        ys_valid = ys[valid_idx]
+
+        ax.plot(
+            xs,
+            ys,
+            color="#d26a1b",
+            linewidth=2.7,
+            alpha=0.98,
+            zorder=5,
+            solid_capstyle="round",
+            label="Return leg",
+        )
+        ax.scatter(
+            [geom["x"]],
+            [geom["y"]],
+            s=44,
+            color="#c45a1c",
+            edgecolors="white",
+            linewidths=0.8,
+            zorder=6,
+            label="dMax point",
+        )
+
+        if xs_valid.size >= 3:
+            step = max(1, int((xs_valid.size - 1) / 3))
+            for i in range(0, xs_valid.size - 1, step):
+                j = min(xs_valid.size - 1, i + 1)
+                if j <= i:
+                    continue
+                ax.annotate(
+                    "",
+                    xy=(xs_valid[j], ys_valid[j]),
+                    xytext=(xs_valid[i], ys_valid[i]),
+                    arrowprops=dict(
+                        arrowstyle="->",
+                        color="#d26a1b",
+                        lw=1.1,
+                        shrinkA=0.0,
+                        shrinkB=0.0,
+                        alpha=0.92,
+                    ),
+                    zorder=5,
+                )
+
+        k0 = 0
+        k1 = min(len(xs_valid) - 1, 1)
+        tan_dx = float(xs_valid[k1] - xs_valid[k0])
+        tan_dy = float(ys_valid[k1] - ys_valid[k0])
+        if np.hypot(tan_dx, tan_dy) > 1e-6:
+            fly_angle = np.degrees(np.arctan2(tan_dy, tan_dx)) - 90.0
+        else:
+            fly_angle = np.degrees(
+                np.arctan2(geom["end_y"] - ys_valid[0], geom["end_x"] - xs_valid[0])
+            ) - 90.0
+        self._draw_fly_icon(ax, xs_valid[0], ys_valid[0], angle_deg=float(fly_angle))
+
+        if show_label:
+            mid_i = min(len(xs_valid) - 1, max(0, int(len(xs_valid) * 0.5)))
+            midx = float(xs_valid[mid_i])
+            midy = float(ys_valid[mid_i])
+            dx = float(geom["end_x"] - xs_valid[0])
+            dy = float(geom["end_y"] - ys_valid[0])
+            norm = float(np.hypot(dx, dy))
+            if norm > 0:
+                off_x = -dy / norm * 12.0
+                off_y = dx / norm * 12.0
+            else:
+                off_x = 0.0
+                off_y = -12.0
+
+            tx, ty = self._clamp_point_to_floor(
+                midx + off_x, midy + off_y, top_left, bottom_right
+            )
+            if px_per_mm is not None and np.isfinite(geom["return_d_px"]):
+                dmm = float(geom["return_d_px"]) / float(px_per_mm)
+                label = f"Return leg = {dmm:.2f} mm"
+            else:
+                label = "Return leg"
+
+            ax.text(
+                tx,
+                ty,
+                label,
+                fontsize=9,
+                color="#7a3100",
+                ha="center",
+                va="center",
+                zorder=9,
+                bbox=dict(
+                    boxstyle="round,pad=0.2",
+                    facecolor="white",
+                    edgecolor="#d26a1b",
+                    linewidth=0.9,
+                    alpha=0.92,
+                ),
+            )
+
+        return geom
+
+    @staticmethod
     def _catmull_rom_chain(points, *, samples_per_seg=24):
         pts = np.asarray(points, dtype=float)
         if pts.ndim != 2 or pts.shape[0] < 2 or pts.shape[1] != 2:
@@ -644,6 +828,189 @@ class EventChainPlotter:
                 boxstyle="round,pad=0.2",
                 facecolor="white",
                 edgecolor="#c45a1c",
+                linewidth=0.9,
+                alpha=0.92,
+            ),
+        )
+
+        return synth
+
+    def _overlay_synthetic_return_leg_dist_schematic(
+        self,
+        ax,
+        *,
+        reward_circle,
+        top_left,
+        bottom_right,
+        rng=None,
+        excursion_scale=1.0,
+        variant=0,
+    ):
+        synth = self._synthetic_maxdist_path(
+            reward_circle,
+            variant=variant,
+            rng=rng,
+            excursion_scale=excursion_scale,
+        )
+        if synth is None:
+            return None
+
+        xs = np.asarray(synth["x"], dtype=float)
+        ys = np.asarray(synth["y"], dtype=float)
+        k = int(synth["k"])
+        pre_x = xs[: k + 1]
+        pre_y = ys[: k + 1]
+        tail_x = xs[k:]
+        tail_y = ys[k:]
+
+        ax.plot(
+            xs,
+            ys,
+            color="#1f5a7a",
+            linewidth=2.1,
+            zorder=4,
+            label="Synthetic path",
+        )
+        if tail_x.size >= 2:
+            ax.plot(
+                tail_x,
+                tail_y,
+                color="#d26a1b",
+                linewidth=2.8,
+                alpha=0.98,
+                zorder=5,
+                solid_capstyle="round",
+                label="Synthetic return leg",
+            )
+
+        if pre_x.size >= 2:
+            step = max(1, int((pre_x.size - 1) / 4))
+            for i in range(0, pre_x.size - 1, step):
+                j = min(pre_x.size - 1, i + 1)
+                if j <= i:
+                    continue
+                dx = pre_x[j] - pre_x[i]
+                dy = pre_y[j] - pre_y[i]
+                if not (np.isfinite(dx) and np.isfinite(dy)):
+                    continue
+                ax.annotate(
+                    "",
+                    xy=(pre_x[j], pre_y[j]),
+                    xytext=(pre_x[i], pre_y[i]),
+                    arrowprops=dict(
+                        arrowstyle="->",
+                        color="#1f5a7a",
+                        lw=1.0,
+                        shrinkA=0.0,
+                        shrinkB=0.0,
+                        alpha=0.85,
+                    ),
+                    zorder=4,
+                )
+
+        if tail_x.size >= 3:
+            tail_step = max(1, int((tail_x.size - 1) / 3))
+            for i in range(0, tail_x.size - 1, tail_step):
+                j = min(tail_x.size - 1, i + 1)
+                if j <= i:
+                    continue
+                ax.annotate(
+                    "",
+                    xy=(tail_x[j], tail_y[j]),
+                    xytext=(tail_x[i], tail_y[i]),
+                    arrowprops=dict(
+                        arrowstyle="->",
+                        color="#d26a1b",
+                        lw=1.1,
+                        shrinkA=0.0,
+                        shrinkB=0.0,
+                        alpha=0.92,
+                    ),
+                    zorder=5,
+                )
+
+        ax.scatter(
+            [synth["start_x"]],
+            [synth["start_y"]],
+            s=30,
+            color="#2c9b45",
+            edgecolors="white",
+            linewidths=0.8,
+            zorder=5,
+            label="Segment start",
+        )
+        ax.scatter(
+            [synth["end_x"]],
+            [synth["end_y"]],
+            s=30,
+            color="#b33c2f",
+            edgecolors="white",
+            linewidths=0.8,
+            zorder=5,
+            label="Segment end",
+        )
+        ax.scatter(
+            [synth["max_x"]],
+            [synth["max_y"]],
+            s=44,
+            color="#c45a1c",
+            edgecolors="white",
+            linewidths=0.8,
+            zorder=6,
+            label="dMax point",
+        )
+
+        k0 = int(k)
+        k1 = min(len(xs) - 1, k + 1)
+        tan_dx = float(xs[k1] - xs[k0])
+        tan_dy = float(ys[k1] - ys[k0])
+        if np.hypot(tan_dx, tan_dy) > 1e-6:
+            fly_angle = np.degrees(np.arctan2(tan_dy, tan_dx)) - 90.0
+        else:
+            fly_angle = np.degrees(
+                np.arctan2(
+                    synth["end_y"] - synth["max_y"], synth["end_x"] - synth["max_x"]
+                )
+            ) - 90.0
+        self._draw_fly_icon(
+            ax, synth["max_x"], synth["max_y"], angle_deg=float(fly_angle)
+        )
+
+        if tail_x.size >= 2:
+            mid_i = min(tail_x.size - 1, max(0, int(tail_x.size * 0.5)))
+            midx = float(tail_x[mid_i])
+            midy = float(tail_y[mid_i])
+            dx = float(tail_x[-1] - tail_x[0])
+            dy = float(tail_y[-1] - tail_y[0])
+        else:
+            midx = float(synth["max_x"])
+            midy = float(synth["max_y"])
+            dx = float(synth["end_x"] - synth["max_x"])
+            dy = float(synth["end_y"] - synth["max_y"])
+
+        norm = float(np.hypot(dx, dy))
+        if norm > 0:
+            off_x = -dy / norm * 12.0
+            off_y = dx / norm * 12.0
+        else:
+            off_x = 0.0
+            off_y = -12.0
+        tx, ty = self._clamp_point_to_floor(
+            midx + off_x, midy + off_y, top_left, bottom_right
+        )
+        ax.text(
+            tx,
+            ty,
+            "Return leg",
+            fontsize=9,
+            color="#7a3100",
+            ha="center",
+            va="center",
+            zorder=9,
+            bbox=dict(
+                boxstyle="round,pad=0.2",
+                facecolor="white",
+                edgecolor="#d26a1b",
                 linewidth=0.9,
                 alpha=0.92,
             ),
@@ -2470,6 +2837,17 @@ class EventChainPlotter:
                     excursion_scale=(2.10 if not zoom else 1.0),
                     variant=idx,
                 )
+            elif metric_key == "return_leg_dist_synth":
+                synth_rng = random.Random(synth_master_rng.random() + idx)
+                self._overlay_synthetic_return_leg_dist_schematic(
+                    ax,
+                    reward_circle=reward_circle,
+                    top_left=top_left,
+                    bottom_right=bottom_right,
+                    rng=synth_rng,
+                    excursion_scale=(2.10 if not zoom else 1.0),
+                    variant=idx,
+                )
             else:
                 # Base trajectory line + arrows
                 last_arrow_idx = None
@@ -2548,6 +2926,17 @@ class EventChainPlotter:
                     px_per_mm=px_per_mm,
                     show_label=True,
                 )
+            elif metric_key == "return_leg_dist":
+                self._overlay_return_leg_dist_schematic(
+                    ax,
+                    reward_circle=reward_circle,
+                    start_reward=start_reward,
+                    end_reward=end_reward,
+                    top_left=top_left,
+                    bottom_right=bottom_right,
+                    px_per_mm=px_per_mm,
+                    show_label=True,
+                )
             # Per-subplot title: just the varying info
             dmm = (
                 _segment_dist_mm(start_reward, end_reward)
@@ -2563,12 +2952,20 @@ class EventChainPlotter:
                 else (
                     "\nmetric schematic: synthetic max distance example"
                     if metric_key == "maxdist_synth"
-                    else ""
+                    else (
+                        "\nmetric schematic: return-leg distance"
+                        if metric_key == "return_leg_dist"
+                        else (
+                            "\nmetric schematic: synthetic return-leg distance example"
+                            if metric_key == "return_leg_dist_synth"
+                            else ""
+                        )
+                    )
                 )
             )
             title_line = (
                 f"seg {idx + 1}: synthetic example\nsymbolic trajectory"
-                if metric_key == "maxdist_synth"
+                if metric_key in ("maxdist_synth", "return_leg_dist_synth")
                 else (
                     f"seg {idx + 1}: frames {start_frame}-{end_frame}\n"
                     f"rewards {start_reward}->{end_reward}{dist_line}"
@@ -2614,14 +3011,19 @@ class EventChainPlotter:
         global_title = (
             (
                 "Between-reward schematic examples\n"
-                if str(schematic_metric or "").lower() == "maxdist_synth"
+                if str(schematic_metric or "").lower()
+                in ("maxdist_synth", "return_leg_dist_synth")
                 else "Between-reward trajectories\n"
             )
             + f"{video_id}, fly {fly_idx}, {fly_role}\n"
             + (
                 f"trn {trn_index + 1}, bucket {bucket_index + 1} | synthetic Dmax example"
                 if str(schematic_metric or "").lower() == "maxdist_synth"
-                else f"trn {trn_index + 1}, bucket {bucket_index + 1}"
+                else (
+                    f"trn {trn_index + 1}, bucket {bucket_index + 1} | synthetic return-leg example"
+                    if str(schematic_metric or "").lower() == "return_leg_dist_synth"
+                    else f"trn {trn_index + 1}, bucket {bucket_index + 1}"
+                )
             )
         )
         fig.suptitle(global_title, fontsize=12)

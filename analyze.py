@@ -1358,13 +1358,22 @@ g.add_argument(
 g.add_argument(
     "--btw-rwd-schematic",
     type=str,
-    choices=("none", "maxdist", "maxdist_synth"),
+    choices=(
+        "none",
+        "maxdist",
+        "maxdist_synth",
+        "return_leg_dist",
+        "return_leg_dist_synth",
+    ),
     default="none",
     help=(
         "Optional metric-annotation overlay for --btw-rwd-plots. "
         "'maxdist' marks the farthest point from the reward center and draws "
         "the Dmax radius using a real trajectory; 'maxdist_synth' draws a "
-        "synthetic explanatory trajectory with a symbolic Dmax label. "
+        "synthetic explanatory trajectory with a symbolic Dmax label; "
+        "'return_leg_dist' highlights the trajectory segment after dMax on a "
+        "real between-reward path; 'return_leg_dist_synth' draws a synthetic "
+        "explanatory return-leg example. "
         "Default: %(default)s."
     ),
 )
