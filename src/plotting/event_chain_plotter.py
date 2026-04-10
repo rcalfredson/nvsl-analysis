@@ -336,6 +336,32 @@ class EventChainPlotter:
         return geom
 
     @staticmethod
+    def _catmull_rom_chain(points, *, samples_per_seg=24):
+        pts = np.asarray(points, dtype=float)
+        if pts.ndim != 2 or pts.shape[0] < 2 or pts.shape[1] != 2:
+            return pts
+
+        out = []
+        n_pts = pts.shape[0]
+        for i in range(n_pts - 1):
+            p0 = pts[max(0, i - 1)]
+            p1 = pts[i]
+            p2 = pts[i + 1]
+            p3 = pts[min(n_pts - 1, i + 2)]
+            ts = np.linspace(0.0, 1.0, int(samples_per_seg), endpoint=(i == n_pts - 2))
+            for t in ts:
+                t2 = t * t
+                t3 = t2 * t
+                point = 0.5 * (
+                    (2.0 * p1)
+                    + (-p0 + p2) * t
+                    + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2
+                    + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3
+                )
+                out.append(point)
+        return np.asarray(out, dtype=float)
+
+    @staticmethod
     def _synthetic_maxdist_path(
         reward_circle, *, variant=0, rng=None, excursion_scale=1.0
     ):
@@ -344,116 +370,127 @@ class EventChainPlotter:
 
         rng = rng or random.Random(variant)
         cx, cy, r = (float(v) for v in reward_circle)
-        n = 180
-        t = np.linspace(0.0, 1.0, n)
-
-        style = rng.choice(("arc", "loop", "wander"))
+        excursion_scale = float(excursion_scale)
         theta0 = np.deg2rad(rng.uniform(105.0, 170.0))
-        theta1 = theta0 - np.deg2rad(rng.uniform(80.0, 190.0))
-        loop_env = np.sin(np.pi * t) ** 1.45
+        drift_sign = rng.choice((-1.0, 1.0))
+        theta1 = theta0 + drift_sign * np.deg2rad(rng.uniform(95.0, 175.0))
 
-        if style == "arc":
-            radial_peak = (2.00 + rng.uniform(-0.30, 0.60)) * float(excursion_scale)
-            base_radial = (
-                0.60
-                + radial_peak * (np.sin(np.pi * t) ** 1.10)
-                + 0.16 * np.sin(2.0 * np.pi * t + rng.uniform(-1.4, 1.4))
-            )
-            radial = (
-                base_radial
-                + (0.28 + rng.uniform(-0.08, 0.10))
-                * loop_env
-                * np.sin(4.1 * np.pi * t + rng.uniform(-1.3, 1.3))
-                + (0.12 + rng.uniform(-0.05, 0.06))
-                * loop_env
-                * np.sin(7.2 * np.pi * t + rng.uniform(-1.2, 1.2))
-            )
-            angle = (
-                theta0
-                + (theta1 - theta0) * t
-                + (0.55 + rng.uniform(-0.18, 0.22))
-                * loop_env
-                * np.sin(2.6 * np.pi * t + rng.uniform(-1.0, 1.0))
-                + (0.20 + rng.uniform(-0.08, 0.10))
-                * loop_env
-                * np.sin(6.8 * np.pi * t + rng.uniform(-1.0, 1.0))
-            )
-        elif style == "loop":
-            radial_peak = (1.75 + rng.uniform(-0.20, 0.45)) * float(excursion_scale)
-            base_radial = (
-                0.58
-                + radial_peak * (np.sin(np.pi * t) ** 1.05)
-                + 0.10 * np.sin(2.0 * np.pi * t + rng.uniform(-1.2, 1.2))
-            )
-            radial = (
-                base_radial
-                + (0.34 + rng.uniform(-0.10, 0.10))
-                * loop_env
-                * np.sin(5.4 * np.pi * t + rng.uniform(-1.4, 1.4))
-                + (0.18 + rng.uniform(-0.06, 0.08))
-                * loop_env
-                * np.sin(9.8 * np.pi * t + rng.uniform(-1.4, 1.4))
-            )
-            angle_mid = (
-                1.35
-                + rng.uniform(-0.35, 0.45)
-                + 0.35 * np.sin(2.0 * np.pi * t + rng.uniform(-1.0, 1.0))
-            )
-            angle = (
-                theta0
-                + (theta1 - theta0) * t
-                + angle_mid * loop_env * np.sin(2.0 * np.pi * t + rng.uniform(-1.0, 1.0))
-                + (0.30 + rng.uniform(-0.10, 0.10))
-                * loop_env
-                * np.sin(7.0 * np.pi * t + rng.uniform(-1.1, 1.1))
-            )
-        else:
-            radial_peak = (1.65 + rng.uniform(-0.25, 0.55)) * float(excursion_scale)
-            rw = np.cumsum(np.array([rng.uniform(-0.11, 0.11) for _ in range(n)]))
-            rw = rw - np.linspace(rw[0], rw[-1], n)
-            rw = rw / max(1e-6, np.max(np.abs(rw)))
-            base_radial = 0.60 + radial_peak * (np.sin(np.pi * t) ** 1.22)
-            radial = (
-                base_radial
-                + 0.24 * loop_env * rw
-                + (0.12 + rng.uniform(-0.04, 0.05))
-                * loop_env
-                * np.sin(6.0 * np.pi * t + rng.uniform(-1.1, 1.1))
-            )
-            rw2 = np.cumsum(np.array([rng.uniform(-0.08, 0.08) for _ in range(n)]))
-            rw2 = rw2 - np.linspace(rw2[0], rw2[-1], n)
-            rw2 = rw2 / max(1e-6, np.max(np.abs(rw2)))
-            angle = (
-                theta0
-                + (theta1 - theta0) * t
-                + 0.40 * loop_env * rw2
-                + (0.24 + rng.uniform(-0.09, 0.11))
-                * loop_env
-                * np.sin(4.7 * np.pi * t + rng.uniform(-1.2, 1.2))
+        start_rad = rng.uniform(0.54, 0.66)
+        end_rad = rng.uniform(0.56, 0.70)
+        peak_target = max(
+            2.10,
+            (2.20 + rng.uniform(-0.20, 0.60)) * excursion_scale,
+        )
+
+        current_theta = float(theta0)
+        current_rad = float(start_rad)
+        control_polar = [(current_theta, current_rad)]
+
+        state = "run_out"
+        loop_budget = rng.randint(1, 2)
+        n_mid_states = rng.randint(3, 5)
+
+        def _append_polar(theta, radial):
+            control_polar.append(
+                (
+                    float(theta),
+                    float(np.clip(radial, 0.50, 3.90)),
+                )
             )
 
-        radial[0] = rng.uniform(0.54, 0.66)
-        radial[-1] = rng.uniform(0.56, 0.70)
-        radial = np.clip(radial, 0.50, 3.90)
+        for i in range(n_mid_states):
+            if state == "run_out":
+                current_theta += drift_sign * np.deg2rad(rng.uniform(18.0, 34.0))
+                current_rad += rng.uniform(0.34, 0.62) * excursion_scale
+                _append_polar(current_theta, current_rad)
+                state = "loop" if loop_budget > 0 and rng.random() < 0.70 else "bend"
+                continue
 
-        xs = cx + (r * radial) * np.cos(angle)
-        ys = cy + (r * radial) * np.sin(angle)
+            if state == "bend":
+                current_theta += drift_sign * np.deg2rad(rng.uniform(28.0, 58.0))
+                current_rad += (
+                    rng.uniform(-0.10, 0.18) * excursion_scale
+                    + (0.14 * excursion_scale if current_rad < peak_target * 0.82 else 0.0)
+                )
+                _append_polar(current_theta, current_rad)
+                if loop_budget > 0 and i < (n_mid_states - 1):
+                    state = "loop" if rng.random() < 0.60 else "bend"
+                else:
+                    state = "bend"
+                continue
 
-        # Guarantee the endpoints remain inside the reward circle.
-        xs[0] = cx + (r * radial[0]) * np.cos(theta0)
-        ys[0] = cy + (r * radial[0]) * np.sin(theta0)
-        xs[-1] = cx + (r * radial[-1]) * np.cos(theta1)
-        ys[-1] = cy + (r * radial[-1]) * np.sin(theta1)
+            loop_dir = drift_sign * (-1.0 if rng.random() < 0.58 else 1.0)
+            loop_budget -= 1
+            for ang_deg, rad_delta in (
+                (rng.uniform(24.0, 38.0), rng.uniform(0.10, 0.22)),
+                (rng.uniform(36.0, 52.0), rng.uniform(-0.08, 0.10)),
+                (rng.uniform(28.0, 42.0), rng.uniform(-0.05, 0.14)),
+            ):
+                current_theta += loop_dir * np.deg2rad(ang_deg)
+                current_rad += rad_delta * excursion_scale
+                _append_polar(current_theta, current_rad)
+            state = "bend"
+
+        max_rad_now = max(rad for _, rad in control_polar)
+        if max_rad_now < peak_target:
+            current_theta += drift_sign * np.deg2rad(rng.uniform(18.0, 32.0))
+            current_rad = peak_target
+            _append_polar(current_theta, current_rad)
+
+        pre_return_theta = theta1 - drift_sign * np.deg2rad(rng.uniform(12.0, 30.0))
+        pre_return_rad = max(
+            0.95,
+            min(
+                max(current_rad, 1.10) - rng.uniform(0.45, 0.80) * excursion_scale,
+                1.60,
+            ),
+        )
+        _append_polar(pre_return_theta, pre_return_rad)
+        _append_polar(theta1, end_rad)
+
+        control_xy = np.asarray(
+            [
+                [cx + (r * rad) * np.cos(theta), cy + (r * rad) * np.sin(theta)]
+                for theta, rad in control_polar
+            ],
+            dtype=float,
+        )
+        path_xy = EventChainPlotter._catmull_rom_chain(
+            control_xy,
+            samples_per_seg=max(18, int(22 * excursion_scale)),
+        )
+        if path_xy.shape[0] < 6:
+            path_xy = control_xy
+
+        xs = np.asarray(path_xy[:, 0], dtype=float)
+        ys = np.asarray(path_xy[:, 1], dtype=float)
+
+        # Preserve explicit start/end positions inside the reward circle.
+        xs[0] = cx + (r * start_rad) * np.cos(theta0)
+        ys[0] = cy + (r * start_rad) * np.sin(theta0)
+        xs[-1] = cx + (r * end_rad) * np.cos(theta1)
+        ys[-1] = cy + (r * end_rad) * np.sin(theta1)
+
+        # Light smoothing keeps the path fluid without creating flat-radius arcs.
+        kernel = np.array([1.0, 2.0, 3.0, 2.0, 1.0], dtype=float)
+        kernel /= kernel.sum()
+        for _ in range(2):
+            xs_pad = np.pad(xs, (2, 2), mode="edge")
+            ys_pad = np.pad(ys, (2, 2), mode="edge")
+            xs = np.convolve(xs_pad, kernel, mode="valid")
+            ys = np.convolve(ys_pad, kernel, mode="valid")
+            xs[0] = cx + (r * start_rad) * np.cos(theta0)
+            ys[0] = cy + (r * start_rad) * np.sin(theta0)
+            xs[-1] = cx + (r * end_rad) * np.cos(theta1)
+            ys[-1] = cy + (r * end_rad) * np.sin(theta1)
 
         # Confirm there is a real excursion outside the reward circle.
         if not np.any(np.hypot(xs - cx, ys - cy) > (1.05 * r)):
-            k_mid = int(0.56 * (n - 1))
-            xs[k_mid] = cx + (r * max(2.20, 2.8 * float(excursion_scale))) * np.cos(
-                angle[k_mid]
-            )
-            ys[k_mid] = cy + (r * max(2.20, 2.8 * float(excursion_scale))) * np.sin(
-                angle[k_mid]
-            )
+            k_mid = int(0.56 * (len(xs) - 1))
+            ang_mid = np.arctan2(ys[k_mid] - cy, xs[k_mid] - cx)
+            force_rad = r * max(2.20, 2.75 * excursion_scale)
+            xs[k_mid] = cx + force_rad * np.cos(ang_mid)
+            ys[k_mid] = cy + force_rad * np.sin(ang_mid)
 
         d = np.hypot(xs - cx, ys - cy)
         k = int(np.argmax(d))
@@ -2511,7 +2548,6 @@ class EventChainPlotter:
                     px_per_mm=px_per_mm,
                     show_label=True,
                 )
-
             # Per-subplot title: just the varying info
             dmm = (
                 _segment_dist_mm(start_reward, end_reward)
