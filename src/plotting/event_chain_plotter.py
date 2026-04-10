@@ -36,7 +36,15 @@ class EventChainPlotter:
         return x, y
 
     @staticmethod
+    def _rotate_local_point(dx, dy, angle_deg):
+        angle = np.deg2rad(float(angle_deg))
+        ca = float(np.cos(angle))
+        sa = float(np.sin(angle))
+        return (dx * ca - dy * sa, dx * sa + dy * ca)
+
+    @classmethod
     def _draw_fly_icon(
+        cls,
         ax,
         x,
         y,
@@ -49,41 +57,124 @@ class EventChainPlotter:
         body_fc="#202020",
         wing_fc="#d9ecff",
     ):
-        body = patches.Ellipse(
-            (x, y),
-            width=body_w,
-            height=body_len,
+        x = float(x)
+        y = float(y)
+        body_len = float(body_len)
+        body_w = float(body_w)
+        wing_len = float(wing_len)
+        wing_w = float(wing_w)
+
+        thorax_len = body_len * 0.42
+        thorax_w = body_w * 1.08
+        abdomen_len = body_len * 0.72
+        abdomen_w = body_w * 0.88
+        head_r = body_w * 0.30
+
+        thorax_offset = cls._rotate_local_point(0.0, 0.0, angle_deg)
+        abdomen_offset = cls._rotate_local_point(0.0, -body_len * 0.32, angle_deg)
+        head_offset = cls._rotate_local_point(0.0, body_len * 0.34, angle_deg)
+        wing_base_left = cls._rotate_local_point(
+            -body_w * 0.20, body_len * 0.14, angle_deg
+        )
+        wing_base_right = cls._rotate_local_point(
+            body_w * 0.20, body_len * 0.14, angle_deg
+        )
+
+        def _wing_patch(base_x, base_y, side_sign):
+            wing_points = [
+                (0.0, 0.0),
+                (side_sign * wing_w * 0.52, -wing_len * 0.04),
+                (side_sign * wing_w * 0.78, -wing_len * 0.44),
+                (side_sign * wing_w * 0.34, -wing_len * 0.98),
+                (0.0, -wing_len * 0.84),
+                (-side_sign * wing_w * 0.14, -wing_len * 0.36),
+            ]
+            spread_deg = 16.0 * side_sign
+            pts = []
+            for dx, dy in wing_points:
+                rx, ry = cls._rotate_local_point(dx, dy, angle_deg + spread_deg)
+                pts.append((base_x + rx, base_y + ry))
+            return patches.Polygon(
+                pts,
+                closed=True,
+                facecolor=wing_fc,
+                edgecolor="#7fa9c9",
+                linewidth=0.55,
+                alpha=0.55,
+                zorder=11,
+                joinstyle="round",
+            )
+
+        wing_left = _wing_patch(x + wing_base_left[0], y + wing_base_left[1], -1.0)
+        wing_right = _wing_patch(x + wing_base_right[0], y + wing_base_right[1], 1.0)
+        abdomen = patches.Ellipse(
+            (x + abdomen_offset[0], y + abdomen_offset[1]),
+            width=abdomen_w,
+            height=abdomen_len,
             angle=angle_deg,
-            facecolor=body_fc,
-            edgecolor="white",
-            linewidth=0.6,
+            facecolor="#2a211f",
+            edgecolor="#f2e4cf",
+            linewidth=0.5,
             zorder=8,
         )
-        wing_left = patches.Ellipse(
-            (x - 1.4, y + 1.2),
-            width=wing_w,
-            height=wing_len,
-            angle=angle_deg + 38.0,
-            facecolor=wing_fc,
-            edgecolor="#7fa9c9",
-            linewidth=0.6,
-            alpha=0.95,
-            zorder=7,
+        thorax = patches.Ellipse(
+            (x + thorax_offset[0], y + thorax_offset[1]),
+            width=thorax_w,
+            height=thorax_len,
+            angle=angle_deg,
+            facecolor=body_fc,
+            edgecolor="#f2e4cf",
+            linewidth=0.55,
+            zorder=9,
         )
-        wing_right = patches.Ellipse(
-            (x + 1.4, y + 1.2),
-            width=wing_w,
-            height=wing_len,
-            angle=angle_deg - 38.0,
-            facecolor=wing_fc,
-            edgecolor="#7fa9c9",
-            linewidth=0.6,
-            alpha=0.95,
-            zorder=7,
+        head = patches.Circle(
+            (x + head_offset[0], y + head_offset[1]),
+            radius=head_r,
+            facecolor="#1a1a1a",
+            edgecolor="#f2e4cf",
+            linewidth=0.45,
+            zorder=10,
         )
+
+        leg_color = "#3c312d"
+        for side in (-1.0, 1.0):
+            x_anchor = side * body_w * 0.34
+            leg_specs = (
+                (-body_len * 0.12, side * body_w * 0.90, -body_len * 0.28),
+                (0.00, side * body_w * 1.05, -body_len * 0.02),
+                (body_len * 0.16, side * body_w * 0.96, body_len * 0.18),
+            )
+            for y_anchor, x_tip, y_tip in leg_specs:
+                p0 = cls._rotate_local_point(x_anchor, y_anchor, angle_deg)
+                p1 = cls._rotate_local_point(x_tip, y_tip, angle_deg)
+                ax.plot(
+                    [x + p0[0], x + p1[0]],
+                    [y + p0[1], y + p1[1]],
+                    color=leg_color,
+                    linewidth=0.8,
+                    alpha=0.95,
+                    zorder=6,
+                    solid_capstyle="round",
+                )
+
+        for side in (-1.0, 1.0):
+            p0 = cls._rotate_local_point(side * head_r * 0.45, body_len * 0.48, angle_deg)
+            p1 = cls._rotate_local_point(side * head_r * 1.10, body_len * 0.70, angle_deg)
+            ax.plot(
+                [x + p0[0], x + p1[0]],
+                [y + p0[1], y + p1[1]],
+                color="#282828",
+                linewidth=0.55,
+                alpha=0.9,
+                zorder=10,
+                solid_capstyle="round",
+            )
+
+        ax.add_patch(abdomen)
+        ax.add_patch(thorax)
+        ax.add_patch(head)
         ax.add_patch(wing_left)
         ax.add_patch(wing_right)
-        ax.add_patch(body)
 
     @staticmethod
     def _between_reward_maxdist_geometry(
@@ -458,6 +549,7 @@ class EventChainPlotter:
         cy = synth["cy"]
         x_max = synth["max_x"]
         y_max = synth["max_y"]
+        k = int(synth["k"])
         ax.plot(
             [cx, x_max],
             [cy, y_max],
@@ -478,7 +570,14 @@ class EventChainPlotter:
             label="Max-distance point",
         )
 
-        fly_angle = np.degrees(np.arctan2(y_max - cy, x_max - cx)) - 90.0
+        k0 = max(0, k - 1)
+        k1 = min(len(xs) - 1, k + 1)
+        tan_dx = float(xs[k1] - xs[k0])
+        tan_dy = float(ys[k1] - ys[k0])
+        if np.hypot(tan_dx, tan_dy) > 1e-6:
+            fly_angle = np.degrees(np.arctan2(tan_dy, tan_dx)) - 90.0
+        else:
+            fly_angle = np.degrees(np.arctan2(y_max - cy, x_max - cx)) - 90.0
         self._draw_fly_icon(ax, x_max, y_max, angle_deg=float(fly_angle))
 
         midx = 0.5 * (cx + x_max)

@@ -637,6 +637,7 @@ def ttest_1samp(a, val, msg=None, min_n=2):
 
 
 def writeImage(fn, img=None, format="png"):
+    format = str(format or "png").strip().lstrip(".")
     file_extension = f".{format}"
     base, ext = os.path.splitext(fn)
 
