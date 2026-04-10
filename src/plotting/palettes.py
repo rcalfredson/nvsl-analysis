@@ -69,6 +69,7 @@ METRIC_PALETTES = {
     "rpd": [MUTED_CATEGORICAL[2], MUTED_CATEGORICAL[3]],
     "commag": [MUTED_CATEGORICAL[4], MUTED_CATEGORICAL[8]],
     "meddist": [MUTED_CATEGORICAL[9], MUTED_CATEGORICAL[5]],
+    "agarose": [MUTED_CATEGORICAL[2], MUTED_CATEGORICAL[6]],
 }
 
 
@@ -87,5 +88,7 @@ def get_palette(tp):
         return METRIC_PALETTES["commag"]
     elif tp in ("meddist", "meddist_exp_min_yok"):
         return METRIC_PALETTES["meddist"]
+    elif tp in ("agarose", "agarose_exp_min_yok"):
+        return METRIC_PALETTES["agarose"]
     else:
         return FLY_COLS

@@ -70,6 +70,8 @@ def _legend_handle_for_group(label, color, linestyle):
 def _bundle_metric_palette(metric):
     if metric == "commag":
         return get_palette("commag")
+    elif metric == "agarose":
+        return get_palette("agarose")
     elif metric == "sli":
         return get_palette("rpid")
     else:
