@@ -65,10 +65,10 @@ PAIRED = sns.color_palette(MUTED_CATEGORICAL[:8], 8)
 
 
 METRIC_PALETTES = {
-    "sli": [MUTED_CATEGORICAL[0], MUTED_CATEGORICAL[1]],
-    "rpd": [MUTED_CATEGORICAL[2], MUTED_CATEGORICAL[3]],
-    "commag": [MUTED_CATEGORICAL[4], MUTED_CATEGORICAL[8]],
-    "meddist": [MUTED_CATEGORICAL[9], MUTED_CATEGORICAL[5]],
+    "sli": ["#1f78b4", "#a6cee3"],
+    "rpd": ["#33a02c", "#b2df8a"],
+    "commag": ["#ff7f00", "#fdbf6f"],
+    "meddist": ["#6a3d9a", "#cab2d6"],
     "agarose": [MUTED_CATEGORICAL[2], MUTED_CATEGORICAL[6]],
 }
 
