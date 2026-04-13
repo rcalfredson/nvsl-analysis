@@ -331,11 +331,14 @@ class DataCombiner:
                 fi, n, _ = self.va._syncBucket(t, df)
                 la = min(t.stop, int(t.start + n * df))
                 if fi is None:
+                    # Keep placeholder bucket counts aligned with the normal path:
+                    # _syncBucket() reports the number of training sync buckets as `n`,
+                    # and downstream summary code indexes across that full width.
                     self.va._append(
                         getattr(self.va, SB)[i],
-                        [np.nan for _ in range(int(n - 1))],
+                        [np.nan for _ in range(int(n))],
                         0,
-                        n - 1,
+                        n,
                     )
                     getattr(self.va, pre)[j].append(np.nan)
                     getattr(self.va, post)[j].append(np.nan)
