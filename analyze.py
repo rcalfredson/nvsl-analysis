@@ -1362,6 +1362,9 @@ g.add_argument(
         "none",
         "maxdist",
         "maxdist_synth",
+        "commag_synth",
+        "commag_synth_vector_mean",
+        "commag_synth_mean_magnitude",
         "return_leg_dist",
         "return_leg_dist_synth",
         "turnback_ratio_synth",
@@ -1372,6 +1375,12 @@ g.add_argument(
         "'maxdist' marks the farthest point from the reward center and draws "
         "the Dmax radius using a real trajectory; 'maxdist_synth' draws a "
         "synthetic explanatory trajectory with a symbolic Dmax label; "
+        "'commag_synth' draws a synthetic explanatory schematic for the active "
+        "per-segment COM aggregation mode selected by --com-per-segment-agg; "
+        "'commag_synth_vector_mean' explicitly shows the historical "
+        "component-wise vector-mean aggregation; "
+        "'commag_synth_mean_magnitude' explicitly shows the newer mean of "
+        "per-segment COM magnitudes aggregation; "
         "'return_leg_dist' highlights the trajectory segment after dMax on a "
         "real between-reward path; 'return_leg_dist_synth' draws a synthetic "
         "explanatory return-leg example; 'turnback_ratio_synth' draws a "

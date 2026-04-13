@@ -546,6 +546,64 @@ class EventChainPlotter:
         return np.asarray(out, dtype=float)
 
     @staticmethod
+    def _draw_reward_center_marker(
+        ax,
+        cx,
+        cy,
+        *,
+        ring_color="#143642",
+        label=None,
+        zorder=7,
+        dot_radius=1.9,
+        show_halo=True,
+    ):
+        if show_halo:
+            halo = patches.Circle(
+                (float(cx), float(cy)),
+                radius=max(2.6, float(dot_radius) + 1.2),
+                facecolor="white",
+                edgecolor="none",
+                alpha=0.95,
+                zorder=zorder,
+            )
+            ax.add_patch(halo)
+        inner = patches.Circle(
+            (float(cx), float(cy)),
+            radius=float(dot_radius),
+            facecolor=ring_color,
+            edgecolor="none",
+            zorder=zorder + (1 if show_halo else 0),
+        )
+        ax.add_patch(inner)
+        ax.plot(
+            [float(cx) - 7.0, float(cx) + 7.0],
+            [float(cy), float(cy)],
+            color=ring_color,
+            linewidth=0.85,
+            alpha=0.55,
+            zorder=zorder - 1,
+        )
+        ax.plot(
+            [float(cx), float(cx)],
+            [float(cy) - 7.0, float(cy) + 7.0],
+            color=ring_color,
+            linewidth=0.85,
+            alpha=0.55,
+            zorder=zorder - 1,
+        )
+        if label:
+            ax.text(
+                float(cx),
+                float(cy) - 11.0,
+                label,
+                fontsize=8,
+                color=ring_color,
+                ha="center",
+                va="top",
+                zorder=zorder + 2,
+            )
+
+    @staticmethod
     def _synthetic_maxdist_path(
         reward_circle, *, variant=0, rng=None, excursion_scale=1.0
     ):
@@ -1017,6 +1075,991 @@ class EventChainPlotter:
         )
 
         return synth
+
+    def _synthetic_commag_bucket_segments(
+        self, reward_circle, *, variant=0, rng=None, agg_mode="vector_mean"
+    ):
+        if reward_circle is None:
+            return None
+
+        cx, cy, r = (float(v) for v in reward_circle)
+        rng = rng or random.Random()
+        colors = ("#4e79a7", "#e15759", "#59a14f")
+        rot_deg = (int(variant) % 3 - 1) * 5.0
+        agg_mode = str(agg_mode or "vector_mean").strip().lower()
+
+        def _rotated_xy(radius, theta):
+            dx, dy = self._rotate_local_point(
+                float(radius * np.cos(theta)), float(radius * np.sin(theta)), rot_deg
+            )
+            return (cx + dx, cy + dy)
+
+        def _build_path(control_pts):
+            path = self._catmull_rom_chain(np.asarray(control_pts, dtype=float), samples_per_seg=28)
+            if path.shape[0] < 3:
+                path = np.asarray(control_pts, dtype=float)
+            return np.asarray(path, dtype=float)
+
+        def _segment_payload(path, color, idx):
+            xs = np.asarray(path[:, 0], dtype=float)
+            ys = np.asarray(path[:, 1], dtype=float)
+            mx = float(np.nanmean(xs))
+            my = float(np.nanmean(ys))
+            return {
+                "x": xs,
+                "y": ys,
+                "mx": mx,
+                "my": my,
+                "vx": float(mx - cx),
+                "vy": float(my - cy),
+                "mag": float(np.hypot(mx - cx, my - cy)),
+                "color": color,
+                "idx": idx + 1,
+            }
+
+        base_rot = rng.uniform(0.0, 2.0 * np.pi)
+
+        segments = []
+        if agg_mode == "mean_magnitude":
+            mix_mode = rng.choices(
+                ("mixed", "near_zero_emphasis", "lost_emphasis"),
+                weights=(0.48, 0.28, 0.24),
+                k=1,
+            )[0]
+            if mix_mode == "near_zero_emphasis":
+                family_choices = ["near_zero", "near_zero", rng.choice(("short_skewed", "lost"))]
+            elif mix_mode == "lost_emphasis":
+                family_choices = ["lost", rng.choice(("short_skewed", "lost")), "short_skewed"]
+            else:
+                family_choices = [
+                    rng.choices(
+                        ("short_skewed", "near_zero", "lost"),
+                        weights=(0.46, 0.30, 0.24),
+                        k=1,
+                    )[0]
+                    for _ in colors
+                ]
+            rng.shuffle(family_choices)
+
+            for idx, color in enumerate(colors):
+                theta0 = base_rot + idx * (2.0 * np.pi / 3.0) + rng.uniform(-0.22, 0.22)
+                direction = rng.choice((-1.0, 1.0))
+                family = family_choices[idx]
+                inner_r_start = r * rng.uniform(0.16, 0.28)
+                inner_r_end = r * rng.uniform(0.16, 0.28)
+                phase = rng.uniform(-0.9, 0.9)
+                pts = []
+
+                if family == "near_zero":
+                    loop_count = rng.uniform(2.1, 3.2)
+                    arc_span = direction * loop_count * 2.0 * np.pi
+                    outer_r = r * rng.uniform(2.15, 2.95)
+                    outer_r += (idx - 1) * r * rng.uniform(0.16, 0.34)
+                    drift = r * rng.uniform(-0.16, 0.16)
+                    path_style = rng.choice(("loose_orbit", "flower_orbit", "meander_orbit"))
+                    num_pts = rng.choice((13, 14, 15))
+                    weave_phase = phase + idx * rng.uniform(0.8, 1.5)
+                    cross_amp = r * rng.uniform(0.18, 0.34)
+                    for t in np.linspace(0.0, 1.0, num_pts):
+                        theta = theta0 + arc_span * t
+                        theta += 0.18 * np.sin(2.0 * np.pi * t + phase)
+                        theta += 0.06 * np.sin(7.0 * np.pi * t + 0.3 * phase)
+                        if t < 0.10:
+                            radius = inner_r_start + (outer_r - inner_r_start) * (t / 0.10)
+                        elif t > 0.90:
+                            radius = outer_r + (inner_r_end - outer_r) * ((t - 0.90) / 0.10)
+                        else:
+                            if path_style == "loose_orbit":
+                                radius = outer_r
+                                radius += cross_amp * np.sin(2.3 * np.pi * t + weave_phase)
+                                radius += 0.12 * r * np.cos(5.2 * np.pi * t - 0.4 * phase)
+                                radius += 0.07 * r * np.sin(8.0 * np.pi * t + 0.5 * weave_phase)
+                            elif path_style == "flower_orbit":
+                                radius = outer_r
+                                radius += 0.14 * r * np.sin(4.0 * np.pi * t + weave_phase)
+                                radius += cross_amp * np.sin(7.0 * np.pi * t - 0.2 * phase)
+                                radius += 0.06 * r * np.cos(9.0 * np.pi * t + 0.3 * weave_phase)
+                            else:
+                                radius = outer_r
+                                radius += drift * (2.0 * t - 1.0)
+                                radius += cross_amp * np.sin(3.0 * np.pi * t + weave_phase)
+                                radius += 0.08 * r * np.cos(6.5 * np.pi * t + 0.4 * phase)
+                                radius += 0.06 * r * np.sin(8.5 * np.pi * t - 0.2 * weave_phase)
+                        pts.append(_rotated_xy(radius, theta))
+
+                elif family == "lost":
+                    exit_r = r * rng.uniform(1.35, 1.75)
+                    exit_theta = theta0 + direction * rng.uniform(0.18 * np.pi, 0.42 * np.pi)
+                    exit_pt = np.array(_rotated_xy(exit_r, exit_theta), dtype=float)
+
+                    n_out = rng.choice((2, 3))
+                    n_wander = rng.choice((6, 7, 8))
+                    n_return = rng.choice((3, 4))
+
+                    # 1) Exit the reward-centered neighborhood.
+                    for t in np.linspace(0.0, 1.0, n_out, endpoint=False):
+                        theta = theta0 + (exit_theta - theta0) * t
+                        theta += 0.08 * np.sin(np.pi * t + phase)
+                        radius = inner_r_start + (exit_r - inner_r_start) * (t ** 0.82)
+                        radius += 0.03 * r * np.sin(2.0 * np.pi * t + 0.5 * phase)
+                        pts.append(_rotated_xy(radius, theta))
+
+                    # 2) Persistent random walk while "lost", only later regaining a homeward bias.
+                    current_pt = exit_pt.copy()
+                    heading = exit_theta + rng.uniform(-1.4, 1.4)
+                    for j in range(n_wander):
+                        frac = (j + 1) / max(1, n_wander)
+                        home_theta = np.arctan2(cy - current_pt[1], cx - current_pt[0])
+                        if frac < 0.55:
+                            heading += rng.uniform(-1.35, 1.35)
+                        else:
+                            heading = 0.72 * heading + 0.28 * (
+                                home_theta + rng.uniform(-0.95, 0.95)
+                            )
+                        step_len = r * rng.uniform(0.42, 0.88)
+                        trial_pt = current_pt + step_len * np.array(
+                            [np.cos(heading), np.sin(heading)]
+                        )
+                        if float(np.hypot(trial_pt[0] - cx, trial_pt[1] - cy)) < 1.55 * r:
+                            push_theta = heading + np.pi + rng.uniform(-0.7, 0.7)
+                            trial_pt = current_pt + r * rng.uniform(0.55, 0.95) * np.array(
+                                [np.cos(push_theta), np.sin(push_theta)]
+                            )
+                        if float(np.hypot(trial_pt[0] - cx, trial_pt[1] - cy)) > 3.8 * r:
+                            rebound_theta = np.arctan2(cy - current_pt[1], cx - current_pt[0])
+                            trial_pt = current_pt + r * rng.uniform(0.45, 0.85) * np.array(
+                                [
+                                    np.cos(rebound_theta + rng.uniform(-0.9, 0.9)),
+                                    np.sin(rebound_theta + rng.uniform(-0.9, 0.9)),
+                                ]
+                            )
+                        current_pt = trial_pt
+                        pts.append(tuple(current_pt))
+
+                    # 3) Regain the reward and return with a delayed, imperfect homing phase.
+                    last_pt = np.array(pts[-1], dtype=float)
+                    return_theta = np.arctan2(cy - last_pt[1], cx - last_pt[0]) + rng.uniform(
+                        -0.45, 0.45
+                    )
+                    reentry_anchor = np.array(
+                        _rotated_xy(r * rng.uniform(0.92, 1.12), return_theta), dtype=float
+                    )
+                    for t in np.linspace(0.0, 1.0, n_return, endpoint=False):
+                        blend = t
+                        bridge = last_pt + blend * (reentry_anchor - last_pt)
+                        bridge += r * rng.uniform(0.18, 0.42) * np.array(
+                            [
+                                np.cos(return_theta + np.pi / 2 + 2.5 * blend + 0.4 * phase),
+                                np.sin(return_theta + np.pi / 2 + 2.1 * blend - 0.3 * phase),
+                            ]
+                        )
+                        bridge += r * rng.uniform(0.08, 0.20) * np.array(
+                            [
+                                np.cos(return_theta - 1.3 + 3.6 * blend),
+                                np.sin(return_theta + 0.9 - 2.8 * blend),
+                            ]
+                        )
+                        pts.append(tuple(bridge))
+                    pts.append(_rotated_xy(inner_r_end, return_theta + rng.uniform(-0.18, 0.18)))
+
+                else:
+                    outer_r = r * rng.uniform(1.04, 1.34)
+                    arc_span = direction * rng.uniform(0.45 * np.pi, 0.95 * np.pi)
+                    path_style = rng.choice(("hook_loop", "bean_loop", "comma_loop"))
+                    num_pts = rng.choice((8, 9))
+                    for t in np.linspace(0.0, 1.0, num_pts):
+                        theta = theta0 + arc_span * t
+                        theta += 0.12 * np.sin(2.0 * np.pi * t + phase)
+                        if path_style == "bean_loop":
+                            theta += 0.08 * np.sin(4.2 * np.pi * t - 0.3 * phase)
+                        elif path_style == "comma_loop":
+                            theta += 0.10 * (t - 0.5) ** 3
+                        if t < 0.16:
+                            radius = inner_r_start + (outer_r - inner_r_start) * (t / 0.16)
+                        elif t > 0.84:
+                            radius = outer_r + (inner_r_end - outer_r) * ((t - 0.84) / 0.16)
+                        else:
+                            if path_style == "hook_loop":
+                                radius = outer_r
+                                radius += 0.10 * r * np.sin(np.pi * t) ** 2
+                                radius += 0.05 * r * np.sin(3.0 * np.pi * t + phase)
+                            elif path_style == "bean_loop":
+                                radius = outer_r
+                                radius += 0.14 * r * np.sin(np.pi * t)
+                                radius += 0.05 * r * np.cos(4.0 * np.pi * t + phase)
+                            else:
+                                radius = outer_r
+                                radius += 0.08 * r * (2.0 * t - 1.0)
+                                radius += 0.05 * r * np.sin(3.4 * np.pi * t - 0.5 * phase)
+                        pts.append(_rotated_xy(radius, theta))
+
+                segments.append(_segment_payload(_build_path(pts), color, idx))
+        else:
+            target_vecs = []
+            for base_angle in np.linspace(0.0, 2.0 * np.pi, 3, endpoint=False):
+                theta = base_rot + base_angle + rng.uniform(-0.32, 0.32)
+                mag = r * rng.uniform(0.42, 0.82)
+                target_vecs.append(np.array([mag * np.cos(theta), mag * np.sin(theta)]))
+            target_vecs = np.asarray(target_vecs, dtype=float)
+            target_vecs -= np.mean(target_vecs, axis=0, keepdims=True)
+            offset_mag = rng.choice(
+                (
+                    0.0,
+                    r * rng.uniform(0.10, 0.22),
+                    r * rng.uniform(0.22, 0.38),
+                )
+            )
+            offset_theta = rng.uniform(0.0, 2.0 * np.pi)
+            offset_vec = offset_mag * np.array([np.cos(offset_theta), np.sin(offset_theta)])
+            target_vecs += offset_vec
+            mags = np.hypot(target_vecs[:, 0], target_vecs[:, 1])
+            if np.max(mags) > 1.05 * r:
+                target_vecs *= (1.05 * r) / np.max(mags)
+            target_vecs += offset_vec - np.mean(target_vecs, axis=0)
+
+            for idx, (target_vec, color) in enumerate(zip(target_vecs, colors)):
+                target_theta = float(np.arctan2(target_vec[1], target_vec[0]))
+                outer_r = min(1.12 * r, max(0.72 * r, 1.22 * float(np.hypot(*target_vec))))
+                arc_span = rng.uniform(0.72 * np.pi, 1.08 * np.pi)
+                theta_start = target_theta - 0.5 * arc_span
+                theta_end = target_theta + 0.5 * arc_span
+                inner_r_start = r * rng.uniform(0.16, 0.28)
+                inner_r_end = r * rng.uniform(0.16, 0.28)
+                phase = rng.uniform(-0.8, 0.8)
+
+                pts = []
+                for t in np.linspace(0.0, 1.0, 7):
+                    theta = theta_start + (theta_end - theta_start) * t
+                    theta += 0.08 * np.sin(2.0 * np.pi * t + phase)
+                    if t < 0.18:
+                        radius = inner_r_start + (outer_r - inner_r_start) * (t / 0.18)
+                    elif t > 0.82:
+                        radius = outer_r + (inner_r_end - outer_r) * ((t - 0.82) / 0.18)
+                    else:
+                        radius = outer_r + 0.05 * r * np.sin(np.pi * t + phase)
+                    pts.append(_rotated_xy(radius, theta))
+
+                path = _build_path(pts)
+                xs = np.asarray(path[:, 0], dtype=float)
+                ys = np.asarray(path[:, 1], dtype=float)
+                segments.append(
+                    {
+                        "x": xs,
+                        "y": ys,
+                        "mx": float(np.nanmean(xs)),
+                        "my": float(np.nanmean(ys)),
+                        "vx": float(np.nanmean(xs) - cx),
+                        "vy": float(np.nanmean(ys) - cy),
+                        "mag": float(np.hypot(np.nanmean(xs) - cx, np.nanmean(ys) - cy)),
+                        "color": color,
+                        "idx": idx + 1,
+                    }
+                )
+
+        mean_vx = float(np.mean([seg["vx"] for seg in segments]))
+        mean_vy = float(np.mean([seg["vy"] for seg in segments]))
+        return {
+            "cx": cx,
+            "cy": cy,
+            "r_px": r,
+            "segments": segments,
+            "mean_vx": mean_vx,
+            "mean_vy": mean_vy,
+            "mean_mag": float(np.hypot(mean_vx, mean_vy)),
+            "mean_x": float(cx + mean_vx),
+            "mean_y": float(cy + mean_vy),
+        }
+
+    def _plot_between_reward_commag_schematic(
+        self,
+        *,
+        trn_index,
+        bucket_index,
+        role_idx,
+        image_format,
+        out_dir,
+        seed,
+        reward_circle,
+        floor_coords,
+        agg_mode="vector_mean",
+    ):
+        agg_mode = str(agg_mode or "vector_mean").strip().lower()
+        if agg_mode not in ("vector_mean", "mean_magnitude"):
+            agg_mode = "vector_mean"
+
+        if seed is None:
+            synth_rng = random.Random()
+        else:
+            synth_rng = random.Random(
+                int(seed) + 1009 * int(bucket_index) + 9173 * max(0, int(trn_index))
+            )
+
+        synth = self._synthetic_commag_bucket_segments(
+            reward_circle, variant=bucket_index, rng=synth_rng, agg_mode=agg_mode
+        )
+        if synth is None:
+            print("[plot_between_reward_chain] Unable to build COM schematic geometry.")
+            return
+
+        top_left, bottom_right = floor_coords[0], floor_coords[1]
+        cx = synth["cx"]
+        cy = synth["cy"]
+        reward_r_px = synth["r_px"]
+        mean_color = "#143642"
+        mean_mag = float(np.mean([seg["mag"] for seg in synth["segments"]]))
+
+        fig, axes = plt.subplots(
+            1,
+            3,
+            figsize=(14.4, 5.0),
+            gridspec_kw={"width_ratios": [1.12, 0.98, 0.90]},
+        )
+        panel_title_pad = 10
+        panel_note_y = 0.955
+        panel_note_bbox = dict(
+            boxstyle="round,pad=0.22",
+            facecolor="white",
+            edgecolor="#cbd5e1",
+            linewidth=0.8,
+            alpha=0.92,
+        )
+
+        def _set_local_view(ax, xs, ys, *, include_points=(), pad_mult=0.32):
+            xs = np.asarray(xs, dtype=float)
+            ys = np.asarray(ys, dtype=float)
+            extra_x = [float(p[0]) for p in include_points]
+            extra_y = [float(p[1]) for p in include_points]
+            all_x = np.concatenate((xs, np.asarray(extra_x, dtype=float)))
+            all_y = np.concatenate((ys, np.asarray(extra_y, dtype=float)))
+
+            x_min = float(np.nanmin(all_x))
+            x_max = float(np.nanmax(all_x))
+            y_min = float(np.nanmin(all_y))
+            y_max = float(np.nanmax(all_y))
+            span_x = max(x_max - x_min, 2.2 * reward_r_px)
+            span_y = max(y_max - y_min, 2.2 * reward_r_px)
+            pad_x = max(10.0, pad_mult * span_x)
+            pad_y = max(10.0, pad_mult * span_y)
+
+            floor_x_min = min(float(top_left[0]), float(bottom_right[0]))
+            floor_x_max = max(float(top_left[0]), float(bottom_right[0]))
+            floor_y_min = min(float(top_left[1]), float(bottom_right[1]))
+            floor_y_max = max(float(top_left[1]), float(bottom_right[1]))
+
+            ax.set_xlim(max(floor_x_min, x_min - pad_x), min(floor_x_max, x_max + pad_x))
+            ax.set_ylim(min(floor_y_max, y_max + pad_y), max(floor_y_min, y_min - pad_y))
+
+        def _setup_arena_panel(ax, *, show_floor=False):
+            rect = patches.FancyBboxPatch(
+                (top_left[0], top_left[1]),
+                bottom_right[0] - top_left[0],
+                bottom_right[1] - top_left[1],
+                boxstyle="round,pad=0.05,rounding_size=2",
+                linewidth=1.0,
+                edgecolor="#374151",
+                facecolor="#fbfcfd",
+                zorder=0 if show_floor else -5,
+                alpha=1.0 if show_floor else 0.0,
+            )
+            ax.add_patch(rect)
+            reward_patch = patches.Circle(
+                (cx, cy),
+                reward_r_px,
+                facecolor="#fff6db",
+                edgecolor="#c59d3d",
+                linewidth=1.5,
+                alpha=0.95,
+                zorder=1,
+            )
+            ax.add_patch(reward_patch)
+            self._draw_reward_center_marker(
+                ax,
+                cx,
+                cy,
+                ring_color=mean_color,
+                label=None,
+                dot_radius=1.45,
+                show_halo=False,
+            )
+            ax.text(
+                cx,
+                cy + reward_r_px + 7.0,
+                "reward circle",
+                fontsize=8,
+                color="#8a6a12",
+                ha="center",
+                va="center",
+                zorder=3,
+                bbox=dict(
+                    boxstyle="round,pad=0.16",
+                    facecolor="white",
+                    edgecolor="none",
+                    alpha=0.72,
+                ),
+            )
+            ax.set_aspect("equal", adjustable="box")
+            ax.axis("off")
+
+        ax = axes[0]
+        _setup_arena_panel(ax)
+        panel_a_x = []
+        panel_a_y = []
+        for seg in synth["segments"]:
+            xs = np.asarray(seg["x"], dtype=float)
+            ys = np.asarray(seg["y"], dtype=float)
+            panel_a_x.extend(xs.tolist())
+            panel_a_y.extend(ys.tolist())
+            color = str(seg["color"])
+            ax.plot(
+                xs,
+                ys,
+                color=color,
+                linewidth=2.5,
+                alpha=0.95,
+                zorder=3,
+                solid_capstyle="round",
+                label="Between-reward segment" if seg["idx"] == 1 else None,
+            )
+            ax.scatter(
+                [xs[0], xs[-1]],
+                [ys[0], ys[-1]],
+                s=18,
+                color=color,
+                edgecolors="white",
+                linewidths=0.7,
+                zorder=4,
+            )
+            ax.annotate(
+                "",
+                xy=(seg["mx"], seg["my"]),
+                xytext=(cx, cy),
+                arrowprops=dict(
+                    arrowstyle="->",
+                    lw=1.7,
+                    color=color,
+                    linestyle=(0, (4, 3)),
+                    alpha=0.92,
+                    shrinkA=2.0,
+                    shrinkB=3.5,
+                ),
+                zorder=4,
+            )
+            ax.scatter(
+                [seg["mx"]],
+                [seg["my"]],
+                s=54,
+                color=color,
+                edgecolors="white",
+                linewidths=0.9,
+                zorder=5,
+                label="Segment COM" if seg["idx"] == 1 else None,
+            )
+            badge_dx = 7.0 if seg["vx"] >= 0 else -7.0
+            badge_dy = -7.0 if seg["vy"] >= 0 else 7.0
+            ax.text(
+                float(seg["mx"]) + badge_dx,
+                float(seg["my"]) + badge_dy,
+                f"{seg['idx']}",
+                fontsize=8,
+                color=color,
+                ha="center",
+                va="center",
+                zorder=6,
+                bbox=dict(
+                    boxstyle="circle,pad=0.18",
+                    facecolor="white",
+                    edgecolor=color,
+                    linewidth=0.8,
+                    alpha=0.92,
+                ),
+            )
+
+        panel_a_points = [(cx, cy)]
+        for seg in synth["segments"]:
+            panel_a_points.append((seg["mx"], seg["my"]))
+        _set_local_view(ax, panel_a_x, panel_a_y, include_points=panel_a_points, pad_mult=0.40)
+        ax.text(
+            0.03,
+            panel_note_y,
+            "Several between-reward segments\nwithin one sync bucket",
+            transform=ax.transAxes,
+            ha="left",
+            va="top",
+            fontsize=8.5,
+            color="#334155",
+            zorder=7,
+            bbox=panel_note_bbox,
+        )
+        ax.set_title("A. Segment COM Vectors", fontsize=10, pad=panel_title_pad, loc="left")
+
+        ax = axes[1]
+        ax.set_aspect("equal", adjustable="box")
+        ax.set_facecolor("#fbfcfd")
+        vec_extent = max(
+            [seg["mag"] for seg in synth["segments"]] + [synth["mean_mag"], mean_mag, reward_r_px]
+        )
+        lim = max(1.15 * vec_extent, reward_r_px * 0.9)
+        if agg_mode == "mean_magnitude":
+            row_y = np.linspace(-0.40 * lim, 0.44 * lim, len(synth["segments"]) + 1)
+            scalar_rows = row_y[: len(synth["segments"])]
+            mag_y = row_y[-1]
+            axis_y = 0.76 * lim
+            ax.annotate(
+                "",
+                xy=(1.18 * lim, axis_y),
+                xytext=(0.0, axis_y),
+                arrowprops=dict(
+                    arrowstyle="->",
+                    lw=1.1,
+                    color="#cbd5e1",
+                    shrinkA=0.0,
+                    shrinkB=0.0,
+                ),
+                zorder=0,
+            )
+            ax.text(
+                0.0,
+                axis_y + 0.12 * lim,
+                "distance from reward center",
+                fontsize=8,
+                color="#475569",
+                ha="left",
+                va="bottom",
+                zorder=4,
+            )
+            for seg, row_y in zip(synth["segments"], scalar_rows):
+                color = str(seg["color"])
+                ax.annotate(
+                    "",
+                    xy=(seg["mag"], row_y),
+                    xytext=(0.0, row_y),
+                    arrowprops=dict(
+                        arrowstyle="->",
+                        lw=2.0,
+                        color=color,
+                        alpha=0.9,
+                        shrinkA=0.0,
+                        shrinkB=3.0,
+                    ),
+                    zorder=2,
+                )
+                ax.scatter(
+                    [seg["mag"]],
+                    [row_y],
+                    s=50,
+                    color=color,
+                    edgecolors="white",
+                    linewidths=0.9,
+                    zorder=3,
+                )
+                ax.text(
+                    seg["mag"] + 0.04 * lim,
+                    row_y,
+                    f"{seg['idx']}",
+                    fontsize=8,
+                    color=color,
+                    ha="center",
+                    va="center",
+                    zorder=4,
+                    bbox=dict(
+                        boxstyle="circle,pad=0.18",
+                        facecolor="white",
+                        edgecolor=color,
+                        linewidth=0.8,
+                        alpha=0.94,
+                    ),
+                )
+            ax.annotate(
+                "",
+                xy=(mean_mag, mag_y),
+                xytext=(0.0, mag_y),
+                arrowprops=dict(
+                    arrowstyle="->",
+                    lw=3.0,
+                    color=mean_color,
+                    alpha=0.98,
+                    shrinkA=0.0,
+                    shrinkB=4.0,
+                ),
+                zorder=5,
+            )
+            ax.scatter(
+                [mean_mag],
+                [mag_y],
+                s=72,
+                color=mean_color,
+                edgecolors="white",
+                linewidths=1.0,
+                zorder=6,
+            )
+            ax.text(
+                mean_mag + 0.06 * lim,
+                mag_y - 0.06 * lim,
+                "mean distance",
+                fontsize=8.5,
+                color=mean_color,
+                ha="left",
+                va="center",
+                zorder=6,
+                bbox=dict(
+                    boxstyle="round,pad=0.2",
+                    facecolor="white",
+                    edgecolor="#cbd5e1",
+                    linewidth=0.8,
+                    alpha=0.92,
+                ),
+            )
+            ax.text(
+                0.05,
+                panel_note_y,
+                r"Use COM magnitudes only, then average",
+                transform=ax.transAxes,
+                ha="left",
+                va="top",
+                fontsize=8.2,
+                color="#334155",
+                zorder=7,
+                bbox=panel_note_bbox,
+            )
+            ax.set_xlim(-0.08 * lim, 1.25 * lim)
+            ax.set_ylim(0.98 * lim, -0.8 * lim)
+        else:
+            ax.axhline(0.0, color="#cbd5e1", linewidth=1.0, zorder=0)
+            ax.axvline(0.0, color="#cbd5e1", linewidth=1.0, zorder=0)
+            ax.scatter(
+                [0.0],
+                [0.0],
+                s=42,
+                color=mean_color,
+                edgecolors="white",
+                linewidths=0.8,
+                zorder=3,
+            )
+            ax.text(
+                0.0,
+                0.12 * max(reward_r_px, 1.0),
+                "reward center as origin",
+                fontsize=8,
+                color=mean_color,
+                ha="center",
+                va="bottom",
+                zorder=4,
+            )
+            for seg in synth["segments"]:
+                color = str(seg["color"])
+                ax.annotate(
+                    "",
+                    xy=(seg["vx"], seg["vy"]),
+                    xytext=(0.0, 0.0),
+                    arrowprops=dict(
+                        arrowstyle="->",
+                        lw=2.0,
+                        color=color,
+                        alpha=0.9,
+                        shrinkA=0.0,
+                        shrinkB=3.0,
+                    ),
+                    zorder=2,
+                )
+                ax.scatter(
+                    [seg["vx"]],
+                    [seg["vy"]],
+                    s=50,
+                    color=color,
+                    edgecolors="white",
+                    linewidths=0.9,
+                    zorder=3,
+                )
+                ax.text(
+                    seg["vx"] * 1.04,
+                    seg["vy"] * 1.04,
+                    f"{seg['idx']}",
+                    fontsize=8,
+                    color=color,
+                    ha="center",
+                    va="center",
+                    zorder=4,
+                    bbox=dict(
+                        boxstyle="circle,pad=0.18",
+                        facecolor="white",
+                        edgecolor=color,
+                        linewidth=0.8,
+                        alpha=0.94,
+                    ),
+                )
+            ax.annotate(
+                "",
+                xy=(synth["mean_vx"], synth["mean_vy"]),
+                xytext=(0.0, 0.0),
+                arrowprops=dict(
+                    arrowstyle="->",
+                    lw=3.0,
+                    color=mean_color,
+                    alpha=0.98,
+                    shrinkA=0.0,
+                    shrinkB=4.0,
+                ),
+                zorder=5,
+            )
+            ax.scatter(
+                [synth["mean_vx"]],
+                [synth["mean_vy"]],
+                s=72,
+                color=mean_color,
+                edgecolors="white",
+                linewidths=1.0,
+                zorder=6,
+            )
+            ax.text(
+                synth["mean_vx"] + 0.10 * lim,
+                synth["mean_vy"] - 0.09 * lim,
+                "mean of segment COM vectors",
+                fontsize=8.5,
+                color=mean_color,
+                ha="left",
+                va="center",
+                zorder=6,
+                bbox=dict(
+                    boxstyle="round,pad=0.2",
+                    facecolor="white",
+                    edgecolor="#cbd5e1",
+                    linewidth=0.8,
+                    alpha=0.92,
+                    ),
+                )
+            ax.set_xlim(-0.2 * lim, 1.25 * lim)
+            ax.set_ylim(1.2 * lim, -0.8 * lim)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        ax.set_title(
+            "B. Aggregate Across Segments", fontsize=10, pad=panel_title_pad, loc="left"
+        )
+
+        ax = axes[2]
+        _setup_arena_panel(ax)
+        panel_c_ring_radius = mean_mag if agg_mode == "mean_magnitude" else synth["mean_mag"]
+        if agg_mode == "mean_magnitude":
+            mag_ring = patches.Circle(
+                (cx, cy),
+                radius=mean_mag,
+                fill=False,
+                linestyle=(0, (3, 3)),
+                linewidth=1.6,
+                edgecolor=mean_color,
+                alpha=0.50,
+                zorder=2,
+            )
+            ax.add_patch(mag_ring)
+            rep_x = cx + mean_mag
+            rep_y = cy
+            ax.annotate(
+                "",
+                xy=(rep_x, rep_y),
+                xytext=(cx, cy),
+                arrowprops=dict(
+                    arrowstyle="->",
+                    lw=3.0,
+                    color=mean_color,
+                    alpha=0.95,
+                    shrinkA=2.0,
+                    shrinkB=4.0,
+                ),
+                zorder=4,
+            )
+            ax.scatter(
+                [rep_x],
+                [rep_y],
+                s=74,
+                color=mean_color,
+                edgecolors="white",
+                linewidths=1.0,
+                zorder=5,
+            )
+            ax.text(
+                cx + 0.58 * mean_mag,
+                cy - 0.18 * reward_r_px,
+                "mean segment COM distance",
+                fontsize=8.5,
+                color=mean_color,
+                ha="left",
+                va="center",
+                zorder=6,
+                bbox=dict(
+                    boxstyle="round,pad=0.2",
+                    facecolor="white",
+                    edgecolor=mean_color,
+                    linewidth=0.8,
+                    alpha=0.92,
+                ),
+            )
+            panel_c_x = [cx, rep_x]
+            panel_c_y = [cy, rep_y]
+            panel_c_points = (
+                (cx, cy),
+                (rep_x, rep_y),
+                (cx - panel_c_ring_radius, cy),
+                (cx + panel_c_ring_radius, cy),
+                (cx, cy - panel_c_ring_radius),
+                (cx, cy + panel_c_ring_radius),
+            )
+        else:
+            mag_ring = patches.Circle(
+                (cx, cy),
+                radius=synth["mean_mag"],
+                fill=False,
+                linestyle=(0, (3, 3)),
+                linewidth=1.4,
+                edgecolor=mean_color,
+                alpha=0.35,
+                zorder=2,
+            )
+            ax.add_patch(mag_ring)
+            ax.annotate(
+                "",
+                xy=(synth["mean_x"], synth["mean_y"]),
+                xytext=(cx, cy),
+                arrowprops=dict(
+                    arrowstyle="->",
+                    lw=3.0,
+                    color=mean_color,
+                    alpha=0.98,
+                    shrinkA=2.0,
+                    shrinkB=4.0,
+                ),
+                zorder=4,
+            )
+            ax.scatter(
+                [synth["mean_x"]],
+                [synth["mean_y"]],
+                s=74,
+                color=mean_color,
+                edgecolors="white",
+                linewidths=1.0,
+                zorder=5,
+            )
+            mid_x = 0.5 * (cx + synth["mean_x"])
+            mid_y = 0.5 * (cy + synth["mean_y"])
+            ax.text(
+                mid_x + 8.5,
+                mid_y - 7.0,
+                "bucket COM vector",
+                fontsize=8.5,
+                color=mean_color,
+                ha="left",
+                va="center",
+                zorder=6,
+                bbox=dict(
+                    boxstyle="round,pad=0.2",
+                    facecolor="white",
+                    edgecolor=mean_color,
+                    linewidth=0.8,
+                    alpha=0.92,
+                ),
+            )
+            ax.text(
+                0.03,
+                panel_note_y,
+                r"bucket COM distance = $\left\|\mathrm{mean}(m_x, m_y)\right\|$",
+                transform=ax.transAxes,
+                ha="left",
+                va="top",
+                fontsize=8.5,
+                color="#334155",
+                zorder=7,
+                bbox=panel_note_bbox,
+            )
+            panel_c_x = [cx, synth["mean_x"]]
+            panel_c_y = [cy, synth["mean_y"]]
+            panel_c_points = (
+                (cx, cy),
+                (synth["mean_x"], synth["mean_y"]),
+                (cx - panel_c_ring_radius, cy),
+                (cx + panel_c_ring_radius, cy),
+                (cx, cy - panel_c_ring_radius),
+                (cx, cy + panel_c_ring_radius),
+            )
+        ax.set_title("C. Final Magnitude", fontsize=10, pad=panel_title_pad, loc="left")
+        _set_local_view(
+            ax,
+            panel_c_x,
+            panel_c_y,
+            include_points=panel_c_points,
+            pad_mult=0.48,
+        )
+
+        handles = [
+            plt.Line2D(
+                [0],
+                [0],
+                color="#4e79a7",
+                lw=2.4,
+                label="Between-reward segments",
+            ),
+            plt.Line2D(
+                [0],
+                [0],
+                marker="o",
+                linestyle="None",
+                markerfacecolor=mean_color,
+                markeredgecolor="white",
+                markersize=7,
+                label="Reward center / COM points",
+            ),
+            plt.Line2D(
+                [0],
+                [0],
+                color=mean_color,
+                lw=3.0,
+                label=(
+                    "Mean segment COM distance"
+                    if agg_mode == "mean_magnitude"
+                    else "Bucket-mean COM vector"
+                ),
+            ),
+        ]
+        fig.legend(
+            handles=handles,
+            loc="lower center",
+            bbox_to_anchor=(0.5, -0.01),
+            ncol=3,
+            frameon=False,
+            fontsize=8.5,
+        )
+
+        video_id = os.path.splitext(os.path.basename(self.va.fn))[0]
+        fly_idx = self.va.f
+        if role_idx is None:
+            try:
+                role_idx = self.va.flies.index(self.trj.f)
+            except Exception:
+                role_idx = int(self.trj.f)
+        fly_role = "exp" if role_idx == 0 else "yok"
+        seed_str = f"{seed}" if seed is not None else "rand"
+
+        fig.suptitle(
+            "Between-reward COM schematic\n"
+            f"{video_id}, fly {fly_idx}, {fly_role}\n"
+            f"trn {trn_index + 1}, bucket {bucket_index + 1} | synthetic "
+            f"{'mean-magnitude' if agg_mode == 'mean_magnitude' else 'vector-mean'} COM aggregation example",
+            fontsize=12,
+            y=0.985,
+        )
+
+        output_dir = out_dir or "imgs/between_rewards"
+        output_path = (
+            f"{output_dir}/"
+            f"{video_id}__fly{fly_idx}_role{role_idx}_"
+            f"trn{trn_index + 1}_bkt{bucket_index + 1}_"
+            f"N3_seed{seed_str}_schematic-"
+            f"{'commag_synth_mean_magnitude' if agg_mode == 'mean_magnitude' else 'commag_synth_vector_mean'}."
+            f"{image_format}"
+        )
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        fig.subplots_adjust(left=0.03, right=0.985, top=0.73, bottom=0.12, wspace=0.10)
+        writeImage(output_path, format=image_format)
+        plt.close(fig)
 
     def _turnback_schematic_geometry(self, reward_circle):
         if reward_circle is None or self.va is None:
@@ -2912,6 +3955,7 @@ class EventChainPlotter:
 
         image_format = image_format or self.image_format
         num_examples = max(1, int(num_examples))
+        metric_key = str(schematic_metric or "").lower()
 
         # --- Basic safety checks ------------------------------------------------
         if trn_index < 0 or trn_index >= len(self.va.trns):
@@ -2976,6 +4020,42 @@ class EventChainPlotter:
             print(
                 f"[plot_between_reward_chain] No between-reward intervals found "
                 f"in bucket {bucket_index + 1} for fly {f_idx}, training {trn_index + 1}"
+            )
+            return
+
+        floor_coords = list(
+            self.va.ct.floor(self.va.xf, f=self.va.nef * (self.trj.f) + self.va.ef)
+        )
+        reward_circle = None
+        if trn_index >= 0:
+            try:
+                reward_circle = self.va.trns[trn_index].circles(self.trj.f)[0]
+            except Exception:
+                reward_circle = None
+
+        if metric_key in (
+            "commag_synth",
+            "commag_synth_vector_mean",
+            "commag_synth_mean_magnitude",
+        ):
+            if metric_key == "commag_synth_mean_magnitude":
+                commag_agg_mode = "mean_magnitude"
+            elif metric_key == "commag_synth_vector_mean":
+                commag_agg_mode = "vector_mean"
+            else:
+                commag_agg_mode = str(
+                    getattr(getattr(self.va, "opts", None), "com_per_segment_agg", "vector_mean")
+                ).strip().lower()
+            self._plot_between_reward_commag_schematic(
+                trn_index=trn_index,
+                bucket_index=bucket_index,
+                role_idx=role_idx,
+                image_format=image_format,
+                out_dir=out_dir,
+                seed=seed,
+                reward_circle=reward_circle,
+                floor_coords=floor_coords,
+                agg_mode=commag_agg_mode,
             )
             return
 
@@ -3070,22 +4150,12 @@ class EventChainPlotter:
         synth_master_rng = random.Random(seed) if seed is not None else random.Random()
 
         # --- Prepare arena / floor and overlays shared across subplots ----------
-        floor_coords = list(
-            self.va.ct.floor(self.va.xf, f=self.va.nef * (self.trj.f) + self.va.ef)
-        )
         top_left, bottom_right = floor_coords[0], floor_coords[1]
 
         contact_buffer_mm = CONTACT_BUFFER_OFFSETS["wall"]["max"]
         contact_buffer_px = (
             self.va.ct.pxPerMmFloor() * self.va.xf.fctr * contact_buffer_mm
         )
-
-        reward_circle = None
-        if trn_index >= 0:
-            try:
-                reward_circle = self.va.trns[trn_index].circles(self.trj.f)[0]
-            except Exception:
-                reward_circle = None
 
         padding_x = (bottom_right[0] - top_left[0]) * 0.1
         padding_y = (top_left[1] - bottom_right[1]) * 0.1
@@ -3255,8 +4325,6 @@ class EventChainPlotter:
                 arrow_kwargs = _choose_arrow_kwargs_for_view(x0, x1, y0, y1)
             else:
                 arrow_kwargs = arrow_kwargs_default
-
-            metric_key = str(schematic_metric or "").lower()
 
             if metric_key == "maxdist_synth":
                 synth_rng = random.Random(synth_master_rng.random() + idx)
