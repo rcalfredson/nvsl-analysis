@@ -3234,6 +3234,19 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--com-per-segment-agg",
+    type=str,
+    choices=("vector_mean", "mean_magnitude"),
+    default="vector_mean",
+    help=(
+        "Aggregation used with --com-per-segment. 'vector_mean' preserves the "
+        "current behavior: average segment COM vectors within each sync bucket, "
+        "then take the magnitude. 'mean_magnitude' instead averages the "
+        "magnitudes of the individual segment COM vectors. "
+        "Default: %(default)s."
+    ),
+)
+g.add_argument(
     "--com-per-segment-min-meddist-mm",
     type=float,
     default=1.5,

@@ -256,6 +256,9 @@ class VideoAnalysis:
                 relative_to_reward=True,
                 store_mag=True,
                 per_segment=bool(getattr(opts, "com_per_segment", False)),
+                per_segment_agg=str(
+                    getattr(opts, "com_per_segment_agg", "vector_mean")
+                ),
                 per_segment_min_meddist_mm=getattr(
                     opts, "com_per_segment_min_meddist_mm", 1.5
                 ),
@@ -3553,11 +3556,16 @@ class VideoAnalysis:
         store_mag=True,
         verbose=False,
         per_segment=False,
+        per_segment_agg="vector_mean",
         per_segment_min_meddist_mm=None,
     ):
         if verbose:
             rel = "relative to reward center" if relative_to_reward else "absolute"
-            print(f"\nCOM magnitude by sync bucket (mm) [{rel}]:")
+            agg_msg = ""
+            if per_segment:
+                agg_mode = str(per_segment_agg or "vector_mean").strip().lower()
+                agg_msg = f", per-segment agg={agg_mode}"
+            print(f"\nCOM magnitude by sync bucket (mm) [{rel}{agg_msg}]:")
         df = self._numRewardsMsg(True, silent=True)
 
         self.syncCOM = []
@@ -3664,6 +3672,10 @@ class VideoAnalysis:
                 mag_vals = [] if store_mag else None
 
                 if per_segment:
+                    agg_mode = str(per_segment_agg or "vector_mean").strip().lower()
+                    if agg_mode not in ("vector_mean", "mean_magnitude"):
+                        agg_mode = "vector_mean"
+
                     on = self._getOn(trn, False, f=fly_idx)
                     if on is None or len(on) < 2:
                         if verbose:
@@ -3734,7 +3746,7 @@ class VideoAnalysis:
 
                         if seg.why is None:
                             bucket_stats[b_idx]["n_segments_used"] += 1
-                            seg_vecs[b_idx].append((seg.mx_mm, seg.my_mm))
+                            seg_vecs[b_idx].append((seg.mx_mm, seg.my_mm, seg.mag_mm))
                         else:
                             if seg.why == "too_short":
                                 bucket_stats[b_idx]["n_too_short"] += 1
@@ -3781,11 +3793,16 @@ class VideoAnalysis:
 
                         if seg_vecs[b_idx]:
                             v = np.asarray(seg_vecs[b_idx], dtype=float)
-                            mx_mm = np.nanmean(v[:, 0])
-                            my_mm = np.nanmean(v[:, 1])
-                            com_vals.append((mx_mm, my_mm))
-                            if store_mag:
-                                mag_vals.append(np.hypot(mx_mm, my_mm))
+                            if agg_mode == "mean_magnitude":
+                                com_vals.append((np.nan, np.nan))
+                                if store_mag:
+                                    mag_vals.append(float(np.nanmean(v[:, 2])))
+                            else:
+                                mx_mm = np.nanmean(v[:, 0])
+                                my_mm = np.nanmean(v[:, 1])
+                                com_vals.append((mx_mm, my_mm))
+                                if store_mag:
+                                    mag_vals.append(np.hypot(mx_mm, my_mm))
                             reasons.append(COMR_OK)
                         else:
                             com_vals.append((np.nan, np.nan))
@@ -3819,6 +3836,7 @@ class VideoAnalysis:
                             {
                                 "why": "per_segment",
                                 "bucket": int(b_idx),
+                                "agg_mode": str(agg_mode),
                                 "min_med_mm": float(min_med_mm),
                                 **st,
                             }
