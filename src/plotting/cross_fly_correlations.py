@@ -168,9 +168,9 @@ def _windowed_metric_label(metric_name: str, ctx: SLIContext) -> str:
     if ctx._window_bounds()[0] == ctx._window_bounds()[1]:
         return f"{metric_name}\n(T{ctx.training_idx + 1}, {window_txt})"
     if ctx.skip_first_sync_buckets or ctx.keep_first_sync_buckets:
-        return f"{metric_name}\n(last valid, {window_txt}, T{ctx.training_idx + 1})"
+        return f"{metric_name}\n({window_txt}, T{ctx.training_idx + 1})"
     if ctx.training_idx != 0:
-        return f"{metric_name}\n(last valid, T{ctx.training_idx + 1})"
+        return f"{metric_name}\n(T{ctx.training_idx + 1})"
     return metric_name
 
 
@@ -1817,7 +1817,7 @@ def plot_cross_fly_correlations(
             rpd_y_label = f"rewards per distance $[m^{{-1}}]$\n(T{sli_ctx.training_idx + 1}, {window_txt})"
         elif skip_k or keep_k:
             window_txt = sli_ctx._window_text(abbrev_sb=True)
-            rpd_y_label = f"rewards per distance $[m^{{-1}}]$\n(last valid, {window_txt})"
+            rpd_y_label = f"rewards per distance $[m^{{-1}}]$\n({window_txt})"
 
     # --- Plot 1: SLI_final vs reward-per-distance ---
     _scatter_with_corr(
