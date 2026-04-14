@@ -125,14 +125,16 @@ class SLIContext:
         start_sb, end_sb = self._window_bounds()
         if start_sb == end_sb:
             return f"SLI (sync bucket {start_sb}, training {trn})"
+        if not self.average_over_buckets:
+            if end_sb is None:
+                return f"SLI (sync buckets {start_sb}-end, training {trn})"
+            return f"SLI (sync buckets {start_sb}-{end_sb}, training {trn})"
         window_txt = (
             f", sync buckets {start_sb}-end"
             if end_sb is None
             else f", sync buckets {start_sb}-{end_sb}"
         )
-        if self.average_over_buckets:
-            return f"SLI (mean over{window_txt}, training {trn})"
-        return f"SLI (last sync bucket within{window_txt}, training {trn})"
+        return f"SLI (mean over{window_txt}, training {trn})"
 
     def label_short(self, abbrev_sb=True) -> str:
         trn = self.training_idx + 1
@@ -141,7 +143,7 @@ class SLIContext:
             return f"SLI (T{trn}, {window_txt})"
         if self.average_over_buckets:
             return f"SLI (T{trn}, mean, {window_txt})"
-        return f"SLI (T{trn}, last, {window_txt})"
+        return f"SLI (T{trn}, {window_txt})"
 
 
 def _window_context_suffix(ctx: SLIContext, *, prefix: str) -> str:
