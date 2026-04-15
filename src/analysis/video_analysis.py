@@ -144,6 +144,25 @@ class BetweenRewardSegmentCOM:
     why: Optional[str] = None  # None means "used"; else describes skip reason
 
 
+@dataclass
+class SlimTrajectory:
+    """
+    Lightweight post-analysis stand-in for Trajectory.
+
+    Keeps only the minimum state needed by summary-oriented downstream code paths.
+    """
+
+    f: int
+    opts: Any
+    _bad: bool
+    outside_durations: Optional[Any] = None
+
+    def bad(self, bad=None):
+        if bad is not None:
+            self._bad = bad
+        return self._bad
+
+
 # analysis of a single video
 class VideoAnalysis:
     _ON_KEY = re.compile(r"^v[1-9]\d*(\.\d+)?$")  # excludes, e.g., 'v0'
@@ -449,6 +468,8 @@ class VideoAnalysis:
             self.delayCheck()
 
         self.clean_up_boundary_contact_data(verbose=False)
+        if getattr(self.opts, "memory_saver", False):
+            self.apply_memory_saver()
         if opts.timeit:
             proc_time = timeit.default_timer() - start_t
             print("va proc time:", proc_time)
@@ -639,8 +660,16 @@ class VideoAnalysis:
 
                         # ─── circle branch: one more level for each radius ───
                         for r_mm, stats in leaf.items():  # stats is per-radius dict
+                            # Circular turn-probability analysis stores its compact
+                            # output in va.turn_prob_by_distance, so the per-radius
+                            # turning arrays and event metadata are dead weight once
+                            # this VideoAnalysis instance reaches cleanup.
+                            delete_turn_circle = delete_turn_here or boundary_tp == "circle"
                             _prune(
-                                stats, delete_turn_here, f"{path}.r{r_mm}", removal_log
+                                stats,
+                                delete_turn_circle,
+                                f"{path}.r{r_mm}",
+                                removal_log,
                             )
 
         # ─────────────────────────────────────────────────────────────
@@ -682,6 +711,92 @@ class VideoAnalysis:
                 for k, sz in kv.items():
                     print(f"      – {k:<24} {sz/1e6:.3f} MB")
             print(f"  → TOTAL freed ≈ {total_bytes/1e6:.2f} MB\n")
+
+    def memory_saver_can_slim_trajectories(self) -> bool:
+        """
+        Return True only for runs where post-analysis is known to need compact
+        summaries rather than full trajectory/frame access.
+        """
+        risky_opts = (
+            "plotTrx",
+            "plotThm",
+            "plotThmNorm",
+            "hm",
+            "circleTrx",
+            "showTrackIssues",
+            "turn_eg",
+            "wall_eg",
+            "agarose_eg",
+            "bnd_ct_plots",
+            "btw_rwd_polar",
+            "btw_rwd_conditioned_com",
+            "btw_rwd_conditioned_disttrav",
+            "btw_rwd_com_mag_hist",
+            "btw_rwd_dist_hist",
+            "btw_rwd_hexbin",
+            "reward_return_distance",
+            "return_prob_seg_plots",
+            "btw_rwd_shortest_tail_examples",
+            "first_n_reward_diagnostics",
+            "first_n_reward_sli_comparison",
+            "exit_events_csv",
+            "agarose_dual_circle_debug_csv",
+            "export_wall_contacts_per_sync_bkt_npz",
+            "export_wall_contacts_per_reward_interval_npz",
+        )
+        if any(bool(getattr(self.opts, name, False)) for name in risky_opts):
+            return False
+        return True
+
+    def slim_trajectories_for_memory_saver(self):
+        """
+        Replace full Trajectory instances with tiny summary stubs once all
+        per-VA computations that require raw trajectories are complete.
+        """
+        slimmed = []
+        for trj in self.trx:
+            slim_trj = SlimTrajectory(
+                f=trj.f,
+                opts=trj.opts,
+                _bad=trj.bad(),
+                outside_durations=getattr(trj, "outside_durations", None),
+            )
+            # Preserve lightweight contact-threshold scalars that are read from
+            # va.trx[0] during post-analysis figure annotation.
+            for attr_name, attr_value in vars(trj).items():
+                if (
+                    "_event_" in attr_name
+                    and "_dist_threshold_" in attr_name
+                    and np.isscalar(attr_value)
+                ):
+                    setattr(slim_trj, attr_name, attr_value)
+            slimmed.append(slim_trj)
+        self.trx = slimmed
+
+    def release_nonessential_video_resources(self):
+        """
+        Drop heavyweight raw/video state that is not needed for summary-style
+        post-analysis and CSV/plot aggregation.
+        """
+        if hasattr(self, "cap") and self.cap is not None:
+            try:
+                self.cap.release()
+            except Exception:
+                pass
+            self.cap = None
+
+        for attr in ("frame", "bg", "dt", "trxRw", "olimg"):
+            if hasattr(self, attr):
+                setattr(self, attr, None)
+
+    def apply_memory_saver(self):
+        """
+        Opt-in best-effort memory reduction for large runs.
+        """
+        self.release_nonessential_video_resources()
+        if self.memory_saver_can_slim_trajectories():
+            self.slim_trajectories_for_memory_saver()
+        gc.collect()
 
     # returns whether analysis was skipped
     def skipped(self):

@@ -3363,6 +3363,14 @@ g.add_argument(
     " plotted for the outside-event event analysis (see --outside-circle-radii)",
 )
 g.add_argument(
+    "--memory-saver",
+    action="store_true",
+    help="opt-in memory reduction for large runs: frees raw video/source payloads "
+    "after each VideoAnalysis finishes, and for summary-style runs may replace full "
+    "trajectories with lightweight stubs. Some late-stage image/debug features may "
+    "be skipped or remain incompatible with this mode.",
+)
+g.add_argument(
     "--agarose-dual-circle",
     action="store_true",
     help="analyze dual-circle agarose avoidance metric in large chambers",
@@ -12131,11 +12139,16 @@ def analyze():
         if va0.circle or va0.choice:
             analysisImage(vas)
         if va0.circle:
-            try:
-
-                random.choice(vas).calcRewardsImgs()
-            except VideoError:
-                print('some "rewards images" not written due to video error')
+            if getattr(opts, "memory_saver", False):
+                print(
+                    '[memory_saver] skipping "rewards images" because video handles '
+                    "were released after per-VA analysis"
+                )
+            else:
+                try:
+                    random.choice(vas).calcRewardsImgs()
+                except VideoError:
+                    print('some "rewards images" not written due to video error')
         if opts.hm:
             plotHeatmaps(vas)
         if va0.openLoop:
