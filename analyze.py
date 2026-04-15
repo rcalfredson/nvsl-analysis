@@ -1368,6 +1368,7 @@ g.add_argument(
         "return_leg_dist",
         "return_leg_dist_synth",
         "turnback_ratio_synth",
+        "agarose_avoidance_ratio_synth",
     ),
     default="none",
     help=(
@@ -1385,7 +1386,9 @@ g.add_argument(
         "real between-reward path; 'return_leg_dist_synth' draws a synthetic "
         "explanatory return-leg example; 'turnback_ratio_synth' draws a "
         "synthetic dual-circle turnback-ratio schematic using the current "
-        "turnback radius parameters. "
+        "turnback radius parameters; 'agarose_avoidance_ratio_synth' draws a "
+        "synthetic dual-circle agarose-avoidance schematic using the current "
+        "agarose outer-circle padding. "
         "Default: %(default)s."
     ),
 )

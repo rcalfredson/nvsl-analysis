@@ -2106,6 +2106,86 @@ class EventChainPlotter:
             "px_per_mm": float(px_per_mm),
         }
 
+    def _agarose_schematic_geometry(self):
+        if self.va is None or getattr(self.va, "ct", None) is None:
+            return None
+
+        try:
+            wells = self.va.ct.arenaWells(self.va.xf, self.va.trxf[self.trj.f])
+        except Exception:
+            return None
+        if wells is None or len(wells) != 2:
+            return None
+
+        inner_radius_px, centers = wells
+        try:
+            inner_radius_px = float(inner_radius_px)
+        except Exception:
+            return None
+        if not np.isfinite(inner_radius_px) or inner_radius_px <= 0:
+            return None
+
+        centers = tuple(centers or ())
+        if not centers:
+            return None
+
+        try:
+            cx, cy = (float(v) for v in centers[0])
+        except Exception:
+            return None
+        if not np.isfinite(cx) or not np.isfinite(cy):
+            return None
+
+        try:
+            px_per_mm = float(self.va.ct.pxPerMmFloor()) * float(self.va.xf.fctr)
+        except Exception:
+            return None
+        if not np.isfinite(px_per_mm) or px_per_mm <= 0:
+            return None
+
+        opts = getattr(self.va, "opts", None)
+        outer_delta_mm = float(getattr(opts, "agarose_outer_delta_mm", 0.5) or 0.5)
+        border_width_px = 0.1 * float(px_per_mm)
+        outer_r_px = inner_radius_px + float(outer_delta_mm) * float(px_per_mm)
+        if not np.isfinite(outer_r_px) or outer_r_px <= inner_radius_px:
+            return None
+
+        chamber_center_x = np.nan
+        chamber_center_y = np.nan
+        try:
+            floor_coords = list(
+                self.va.ct.floor(
+                    self.va.xf, f=self.va.nef * (self.trj.f) + self.va.ef
+                )
+            )
+            if len(floor_coords) >= 2:
+                chamber_center_x = 0.5 * (
+                    float(floor_coords[0][0]) + float(floor_coords[1][0])
+                )
+                chamber_center_y = 0.5 * (
+                    float(floor_coords[0][1]) + float(floor_coords[1][1])
+                )
+        except Exception:
+            pass
+
+        return {
+            "cx": cx,
+            "cy": cy,
+            "reward_r_px": float(inner_radius_px),
+            "inner_r_px": float(inner_radius_px),
+            "outer_r_px": float(outer_r_px),
+            "border_width_px": float(max(0.0, border_width_px)),
+            "px_per_mm": float(px_per_mm),
+            "chamber_center_x": float(chamber_center_x),
+            "chamber_center_y": float(chamber_center_y),
+        }
+
+    def _agarose_focus_circle(self):
+        geom = self._agarose_schematic_geometry()
+        if geom is None:
+            return None
+        return (geom["cx"], geom["cy"], geom["reward_r_px"])
+
     @staticmethod
     def _polar_path_to_xy(cx, cy, polar_points):
         return np.asarray(
@@ -2158,6 +2238,39 @@ class EventChainPlotter:
         return {
             "exit_inner_idx": int(exit_inner_idx),
             "reenter_idx": None if reenter_idx is None else int(reenter_idx),
+            "exit_outer_idx": None if exit_outer_idx is None else int(exit_outer_idx),
+        }
+
+    @classmethod
+    def _agarose_path_event_indices(cls, xs, ys, cx, cy, inner_r_px, outer_r_px):
+        xs = np.asarray(xs, dtype=float)
+        ys = np.asarray(ys, dtype=float)
+        if xs.size == 0 or ys.size == 0 or xs.size != ys.size:
+            return None
+
+        d = np.hypot(xs - float(cx), ys - float(cy))
+        in_inner = d <= float(inner_r_px)
+        in_outer = d <= float(outer_r_px)
+
+        enter_outer_idx = cls._first_state_transition(
+            in_outer, start_idx=1, from_state=False, to_state=True
+        )
+        if enter_outer_idx is None:
+            outside_outer = np.flatnonzero(in_outer)
+            if outside_outer.size == 0:
+                return None
+            enter_outer_idx = int(outside_outer[0])
+
+        enter_inner_idx = cls._first_state_transition(
+            in_inner, start_idx=enter_outer_idx + 1, from_state=False, to_state=True
+        )
+        exit_outer_idx = cls._first_state_transition(
+            in_outer, start_idx=enter_outer_idx + 1, from_state=True, to_state=False
+        )
+
+        return {
+            "enter_outer_idx": int(enter_outer_idx),
+            "enter_inner_idx": None if enter_inner_idx is None else int(enter_inner_idx),
             "exit_outer_idx": None if exit_outer_idx is None else int(exit_outer_idx),
         }
 
@@ -2304,21 +2417,157 @@ class EventChainPlotter:
             },
         }
 
-    def _overlay_synthetic_turnback_ratio_schematic(
+    def _synthetic_agarose_avoidance_ratio_paths(self, *, variant=0, rng=None):
+        geom = self._agarose_schematic_geometry()
+        if geom is None:
+            return None
+
+        rng = rng or random.Random(int(variant) + 71)
+        cx = geom["cx"]
+        cy = geom["cy"]
+        inner_r_px = geom["inner_r_px"]
+        outer_r_px = geom["outer_r_px"]
+
+        gap_px = max(outer_r_px - inner_r_px, 1.0)
+        approach_r = max(1.12 * outer_r_px, outer_r_px + rng.uniform(0.18, 0.34) * gap_px)
+        avoid_near_r = inner_r_px + rng.uniform(0.44, 0.62) * gap_px
+        avoid_mid_r = inner_r_px + rng.uniform(0.62, 0.86) * gap_px
+        avoid_turn_r = inner_r_px + rng.uniform(0.54, 0.72) * gap_px
+        avoid_exit_r = max(1.10 * outer_r_px, outer_r_px + rng.uniform(0.16, 0.30) * gap_px)
+        avoid_far_r = max(1.20 * outer_r_px, outer_r_px + rng.uniform(0.32, 0.48) * gap_px)
+        contact_mid_r = inner_r_px + rng.uniform(0.24, 0.52) * gap_px
+        contact_inner_r = rng.uniform(0.54, 0.84) * inner_r_px
+
+        center_dx = float(geom.get("chamber_center_x", np.nan)) - cx
+        center_dy = float(geom.get("chamber_center_y", np.nan)) - cy
+        if np.isfinite(center_dx) and np.isfinite(center_dy) and np.hypot(center_dx, center_dy) > 1e-6:
+            inward_theta = float(np.arctan2(center_dy, center_dx))
+        else:
+            inward_theta = np.pi
+
+        def _jitter(v, span):
+            return float(v + rng.uniform(-float(span), float(span)))
+
+        u_hat = np.asarray([np.cos(inward_theta), np.sin(inward_theta)], dtype=float)
+        v_hat = np.asarray([-u_hat[1], u_hat[0]], dtype=float)
+
+        def _local_path_to_xy(local_points):
+            pts = []
+            for u, v in local_points:
+                xy = np.asarray([cx, cy], dtype=float) + float(u) * u_hat + float(v) * v_hat
+                pts.append(xy)
+            return np.asarray(pts, dtype=float)
+
+        def _c_arc_local_points(
+            *,
+            u_min,
+            u_span,
+            v_scale,
+            v_offset=0.0,
+            t_shift=0.0,
+            t_values=None,
+        ):
+            if t_values is None:
+                t_values = (-1.22, -0.88, -0.52, -0.18, 0.18, 0.54, 0.90, 1.24)
+            pts = []
+            for t_raw in t_values:
+                t = float(t_raw)
+                dt = t - float(t_shift)
+                u = float(u_min) + float(u_span) * (dt * dt)
+                v = float(v_offset) + float(v_scale) * t
+                pts.append((u, v))
+            return pts
+
+        # Build two distinct nested C-like contours on the chamber-center side:
+        # the contact path is the larger inner-left arc, while the avoidance path
+        # stays consistently to its right and turns away before reaching agarose.
+        avoid_local = _c_arc_local_points(
+            u_min=max(inner_r_px + 0.36 * gap_px, avoid_near_r + 0.10 * gap_px),
+            u_span=max(0.18 * outer_r_px, 0.33 * outer_r_px),
+            v_scale=0.72 * outer_r_px,
+            v_offset=0.12 * outer_r_px,
+            t_shift=_jitter(0.02, 0.04),
+            t_values=(-1.02, -0.70, -0.38, -0.06, 0.30, 0.68, 1.02),
+        )
+        contact_local = _c_arc_local_points(
+            u_min=min(0.54 * inner_r_px, contact_inner_r),
+            u_span=max(0.42 * outer_r_px, 0.58 * outer_r_px),
+            v_scale=0.98 * outer_r_px,
+            v_offset=-0.06 * outer_r_px,
+            t_shift=_jitter(-0.06, 0.04),
+            t_values=(-1.26, -0.92, -0.56, -0.20, 0.18, 0.58, 0.98, 1.34),
+        )
+
+        avoid_local = [
+            (u + _jitter(0.0, 0.020 * outer_r_px), v + _jitter(0.0, 0.030 * outer_r_px))
+            for u, v in avoid_local
+        ]
+        contact_local = [
+            (u + _jitter(0.0, 0.022 * outer_r_px), v + _jitter(0.0, 0.034 * outer_r_px))
+            for u, v in contact_local
+        ]
+
+        avoid_xy = self._catmull_rom_chain(
+            _local_path_to_xy(avoid_local), samples_per_seg=26
+        )
+        contact_xy = self._catmull_rom_chain(
+            _local_path_to_xy(contact_local), samples_per_seg=24
+        )
+        if avoid_xy.shape[0] < 2 or contact_xy.shape[0] < 2:
+            return None
+
+        avoid_events = self._agarose_path_event_indices(
+            avoid_xy[:, 0], avoid_xy[:, 1], cx, cy, inner_r_px, outer_r_px
+        )
+        contact_events = self._agarose_path_event_indices(
+            contact_xy[:, 0], contact_xy[:, 1], cx, cy, inner_r_px, outer_r_px
+        )
+        if avoid_events is None or contact_events is None:
+            return None
+
+        avoid_event_idx = avoid_events.get("exit_outer_idx")
+        contact_event_idx = contact_events.get("enter_inner_idx")
+        if avoid_event_idx is None or contact_event_idx is None:
+            return None
+
+        return {
+            "geom": geom,
+            "avoidance": {
+                "x": np.asarray(avoid_xy[:, 0], dtype=float),
+                "y": np.asarray(avoid_xy[:, 1], dtype=float),
+                "start_idx": int(avoid_events["enter_outer_idx"]),
+                "event_idx": int(avoid_event_idx),
+                "event_label": "exit outer",
+                "label": "avoidance",
+                "callout": "avoidance\nexits outer circle",
+                "color": "#1f8a70",
+                "event_color": "#0d5c4f",
+            },
+            "contact": {
+                "x": np.asarray(contact_xy[:, 0], dtype=float),
+                "y": np.asarray(contact_xy[:, 1], dtype=float),
+                "start_idx": int(contact_events["enter_outer_idx"]),
+                "event_idx": int(contact_event_idx),
+                "event_label": "enter inner",
+                "label": "contact",
+                "callout": "contact\nenters agarose well",
+                "color": "#d95f02",
+                "event_color": "#8c3b00",
+            },
+        }
+
+    def _overlay_synthetic_dual_circle_outcome_schematic(
         self,
         ax,
         *,
-        reward_circle,
+        synth,
         top_left,
         bottom_right,
-        rng=None,
-        variant=0,
+        reward_label="Reward circle",
+        inner_label="Inner circle",
+        outer_label="Outer circle",
+        outcome_keys=("success", "failure"),
     ):
-        synth = self._synthetic_turnback_ratio_paths(
-            reward_circle,
-            variant=variant,
-            rng=rng,
-        )
         if synth is None:
             return None
 
@@ -2339,7 +2588,7 @@ class EventChainPlotter:
             edgecolor="#3a7ca5",
             alpha=0.92,
             zorder=4,
-            label="Inner circle",
+            label=inner_label,
         )
         outer_band = patches.Circle(
             (cx, cy),
@@ -2350,7 +2599,7 @@ class EventChainPlotter:
             edgecolor="#6b7280",
             alpha=0.95,
             zorder=3,
-            label="Outer circle",
+            label=outer_label,
         )
         reward_ring = patches.Circle(
             (cx, cy),
@@ -2361,7 +2610,7 @@ class EventChainPlotter:
             edgecolor="#b8b8b8",
             alpha=0.95,
             zorder=2,
-            label="Reward circle",
+            label=reward_label,
         )
         ax.add_patch(reward_ring)
         ax.add_patch(outer_band)
@@ -2376,15 +2625,16 @@ class EventChainPlotter:
             else:
                 ux, uy = dx / norm, dy / norm
 
-            # Push labels clearly outside the outer circle so they read as callouts.
-            radial_pad = max(22.0, 0.28 * outer_r_px)
-            tangential_pad = 0.22 * outer_r_px
+            radial_pad = max(30.0, 0.42 * outer_r_px)
+            tangential_pad = max(18.0, 0.34 * outer_r_px)
+            horizontal_push = max(14.0, 0.18 * outer_r_px)
             side = -1.0 if ux < 0 else 1.0
-            tx = float(x_event) + ux * radial_pad
+            tx = float(x_event) + ux * radial_pad + side * horizontal_push
             ty = float(y_event) + uy * radial_pad + side * tangential_pad
             return self._clamp_point_to_floor(tx, ty, top_left, bottom_right)
 
-        for key in ("success", "failure"):
+        label_specs = []
+        for key in outcome_keys:
             spec = synth[key]
             xs = np.asarray(spec["x"], dtype=float)
             ys = np.asarray(spec["y"], dtype=float)
@@ -2440,49 +2690,115 @@ class EventChainPlotter:
                 zorder=7,
             )
 
-            if event_idx > 0:
-                dx = float(xs[event_idx] - xs[event_idx - 1])
-                dy = float(ys[event_idx] - ys[event_idx - 1])
+            icon_idx = min(
+                len(xs) - 1,
+                event_idx + max(6, int(round(0.18 * max(1, len(xs) - 1)))),
+            )
+            icon_step_px = max(16.0, 0.24 * outer_r_px)
+            if icon_idx > event_idx:
+                icon_x = float(xs[icon_idx])
+                icon_y = float(ys[icon_idx])
             else:
-                dx = float(xs[min(len(xs) - 1, 1)] - xs[0])
-                dy = float(ys[min(len(xs) - 1, 1)] - ys[0])
+                if event_idx < (len(xs) - 1):
+                    dx = float(xs[min(len(xs) - 1, event_idx + 1)] - xs[event_idx])
+                    dy = float(ys[min(len(xs) - 1, event_idx + 1)] - ys[event_idx])
+                elif event_idx > 0:
+                    dx = float(xs[event_idx] - xs[event_idx - 1])
+                    dy = float(ys[event_idx] - ys[event_idx - 1])
+                else:
+                    dx = float(xs[min(len(xs) - 1, 1)] - xs[0])
+                    dy = float(ys[min(len(xs) - 1, 1)] - ys[0])
+                norm = float(np.hypot(dx, dy))
+                if norm <= 1e-6:
+                    dx, dy = 1.0, 0.0
+                    norm = 1.0
+                ux = dx / norm
+                uy = dy / norm
+                icon_x = float(xs[event_idx]) + ux * icon_step_px
+                icon_y = float(ys[event_idx]) + uy * icon_step_px
+                icon_x, icon_y = self._clamp_point_to_floor(
+                    icon_x, icon_y, top_left, bottom_right
+                )
+
+            if len(xs) >= 2:
+                tan_lo = max(0, int(icon_idx) - 1)
+                tan_hi = min(len(xs) - 1, int(icon_idx) + 1)
+                if tan_hi == tan_lo:
+                    if tan_hi < (len(xs) - 1):
+                        tan_hi += 1
+                    elif tan_lo > 0:
+                        tan_lo -= 1
+                dx = float(xs[tan_hi] - xs[tan_lo])
+                dy = float(ys[tan_hi] - ys[tan_lo])
+            else:
+                dx, dy = 1.0, 0.0
+
             if np.hypot(dx, dy) > 1e-6:
                 fly_angle = np.degrees(np.arctan2(dy, dx)) - 90.0
                 self._draw_fly_icon(
                     ax,
-                    float(xs[event_idx]),
-                    float(ys[event_idx]),
+                    icon_x,
+                    icon_y,
                     angle_deg=float(fly_angle),
                 )
 
             label_x = float(xs[event_idx])
             label_y = float(ys[event_idx])
             end_tx, end_ty = _label_anchor_for_event(label_x, label_y)
-            ha = "right" if end_tx < label_x else "left"
+            label_specs.append(
+                {
+                    "color": color,
+                    "label_x": label_x,
+                    "label_y": label_y,
+                    "text_x": float(end_tx),
+                    "text_y": float(end_ty),
+                    "callout": spec["callout"],
+                }
+            )
+
+        min_label_sep = max(16.0, 0.18 * outer_r_px)
+        for idx in range(1, len(label_specs)):
+            prev = label_specs[idx - 1]
+            curr = label_specs[idx]
+            if abs(curr["text_y"] - prev["text_y"]) < min_label_sep:
+                direction = 1.0 if curr["text_y"] >= prev["text_y"] else -1.0
+                if direction == 0.0:
+                    direction = 1.0
+                curr["text_y"] = prev["text_y"] + direction * min_label_sep
+                curr["text_x"] = max(
+                    curr["text_x"],
+                    prev["text_x"] + 0.10 * outer_r_px,
+                )
+                curr["text_x"], curr["text_y"] = self._clamp_point_to_floor(
+                    curr["text_x"], curr["text_y"], top_left, bottom_right
+                )
+
+        for spec in label_specs:
+            ha = "right" if spec["text_x"] < spec["label_x"] else "left"
             ax.text(
-                end_tx,
-                end_ty,
+                spec["text_x"],
+                spec["text_y"],
                 spec["callout"],
                 fontsize=8.5,
-                color=color,
+                color=spec["color"],
                 ha=ha,
                 va="center",
                 zorder=8,
                 bbox=dict(
                     boxstyle="round,pad=0.18",
                     facecolor="white",
-                    edgecolor=color,
+                    edgecolor=spec["color"],
                     linewidth=0.8,
                     alpha=0.82,
                 ),
             )
             ax.annotate(
                 "",
-                xy=(label_x, label_y),
-                xytext=(end_tx, end_ty),
+                xy=(spec["label_x"], spec["label_y"]),
+                xytext=(spec["text_x"], spec["text_y"]),
                 arrowprops=dict(
                     arrowstyle="-",
-                    color=color,
+                    color=spec["color"],
                     lw=0.9,
                     alpha=0.62,
                     shrinkA=4.0,
@@ -2492,6 +2808,56 @@ class EventChainPlotter:
             )
 
         return synth
+
+    def _overlay_synthetic_turnback_ratio_schematic(
+        self,
+        ax,
+        *,
+        reward_circle,
+        top_left,
+        bottom_right,
+        rng=None,
+        variant=0,
+    ):
+        synth = self._synthetic_turnback_ratio_paths(
+            reward_circle,
+            variant=variant,
+            rng=rng,
+        )
+        return self._overlay_synthetic_dual_circle_outcome_schematic(
+            ax,
+            synth=synth,
+            top_left=top_left,
+            bottom_right=bottom_right,
+            reward_label="Reward circle",
+            inner_label="Inner circle",
+            outer_label="Outer circle",
+            outcome_keys=("success", "failure"),
+        )
+
+    def _overlay_synthetic_agarose_avoidance_ratio_schematic(
+        self,
+        ax,
+        *,
+        top_left,
+        bottom_right,
+        rng=None,
+        variant=0,
+    ):
+        synth = self._synthetic_agarose_avoidance_ratio_paths(
+            variant=variant,
+            rng=rng,
+        )
+        return self._overlay_synthetic_dual_circle_outcome_schematic(
+            ax,
+            synth=synth,
+            top_left=top_left,
+            bottom_right=bottom_right,
+            reward_label="Agarose well",
+            inner_label="Inner agarose circle",
+            outer_label="Outer approach circle",
+            outcome_keys=("avoidance", "contact"),
+        )
 
     def _get_bucket_range(
         self, *, trn_index: int, bucket_index: int
@@ -4151,6 +4517,11 @@ class EventChainPlotter:
 
         # --- Prepare arena / floor and overlays shared across subplots ----------
         top_left, bottom_right = floor_coords[0], floor_coords[1]
+        synth_focus_circle = (
+            self._agarose_focus_circle()
+            if metric_key == "agarose_avoidance_ratio_synth"
+            else reward_circle
+        )
 
         contact_buffer_mm = CONTACT_BUFFER_OFFSETS["wall"]["max"]
         contact_buffer_px = (
@@ -4229,7 +4600,7 @@ class EventChainPlotter:
             )
 
             # Reward circle patch (slightly thinner, solid)
-            if reward_circle is not None:
+            if reward_circle is not None and metric_key != "agarose_avoidance_ratio_synth":
                 rcx, rcy, rcr = reward_circle
                 rc_patch = plt.Circle(
                     (rcx, rcy),
@@ -4246,8 +4617,8 @@ class EventChainPlotter:
             ax.set_aspect("equal", adjustable="box")
             ax.axis("off")
 
-            if zoom and reward_circle is not None and px_per_mm is not None:
-                rcx, rcy, rcr = reward_circle
+            if zoom and synth_focus_circle is not None and px_per_mm is not None:
+                rcx, rcy, rcr = synth_focus_circle
 
                 if zoom_radius_mm is not None:
                     win_rad_px = float(zoom_radius_mm) * float(px_per_mm)
@@ -4353,6 +4724,15 @@ class EventChainPlotter:
                 self._overlay_synthetic_turnback_ratio_schematic(
                     ax,
                     reward_circle=reward_circle,
+                    top_left=top_left,
+                    bottom_right=bottom_right,
+                    rng=synth_rng,
+                    variant=idx,
+                )
+            elif metric_key == "agarose_avoidance_ratio_synth":
+                synth_rng = random.Random(synth_master_rng.random() + idx)
+                self._overlay_synthetic_agarose_avoidance_ratio_schematic(
+                    ax,
                     top_left=top_left,
                     bottom_right=bottom_right,
                     rng=synth_rng,
@@ -4471,7 +4851,11 @@ class EventChainPlotter:
                             else (
                                 "\nmetric schematic: synthetic turnback-ratio example"
                                 if metric_key == "turnback_ratio_synth"
-                                else ""
+                                else (
+                                    "\nmetric schematic: synthetic agarose-avoidance example"
+                                    if metric_key == "agarose_avoidance_ratio_synth"
+                                    else ""
+                                )
                             )
                         )
                     )
@@ -4480,7 +4864,12 @@ class EventChainPlotter:
             title_line = (
                 f"seg {idx + 1}: synthetic example\nsymbolic trajectory"
                 if metric_key
-                in ("maxdist_synth", "return_leg_dist_synth", "turnback_ratio_synth")
+                in (
+                    "maxdist_synth",
+                    "return_leg_dist_synth",
+                    "turnback_ratio_synth",
+                    "agarose_avoidance_ratio_synth",
+                )
                 else (
                     f"seg {idx + 1}: frames {start_frame}-{end_frame}\n"
                     f"rewards {start_reward}->{end_reward}{dist_line}"
@@ -4527,7 +4916,12 @@ class EventChainPlotter:
             (
                 "Between-reward schematic examples\n"
                 if str(schematic_metric or "").lower()
-                in ("maxdist_synth", "return_leg_dist_synth", "turnback_ratio_synth")
+                in (
+                    "maxdist_synth",
+                    "return_leg_dist_synth",
+                    "turnback_ratio_synth",
+                    "agarose_avoidance_ratio_synth",
+                )
                 else "Between-reward trajectories\n"
             )
             + f"{video_id}, fly {fly_idx}, {fly_role}\n"
@@ -4541,7 +4935,12 @@ class EventChainPlotter:
                         f"trn {trn_index + 1}, bucket {bucket_index + 1} | synthetic turnback-ratio example"
                         if str(schematic_metric or "").lower()
                         == "turnback_ratio_synth"
-                        else f"trn {trn_index + 1}, bucket {bucket_index + 1}"
+                        else (
+                            f"trn {trn_index + 1}, bucket {bucket_index + 1} | synthetic agarose-avoidance example"
+                            if str(schematic_metric or "").lower()
+                            == "agarose_avoidance_ratio_synth"
+                            else f"trn {trn_index + 1}, bucket {bucket_index + 1}"
+                        )
                     )
                 )
             )
