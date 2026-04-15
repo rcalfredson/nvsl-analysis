@@ -72,7 +72,12 @@ def main():
         action="store_true",
         help="Use just 'Top/Bottom XX%%' as labels instead of appending to group names.",
     )
-    p.add_argument("--image-format", dest="image_format", default="png")
+    p.add_argument(
+        "--image-format",
+        "--imgFormat",
+        dest="image_format",
+        default="png",
+    )
     p.add_argument("--fs", dest="font_size", type=float, default=None)
     p.add_argument("--fontFamily", dest="font_family", type=str, default=None)
     args = p.parse_args()
