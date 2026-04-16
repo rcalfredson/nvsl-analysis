@@ -511,10 +511,14 @@ class TurnProbabilityByDistancePlotter:
                 if self.opts.contact_geometry == "circular"
                 else "chamber"
             )
-            ax.set_xlabel(
-                f"Distance from {dist_ref_pt} center (mm)",
+            xlabel = getattr(self.opts, "turn_prob_dist_xlabel", None) or (
+                f"Distance from {dist_ref_pt} center (mm)"
             )
-            ax.set_ylabel("Turn probability")
+            ylabel = getattr(self.opts, "turn_prob_dist_ylabel", None) or "Turn probability"
+            ax.set_xlabel(
+                xlabel,
+            )
+            ax.set_ylabel(ylabel)
             ax.grid(False)
             ax.set_ylim(bottom=0)
 

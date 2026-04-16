@@ -3372,6 +3372,18 @@ g.add_argument(
     " monotonically increasing values.",
 )
 g.add_argument(
+    "--turn-prob-dist-xlabel",
+    type=str,
+    default=None,
+    help="Optional x-axis label override for turn-probability-by-distance plots.",
+)
+g.add_argument(
+    "--turn-prob-dist-ylabel",
+    type=str,
+    default=None,
+    help="Optional y-axis label override for turn-probability-by-distance plots.",
+)
+g.add_argument(
     "--use-union-filter",
     dest="use_union_filter",
     action="store_true",
