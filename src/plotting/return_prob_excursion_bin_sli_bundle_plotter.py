@@ -180,6 +180,8 @@ def plot_return_prob_excursion_bin_sli_bundles(
     sli_bottom_fraction=None,
     standalone_extreme_labels: bool = False,
     title: str | None = None,
+    xlabel: str | None = None,
+    ylabel: str | None = None,
     ymax: float | None = None,
     stats: bool = False,
     stats_alpha: float = 0.05,
@@ -226,11 +228,12 @@ def plot_return_prob_excursion_bin_sli_bundles(
     if not exported:
         raise ValueError("No non-empty plotted groups after SLI filtering.")
 
-    ylabel = exported[0].meta.get("y_label", "Return probability")
+    xlabel = xlabel or "Radial-delta bin from reward circle (mm)"
+    ylabel = ylabel or exported[0].meta.get("y_label", "Return probability")
     fig = plot_overlays(
         exported,
         title=title,
-        xlabel="Radial-delta bin from reward circle (mm)",
+        xlabel=xlabel,
         ylabel=ylabel,
         ymax=ymax,
         stats=bool(stats),

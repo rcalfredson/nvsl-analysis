@@ -72,6 +72,8 @@ def main():
         action="store_true",
         help="Use just 'Top/Bottom XX%%' as labels instead of appending to group names.",
     )
+    p.add_argument("--xlabel", default=None, help="Optional x-axis label override.")
+    p.add_argument("--ylabel", default=None, help="Optional y-axis label override.")
     p.add_argument(
         "--image-format",
         "--imgFormat",
@@ -122,6 +124,8 @@ def main():
         sli_bottom_fraction=bottom_frac,
         standalone_extreme_labels=args.standalone_extreme_labels,
         title=args.title,
+        xlabel=args.xlabel,
+        ylabel=args.ylabel,
         ymax=args.ymax,
         stats=args.stats,
         stats_alpha=args.stats_alpha,
