@@ -2694,6 +2694,18 @@ g.add_argument(
     help="Optional fixed y-axis max for distance-traveled plots.",
 )
 g.add_argument(
+    "--btw-rwd-conditioned-disttrav-xlabel",
+    type=str,
+    default=None,
+    help="Optional x-axis label override for between-reward conditioned distance-traveled plots.",
+)
+g.add_argument(
+    "--btw-rwd-conditioned-disttrav-ylabel",
+    type=str,
+    default=None,
+    help="Optional y-axis label override for between-reward conditioned distance-traveled plots.",
+)
+g.add_argument(
     "--btw-rwd-conditioned-disttrav-show-swarm",
     action="store_true",
     help=(

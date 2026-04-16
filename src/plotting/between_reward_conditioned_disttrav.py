@@ -1264,6 +1264,12 @@ class BetweenRewardConditionedDistTravPlotter:
         show_swarm = bool(
             getattr(self.opts, "btw_rwd_conditioned_disttrav_show_swarm", False)
         )
+        xlabel_override = getattr(
+            self.opts, "btw_rwd_conditioned_disttrav_xlabel", None
+        )
+        ylabel_override = getattr(
+            self.opts, "btw_rwd_conditioned_disttrav_ylabel", None
+        )
 
         def _plot_one(*, y, lo, hi, title, ylabel, out_file, per_unit) -> None:
             fig, ax = plt.subplots(1, 1, figsize=(6.8, 4.2))
@@ -1324,9 +1330,14 @@ class BetweenRewardConditionedDistTravPlotter:
                     )
 
                 ax.set_xlabel(
-                    maybe_sentence_case("max distance from reward center [mm] (binned)")
+                    maybe_sentence_case(
+                        str(
+                            xlabel_override
+                            or "max distance from reward center [mm] (binned)"
+                        )
+                    )
                 )
-                ax.set_ylabel(maybe_sentence_case(ylabel))
+                ax.set_ylabel(maybe_sentence_case(str(ylabel_override or ylabel)))
 
                 if edges.size >= 2 and np.all(np.isfinite(edges[[0, -1]])):
                     ax.set_xlim(float(edges[0]), float(edges[-1]))
@@ -1472,6 +1483,8 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
     x = np.asarray(ref.x_centers, dtype=float)
     edges = np.asarray(ref.x_edges, dtype=float)
     widths = edges[1:] - edges[:-1]
+    xlabel_override = getattr(opts, "btw_rwd_conditioned_disttrav_xlabel", None)
+    ylabel_override = getattr(opts, "btw_rwd_conditioned_disttrav_ylabel", None)
 
     # Validate x_edges match across results
     for r, lab in zip(results, labels):
@@ -1671,9 +1684,14 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
             ax.text(0.5, 0.5, "no data", ha="center", va="center")
         else:
             ax.set_xlabel(
-                maybe_sentence_case("max distance from reward center [mm] (binned)")
+                maybe_sentence_case(
+                    str(
+                        xlabel_override
+                        or "max distance from reward center [mm] (binned)"
+                    )
+                )
             )
-            ax.set_ylabel(maybe_sentence_case(ylabel))
+            ax.set_ylabel(maybe_sentence_case(str(ylabel_override or ylabel)))
 
             ax.set_xlim(*xlim)
             ax.set_xticks(centers_x)
