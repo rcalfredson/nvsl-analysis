@@ -37,6 +37,8 @@ class FirstNRewardDiagnosticsConfig:
     x_by: str = "first_n_reward_span_s"
     y_by: str = "sli"
     color_by: str = "control_circle_entry_count_by_cutoff"
+    xlabel: str | None = None
+    ylabel: str | None = None
     label_low_sli_outliers: int = 0
     reward_event_type: str = "actual"
 
@@ -509,8 +511,8 @@ class FirstNRewardDiagnosticsPlotter:
                     fontsize=9,
                     bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.8},
                 )
-                ax.set_xlabel(self._metric_label(x_key))
-                ax.set_ylabel(self._metric_label(y_key))
+                ax.set_xlabel(str(self.cfg.xlabel or self._metric_label(x_key)))
+                ax.set_ylabel(str(self.cfg.ylabel or self._metric_label(y_key)))
                 ax.grid(True, alpha=0.2)
 
         title = (

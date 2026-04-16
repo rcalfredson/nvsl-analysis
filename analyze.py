@@ -1089,6 +1089,18 @@ g.add_argument(
     help="Output image path for the first-n reward diagnostics scatter plot.",
 )
 g.add_argument(
+    "--first-n-reward-diagnostics-xlabel",
+    type=str,
+    default=None,
+    help="Optional x-axis label override for the first-n reward diagnostics scatter plot.",
+)
+g.add_argument(
+    "--first-n-reward-diagnostics-ylabel",
+    type=str,
+    default=None,
+    help="Optional y-axis label override for the first-n reward diagnostics scatter plot.",
+)
+g.add_argument(
     "--first-n-reward-diagnostics-pi-threshold",
     type=int,
     default=10,
@@ -9924,6 +9936,8 @@ def postAnalyze(vas):
                 )
                 or "control_circle_entry_count_by_cutoff"
             ),
+            xlabel=getattr(opts, "first_n_reward_diagnostics_xlabel", None),
+            ylabel=getattr(opts, "first_n_reward_diagnostics_ylabel", None),
             label_low_sli_outliers=int(
                 getattr(
                     opts,
