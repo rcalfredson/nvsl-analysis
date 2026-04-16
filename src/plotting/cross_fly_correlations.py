@@ -1595,6 +1595,26 @@ def plot_cross_fly_correlations(
 
     x_label_sli = sli_ctx.label_short(abbrev_sb=False)
     y_label_sli = sli_ctx.label_short(abbrev_sb=True)
+    corr_sli_vs_rpt_xlabel_override = getattr(opts, "corr_sli_vs_rpt_xlabel", None)
+    corr_sli_vs_rpt_ylabel_override = getattr(opts, "corr_sli_vs_rpt_ylabel", None)
+    corr_pre_reward_pi_vs_sli_xlabel_override = getattr(
+        opts, "corr_pre_reward_pi_vs_sli_xlabel", None
+    )
+    corr_pre_reward_pi_vs_sli_ylabel_override = getattr(
+        opts, "corr_pre_reward_pi_vs_sli_ylabel", None
+    )
+    corr_pre_floor_exploration_vs_sli_xlabel_override = getattr(
+        opts, "corr_pre_floor_exploration_vs_sli_xlabel", None
+    )
+    corr_pre_floor_exploration_vs_sli_ylabel_override = getattr(
+        opts, "corr_pre_floor_exploration_vs_sli_ylabel", None
+    )
+    corr_fast_vs_strong_xlabel_override = getattr(
+        opts, "corr_fast_vs_strong_xlabel", None
+    )
+    corr_fast_vs_strong_ylabel_override = getattr(
+        opts, "corr_fast_vs_strong_ylabel", None
+    )
 
     skip_k = int(getattr(sli_ctx, "skip_first_sync_buckets", 0) or 0)
     skip_k = max(0, skip_k)
@@ -1867,8 +1887,8 @@ def plot_cross_fly_correlations(
         x=rpt_vals,
         y=sli_vals,
         title="SLI vs rewards per minute",
-        x_label=rpt_y_label,
-        y_label=y_label_sli,
+        x_label=str(corr_sli_vs_rpt_xlabel_override or rpt_y_label),
+        y_label=str(corr_sli_vs_rpt_ylabel_override or y_label_sli),
         cfg=cfg,
         filename=f"corr_sli_vs_rpt_{rpt_suffix}",
         customizer=customizer,
@@ -1891,8 +1911,8 @@ def plot_cross_fly_correlations(
             top_idx=selected_top_idx,
             mode=selected_mode,
             title=title_1b_sel,
-            x_label=rpt_y_label,
-            y_label=y_label_sli,
+            x_label=str(corr_sli_vs_rpt_xlabel_override or rpt_y_label),
+            y_label=str(corr_sli_vs_rpt_ylabel_override or y_label_sli),
             filename=filename_1b_sel,
             out_dir=out_dir,
             customizer=customizer,
@@ -1922,8 +1942,11 @@ def plot_cross_fly_correlations(
         x=pre_pi_diff_vals,
         y=sli_vals,
         title="Baseline PI vs SLI",
-        x_label="Baseline PI\n(exp − yok, pre-training)",
-        y_label=y_label_sli,
+        x_label=str(
+            corr_pre_reward_pi_vs_sli_xlabel_override
+            or "Baseline PI\n(exp − yok, pre-training)"
+        ),
+        y_label=str(corr_pre_reward_pi_vs_sli_ylabel_override or y_label_sli),
         cfg=cfg,
         filename="corr_pre_reward_pi_vs_sli",
         customizer=customizer,
@@ -1935,8 +1958,13 @@ def plot_cross_fly_correlations(
             x=pre_coverage_vals,
             y=reward_pi_training_vals,
             title="Pre-training exploration vs early SLI",
-            x_label="Fraction of floor explored during pre-training\n(exp fly)",
-            y_label=early_lbl,
+            x_label=str(
+                corr_pre_floor_exploration_vs_sli_xlabel_override
+                or "Fraction of floor explored during pre-training\n(exp fly)"
+            ),
+            y_label=str(
+                corr_pre_floor_exploration_vs_sli_ylabel_override or early_lbl
+            ),
             cfg=cfg,
             filename="corr_pre_floor_exploration_vs_sli_T1_first",
             customizer=customizer,
@@ -1967,8 +1995,13 @@ def plot_cross_fly_correlations(
                 top_idx=selected_top_idx,
                 mode=selected_mode,
                 title=title_3b_sel,
-                x_label="Fraction of floor explored during pre-training\n(exp fly)",
-                y_label=early_lbl,
+                x_label=str(
+                    corr_pre_floor_exploration_vs_sli_xlabel_override
+                    or "Fraction of floor explored during pre-training\n(exp fly)"
+                ),
+                y_label=str(
+                    corr_pre_floor_exploration_vs_sli_ylabel_override or early_lbl
+                ),
                 filename=filename_3b_sel,
                 out_dir=out_dir,
                 customizer=customizer,
@@ -1989,8 +2022,11 @@ def plot_cross_fly_correlations(
         x=pre_coverage_vals,
         y=sli_vals,
         title="Pre-training exploration vs SLI",
-        x_label="Fraction of floor explored during pre-training\n(exp fly)",
-        y_label=y_label_sli,
+        x_label=str(
+            corr_pre_floor_exploration_vs_sli_xlabel_override
+            or "Fraction of floor explored during pre-training\n(exp fly)"
+        ),
+        y_label=str(corr_pre_floor_exploration_vs_sli_ylabel_override or y_label_sli),
         cfg=cfg,
         filename="corr_pre_floor_exploration_vs_sli_final",
         customizer=customizer,
@@ -2020,8 +2056,13 @@ def plot_cross_fly_correlations(
             top_idx=selected_top_idx,
             mode=selected_mode,
             title=title_3c_sel,
-            x_label="Fraction of floor explored during pre-training\n(exp fly)",
-            y_label=y_label_sli,
+            x_label=str(
+                corr_pre_floor_exploration_vs_sli_xlabel_override
+                or "Fraction of floor explored during pre-training\n(exp fly)"
+            ),
+            y_label=str(
+                corr_pre_floor_exploration_vs_sli_ylabel_override or y_label_sli
+            ),
             filename=filename_3c_sel,
             out_dir=out_dir,
             customizer=customizer,
@@ -2160,8 +2201,8 @@ def plot_cross_fly_correlations(
             out_dir=out_dir,
             frac=frac,
             customizer=customizer,
-            strong_y_label=x_label_sli,
+            strong_y_label=str(corr_fast_vs_strong_ylabel_override or x_label_sli),
             strong_title_suffix=sli_ctx.label_short(),
-            x_label=t1_sb1_lbl,
+            x_label=str(corr_fast_vs_strong_xlabel_override or t1_sb1_lbl),
             image_format=cfg.image_format,
         )

@@ -617,6 +617,54 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--corr-sli-vs-rpt-xlabel",
+    type=str,
+    default=None,
+    help="Optional x-axis label override for the 'SLI vs rewards per minute' correlation plot family.",
+)
+g.add_argument(
+    "--corr-sli-vs-rpt-ylabel",
+    type=str,
+    default=None,
+    help="Optional y-axis label override for the 'SLI vs rewards per minute' correlation plot family.",
+)
+g.add_argument(
+    "--corr-pre-reward-pi-vs-sli-xlabel",
+    type=str,
+    default=None,
+    help="Optional x-axis label override for the 'Baseline PI vs SLI' correlation plot family.",
+)
+g.add_argument(
+    "--corr-pre-reward-pi-vs-sli-ylabel",
+    type=str,
+    default=None,
+    help="Optional y-axis label override for the 'Baseline PI vs SLI' correlation plot family.",
+)
+g.add_argument(
+    "--corr-pre-floor-exploration-vs-sli-xlabel",
+    type=str,
+    default=None,
+    help="Optional x-axis label override for the 'Pre-training exploration vs SLI' correlation plot family.",
+)
+g.add_argument(
+    "--corr-pre-floor-exploration-vs-sli-ylabel",
+    type=str,
+    default=None,
+    help="Optional y-axis label override for the 'Pre-training exploration vs SLI' correlation plot family.",
+)
+g.add_argument(
+    "--corr-fast-vs-strong-xlabel",
+    type=str,
+    default=None,
+    help="Optional x-axis label override for the fast-vs-strong learner scatter plot.",
+)
+g.add_argument(
+    "--corr-fast-vs-strong-ylabel",
+    type=str,
+    default=None,
+    help="Optional y-axis label override for the fast-vs-strong learner scatter plot.",
+)
+g.add_argument(
     "--corr-reward-rate-trn",
     type=int,
     default=None,
