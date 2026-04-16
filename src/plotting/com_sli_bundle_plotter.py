@@ -283,6 +283,8 @@ def plot_com_sli_bundles(
     turnback_mode="exp",  # exp | ctrl | exp_minus_ctrl
     delta_vs_path=None,  # baseline bundle path; if set, plot (bundle - baseline)
     delta_label=None,  # label prefix in delta mode
+    xlabel=None,
+    ylabel=None,
     delta_ylabel=None,
     ymax=None,
     delta_allow_unpaired=False,
@@ -1146,14 +1148,12 @@ def plot_com_sli_bundles(
                 lbls[bj].append(txt)
 
         plt.title(maybe_sentence_case(title))
-        if panel_has_pre:
-            plt.xlabel(
-                maybe_sentence_case(
-                    f"pre, then end points [min] of {blf} min sync buckets"
-                )
-            )
-        else:
-            plt.xlabel(maybe_sentence_case(f"end points [min] of {blf} min sync buckets"))
+        default_xlabel = (
+            f"pre, then end points [min] of {blf} min sync buckets"
+            if panel_has_pre
+            else f"end points [min] of {blf} min sync buckets"
+        )
+        plt.xlabel(maybe_sentence_case(str(xlabel or default_xlabel)))
 
         if metric == "commag":
             y_label = "COM dist. to circle center [mm]"
@@ -1224,6 +1224,8 @@ def plot_com_sli_bundles(
                 y_label = str(delta_ylabel)
             else:
                 y_label = f"Δ {y_label}"
+        if ylabel:
+            y_label = str(ylabel)
         if ti == 0:
             plt.ylabel(maybe_sentence_case(y_label))
         if base_bundle is not None:

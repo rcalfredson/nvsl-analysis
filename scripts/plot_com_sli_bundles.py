@@ -56,6 +56,8 @@ def main():
             "Example: 'Δ(Δ turnback ratio)' or 'Contrast shift in turnback ratio'."
         ),
     )
+    p.add_argument("--xlabel", default=None, help="Optional x-axis label override.")
+    p.add_argument("--ylabel", default=None, help="Optional y-axis label override.")
     p.add_argument(
         "--ymax",
         type=float,
@@ -200,6 +202,8 @@ def main():
         turnback_mode=args.turnback_mode,
         delta_vs_path=args.delta_vs,
         delta_label=delta_label,
+        xlabel=args.xlabel,
+        ylabel=args.ylabel,
         delta_ylabel=args.delta_ylabel,
         ymax=args.ymax,
         delta_allow_unpaired=args.delta_allow_unpaired,
