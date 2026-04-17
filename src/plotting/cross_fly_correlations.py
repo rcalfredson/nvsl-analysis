@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import logging
 import os
 from pathlib import Path
@@ -12,7 +12,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
 
-from src.plotting.palettes import MUTED_CATEGORICAL, NEUTRAL_LIGHT, NEUTRAL_MID
+from src.plotting.palettes import (
+    MUTED_CATEGORICAL,
+    NEUTRAL_LIGHT,
+    NEUTRAL_MID,
+    correlation_plot_color,
+)
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.reward_window_utils import (
     cumulative_window_seconds_for_frame,
@@ -79,6 +84,13 @@ class CorrelationPlotConfig:
 def _correlation_out_path(out_dir: Path, filename: str, image_format: str) -> Path:
     ext = image_format or "png"
     return out_dir / f"{filename}.{ext}"
+
+
+def _cfg_with_plot_color(cfg: CorrelationPlotConfig, plot_key: str) -> CorrelationPlotConfig:
+    return replace(
+        cfg,
+        dot_color=correlation_plot_color(plot_key, fallback=cfg.dot_color),
+    )
 
 
 @dataclass(frozen=True)
@@ -703,9 +715,9 @@ def plot_selected_group_scatter(
     top_label: str = "Top SLI-selected",
     bottom_label: str = "Bottom SLI-selected",
     other_label: str = "Other",
-    top_color: str = MUTED_CATEGORICAL[0],
-    bottom_color: str = MUTED_CATEGORICAL[3],
-    other_color: str = NEUTRAL_MID,
+    top_color: str = correlation_plot_color("selected_top"),
+    bottom_color: str = correlation_plot_color("selected_bottom"),
+    other_color: str = correlation_plot_color("selected_other", fallback=NEUTRAL_MID),
     alpha: float = 0.85,
     figsize: tuple = (5.5, 4.5),
     xlim: tuple[float, float] | None = None,
@@ -1278,10 +1290,10 @@ def plot_fast_vs_strong_scatter(
 
     # Colors (simple, can be refined)
     color_map = {
-        "overlap": MUTED_CATEGORICAL[4],
-        "fast": MUTED_CATEGORICAL[0],
-        "strong": MUTED_CATEGORICAL[2],
-        "other": NEUTRAL_MID,
+        "overlap": correlation_plot_color("fast_vs_strong_overlap"),
+        "fast": correlation_plot_color("fast_vs_strong_fast"),
+        "strong": correlation_plot_color("fast_vs_strong_strong"),
+        "other": correlation_plot_color("fast_vs_strong_other", fallback=NEUTRAL_MID),
     }
 
     point_colors = [color_map[c] for c in classes]
@@ -1415,9 +1427,9 @@ def plot_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow(
     slow_set = set(np.asarray(slow_idx, dtype=int).tolist())
 
     color_map = {
-        "fast": MUTED_CATEGORICAL[0],
-        "slow": MUTED_CATEGORICAL[3],
-        "other": NEUTRAL_LIGHT,
+        "fast": correlation_plot_color("selected_top"),
+        "slow": correlation_plot_color("selected_bottom"),
+        "other": correlation_plot_color("selected_other", fallback=NEUTRAL_LIGHT),
     }
 
     classes = []
@@ -1846,7 +1858,7 @@ def plot_cross_fly_correlations(
         title="Rewards per distance vs SLI",
         x_label=x_label_sli,
         y_label=rpd_y_label,
-        cfg=cfg,
+        cfg=_cfg_with_plot_color(cfg, "rewards_per_distance_vs_sli"),
         filename=f"corr_rpd_vs_sli_{rpd_suffix}",
         customizer=customizer,
     )
@@ -1889,7 +1901,7 @@ def plot_cross_fly_correlations(
         title="SLI vs rewards per minute",
         x_label=str(corr_sli_vs_rpt_xlabel_override or rpt_y_label),
         y_label=str(corr_sli_vs_rpt_ylabel_override or y_label_sli),
-        cfg=cfg,
+        cfg=_cfg_with_plot_color(cfg, "rewards_per_minute_vs_sli"),
         filename=f"corr_sli_vs_rpt_{rpt_suffix}",
         customizer=customizer,
     )
@@ -1932,7 +1944,7 @@ def plot_cross_fly_correlations(
         title="SLI vs median distance to reward",
         x_label=x_label_sli,
         y_label="Median distance during training (mm)",
-        cfg=cfg,
+        cfg=_cfg_with_plot_color(cfg, "median_distance_vs_sli"),
         filename="corr_sli_vs_median_training",
         customizer=customizer,
     )
@@ -1947,7 +1959,7 @@ def plot_cross_fly_correlations(
             or "Baseline PI\n(exp − yok, pre-training)"
         ),
         y_label=str(corr_pre_reward_pi_vs_sli_ylabel_override or y_label_sli),
-        cfg=cfg,
+        cfg=_cfg_with_plot_color(cfg, "baseline_pi_vs_sli"),
         filename="corr_pre_reward_pi_vs_sli",
         customizer=customizer,
     )
@@ -1965,7 +1977,7 @@ def plot_cross_fly_correlations(
             y_label=str(
                 corr_pre_floor_exploration_vs_sli_ylabel_override or early_lbl
             ),
-            cfg=cfg,
+            cfg=_cfg_with_plot_color(cfg, "pre_training_exploration_vs_sli"),
             filename="corr_pre_floor_exploration_vs_sli_T1_first",
             customizer=customizer,
         )
@@ -2027,7 +2039,7 @@ def plot_cross_fly_correlations(
             or "Fraction of floor explored during pre-training\n(exp fly)"
         ),
         y_label=str(corr_pre_floor_exploration_vs_sli_ylabel_override or y_label_sli),
-        cfg=cfg,
+        cfg=_cfg_with_plot_color(cfg, "pre_training_exploration_vs_sli"),
         filename="corr_pre_floor_exploration_vs_sli_final",
         customizer=customizer,
     )
@@ -2081,7 +2093,7 @@ def plot_cross_fly_correlations(
             title="Early SLI vs total rewards",
             x_label=early_lbl,
             y_label=f"Total rewards\n(exp, T1, {early_sb_txt})",
-            cfg=cfg,
+            cfg=_cfg_with_plot_color(cfg, "early_sli_vs_total_rewards"),
             filename="corr_reward_pi_first_bucket_vs_total_rewards",
             customizer=customizer,
         )
@@ -2093,7 +2105,7 @@ def plot_cross_fly_correlations(
             title="Baseline PI vs early SLI",
             x_label="Baseline PI\n(exp - yok, pre-training)",
             y_label=early_lbl.replace("SLI", "SLI\n"),
-            cfg=cfg,
+            cfg=_cfg_with_plot_color(cfg, "baseline_pi_vs_sli"),
             filename="corr_pre_reward_pi_vs_T1_first_bucket_reward_pi_all",
             customizer=customizer,
         )
@@ -2113,7 +2125,7 @@ def plot_cross_fly_correlations(
                     title="Baseline PI vs early SLI (fast learners)",
                     x_label="Baseline PI\n(exp - yok, pre-training)",
                     y_label=early_lbl.replace("SLI", "SLI\n"),
-                    cfg=cfg,
+                    cfg=_cfg_with_plot_color(cfg, "baseline_pi_vs_sli"),
                     filename="corr_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast",
                     customizer=customizer,
                 )

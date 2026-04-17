@@ -73,6 +73,70 @@ METRIC_PALETTES = {
 }
 
 
+# Correlation-plot palette built from the Okabe-Ito family plus two deep
+# accents. This lets us keep a stable semantic color per plot type.
+CORRELATION_PLOT_COLORS = {
+    "rewards_per_distance_vs_sli": "#0072B2",
+    "rewards_per_minute_vs_sli": "#D55E00",
+    "median_distance_vs_sli": "#009E73",
+    "baseline_pi_vs_sli": "#E69F00",
+    "pre_training_exploration_vs_sli": "#56B4E9",
+    "early_sli_vs_total_rewards": "#882255",
+    "first_n_reward_timing_vs_sli": "#CC79A7",
+    "fast_vs_strong_fast": "#332288",
+    "fast_vs_strong_strong": "#009E73",
+    "fast_vs_strong_overlap": "#CC79A7",
+    "fast_vs_strong_other": "#999999",
+    "selected_top": "#332288",
+    "selected_bottom": "#882255",
+    "selected_other": "#999999",
+    "unused_bright_yellow": "#F0E442",
+    "unused_slate_grey": "#999999",
+}
+
+
+_CORRELATION_METRIC_FAMILIES = {
+    "sli": "sli",
+    "first_n_reward_span_s": "first_n_reward_timing",
+    "first_n_selected_reward_span_s": "first_n_reward_timing",
+    "time_to_nth_actual_reward_s": "first_n_reward_timing",
+    "time_to_nth_selected_reward_s": "first_n_reward_timing",
+    "cutoff_time_since_selected_window_start_s": "first_n_reward_timing",
+    "cutoff_time_since_cutoff_training_start_s": "first_n_reward_timing",
+    "selected_reward_rate_to_nth_per_min": "rewards_per_minute",
+    "actual_reward_count_by_cutoff": "total_rewards",
+    "control_reward_count_by_cutoff": "total_rewards",
+}
+
+
+def correlation_plot_color(
+    plot_key: str, fallback: str | None = None
+) -> str:
+    if fallback is None:
+        fallback = MUTED_CATEGORICAL[0]
+    return CORRELATION_PLOT_COLORS.get(str(plot_key), fallback)
+
+
+def correlation_plot_color_for_metrics(
+    x_metric: str | None, y_metric: str | None, fallback: str | None = None
+) -> str:
+    if fallback is None:
+        fallback = MUTED_CATEGORICAL[0]
+
+    x_family = _CORRELATION_METRIC_FAMILIES.get(str(x_metric or ""), str(x_metric or ""))
+    y_family = _CORRELATION_METRIC_FAMILIES.get(str(y_metric or ""), str(y_metric or ""))
+    family_pair = frozenset((x_family, y_family))
+
+    if family_pair == frozenset(("sli", "first_n_reward_timing")):
+        return correlation_plot_color("first_n_reward_timing_vs_sli", fallback)
+    if family_pair == frozenset(("sli", "rewards_per_minute")):
+        return correlation_plot_color("rewards_per_minute_vs_sli", fallback)
+    if family_pair == frozenset(("sli", "total_rewards")):
+        return correlation_plot_color("early_sli_vs_total_rewards", fallback)
+
+    return fallback
+
+
 def paired_slice(start, end, reverse=True):
     colors = PAIRED[start:end]
     return list(reversed(colors)) if reverse else colors

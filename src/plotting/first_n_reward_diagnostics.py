@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import pearsonr
 
+from src.plotting.palettes import correlation_plot_color_for_metrics
 from src.plotting.between_reward_segment_binning import video_base
 from src.plotting.reward_window_utils import (
     cumulative_window_seconds_for_frame,
@@ -495,6 +496,7 @@ class FirstNRewardDiagnosticsPlotter:
                 ax.text(0.5, 0.5, "no finite plot values", ha="center", va="center")
                 ax.set_axis_off()
             else:
+                plain_scatter_color = correlation_plot_color_for_metrics(x_key, y_key)
                 if color_key is not None:
                     c_all = np.asarray(
                         [getattr(row, color_key, np.nan) for row in eligible_rows],
@@ -511,7 +513,10 @@ class FirstNRewardDiagnosticsPlotter:
                     cb = fig.colorbar(sc, ax=ax)
                     cb.set_label(self._metric_label(color_key))
                 else:
-                    ax.scatter(x, y, s=34, alpha=0.9)
+                    scatter_kwargs = {"s": 34, "alpha": 0.9}
+                    if color_key is None:
+                        scatter_kwargs["color"] = plain_scatter_color
+                    ax.scatter(x, y, **scatter_kwargs)
 
                 self._label_outliers(ax, plot_rows, x, y)
                 ax.text(
