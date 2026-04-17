@@ -358,6 +358,27 @@ def _parse_axis_limits_arg(
     return (lo, hi)
 
 
+def _parse_optional_choice(
+    s: str | None,
+    *,
+    allowed: tuple[str, ...],
+    flag_name: str,
+) -> str | None:
+    if s is None:
+        return None
+    value = str(s).strip()
+    if not value:
+        return None
+    if value.lower() in ("none", "null"):
+        return None
+    if value not in allowed:
+        allowed_txt = ", ".join(allowed)
+        raise argparse.ArgumentTypeError(
+            f"{flag_name} must be one of: {allowed_txt}, none, null"
+        )
+    return value
+
+
 def _effective_skip_first_sync_buckets_opts_only(opts, *local_attr_names: str) -> int:
     gskip = int(getattr(opts, "skip_first_sync_buckets", 0) or 0)
     if gskip < 0:
@@ -1253,34 +1274,40 @@ g.add_argument(
 )
 g.add_argument(
     "--first-n-reward-diagnostics-color-by",
-    type=str,
-    choices=(
-        "sli",
-        "cutoff_frame",
-        "cutoff_training",
-        "cutoff_time_since_selected_window_start_s",
-        "cutoff_time_since_cutoff_training_start_s",
-        "time_to_first_actual_reward_s",
-        "time_to_nth_actual_reward_s",
-        "first_n_reward_span_s",
-        "control_circle_entry_count_by_cutoff",
-        "control_reward_count_by_cutoff",
-        "actual_circle_entry_count_by_cutoff",
-        "actual_reward_count_by_cutoff",
-        "reward_pi_by_cutoff",
-        "actual_entry_minus_reward_count_by_cutoff",
-        "control_entry_minus_reward_count_by_cutoff",
-        "control_to_actual_entry_ratio_by_cutoff",
-        "control_to_actual_reward_ratio_by_cutoff",
-        "actual_reward_count_in_selected_window",
-        "selected_reward_count_in_selected_window",
-        "time_to_first_selected_reward_s",
-        "time_to_nth_selected_reward_s",
-        "first_n_selected_reward_span_s",
-        "selected_reward_rate_to_nth_per_min",
+    type=lambda s: _parse_optional_choice(
+        s,
+        allowed=(
+            "sli",
+            "cutoff_frame",
+            "cutoff_training",
+            "cutoff_time_since_selected_window_start_s",
+            "cutoff_time_since_cutoff_training_start_s",
+            "time_to_first_actual_reward_s",
+            "time_to_nth_actual_reward_s",
+            "first_n_reward_span_s",
+            "control_circle_entry_count_by_cutoff",
+            "control_reward_count_by_cutoff",
+            "actual_circle_entry_count_by_cutoff",
+            "actual_reward_count_by_cutoff",
+            "reward_pi_by_cutoff",
+            "actual_entry_minus_reward_count_by_cutoff",
+            "control_entry_minus_reward_count_by_cutoff",
+            "control_to_actual_entry_ratio_by_cutoff",
+            "control_to_actual_reward_ratio_by_cutoff",
+            "actual_reward_count_in_selected_window",
+            "selected_reward_count_in_selected_window",
+            "time_to_first_selected_reward_s",
+            "time_to_nth_selected_reward_s",
+            "first_n_selected_reward_span_s",
+            "selected_reward_rate_to_nth_per_min",
+        ),
+        flag_name="--first-n-reward-diagnostics-color-by",
     ),
     default="control_circle_entry_count_by_cutoff",
-    help="Metric used to color the first-n reward diagnostics scatter plot.",
+    help=(
+        "Metric used to color the first-n reward diagnostics scatter plot. "
+        "Use 'none' or 'null' to disable the color bar and draw a plain scatter."
+    ),
 )
 g.add_argument(
     "--first-n-reward-diagnostics-label-low-sli-outliers",
@@ -9988,13 +10015,10 @@ def postAnalyze(vas):
                 )
                 or "sli"
             ),
-            color_by=str(
-                getattr(
-                    opts,
-                    "first_n_reward_diagnostics_color_by",
-                    "control_circle_entry_count_by_cutoff",
-                )
-                or "control_circle_entry_count_by_cutoff"
+            color_by=getattr(
+                opts,
+                "first_n_reward_diagnostics_color_by",
+                "control_circle_entry_count_by_cutoff",
             ),
             xlabel=getattr(opts, "first_n_reward_diagnostics_xlabel", None),
             ylabel=getattr(opts, "first_n_reward_diagnostics_ylabel", None),

@@ -36,7 +36,7 @@ class FirstNRewardDiagnosticsConfig:
     max_time_to_nth_s: float | None = None
     x_by: str = "first_n_reward_span_s"
     y_by: str = "sli"
-    color_by: str = "control_circle_entry_count_by_cutoff"
+    color_by: str | None = "control_circle_entry_count_by_cutoff"
     xlabel: str | None = None
     ylabel: str | None = None
     label_low_sli_outliers: int = 0
@@ -467,9 +467,14 @@ class FirstNRewardDiagnosticsPlotter:
             getattr(self.cfg, "x_by", None), fallback="first_n_reward_span_s"
         )
         y_key = self._resolve_metric_name(getattr(self.cfg, "y_by", None), fallback="sli")
-        color_key = self._resolve_metric_name(
-            getattr(self.cfg, "color_by", None),
-            fallback="control_circle_entry_count_by_cutoff",
+        color_cfg = getattr(self.cfg, "color_by", None)
+        color_key = (
+            None
+            if color_cfg is None
+            else self._resolve_metric_name(
+                color_cfg,
+                fallback="control_circle_entry_count_by_cutoff",
+            )
         )
         eligible_rows = self._eligible_rows(rows)
         util.ensureDir(path)
@@ -481,19 +486,27 @@ class FirstNRewardDiagnosticsPlotter:
         else:
             x_all = np.asarray([getattr(row, x_key, np.nan) for row in eligible_rows], dtype=float)
             y_all = np.asarray([getattr(row, y_key, np.nan) for row in eligible_rows], dtype=float)
-            c_all = np.asarray([getattr(row, color_key, np.nan) for row in eligible_rows], dtype=float)
             finite_xy = np.isfinite(x_all) & np.isfinite(y_all)
             x = x_all[finite_xy]
             y = y_all[finite_xy]
-            c = c_all[finite_xy]
             plot_rows = [row for row, keep in zip(eligible_rows, finite_xy) if keep]
 
             if x.size == 0:
                 ax.text(0.5, 0.5, "no finite plot values", ha="center", va="center")
                 ax.set_axis_off()
             else:
-                finite_c = np.isfinite(c)
-                if finite_c.any():
+                if color_key is not None:
+                    c_all = np.asarray(
+                        [getattr(row, color_key, np.nan) for row in eligible_rows],
+                        dtype=float,
+                    )
+                    c = c_all[finite_xy]
+                    finite_c = np.isfinite(c)
+                else:
+                    c = np.asarray([], dtype=float)
+                    finite_c = np.asarray([], dtype=bool)
+
+                if color_key is not None and finite_c.any():
                     sc = ax.scatter(x, y, c=c, cmap="viridis", s=34, alpha=0.9)
                     cb = fig.colorbar(sc, ax=ax)
                     cb.set_label(self._metric_label(color_key))
