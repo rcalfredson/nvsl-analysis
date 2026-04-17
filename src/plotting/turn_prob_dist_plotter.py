@@ -485,7 +485,7 @@ class TurnProbabilityByDistancePlotter:
 
     def plot_turn_probabilities(self):
         colors = {
-            0: {"fill": "tomato", "edge": "darkred"},
+            0: {"fill": "goldenrod", "edge": "darkgoldenrod"},
             1: {"fill": "forestgreen", "edge": "darkgreen"},
         }
 
