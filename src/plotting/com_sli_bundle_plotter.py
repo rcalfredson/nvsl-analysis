@@ -74,6 +74,12 @@ def _bundle_metric_palette(metric):
         return get_palette("agarose")
     elif metric == "sli":
         return get_palette("rpid")
+    elif metric == "turnback":
+        return get_palette("turnback")
+    elif metric == "between_reward_maxdist":
+        return get_palette("between_reward_maxdist")
+    elif metric == "between_reward_return_leg_dist":
+        return get_palette("between_reward_return_leg_dist")
     else:
         return FLY_COLS
 

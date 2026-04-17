@@ -24,6 +24,7 @@ MUTED_CATEGORICAL = (
 NEUTRAL_DARK = "#44505C"
 NEUTRAL_MID = "#73808C"
 NEUTRAL_LIGHT = "#C6CDD3"
+BRIGHT_YELLOW = "#F0E442"
 
 FLY_COLS = (MUTED_CATEGORICAL[0], MUTED_CATEGORICAL[3])
 
@@ -70,6 +71,15 @@ METRIC_PALETTES = {
     "commag": ["#ff7f00", "#fdbf6f"],
     "meddist": ["#6a3d9a", "#cab2d6"],
     "agarose": [MUTED_CATEGORICAL[2], MUTED_CATEGORICAL[6]],
+    "turnback": [BRIGHT_YELLOW, _adjust_lightness(BRIGHT_YELLOW, 1.12)],
+    "between_reward_maxdist": [
+        "#8B5A2B",
+        _adjust_lightness("#8B5A2B", 1.35),
+    ],
+    "between_reward_return_leg_dist": [
+        MUTED_CATEGORICAL[6],
+        _adjust_lightness(MUTED_CATEGORICAL[6], 1.18),
+    ],
 }
 
 
@@ -90,7 +100,7 @@ CORRELATION_PLOT_COLORS = {
     "selected_top": "#332288",
     "selected_bottom": "#882255",
     "selected_other": "#999999",
-    "unused_bright_yellow": "#F0E442",
+    "unused_bright_yellow": BRIGHT_YELLOW,
     "unused_slate_grey": "#999999",
 }
 
@@ -154,5 +164,14 @@ def get_palette(tp):
         return METRIC_PALETTES["meddist"]
     elif tp in ("agarose", "agarose_exp_min_yok"):
         return METRIC_PALETTES["agarose"]
+    elif tp in ("turnback", "turnback_exp_min_yok"):
+        return METRIC_PALETTES["turnback"]
+    elif tp in ("between_reward_maxdist", "between_reward_maxdist_exp_min_yok"):
+        return METRIC_PALETTES["between_reward_maxdist"]
+    elif tp in (
+        "between_reward_return_leg_dist",
+        "between_reward_return_leg_dist_exp_min_yok",
+    ):
+        return METRIC_PALETTES["between_reward_return_leg_dist"]
     else:
         return FLY_COLS
