@@ -42,6 +42,7 @@ class FirstNRewardDiagnosticsConfig:
     ylabel: str | None = None
     label_low_sli_outliers: int = 0
     reward_event_type: str = "actual"
+    include_reward_event_type_in_labels: bool = False
 
 
 @dataclass(frozen=True)
@@ -108,10 +109,68 @@ class FirstNRewardDiagnosticsPlotter:
     def _metric_field_names() -> list[str]:
         return list(FirstNRewardDiagnosticRow.__dataclass_fields__.keys())
 
-    @staticmethod
-    def _metric_label(name: str) -> str:
+    def _nth_reward_target(self) -> int:
+        return max(1, int(self.cfg.first_n_rewards or 1))
+
+    def _selected_trainings(self) -> list[int]:
+        if not self.vas:
+            return []
+        return selected_training_indices(
+            self.vas[0],
+            self.cfg.trainings,
+            log_tag=self.log_tag,
+        )
+
+    def _sli_axis_label(self) -> str:
+        trainings = self._selected_trainings()
+        training_txt = training_window_label(trainings)
+        skip_first = max(0, int(self.cfg.skip_first_sync_buckets or 0))
+        keep_first = max(0, int(self.cfg.keep_first_sync_buckets or 0))
+        start_sb = skip_first + 1
+        end_sb = None if keep_first <= 0 else start_sb + keep_first - 1
+
+        if end_sb is None:
+            bucket_txt = f"SB{start_sb}-end"
+        elif end_sb == start_sb:
+            bucket_txt = f"SB{start_sb}"
+        else:
+            bucket_txt = f"SB{start_sb}-SB{end_sb}"
+        return f"SLI ({training_txt}, {bucket_txt})"
+
+    def _metric_label(self, name: str) -> str:
+        n_target = self._nth_reward_target()
+        reward_event_type = str(
+            getattr(self.cfg, "reward_event_type", "actual") or "actual"
+        )
+        include_reward_type = bool(
+            getattr(self.cfg, "include_reward_event_type_in_labels", False)
+        )
+        reward_type_txt = {
+            "actual": "actual",
+            "calc": "calculated",
+        }.get(reward_event_type, reward_event_type)
+        reward_phrase = "rewards"
+        reward_phrase_singular = "reward"
+        if include_reward_type:
+            reward_phrase = f"{reward_type_txt} rewards"
+            reward_phrase_singular = f"{reward_type_txt} reward"
         labels = {
-            "selected_reward_rate_to_nth_per_min": "Rate to nth selected reward (/min)",
+            "sli": self._sli_axis_label(),
+            "time_to_first_actual_reward_s": "Time to 1st actual reward (s)",
+            "time_to_nth_actual_reward_s": f"Time to {n_target}th actual reward (s)",
+            "first_n_reward_span_s": f"Time from 1st to {n_target}th actual reward (s)",
+            "time_to_first_selected_reward_s": (
+                f"Time to 1st {reward_phrase_singular} (s)"
+            ),
+            "time_to_nth_selected_reward_s": (
+                f"Time to first {n_target} {reward_phrase} (s)"
+            ),
+            "first_n_selected_reward_span_s": (
+                f"Time from 1st to {n_target}th {reward_phrase_singular} (s)"
+            ),
+            "selected_reward_rate_to_nth_per_min": (
+                f"Rate to first {n_target} {reward_phrase} (/min)"
+            ),
         }
         return labels.get(str(name), str(name).replace("_", " "))
 
