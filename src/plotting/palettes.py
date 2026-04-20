@@ -83,11 +83,12 @@ METRIC_PALETTES = {
 }
 
 
-# Correlation-plot palette built from the Okabe-Ito family plus two deep
+# Correlation-plot palette built from the Okabe-Ito family plus a few deeper
 # accents. This lets us keep a stable semantic color per plot type.
 CORRELATION_PLOT_COLORS = {
     "rewards_per_distance_vs_sli": "#0072B2",
     "rewards_per_minute_vs_sli": "#D55E00",
+    "first_n_reward_rate_vs_sli": "#44AA99",
     "median_distance_vs_sli": "#009E73",
     "baseline_pi_vs_sli": "#E69F00",
     "pre_training_exploration_vs_sli": "#56B4E9",
@@ -113,7 +114,7 @@ _CORRELATION_METRIC_FAMILIES = {
     "time_to_nth_selected_reward_s": "first_n_reward_timing",
     "cutoff_time_since_selected_window_start_s": "first_n_reward_timing",
     "cutoff_time_since_cutoff_training_start_s": "first_n_reward_timing",
-    "selected_reward_rate_to_nth_per_min": "rewards_per_minute",
+    "selected_reward_rate_to_nth_per_min": "first_n_reward_rate",
     "actual_reward_count_by_cutoff": "total_rewards",
     "control_reward_count_by_cutoff": "total_rewards",
 }
@@ -139,6 +140,8 @@ def correlation_plot_color_for_metrics(
 
     if family_pair == frozenset(("sli", "first_n_reward_timing")):
         return correlation_plot_color("first_n_reward_timing_vs_sli", fallback)
+    if family_pair == frozenset(("sli", "first_n_reward_rate")):
+        return correlation_plot_color("first_n_reward_rate_vs_sli", fallback)
     if family_pair == frozenset(("sli", "rewards_per_minute")):
         return correlation_plot_color("rewards_per_minute_vs_sli", fallback)
     if family_pair == frozenset(("sli", "total_rewards")):
