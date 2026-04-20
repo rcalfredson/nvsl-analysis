@@ -539,9 +539,9 @@ def plot_cum_reward_sli_bundles(
                 frameon=False,
                 loc="center left",
                 bbox_to_anchor=(1.01, 0.5),
-                fontsize=max(7, customizer.in_plot_font_size - 4),
+                fontsize=customizer.in_plot_font_size,
                 title="Sampled flies",
-                title_fontsize=max(8, customizer.in_plot_font_size - 3),
+                title_fontsize=customizer.in_plot_font_size,
                 handlelength=2.2,
                 borderaxespad=0.0,
             )

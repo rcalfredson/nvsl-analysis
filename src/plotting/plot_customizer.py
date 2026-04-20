@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 import matplotlib.transforms as mtransforms
+import textwrap
 
 
 class PlotCustomizer:
@@ -137,31 +138,70 @@ class PlotCustomizer:
         """
         fig = plt.gcf()
 
-        # --- Step 1: Scale legend font size based on longest entry ---
+        # --- Step 1: Wrap long legend labels instead of shrinking legend font ---
+        renderer = None
+        try:
+            fig.canvas.draw()
+            renderer = fig.canvas.get_renderer()
+        except Exception:
+            renderer = None
+
+        def _wrap_legend_text(text_obj, max_width_px):
+            raw = text_obj.get_text()
+            if (
+                renderer is None
+                or not raw
+                or "\n" in raw
+                or max_width_px is None
+                or max_width_px <= 0
+            ):
+                return
+
+            bbox = text_obj.get_window_extent(renderer=renderer)
+            if bbox.width <= max_width_px:
+                return
+
+            words = raw.split()
+            if len(words) < 2:
+                return
+
+            wrapped = raw
+            for width in range(len(raw), 1, -1):
+                candidate = textwrap.fill(
+                    raw,
+                    width=width,
+                    break_long_words=False,
+                    break_on_hyphens=False,
+                )
+                text_obj.set_text(candidate)
+                candidate_bbox = text_obj.get_window_extent(renderer=renderer)
+                if candidate_bbox.width <= max_width_px:
+                    wrapped = candidate
+                    break
+
+            text_obj.set_text(wrapped)
+
         for ax in fig.get_axes():
             leg = ax.get_legend()
             if leg is not None:
-                # Get longest label length
-                labels = [t.get_text() for t in leg.get_texts()]
-                if labels:
-                    longest = max(len(s) for s in labels)
+                ax_bbox = ax.get_window_extent(renderer=renderer)
+                if ax_bbox.width <= 0:
+                    continue
 
-                    base_fontsize = leg.get_texts()[0].get_fontsize()  # current size
-                    max_chars = 20  # threshold where scaling begins
+                anchor = leg.get_bbox_to_anchor()
+                outside_right = False
+                if anchor is not None:
+                    anchor_box = anchor.transformed(fig.transFigure.inverted())
+                    outside_right = anchor_box.x0 >= 0.95 * ax.get_position().x1
 
-                    if longest > max_chars:
-                        # Scale font inversely with label length
-                        scale = max_chars / float(longest)
-                        new_size = max(
-                            base_fontsize * scale, 6
-                        )  # never smaller than 6 pt
+                if outside_right:
+                    fig_px_width = fig.get_window_extent(renderer=renderer).width
+                    max_width_px = max(fig_px_width * 0.26, ax_bbox.width * 0.22)
+                else:
+                    max_width_px = ax_bbox.width * 0.45
 
-                        for text in leg.get_texts():
-                            text.set_fontsize(new_size)
-
-                        # Scale title too (if present)
-                        if leg.get_title() is not None:
-                            leg.get_title().set_fontsize(new_size)
+                for text in leg.get_texts():
+                    _wrap_legend_text(text, max_width_px)
 
         # --- Step 2: Scale figure size only modestly as fonts increase.
         # Keep most of the visual effect in the text itself instead of making
