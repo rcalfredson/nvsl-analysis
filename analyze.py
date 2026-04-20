@@ -358,6 +358,52 @@ def _parse_axis_limits_arg(
     return (lo, hi)
 
 
+def _parse_num_trainings_limit(num_trainings) -> int | None:
+    """
+    Legacy parser for plots that interpret --num-trainings as "show first N trainings".
+    """
+    if num_trainings is None:
+        return None
+    value = str(num_trainings).strip()
+    if not value:
+        return None
+    if "," in value or "-" in value:
+        raise ValueError(
+            "--num-trainings only supports a single integer for this plot type; "
+            "training selectors like '1,3' or '2-4' are currently supported for heatmaps."
+        )
+    limit = int(value)
+    if limit < 1:
+        raise ValueError("--num-trainings must be >= 1")
+    return limit
+
+
+def _resolve_heatmap_training_indices(trns, selector) -> list[int]:
+    """
+    Heatmaps use --num-trainings as a 1-based training selector.
+    Examples: "2", "1,3", "2-4".
+    """
+    if selector is None:
+        return list(range(len(trns)))
+
+    raw = str(selector).strip()
+    if not raw:
+        return list(range(len(trns)))
+
+    selected_1based = parse_training_selector(raw)
+    if not selected_1based:
+        return list(range(len(trns)))
+
+    invalid = [idx for idx in selected_1based if idx < 1 or idx > len(trns)]
+    if invalid:
+        raise ValueError(
+            "--num-trainings selected training index/indices outside the available "
+            f"range 1-{len(trns)}: {invalid}"
+        )
+
+    return [idx - 1 for idx in selected_1based]
+
+
 def _parse_optional_choice(
     s: str | None,
     *,
@@ -3881,11 +3927,14 @@ g.add_argument(
 )
 g.add_argument(
     "--num-trainings",
-    type=int,
-    choices=[2, 3],
+    type=str,
     default=None,
-    help="Limit the number of trainings/post-trainings plotted (2 or 3). "
-    "Default: show all trainings.",
+    help=(
+        "Training selection control. For most plots, provide a single integer "
+        "to show the first N trainings/post-trainings (legacy behavior). "
+        'For heatmaps (--pltHm), this is interpreted as a 1-based selector and '
+        'accepts forms like "2", "1,3", or "2-4". Default: show all trainings.'
+    ),
 )
 g.add_argument(
     "--hidePltTests",
@@ -5999,7 +6048,7 @@ def plotRewards(
     sli_bottom_fraction=None,  # Optional[float]
     sli_training_idx=None,  # which training index to compute extremes
     sli_selected=None,  # optional precomputed (bottom, top)
-    num_trainings=None,  # optionally limit number of trainings shown (e.g., 2)
+    num_trainings=None,  # optional training control; legacy first-N limit or heatmap selector
     sli_custom_selection=None,  # Optional[List[int]], indices into vas
     sli_custom_label=None,  # Optional[str]
 ):
@@ -6021,8 +6070,9 @@ def plotRewards(
         - gls (list[str]): Labels for each group, used for annotating the plot.
         - vas (list[VideoAnalysis]): A list of VideoAnalysis instances, each analysis corresponding
                                     to a different video.
-        - num_trainings (int | None): If set, trims the number of trainings/post-trainings
-                                    displayed to this number (e.g. 2). Default None shows all.
+        - num_trainings (str | None): Optional training control. For these plots it keeps
+                                    the legacy meaning of showing the first N trainings
+                                    when a single integer is provided. Default None shows all.
 
     Returns:
         - The function does not return a value but generates and displays a plot based on the
@@ -6358,8 +6408,9 @@ def plotRewards(
         trns = trns[:2]
 
     # Apply optional user-specified training limit
-    if num_trainings is not None:
-        trns = trns[:num_trainings]
+    limit = _parse_num_trainings_limit(num_trainings)
+    if limit is not None:
+        trns = trns[:limit]
 
     nc = len(trns)
     figsize = pch(
@@ -7446,6 +7497,8 @@ def plotHeatmaps(vas):
     trns, lin, flies = va0.trns, opts.hm == OP_LIN, va0.flies
     if P and F2T:
         trns = trns[:2]
+    train_indices = _resolve_heatmap_training_indices(trns, opts.num_trainings)
+    trns = [trns[i] for i in train_indices]
     imgs, nc, nsc = [], len(trns), 2 if va0.ct is CT.regular else 1
     nsr, nf = 1 if va0.noyc else 3 - nsc, len(flies)
     if va0.ct is CT.regular:
@@ -7489,10 +7542,10 @@ def plotHeatmaps(vas):
 
         cbar_ax.append(fig.add_subplot(gs[pst, nc]))
         mpms, nfs, vmins = [], [], []
-        for i, f in itertools.product(list(range(nc)), flies):
+        for i_src, f in itertools.product(train_indices, flies):
             mps, ls = [], []
             for va in vas:
-                mp, l = hm(va)[f][i][:2]
+                mp, l = hm(va)[f][i_src][:2]
                 if mp is not None and np.sum(mp) > 0:
                     mps.append(mp / l if prob else mp)
                     ls.append(l)
@@ -7532,7 +7585,7 @@ def plotHeatmaps(vas):
             f"vmin_used={vmin1_used:.6g} vmax_used={vmax_used:.6g} "
             f"(vmin_default={vmin1_default:.6g} vmax_computed={vmax_computed:.6g})"
         )
-        for i, t in enumerate(trns):
+        for i, (i_src, t) in enumerate(zip(train_indices, trns)):
             imgs1 = []
             gs1 = mpl.gridspec.GridSpecFromSubplotSpec(
                 nsr,
@@ -7626,7 +7679,7 @@ def plotHeatmaps(vas):
                         cb.outline.set_linewidth(0)
                         cb.solids.set_alpha(1)
                         cb.solids.set_cmap(util.alphaBlend(cmap, alpha))
-                xym = hm(va0)[f][i][2]
+                xym = hm(va0)[f][i_src][2]
                 if opts.bg is not None:  # add chamber background
                     wh = util.tupleMul(mp.shape[::-1], HEATMAP_DIV)
                     tl, br = (va0.xf.t2f(*xy) for xy in (xym, util.tupleAdd(xym, wh)))

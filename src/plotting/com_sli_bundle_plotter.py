@@ -313,6 +313,22 @@ def plot_com_sli_bundles(
             fontFamily=None,
         )
 
+    def _parse_num_trainings_limit(num_trainings_value):
+        if num_trainings_value is None:
+            return None
+        raw = str(num_trainings_value).strip()
+        if not raw:
+            return None
+        if "," in raw or "-" in raw:
+            raise ValueError(
+                "--num-trainings only supports a single integer for this plot type; "
+                "selector syntax like '1,3' or '2-4' is currently supported for heatmaps."
+            )
+        limit = int(raw)
+        if limit < 1:
+            raise ValueError("--num-trainings must be >= 1")
+        return limit
+
     requested_include_ctrl = bool(include_ctrl)
     include_ctrl = False
 
@@ -687,8 +703,9 @@ def plot_com_sli_bundles(
         )
 
     # optional training limit
-    if num_trainings is not None:
-        n_trains = min(n_trains, int(num_trainings))
+    limit = _parse_num_trainings_limit(num_trainings)
+    if limit is not None:
+        n_trains = min(n_trains, limit)
 
     # nb
     nb = s0.shape[2]
