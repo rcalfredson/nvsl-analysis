@@ -134,6 +134,14 @@ from src.plotting.reward_count_totals import (
     RewardCountTotalsConfig,
     RewardCountTotalsPlotter,
 )
+from src.plotting.wall_contacts_per_reward_interval_totals import (
+    WallContactsPerRewardIntervalTotalsConfig,
+    WallContactsPerRewardIntervalTotalsPlotter,
+)
+from src.plotting.overlay_training_metric_scalar_bars import (
+    load_export_npz as load_scalar_bar_export_npz,
+    plot_overlays as plot_scalar_bar_overlays,
+)
 from src.plotting.cross_fly_correlations import plot_cross_fly_correlations, SLIContext
 from src.plotting.event_chain_plotter import EventChainPlotter
 from src.plotting.individual_strategy_plotter import plot_individual_strategy_overlays
@@ -250,6 +258,9 @@ FIRST_N_REWARD_DIAGNOSTICS_PLOT_FILE = "imgs/first_n_reward_diagnostics.png"
 FIRST_N_REWARD_SLI_COMPARISON_CSV_FILE = "exports/first_n_reward_sli_comparison.csv"
 FIRST_N_REWARD_SLI_COMPARISON_PLOT_FILE = "imgs/first_n_reward_sli_comparison.png"
 REWARD_COUNT_TOTAL_BARS_IMG_FILE = "imgs/rwd_totals.png"
+WALL_CONTACTS_PER_REWARD_INTERVAL_TOTAL_BARS_IMG_FILE = (
+    "imgs/wall_contacts_per_reward_interval_totals.png"
+)
 BTW_RWD_COM_MAG_HIST_IMG_FILE = "imgs/btw_rwd_com_mag_hist.png"
 BTW_RWD_DIST_BINNED_COM_IMG_FILE = "imgs/btw_rwd_dist_binned_com.png"
 BTW_RWD_DIST_BINNED_DISTTRAV_IMG_FILE = "imgs/btw_rwd_dist_binned_disttrav.png"
@@ -1894,6 +1905,117 @@ g.add_argument(
     "--reward-count-total-show-points",
     action="store_true",
     help="Overlay per-fly points on the bars (useful sanity check; not required for export).",
+)
+g.add_argument(
+    "--wall-contacts-per-reward-interval-total-bars",
+    action="store_true",
+    help=(
+        "Plot bar charts of mean wall-contact event counts per between-reward interval, "
+        "aggregated to one mean value per fly and separated by training."
+    ),
+)
+g.add_argument(
+    "--wall-contacts-per-reward-interval-total-export",
+    type=str,
+    default=None,
+    help=(
+        "Export per-fly mean wall-contact counts per reward interval "
+        "(one scalar per fly per training) as a compressed .npz for later overlay plotting + stats."
+    ),
+)
+g.add_argument(
+    "--wall-contacts-per-reward-interval-total-pool-trainings",
+    action="store_true",
+    help="Pool wall-contact interval means across trainings into a single bar instead of one bar per training.",
+)
+g.add_argument(
+    "--wall-contacts-per-reward-interval-total-trainings",
+    type=parse_training_selector,
+    default=None,
+    help='Subset of trainings to include (1-based). Examples: "1", "1,3", "2-4". Ignored if pooled.',
+)
+g.add_argument(
+    "--wall-contacts-per-reward-interval-total-top-sli",
+    action="store_true",
+    help=(
+        "Restrict wall-contact interval means to flies in the top SLI fraction "
+        "(see --best-worst-sli, --best-worst-fraction, and --best-worst-trn)."
+    ),
+)
+g.add_argument(
+    "--wall-contacts-per-reward-interval-total-sli-group",
+    type=str,
+    choices=("top", "bottom"),
+    default=None,
+    help=(
+        "Restrict wall-contact interval means/export to a selected SLI subset: "
+        "'top' or 'bottom'. Uses the SLI selection configured by "
+        "--best-worst-sli together with --best-worst-fraction and/or the side-specific "
+        "flags --top-sli-fraction and --bottom-sli-fraction."
+    ),
+)
+g.add_argument(
+    "--wall-contacts-per-reward-interval-total-ci",
+    action="store_true",
+    help="If set, compute a mean CI across flies (stored in export; optionally shown on plot).",
+)
+g.add_argument(
+    "--wall-contacts-per-reward-interval-total-ci-conf",
+    type=float,
+    default=0.95,
+    help="Confidence level for mean CI across flies (default: 0.95).",
+)
+g.add_argument(
+    "--wall-contacts-per-reward-interval-total-ymax",
+    type=float,
+    default=None,
+    help="Set a fixed maximum for the y-axis in wall-contact interval total bar charts.",
+)
+g.add_argument(
+    "--wall-contacts-per-reward-interval-total-show-points",
+    action="store_true",
+    help="Overlay per-fly points on the bars (useful sanity check; not required for export).",
+)
+g.add_argument(
+    "--wall-contacts-per-reward-interval-total-import-npz",
+    action="append",
+    default=None,
+    help=(
+        "Load cached scalar-bar NPZ export(s) instead of computing from raw data, "
+        "and plot a grouped overlay. Repeatable. Format: LABEL:PATH."
+    ),
+)
+g.add_argument(
+    "--wall-contacts-per-reward-interval-total-import-out",
+    type=str,
+    default=None,
+    help=(
+        "Output image path when using "
+        "--wall-contacts-per-reward-interval-total-import-npz. "
+        "Default: same as the normal plot output file."
+    ),
+)
+g.add_argument(
+    "--wall-contacts-per-reward-interval-total-stats",
+    action="store_true",
+    help=(
+        "Calculate and display one-way ANOVA across groups for cached "
+        "wall-contact scalar-bar overlays, with post-hoc pairwise tests."
+    ),
+)
+g.add_argument(
+    "--wall-contacts-per-reward-interval-total-stats-paired",
+    action="store_true",
+    help=(
+        "Use paired tests for cached wall-contact scalar-bar overlays when "
+        "unit IDs overlap across groups."
+    ),
+)
+g.add_argument(
+    "--wall-contacts-per-reward-interval-total-stats-alpha",
+    type=float,
+    default=0.05,
+    help="Alpha to use for statistical tests in cached wall-contact scalar-bar overlays.",
 )
 # -------------------------------------------------------------------------
 # Mean return-leg (tail) distance traveled between rewards (scalar bars)
@@ -10353,6 +10475,206 @@ def postAnalyze(vas):
         if do_total_plot:
             plotter.plot_bars()
 
+    # ---------------- Wall contacts per reward interval (scalar bars) ----------------
+    import_specs = getattr(
+        opts, "wall_contacts_per_reward_interval_total_import_npz", None
+    )
+    if import_specs:
+        if getattr(opts, "wall_contacts_per_reward_interval_total_top_sli", False) or (
+            getattr(opts, "wall_contacts_per_reward_interval_total_sli_group", None)
+            is not None
+        ):
+            print(
+                "[wall_contacts_per_reward_interval_total] WARNING: "
+                "SLI subset flags are not applied in cached import mode. "
+                "This overlay plots the exported NPZs exactly as saved. "
+                "To compare top/bottom learners, export subset-restricted NPZs first "
+                "using --wall-contacts-per-reward-interval-total-top-sli or "
+                "--wall-contacts-per-reward-interval-total-sli-group during export."
+            )
+
+        labels: list[str] = []
+        paths: list[str] = []
+        for spec in import_specs:
+            spec = str(spec)
+            if ":" not in spec:
+                print(
+                    "[wall_contacts_per_reward_interval_total] WARNING: ignoring "
+                    "--wall-contacts-per-reward-interval-total-import-npz entry "
+                    f"without LABEL:PATH format: {spec!r}"
+                )
+                continue
+            lab, pth = spec.split(":", 1)
+            lab = lab.strip()
+            pth = pth.strip()
+            if not lab or not pth:
+                print(
+                    "[wall_contacts_per_reward_interval_total] WARNING: ignoring malformed import spec: "
+                    f"{spec!r}"
+                )
+                continue
+            labels.append(lab)
+            paths.append(pth)
+
+        loaded_exports = []
+        loaded_labels: list[str] = []
+        if not paths:
+            print(
+                "[wall_contacts_per_reward_interval_total] WARNING: no valid cached NPZ specs."
+            )
+        else:
+            for lab, pth in zip(labels, paths):
+                try:
+                    exp = load_scalar_bar_export_npz(lab, pth)
+                except Exception as e:
+                    print(
+                        "[wall_contacts_per_reward_interval_total] WARNING: failed to load cached NPZ "
+                        f"({lab!r} at {pth!r}): {e}"
+                    )
+                    continue
+                loaded_exports.append(exp)
+                loaded_labels.append(lab)
+
+        if loaded_exports:
+            out_file = getattr(
+                opts, "wall_contacts_per_reward_interval_total_import_out", None
+            )
+            if not out_file:
+                out_file = WALL_CONTACTS_PER_REWARD_INTERVAL_TOTAL_BARS_IMG_FILE
+
+            fig = plot_scalar_bar_overlays(
+                loaded_exports,
+                xlabel="Training",
+                ylabel="Mean wall contacts per reward interval",
+                ymax=getattr(
+                    opts, "wall_contacts_per_reward_interval_total_ymax", None
+                ),
+                stats=bool(
+                    getattr(
+                        opts, "wall_contacts_per_reward_interval_total_stats", False
+                    )
+                ),
+                stats_alpha=float(
+                    getattr(
+                        opts,
+                        "wall_contacts_per_reward_interval_total_stats_alpha",
+                        0.05,
+                    )
+                    or 0.05
+                ),
+                stats_paired=bool(
+                    getattr(
+                        opts,
+                        "wall_contacts_per_reward_interval_total_stats_paired",
+                        False,
+                    )
+                ),
+                opts=opts,
+            )
+            writeImage(str(out_file), format=opts.imageFormat)
+            plt.close(fig)
+            print(
+                "[wall_contacts_per_reward_interval_total] wrote overlay "
+                f"{str(out_file)}"
+            )
+            return
+
+    do_wc_total_plot = bool(
+        getattr(opts, "wall_contacts_per_reward_interval_total_bars", False)
+    )
+    do_wc_total_export = bool(
+        getattr(opts, "wall_contacts_per_reward_interval_total_export", None)
+    )
+
+    if va.circle and (do_wc_total_plot or do_wc_total_export):
+        vas_for_totals = vas
+
+        sli_group = getattr(
+            opts, "wall_contacts_per_reward_interval_total_sli_group", None
+        )
+        if sli_group is None and getattr(
+            opts, "wall_contacts_per_reward_interval_total_top_sli", False
+        ):
+            sli_group = "top"
+
+        if sli_group == "top":
+            if saved_top is None:
+                print(
+                    "[wall_contacts_per_reward_interval_total] WARNING: top-SLI restriction requested "
+                    "but no top-SLI group is available; falling back to all flies."
+                )
+            else:
+                vas_for_totals = [vas[i] for i in saved_top]
+                print(
+                    "[wall_contacts_per_reward_interval_total] restricting to "
+                    f"{len(vas_for_totals)} top-SLI flies"
+                )
+        elif sli_group == "bottom":
+            if saved_bottom is None:
+                print(
+                    "[wall_contacts_per_reward_interval_total] WARNING: bottom-SLI restriction requested "
+                    "but no bottom-SLI group is available; falling back to all flies."
+                )
+            else:
+                vas_for_totals = [vas[i] for i in saved_bottom]
+                print(
+                    "[wall_contacts_per_reward_interval_total] restricting to "
+                    f"{len(vas_for_totals)} bottom-SLI flies"
+                )
+
+        subset_label = None
+        if sli_group == "top" and saved_top is not None:
+            frac = getattr(opts, "top_sli_fraction", None)
+            if frac is None:
+                frac = getattr(opts, "best_worst_fraction", 0.1)
+            subset_label = f"Restricted to top {100*frac:.1f}% SLI flies"
+        elif sli_group == "bottom" and saved_bottom is not None:
+            frac = getattr(opts, "bottom_sli_fraction", None)
+            if frac is None:
+                frac = getattr(opts, "best_worst_fraction", 0.1)
+            subset_label = f"Restricted to bottom {100*frac:.1f}% SLI flies"
+
+        cfg = WallContactsPerRewardIntervalTotalsConfig(
+            out_file=WALL_CONTACTS_PER_REWARD_INTERVAL_TOTAL_BARS_IMG_FILE,
+            pool_trainings=bool(
+                getattr(
+                    opts,
+                    "wall_contacts_per_reward_interval_total_pool_trainings",
+                    False,
+                )
+            ),
+            trainings=getattr(
+                opts, "wall_contacts_per_reward_interval_total_trainings", None
+            ),
+            skip_first_sync_buckets=_effective_skip_first_sync_buckets_opts_only(opts),
+            keep_first_sync_buckets=_effective_keep_first_sync_buckets_opts_only(opts),
+            subset_label=subset_label,
+            ymax=getattr(
+                opts, "wall_contacts_per_reward_interval_total_ymax", None
+            ),
+            ci=bool(getattr(opts, "wall_contacts_per_reward_interval_total_ci", False)),
+            ci_conf=float(
+                getattr(opts, "wall_contacts_per_reward_interval_total_ci_conf", 0.95)
+            ),
+            show_points=bool(
+                getattr(
+                    opts,
+                    "wall_contacts_per_reward_interval_total_show_points",
+                    False,
+                )
+            ),
+        )
+
+        plotter = WallContactsPerRewardIntervalTotalsPlotter(
+            vas=vas_for_totals, opts=opts, gls=gls, customizer=customizer, cfg=cfg
+        )
+
+        out_npz = getattr(opts, "wall_contacts_per_reward_interval_total_export", None)
+        if do_wc_total_export:
+            plotter.export_npz(str(out_npz))
+        if do_wc_total_plot:
+            plotter.plot_bars()
+
     # ---------------- Between-reward return-leg distance (scalar bars) ----------------
     do_plot = bool(getattr(opts, "btw_rwd_return_leg_dist", False))
     do_export = bool(getattr(opts, "btw_rwd_return_leg_dist_export", None))
@@ -12480,6 +12802,17 @@ if __name__ == "__main__":
             print(
                 f"[wall-contact] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
                 "because --export-wall-contacts-per-sync-bkt-npz was set"
+            )
+            opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
+    if (
+        getattr(opts, "wall_contacts_per_reward_interval_total_bars", False)
+        or getattr(opts, "wall_contacts_per_reward_interval_total_export", None)
+    ):
+        if getattr(opts, "wall", None) is None:
+            print(
+                f"[wall-contact] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
+                "because --wall-contacts-per-reward-interval-total-bars/--wall-contacts-per-reward-interval-total-export was set"
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 

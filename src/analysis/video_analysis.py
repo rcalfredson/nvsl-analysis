@@ -595,6 +595,15 @@ class VideoAnalysis:
             )
         )
 
+        keep_wall_regions_for_wall_contacts_per_reward_interval_total = bool(
+            getattr(
+                self.opts, "wall_contacts_per_reward_interval_total_bars", False
+            )
+            or getattr(
+                self.opts, "wall_contacts_per_reward_interval_total_export", None
+            )
+        )
+
         keep_wall_regions = (
             keep_wall_regions_for_polar
             or keep_wall_regions_for_btw_rwd_com_mag
@@ -603,6 +612,7 @@ class VideoAnalysis:
             or keep_wall_regions_for_btw_rwd_conditioned_disttrav
             or keep_wall_regions_for_rrd
             or keep_wall_regions_for_between_reward_maxdist
+            or keep_wall_regions_for_wall_contacts_per_reward_interval_total
         )
 
         # ─────────────────────────────────────────────────────────────
