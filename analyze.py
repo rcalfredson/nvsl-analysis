@@ -10091,6 +10091,11 @@ def postAnalyze(vas):
                 )
                 or "actual"
             ),
+            sli_training_idx=sli_training_idx,
+            sli_average_over_buckets=use_training_mean,
+            sli_skip_first_sync_buckets=sel_skip_k,
+            sli_keep_first_sync_buckets=sel_keep_k,
+            sli_explicit_bucket_idx=sel_bucket_idx,
         )
         diag_plotter = FirstNRewardDiagnosticsPlotter(
             vas=vas_for_diag,
@@ -10174,6 +10179,11 @@ def postAnalyze(vas):
                 ),
                 top_label=f"Top {100*float(top_fraction):.1f}% SLI",
                 bottom_label=f"Bottom {100*float(bottom_fraction):.1f}% SLI",
+                sli_training_idx=sli_training_idx,
+                sli_average_over_buckets=use_training_mean,
+                sli_skip_first_sync_buckets=sel_skip_k,
+                sli_keep_first_sync_buckets=sel_keep_k,
+                sli_explicit_bucket_idx=sel_bucket_idx,
             )
             cmp_plotter = FirstNRewardSLIComparisonPlotter(
                 vas_top=[vas[i] for i in saved_top],

@@ -34,6 +34,11 @@ class FirstNRewardSLIComparisonConfig:
     bottom_label: str = "Bottom SLI-selected"
     title: str | None = None
     reward_event_type: str = "actual"
+    sli_training_idx: int | None = None
+    sli_average_over_buckets: bool = False
+    sli_skip_first_sync_buckets: int | None = None
+    sli_keep_first_sync_buckets: int | None = None
+    sli_explicit_bucket_idx: int | None = None
 
 
 @dataclass(frozen=True)
@@ -134,6 +139,11 @@ class FirstNRewardSLIComparisonPlotter:
             reward_event_type=str(
                 getattr(self.cfg, "reward_event_type", "actual") or "actual"
             ),
+            sli_training_idx=self.cfg.sli_training_idx,
+            sli_average_over_buckets=bool(self.cfg.sli_average_over_buckets),
+            sli_skip_first_sync_buckets=self.cfg.sli_skip_first_sync_buckets,
+            sli_keep_first_sync_buckets=self.cfg.sli_keep_first_sync_buckets,
+            sli_explicit_bucket_idx=self.cfg.sli_explicit_bucket_idx,
         )
 
     def _compute_rows_for_group(self, vas, *, sli_values, subset_label: str) -> _GroupComputation:

@@ -43,6 +43,11 @@ class FirstNRewardDiagnosticsConfig:
     label_low_sli_outliers: int = 0
     reward_event_type: str = "actual"
     include_reward_event_type_in_labels: bool = False
+    sli_training_idx: int | None = None
+    sli_average_over_buckets: bool = False
+    sli_skip_first_sync_buckets: int | None = None
+    sli_keep_first_sync_buckets: int | None = None
+    sli_explicit_bucket_idx: int | None = None
 
 
 @dataclass(frozen=True)
@@ -122,10 +127,35 @@ class FirstNRewardDiagnosticsPlotter:
         )
 
     def _sli_axis_label(self) -> str:
-        trainings = self._selected_trainings()
-        training_txt = training_window_label(trainings)
-        skip_first = max(0, int(self.cfg.skip_first_sync_buckets or 0))
-        keep_first = max(0, int(self.cfg.keep_first_sync_buckets or 0))
+        sli_training_idx = getattr(self.cfg, "sli_training_idx", None)
+        if sli_training_idx is None:
+            trainings = self._selected_trainings()
+            training_txt = training_window_label(trainings)
+        else:
+            training_txt = f"T{int(sli_training_idx) + 1}"
+
+        explicit_bucket_idx = getattr(self.cfg, "sli_explicit_bucket_idx", None)
+        if explicit_bucket_idx is not None:
+            return f"SLI ({training_txt}, SB{int(explicit_bucket_idx) + 1})"
+
+        skip_first_raw = getattr(self.cfg, "sli_skip_first_sync_buckets", None)
+        keep_first_raw = getattr(self.cfg, "sli_keep_first_sync_buckets", None)
+        skip_first = max(
+            0,
+            int(
+                self.cfg.skip_first_sync_buckets
+                if skip_first_raw is None
+                else skip_first_raw
+            ),
+        )
+        keep_first = max(
+            0,
+            int(
+                self.cfg.keep_first_sync_buckets
+                if keep_first_raw is None
+                else keep_first_raw
+            ),
+        )
         start_sb = skip_first + 1
         end_sb = None if keep_first <= 0 else start_sb + keep_first - 1
 
@@ -135,6 +165,8 @@ class FirstNRewardDiagnosticsPlotter:
             bucket_txt = f"SB{start_sb}"
         else:
             bucket_txt = f"SB{start_sb}-SB{end_sb}"
+        if bool(getattr(self.cfg, "sli_average_over_buckets", False)) and end_sb != start_sb:
+            return f"SLI ({training_txt}, mean, {bucket_txt})"
         return f"SLI ({training_txt}, {bucket_txt})"
 
     def _metric_label(self, name: str) -> str:
