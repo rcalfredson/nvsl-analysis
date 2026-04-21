@@ -289,16 +289,14 @@ class PlotCustomizer:
                     if "\n" not in s:
                         label.set_text(split_evenly(s))
 
-        # --- Step 6: Shared axis label logic for large fonts ---
+        # --- Step 6: Shared axis label logic when font size exceeds the default ---
         axes = fig.get_axes()
         if not axes:
             return
 
-        large_font = any(
-            ax.yaxis.get_label().get_fontsize() >= font_threshold for ax in axes
-        )
+        font_larger_than_default = self.font_size > self.font_size_default
 
-        if large_font and len(axes) > 1:
+        if font_larger_than_default and len(axes) > 1:
             # --- Step 6a: Single Y label (use leftmost subplot) ---
             left_ax = min(axes, key=lambda ax: ax.get_position().x0)
             shared_y_label = next(
