@@ -99,6 +99,9 @@ from src.exporting.return_prob_outer_radius_sli_bundle import (
 from src.exporting.return_prob_excursion_bin_sli_bundle import (
     export_return_prob_excursion_bin_sli_bundle,
 )
+from src.exporting.turnback_excursion_bin_sli_bundle import (
+    export_turnback_excursion_bin_sli_bundle,
+)
 from src.exporting.turnback_outer_radius_sli_bundle import (
     export_turnback_outer_radius_sli_bundle,
 )
@@ -4322,6 +4325,15 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--export-turnback-excursion-bin-sli-bundle",
+    type=str,
+    default=None,
+    help=(
+        "Write an .npz bundle with dual-circle turnback ratio as a function of "
+        "outer-radius bins for multi-group overlays/stats."
+    ),
+)
+g.add_argument(
     "--turnback-outer-radius-trainings",
     type=str,
     default=None,
@@ -4345,6 +4357,15 @@ g.add_argument(
     default=None,
     help=(
         "Trainings to include in return-prob-excursion-bin exports, e.g. '2' or "
+        "'2-3'. Default: all trainings."
+    ),
+)
+g.add_argument(
+    "--turnback-excursion-bin-trainings",
+    type=str,
+    default=None,
+    help=(
+        "Trainings to include in turnback-excursion-bin exports, e.g. '2' or "
         "'2-3'. Default: all trainings."
     ),
 )
@@ -4376,6 +4397,15 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--turnback-excursion-bin-edges-mm",
+    type=str,
+    default=None,
+    help=(
+        "Comma-separated outer-radius bin edges (mm beyond reward-circle radius) "
+        "for the turnback-excursion-bin export, e.g. '4,6,8,10,12'."
+    ),
+)
+g.add_argument(
     "--turnback-outer-radius-skip-first-sync-buckets",
     type=int,
     default=None,
@@ -4403,6 +4433,15 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--turnback-excursion-bin-skip-first-sync-buckets",
+    type=int,
+    default=None,
+    help=(
+        "Optional export-specific sync-bucket skip for turnback-excursion-bin "
+        "bundles. Defaults to --skip-first-sync-buckets."
+    ),
+)
+g.add_argument(
     "--turnback-outer-radius-keep-first-sync-buckets",
     type=int,
     default=None,
@@ -4426,6 +4465,15 @@ g.add_argument(
     default=None,
     help=(
         "Optional export-specific sync-bucket cap for return-prob-excursion-bin "
+        "bundles. Defaults to --keep-first-sync-buckets."
+    ),
+)
+g.add_argument(
+    "--turnback-excursion-bin-keep-first-sync-buckets",
+    type=int,
+    default=None,
+    help=(
+        "Optional export-specific sync-bucket cap for turnback-excursion-bin "
         "bundles. Defaults to --keep-first-sync-buckets."
     ),
 )
@@ -4460,6 +4508,16 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--turnback-excursion-bin-last-sync-buckets",
+    type=int,
+    default=0,
+    help=(
+        "After training selection and optional skip/keep trimming, keep only the "
+        "last K sync buckets per training for turnback-excursion-bin bundles. "
+        "Use 0 for no tail restriction."
+    ),
+)
+g.add_argument(
     "--turnback-outer-radius-debug",
     action="store_true",
     help=(
@@ -4473,6 +4531,14 @@ g.add_argument(
     help=(
         "Debug export of return-prob-outer-radius+SLI bundle: print selected "
         "windows, radii, and per-video count summaries."
+    ),
+)
+g.add_argument(
+    "--turnback-excursion-bin-debug",
+    action="store_true",
+    help=(
+        "Debug export of turnback-excursion-bin+SLI bundle: print selected "
+        "windows, bins, and per-video count summaries."
     ),
 )
 g.add_argument(
@@ -9211,6 +9277,11 @@ def postAnalyze(vas):
     if getattr(opts, "export_return_prob_excursion_bin_sli_bundle", None):
         export_return_prob_excursion_bin_sli_bundle(
             vas, opts, gls, opts.export_return_prob_excursion_bin_sli_bundle
+        )
+
+    if getattr(opts, "export_turnback_excursion_bin_sli_bundle", None):
+        export_turnback_excursion_bin_sli_bundle(
+            vas, opts, gls, opts.export_turnback_excursion_bin_sli_bundle
         )
 
     if getattr(opts, "export_weaving_sli_bundle", None):

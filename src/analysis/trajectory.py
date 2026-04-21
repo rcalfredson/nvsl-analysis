@@ -1294,6 +1294,151 @@ class Trajectory:
 
         return episodes
 
+    def reward_turnback_excursion_episodes_for_training(
+        self,
+        *,
+        trn,
+        inner_delta_mm: float = 0.0,
+        border_width_mm: float = 0.1,
+        debug: bool = False,
+        radius_offset_px: float = 0.0,
+    ) -> list[dict]:
+        """
+        Return inner-exit turnback excursions for one training, independent of any
+        outer radius.
+
+        Episode definition:
+          - start at the first frame after an in-inner True -> False transition
+          - stop at the next re-entry into the inner circle if one exists,
+            otherwise at training end
+
+        Each returned episode includes the observed maximum radial delta beyond the
+        reward-circle radius before episode end. Downstream code can then average
+        turnback success over bins of outer-circle radii without re-solving the
+        metric for many fixed thresholds.
+
+        Episodes that do not re-enter the inner circle before training end are
+        returned as training-end-censored excursions.
+        """
+        episodes: list[dict] = []
+
+        if not self.va:
+            return episodes
+        if not trn or not trn.isCircle():
+            return episodes
+
+        cs = trn.circles(self.f)
+        if not cs:
+            return episodes
+
+        cx, cy, r_px = cs[0]
+        if cx is None or cy is None or r_px is None:
+            return episodes
+        if np.isnan(cx) or np.isnan(cy) or np.isnan(r_px):
+            return episodes
+
+        fctr = float(getattr(self.va.xf, "fctr", 1.0) or 1.0)
+        px_per_mm = float(self.va.ct.pxPerMmFloor()) * fctr
+        inner_r_px = (
+            float(r_px)
+            + float(inner_delta_mm) * px_per_mm
+            + float(radius_offset_px)
+        )
+        inner_border_px = float(border_width_mm) * px_per_mm
+
+        t0 = int(trn.start)
+        t1 = int(trn.stop)
+        if t1 <= t0 + 1:
+            return episodes
+
+        xs = self.x[t0:t1]
+        ys = self.y[t0:t1]
+        good = np.isfinite(xs) & np.isfinite(ys)
+
+        in_inner = np.zeros(t1 - t0, dtype=bool)
+        dist_px = np.full(t1 - t0, np.nan, dtype=float)
+        if np.any(good):
+            inner_state = self.calc_in_circle(
+                xs[good],
+                ys[good],
+                cx,
+                cy,
+                inner_r_px,
+                border_width_px=inner_border_px,
+            )
+            in_inner[good] = inner_state > 0
+            dist_px[good] = np.hypot(xs[good] - float(cx), ys[good] - float(cy))
+
+        prev = in_inner[:-1]
+        curr = in_inner[1:]
+        exit_idxs = np.where(prev & (~curr))[0] + 1
+        enter_idxs = np.where((~prev) & curr)[0] + 1
+
+        if debug:
+            print(
+                f"{flyDesc(self.f)} {trn.sname()}: "
+                f"inner_r={inner_r_px:.2f}px exits={len(exit_idxs)} "
+                f"enters={len(enter_idxs)}"
+            )
+
+        enter_ptr = 0
+        for ex in exit_idxs:
+            while enter_ptr < len(enter_idxs) and enter_idxs[enter_ptr] <= ex:
+                enter_ptr += 1
+            next_enter = enter_idxs[enter_ptr] if enter_ptr < len(enter_idxs) else None
+            stop_rel = next_enter if next_enter is not None else (t1 - t0)
+            if stop_rel <= ex:
+                continue
+
+            seg_dist_px = dist_px[ex:stop_rel]
+            max_dist_px = np.nan
+            max_frame = None
+            if seg_dist_px.size > 0 and np.any(np.isfinite(seg_dist_px)):
+                try:
+                    k = int(np.nanargmax(seg_dist_px))
+                except Exception:
+                    k = None
+                if k is not None and 0 <= k < seg_dist_px.size:
+                    max_dist_px = float(seg_dist_px[k])
+                    max_frame = int(t0 + ex + k)
+
+            max_dist_mm = (
+                float(max_dist_px) / float(px_per_mm)
+                if np.isfinite(max_dist_px)
+                else np.nan
+            )
+            max_outer_delta_mm = (
+                max(0.0, float(max_dist_px - float(r_px))) / float(px_per_mm)
+                if np.isfinite(max_dist_px)
+                else np.nan
+            )
+            effective_inner_delta_mm = max(
+                0.0,
+                (
+                    (
+                        float(inner_r_px) - float(r_px)
+                    )
+                    / float(px_per_mm)
+                ),
+            )
+
+            turns_back = next_enter is not None
+            episodes.append(
+                {
+                    "start": int(t0 + ex),
+                    "stop": int(t0 + stop_rel),
+                    "turns_back": bool(turns_back),
+                    "end_reason": "reenter_inner" if turns_back else "training_end",
+                    "max_dist_px": float(max_dist_px) if np.isfinite(max_dist_px) else np.nan,
+                    "max_dist_mm": float(max_dist_mm),
+                    "max_outer_delta_mm": float(max_outer_delta_mm),
+                    "effective_inner_delta_mm": float(effective_inner_delta_mm),
+                    "max_dist_frame": max_frame,
+                }
+            )
+
+        return episodes
+
     def calc_agarose_dual_circle_episodes(self, delta_mm=0.5, debug=False):
         """
         Identify 'dual-circle' agarose avoidance episodes for this fly.
