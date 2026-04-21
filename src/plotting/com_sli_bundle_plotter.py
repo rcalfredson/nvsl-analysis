@@ -296,6 +296,7 @@ def plot_com_sli_bundles(
     delta_allow_unpaired=False,
     include_pre=False,
     show_legend=False,
+    show_description_labels=False,
 ):
     """
     Plot COM magnitude or SLI vs sync bucket from one or more exported bundles.
@@ -303,6 +304,7 @@ def plot_com_sli_bundles(
     - Each bundle is a “group” (regular / antennae-removed / PFN-silenced, etc).
     - Lines are mean over videos; shaded region is CI.
     - Optionally filter within each bundle by SLI percentile.
+    - Optional top-of-figure description labels are hidden by default.
     """
     if opts is None:
         # minimal opts object for PlotCustomizer + writeImage usage
@@ -795,8 +797,8 @@ def plot_com_sli_bundles(
         )
         selections.append((idx, both_labels, gid))
 
-    # annotate SLI selection if used
-    if sli_extremes is not None:
+    # annotate SLI selection if explicitly requested
+    if show_description_labels and sli_extremes is not None:
         # Assume consistent SLI settings; if not, still show the first and warn.
         stis = [b["sli_training_idx"] for b in bundles]
         means = [b["sli_use_training_mean"] for b in bundles]

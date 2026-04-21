@@ -96,6 +96,14 @@ def main():
         ),
     )
     p.add_argument(
+        "--show-description-labels",
+        action="store_true",
+        help=(
+            "Show small top-of-figure metadata labels such as the SLI filter summary. "
+            "Hidden by default."
+        ),
+    )
+    p.add_argument(
         "--include-pre",
         action="store_true",
         help=(
@@ -209,6 +217,7 @@ def main():
         delta_allow_unpaired=args.delta_allow_unpaired,
         include_pre=args.include_pre,
         show_legend=args.show_legend,
+        show_description_labels=args.show_description_labels,
     )
 
 
