@@ -21,13 +21,26 @@ MUTED_CATEGORICAL = (
     "#64B5CD",
 )
 
+# Reusable accent colors, originally assembled for correlation plots but now
+# shared more broadly across figure types.
+ACCENT_BLUE = "#0072B2"
+ACCENT_ORANGE = "#D55E00"
+ACCENT_TEAL = "#44AA99"
+ACCENT_GREEN = "#009E73"
+ACCENT_GOLD = "#E69F00"
+ACCENT_SKY = "#56B4E9"
+ACCENT_WINE = "#882255"
+ACCENT_PINK = "#CC79A7"
+ACCENT_INDIGO = "#332288"
+ACCENT_GREY = "#999999"
+
 WALL_CONTACTS_CATEGORICAL = (
-    "#2F6C8F",
-    "#C17C22",
-    "#7A9A32",
-    "#B44C5F",
-    "#6B63A3",
-    "#8A6B3F",
+    ACCENT_BLUE,
+    ACCENT_ORANGE,
+    ACCENT_GREEN,
+    ACCENT_WINE,
+    ACCENT_INDIGO,
+    ACCENT_GOLD,
 )
 
 NEUTRAL_DARK = "#44505C"
@@ -125,23 +138,23 @@ METRIC_PALETTES = {
 # Correlation-plot palette built from the Okabe-Ito family plus a few deeper
 # accents. This lets us keep a stable semantic color per plot type.
 CORRELATION_PLOT_COLORS = {
-    "rewards_per_distance_vs_sli": "#0072B2",
-    "rewards_per_minute_vs_sli": "#D55E00",
-    "first_n_reward_rate_vs_sli": "#44AA99",
-    "median_distance_vs_sli": "#009E73",
-    "baseline_pi_vs_sli": "#E69F00",
-    "pre_training_exploration_vs_sli": "#56B4E9",
-    "early_sli_vs_total_rewards": "#882255",
-    "first_n_reward_timing_vs_sli": "#CC79A7",
-    "fast_vs_strong_fast": "#332288",
-    "fast_vs_strong_strong": "#009E73",
-    "fast_vs_strong_overlap": "#CC79A7",
-    "fast_vs_strong_other": "#999999",
-    "selected_top": "#332288",
-    "selected_bottom": "#882255",
-    "selected_other": "#999999",
+    "rewards_per_distance_vs_sli": ACCENT_BLUE,
+    "rewards_per_minute_vs_sli": ACCENT_ORANGE,
+    "first_n_reward_rate_vs_sli": ACCENT_TEAL,
+    "median_distance_vs_sli": ACCENT_GREEN,
+    "baseline_pi_vs_sli": ACCENT_GOLD,
+    "pre_training_exploration_vs_sli": ACCENT_SKY,
+    "early_sli_vs_total_rewards": ACCENT_WINE,
+    "first_n_reward_timing_vs_sli": ACCENT_PINK,
+    "fast_vs_strong_fast": ACCENT_INDIGO,
+    "fast_vs_strong_strong": ACCENT_GREEN,
+    "fast_vs_strong_overlap": ACCENT_PINK,
+    "fast_vs_strong_other": ACCENT_GREY,
+    "selected_top": ACCENT_INDIGO,
+    "selected_bottom": ACCENT_WINE,
+    "selected_other": ACCENT_GREY,
     "unused_bright_yellow": BRIGHT_YELLOW,
-    "unused_slate_grey": "#999999",
+    "unused_slate_grey": ACCENT_GREY,
 }
 
 
