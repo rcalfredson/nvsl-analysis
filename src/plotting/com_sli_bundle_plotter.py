@@ -855,6 +855,8 @@ def plot_com_sli_bundles(
                 color="0",
             )
 
+    panel_annotation_contexts = []
+
     # plotting
     for ti in range(n_trains):
         ax = axs[ti]
@@ -862,9 +864,7 @@ def plot_com_sli_bundles(
         panel_has_pre = bool(include_pre and metric == "agarose" and ti == 0)
         panel_xs = np.concatenate(([pre_x], xs)) if panel_has_pre else xs
 
-        # Per(training,bucket) label registry so stars can avoid overlapping
-        # with existing text (n labels and other stars).
-        lbls = defaultdict(list)  # key: bucket index -> list of text-ish objs
+        pending_n_labels = []
 
         # choose a training title from first bundle (best effort)
         try:
@@ -984,21 +984,17 @@ def plot_com_sli_bundles(
                     alpha=0.15,
                 )
 
-            # optionally show n per bucket (like plotRewards)
+            # Collect n-per-bucket labels and place them after final y-lims are known.
             for bj, n in enumerate(plot_mci[3, :]):
                 if n > 0 and np.isfinite(ys[bj]):
-                    txt = util.pltText(
-                        panel_xs[bj],
-                        ys[bj] + 0.04 * (ylim[1] - ylim[0]),
-                        f"{int(n)}",
-                        ha="center",
-                        size=customizer.in_plot_font_size,
-                        color=".2",
+                    pending_n_labels.append(
+                        {
+                            "bucket_idx": int(bj),
+                            "x": float(panel_xs[bj]),
+                            "anchor_y": float(ys[bj]),
+                            "n": int(n),
+                        }
                     )
-                    # register for overlap avoidance
-                    txt._y_ = float(ys[bj])
-                    txt._final_y_ = float(ys[bj] + 0.04 * (ylim[1] - ylim[0]))
-                    lbls[bj].append(txt)
 
             # ctrl overlay (optional)
             if include_ctrl:
@@ -1053,137 +1049,6 @@ def plot_com_sli_bundles(
                             color=ctrl_color,
                             alpha=0.12,
                         )
-
-        # ---- 3+ group one-way ANOVA + star annotations (plotRewards-style) ----
-        if (
-            do_anova
-            and all(m is not None for m in means_by_group)
-            and all(v is not None for v in vals_by_group)
-        ):
-            # For each bucket, run an omnibus ANOVA across groups.
-            # (No post-hoc here; this mirrors your "one symbol per bucket" style.)
-            for bj in range(len(vals_by_group[0])):
-                groups_here = []
-                ok = True
-                for gi in range(n_plot_groups):
-                    x = vals_by_group[gi][bj]
-                    if x.size < min_n_per_group_anova:
-                        ok = False
-                        break
-                    groups_here.append(x)
-                if not ok:
-                    continue
-
-                p = _anova_p_per_bucket(
-                    groups_here, min_n_per_group=min_n_per_group_anova
-                )
-                stars = util.p2stars(p, nanR="")
-                if not stars:
-                    continue
-
-                # Anchor at the max mean among groups at this bucket
-                mus = [means_by_group[gi][bj] for gi in range(n_plot_groups)]
-                if not np.any(np.isfinite(mus)):
-                    continue
-                anchor_y = float(np.nanmax(mus))
-
-                # Avoid y-collisions with existing labels at this bucket
-                txts_here = lbls.get(bj, [])
-                avoid_ys = [
-                    (t._final_y_ if hasattr(t, "_final_y_") else t._y_)
-                    for t in txts_here
-                    if hasattr(t, "_final_y_") or hasattr(t, "_y_")
-                ]
-                if np.isfinite(anchor_y):
-                    avoid_ys.append(float(anchor_y))
-
-                span = ylim[1] - ylim[0]
-                base_y_for_star = float(anchor_y) + 0.04 * span
-
-                ys_star, va_align = pick_above_or_expand(
-                    base_y_for_star,
-                    avoid_ys,
-                    ylim,
-                )
-                if ys_star is None:
-                    continue
-
-                txt = util.pltText(
-                    panel_xs[bj],
-                    ys_star,
-                    stars,
-                    ha="center",
-                    va=va_align,
-                    size=customizer.in_plot_font_size,
-                    color="0",
-                    weight="bold",
-                )
-                txt._y_ = float(anchor_y)
-                txt._final_y_ = float(ys_star)
-                lbls[bj].append(txt)
-
-        # ---- Two-group t-tests + star annotations (plotRewards-style) ----
-        if (
-            do_ttests
-            and all(m is not None for m in means_by_group)
-            and all(v is not None for v in vals_by_group)
-        ):
-            m0 = means_by_group[0]
-            m1 = means_by_group[1]
-            for bj in range(len(vals_by_group[0])):
-                x0 = vals_by_group[0][bj]
-                x1 = vals_by_group[1][bj]
-
-                # Require some data on both sides
-                if x0.size < 2 or x1.size < 2:
-                    continue
-
-                try:
-                    _t, p = ttest_ind(x0, x1)[:2]
-                except Exception:
-                    continue
-
-                stars = util.p2stars(p, nanR="")
-
-                # Choose anchor near the higher mean of the two groups at this bucket
-                if not (np.isfinite(m0[bj]) or np.isfinite(m1[bj])):
-                    continue
-                anchor_y = np.nanmax([m0[bj], m1[bj]])
-
-                # Avoid y-collisions with existing labels at this bucket
-                txts_here = lbls.get(bj, [])
-                avoid_ys = [
-                    (t._final_y_ if hasattr(t, "_final_y_") else t._y_)
-                    for t in txts_here
-                    if hasattr(t, "_final_y_") or hasattr(t, "_y_")
-                ]
-                if np.isfinite(anchor_y):
-                    avoid_ys.append(float(anchor_y))
-
-                span = ylim[1] - ylim[0]
-                base_y_for_star = float(anchor_y) + 0.04 * span
-
-                ys_star, va_align = pick_above_or_expand(
-                    base_y_for_star,
-                    avoid_ys,
-                    ylim,
-                )
-                if ys_star is None:
-                    continue
-
-                txt = util.pltText(
-                    panel_xs[bj],
-                    ys_star,
-                    stars,
-                    ha="center",
-                    va=va_align,
-                    size=customizer.in_plot_font_size,
-                    color="0",
-                    weight="bold",
-                )
-                txt._y_ = float(anchor_y)
-                txt._final_y_ = float(ys_star)
-                lbls[bj].append(txt)
 
         plt.title(maybe_sentence_case(title))
         default_xlabel = (
@@ -1278,6 +1143,20 @@ def plot_com_sli_bundles(
         else:
             plt.xlim(0, xs[-1])
 
+        panel_annotation_contexts.append(
+            {
+                "ax": ax,
+                "panel_xs": np.asarray(panel_xs, dtype=float),
+                "pending_n_labels": pending_n_labels,
+                "do_anova": bool(do_anova),
+                "do_ttests": bool(do_ttests),
+                "means_by_group": means_by_group,
+                "vals_by_group": vals_by_group,
+                "n_plot_groups": int(n_plot_groups),
+                "min_n_per_group_anova": int(min_n_per_group_anova),
+            }
+        )
+
     # --- Delta-mode y-lims: center around 0 and keep it tight unless the data demand otherwise ---
     if base_bundle is not None:
         if (
@@ -1323,6 +1202,169 @@ def plot_com_sli_bundles(
     for ax in fig.get_axes():
         ax.set_ylim(ylim[0], ylim[1])
 
+    span = ylim[1] - ylim[0]
+    if not np.isfinite(span) or span <= 0:
+        span = 1.0
+
+    for ctx in panel_annotation_contexts:
+        ax = ctx["ax"]
+        plt.sca(ax)
+        lbls = defaultdict(list)
+
+        for info in ctx["pending_n_labels"]:
+            base_y = float(info["anchor_y"]) + 0.04 * span
+            y_n, va_align = pick_above_or_expand(
+                base_y,
+                [float(info["anchor_y"])],
+                ylim,
+                span_override=span,
+            )
+            if y_n is None:
+                continue
+            txt = util.pltText(
+                float(info["x"]),
+                y_n,
+                f"{int(info['n'])}",
+                ha="center",
+                va=va_align,
+                size=customizer.in_plot_font_size,
+                color=".2",
+            )
+            txt._y_ = float(info["anchor_y"])
+            txt._final_y_ = float(y_n)
+            lbls[int(info["bucket_idx"])].append(txt)
+
+        if (
+            ctx["do_anova"]
+            and all(m is not None for m in ctx["means_by_group"])
+            and all(v is not None for v in ctx["vals_by_group"])
+        ):
+            for bj in range(len(ctx["vals_by_group"][0])):
+                groups_here = []
+                ok = True
+                for gi in range(ctx["n_plot_groups"]):
+                    x = ctx["vals_by_group"][gi][bj]
+                    if x.size < ctx["min_n_per_group_anova"]:
+                        ok = False
+                        break
+                    groups_here.append(x)
+                if not ok:
+                    continue
+
+                p = _anova_p_per_bucket(
+                    groups_here,
+                    min_n_per_group=ctx["min_n_per_group_anova"],
+                )
+                stars = util.p2stars(p, nanR="")
+                if not stars:
+                    continue
+
+                mus = [ctx["means_by_group"][gi][bj] for gi in range(ctx["n_plot_groups"])]
+                if not np.any(np.isfinite(mus)):
+                    continue
+                anchor_y = float(np.nanmax(mus))
+
+                txts_here = lbls.get(bj, [])
+                avoid_ys = [
+                    (t._final_y_ if hasattr(t, "_final_y_") else t._y_)
+                    for t in txts_here
+                    if hasattr(t, "_final_y_") or hasattr(t, "_y_")
+                ]
+                if np.isfinite(anchor_y):
+                    avoid_ys.append(float(anchor_y))
+
+                stacked_top = max(avoid_ys) if avoid_ys else float(anchor_y)
+                base_y_for_star = max(
+                    float(anchor_y) + 0.10 * span,
+                    float(stacked_top) + 0.06 * span,
+                )
+
+                ys_star, va_align = pick_above_or_expand(
+                    base_y_for_star,
+                    avoid_ys,
+                    ylim,
+                    span_override=span,
+                )
+                if ys_star is None:
+                    continue
+
+                txt = util.pltText(
+                    float(ctx["panel_xs"][bj]),
+                    ys_star,
+                    stars,
+                    ha="center",
+                    va=va_align,
+                    size=customizer.in_plot_font_size,
+                    color="0",
+                    weight="bold",
+                )
+                txt._y_ = float(anchor_y)
+                txt._final_y_ = float(ys_star)
+                lbls[bj].append(txt)
+
+        if (
+            ctx["do_ttests"]
+            and all(m is not None for m in ctx["means_by_group"])
+            and all(v is not None for v in ctx["vals_by_group"])
+        ):
+            m0 = ctx["means_by_group"][0]
+            m1 = ctx["means_by_group"][1]
+            for bj in range(len(ctx["vals_by_group"][0])):
+                x0 = ctx["vals_by_group"][0][bj]
+                x1 = ctx["vals_by_group"][1][bj]
+                if x0.size < 2 or x1.size < 2:
+                    continue
+
+                try:
+                    _t, p = ttest_ind(x0, x1)[:2]
+                except Exception:
+                    continue
+
+                stars = util.p2stars(p, nanR="")
+                if not stars:
+                    continue
+                if not (np.isfinite(m0[bj]) or np.isfinite(m1[bj])):
+                    continue
+                anchor_y = float(np.nanmax([m0[bj], m1[bj]]))
+
+                txts_here = lbls.get(bj, [])
+                avoid_ys = [
+                    (t._final_y_ if hasattr(t, "_final_y_") else t._y_)
+                    for t in txts_here
+                    if hasattr(t, "_final_y_") or hasattr(t, "_y_")
+                ]
+                if np.isfinite(anchor_y):
+                    avoid_ys.append(float(anchor_y))
+
+                stacked_top = max(avoid_ys) if avoid_ys else float(anchor_y)
+                base_y_for_star = max(
+                    float(anchor_y) + 0.10 * span,
+                    float(stacked_top) + 0.06 * span,
+                )
+
+                ys_star, va_align = pick_above_or_expand(
+                    base_y_for_star,
+                    avoid_ys,
+                    ylim,
+                    span_override=span,
+                )
+                if ys_star is None:
+                    continue
+
+                txt = util.pltText(
+                    float(ctx["panel_xs"][bj]),
+                    ys_star,
+                    stars,
+                    ha="center",
+                    va=va_align,
+                    size=customizer.in_plot_font_size,
+                    color="0",
+                    weight="bold",
+                )
+                txt._y_ = float(anchor_y)
+                txt._final_y_ = float(ys_star)
+                lbls[bj].append(txt)
+
     # legend (or suptitle if only one entry)
     handles, leg_labels = axs[0].get_legend_handles_labels()
     legend_handles = []
@@ -1365,7 +1407,11 @@ def plot_com_sli_bundles(
         axs[0].legend(
             handles=legend_handles,
             labels=legend_labels,
-            frameon=False,
+            loc="upper right",
+            frameon=True,
+            facecolor="white",
+            framealpha=0.92,
+            edgecolor="0.8",
             handlelength=3.2,
         )
     if customizer.font_size_customized:
