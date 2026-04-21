@@ -356,9 +356,18 @@ def plot_com_sli_bundles(
         base_bundle = load_sli_bundle(delta_vs_path)
 
     if metric == "commag":
-        series_key = "commag_exp"
-        need_keys = ["commag_exp"]
-        include_ctrl = requested_include_ctrl
+        if turnback_mode == "exp":
+            series_key = "commag_exp"
+            need_keys = ["commag_exp"]
+            include_ctrl = requested_include_ctrl
+        elif turnback_mode == "ctrl":
+            series_key = "commag_ctrl"
+            need_keys = ["commag_ctrl"]
+        elif turnback_mode == "exp_minus_ctrl":
+            series_key = "commag_exp"
+            need_keys = ["commag_exp", "commag_ctrl"]
+        else:
+            raise ValueError(f"Unknown mode={turnback_mode!r} for metric=commag")
     elif metric == "sli":
         if any("sli_ts" not in b for b in bundles):
             raise ValueError("One or more bundles are missing sli_ts; re-export them.")
@@ -537,6 +546,10 @@ def plot_com_sli_bundles(
         """
         Return array shaped (n_videos, n_trains, nb) for the requested plot.
         """
+        if metric == "commag" and turnback_mode == "exp_minus_ctrl":
+            exp_arr = np.asarray(b["commag_exp"], dtype=float)
+            ctrl_arr = np.asarray(b["commag_ctrl"], dtype=float)
+            return exp_arr - ctrl_arr
         if metric == "turnback" and turnback_mode == "exp_minus_ctrl":
             exp_arr = np.asarray(b["turnback_ratio_exp"], dtype=float)
             ctrl_arr = np.asarray(b["turnback_ratio_ctrl"], dtype=float)
