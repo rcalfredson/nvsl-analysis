@@ -4139,6 +4139,16 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--hmAlignDebug",
+    dest="hm_align_debug",
+    action="store_true",
+    help=(
+        "Print per-fly HTL heatmap alignment diagnostics, including transformed "
+        "x/y ranges, chosen heatmap bounds, reward-circle coordinates, and "
+        "out-of-bounds status."
+    ),
+)
+g.add_argument(
     "--bg",
     dest="bg",
     type=float,
@@ -7691,6 +7701,8 @@ def plotHeatmaps(vas):
     nsr, nf = 1 if va0.noyc else 3 - nsc, len(flies)
     if va0.ct is CT.regular:
         fig = plt.figure(figsize=(4 * nc, 6))
+    elif va0.ct is CT.htl:
+        fig = plt.figure(figsize=(3.1 * nc, 6 * nsr))
     elif va0.ct is CT.large:
         fig = plt.figure(figsize=(3.1 * nc, 6 * nsr))
     elif va0.ct is CT.large2:
@@ -7885,7 +7897,10 @@ def plotHeatmaps(vas):
                     plt.title(ttln, loc="right", size="medium")
                 if not pst and f == 0 and t.circles(f):
                     cx, cy, r = t.circles(f)[0]
-                    cxy = util.tupleSub(va0.mirror(va0.xf.f2t(cx, cy)), xym)
+                    if va0.ct is CT.htl:
+                        cxy = util.tupleSub(va0.xf.f2t(cx, cy, f=va0.trxf[f]), xym)
+                    else:
+                        cxy = util.tupleSub(va0.mirror(va0.xf.f2t(cx, cy)), xym)
                     cv2.circle(img, util.intR(cxy), r, COL_W if lin else COL_BK, 1)
                     ax.add_artist(
                         mpl.patches.Circle(

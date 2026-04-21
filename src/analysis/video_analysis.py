@@ -7136,6 +7136,98 @@ class VideoAnalysis:
         else:
             return xy
 
+    def _heatmapBounds(self, f):
+        if self.ct is CT.regular:
+            xym = np.array(((-30, 108)[f], -24))
+            xyM = np.array(((90, 228)[f], 164))
+        elif self.ct is CT.htl:
+            # First-pass HTL support: start with the canonical local chamber floor
+            # and extend it slightly so the heatmap is not clipped to the floor.
+            floor_tl, floor_br = self.ct.value["floor"]
+            sw = 15
+            xym = np.array((floor_tl[0] - sw, floor_tl[1] - sw))
+            xyM = np.array((floor_br[0] + sw, floor_br[1] + sw))
+        elif self.ct is CT.large:
+            sw = 36
+            xym = np.array((4 - sw, (4 - sw, 286)[f]))
+            xyM = np.array((250, (250, 532 + sw)[f]))
+        elif self.ct is CT.large2:
+            sw = 37
+            xym = np.array((5 - sw, (5 - sw, 339.5)[f]))
+            xyM = np.array((302.5, (302.5, 637 + sw)[f]))
+        else:
+            error("heatmap not yet implemented")
+        return xym, xyM
+
+    def _heatmapCoords(self, trx, f, fi, la):
+        if self.ct is CT.htl:
+            return [a[fi:la] for a in self.xf.f2t(trx.x, trx.y, f=self.trxf[f])]
+        return self.mirror([a[fi:la] for a in self.xf.f2t(trx.x, trx.y)])
+
+    def _debugHeatmapAlignment(self, *, trx, t, f, fi, la, xym, xyM, xy, fiRi=None, pst=False):
+        if not (getattr(self.opts, "hm_align_debug", False) and self.ct is CT.htl):
+            return
+
+        finite = np.isfinite(xy[0]) & np.isfinite(xy[1])
+        x_all = xy[0][finite]
+        y_all = xy[1][finite]
+
+        walking = np.asarray(trx.walking[fi:la], dtype=bool)
+        keep = finite & walking
+        if pst and fiRi is not None and fiRi > fi:
+            keep[: fiRi - fi] = False
+        x_walk = xy[0][keep]
+        y_walk = xy[1][keep]
+
+        oob = False
+        if x_all.size and y_all.size:
+            oob = not (
+                xym[0] < np.nanmin(x_all)
+                and np.nanmax(x_all) < xyM[0]
+                and xym[1] < np.nanmin(y_all)
+                and np.nanmax(y_all) < xyM[1]
+            )
+
+        circle_msg = "none"
+        if not pst and t.circles(f):
+            cx, cy, r = t.circles(f)[0]
+            cxy = self.xf.f2t(cx, cy, f=self.trxf[f])
+            local_cxy = util.tupleSub(cxy, xym)
+            circle_msg = (
+                f"center_local=({local_cxy[0]:.2f}, {local_cxy[1]:.2f}) "
+                f"center_global=({cxy[0]:.2f}, {cxy[1]:.2f}) r={r}"
+            )
+
+        def _fmt(vals):
+            if vals.size:
+                return f"{np.min(vals):.2f}..{np.max(vals):.2f}"
+            return "empty"
+
+        print(
+            "[hm-align] %s fly_local=%d fly_abs=%d %s row=%s "
+            "frames=%d..%d bounds=(%.2f, %.2f)->(%.2f, %.2f) "
+            "x_all=%s y_all=%s x_walk=%s y_walk=%s oob=%s circle=%s"
+            % (
+                util.basename(self.fn),
+                f,
+                self.trxf[f],
+                t.sname(),
+                "post" if pst else "main",
+                fi,
+                la,
+                xym[0],
+                xym[1],
+                xyM[0],
+                xyM[1],
+                _fmt(x_all),
+                _fmt(y_all),
+                _fmt(x_walk),
+                _fmt(y_walk),
+                oob,
+                circle_msg,
+            )
+        )
+
     # calculate maps for heatmaps
     def calcHm(self):
         self.heatmap, self.heatmapPost = [[], []], [[], []]  # index: fly, training
@@ -7143,19 +7235,7 @@ class VideoAnalysis:
         startPost = RI_START_POST if self.circle else ST.fixed
         for i, t in enumerate(self.trns):
             for f in self.flies:
-                if self.ct is CT.regular:
-                    xym = np.array(((-30, 108)[f], -24))
-                    xyM = np.array(((90, 228)[f], 164))
-                elif self.ct is CT.large:
-                    sw = 36
-                    xym = np.array((4 - sw, (4 - sw, 286)[f]))
-                    xyM = np.array((250, (250, 532 + sw)[f]))
-                elif self.ct is CT.large2:
-                    sw = 37
-                    xym = np.array((5 - sw, (5 - sw, 339.5)[f]))
-                    xyM = np.array((302.5, (302.5, 637 + sw)[f]))
-                else:
-                    error("heatmap not yet implemented")
+                xym, xyM = self._heatmapBounds(f)
                 bins, rng = [int(el) for el in (xyM - xym) / HEATMAP_DIV], np.vstack(
                     (xym, xyM)
                 ).T
@@ -7179,7 +7259,19 @@ class VideoAnalysis:
                     if trx.bad() or skip:
                         hm[f].append((None, None, xym))
                         continue
-                    xy = self.mirror([a[fi:la] for a in self.xf.f2t(trx.x, trx.y)])
+                    xy = self._heatmapCoords(trx, f, fi, la)
+                    self._debugHeatmapAlignment(
+                        trx=trx,
+                        t=t,
+                        f=f,
+                        fi=fi,
+                        la=la,
+                        xym=xym,
+                        xyM=xyM,
+                        xy=xy,
+                        fiRi=fiRi if j else None,
+                        pst=bool(j),
+                    )
                     for a, m, M in zip(xy, xym, xyM):
                         if not (m < np.nanmin(a) and np.nanmax(a) < M):
                             self.heatmapOOB = True
