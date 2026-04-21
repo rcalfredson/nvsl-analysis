@@ -128,6 +128,71 @@ def _ensure_xlabel_visible(fig: plt.Figure, ax: plt.Axes) -> None:
     fig.canvas.draw()
 
 
+def _wrapped_ylabel_text(text: str) -> str:
+    text = str(text)
+    if "\n" in text:
+        return text
+    if ", " in text:
+        return text.replace(", ", ",\n", 1)
+    if " per " in text:
+        return text.replace(" per ", "\nper ", 1)
+    if " (" in text:
+        return text.replace(" (", "\n(", 1)
+    return text
+
+
+def _ensure_ylabel_visible(fig: plt.Figure, ax: plt.Axes) -> None:
+    label = ax.yaxis.get_label()
+    if not label.get_text():
+        return
+
+    pad_x_px = max(8.0, 0.55 * float(label.get_fontsize()) + 4.0)
+    pad_y_px = max(10.0, 0.45 * float(label.get_fontsize()) + 4.0)
+    wrapped = _wrapped_ylabel_text(label.get_text())
+    if wrapped != label.get_text():
+        label.set_text(wrapped)
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    fig_bbox = fig.bbox
+
+    def _within_bounds() -> bool:
+        bbox = label.get_window_extent(renderer=renderer)
+        x_ok = bbox.x0 >= fig_bbox.x0 + pad_x_px
+        y_ok = (
+            bbox.y0 >= fig_bbox.y0 + pad_y_px
+            and bbox.y1 <= fig_bbox.y1 - pad_y_px
+        )
+        return x_ok and y_ok
+
+    if _within_bounds():
+        return
+
+    if _within_bounds():
+        return
+
+    bbox = label.get_window_extent(renderer=renderer)
+    overflow_left_px = max((fig_bbox.x0 + pad_x_px) - bbox.x0, 0.0)
+    overflow_bottom_px = max((fig_bbox.y0 + pad_y_px) - bbox.y0, 0.0)
+    overflow_top_px = max(bbox.y1 - (fig_bbox.y1 - pad_y_px), 0.0)
+
+    fig_h_px = max(fig.get_size_inches()[1] * fig.dpi, 1.0)
+    fig_w_px = max(fig.get_size_inches()[0] * fig.dpi, 1.0)
+
+    extra_left = float(overflow_left_px / fig_w_px) + 0.01
+    extra_bottom = float(overflow_bottom_px / fig_h_px) + 0.005
+    extra_top = float(overflow_top_px / fig_h_px) + 0.005
+
+    new_left = min(fig.subplotpars.left + extra_left, 0.28)
+    new_bottom = min(fig.subplotpars.bottom + extra_bottom, 0.20)
+    new_top = max(fig.subplotpars.top - extra_top, 0.84)
+    if new_top <= new_bottom:
+        new_bottom = fig.subplotpars.bottom
+        new_top = fig.subplotpars.top
+
+    fig.subplots_adjust(left=new_left, bottom=new_bottom, top=new_top)
+    fig.canvas.draw()
+
+
 def _paired_filter_mats_all_panels(
     mats: list[np.ndarray],
     ids: list[np.ndarray],
@@ -577,6 +642,8 @@ def plot_overlays(
     stats_paired: bool = False,
     debug: bool = False,
     bar_alpha: float = 0.90,
+    palette: str | list[str] | tuple[str, ...] | None = None,
+    single_panel_group_ticks: bool = True,
     opts=None,
 ) -> plt.Figure:
     if opts is None:
@@ -602,26 +669,35 @@ def plot_overlays(
     panel_labels = xs[0].panel_labels
     P = len(panel_labels)
     G = len(xs)
+    single_panel_group_layout = bool(single_panel_group_ticks) and P == 1 and G > 0
     if P >= 10:
         width_scale = min(1.0 + 0.32 * (font_scale - 1.0), 1.55)
     elif P >= 8:
         width_scale = min(1.0 + 0.24 * (font_scale - 1.0), 1.40)
     else:
         width_scale = min(1.0 + 0.10 * (font_scale - 1.0), 1.20)
-    fig_w = max(6.0, 1.2 * P * width_scale)
+    fig_w = max(6.0, 1.2 * (G if single_panel_group_layout else P) * width_scale)
     fig_h = 4.5 * min(1.0 + 0.12 * (font_scale - 1.0), 1.24)
     fig, ax = plt.subplots(1, 1, figsize=(fig_w, fig_h))
 
-    x_centers = np.arange(P, dtype=float)
+    x_centers = (
+        np.asarray([0.5 * max(G - 1, 0)], dtype=float)
+        if single_panel_group_layout
+        else np.arange(P, dtype=float)
+    )
     dense_bar_layout = P >= 10
     compact_n_labels = dense_bar_layout and font_scale >= 1.15
     n_label_rotation = 28 if compact_n_labels else 0
 
     # grouped/dodged bars
-    group_band = 0.80
-    bar_w = group_band / max(1, G)
-    gpos = np.arange(G) - (G - 1) / 2.0
-    offsets = gpos * bar_w  # (G,)
+    if single_panel_group_layout:
+        bar_w = 0.68
+        offsets = np.zeros((G,), dtype=float)
+    else:
+        group_band = 0.80
+        bar_w = group_band / max(1, G)
+        gpos = np.arange(G) - (G - 1) / 2.0
+        offsets = gpos * bar_w  # (G,)
 
     # Per-group union matrices for stats (and paired recompute)
     mats = []
@@ -682,7 +758,10 @@ def plot_overlays(
         per_group_legend_ns = _all_groups_have_constant_legend_n(xs)
 
     for gi, x in enumerate(xs):
-        xg = x_centers + offsets[gi]
+        if single_panel_group_layout:
+            xg = np.asarray([float(gi)], dtype=float)
+        else:
+            xg = x_centers + offsets[gi]
         xpos_by_group.append(np.asarray(xg, float))
 
         y = np.asarray(means_plot[gi], float)
@@ -691,8 +770,8 @@ def plot_overlays(
         if per_group_legend_ns is not None and gi < len(per_group_legend_ns):
             n_leg = per_group_legend_ns[gi]
         label = f"{x.group} (n={n_leg})" if n_leg is not None else f"{x.group}"
-        bar_color = group_fill_color(gi)
-        edge_color = group_accent_color(gi)
+        bar_color = group_fill_color(gi, palette=palette)
+        edge_color = group_accent_color(gi, palette=palette)
         ax.bar(
             xg,
             y_plot,
@@ -743,22 +822,48 @@ def plot_overlays(
         tick_rotation = 55
     if P >= 10 and font_scale >= 1.35:
         tick_rotation = 60
-    ax.set_xticks(x_centers)
-    ax.set_xticklabels(panel_labels, rotation=tick_rotation, ha="right")
+    if single_panel_group_layout:
+        tick_labels = []
+        for x in xs:
+            npp = _panel_n(x, 0)
+            if npp is not None and npp > 0:
+                tick_labels.append(f"{x.group}\n(n={npp})")
+            else:
+                tick_labels.append(str(x.group))
+        ax.set_xticks(np.arange(G, dtype=float))
+        single_panel_tick_rotation = 18
+        if font_scale >= 1.15:
+            single_panel_tick_rotation = 24
+        if font_scale >= 1.35:
+            single_panel_tick_rotation = 30
+        ax.set_xticklabels(
+            tick_labels,
+            rotation=single_panel_tick_rotation,
+            ha="right",
+            rotation_mode="anchor",
+        )
+        ax.set_xlim(-0.6, float(max(G - 1, 0)) + 0.6)
+    else:
+        ax.set_xticks(x_centers)
+        ax.set_xticklabels(panel_labels, rotation=tick_rotation, ha="right")
 
     if xlabel:
         xlabel_use = str(xlabel)
-        if (
-            dense_bar_layout
-            and font_scale >= 1.15
-            and "\n" not in xlabel_use
-            and len(xlabel_use) >= 36
-        ):
-            if " from " in xlabel_use:
-                xlabel_use = xlabel_use.replace(" from ", "\nfrom ", 1)
-            elif " (" in xlabel_use:
-                xlabel_use = xlabel_use.replace(" (", "\n(", 1)
-        ax.set_xlabel(xlabel_use)
+        auto_single_panel_xlabel = (
+            single_panel_group_layout and xlabel_use.strip().lower() == "training"
+        )
+        if not auto_single_panel_xlabel:
+            if (
+                dense_bar_layout
+                and font_scale >= 1.15
+                and "\n" not in xlabel_use
+                and len(xlabel_use) >= 36
+            ):
+                if " from " in xlabel_use:
+                    xlabel_use = xlabel_use.replace(" from ", "\nfrom ", 1)
+                elif " (" in xlabel_use:
+                    xlabel_use = xlabel_use.replace(" (", "\n(", 1)
+            ax.set_xlabel(xlabel_use)
     if ylabel:
         ax.set_ylabel(ylabel)
 
@@ -803,7 +908,7 @@ def plot_overlays(
                     if npp <= 0:
                         continue
                     panel_n_texts[p] = f"n={npp}"
-        elif per_group_legend_ns is None:
+        elif per_group_legend_ns is None and not single_panel_group_layout:
             for p in range(P):
                 ns = []
                 for x in xs:
@@ -813,7 +918,7 @@ def plot_overlays(
                 panel_n_texts.append(
                     _per_panel_n_text(ns, compact_n_labels=compact_n_labels)
                 )
-    elif per_group_legend_ns is None:
+    elif per_group_legend_ns is None and not single_panel_group_layout:
         for p in range(P):
             ns = []
             for x in xs:
@@ -841,7 +946,8 @@ def plot_overlays(
     if title:
         fig.suptitle(title)
 
-    legend = ax.legend(fontsize=legend_font_size)
+    show_legend = not single_panel_group_layout
+    legend = ax.legend(fontsize=legend_font_size) if show_legend else None
     if customizer.customized:
         customizer.adjust_padding_proportionally()
         xlabel_text = ax.xaxis.get_label().get_text()
@@ -863,6 +969,7 @@ def plot_overlays(
     else:
         fig.tight_layout()
     _ensure_xlabel_visible(fig, ax)
+    _ensure_ylabel_visible(fig, ax)
     _ensure_legend_clear_of_annotations(
         fig,
         ax,

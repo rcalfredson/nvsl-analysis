@@ -21,12 +21,26 @@ MUTED_CATEGORICAL = (
     "#64B5CD",
 )
 
+WALL_CONTACTS_CATEGORICAL = (
+    "#2F6C8F",
+    "#C17C22",
+    "#7A9A32",
+    "#B44C5F",
+    "#6B63A3",
+    "#8A6B3F",
+)
+
 NEUTRAL_DARK = "#44505C"
 NEUTRAL_MID = "#73808C"
 NEUTRAL_LIGHT = "#C6CDD3"
 BRIGHT_YELLOW = "#F0E442"
 
 FLY_COLS = (MUTED_CATEGORICAL[0], MUTED_CATEGORICAL[3])
+
+NAMED_CATEGORICAL_PALETTES = {
+    "default": MUTED_CATEGORICAL,
+    "wall_contacts": WALL_CONTACTS_CATEGORICAL,
+}
 
 
 def _adjust_lightness(color: str, amount: float) -> str:
@@ -36,23 +50,48 @@ def _adjust_lightness(color: str, amount: float) -> str:
     return mcolors.to_hex(colorsys.hls_to_rgb(h, l, s))
 
 
-def categorical_colors(n: int | None = None) -> list[str]:
-    colors = list(MUTED_CATEGORICAL)
+def resolve_categorical_palette(
+    palette: str | list[str] | tuple[str, ...] | None = None,
+) -> list[str]:
+    if palette is None:
+        colors = list(MUTED_CATEGORICAL)
+    elif isinstance(palette, str):
+        colors = list(
+            NAMED_CATEGORICAL_PALETTES.get(str(palette), MUTED_CATEGORICAL)
+        )
+    else:
+        colors = [str(c) for c in palette]
+        if not colors:
+            colors = list(MUTED_CATEGORICAL)
+    return colors
+
+
+def categorical_colors(
+    n: int | None = None,
+    palette: str | list[str] | tuple[str, ...] | None = None,
+) -> list[str]:
+    colors = resolve_categorical_palette(palette)
     if n is None:
         return colors
     return [colors[i % len(colors)] for i in range(max(0, int(n)))]
 
 
-def group_color(index: int) -> str:
-    return categorical_colors(index + 1)[index]
+def group_color(
+    index: int, palette: str | list[str] | tuple[str, ...] | None = None
+) -> str:
+    return categorical_colors(index + 1, palette=palette)[index]
 
 
-def group_accent_color(index: int) -> str:
-    return _adjust_lightness(group_color(index), 0.82)
+def group_accent_color(
+    index: int, palette: str | list[str] | tuple[str, ...] | None = None
+) -> str:
+    return _adjust_lightness(group_color(index, palette=palette), 0.82)
 
 
-def group_fill_color(index: int) -> str:
-    return _adjust_lightness(group_color(index), 1.12)
+def group_fill_color(
+    index: int, palette: str | list[str] | tuple[str, ...] | None = None
+) -> str:
+    return _adjust_lightness(group_color(index, palette=palette), 1.12)
 
 
 def stacked_group_colors(index: int) -> tuple[str, str, str]:

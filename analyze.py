@@ -10640,6 +10640,7 @@ def postAnalyze(vas):
                         False,
                     )
                 ),
+                palette="wall_contacts",
                 opts=opts,
             )
             writeImage(str(out_file), format=opts.imageFormat)
