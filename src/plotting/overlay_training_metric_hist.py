@@ -1022,7 +1022,12 @@ def plot_overlays(
                     zorder=9,
                 )
 
-        ax.legend(fontsize=legend_font_size)
+        ax.legend(
+            fontsize=legend_font_size,
+            loc="upper left",
+            bbox_to_anchor=(1.02, 1.0),
+            borderaxespad=0.0,
+        )
 
     if title:
         fig.suptitle(title)
@@ -1050,5 +1055,6 @@ def plot_overlays(
             fig.subplots_adjust(bottom=min(bottom, 0.30), right=0.97, top=0.96)
     else:
         fig.tight_layout()
+    fig.subplots_adjust(right=min(fig.subplotpars.right, 0.74))
     _ensure_xlabel_visible(fig, list(axes))
     return fig

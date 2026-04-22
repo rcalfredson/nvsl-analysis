@@ -1748,7 +1748,12 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
                     ),
                 )
 
-            ax.legend(loc="best", fontsize=customizer.in_plot_font_size)
+            legend = ax.legend(
+                loc="upper left",
+                bbox_to_anchor=(1.02, 1.0),
+                borderaxespad=0.0,
+                fontsize=customizer.in_plot_font_size,
+            )
             ax.set_title(maybe_sentence_case(title))
 
             # place n labels
@@ -1768,6 +1773,8 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
         if customizer.font_size_customized:
             customizer.adjust_padding_proportionally()
         fig.tight_layout(rect=(0, 0, 1, 1))
+        if any_data:
+            fig.subplots_adjust(right=min(fig.subplotpars.right, 0.74))
         writeImage(out_path, format=opts.imageFormat)
         plt.close(fig)
         print(f"[{log_tag}] wrote {out_path}")
