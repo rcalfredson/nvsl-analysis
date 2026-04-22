@@ -9,7 +9,12 @@ from types import SimpleNamespace
 import numpy as np
 import matplotlib.pyplot as plt
 
-from src.plotting.palettes import NEUTRAL_DARK, group_accent_color, group_fill_color
+from src.plotting.palettes import (
+    NEUTRAL_DARK,
+    group_metric_edge_color,
+    group_metric_fill_color,
+    normalize_metric_palette_family,
+)
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.stats_bars import StatAnnotConfig, annotate_grouped_bars_per_bin
 from src.utils.util import meanConfInt
@@ -302,6 +307,28 @@ def _fmt_mismatch(name: str, vals: list) -> str:
         if v not in uniq:
             uniq.append(v)
     return f"{name} differs across inputs: {uniq}"
+
+
+def _metric_palette_family_from_exports(
+    xs: list[ExportedTrainingScalarBars],
+) -> str | None:
+    families = []
+    for x in xs:
+        meta = dict(x.meta or {})
+        family = normalize_metric_palette_family(
+            meta.get("metric_palette_family") or meta.get("metric")
+        )
+        if family is not None:
+            families.append(family)
+    if not families:
+        return None
+    uniq = []
+    for family in families:
+        if family not in uniq:
+            uniq.append(family)
+    if len(uniq) == 1:
+        return uniq[0]
+    return None
 
 
 def validate_alignment(xs: list[ExportedTrainingScalarBars]) -> None:
@@ -650,6 +677,9 @@ def plot_overlays(
         opts = SimpleNamespace(imageFormat="png", fontSize=None, fontFamily=None)
 
     validate_alignment(xs)
+    metric_palette_family = None
+    if palette is None:
+        metric_palette_family = _metric_palette_family_from_exports(xs)
 
     customizer = PlotCustomizer()
     font_size = getattr(opts, "fontSize", None)
@@ -770,8 +800,12 @@ def plot_overlays(
         if per_group_legend_ns is not None and gi < len(per_group_legend_ns):
             n_leg = per_group_legend_ns[gi]
         label = f"{x.group} (n={n_leg})" if n_leg is not None else f"{x.group}"
-        bar_color = group_fill_color(gi, palette=palette)
-        edge_color = group_accent_color(gi, palette=palette)
+        bar_color = group_metric_fill_color(
+            gi, metric_palette_family, palette=palette
+        )
+        edge_color = group_metric_edge_color(
+            gi, metric_palette_family, palette=palette
+        )
         ax.bar(
             xg,
             y_plot,

@@ -153,6 +153,7 @@ def _bundle_to_exported(
         "ci_conf": 0.95,
         "mode": mode,
         "metric": metric,
+        "metric_palette_family": "return_probability",
     }
     return ExportedTrainingScalarBars(
         group=label,

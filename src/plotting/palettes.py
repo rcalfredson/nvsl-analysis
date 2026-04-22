@@ -110,10 +110,92 @@ def group_fill_color(
     return _adjust_lightness(group_color(index, palette=palette), 1.12)
 
 
-def stacked_group_colors(index: int) -> tuple[str, str, str]:
-    base = group_fill_color(index)
-    edge = group_accent_color(index)
-    secondary = _adjust_lightness(base, 1.22)
+METRIC_TONED_GROUP_FAMILIES = (
+    {
+        "turnback_ratio": "#E9C5D0",
+        "return_probability": "#C94D73",
+        "between_reward_distance": "#8F4E66",
+    },
+    {
+        "turnback_ratio": "#CFDDBA",
+        "return_probability": "#67A233",
+        "between_reward_distance": "#5F7F3D",
+    },
+    {
+        "turnback_ratio": "#C0DBDB",
+        "return_probability": "#2E949F",
+        "between_reward_distance": "#2F6E73",
+    },
+    {
+        "turnback_ratio": "#E4D2B7",
+        "return_probability": "#C66616",
+        "between_reward_distance": "#8A5B2A",
+    },
+    {
+        "turnback_ratio": "#D9CDE8",
+        "return_probability": "#874BB8",
+        "between_reward_distance": "#6E5792",
+    },
+)
+
+METRIC_PALETTE_FAMILY_ALIASES = {
+    "turnback": "turnback_ratio",
+    "turnback_ratio": "turnback_ratio",
+    "return_prob": "return_probability",
+    "return_probability": "return_probability",
+    "between_reward_distance": "between_reward_distance",
+    "between_reward_dist": "between_reward_distance",
+    "between_reward_return_leg_dist": "between_reward_distance",
+    "return_leg_dist": "between_reward_distance",
+}
+
+
+def normalize_metric_palette_family(metric_family: str | None) -> str | None:
+    if metric_family is None:
+        return None
+    key = str(metric_family).strip().lower()
+    if not key:
+        return None
+    return METRIC_PALETTE_FAMILY_ALIASES.get(key, key)
+
+
+def group_metric_fill_color(
+    index: int,
+    metric_family: str | None = None,
+    *,
+    palette: str | list[str] | tuple[str, ...] | None = None,
+) -> str:
+    normalized = normalize_metric_palette_family(metric_family)
+    if normalized is None:
+        return group_fill_color(index, palette=palette)
+    family = METRIC_TONED_GROUP_FAMILIES[index % len(METRIC_TONED_GROUP_FAMILIES)]
+    return str(family.get(normalized, group_fill_color(index, palette=palette)))
+
+
+def group_metric_edge_color(
+    index: int,
+    metric_family: str | None = None,
+    *,
+    palette: str | list[str] | tuple[str, ...] | None = None,
+) -> str:
+    normalized = normalize_metric_palette_family(metric_family)
+    if normalized is None:
+        return group_accent_color(index, palette=palette)
+    return _adjust_lightness(
+        group_metric_fill_color(index, normalized, palette=palette),
+        0.76,
+    )
+
+
+def stacked_group_colors(
+    index: int,
+    *,
+    palette: str | list[str] | tuple[str, ...] | None = None,
+    metric_family: str | None = None,
+) -> tuple[str, str, str]:
+    base = group_metric_fill_color(index, metric_family, palette=palette)
+    edge = group_metric_edge_color(index, metric_family, palette=palette)
+    secondary = _adjust_lightness(base, 1.12)
     return base, secondary, edge
 
 

@@ -16,6 +16,7 @@ from src.plotting.training_metric_histogram import (
 
 @dataclass
 class BetweenRewardDistanceHistogramConfig(TrainingMetricHistogramConfig):
+    metric_palette_family: str | None = "between_reward_distance"
     # If True: drop any between-reward segment whose frame range overlaps any
     # wall-contact region (segment-wise exclusion).
     exclude_wall_contact: bool = False

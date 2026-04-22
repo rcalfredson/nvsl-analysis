@@ -15,7 +15,12 @@ from src.plotting.bin_edges import (
     normalize_panel_edges,
     geom_from_edges,
 )
-from src.plotting.palettes import NEUTRAL_DARK, group_accent_color, group_fill_color
+from src.plotting.palettes import (
+    NEUTRAL_DARK,
+    group_metric_edge_color,
+    group_metric_fill_color,
+    normalize_metric_palette_family,
+)
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.stats_bars import StatAnnotConfig, annotate_grouped_bars_per_bin
 from src.utils.util import meanConfInt
@@ -260,6 +265,28 @@ def _fmt_mismatch(name: str, vals: list) -> str:
     return f"{name} differs across inputs: {uniq}"
 
 
+def _metric_palette_family_from_hist_exports(
+    hists: list[ExportedTrainingHistogram],
+) -> str | None:
+    families = []
+    for h in hists:
+        meta = dict(h.meta or {})
+        family = normalize_metric_palette_family(
+            meta.get("metric_palette_family") or meta.get("metric")
+        )
+        if family is not None:
+            families.append(family)
+    if not families:
+        return None
+    uniq = []
+    for family in families:
+        if family not in uniq:
+            uniq.append(family)
+    if len(uniq) == 1:
+        return uniq[0]
+    return None
+
+
 def validate_alignment(hists: list[ExportedTrainingHistogram]) -> None:
     if len(hists) < 2:
         return
@@ -355,6 +382,7 @@ def plot_overlays(
         raise ValueError("layout='grouped' is implemented for mode='pdf' only")
 
     validate_alignment(hists)
+    metric_palette_family = _metric_palette_family_from_hist_exports(hists)
     customizer = PlotCustomizer()
     font_size = getattr(opts, "fontSize", None)
     if font_size is not None:
@@ -738,8 +766,8 @@ def plot_overlays(
 
                     # bar() ignores NaNs poorly; replace NaNs with 0-height bars
                     y_plot = np.where(np.isfinite(y_bins), y_bins, 0.0)
-                    bar_color = group_fill_color(g_idx)
-                    edge_color = group_accent_color(g_idx)
+                    bar_color = group_metric_fill_color(g_idx, metric_palette_family)
+                    edge_color = group_metric_edge_color(g_idx, metric_palette_family)
                     ax.bar(
                         x,
                         y_plot,
@@ -831,7 +859,9 @@ def plot_overlays(
                             y_step,
                             where="post",
                             label=(_legend_label(h) if gi == 0 else None),
-                            color=group_accent_color(g_idx),
+                            color=group_metric_edge_color(
+                                g_idx, metric_palette_family
+                            ),
                         )
                         cprev = float(cdf_seg[-1]) if cdf_seg.size else cprev
                         pos += nb
@@ -843,7 +873,7 @@ def plot_overlays(
                         y_step,
                         where="post",
                         label=_legend_label(h),
-                        color=group_accent_color(g_idx),
+                        color=group_metric_edge_color(g_idx, metric_palette_family),
                     )
 
         if not any_data:

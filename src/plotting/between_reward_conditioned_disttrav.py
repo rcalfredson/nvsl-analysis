@@ -17,10 +17,17 @@ from src.plotting.between_reward_segment_binning import (
 )
 from src.plotting.between_reward_segment_metrics import dist_traveled_mm_masked
 from src.plotting.grouped_bar_layout import grouped_bar_layout_from_edges
-from src.plotting.palettes import NEUTRAL_DARK, group_accent_color, group_fill_color
+from src.plotting.palettes import (
+    NEUTRAL_DARK,
+    group_metric_edge_color,
+    group_metric_fill_color,
+)
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.stats_bars import StatAnnotConfig, annotate_grouped_bars_per_bin
 from src.utils.common import maybe_sentence_case, writeImage
+
+
+_DISTANCE_METRIC_FAMILY = "between_reward_distance"
 
 
 def _mean_ci_from_util(x: np.ndarray, conf: float) -> tuple[float, float, float, int]:
@@ -1286,8 +1293,8 @@ class BetweenRewardConditionedDistTravPlotter:
                     y[fin],
                     width=0.92 * widths[fin],
                     align="center",
-                    color=group_fill_color(0),
-                    edgecolor=group_accent_color(0),
+                    color=group_metric_fill_color(0, _DISTANCE_METRIC_FAMILY),
+                    edgecolor=group_metric_edge_color(0, _DISTANCE_METRIC_FAMILY),
                     alpha=0.90,
                     linewidth=0.9,
                 )
@@ -1308,7 +1315,9 @@ class BetweenRewardConditionedDistTravPlotter:
                                 xj,
                                 vals,
                                 "o",
-                                color=group_accent_color(0),
+                                color=group_metric_edge_color(
+                                    0, _DISTANCE_METRIC_FAMILY
+                                ),
                                 markersize=3.0,
                                 alpha=0.6,
                                 markeredgewidth=0.0,
@@ -1615,8 +1624,8 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
             if not fin.any():
                 continue
             any_data = True
-            bar_color = group_fill_color(gi)
-            edge_color = group_accent_color(gi)
+            bar_color = group_metric_fill_color(gi, _DISTANCE_METRIC_FAMILY)
+            edge_color = group_metric_edge_color(gi, _DISTANCE_METRIC_FAMILY)
 
             ax.bar(
                 xb[fin],

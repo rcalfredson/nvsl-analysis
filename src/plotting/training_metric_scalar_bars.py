@@ -9,7 +9,12 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 
-from src.plotting.palettes import NEUTRAL_DARK, group_accent_color, group_fill_color
+from src.plotting.palettes import (
+    NEUTRAL_DARK,
+    group_metric_edge_color,
+    group_metric_fill_color,
+    normalize_metric_palette_family,
+)
 from src.plotting.plot_customizer import PlotCustomizer
 from src.utils.common import writeImage
 from src.utils.util import meanConfInt
@@ -32,6 +37,7 @@ class TrainingMetricScalarBarsConfig:
     ci_conf: float = 0.95
     show_points: bool = False
     show_suptitle: bool = False
+    metric_palette_family: str | None = None
 
 
 class TrainingMetricScalarBarsPlotter:
@@ -219,6 +225,9 @@ class TrainingMetricScalarBarsPlotter:
             ),
             "generated_utc": datetime.now(timezone.utc).isoformat(),
             "training_selection": sel_info,
+            "metric_palette_family": normalize_metric_palette_family(
+                getattr(self.cfg, "metric_palette_family", None)
+            ),
         }
 
         return {
@@ -261,8 +270,11 @@ class TrainingMetricScalarBarsPlotter:
         fig, ax = plt.subplots(1, 1, figsize=(max(6.0, 1.2 * len(labels)), 4.0))
 
         x = np.arange(len(labels))
-        bar_color = group_fill_color(0)
-        edge_color = group_accent_color(0)
+        metric_palette_family = normalize_metric_palette_family(
+            getattr(self.cfg, "metric_palette_family", None)
+        )
+        bar_color = group_metric_fill_color(0, metric_palette_family)
+        edge_color = group_metric_edge_color(0, metric_palette_family)
         ax.bar(
             x,
             means,

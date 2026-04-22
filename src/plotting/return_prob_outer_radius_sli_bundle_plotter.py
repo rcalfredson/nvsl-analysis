@@ -293,6 +293,7 @@ def _bundle_to_exported(
         "ci_conf": 0.95,
         "mode": mode,
         "metric": metric,
+        "metric_palette_family": "return_probability",
     }
     return ExportedTrainingScalarBars(
         group=label,
@@ -623,7 +624,9 @@ def _plot_return_prob_outer_radius_stacked(
     group_handles = []
     max_height = 0.0
     for gi, d in enumerate(plotted):
-        color, color_secondary, edge_color = stacked_group_colors(gi)
+        color, color_secondary, edge_color = stacked_group_colors(
+            gi, metric_family="return_probability"
+        )
         xg = x_centers + offsets[gi]
         succ = np.asarray(d["succ_mean"], dtype=float)
         fail = np.asarray(d["fail_mean"], dtype=float)

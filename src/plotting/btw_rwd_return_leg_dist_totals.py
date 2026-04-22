@@ -12,7 +12,7 @@ from src.plotting.btw_rwd_return_leg_dist_collectors import ReturnLegDistPerFlyC
 
 @dataclass
 class ReturnLegDistTotalsConfig(TrainingMetricScalarBarsConfig):
-    pass
+    metric_palette_family: str | None = "between_reward_distance"
 
 
 class ReturnLegDistTotalsPlotter(

@@ -11,6 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from src.plotting.bin_edges import is_grouped_edges, normalize_panel_edges
+from src.plotting.palettes import normalize_metric_palette_family
 from src.plotting.plot_customizer import PlotCustomizer
 from src.utils.common import writeImage
 from src.utils.util import meanConfInt
@@ -43,6 +44,7 @@ class TrainingMetricHistogramConfig:
     keep_first_sync_buckets: int = 0  # 0 = no cap
     # Omit figure suptitle by default
     show_suptitle: bool = False
+    metric_palette_family: str | None = None
 
 
 class TrainingMetricHistogramPlotter:
@@ -919,6 +921,9 @@ class TrainingMetricHistogramPlotter:
             "log_tag": self.log_tag,
             "x_label": self.x_label,
             "base_title": self.base_title,
+            "metric_palette_family": normalize_metric_palette_family(
+                getattr(self.cfg, "metric_palette_family", None)
+            ),
             # binning bookkeeping
             "binning": binning_mode,  # "edges" or "bins"
             "bins_user": int(
