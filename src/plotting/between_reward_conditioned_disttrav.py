@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
+import textwrap
 from typing import Sequence
 
 import numpy as np
@@ -28,6 +29,109 @@ from src.utils.common import maybe_sentence_case, writeImage
 
 
 _DISTANCE_METRIC_FAMILY = "between_reward_distance"
+
+
+def _wrapped_ylabel_text(text: str) -> str:
+    text = str(text)
+    if "\n" in text:
+        return text
+    if ", " in text:
+        return text.replace(", ", ",\n", 1)
+    if " per " in text:
+        return text.replace(" per ", "\nper ", 1)
+    if " [" in text:
+        return text.replace(" [", "\n[", 1)
+    if " (" in text:
+        return text.replace(" (", "\n(", 1)
+    return text
+
+
+def _wrapped_xlabel_text(text: str) -> str:
+    text = str(text)
+    if "\n" in text:
+        return text
+    if " from " in text:
+        return text.replace(" from ", "\nfrom ", 1)
+    if " [" in text:
+        return text.replace(" [", "\n[", 1)
+    if " (" in text:
+        return text.replace(" (", "\n(", 1)
+    return textwrap.fill(
+        text,
+        width=32,
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+
+
+def _wrapped_axes_title_text(text: str) -> str:
+    text = str(text)
+    if "\n" in text:
+        return text
+    if " vs " in text:
+        return text.replace(" vs ", "\nvs ", 1)
+    if " (" in text:
+        return text.replace(" (", "\n(", 1)
+    return textwrap.fill(
+        text,
+        width=44,
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+
+
+def _ensure_ylabel_visible(fig: plt.Figure, ax: plt.Axes) -> None:
+    label = ax.yaxis.get_label()
+    if not label.get_text():
+        return
+
+    pad_x_px = max(8.0, 0.55 * float(label.get_fontsize()) + 4.0)
+    pad_y_px = max(10.0, 0.45 * float(label.get_fontsize()) + 4.0)
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    fig_bbox = fig.bbox
+
+    def _within_bounds() -> bool:
+        bbox = label.get_window_extent(renderer=renderer)
+        x_ok = bbox.x0 >= fig_bbox.x0 + pad_x_px
+        y_ok = (
+            bbox.y0 >= fig_bbox.y0 + pad_y_px
+            and bbox.y1 <= fig_bbox.y1 - pad_y_px
+        )
+        return x_ok and y_ok
+
+    if _within_bounds():
+        return
+
+    wrapped = _wrapped_ylabel_text(label.get_text())
+    if wrapped != label.get_text():
+        label.set_text(wrapped)
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        if _within_bounds():
+            return
+
+    bbox = label.get_window_extent(renderer=renderer)
+    overflow_left_px = max((fig_bbox.x0 + pad_x_px) - bbox.x0, 0.0)
+    overflow_bottom_px = max((fig_bbox.y0 + pad_y_px) - bbox.y0, 0.0)
+    overflow_top_px = max(bbox.y1 - (fig_bbox.y1 - pad_y_px), 0.0)
+
+    fig_h_px = max(fig.get_size_inches()[1] * fig.dpi, 1.0)
+    fig_w_px = max(fig.get_size_inches()[0] * fig.dpi, 1.0)
+
+    extra_left = float(overflow_left_px / fig_w_px) + 0.01
+    extra_bottom = float(overflow_bottom_px / fig_h_px) + 0.005
+    extra_top = float(overflow_top_px / fig_h_px) + 0.005
+
+    new_left = min(fig.subplotpars.left + extra_left, 0.22)
+    new_bottom = min(fig.subplotpars.bottom + extra_bottom, 0.16)
+    new_top = max(fig.subplotpars.top - extra_top, 0.82)
+    if new_top <= new_bottom:
+        new_bottom = fig.subplotpars.bottom
+        new_top = fig.subplotpars.top
+
+    fig.subplots_adjust(left=new_left, bottom=new_bottom, top=new_top)
+    fig.canvas.draw()
 
 
 def _mean_ci_from_util(x: np.ndarray, conf: float) -> tuple[float, float, float, int]:
@@ -1340,13 +1444,20 @@ class BetweenRewardConditionedDistTravPlotter:
 
                 ax.set_xlabel(
                     maybe_sentence_case(
-                        str(
+                        _wrapped_xlabel_text(
+                            str(
                             xlabel_override
                             or "max distance from reward center [mm] (binned)"
+                            )
                         )
                     )
                 )
-                ax.set_ylabel(maybe_sentence_case(str(ylabel_override or ylabel)))
+                ax.set_ylabel(
+                    maybe_sentence_case(
+                        _wrapped_ylabel_text(str(ylabel_override or ylabel))
+                    ),
+                    labelpad=12,
+                )
 
                 if edges.size >= 2 and np.all(np.isfinite(edges[[0, -1]])):
                     ax.set_xlim(float(edges[0]), float(edges[-1]))
@@ -1373,7 +1484,10 @@ class BetweenRewardConditionedDistTravPlotter:
                             size=self.customizer.in_plot_font_size,
                             color=".2",
                         )
-                ax.set_title(maybe_sentence_case(title))
+                ax.set_title(
+                    maybe_sentence_case(_wrapped_axes_title_text(title)),
+                    pad=12,
+                )
 
                 # small annotation line
                 parts = [f"T{int(self.cfg.training_index) + 1}"]
@@ -1399,7 +1513,8 @@ class BetweenRewardConditionedDistTravPlotter:
 
             if self.customizer.font_size_customized:
                 self.customizer.adjust_padding_proportionally()
-            fig.tight_layout(rect=(0, 0, 1, 0.95))
+            fig.tight_layout(rect=(0, 0, 1, 0.93))
+            _ensure_ylabel_visible(fig, ax)
             writeImage(out_file, format=self.opts.imageFormat)
             plt.close(fig)
             print(f"[{self.log_tag}] wrote {out_file}")
@@ -1601,7 +1716,10 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
                     getattr(opts, "btw_rwd_conditioned_disttrav_stats_alpha", 0.05)
                     or 0.05
                 ),
-                nlabel_off_frac=0.04,
+                nlabel_off_frac=0.055,
+                gap_above_bars_frac=0.060,
+                stack_gap_frac=0.065,
+                bracket_fontsize=float(customizer.in_plot_font_size),
             )
         else:
             use_paired = False
@@ -1694,13 +1812,20 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
         else:
             ax.set_xlabel(
                 maybe_sentence_case(
-                    str(
+                    _wrapped_xlabel_text(
+                        str(
                         xlabel_override
                         or "max distance from reward center [mm] (binned)"
+                        )
                     )
                 )
             )
-            ax.set_ylabel(maybe_sentence_case(str(ylabel_override or ylabel)))
+            ax.set_ylabel(
+                maybe_sentence_case(
+                    _wrapped_ylabel_text(str(ylabel_override or ylabel))
+                ),
+                labelpad=12,
+            )
 
             ax.set_xlim(*xlim)
             ax.set_xticks(centers_x)
@@ -1754,12 +1879,17 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
                 borderaxespad=0.0,
                 fontsize=customizer.in_plot_font_size,
             )
-            ax.set_title(maybe_sentence_case(title))
+            ax.set_title(
+                maybe_sentence_case(_wrapped_axes_title_text(title)),
+                pad=12,
+            )
 
             # place n labels
             if pending_labels:
                 ylim0, ylim1 = ax.get_ylim()
-                y_off = 0.04 * (ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 0.0
+                y_off = (
+                    0.032 * (ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 0.0
+                )
                 for xb, y_top, nn in pending_labels:
                     util.pltText(
                         xb,
@@ -1772,7 +1902,8 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
 
         if customizer.font_size_customized:
             customizer.adjust_padding_proportionally()
-        fig.tight_layout(rect=(0, 0, 1, 1))
+        fig.tight_layout(rect=(0, 0, 1, 0.96))
+        _ensure_ylabel_visible(fig, ax)
         if any_data:
             fig.subplots_adjust(right=min(fig.subplotpars.right, 0.74))
         writeImage(out_path, format=opts.imageFormat)
