@@ -1,5 +1,6 @@
 .codex
 .vscode
+.analyze.local.env
 **/.ipynb_checkpoints/
 **/__pycache__/*
 

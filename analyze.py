@@ -239,6 +239,7 @@ from src.analysis.video_analysis import (
 CAM_NUM = re.compile(r"^c(\d+)__")
 LOG_FILE = "__analyze.log"
 STATS_FILE, VIDEO_COL = "learning_stats.csv", True
+LOCAL_ANALYZE_CONFIG_FILE = ".analyze.local.env"
 ANALYSIS_IMG_FILE = "imgs/analysis.png"
 CIRCULAR_MOTION_IMG_FILE = "imgs/circular_motion__%s_min_buckets.png"
 PIVOT_IMG_FILE = "imgs/pivots__%s_min_buckets.png"
@@ -396,6 +397,51 @@ def _parse_num_trainings_limit(num_trainings) -> int | None:
     if limit < 1:
         raise ValueError("--num-trainings must be >= 1")
     return limit
+
+
+def _parse_local_bool(value: str, *, key_name: str) -> bool:
+    normalized = str(value).strip().lower()
+    if normalized in ("1", "true", "yes", "on"):
+        return True
+    if normalized in ("0", "false", "no", "off"):
+        return False
+    raise ValueError(
+        f"{LOCAL_ANALYZE_CONFIG_FILE}: {key_name} must be one of "
+        "'1,true,yes,on,0,false,no,off'"
+    )
+
+
+def _load_local_analyze_config(path=LOCAL_ANALYZE_CONFIG_FILE) -> dict[str, str]:
+    cfg = {}
+    if not os.path.exists(path):
+        return cfg
+
+    with open(path, "r", encoding="utf-8") as fh:
+        for line_no, raw_line in enumerate(fh, start=1):
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" not in line:
+                raise ValueError(
+                    f"{path}:{line_no}: expected KEY=VALUE, got {raw_line.rstrip()!r}"
+                )
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if not key:
+                raise ValueError(f"{path}:{line_no}: empty key is not allowed")
+            cfg[key] = value
+    return cfg
+
+
+def _local_between_reward_sli_plots_enabled() -> bool:
+    cfg = _load_local_analyze_config()
+    raw_value = cfg.get("ENABLE_DEFAULT_BETWEEN_REWARD_SLI_PLOTS")
+    if raw_value is None:
+        return True
+    return _parse_local_bool(
+        raw_value, key_name="ENABLE_DEFAULT_BETWEEN_REWARD_SLI_PLOTS"
+    )
 
 
 def _resolve_heatmap_training_indices(trns, selector) -> list[int]:
@@ -9304,6 +9350,9 @@ def _build_between_reward_sli_plot_bundles_for_metric(vas, gis, gls, metric):
 
 
 def _emit_default_between_reward_sli_plots(vas, gis, gls):
+    if not _local_between_reward_sli_plots_enabled():
+        return
+
     group_info = list(_iter_group_vas(vas, gis, gls))
     if not group_info:
         return
