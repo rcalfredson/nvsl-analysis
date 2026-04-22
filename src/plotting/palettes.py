@@ -3,7 +3,10 @@ from __future__ import annotations
 import colorsys
 
 import matplotlib.colors as mcolors
-import seaborn as sns
+try:
+    import seaborn as sns
+except ImportError:  # pragma: no cover - optional plotting dependency
+    sns = None
 
 
 # Seaborn-like muted categorical colors, used as the house palette for bars,
@@ -114,7 +117,11 @@ def stacked_group_colors(index: int) -> tuple[str, str, str]:
     return base, secondary, edge
 
 
-PAIRED = sns.color_palette(MUTED_CATEGORICAL[:8], 8)
+PAIRED = (
+    sns.color_palette(MUTED_CATEGORICAL[:8], 8)
+    if sns is not None
+    else [mcolors.to_rgb(c) for c in MUTED_CATEGORICAL[:8]]
+)
 
 
 METRIC_PALETTES = {

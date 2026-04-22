@@ -947,7 +947,16 @@ def plot_overlays(
         fig.suptitle(title)
 
     show_legend = not single_panel_group_layout
-    legend = ax.legend(fontsize=legend_font_size) if show_legend else None
+    legend = (
+        ax.legend(
+            fontsize=legend_font_size,
+            loc="upper left",
+            bbox_to_anchor=(1.02, 1.0),
+            borderaxespad=0.0,
+        )
+        if show_legend
+        else None
+    )
     if customizer.customized:
         customizer.adjust_padding_proportionally()
         xlabel_text = ax.xaxis.get_label().get_text()
@@ -968,6 +977,10 @@ def plot_overlays(
             )
     else:
         fig.tight_layout()
+    if legend is not None:
+        # Reserve canvas width for the outside-right legend instead of letting it
+        # compete with bars, error bars, or significance annotations inside axes.
+        fig.subplots_adjust(right=min(fig.subplotpars.right, 0.74))
     _ensure_xlabel_visible(fig, ax)
     _ensure_ylabel_visible(fig, ax)
     _ensure_legend_clear_of_annotations(
