@@ -112,18 +112,18 @@ def group_fill_color(
 
 METRIC_TONED_GROUP_FAMILIES = (
     {
-        "turnback_ratio": "#E9C5D0",
-        "return_probability": "#C94D73",
+        "turnback_ratio": "#E7CCD5",
+        "return_probability": "#C67188",
         "between_reward_distance": "#8F4E66",
     },
     {
-        "turnback_ratio": "#CFDDBA",
-        "return_probability": "#67A233",
+        "turnback_ratio": "#D9E1C9",
+        "return_probability": "#90A76C",
         "between_reward_distance": "#5F7F3D",
     },
     {
-        "turnback_ratio": "#C0DBDB",
-        "return_probability": "#2E949F",
+        "turnback_ratio": "#C9DCDD",
+        "return_probability": "#67979B",
         "between_reward_distance": "#2F6E73",
     },
     {
