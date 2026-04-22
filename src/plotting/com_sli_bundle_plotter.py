@@ -1400,20 +1400,29 @@ def plot_com_sli_bundles(
             legend_handles.extend(ctrl_condition_handles)
             legend_labels.extend(ctrl_condition_labels)
 
+    # Annotation placement can expand the shared y-limits in-place. Re-apply the
+    # final limits after all labels and stars are placed so they stay inside axes.
+    for ax in fig.get_axes():
+        ax.set_ylim(ylim[0], ylim[1])
+
     # Only promote to suptitle when there is exactly one legend entry and no explicit legend was requested.
     if not show_legend and len(legend_labels) == 1:
         fig.suptitle(leg_labels[0], y=0.995)
     elif legend_labels:
-        axs[0].legend(
+        ncols = min(max(1, len(legend_labels)), 3)
+        fig.legend(
             handles=legend_handles,
             labels=legend_labels,
-            loc="upper right",
+            loc="upper center",
+            bbox_to_anchor=(0.5, 0.985),
+            ncol=ncols,
             frameon=True,
             facecolor="white",
             framealpha=0.92,
             edgecolor="0.8",
             handlelength=3.2,
         )
+        fig.subplots_adjust(top=0.82)
     if customizer.font_size_customized:
         customizer.adjust_padding_proportionally(wspace=getattr(opts, "wspace", 0.35))
 
