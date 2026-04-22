@@ -251,6 +251,93 @@ def _update_y_bounds(plot_mci, y_bounds):
     return ymin, ymax
 
 
+def _expanded_bbox(bbox, pad_px):
+    return bbox.expanded(
+        (float(bbox.width) + 2.0 * pad_px) / max(float(bbox.width), 1.0),
+        (float(bbox.height) + 2.0 * pad_px) / max(float(bbox.height), 1.0),
+    )
+
+
+def _artist_overlap_score(ax, legend, *, pad_px=5.0):
+    fig = ax.figure
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    legend_bbox = _expanded_bbox(
+        legend.get_window_extent(renderer=renderer), float(pad_px)
+    )
+    score = 0.0
+
+    for artist in [*ax.lines, *ax.collections, *ax.texts]:
+        if artist is legend:
+            continue
+        if hasattr(artist, "get_visible") and not artist.get_visible():
+            continue
+        try:
+            bbox = artist.get_window_extent(renderer=renderer)
+        except Exception:
+            continue
+        if bbox is None:
+            continue
+        bbox = _expanded_bbox(bbox, float(pad_px) * 0.35)
+        if not legend_bbox.overlaps(bbox):
+            continue
+        overlap_w = max(0.0, min(legend_bbox.x1, bbox.x1) - max(legend_bbox.x0, bbox.x0))
+        overlap_h = max(0.0, min(legend_bbox.y1, bbox.y1) - max(legend_bbox.y0, bbox.y0))
+        if overlap_w <= 0.0 or overlap_h <= 0.0:
+            continue
+        overlap_score = overlap_w * overlap_h
+
+        # Penalize text overlaps more heavily than line/band overlaps because they
+        # tend to become unreadable first.
+        if artist in ax.texts:
+            overlap_score *= 1.15
+        score += overlap_score
+
+    # Mild preference ordering for ties so we keep historical placements when safe.
+    loc = getattr(legend, "_loc", None)
+    preference = {
+        1: 0.0,   # upper right
+        2: 15.0,  # upper left
+        4: 30.0,  # lower right
+        3: 45.0,  # lower left
+    }
+    score += preference.get(loc, 60.0)
+    return float(score)
+
+
+def _place_interior_legend_min_overlap(
+    ax,
+    *,
+    handles,
+    labels,
+    legend_kwargs=None,
+    candidate_locs=None,
+):
+    if legend_kwargs is None:
+        legend_kwargs = {}
+    if candidate_locs is None:
+        candidate_locs = ["upper right", "upper left", "lower right", "lower left"]
+
+    best_loc = None
+    best_score = None
+    for loc in candidate_locs:
+        leg = ax.legend(handles=handles, labels=labels, loc=loc, **legend_kwargs)
+        score = _artist_overlap_score(ax, leg)
+        leg.remove()
+        if best_score is None or score < best_score:
+            best_loc = loc
+            best_score = score
+
+    if best_loc is None:
+        return None
+    return ax.legend(
+        handles=handles,
+        labels=labels,
+        loc=best_loc,
+        **legend_kwargs,
+    )
+
+
 def _anova_p_per_bucket(group_samples, *, min_n_per_group=3):
     """
     group_samples: list[np.ndarray], each 1D
@@ -1404,26 +1491,25 @@ def plot_com_sli_bundle_data(
     for ax in fig.get_axes():
         ax.set_ylim(ylim[0], ylim[1])
 
+    if customizer.font_size_customized:
+        customizer.adjust_padding_proportionally(wspace=getattr(opts, "wspace", 0.35))
+
     # Only promote to suptitle when there is exactly one legend entry and no explicit legend was requested.
     if not show_legend and len(legend_labels) == 1:
         fig.suptitle(leg_labels[0], y=0.995)
     elif legend_labels:
-        ncols = min(max(1, len(legend_labels)), 3)
-        fig.legend(
+        _place_interior_legend_min_overlap(
+            axs[0],
             handles=legend_handles,
             labels=legend_labels,
-            loc="upper center",
-            bbox_to_anchor=(0.5, 0.985),
-            ncol=ncols,
-            frameon=True,
-            facecolor="white",
-            framealpha=0.92,
-            edgecolor="0.8",
-            handlelength=3.2,
+            legend_kwargs=dict(
+                frameon=True,
+                facecolor="white",
+                framealpha=0.92,
+                edgecolor="0.8",
+                handlelength=3.2,
+            ),
         )
-        fig.subplots_adjust(top=0.82)
-    if customizer.font_size_customized:
-        customizer.adjust_padding_proportionally(wspace=getattr(opts, "wspace", 0.35))
 
     # save
     base, ext = os.path.splitext(out_fn)
