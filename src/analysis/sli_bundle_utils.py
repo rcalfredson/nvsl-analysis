@@ -3,6 +3,32 @@ from __future__ import annotations
 import numpy as np
 
 
+REQ_BUNDLE_KEYS = [
+    "sli",
+    "group_label",
+    "bucket_len_min",
+    "training_names",
+    "video_ids",
+    "sli_training_idx",
+    "sli_use_training_mean",
+]
+
+BUNDLE_ARRAY_PREFIXES = (
+    "commag_",
+    "between_reward_",
+    "cum_reward_sli_",
+    "weaving_",
+    "wallpct_",
+    "turnback_",
+    "agarose_",
+    "lgturn_",
+    "reward_lgturn_",
+    "reward_lv_",
+    "return_prob_",
+    "sli_",
+)
+
+
 def as_scalar(x):
     if isinstance(x, np.ndarray) and x.shape == ():
         return x.item()
@@ -16,58 +42,48 @@ def as_str_array(x):
     return np.array([str(v) for v in arr], dtype=object)
 
 
-def load_sli_bundle(path: str) -> dict:
-    d = np.load(path, allow_pickle=True)
-    req = [
-        "sli",
-        "group_label",
-        "bucket_len_min",
-        "training_names",
-        "video_ids",
-        "sli_training_idx",
-        "sli_use_training_mean",
-    ]
-    missing = [k for k in req if k not in d.files]
+def normalize_sli_bundle(bundle: dict, *, path: str | None = None) -> dict:
+    missing = [k for k in REQ_BUNDLE_KEYS if k not in bundle]
     if missing:
-        raise ValueError(f"Bundle {path} is missing keys: {missing}")
+        where = path or bundle.get("path") or "<unknown>"
+        raise ValueError(f"Bundle {where} is missing keys: {missing}")
 
-    out = {k: d[k] for k in req}
-    out["path"] = path
+    out = dict(bundle)
     out["group_label"] = str(as_scalar(out["group_label"]))
     out["bucket_len_min"] = float(as_scalar(out["bucket_len_min"]))
     out["sli_training_idx"] = int(as_scalar(out["sli_training_idx"]))
     out["sli_use_training_mean"] = bool(as_scalar(out["sli_use_training_mean"]))
-    out["sli_select_skip_first_sync_buckets"] = (
-        int(as_scalar(d["sli_select_skip_first_sync_buckets"]))
-        if "sli_select_skip_first_sync_buckets" in d.files
-        else 0
+    out["training_names"] = as_str_array(out["training_names"])
+    out["video_ids"] = as_str_array(out["video_ids"])
+    out["sli"] = np.asarray(out["sli"], dtype=float).reshape(-1)
+    if "sli_ts" in out:
+        out["sli_ts"] = np.asarray(out["sli_ts"], dtype=float)
+    out["sli_select_skip_first_sync_buckets"] = int(
+        as_scalar(out.get("sli_select_skip_first_sync_buckets", 0))
     )
-    out["sli_select_keep_first_sync_buckets"] = (
-        int(as_scalar(d["sli_select_keep_first_sync_buckets"]))
-        if "sli_select_keep_first_sync_buckets" in d.files
-        else 0
+    out["sli_select_keep_first_sync_buckets"] = int(
+        as_scalar(out.get("sli_select_keep_first_sync_buckets", 0))
     )
+    if path is not None:
+        out["path"] = path
+    elif "path" in out:
+        out["path"] = str(out["path"])
+    return out
 
-    prefixes = (
-        "commag_",
-        "between_reward_",
-        "cum_reward_sli_",
-        "weaving_",
-        "wallpct_",
-        "turnback_",
-        "agarose_",
-        "lgturn_",
-        "reward_lgturn_",
-        "reward_lv_",
-        "return_prob_",
-        "sli_",
-    )
+
+def load_sli_bundle(path: str) -> dict:
+    d = np.load(path, allow_pickle=True)
+    missing = [k for k in REQ_BUNDLE_KEYS if k not in d.files]
+    if missing:
+        raise ValueError(f"Bundle {path} is missing keys: {missing}")
+
+    out = {k: d[k] for k in REQ_BUNDLE_KEYS}
     for k in d.files:
         if k in out:
             continue
-        if k.startswith(prefixes) or k in ("sli_ts", "fly_ids"):
+        if k.startswith(BUNDLE_ARRAY_PREFIXES) or k in ("sli_ts", "fly_ids"):
             out[k] = d[k]
-    return out
+    return normalize_sli_bundle(out, path=path)
 
 
 def bundle_video_ids(bundle: dict) -> np.ndarray | None:

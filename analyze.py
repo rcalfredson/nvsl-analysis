@@ -25,6 +25,7 @@
 # standard libraries
 import argparse
 import collections
+import copy
 import csv
 from datetime import datetime
 import itertools
@@ -84,6 +85,7 @@ from src.utils.constants import (
 from src.analysis.motion import CircularMotionDetector
 from src.exporting.agarose_sli_bundle import export_agarose_sli_bundle
 from src.exporting.between_reward_maxdist_sli_bundle import (
+    build_between_reward_maxdist_sli_bundle,
     export_between_reward_maxdist_sli_bundle,
 )
 from src.exporting.com_sli_bundle import export_com_sli_bundle
@@ -116,6 +118,7 @@ from src.exporting.btw_rwd_shortest_tail_bundle import (
     export_btw_rwd_shortest_tail_bundle,
 )
 from src.exporting.btw_rwd_return_leg_dist_sli_bundle import (
+    build_btw_rwd_return_leg_dist_sli_bundle,
     export_btw_rwd_return_leg_dist_sli_bundle,
 )
 from src.exporting.exit_events_from_csv import (
@@ -133,6 +136,7 @@ from src.plotting.reward_count_hist import (
     RewardCountHistogramConfig,
     RewardCountHistogramPlotter,
 )
+from src.plotting.com_sli_bundle_plotter import plot_com_sli_bundle_data
 from src.plotting.reward_count_totals import (
     RewardCountTotalsConfig,
     RewardCountTotalsPlotter,
@@ -269,6 +273,8 @@ BTW_RWD_DIST_BINNED_COM_IMG_FILE = "imgs/btw_rwd_dist_binned_com.png"
 BTW_RWD_DIST_BINNED_DISTTRAV_IMG_FILE = "imgs/btw_rwd_dist_binned_disttrav.png"
 BTW_RWD_RETURN_LEG_DIST_BARS_IMG_FILE = "imgs/btw_rwd_return_leg_dist_bars.png"
 BTW_RWD_POLAR_IMG_FILE = "imgs/btw_rwd_polar.png"
+BTW_RWD_MAXDIST_SLI_IMG_FILE = "imgs/between_reward_maxdist_sli%s.png"
+BTW_RWD_RETURN_LEG_DIST_SLI_IMG_FILE = "imgs/between_reward_return_leg_dist_sli%s.png"
 PSC_LABEL = "%% in circle\n(%s, %.1f-cm radius)"
 TURN_IMG_FILE = "imgs/%s%s_turn%s%s__%%s_min_buckets.png"
 PSC_CONC_IMG_FILE = "imgs/pref_slide_conc__%s_min_buckets.png"
@@ -4669,6 +4675,16 @@ g.add_argument(
     type=str,
     default=None,
     help="Optional label stored in the exported bundle (overrides groupLabels/group index).",
+)
+g.add_argument(
+    "--default-between-reward-sli-condition",
+    choices=["exp", "ctrl", "exp_minus_ctrl"],
+    default="exp",
+    help=(
+        "For the default one-shot between-reward SLI-bracketed plots emitted by analyze.py, "
+        "choose which condition to show: experimental ('exp'), yoked ('ctrl'), or "
+        "experimental minus yoked ('exp_minus_ctrl')."
+    ),
 )
 g.add_argument(
     "--com-sli-debug",
@@ -9233,6 +9249,93 @@ def _generate_between_reward_plots(vas, *, saved_bottom=None, saved_top=None):
                     )
 
 
+def _iter_group_vas(vas, gis, gls):
+    ng = int(gis.max()) + 1 if len(gis) else 0
+    for gi in range(ng):
+        group_vas = [va for va in vas if int(va.gidx) == gi]
+        if not group_vas:
+            continue
+        if gls and gi < len(gls) and gls[gi]:
+            group_label = gls[gi]
+        else:
+            group_label = f"group_{gi + 1}"
+        yield gi, group_label, group_vas
+
+
+def _copy_opts_with_group_label(opts, group_label):
+    group_opts = copy.copy(opts)
+    group_opts.export_group_label = group_label
+    return group_opts
+
+
+def _between_reward_sli_default_out_file(metric, group_labels, *, condition="exp"):
+    suffix_parts = []
+    if condition and condition != "exp":
+        suffix_parts.append(util.slugify(condition))
+    if len(group_labels) == 1:
+        suffix_parts.append(util.slugify(group_labels[0]))
+    elif len(group_labels) == 2:
+        suffix_parts.append("__vs__".join(util.slugify(label) for label in group_labels))
+    suffix = ("__" + "__".join(suffix_parts)) if suffix_parts else ""
+
+    if metric == "between_reward_maxdist":
+        return BTW_RWD_MAXDIST_SLI_IMG_FILE % suffix
+    if metric == "between_reward_return_leg_dist":
+        return BTW_RWD_RETURN_LEG_DIST_SLI_IMG_FILE % suffix
+    raise ValueError(f"Unsupported metric for default COM-SLI output: {metric}")
+
+
+def _build_between_reward_sli_plot_bundles_for_metric(vas, gis, gls, metric):
+    bundles = []
+    for _gi, group_label, group_vas in _iter_group_vas(vas, gis, gls):
+        group_opts = _copy_opts_with_group_label(opts, group_label)
+        if metric == "between_reward_maxdist":
+            bundle = build_between_reward_maxdist_sli_bundle(
+                group_vas, group_opts, [group_label]
+            )
+        elif metric == "between_reward_return_leg_dist":
+            bundle = build_btw_rwd_return_leg_dist_sli_bundle(
+                group_vas, group_opts, [group_label]
+            )
+        else:
+            raise ValueError(f"Unsupported metric for COM-SLI bundle build: {metric}")
+        bundles.append(bundle)
+    return bundles
+
+
+def _emit_default_between_reward_sli_plots(vas, gis, gls):
+    group_info = list(_iter_group_vas(vas, gis, gls))
+    if not group_info:
+        return
+    if len(group_info) > 2:
+        return
+
+    group_labels = [group_label for _gi, group_label, _group_vas in group_info]
+    condition = str(
+        getattr(opts, "default_between_reward_sli_condition", "exp") or "exp"
+    )
+    for metric in ("between_reward_maxdist", "between_reward_return_leg_dist"):
+        try:
+            bundles = _build_between_reward_sli_plot_bundles_for_metric(
+                vas, gis, gls, metric
+            )
+            out_fn = _between_reward_sli_default_out_file(
+                metric, group_labels, condition=condition
+            )
+            plot_com_sli_bundle_data(
+                bundles,
+                out_fn,
+                num_trainings=opts.num_trainings,
+                opts=opts,
+                metric=metric,
+                turnback_mode=condition,
+            )
+        except Exception as exc:
+            print(
+                f"[postAnalyze] WARNING: failed to generate default {metric} bundle plot: {exc}"
+            )
+
+
 def postAnalyze(vas):
     if len(vas) <= 1:
         _generate_between_reward_plots(vas)
@@ -9264,6 +9367,8 @@ def postAnalyze(vas):
         export_btw_rwd_return_leg_dist_sli_bundle(
             vas, opts, gls, opts.export_btw_rwd_return_leg_dist_sli_bundle
         )
+
+    _emit_default_between_reward_sli_plots(vas, gis, gls)
 
     if getattr(opts, "export_cum_reward_sli_bundle", None):
         if getattr(opts, "cum_reward_sli_group", None) is not None:

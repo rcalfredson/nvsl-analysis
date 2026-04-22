@@ -4,17 +4,17 @@ from __future__ import annotations
 import os
 import numpy as np
 
+from src.analysis.sli_bundle_utils import normalize_sli_bundle
 from src.exporting.com_sli_bundle import (
     _safe_group_label,
     _compute_sli_scalar_and_timeseries_from_rpid,
 )
 
 
-def save_metric_plus_sli_bundle(
+def build_metric_plus_sli_bundle(
     vas,
     opts,
     gls,
-    out_fn,
     *,
     extract_metric_arrays,  # callable: (vas_ok) -> dict[str, np.ndarray]
     bucket_type: str,  # passed to bucketLenForType
@@ -23,13 +23,11 @@ def save_metric_plus_sli_bundle(
 ):
     from analyze import bucketLenForType
 
-    if not out_fn.lower().endswith(".npz"):
-        out_fn += ".npz"
-
     vas_ok = [va for va in vas if not getattr(va, "_skipped", False)]
     if len(vas_ok) == 0:
-        print(f"[export] No non-skipped VideoAnalysis instances; not writing {out_fn}")
-        return
+        raise ValueError(
+            f"[export] No non-skipped VideoAnalysis instances for {print_label} bundle."
+        )
 
     va0 = vas_ok[0]
     group_label = _safe_group_label(opts, gls)
@@ -101,8 +99,6 @@ def save_metric_plus_sli_bundle(
     except Exception:
         video_ids = np.array([f"va_{i}" for i in range(n_videos)], dtype=object)
 
-    os.makedirs(os.path.dirname(out_fn) or ".", exist_ok=True)
-
     payload = dict(
         sli=np.asarray(sli, dtype=float),
         sli_ts=np.asarray(sli_ts, dtype=float),
@@ -134,5 +130,39 @@ def save_metric_plus_sli_bundle(
 
     payload.update({k: np.asarray(v) for k, v in metric_arrays.items()})
 
-    np.savez_compressed(out_fn, **payload)
-    print(f"[export] Wrote {print_label}+SLI bundle: {out_fn} (n={n_videos})")
+    return normalize_sli_bundle(payload)
+
+
+def save_sli_bundle(bundle: dict, out_fn: str, *, print_label: str | None = None) -> None:
+    if not out_fn.lower().endswith(".npz"):
+        out_fn += ".npz"
+
+    os.makedirs(os.path.dirname(out_fn) or ".", exist_ok=True)
+    np.savez_compressed(out_fn, **bundle)
+    if print_label:
+        print(f"[export] Wrote {print_label}+SLI bundle: {out_fn} (n={len(bundle['sli'])})")
+    else:
+        print(f"[export] Wrote SLI bundle: {out_fn} (n={len(bundle['sli'])})")
+
+
+def save_metric_plus_sli_bundle(
+    vas,
+    opts,
+    gls,
+    out_fn,
+    *,
+    extract_metric_arrays,  # callable: (vas_ok) -> dict[str, np.ndarray]
+    bucket_type: str,  # passed to bucketLenForType
+    print_label: str,  # for logs
+    require_3d: bool = True,
+):
+    bundle = build_metric_plus_sli_bundle(
+        vas,
+        opts,
+        gls,
+        extract_metric_arrays=extract_metric_arrays,
+        bucket_type=bucket_type,
+        print_label=print_label,
+        require_3d=require_3d,
+    )
+    save_sli_bundle(bundle, out_fn, print_label=print_label)

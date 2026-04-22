@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import numpy as np
 
-from src.exporting.bundle_utils import save_metric_plus_sli_bundle
+from src.exporting.bundle_utils import (
+    build_metric_plus_sli_bundle,
+    save_sli_bundle,
+)
 
 
 def _dbg(opts, msg: str) -> None:
@@ -109,7 +112,7 @@ def _extract_between_reward_maxdist_arrays(vas, opts=None):
     return mean_exp, mean_ctrl, n_exp, n_ctrl
 
 
-def export_between_reward_maxdist_sli_bundle(vas, opts, gls, out_fn):
+def build_between_reward_maxdist_sli_bundle(vas, opts, gls) -> dict:
     def _extractor(vas_ok):
         mean_exp, mean_ctrl, n_exp, n_ctrl = _extract_between_reward_maxdist_arrays(
             vas_ok, opts
@@ -121,12 +124,16 @@ def export_between_reward_maxdist_sli_bundle(vas, opts, gls, out_fn):
             "between_reward_maxdistN_ctrl": n_ctrl,
         }
 
-    save_metric_plus_sli_bundle(
+    return build_metric_plus_sli_bundle(
         vas,
         opts,
         gls,
-        out_fn,
         extract_metric_arrays=_extractor,
         bucket_type="bysb2",
         print_label="between_reward_maxdist",
     )
+
+
+def export_between_reward_maxdist_sli_bundle(vas, opts, gls, out_fn):
+    bundle = build_between_reward_maxdist_sli_bundle(vas, opts, gls)
+    save_sli_bundle(bundle, out_fn, print_label="between_reward_maxdist")

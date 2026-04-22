@@ -13,6 +13,7 @@ from src.analysis.sli_bundle_utils import (
     align_by_video_ids,
     as_scalar,
     load_sli_bundle,
+    normalize_sli_bundle,
 )
 import src.utils.util as util
 from src.utils.common import (
@@ -273,8 +274,8 @@ def _anova_p_per_bucket(group_samples, *, min_n_per_group=3):
         return np.nan
 
 
-def plot_com_sli_bundles(
-    bundle_paths,
+def plot_com_sli_bundle_data(
+    bundles,
     out_fn,
     *,
     labels=None,
@@ -287,7 +288,7 @@ def plot_com_sli_bundles(
     opts=None,
     metric="commag",
     turnback_mode="exp",  # exp | ctrl | exp_minus_ctrl
-    delta_vs_path=None,  # baseline bundle path; if set, plot (bundle - baseline)
+    delta_vs_bundle=None,  # baseline bundle dict; if set, plot (bundle - baseline)
     delta_label=None,  # label prefix in delta mode
     xlabel=None,
     ylabel=None,
@@ -299,7 +300,7 @@ def plot_com_sli_bundles(
     show_description_labels=False,
 ):
     """
-    Plot COM magnitude or SLI vs sync bucket from one or more exported bundles.
+    Plot COM magnitude or SLI vs sync bucket from one or more normalized bundles.
 
     - Each bundle is a “group” (regular / antennae-removed / PFN-silenced, etc).
     - Lines are mean over videos; shaded region is CI.
@@ -346,14 +347,12 @@ def plot_com_sli_bundles(
         sli_top_fraction = 0.2
         sli_bottom_fraction = 0.2
 
-    bundles = [load_sli_bundle(p) for p in bundle_paths]
+    bundles = [normalize_sli_bundle(b) for b in bundles]
     ng = len(bundles)
     if ng == 0:
         raise ValueError("No bundles provided")
 
-    base_bundle = None
-    if delta_vs_path:
-        base_bundle = load_sli_bundle(delta_vs_path)
+    base_bundle = normalize_sli_bundle(delta_vs_bundle) if delta_vs_bundle else None
 
     if metric == "commag":
         if turnback_mode == "exp":
@@ -1432,3 +1431,56 @@ def plot_com_sli_bundles(
         out_fn = base + ".png"
     writeImage(out_fn, format=getattr(opts, "imageFormat", "png"))
     plt.close()
+
+
+def plot_com_sli_bundles(
+    bundle_paths,
+    out_fn,
+    *,
+    labels=None,
+    num_trainings=None,
+    include_ctrl=False,
+    sli_extremes=None,
+    sli_fraction=None,
+    sli_top_fraction=None,
+    sli_bottom_fraction=None,
+    opts=None,
+    metric="commag",
+    turnback_mode="exp",
+    delta_vs_path=None,
+    delta_label=None,
+    xlabel=None,
+    ylabel=None,
+    delta_ylabel=None,
+    ymax=None,
+    delta_allow_unpaired=False,
+    include_pre=False,
+    show_legend=False,
+    show_description_labels=False,
+):
+    bundles = [load_sli_bundle(p) for p in bundle_paths]
+    delta_vs_bundle = load_sli_bundle(delta_vs_path) if delta_vs_path else None
+    return plot_com_sli_bundle_data(
+        bundles,
+        out_fn,
+        labels=labels,
+        num_trainings=num_trainings,
+        include_ctrl=include_ctrl,
+        sli_extremes=sli_extremes,
+        sli_fraction=sli_fraction,
+        sli_top_fraction=sli_top_fraction,
+        sli_bottom_fraction=sli_bottom_fraction,
+        opts=opts,
+        metric=metric,
+        turnback_mode=turnback_mode,
+        delta_vs_bundle=delta_vs_bundle,
+        delta_label=delta_label,
+        xlabel=xlabel,
+        ylabel=ylabel,
+        delta_ylabel=delta_ylabel,
+        ymax=ymax,
+        delta_allow_unpaired=delta_allow_unpaired,
+        include_pre=include_pre,
+        show_legend=show_legend,
+        show_description_labels=show_description_labels,
+    )
