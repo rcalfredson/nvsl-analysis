@@ -147,6 +147,8 @@ METRIC_PALETTE_FAMILY_ALIASES = {
     "between_reward_dist": "between_reward_distance",
     "between_reward_return_leg_dist": "between_reward_distance",
     "return_leg_dist": "between_reward_distance",
+    "wall_contacts": "wall_contacts",
+    "wall_contact": "wall_contacts",
 }
 
 
@@ -168,6 +170,13 @@ def group_metric_fill_color(
     normalized = normalize_metric_palette_family(metric_family)
     if normalized is None:
         return group_fill_color(index, palette=palette)
+    if normalized == "wall_contacts":
+        return _adjust_lightness(
+            group_metric_fill_color(
+                index, "between_reward_distance", palette=palette
+            ),
+            0.78,
+        )
     family = METRIC_TONED_GROUP_FAMILIES[index % len(METRIC_TONED_GROUP_FAMILIES)]
     return str(family.get(normalized, group_fill_color(index, palette=palette)))
 

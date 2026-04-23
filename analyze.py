@@ -10799,7 +10799,6 @@ def postAnalyze(vas):
                         False,
                     )
                 ),
-                palette="wall_contacts",
                 opts=opts,
             )
             writeImage(str(out_file), format=opts.imageFormat)
@@ -10894,6 +10893,7 @@ def postAnalyze(vas):
                     False,
                 )
             ),
+            metric_palette_family="wall_contacts",
         )
 
         plotter = WallContactsPerRewardIntervalTotalsPlotter(
