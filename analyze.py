@@ -7312,17 +7312,7 @@ def plotRewards(
                         )
                     )
                 )
-                if customizer.font_family_customized and customizer.font_size >= 20:
-                    xlabel_text = "time elapsed [min]"
-                else:
-                    xlabel_text = "end points [min] of %s min %sbuckets" % (
-                        blf,
-                        (
-                            ""
-                            if post and not (rpip and POST_SYNC is not ST.fixed)
-                            else "sync "
-                        ),
-                    )
+                xlabel_text = "time elapsed (min)"
                 if opts.plot_rewards_xlabel is not None:
                     xlabel_text = str(opts.plot_rewards_xlabel)
                 plt.xlabel(maybe_sentence_case(pcap(xlabel_text)))
