@@ -189,6 +189,10 @@ from src.plotting.between_reward_distance_hist import (
     BetweenRewardDistanceHistogramPlotter,
     BetweenRewardDistanceHistogramConfig,
 )
+from src.plotting.between_reward_normalized_distance_hist import (
+    BetweenRewardNormalizedDistanceHistogramConfig,
+    BetweenRewardNormalizedDistanceHistogramPlotter,
+)
 from src.plotting.btw_rwd_return_leg_dist_totals import (
     ReturnLegDistTotalsConfig,
     ReturnLegDistTotalsPlotter,
@@ -260,6 +264,7 @@ REWARD_PI_POST_IMG_FILE = "imgs/reward_pi_post__%s_min_buckets.png"
 REWARD_PI_POST_DIFF_IMG_FILE = "imgs/reward_pi_post_diff__%s_min_buckets.png"
 DIST_BTWN_REWARDS_LABEL = "mean dist. between calc. rewards%s"
 DIST_BTWN_REWARDS_IMG_FILE = "imgs/btw_rwd_dists.png"
+BTW_RWD_NORM_DIST_HIST_IMG_FILE = "imgs/btw_rwd_norm_dists.png"
 REWARD_COUNT_HIST_IMG_FILE = "imgs/rwd_count_hist.png"
 FIRST_N_REWARD_DIAGNOSTICS_CSV_FILE = "exports/first_n_reward_diagnostics.csv"
 FIRST_N_REWARD_DIAGNOSTICS_PLOT_FILE = "imgs/first_n_reward_diagnostics.png"
@@ -1797,6 +1802,145 @@ g.add_argument(
     help=(
         "Confidence level for --btw-rwd-dist-ci (default: %(default)s). "
         "Only used with --btw-rwd-dist-per-fly."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-norm-dist-hist",
+    action="store_true",
+    help=(
+        "Plot histograms of between-reward distances after normalizing segment lengths "
+        "within each fly, then averaging the per-fly histograms across flies."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-norm-dist-export-hist",
+    type=str,
+    default=None,
+    help=(
+        "Export binned histogram data for per-fly-normalized between-reward distances "
+        "as a compressed .npz file for later overlay plotting across groups."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-norm-dist-norm-by",
+    type=str,
+    choices=("mean", "median"),
+    default="mean",
+    help=(
+        "Per-fly normalization denominator for between-reward normalized-distance histograms "
+        "(default: %(default)s)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-norm-dist-transform",
+    type=str,
+    choices=("none", "log10"),
+    default="none",
+    help=(
+        "Optional transform applied after per-fly normalization. "
+        "'log10' plots log10(normalized distance traveled)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-norm-dist-nbins",
+    type=int,
+    default=30,
+    help=(
+        "Number of bins to use in the between-reward normalized-distance histograms. "
+        "Default: 30."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-norm-dist-bin-edges",
+    type=str,
+    default=None,
+    help=(
+        "Explicit comma-separated bin edges for between-reward normalized-distance histograms. "
+        "Useful especially with --btw-rwd-norm-dist-transform log10 when negative x values are expected."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-norm-dist-min",
+    type=float,
+    default=None,
+    help=(
+        "Minimum x value to include in between-reward normalized-distance histograms. "
+        "Mainly useful with --btw-rwd-norm-dist-transform log10."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-norm-dist-max",
+    type=float,
+    default=None,
+    help=(
+        "Maximum x value to include in between-reward normalized-distance histograms. "
+        "Values beyond this bound are discarded for plotting/export."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-norm-dist-pool-trainings",
+    action="store_true",
+    help=(
+        "Pool per-fly-normalized between-reward distances across all trainings into a single "
+        "histogram instead of plotting one panel per training."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-norm-dist-trainings",
+    type=parse_training_selector,
+    default=None,
+    help='Subset of trainings to plot (1-based). Examples: "1", "1,3", "2-4", "1,3-5". Ignored if --btw-rwd-norm-dist-pool-trainings is set.',
+)
+g.add_argument(
+    "--btw-rwd-norm-dist-min-segs-per-fly",
+    type=int,
+    default=10,
+    help=(
+        "Exclude any fly/unit with fewer than this many normalized between-reward segments "
+        "in the selected window (default: %(default)s)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-norm-dist-ci-conf",
+    type=float,
+    default=0.95,
+    help=(
+        "Confidence level for per-bin confidence intervals across flies "
+        "in --btw-rwd-norm-dist-hist (default: %(default)s)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-norm-dist-ymax",
+    type=float,
+    default=None,
+    help=(
+        "Set a fixed maximum for the y-axis in between-reward normalized-distance "
+        "histograms."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-norm-dist-exclude-wall-contact",
+    action="store_true",
+    help=(
+        "Exclude between-reward segments that overlap any wall-contact region before "
+        "building the normalized-distance histograms."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-norm-dist-exclude-nonwalking-frames",
+    action="store_true",
+    help=(
+        "Within each between-reward segment, exclude non-walking frames before computing "
+        "distance traveled for the normalized-distance histograms."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-norm-dist-min-walk-frames",
+    type=int,
+    default=2,
+    help=(
+        "When --btw-rwd-norm-dist-exclude-nonwalking-frames is set, require at least this many "
+        "walking frames in a segment to keep it (default: %(default)s)."
     ),
 )
 g.add_argument(
@@ -11083,6 +11227,53 @@ def postAnalyze(vas):
         if out_npz:
             br_plotter.export_histograms_npz(out_npz)
         br_plotter.plot_histograms()
+
+    if va.circle and getattr(opts, "btw_rwd_norm_dist_hist", False):
+        cfg = BetweenRewardNormalizedDistanceHistogramConfig(
+            out_file=BTW_RWD_NORM_DIST_HIST_IMG_FILE,
+            bins=getattr(opts, "btw_rwd_norm_dist_nbins", 30),
+            xmin=getattr(opts, "btw_rwd_norm_dist_min", None),
+            xmax=getattr(opts, "btw_rwd_norm_dist_max", None),
+            bin_edges=_parse_float_csv_or_edge_groups_or_none(
+                getattr(opts, "btw_rwd_norm_dist_bin_edges", None)
+            ),
+            normalize=True,
+            pool_trainings=getattr(opts, "btw_rwd_norm_dist_pool_trainings", False),
+            skip_first_sync_buckets=skip_eff,
+            keep_first_sync_buckets=keep_eff,
+            ymax=getattr(opts, "btw_rwd_norm_dist_ymax", None),
+            per_fly=True,
+            min_segs_per_fly=int(
+                getattr(opts, "btw_rwd_norm_dist_min_segs_per_fly", 10)
+            ),
+            ci=True,
+            ci_conf=float(getattr(opts, "btw_rwd_norm_dist_ci_conf", 0.95)),
+            trainings=getattr(opts, "btw_rwd_norm_dist_trainings", None),
+            show_suptitle=getattr(opts, "btw_rwd_hist_suptitle", False),
+            normalize_by=str(
+                getattr(opts, "btw_rwd_norm_dist_norm_by", "mean") or "mean"
+            ),
+            transform=str(
+                getattr(opts, "btw_rwd_norm_dist_transform", "none") or "none"
+            ),
+            exclude_wall_contact=bool(
+                getattr(opts, "btw_rwd_norm_dist_exclude_wall_contact", False)
+            ),
+            exclude_nonwalking_frames=bool(
+                getattr(opts, "btw_rwd_norm_dist_exclude_nonwalking_frames", False)
+            ),
+            min_walk_frames=int(
+                getattr(opts, "btw_rwd_norm_dist_min_walk_frames", 2) or 2
+            ),
+        )
+        plotter = BetweenRewardNormalizedDistanceHistogramPlotter(
+            vas=vas, opts=opts, gls=gls, customizer=customizer, cfg=cfg
+        )
+        out_npz = getattr(opts, "btw_rwd_norm_dist_export_hist", None)
+        if out_npz:
+            plotter.export_histograms_npz(out_npz)
+        plotter.plot_histograms()
+
     if getattr(opts, "btw_rwd_com_mag_hist", False) and any(
         getattr(v, "circle", None) for v in vas
     ):

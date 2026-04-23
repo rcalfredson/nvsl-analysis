@@ -21,6 +21,7 @@ from src.utils.util import meanConfInt
 class TrainingMetricHistogramConfig:
     out_file: str
     bins: int = 30
+    xmin: float | None = None
     xmax: float | None = None
     bin_edges: Sequence[float] | None = None
     normalize: bool = False
@@ -228,6 +229,40 @@ class TrainingMetricHistogramPlotter:
                 mx = v_max
         return mx
 
+    def _effective_xmin(self, vals_by_panel: list[np.ndarray]) -> float:
+        """
+        Determine a deterministic xmin to use for bin edges.
+
+        - If cfg.xmin is provided, use it.
+        - Otherwise:
+            - if the minimum observed value is negative, use that minimum
+            - else default to 0.0 (the historical behavior for positive-valued metrics)
+        """
+        if self.cfg.xmin is not None:
+            try:
+                xmin = float(self.cfg.xmin)
+                if np.isfinite(xmin):
+                    return xmin
+            except Exception:
+                pass
+
+        mn = None
+        for v in vals_by_panel:
+            if v is None or v.size == 0:
+                continue
+            try:
+                v_min = float(np.nanmin(v))
+            except Exception:
+                continue
+            if not np.isfinite(v_min):
+                continue
+            if mn is None or v_min < mn:
+                mn = v_min
+
+        if mn is None or mn >= 0:
+            return 0.0
+        return float(mn)
+
     def _validated_bin_edges(self) -> Union[np.ndarray, list[np.ndarray], None]:
         be = getattr(self.cfg, "bin_edges", None)
         if be is None:
@@ -340,7 +375,11 @@ class TrainingMetricHistogramPlotter:
             empty_edges = np.zeros((0, bins_eff + 1), dtype=float)
 
         if user_edges is None:
-            xmin_effective = 0.0
+            xmin_effective = (
+                float(self.cfg.xmin)
+                if getattr(self.cfg, "xmin", None) is not None
+                else 0.0
+            )
         elif user_edge_groups:
             xmin_effective = float(user_edges[0][0])
         else:
@@ -528,6 +567,7 @@ class TrainingMetricHistogramPlotter:
                     if vv.size:
                         all_panels_flat.append(vv)
             eff_xmax = self._effective_xmax(all_panels_flat)
+            eff_xmin = self._effective_xmin(all_panels_flat)
         else:
             if self.cfg.pool_trainings:
                 pooled = np.concatenate([v for v in vals_by_trn if v.size > 0])
@@ -596,6 +636,7 @@ class TrainingMetricHistogramPlotter:
                 )
 
             eff_xmax = self._effective_xmax(vals_by_panel)
+            eff_xmin = self._effective_xmin(vals_by_panel)
 
         # If explicit edges are provided, define eff_xmax by the last edge so exports are deterministic.
         if user_edges is not None:
@@ -607,11 +648,11 @@ class TrainingMetricHistogramPlotter:
                 hi_env = float(user_edges[-1])
             eff_xmax = hi_env
         else:
-            lo_env = 0.0
+            lo_env = float(eff_xmin)
             hi_env = float(eff_xmax) if eff_xmax is not None else None
 
         # Guard against degenerate histogram ranges
-        if eff_xmax is not None and eff_xmax <= 0:
+        if eff_xmax is not None and eff_xmax <= lo_env:
             eff_xmax = None
             # If we had no explicit edges, hi_env should follow eff_xmax
             if user_edges is None:
@@ -716,11 +757,12 @@ class TrainingMetricHistogramPlotter:
 
                 if not used_all:
                     # No data: still emit deterministic edges
-                    hi = float(eff_xmax) if eff_xmax is not None else 1.0
+                    lo = float(lo_edge)
+                    hi = float(eff_xmax) if eff_xmax is not None else (lo + 1.0)
                     if user_edges is not None:
                         edges = user_edges
                     else:
-                        edges = np.linspace(0, hi, bins_eff + 1, dtype=float)
+                        edges = np.linspace(lo, hi, bins_eff + 1, dtype=float)
                     edges_list.append(edges)
                     mean_list.append(np.full((bins_eff,), np.nan, dtype=float))
                     lo_list.append(np.full((bins_eff,), np.nan, dtype=float))
@@ -744,7 +786,9 @@ class TrainingMetricHistogramPlotter:
                 if user_edges is not None:
                     edges = user_edges
                 elif eff_xmax is not None:
-                    edges = np.linspace(0.0, float(eff_xmax), bins_eff + 1, dtype=float)
+                    edges = np.linspace(
+                        float(lo_edge), float(eff_xmax), bins_eff + 1, dtype=float
+                    )
                 else:
                     # Data-driven edges per panel (may not align across groups)
                     edges = np.histogram_bin_edges(flat_used, bins=bins_eff)
@@ -819,11 +863,14 @@ class TrainingMetricHistogramPlotter:
             for vals, label in zip(vals_by_panel, panel_labels):
                 if vals is None or vals.size == 0:
                     counts_list.append(np.zeros((bins_eff,), dtype=int))
-                    hi = float(eff_xmax) if eff_xmax is not None else 1.0
+                    lo = float(lo_edge)
+                    hi = float(eff_xmax) if eff_xmax is not None else (lo + 1.0)
                     if user_edges is not None:
                         edges_list.append(user_edges)
                     else:
-                        edges_list.append(np.linspace(0, hi, bins_eff + 1, dtype=float))
+                        edges_list.append(
+                            np.linspace(lo, hi, bins_eff + 1, dtype=float)
+                        )
                     n_raw_list.append(0)
                     n_used_list.append(0)
                     n_dropped_list.append(0)
@@ -838,11 +885,12 @@ class TrainingMetricHistogramPlotter:
 
                 if n_used == 0:
                     counts = np.zeros((bins_eff,), dtype=int)
-                    hi = float(eff_xmax) if eff_xmax is not None else 1.0
+                    lo = float(lo_edge)
+                    hi = float(eff_xmax) if eff_xmax is not None else (lo + 1.0)
                     if user_edges is not None:
                         edges = user_edges
                     else:
-                        edges = np.linspace(0, hi, bins_eff + 1, dtype=float)
+                        edges = np.linspace(lo, hi, bins_eff + 1, dtype=float)
                 else:
                     if user_edge_groups:
                         counts_parts = []
@@ -857,7 +905,9 @@ class TrainingMetricHistogramPlotter:
                     elif eff_xmax is not None:
                         # Enforce shared edges via an explicit range.
                         counts, edges = np.histogram(
-                            vals, bins=bins_eff, range=(0.0, float(eff_xmax))
+                            vals,
+                            bins=bins_eff,
+                            range=(float(lo_edge), float(eff_xmax)),
                         )
                     else:
                         # Fallback: data-driven edges (will likely not align across groups).
