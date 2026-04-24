@@ -7,7 +7,9 @@ from types import SimpleNamespace
 import matplotlib.pyplot as plt
 
 from src.plotting.overlay_training_metric_filled_hist import (
+    apply_distribution_operations,
     load_export_npz,
+    parse_distribution_operation_spec,
     plot_filled_hist_overlays,
 )
 from src.utils.common import writeImage
@@ -58,6 +60,30 @@ def parse_args() -> argparse.Namespace:
         default=0.38,
         help="Fill transparency for each group distribution (default: %(default)s).",
     )
+    p.add_argument(
+        "--derive",
+        action="append",
+        default=[],
+        help=(
+            "Repeatable derived distribution spec: "
+            "'Result label=Term 1 label,add,Term 2 label' or "
+            "'Result label=Term 1 label,subtract,Term 2 label'. "
+            "Terms must match --input labels."
+        ),
+    )
+    p.add_argument(
+        "--derived-only",
+        action="store_true",
+        help="Plot only distributions created with --derive, hiding original inputs.",
+    )
+    p.add_argument(
+        "--renormalize-derived",
+        action="store_true",
+        help=(
+            "After each --derive operation, divide each derived panel by its finite "
+            "bin sum. Panels with zero finite sum are left unchanged."
+        ),
+    )
     return p.parse_args()
 
 
@@ -72,6 +98,24 @@ def main() -> None:
             )
         label, path = spec.split("=", 1)
         hists.append(load_export_npz(label.strip(), path.strip()))
+
+    derive_specs = []
+    for spec in args.derive:
+        try:
+            derive_specs.append(parse_distribution_operation_spec(spec))
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
+    try:
+        hists = apply_distribution_operations(
+            hists,
+            derive_specs,
+            include_inputs=not args.derived_only,
+            renormalize=args.renormalize_derived,
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    if not hists:
+        raise SystemExit("--derived-only requires at least one --derive spec.")
 
     if args.xlabel is None:
         args.xlabel = hists[0].meta.get("x_label", None)
