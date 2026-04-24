@@ -663,7 +663,7 @@ class TrainingMetricHistogramPlotter:
             lo_edge = lo_env
             hi_edge = hi_env
         elif user_edges is None:
-            lo_edge = 0.0
+            lo_edge = lo_env
             hi_edge = hi_env
         else:
             # grouped mode: we'll use per-group ranges in _clip(), not scalar lo/hi
