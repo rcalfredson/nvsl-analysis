@@ -193,6 +193,14 @@ from src.plotting.between_reward_normalized_distance_hist import (
     BetweenRewardNormalizedDistanceHistogramConfig,
     BetweenRewardNormalizedDistanceHistogramPlotter,
 )
+from src.plotting.between_reward_tortuosity_hist import (
+    BetweenRewardTortuosityHistogramConfig,
+    BetweenRewardTortuosityHistogramPlotter,
+)
+from src.plotting.between_reward_tortuosity_distance_box import (
+    BetweenRewardTortuosityDistanceBoxConfig,
+    BetweenRewardTortuosityDistanceBoxPlotter,
+)
 from src.plotting.btw_rwd_return_leg_dist_totals import (
     ReturnLegDistTotalsConfig,
     ReturnLegDistTotalsPlotter,
@@ -265,6 +273,8 @@ REWARD_PI_POST_DIFF_IMG_FILE = "imgs/reward_pi_post_diff__%s_min_buckets.png"
 DIST_BTWN_REWARDS_LABEL = "mean dist. between calc. rewards%s"
 DIST_BTWN_REWARDS_IMG_FILE = "imgs/btw_rwd_dists.png"
 BTW_RWD_NORM_DIST_HIST_IMG_FILE = "imgs/btw_rwd_norm_dists.png"
+BTW_RWD_TORTUOSITY_HIST_IMG_FILE = "imgs/btw_rwd_tortuosity_hist.png"
+BTW_RWD_TORTUOSITY_BOX_IMG_FILE = "imgs/btw_rwd_tortuosity_by_max_radius_box.png"
 REWARD_COUNT_HIST_IMG_FILE = "imgs/rwd_count_hist.png"
 FIRST_N_REWARD_DIAGNOSTICS_CSV_FILE = "exports/first_n_reward_diagnostics.csv"
 FIRST_N_REWARD_DIAGNOSTICS_PLOT_FILE = "imgs/first_n_reward_diagnostics.png"
@@ -1942,6 +1952,373 @@ g.add_argument(
         "When --btw-rwd-norm-dist-exclude-nonwalking-frames is set, require at least this many "
         "walking frames in a segment to keep it (default: %(default)s)."
     ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-hist",
+    action="store_true",
+    help=(
+        "Plot histograms of between-reward tortuosity-like segment metrics, "
+        "separated by training."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-export-hist",
+    type=str,
+    default=None,
+    help=(
+        "Export binned histogram data (counts + bin edges) for between-reward "
+        "tortuosity as a compressed .npz file for later overlay plotting."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-mode",
+    type=str,
+    choices=(
+        "path_over_max_radius",
+        "path_over_displacement",
+        "straightness",
+        "excess_path",
+    ),
+    default="path_over_max_radius",
+    help=(
+        "Definition of the between-reward tortuosity metric. "
+        "'path_over_max_radius' matches the loop/trip tortuosity definition from "
+        "Goldschmidt et al.: path length divided by maximum radial distance from "
+        "the reward center. 'path_over_displacement', 'straightness', and "
+        "'excess_path' are chord-based comparison metrics."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-transform",
+    type=str,
+    choices=("none", "log10"),
+    default="none",
+    help=(
+        "Optional transform applied after computing the tortuosity metric. "
+        "'log10' is useful for long-tailed tortuosity distributions."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-nbins",
+    type=int,
+    default=30,
+    help="Number of bins for between-reward tortuosity histograms (default: 30).",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-bin-edges",
+    type=str,
+    default=None,
+    help=(
+        "Explicit comma-separated bin edges for between-reward tortuosity histograms. "
+        "Useful especially with --btw-rwd-tortuosity-transform log10."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-min",
+    type=float,
+    default=None,
+    help="Minimum x value to include in between-reward tortuosity histograms.",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-max",
+    type=float,
+    default=None,
+    help=(
+        "Maximum x value to include in between-reward tortuosity histograms. "
+        "Values beyond this bound are discarded for plotting/export."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-pool-trainings",
+    action="store_true",
+    help=(
+        "Pool between-reward tortuosity values across all trainings into a single "
+        "histogram instead of plotting one panel per training."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-trainings",
+    type=parse_training_selector,
+    default=None,
+    help='Subset of trainings to plot (1-based). Examples: "1", "1,3", "2-4", "1,3-5". Ignored if --btw-rwd-tortuosity-pool-trainings is set.',
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-per-fly",
+    action="store_true",
+    help=(
+        "Compute between-reward tortuosity histograms per fly first, then average "
+        "across flies."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-min-segs-per-fly",
+    type=int,
+    default=10,
+    help=(
+        "When using --btw-rwd-tortuosity-per-fly, exclude any fly/unit with fewer "
+        "than this many kept segments (default: %(default)s)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-ci",
+    action="store_true",
+    help=(
+        "When using --btw-rwd-tortuosity-per-fly, draw per-bin confidence intervals "
+        "across flies."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-ci-conf",
+    type=float,
+    default=0.95,
+    help=(
+        "Confidence level for --btw-rwd-tortuosity-ci (default: %(default)s)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-ymax",
+    type=float,
+    default=None,
+    help="Set a fixed maximum for the y-axis in between-reward tortuosity histograms.",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-exclude-wall-contact",
+    action="store_true",
+    help=(
+        "Exclude between-reward segments that overlap any wall-contact region before "
+        "computing the tortuosity metric."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-exclude-nonwalking-frames",
+    action="store_true",
+    help=(
+        "Within each between-reward segment, exclude non-walking frames before "
+        "computing path length and net displacement."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-min-walk-frames",
+    type=int,
+    default=2,
+    help=(
+        "When --btw-rwd-tortuosity-exclude-nonwalking-frames is set, require at least "
+        "this many walking frames in a segment to keep it (default: %(default)s)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-exclude-reward-endpoints",
+    action="store_true",
+    help=(
+        "Exclude both reward endpoint frames when computing between-reward tortuosity, "
+        "i.e. use frames strictly between consecutive rewards."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-min-radius-mm",
+    type=float,
+    default=0.0,
+    help=(
+        "Minimum maximum radial distance from the reward center required for a segment "
+        "to contribute to the paper-style tortuosity histogram. Segments below this "
+        "threshold are dropped."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-min-displacement-mm",
+    type=float,
+    default=0.0,
+    help=(
+        "Minimum kept-frame net displacement required for chord-based tortuosity "
+        "comparison modes. Ignored by the default path_over_max_radius mode."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box",
+    action="store_true",
+    help=(
+        "Export and/or plot raw-domain tortuosity values binned by each segment's "
+        "maximum radial distance from the reward center, for box-and-whisker plots."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-export",
+    type=str,
+    default=None,
+    help=(
+        "Export tortuosity-by-max-distance boxplot data as a compressed .npz bundle."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-trainings",
+    type=parse_training_selector,
+    default=None,
+    help=(
+        "Training to export for tortuosity boxplot bundles (1-based). "
+        "Use one training per export, e.g. '1' or '2'. Defaults to training 1."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-bin-edges",
+    type=str,
+    default=None,
+    help=(
+        "Explicit comma-separated max-distance bin edges in mm for tortuosity boxplots, "
+        'e.g. "3,6,9,12,15,20,30,40,50".'
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-bin-width-mm",
+    type=float,
+    default=3.0,
+    help=(
+        "Max-distance bin width in mm for tortuosity boxplots when explicit edges "
+        "are not provided (default: %(default)s)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-min-mm",
+    type=float,
+    default=3.0,
+    help="Minimum max-distance bin edge for tortuosity boxplots (default: %(default)s).",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-max-mm",
+    type=float,
+    default=50.0,
+    help="Maximum max-distance bin edge for tortuosity boxplots (default: %(default)s).",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-min-radius-mm",
+    type=float,
+    default=0.0,
+    help=(
+        "Minimum maximum radial distance from the reward center required for a segment "
+        "to enter the tortuosity boxplot bundle."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-min-segments-per-bin",
+    type=int,
+    default=1,
+    help=(
+        "Minimum number of segments required for a max-distance bin to be retained "
+        "in the boxplot bundle (default: %(default)s)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-unit-stat",
+    type=str,
+    choices=("median", "mean"),
+    default="median",
+    help=(
+        "Per-fly summary statistic used within each max-distance bin before drawing "
+        "boxplots across flies (default: %(default)s)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-segment-level",
+    action="store_true",
+    help=(
+        "Use raw segment-level tortuosity values in each box instead of summarizing "
+        "within fly first. Useful for diagnostics; per-fly summaries are the default."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-exclude-wall-contact",
+    action="store_true",
+    help="Exclude between-reward segments that overlap wall-contact regions.",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-exclude-nonwalking-frames",
+    action="store_true",
+    help="Exclude non-walking frames before computing path length and max radius.",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-min-walk-frames",
+    type=int,
+    default=2,
+    help="Minimum walking frames required per segment (default: %(default)s).",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-exclude-reward-endpoints",
+    action="store_true",
+    help="Use frames strictly between consecutive rewards for the boxplot metric.",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-ymax",
+    type=float,
+    default=None,
+    help="Optional y-axis maximum when plotting a single boxplot bundle from analyze.py.",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-showfliers",
+    action="store_true",
+    help="Draw outlier points when plotting a single boxplot bundle from analyze.py.",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-no-plot",
+    action="store_true",
+    help="When --btw-rwd-tortuosity-box is set, export only and skip the single-group plot.",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-segments-tsv",
+    type=str,
+    default=None,
+    help=(
+        "Optional TSV of sampled between-reward segments per max-distance bin "
+        "(top, median-like, and random tortuosity examples)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-segments-plot-dir",
+    type=str,
+    default=None,
+    help=(
+        "Optional directory for sampled between-reward trajectory images annotated "
+        "with path length, max radius, and tortuosity."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-segments-top-k",
+    type=int,
+    default=3,
+    help="Number of highest-tortuosity segments to sample per bin (default: %(default)s).",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-segments-median-k",
+    type=int,
+    default=3,
+    help="Number of median-like tortuosity segments to sample per bin (default: %(default)s).",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-segments-random-k",
+    type=int,
+    default=3,
+    help="Number of random tortuosity segments to sample per bin (default: %(default)s).",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-segments-seed",
+    type=int,
+    default=0,
+    help="Random seed for sampled tortuosity segments (default: %(default)s).",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-segments-plot-zoom",
+    action="store_true",
+    help="Zoom sampled segment images around the reward circle.",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-segments-plot-zoom-radius-mm",
+    type=float,
+    default=None,
+    help="Optional zoom radius in mm for sampled segment images.",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-box-segments-plot-pad",
+    type=int,
+    default=5,
+    help="Frame padding around sampled segment intervals (default: %(default)s).",
 )
 g.add_argument(
     "--reward-count-hist",
@@ -11274,6 +11651,153 @@ def postAnalyze(vas):
             plotter.export_histograms_npz(out_npz)
         plotter.plot_histograms()
 
+    if va.circle and getattr(opts, "btw_rwd_tortuosity_hist", False):
+        cfg = BetweenRewardTortuosityHistogramConfig(
+            out_file=BTW_RWD_TORTUOSITY_HIST_IMG_FILE,
+            bins=getattr(opts, "btw_rwd_tortuosity_nbins", 30),
+            xmin=getattr(opts, "btw_rwd_tortuosity_min", None),
+            xmax=getattr(opts, "btw_rwd_tortuosity_max", None),
+            bin_edges=_parse_float_csv_or_edge_groups_or_none(
+                getattr(opts, "btw_rwd_tortuosity_bin_edges", None)
+            ),
+            normalize=bool(getattr(opts, "btw_rwd_tortuosity_per_fly", False)),
+            pool_trainings=getattr(opts, "btw_rwd_tortuosity_pool_trainings", False),
+            skip_first_sync_buckets=skip_eff,
+            keep_first_sync_buckets=keep_eff,
+            ymax=getattr(opts, "btw_rwd_tortuosity_ymax", None),
+            per_fly=bool(getattr(opts, "btw_rwd_tortuosity_per_fly", False)),
+            min_segs_per_fly=int(
+                getattr(opts, "btw_rwd_tortuosity_min_segs_per_fly", 10)
+            ),
+            ci=bool(getattr(opts, "btw_rwd_tortuosity_ci", False)),
+            ci_conf=float(getattr(opts, "btw_rwd_tortuosity_ci_conf", 0.95)),
+            trainings=getattr(opts, "btw_rwd_tortuosity_trainings", None),
+            show_suptitle=getattr(opts, "btw_rwd_hist_suptitle", False),
+            metric_mode=str(
+                getattr(opts, "btw_rwd_tortuosity_mode", "path_over_max_radius")
+                or "path_over_max_radius"
+            ),
+            transform=str(
+                getattr(opts, "btw_rwd_tortuosity_transform", "none") or "none"
+            ),
+            exclude_wall_contact=bool(
+                getattr(opts, "btw_rwd_tortuosity_exclude_wall_contact", False)
+            ),
+            exclude_nonwalking_frames=bool(
+                getattr(opts, "btw_rwd_tortuosity_exclude_nonwalking_frames", False)
+            ),
+            exclude_reward_endpoints=bool(
+                getattr(opts, "btw_rwd_tortuosity_exclude_reward_endpoints", False)
+            ),
+            min_walk_frames=int(
+                getattr(opts, "btw_rwd_tortuosity_min_walk_frames", 2) or 2
+            ),
+            min_displacement_mm=float(
+                getattr(opts, "btw_rwd_tortuosity_min_displacement_mm", 0.0) or 0.0
+            ),
+            min_radius_mm=float(
+                getattr(opts, "btw_rwd_tortuosity_min_radius_mm", 0.0) or 0.0
+            ),
+        )
+        plotter = BetweenRewardTortuosityHistogramPlotter(
+            vas=vas, opts=opts, gls=gls, customizer=customizer, cfg=cfg
+        )
+        out_npz = getattr(opts, "btw_rwd_tortuosity_export_hist", None)
+        if out_npz:
+            plotter.export_histograms_npz(out_npz)
+        plotter.plot_histograms()
+
+    if va.circle and getattr(opts, "btw_rwd_tortuosity_box", False):
+        trainings = getattr(opts, "btw_rwd_tortuosity_box_trainings", None)
+        if trainings:
+            training_index = int(trainings[0]) - 1
+        else:
+            training_index = 0
+        if training_index < 0:
+            training_index = 0
+
+        cfg = BetweenRewardTortuosityDistanceBoxConfig(
+            out_file=BTW_RWD_TORTUOSITY_BOX_IMG_FILE,
+            export_npz=getattr(opts, "btw_rwd_tortuosity_box_export", None),
+            training_index=training_index,
+            skip_first_sync_buckets=skip_eff,
+            keep_first_sync_buckets=keep_eff,
+            x_bin_edges_mm=_parse_float_csv_or_edge_groups_or_none(
+                getattr(opts, "btw_rwd_tortuosity_box_bin_edges", None)
+            ),
+            x_min_mm=float(getattr(opts, "btw_rwd_tortuosity_box_min_mm", 3.0)),
+            x_max_mm=float(getattr(opts, "btw_rwd_tortuosity_box_max_mm", 50.0)),
+            x_bin_width_mm=float(
+                getattr(opts, "btw_rwd_tortuosity_box_bin_width_mm", 3.0)
+            ),
+            exclude_wall_contact=bool(
+                getattr(opts, "btw_rwd_tortuosity_box_exclude_wall_contact", False)
+            ),
+            exclude_nonwalking_frames=bool(
+                getattr(
+                    opts, "btw_rwd_tortuosity_box_exclude_nonwalking_frames", False
+                )
+            ),
+            exclude_reward_endpoints=bool(
+                getattr(opts, "btw_rwd_tortuosity_box_exclude_reward_endpoints", False)
+            ),
+            min_walk_frames=int(
+                getattr(opts, "btw_rwd_tortuosity_box_min_walk_frames", 2) or 2
+            ),
+            min_radius_mm=float(
+                getattr(opts, "btw_rwd_tortuosity_box_min_radius_mm", 0.0) or 0.0
+            ),
+            min_segments_per_bin=int(
+                getattr(opts, "btw_rwd_tortuosity_box_min_segments_per_bin", 1) or 1
+            ),
+            unit_stat=str(
+                getattr(opts, "btw_rwd_tortuosity_box_unit_stat", "median") or "median"
+            ),
+            segment_level=bool(
+                getattr(opts, "btw_rwd_tortuosity_box_segment_level", False)
+            ),
+            showfliers=bool(getattr(opts, "btw_rwd_tortuosity_box_showfliers", False)),
+            ymax=getattr(opts, "btw_rwd_tortuosity_box_ymax", None),
+            show_plot=not bool(getattr(opts, "btw_rwd_tortuosity_box_no_plot", False)),
+            segments_tsv=getattr(opts, "btw_rwd_tortuosity_box_segments_tsv", None),
+            segments_plot_dir=getattr(
+                opts, "btw_rwd_tortuosity_box_segments_plot_dir", None
+            ),
+            segments_top_k=int(
+                getattr(opts, "btw_rwd_tortuosity_box_segments_top_k", 3) or 0
+            ),
+            segments_median_k=int(
+                getattr(opts, "btw_rwd_tortuosity_box_segments_median_k", 3) or 0
+            ),
+            segments_random_k=int(
+                getattr(opts, "btw_rwd_tortuosity_box_segments_random_k", 3) or 0
+            ),
+            segments_seed=int(
+                getattr(opts, "btw_rwd_tortuosity_box_segments_seed", 0) or 0
+            ),
+            segments_plot_zoom=bool(
+                getattr(opts, "btw_rwd_tortuosity_box_segments_plot_zoom", False)
+            ),
+            segments_plot_zoom_radius_mm=getattr(
+                opts, "btw_rwd_tortuosity_box_segments_plot_zoom_radius_mm", None
+            ),
+            segments_plot_pad=int(
+                getattr(opts, "btw_rwd_tortuosity_box_segments_plot_pad", 5) or 5
+            ),
+        )
+        plotter = BetweenRewardTortuosityDistanceBoxPlotter(
+            vas=vas, opts=opts, gls=gls, customizer=customizer, cfg=cfg
+        )
+        out_npz = getattr(opts, "btw_rwd_tortuosity_box_export", None)
+        if out_npz:
+            plotter.export_npz(str(out_npz))
+        if cfg.segments_tsv:
+            plotter.write_sampled_segments_tsv(str(cfg.segments_tsv))
+        if cfg.segments_plot_dir:
+            plotter.plot_sampled_segments(str(cfg.segments_plot_dir))
+        if cfg.show_plot:
+            plotter.plot_boxplot()
+
     if getattr(opts, "btw_rwd_com_mag_hist", False) and any(
         getattr(v, "circle", None) for v in vas
     ):
@@ -13199,6 +13723,23 @@ if __name__ == "__main__":
             print(
                 f"[btw_rwd_dist_hist] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
                 "because --btw-rwd-dist-exclude-wall-contact was set"
+            )
+            opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
+    # If tortuosity wants wall-contact exclusion, we must compute wall contact
+    if getattr(opts, "btw_rwd_tortuosity_exclude_wall_contact", False):
+        if getattr(opts, "wall", None) is None:
+            print(
+                f"[btw_rwd_tortuosity] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
+                "because --btw-rwd-tortuosity-exclude-wall-contact was set"
+            )
+            opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
+    if getattr(opts, "btw_rwd_tortuosity_box_exclude_wall_contact", False):
+        if getattr(opts, "wall", None) is None:
+            print(
+                f"[btw_rwd_tortuosity_box] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
+                "because --btw-rwd-tortuosity-box-exclude-wall-contact was set"
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 

@@ -3872,6 +3872,7 @@ class EventChainPlotter:
         short_strict: bool = False,
         out_path: str | None = None,
         title_suffix: str = "",
+        annotation_text: str | None = None,
     ):
         """
         Plot exactly one between-reward trajectory segment for this fly, defined by
@@ -3906,6 +3907,9 @@ class EventChainPlotter:
             If provided, write exactly here. Otherwise uses the standard imgs/between_rewards/ pattern.
         title_suffix : str
             Extra text appended to per-figure title (useful for tagging q / group / etc.).
+        annotation_text : str | None
+            Optional text box drawn in the upper-right of the axes for per-segment
+            metrics such as path length, max radius, or tortuosity.
         """
 
         image_format = image_format or self.image_format
@@ -4214,6 +4218,26 @@ class EventChainPlotter:
             zorder=4,
             label="Reward (end)",
         )
+
+        if annotation_text:
+            ax.text(
+                0.98,
+                0.98,
+                str(annotation_text),
+                transform=ax.transAxes,
+                ha="right",
+                va="top",
+                fontsize=9,
+                color="0.15",
+                zorder=12,
+                bbox=dict(
+                    boxstyle="round,pad=0.28",
+                    facecolor="white",
+                    edgecolor="0.55",
+                    linewidth=0.8,
+                    alpha=0.88,
+                ),
+            )
 
         # --- Titles / legend --------------------------------------------------------
         video_id = os.path.splitext(os.path.basename(self.va.fn))[0]

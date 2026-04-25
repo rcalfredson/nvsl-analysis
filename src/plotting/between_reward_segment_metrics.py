@@ -140,3 +140,244 @@ def dist_traveled_mm_masked(
 
     dpx = float(np.sum(step_px[keep_steps]))
     return float(dpx / px_per_mm)
+
+
+def net_displacement_mm_masked(
+    *,
+    traj,
+    s: int,
+    e: int,
+    fi: int,
+    nonwalk_mask,
+    exclude_nonwalk: bool,
+    px_per_mm: float,
+    min_keep_frames: int = 2,
+) -> float:
+    """
+    Net displacement in mm across the kept frames of [s, e).
+
+    Uses the same effective window + keep-mask semantics as
+    dist_traveled_mm_masked(), then measures the chord length between the first
+    and last kept finite positions.
+    """
+    keep, L = seg_keep_frames(
+        traj=traj,
+        s=s,
+        e=e,
+        fi=fi,
+        nonwalk_mask=nonwalk_mask,
+        exclude_nonwalk=exclude_nonwalk,
+        min_keep_frames=min_keep_frames,
+    )
+    if keep is None or L < 2:
+        return np.nan
+
+    px_per_mm = float(px_per_mm)
+    if not np.isfinite(px_per_mm) or px_per_mm <= 0:
+        return np.nan
+
+    kept = np.flatnonzero(keep)
+    if kept.size < 2:
+        return np.nan
+
+    s = int(s)
+    i0 = int(kept[0])
+    i1 = int(kept[-1])
+
+    x0 = float(traj.x[s + i0])
+    y0 = float(traj.y[s + i0])
+    x1 = float(traj.x[s + i1])
+    y1 = float(traj.y[s + i1])
+    if not np.all(np.isfinite([x0, y0, x1, y1])):
+        return np.nan
+
+    dpx = float(np.hypot(x1 - x0, y1 - y0))
+    return float(dpx / px_per_mm)
+
+
+def max_radial_distance_mm_masked(
+    *,
+    traj,
+    s: int,
+    e: int,
+    fi: int,
+    nonwalk_mask,
+    exclude_nonwalk: bool,
+    px_per_mm: float,
+    center_xy: tuple[float, float],
+    min_keep_frames: int = 2,
+) -> float:
+    """
+    Maximum radial distance from center_xy in mm across kept frames of [s, e).
+    """
+    keep, L = seg_keep_frames(
+        traj=traj,
+        s=s,
+        e=e,
+        fi=fi,
+        nonwalk_mask=nonwalk_mask,
+        exclude_nonwalk=exclude_nonwalk,
+        min_keep_frames=min_keep_frames,
+    )
+    if keep is None or L < 2:
+        return np.nan
+
+    px_per_mm = float(px_per_mm)
+    if not np.isfinite(px_per_mm) or px_per_mm <= 0:
+        return np.nan
+
+    cx, cy = center_xy
+    cx = float(cx)
+    cy = float(cy)
+    if not np.all(np.isfinite([cx, cy])):
+        return np.nan
+
+    s = int(s)
+    xs = np.asarray(traj.x[s : s + L], dtype=float)
+    ys = np.asarray(traj.y[s : s + L], dtype=float)
+    if xs.size == 0 or ys.size == 0:
+        return np.nan
+
+    d = np.hypot(xs - cx, ys - cy)
+    d = d[keep & np.isfinite(d)]
+    if d.size == 0:
+        return np.nan
+
+    return float(np.nanmax(d) / px_per_mm)
+
+
+def path_length_and_max_radius_mm_masked(
+    *,
+    traj,
+    s: int,
+    e: int,
+    fi: int,
+    nonwalk_mask,
+    exclude_nonwalk: bool,
+    px_per_mm: float,
+    center_xy: tuple[float, float],
+    min_keep_frames: int = 2,
+) -> tuple[float, float]:
+    """
+    Return (path_length_mm, max_radius_mm) for [s, e) under shared masking.
+    """
+    path_mm = dist_traveled_mm_masked(
+        traj=traj,
+        s=s,
+        e=e,
+        fi=fi,
+        nonwalk_mask=nonwalk_mask,
+        exclude_nonwalk=exclude_nonwalk,
+        px_per_mm=px_per_mm,
+        min_keep_frames=min_keep_frames,
+    )
+    if not np.isfinite(path_mm) or path_mm <= 0:
+        return np.nan, np.nan
+
+    radius_mm = max_radial_distance_mm_masked(
+        traj=traj,
+        s=s,
+        e=e,
+        fi=fi,
+        nonwalk_mask=nonwalk_mask,
+        exclude_nonwalk=exclude_nonwalk,
+        px_per_mm=px_per_mm,
+        center_xy=center_xy,
+        min_keep_frames=min_keep_frames,
+    )
+    if not np.isfinite(radius_mm):
+        return np.nan, np.nan
+    return float(path_mm), float(radius_mm)
+
+
+def tortuosity_metric_masked(
+    *,
+    traj,
+    s: int,
+    e: int,
+    fi: int,
+    nonwalk_mask,
+    exclude_nonwalk: bool,
+    px_per_mm: float,
+    mode: str = "path_over_max_radius",
+    reward_center_xy: tuple[float, float] | None = None,
+    min_keep_frames: int = 2,
+    min_displacement_mm: float = 0.0,
+    min_radius_mm: float = 0.0,
+) -> float:
+    """
+    Segment tortuosity/straightness metric on [s, e) under masked-frame semantics.
+
+    Supported modes:
+      - "path_over_max_radius": path length / max distance from reward center
+      - "path_over_displacement": path length / net displacement (>= 1 when finite)
+      - "straightness": net displacement / path length (in [0, 1] when finite)
+      - "excess_path": (path length / net displacement) - 1
+    """
+    mode = str(mode or "path_over_max_radius").strip().lower()
+
+    path_mm = dist_traveled_mm_masked(
+        traj=traj,
+        s=s,
+        e=e,
+        fi=fi,
+        nonwalk_mask=nonwalk_mask,
+        exclude_nonwalk=exclude_nonwalk,
+        px_per_mm=px_per_mm,
+        min_keep_frames=min_keep_frames,
+    )
+    if not np.isfinite(path_mm) or path_mm <= 0:
+        return np.nan
+
+    if mode == "path_over_max_radius":
+        if reward_center_xy is None:
+            return np.nan
+        radius_mm = max_radial_distance_mm_masked(
+            traj=traj,
+            s=s,
+            e=e,
+            fi=fi,
+            nonwalk_mask=nonwalk_mask,
+            exclude_nonwalk=exclude_nonwalk,
+            px_per_mm=px_per_mm,
+            center_xy=reward_center_xy,
+            min_keep_frames=min_keep_frames,
+        )
+        if not np.isfinite(radius_mm):
+            return np.nan
+        min_radius = float(min_radius_mm or 0.0)
+        if not np.isfinite(min_radius):
+            min_radius = 0.0
+        if radius_mm <= max(0.0, min_radius):
+            return np.nan
+        return float(path_mm / radius_mm)
+
+    disp_mm = net_displacement_mm_masked(
+        traj=traj,
+        s=s,
+        e=e,
+        fi=fi,
+        nonwalk_mask=nonwalk_mask,
+        exclude_nonwalk=exclude_nonwalk,
+        px_per_mm=px_per_mm,
+        min_keep_frames=min_keep_frames,
+    )
+    if not np.isfinite(disp_mm):
+        return np.nan
+
+    min_disp = float(min_displacement_mm or 0.0)
+    if not np.isfinite(min_disp):
+        min_disp = 0.0
+    if disp_mm <= max(0.0, min_disp):
+        return np.nan
+
+    if mode == "straightness":
+        return float(disp_mm / path_mm)
+
+    ratio = float(path_mm / disp_mm)
+    if mode == "path_over_displacement":
+        return ratio
+    if mode == "excess_path":
+        return float(ratio - 1.0)
+
+    raise ValueError(f"Unknown tortuosity mode: {mode!r}")

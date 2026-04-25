@@ -566,6 +566,21 @@ class VideoAnalysis:
             and getattr(self.opts, "btw_rwd_dist_exclude_wall_contact", False)
         )
 
+        keep_wall_regions_for_btw_rwd_tortuosity = bool(
+            (
+                getattr(self.opts, "btw_rwd_tortuosity_hist", False)
+                and getattr(
+                    self.opts, "btw_rwd_tortuosity_exclude_wall_contact", False
+                )
+            )
+            or (
+                getattr(self.opts, "btw_rwd_tortuosity_box", False)
+                and getattr(
+                    self.opts, "btw_rwd_tortuosity_box_exclude_wall_contact", False
+                )
+            )
+        )
+
         keep_wall_regions_for_btw_rwd_conditioned_com = bool(
             getattr(self.opts, "btw_rwd_conditioned_com", False)
             and getattr(self.opts, "com_exclude_wall_contact", False)
@@ -608,6 +623,7 @@ class VideoAnalysis:
             keep_wall_regions_for_polar
             or keep_wall_regions_for_btw_rwd_com_mag
             or keep_wall_regions_for_btw_rwd_dist
+            or keep_wall_regions_for_btw_rwd_tortuosity
             or keep_wall_regions_for_btw_rwd_conditioned_com
             or keep_wall_regions_for_btw_rwd_conditioned_disttrav
             or keep_wall_regions_for_rrd
@@ -743,6 +759,8 @@ class VideoAnalysis:
             "btw_rwd_conditioned_disttrav",
             "btw_rwd_com_mag_hist",
             "btw_rwd_dist_hist",
+            "btw_rwd_tortuosity_hist",
+            "btw_rwd_tortuosity_box",
             "btw_rwd_hexbin",
             "reward_return_distance",
             "return_prob_seg_plots",
