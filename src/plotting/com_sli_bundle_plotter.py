@@ -1137,7 +1137,7 @@ def plot_com_sli_bundle_data(
                         )
 
         plt.title(maybe_sentence_case(title))
-        default_xlabel = "time elapsed (min)"
+        default_xlabel = "time elapsed [min]"
         plt.xlabel(maybe_sentence_case(str(xlabel or default_xlabel)))
 
         if metric == "commag":

@@ -7837,7 +7837,7 @@ def plotRewards(
                         )
                     )
                 )
-                xlabel_text = "time elapsed (min)"
+                xlabel_text = "time elapsed [min]"
                 if opts.plot_rewards_xlabel is not None:
                     xlabel_text = str(opts.plot_rewards_xlabel)
                 plt.xlabel(maybe_sentence_case(pcap(xlabel_text)))
