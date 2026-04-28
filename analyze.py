@@ -4976,7 +4976,9 @@ g.add_argument(
     default=None,
     help=(
         "Comma-separated bin edges (mm beyond reward-circle radius) for the "
-        "return-prob-excursion-bin export, e.g. '0,1,2,3,4,6'."
+        "return-prob-excursion-bin export. Use 'inf' as the final edge for an "
+        "open-ended upper bin resolved to the maximum observed excursion, "
+        "e.g. '2,8,16,inf'."
     ),
 )
 g.add_argument(
@@ -4985,7 +4987,9 @@ g.add_argument(
     default=None,
     help=(
         "Comma-separated outer-radius bin edges (mm beyond reward-circle radius) "
-        "for the turnback-excursion-bin export, e.g. '4,6,8,10,12'."
+        "for the turnback-excursion-bin export. Use 'inf' as the final edge for "
+        "an open-ended upper bin resolved to the maximum observed excursion, "
+        "e.g. '2,8,16,inf'."
     ),
 )
 g.add_argument(

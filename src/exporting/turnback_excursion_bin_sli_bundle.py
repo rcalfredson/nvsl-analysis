@@ -60,8 +60,14 @@ def _bin_edges_mm(opts) -> np.ndarray:
         raise ValueError(
             "--turnback-excursion-bin-edges-mm must contain at least two values."
         )
-    if not np.all(np.isfinite(vals)):
-        raise ValueError("--turnback-excursion-bin-edges-mm must be finite.")
+    if np.any(np.isnan(vals)) or np.any(np.isneginf(vals)):
+        raise ValueError(
+            "--turnback-excursion-bin-edges-mm must contain valid numeric edges."
+        )
+    if np.any(np.isposinf(vals[:-1])):
+        raise ValueError(
+            "--turnback-excursion-bin-edges-mm may use 'inf' only as the last edge, not between finite edges."
+        )
     if np.any(np.diff(vals) <= 0):
         raise ValueError(
             "--turnback-excursion-bin-edges-mm must be strictly increasing."
@@ -150,14 +156,6 @@ def _integrated_bin_contribution(
     """
     Exact average over outer-radius thresholds r in [a_mm, b_mm) of
     1{max_outer_delta_mm < r}.
-
-    For a turnback excursion that eventually re-enters the inner circle, this is the
-    fraction of thresholds in the bin that would classify the episode as a successful
-    turnback.
-
-    Thresholds at or below the effective inner-circle radius are invalid dual-circle
-    configurations, so only the valid sub-interval [max(a_mm, min_valid_outer_delta_mm), b_mm)
-    contributes to the average.
     """
     lo = max(float(a_mm), float(min_valid_outer_delta_mm))
     hi = float(b_mm)
@@ -169,6 +167,84 @@ def _integrated_bin_contribution(
     if float(max_outer_delta_mm) >= hi:
         return 0.0
     return float(hi - float(max_outer_delta_mm)) / width
+
+
+def _resolve_open_ended_upper_edge(
+    vas,
+    *,
+    bin_edges_mm: np.ndarray,
+    inner_delta_mm: float,
+    border_width_mm: float,
+    radius_offset_px: float,
+    selected_trainings: list[int],
+    skip_first: int,
+    keep_first: int,
+    last_sync_buckets: int,
+    debug: bool,
+) -> tuple[np.ndarray, bool]:
+    if not np.isposinf(float(bin_edges_mm[-1])):
+        return np.asarray(bin_edges_mm, dtype=float), False
+
+    lower = float(bin_edges_mm[-2])
+    max_observed = -np.inf
+
+    for va in vas:
+        windows = _selected_windows_for_va(
+            va,
+            selected_trainings,
+            skip_first=skip_first,
+            keep_first=keep_first,
+            last_sync_buckets=last_sync_buckets,
+        )
+        if not windows:
+            continue
+        windows_by_training = {
+            int(win["training_idx"]): [win] for win in windows
+        }
+        for fly_idx, trj in enumerate(getattr(va, "trx", [])):
+            if getattr(trj, "_bad", False):
+                continue
+            if fly_idx > 1:
+                continue
+            if fly_idx == 1 and getattr(va, "noyc", False):
+                continue
+            for t_idx in selected_trainings:
+                if t_idx >= len(getattr(va, "trns", [])):
+                    continue
+                trn = va.trns[t_idx]
+                if trn is None or not trn.isCircle():
+                    continue
+                if t_idx not in windows_by_training:
+                    continue
+                episodes = trj.reward_turnback_excursion_episodes_for_training(
+                    trn=trn,
+                    inner_delta_mm=float(inner_delta_mm),
+                    border_width_mm=float(border_width_mm),
+                    debug=False,
+                    radius_offset_px=float(radius_offset_px),
+                )
+                for ep in episodes or []:
+                    event_t = int(ep["stop"]) - 1
+                    if not _frame_in_windows(event_t, windows_by_training[t_idx]):
+                        continue
+                    max_outer_delta_mm = float(ep.get("max_outer_delta_mm", np.nan))
+                    if np.isfinite(max_outer_delta_mm):
+                        max_observed = max(max_observed, max_outer_delta_mm)
+
+    if not np.isfinite(max_observed) or max_observed <= lower:
+        raise ValueError(
+            "--turnback-excursion-bin-edges-mm requested an open-ended upper "
+            f"bin starting at {lower:g} mm, but no observed excursion exceeded it."
+        )
+
+    resolved = np.asarray(bin_edges_mm, dtype=float).copy()
+    resolved[-1] = float(max_observed)
+    _dbg_if(
+        debug,
+        "[turnback-excursion-bin] resolved final 'inf' edge to "
+        f"{float(max_observed):g} mm (max observed outer-radius delta)",
+    )
+    return resolved, True
 
 
 def _compute_turnback_curves(
@@ -184,6 +260,19 @@ def _compute_turnback_curves(
     last_sync_buckets: int,
     debug: bool,
 ):
+    bin_edges_mm, _open_ended_upper_bin = _resolve_open_ended_upper_edge(
+        vas,
+        bin_edges_mm=bin_edges_mm,
+        inner_delta_mm=inner_delta_mm,
+        border_width_mm=border_width_mm,
+        radius_offset_px=radius_offset_px,
+        selected_trainings=selected_trainings,
+        skip_first=skip_first,
+        keep_first=keep_first,
+        last_sync_buckets=last_sync_buckets,
+        debug=debug,
+    )
+
     n_videos = len(vas)
     n_bins = int(max(0, bin_edges_mm.size - 1))
     ratio_exp = np.full((n_videos, n_bins), np.nan, dtype=float)
@@ -259,9 +348,6 @@ def _compute_turnback_curves(
                     if not np.isfinite(effective_inner_delta_mm):
                         continue
                     if not bool(ep.get("turns_back", False)):
-                        # Training-end-censored excursions are unresolved for larger
-                        # outer radii, so exclude them to mirror the return-probability
-                        # excursion-bin export semantics.
                         continue
                     for bin_idx in range(n_bins):
                         a_mm = float(bin_edges_mm[bin_idx])
@@ -322,7 +408,7 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         print(f"[export] No non-skipped VideoAnalysis instances; not writing {out_fn}")
         return
 
-    bin_edges_mm = _bin_edges_mm(opts)
+    requested_bin_edges_mm = _bin_edges_mm(opts)
     selected_trainings = _selected_training_indices(vas_ok, opts)
     skip_first, keep_first, last_sync_buckets = _effective_windowing(opts)
     inner_delta_mm = float(getattr(opts, "turnback_inner_delta_mm", 0.0) or 0.0)
@@ -332,6 +418,18 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
     )
     debug = bool(getattr(opts, "turnback_excursion_bin_debug", False))
 
+    bin_edges_mm, open_ended_upper_bin = _resolve_open_ended_upper_edge(
+        vas_ok,
+        bin_edges_mm=requested_bin_edges_mm,
+        inner_delta_mm=inner_delta_mm,
+        border_width_mm=border_width_mm,
+        radius_offset_px=radius_offset_px,
+        selected_trainings=selected_trainings,
+        skip_first=skip_first,
+        keep_first=keep_first,
+        last_sync_buckets=last_sync_buckets,
+        debug=debug,
+    )
     (
         ratio_exp,
         ratio_ctrl,
@@ -425,6 +523,12 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         turnback_excursion_bin_total_exp=np.asarray(total_exp, dtype=int),
         turnback_excursion_bin_total_ctrl=np.asarray(total_ctrl, dtype=int),
         turnback_excursion_bin_edges_mm=np.asarray(bin_edges_mm, dtype=float),
+        turnback_excursion_bin_requested_edges_mm=np.asarray(
+            requested_bin_edges_mm, dtype=float
+        ),
+        turnback_excursion_bin_open_ended_upper_bin=np.array(
+            open_ended_upper_bin, dtype=bool
+        ),
         turnback_excursion_bin_trainings=np.asarray(selected_trainings, dtype=int),
         turnback_excursion_bin_skip_first_sync_buckets=np.array(skip_first, dtype=int),
         turnback_excursion_bin_keep_first_sync_buckets=np.array(keep_first, dtype=int),

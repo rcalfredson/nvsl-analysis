@@ -62,8 +62,14 @@ def _bin_edges_mm(opts) -> np.ndarray:
         raise ValueError(
             "--return-prob-excursion-bin-edges-mm must contain at least two values."
         )
-    if not np.all(np.isfinite(vals)):
-        raise ValueError("--return-prob-excursion-bin-edges-mm must be finite.")
+    if np.any(np.isnan(vals)) or np.any(np.isneginf(vals)):
+        raise ValueError(
+            "--return-prob-excursion-bin-edges-mm must contain valid numeric edges."
+        )
+    if np.any(np.isposinf(vals[:-1])):
+        raise ValueError(
+            "--return-prob-excursion-bin-edges-mm may use 'inf' only as the last edge, not between finite edges."
+        )
     if np.any(np.diff(vals) <= 0):
         raise ValueError(
             "--return-prob-excursion-bin-edges-mm must be strictly increasing."
@@ -144,26 +150,10 @@ def _frame_in_windows(frame: int, windows) -> bool:
     return False
 
 
-def _bin_index(value_mm: float, edges_mm: np.ndarray) -> int | None:
-    if not np.isfinite(value_mm):
-        return None
-    idx = int(np.searchsorted(edges_mm, float(value_mm), side="right")) - 1
-    if idx < 0 or idx >= len(edges_mm) - 1:
-        return None
-    if not (float(edges_mm[idx]) <= float(value_mm) < float(edges_mm[idx + 1])):
-        return None
-    return idx
-
-
 def _integrated_bin_contribution(max_excursion_mm: float, a_mm: float, b_mm: float) -> float:
     """
     Exact average over thresholds r in [a_mm, b_mm) of the indicator
     1{max_excursion_mm < r}.
-
-    This equals the fraction of the bin lying above the realized max excursion:
-      - 1 if max_excursion_mm < a_mm
-      - (b_mm - max_excursion_mm) / (b_mm - a_mm) if a_mm <= max_excursion_mm < b_mm
-      - 0 if max_excursion_mm >= b_mm
     """
     width = float(b_mm) - float(a_mm)
     if not np.isfinite(max_excursion_mm) or width <= 0:
@@ -173,6 +163,82 @@ def _integrated_bin_contribution(max_excursion_mm: float, a_mm: float, b_mm: flo
     if float(max_excursion_mm) >= float(b_mm):
         return 0.0
     return float(b_mm - float(max_excursion_mm)) / width
+
+
+def _resolve_open_ended_upper_edge(
+    vas,
+    *,
+    bin_edges_mm: np.ndarray,
+    reward_delta_mm: float,
+    border_width_mm: float,
+    selected_trainings: list[int],
+    skip_first: int,
+    keep_first: int,
+    last_sync_buckets: int,
+    debug: bool,
+) -> tuple[np.ndarray, bool]:
+    if not np.isposinf(float(bin_edges_mm[-1])):
+        return np.asarray(bin_edges_mm, dtype=float), False
+
+    lower = float(bin_edges_mm[-2])
+    max_observed = -np.inf
+
+    for vi, va in enumerate(vas):
+        windows = _selected_windows_for_va(
+            va,
+            selected_trainings,
+            skip_first=skip_first,
+            keep_first=keep_first,
+            last_sync_buckets=last_sync_buckets,
+        )
+        if not windows:
+            continue
+        windows_by_training = {
+            int(win["training_idx"]): [win] for win in windows
+        }
+        for fly_idx, trj in enumerate(getattr(va, "trx", [])):
+            if getattr(trj, "_bad", False):
+                continue
+            ctrl = bool(fly_idx == 1)
+            if ctrl and getattr(va, "noyc", False):
+                continue
+            for t_idx in selected_trainings:
+                if t_idx >= len(getattr(va, "trns", [])):
+                    continue
+                trn = va.trns[t_idx]
+                if trn is None or not trn.isCircle():
+                    continue
+                if t_idx not in windows_by_training:
+                    continue
+                episodes = trj.reward_return_excursion_episodes_for_training(
+                    trn=trn,
+                    reward_delta_mm=float(reward_delta_mm),
+                    border_width_mm=float(border_width_mm),
+                    ctrl=ctrl,
+                    debug=False,
+                )
+                for ep in episodes or []:
+                    event_t = int(ep["stop"]) - 1
+                    if not _frame_in_windows(event_t, windows_by_training[t_idx]):
+                        continue
+                    max_excursion_mm = float(ep.get("max_excursion_mm", np.nan))
+                    if np.isfinite(max_excursion_mm):
+                        max_observed = max(max_observed, max_excursion_mm)
+
+    if not np.isfinite(max_observed) or max_observed <= lower:
+        raise ValueError(
+            "--return-prob-excursion-bin-edges-mm requested an open-ended upper "
+            f"bin starting at {lower:g} mm, but no observed excursion exceeded it."
+        )
+
+    resolved = np.asarray(bin_edges_mm, dtype=float).copy()
+    resolved[-1] = float(max_observed)
+    _dbg_if(
+        debug,
+        "[return-prob-excursion-bin] resolved final 'inf' edge to "
+        f"{float(max_observed):g} mm (max observed radial excursion)",
+    )
+    return resolved, True
 
 
 def _compute_return_prob_curves(
@@ -187,6 +253,18 @@ def _compute_return_prob_curves(
     last_sync_buckets: int,
     debug: bool,
 ):
+    bin_edges_mm, _open_ended_upper_bin = _resolve_open_ended_upper_edge(
+        vas,
+        bin_edges_mm=bin_edges_mm,
+        reward_delta_mm=reward_delta_mm,
+        border_width_mm=border_width_mm,
+        selected_trainings=selected_trainings,
+        skip_first=skip_first,
+        keep_first=keep_first,
+        last_sync_buckets=last_sync_buckets,
+        debug=debug,
+    )
+
     n_videos = len(vas)
     n_bins = int(max(0, bin_edges_mm.size - 1))
     ratio_exp = np.full((n_videos, n_bins), np.nan, dtype=float)
@@ -255,9 +333,6 @@ def _compute_return_prob_curves(
                     if not np.isfinite(max_excursion_mm):
                         continue
                     if not bool(ep.get("returns", False)):
-                        # Training-end-censored excursions are unresolved for large
-                        # thresholds, so exclude them to match the threshold-based
-                        # return-probability semantics.
                         continue
                     for bin_idx in range(n_bins):
                         a_mm = float(bin_edges_mm[bin_idx])
@@ -306,7 +381,7 @@ def export_return_prob_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         print(f"[export] No non-skipped VideoAnalysis instances; not writing {out_fn}")
         return
 
-    bin_edges_mm = _bin_edges_mm(opts)
+    requested_bin_edges_mm = _bin_edges_mm(opts)
     selected_trainings = _selected_training_indices(vas_ok, opts)
     skip_first, keep_first, last_sync_buckets = _effective_windowing(opts)
     reward_delta_mm = float(
@@ -317,6 +392,17 @@ def export_return_prob_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
     )
     debug = bool(getattr(opts, "return_prob_excursion_bin_debug", False))
 
+    bin_edges_mm, open_ended_upper_bin = _resolve_open_ended_upper_edge(
+        vas_ok,
+        bin_edges_mm=requested_bin_edges_mm,
+        reward_delta_mm=reward_delta_mm,
+        border_width_mm=border_width_mm,
+        selected_trainings=selected_trainings,
+        skip_first=skip_first,
+        keep_first=keep_first,
+        last_sync_buckets=last_sync_buckets,
+        debug=debug,
+    )
     (
         ratio_exp,
         ratio_ctrl,
@@ -412,6 +498,12 @@ def export_return_prob_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         return_prob_excursion_bin_total_exp=np.asarray(total_exp, dtype=int),
         return_prob_excursion_bin_total_ctrl=np.asarray(total_ctrl, dtype=int),
         return_prob_excursion_bin_edges_mm=np.asarray(bin_edges_mm, dtype=float),
+        return_prob_excursion_bin_requested_edges_mm=np.asarray(
+            requested_bin_edges_mm, dtype=float
+        ),
+        return_prob_excursion_bin_open_ended_upper_bin=np.array(
+            open_ended_upper_bin, dtype=bool
+        ),
         return_prob_excursion_bin_trainings=np.asarray(
             selected_trainings, dtype=int
         ),

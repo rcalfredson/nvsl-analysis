@@ -58,7 +58,19 @@ def _panel_labels(bundle) -> list[str]:
     edges = np.asarray(bundle["turnback_excursion_bin_edges_mm"], dtype=float).reshape(
         -1
     )
-    return [f"[{float(a):g}, {float(b):g}) mm" for a, b in zip(edges[:-1], edges[1:])]
+    open_ended_key = "turnback_excursion_bin_open_ended_upper_bin"
+    open_ended = bool(
+        np.asarray(bundle[open_ended_key]).reshape(()).item()
+        if open_ended_key in bundle
+        else False
+    )
+    labels = []
+    for idx, (a, b) in enumerate(zip(edges[:-1], edges[1:])):
+        if np.isposinf(float(b)) or (open_ended and idx == len(edges) - 2):
+            labels.append(f"{float(a):g}+ mm")
+        else:
+            labels.append(f"[{float(a):g}, {float(b):g}) mm")
+    return labels
 
 
 def _bundle_to_exported(
