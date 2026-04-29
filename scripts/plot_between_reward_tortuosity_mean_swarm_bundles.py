@@ -50,35 +50,30 @@ def _metric_palette_family(xs) -> str | None:
     return uniq[0] if len(uniq) == 1 else None
 
 
-def _group_union_matrix(x) -> tuple[np.ndarray, np.ndarray]:
+def _group_value_matrix(x) -> tuple[np.ndarray, np.ndarray]:
     """
-    Build a (N_union, P) matrix of per-unit values for stats annotations.
+    Build a (max_panel_n, P) matrix of plotted values for stats annotations.
+
+    These swarm overlays use independent group tests, so the row identity is
+    irrelevant.  Preserve every plotted value even if exported unit IDs repeat
+    across videos/chambers.
     """
     P = len(x.panel_labels)
-    union = set()
+    vals_by_panel = []
+    max_n = 0
     for p in range(P):
-        ids = np.asarray(x.per_unit_ids_panel[p], dtype=object).ravel()
         vals = np.asarray(x.per_unit_values_panel[p], dtype=float).ravel()
-        mask = np.isfinite(vals) & (ids != None)
-        union |= {str(i) for i in ids[mask]}
+        vals = vals[np.isfinite(vals)]
+        vals_by_panel.append(vals)
+        max_n = max(max_n, int(vals.size))
 
-    union_ids = sorted(union)
-    idx = {k: i for i, k in enumerate(union_ids)}
-    M = np.full((len(union_ids), P), np.nan, dtype=float)
-    for p in range(P):
-        ids = np.asarray(x.per_unit_ids_panel[p], dtype=object).ravel()
-        vals = np.asarray(x.per_unit_values_panel[p], dtype=float).ravel()
-        for i0, v0 in zip(ids, vals):
-            if i0 is None:
-                continue
-            v = float(v0)
-            if not np.isfinite(v):
-                continue
-            r = idx.get(str(i0), None)
-            if r is not None:
-                M[r, p] = v
+    M = np.full((max_n, P), np.nan, dtype=float)
+    I = np.asarray([f"row_{i}" for i in range(max_n)], dtype=object)
+    for p, vals in enumerate(vals_by_panel):
+        if vals.size:
+            M[: vals.size, p] = vals
 
-    return M, np.asarray(union_ids, dtype=object)
+    return M, I
 
 
 def plot_swarm_overlays(
@@ -175,7 +170,7 @@ def plot_swarm_overlays(
             tick_labels.append(f"{x.group}\n(n={n})" if n > 0 else x.group)
         xpos_by_group.append(x_positions)
         hi_by_group.append(y_tops)
-        M, I = _group_union_matrix(x)
+        M, I = _group_value_matrix(x)
         per_unit_by_group.append(M)
         per_unit_ids_by_group.append(I)
 
