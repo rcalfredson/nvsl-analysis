@@ -19,6 +19,7 @@ from src.plotting.palettes import (
     normalize_metric_palette_family,
 )
 from src.plotting.plot_customizer import PlotCustomizer
+from src.plotting.stats_bars import StatAnnotConfig, annotate_grouped_bars_per_bin
 
 
 def _savefig(out_path: str, image_format: str) -> None:
@@ -49,6 +50,37 @@ def _metric_palette_family(xs) -> str | None:
     return uniq[0] if len(uniq) == 1 else None
 
 
+def _group_union_matrix(x) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Build a (N_union, P) matrix of per-unit values for stats annotations.
+    """
+    P = len(x.panel_labels)
+    union = set()
+    for p in range(P):
+        ids = np.asarray(x.per_unit_ids_panel[p], dtype=object).ravel()
+        vals = np.asarray(x.per_unit_values_panel[p], dtype=float).ravel()
+        mask = np.isfinite(vals) & (ids != None)
+        union |= {str(i) for i in ids[mask]}
+
+    union_ids = sorted(union)
+    idx = {k: i for i, k in enumerate(union_ids)}
+    M = np.full((len(union_ids), P), np.nan, dtype=float)
+    for p in range(P):
+        ids = np.asarray(x.per_unit_ids_panel[p], dtype=object).ravel()
+        vals = np.asarray(x.per_unit_values_panel[p], dtype=float).ravel()
+        for i0, v0 in zip(ids, vals):
+            if i0 is None:
+                continue
+            v = float(v0)
+            if not np.isfinite(v):
+                continue
+            r = idx.get(str(i0), None)
+            if r is not None:
+                M[r, p] = v
+
+    return M, np.asarray(union_ids, dtype=object)
+
+
 def plot_swarm_overlays(
     xs,
     *,
@@ -58,6 +90,9 @@ def plot_swarm_overlays(
     xlabel: str | None = None,
     ylabel: str | None = None,
     ymax: float | None = None,
+    stats: bool = False,
+    stats_alpha: float = 0.05,
+    stats_debug: bool = False,
     opts=None,
 ):
     if opts is None:
@@ -93,15 +128,24 @@ def plot_swarm_overlays(
         tick_labels = labels
 
     legend_handles = []
+    xpos_by_group = []
+    hi_by_group = []
+    per_unit_by_group = []
+    per_unit_ids_by_group = []
+
     for gi, x in enumerate(xs):
         fill = group_metric_fill_color(gi, metric_palette_family)
         edge = group_metric_edge_color(gi, metric_palette_family)
+        x_positions = np.full((P,), np.nan, dtype=float)
+        y_tops = np.full((P,), np.nan, dtype=float)
         for p in range(P):
             vals = np.asarray(x.per_unit_values_panel[p], dtype=float)
             vals = vals[np.isfinite(vals)]
             if vals.size == 0:
                 continue
             xpos = centers[gi] if single_panel else centers[p] + panel_offsets[gi]
+            x_positions[p] = float(xpos)
+            y_tops[p] = float(np.nanmax(vals))
             jitter_width = 0.13 if single_panel else min(0.11, 0.32 / max(1, G))
             jitter = rng.uniform(-jitter_width, jitter_width, size=vals.size)
             ax.scatter(
@@ -129,6 +173,11 @@ def plot_swarm_overlays(
         if single_panel:
             n = int(x.n_units_panel[0]) if x.n_units_panel.size else 0
             tick_labels.append(f"{x.group}\n(n={n})" if n > 0 else x.group)
+        xpos_by_group.append(x_positions)
+        hi_by_group.append(y_tops)
+        M, I = _group_union_matrix(x)
+        per_unit_by_group.append(M)
+        per_unit_ids_by_group.append(I)
 
     ax.set_xticks(tick_pos)
     ax.set_xticklabels(tick_labels, rotation=25 if single_panel else 30, ha="right")
@@ -139,6 +188,36 @@ def plot_swarm_overlays(
     ax.set_ylim(bottom=0)
     if ymax is not None:
         ax.set_ylim(top=float(ymax))
+    if stats and G >= 2:
+        cfg_stats = StatAnnotConfig(
+            alpha=float(stats_alpha),
+            min_n_per_group=3,
+            headroom_frac=0.30,
+            stack_gap_frac=0.050,
+            gap_above_bars_frac=0.045,
+            nlabel_off_frac=0.0,
+            bracket_fontsize=max(
+                7, min(float(customizer.in_plot_font_size) - 5.0, 10.0)
+            ),
+        )
+        stats_x_centers = (
+            np.asarray([0.5 * max(G - 1, 0)], dtype=float)
+            if single_panel
+            else tick_pos
+        )
+        annotate_grouped_bars_per_bin(
+            ax,
+            x_centers=stats_x_centers,
+            xpos_by_group=xpos_by_group,
+            per_unit_by_group=per_unit_by_group,
+            per_unit_ids_by_group=per_unit_ids_by_group,
+            hi_by_group=hi_by_group,
+            group_names=[x.group for x in xs],
+            cfg=cfg_stats,
+            paired=False,
+            panel_label=None,
+            debug=bool(stats_debug),
+        )
     if title:
         ax.set_title(title)
     if not single_panel and G > 1 and legend_handles:
@@ -185,6 +264,26 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--ylabel", default=None, help="Y-axis label override.")
     p.add_argument("--ymax", type=float, default=None, help="Optional fixed y max.")
     p.add_argument(
+        "--stats",
+        action="store_true",
+        help=(
+            "Add per-training significance brackets. With two groups, this uses "
+            "an independent Welch t-test; with more groups, it uses the shared "
+            "ANOVA/post-hoc t-test annotation path."
+        ),
+    )
+    p.add_argument(
+        "--stats-alpha",
+        type=float,
+        default=0.05,
+        help="Alpha for significance stars (default: %(default)s).",
+    )
+    p.add_argument(
+        "--stats-debug",
+        action="store_true",
+        help="Print additional debug output for stats annotations.",
+    )
+    p.add_argument(
         "--fontFamily",
         dest="font_family",
         type=str,
@@ -222,6 +321,9 @@ def main() -> None:
         xlabel=args.xlabel,
         ylabel=ylabel,
         ymax=args.ymax,
+        stats=bool(args.stats),
+        stats_alpha=float(args.stats_alpha),
+        stats_debug=bool(args.stats_debug),
         opts=opts,
     )
     plt.close(fig)
