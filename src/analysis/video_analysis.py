@@ -579,6 +579,19 @@ class VideoAnalysis:
                     self.opts, "btw_rwd_tortuosity_box_exclude_wall_contact", False
                 )
             )
+            or (
+                (
+                    getattr(self.opts, "btw_rwd_tortuosity_mean_swarm", False)
+                    or getattr(
+                        self.opts, "btw_rwd_tortuosity_mean_swarm_export", None
+                    )
+                )
+                and getattr(
+                    self.opts,
+                    "btw_rwd_tortuosity_mean_swarm_exclude_wall_contact",
+                    False,
+                )
+            )
         )
 
         keep_wall_regions_for_btw_rwd_conditioned_com = bool(
@@ -761,6 +774,7 @@ class VideoAnalysis:
             "btw_rwd_dist_hist",
             "btw_rwd_tortuosity_hist",
             "btw_rwd_tortuosity_box",
+            "btw_rwd_tortuosity_mean_swarm",
             "btw_rwd_hexbin",
             "reward_return_distance",
             "return_prob_seg_plots",

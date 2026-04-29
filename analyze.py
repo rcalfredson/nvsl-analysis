@@ -201,6 +201,10 @@ from src.plotting.between_reward_tortuosity_distance_box import (
     BetweenRewardTortuosityDistanceBoxConfig,
     BetweenRewardTortuosityDistanceBoxPlotter,
 )
+from src.plotting.between_reward_tortuosity_mean_swarm import (
+    BetweenRewardTortuosityMeanSwarmConfig,
+    BetweenRewardTortuosityMeanSwarmPlotter,
+)
 from src.plotting.btw_rwd_return_leg_dist_totals import (
     ReturnLegDistTotalsConfig,
     ReturnLegDistTotalsPlotter,
@@ -275,6 +279,7 @@ DIST_BTWN_REWARDS_IMG_FILE = "imgs/btw_rwd_dists.png"
 BTW_RWD_NORM_DIST_HIST_IMG_FILE = "imgs/btw_rwd_norm_dists.png"
 BTW_RWD_TORTUOSITY_HIST_IMG_FILE = "imgs/btw_rwd_tortuosity_hist.png"
 BTW_RWD_TORTUOSITY_BOX_IMG_FILE = "imgs/btw_rwd_tortuosity_by_max_radius_box.png"
+BTW_RWD_TORTUOSITY_MEAN_SWARM_IMG_FILE = "imgs/btw_rwd_tortuosity_mean_swarm.png"
 REWARD_COUNT_HIST_IMG_FILE = "imgs/rwd_count_hist.png"
 FIRST_N_REWARD_DIAGNOSTICS_CSV_FILE = "exports/first_n_reward_diagnostics.csv"
 FIRST_N_REWARD_DIAGNOSTICS_PLOT_FILE = "imgs/first_n_reward_diagnostics.png"
@@ -2132,6 +2137,108 @@ g.add_argument(
         "Minimum kept-frame net displacement required for chord-based tortuosity "
         "comparison modes. Ignored by the default path_over_max_radius mode."
     ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-mean-swarm",
+    action="store_true",
+    help=(
+        "Compute one mean between-reward tortuosity value per fly and plot those "
+        "per-fly means as training-wise swarm plots."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-mean-swarm-export",
+    type=str,
+    default=None,
+    help=(
+        "Export per-fly mean tortuosity values (one scalar per fly per training) "
+        "as a compressed .npz for side-by-side group swarm plotting."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-mean-swarm-trainings",
+    type=parse_training_selector,
+    default=None,
+    help='Subset of trainings to include (1-based). Examples: "1", "1,3", "2-4".',
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-mean-swarm-scope",
+    type=str,
+    choices=("full", "return_leg"),
+    default="full",
+    help=(
+        "Segment window for per-fly mean tortuosity. 'full' uses the entire "
+        "between-reward segment; 'return_leg' starts at the max-distance frame "
+        "and ends at reward re-entry."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-mean-swarm-mode",
+    type=str,
+    choices=(
+        "path_over_max_radius",
+        "path_over_displacement",
+        "straightness",
+        "excess_path",
+    ),
+    default="path_over_max_radius",
+    help="Tortuosity definition used for the per-fly mean swarm plot.",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-mean-swarm-min-segments-per-fly",
+    type=int,
+    default=1,
+    help=(
+        "Minimum number of valid between-reward segments required for a fly to "
+        "contribute a mean tortuosity value (default: %(default)s)."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-mean-swarm-exclude-wall-contact",
+    action="store_true",
+    help="Exclude between-reward segments that overlap wall-contact regions.",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-mean-swarm-exclude-nonwalking-frames",
+    action="store_true",
+    help="Exclude non-walking frames before computing each segment's tortuosity.",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-mean-swarm-min-walk-frames",
+    type=int,
+    default=2,
+    help="Minimum walking frames required per segment (default: %(default)s).",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-mean-swarm-exclude-reward-endpoints",
+    action="store_true",
+    help="Use frames strictly between consecutive rewards for each segment metric.",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-mean-swarm-min-radius-mm",
+    type=float,
+    default=0.0,
+    help=(
+        "Minimum maximum radial distance from the reward center required for "
+        "path_over_max_radius tortuosity."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-mean-swarm-min-displacement-mm",
+    type=float,
+    default=0.0,
+    help="Minimum net displacement required for chord-based tortuosity modes.",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-mean-swarm-ymax",
+    type=float,
+    default=None,
+    help="Set a fixed maximum for the y-axis in per-fly tortuosity swarm plots.",
+)
+g.add_argument(
+    "--btw-rwd-tortuosity-mean-swarm-suptitle",
+    action="store_true",
+    help="Show a title on the single-group per-fly tortuosity swarm plot.",
 )
 g.add_argument(
     "--btw-rwd-tortuosity-box",
@@ -11711,6 +11818,92 @@ def postAnalyze(vas):
             plotter.export_histograms_npz(out_npz)
         plotter.plot_histograms()
 
+    do_tort_mean_swarm = bool(
+        getattr(opts, "btw_rwd_tortuosity_mean_swarm", False)
+    )
+    do_tort_mean_swarm_export = bool(
+        getattr(opts, "btw_rwd_tortuosity_mean_swarm_export", None)
+    )
+    if va.circle and (do_tort_mean_swarm or do_tort_mean_swarm_export):
+        cfg = BetweenRewardTortuosityMeanSwarmConfig(
+            out_file=BTW_RWD_TORTUOSITY_MEAN_SWARM_IMG_FILE,
+            pool_trainings=False,
+            trainings=getattr(opts, "btw_rwd_tortuosity_mean_swarm_trainings", None),
+            skip_first_sync_buckets=skip_eff,
+            keep_first_sync_buckets=keep_eff,
+            ymax=getattr(opts, "btw_rwd_tortuosity_mean_swarm_ymax", None),
+            ci=False,
+            show_points=True,
+            show_suptitle=bool(
+                getattr(opts, "btw_rwd_tortuosity_mean_swarm_suptitle", False)
+            ),
+            metric_mode=str(
+                getattr(
+                    opts,
+                    "btw_rwd_tortuosity_mean_swarm_mode",
+                    "path_over_max_radius",
+                )
+                or "path_over_max_radius"
+            ),
+            segment_scope=str(
+                getattr(opts, "btw_rwd_tortuosity_mean_swarm_scope", "full")
+                or "full"
+            ),
+            exclude_wall_contact=bool(
+                getattr(
+                    opts,
+                    "btw_rwd_tortuosity_mean_swarm_exclude_wall_contact",
+                    False,
+                )
+            ),
+            exclude_nonwalking_frames=bool(
+                getattr(
+                    opts,
+                    "btw_rwd_tortuosity_mean_swarm_exclude_nonwalking_frames",
+                    False,
+                )
+            ),
+            exclude_reward_endpoints=bool(
+                getattr(
+                    opts,
+                    "btw_rwd_tortuosity_mean_swarm_exclude_reward_endpoints",
+                    False,
+                )
+            ),
+            min_walk_frames=int(
+                getattr(opts, "btw_rwd_tortuosity_mean_swarm_min_walk_frames", 2)
+                or 2
+            ),
+            min_segments_per_fly=int(
+                getattr(
+                    opts,
+                    "btw_rwd_tortuosity_mean_swarm_min_segments_per_fly",
+                    1,
+                )
+                or 1
+            ),
+            min_displacement_mm=float(
+                getattr(
+                    opts,
+                    "btw_rwd_tortuosity_mean_swarm_min_displacement_mm",
+                    0.0,
+                )
+                or 0.0
+            ),
+            min_radius_mm=float(
+                getattr(opts, "btw_rwd_tortuosity_mean_swarm_min_radius_mm", 0.0)
+                or 0.0
+            ),
+        )
+        plotter = BetweenRewardTortuosityMeanSwarmPlotter(
+            vas=vas, opts=opts, gls=gls, customizer=customizer, cfg=cfg
+        )
+        out_npz = getattr(opts, "btw_rwd_tortuosity_mean_swarm_export", None)
+        if do_tort_mean_swarm_export:
+            plotter.export_npz(str(out_npz))
+        if do_tort_mean_swarm:
+            plotter.plot_swarms()
+
     if va.circle and getattr(opts, "btw_rwd_tortuosity_box", False):
         trainings = getattr(opts, "btw_rwd_tortuosity_box_trainings", None)
         if trainings:
@@ -13736,6 +13929,14 @@ if __name__ == "__main__":
             print(
                 f"[btw_rwd_tortuosity] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
                 "because --btw-rwd-tortuosity-exclude-wall-contact was set"
+            )
+            opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
+    if getattr(opts, "btw_rwd_tortuosity_mean_swarm_exclude_wall_contact", False):
+        if getattr(opts, "wall", None) is None:
+            print(
+                f"[btw_rwd_tortuosity_mean_swarm] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
+                "because --btw-rwd-tortuosity-mean-swarm-exclude-wall-contact was set"
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 
