@@ -107,8 +107,19 @@ def _compute_sli_scalar_and_timeseries_from_rpid(vas, opts):
 
 
 def export_com_sli_bundle(vas, opts, gls, out_fn):
+    bundle = build_com_sli_bundle(vas, opts, gls)
+
+    if not out_fn.lower().endswith(".npz"):
+        out_fn += ".npz"
+
+    os.makedirs(os.path.dirname(out_fn) or ".", exist_ok=True)
+    np.savez_compressed(out_fn, **bundle)
+    print(f"[export] Wrote COM+SLI bundle: {out_fn} (n={len(bundle['sli'])})")
+
+
+def build_com_sli_bundle(vas, opts, gls) -> dict:
     """
-    Writes an .npz with:
+    Builds an in-memory bundle with:
       - sli: (n_videos,)
       - commag_exp: (n_videos, n_trains, nb)
       - commag_ctrl: (n_videos, n_trains, nb)
@@ -118,14 +129,12 @@ def export_com_sli_bundle(vas, opts, gls, out_fn):
     """
     from analyze import bucketLenForType
 
-    if not out_fn.lower().endswith(".npz"):
-        out_fn += ".npz"
-
     # Filter to only analyses that actually ran
     vas_ok = [va for va in vas if not getattr(va, "_skipped", False)]
     if len(vas_ok) == 0:
-        print(f"[export] No non-skipped VideoAnalysis instances; not writing {out_fn}")
-        return
+        raise ValueError(
+            "[export] No non-skipped VideoAnalysis instances for COM+SLI bundle."
+        )
 
     va0 = vas_ok[0]
     group_label = _safe_group_label(opts, gls)
@@ -147,7 +156,7 @@ def export_com_sli_bundle(vas, opts, gls, out_fn):
     if getattr(opts, "com_sli_debug", False):
         print(
             f"[export][com-sli-debug] group={group_label} "
-            f"n_videos={len(vas_ok)} n_trains={commag_exp.shape[1]} nb={commag_exp.shape[2]} out={out_fn}"
+            f"n_videos={len(vas_ok)} n_trains={commag_exp.shape[1]} nb={commag_exp.shape[2]}"
         )
 
         for vi, va in enumerate(vas_ok):
@@ -190,9 +199,7 @@ def export_com_sli_bundle(vas, opts, gls, out_fn):
     except Exception:
         video_ids = np.array([f"va_{i}" for i in range(len(vas_ok))], dtype=object)
 
-    os.makedirs(os.path.dirname(out_fn) or ".", exist_ok=True)
-    np.savez_compressed(
-        out_fn,
+    return dict(
         sli=sli,
         sli_ts=sli_ts,
         commag_exp=commag_exp,
@@ -222,4 +229,3 @@ def export_com_sli_bundle(vas, opts, gls, out_fn):
             dtype=int,
         ),
     )
-    print(f"[export] Wrote COM+SLI bundle: {out_fn} (n={len(vas_ok)})")

@@ -88,7 +88,7 @@ from src.exporting.between_reward_maxdist_sli_bundle import (
     build_between_reward_maxdist_sli_bundle,
     export_between_reward_maxdist_sli_bundle,
 )
-from src.exporting.com_sli_bundle import export_com_sli_bundle
+from src.exporting.com_sli_bundle import build_com_sli_bundle, export_com_sli_bundle
 from src.exporting.cum_reward_sli_bundle import export_cum_reward_sli_bundle
 from src.exporting.lgturn_startdist_sli_bundle import export_lgturn_startdist_sli_bundle
 from src.exporting.reward_lgturn_pathlen_sli_bundle import (
@@ -10028,9 +10028,21 @@ def _between_reward_sli_default_out_file(metric, group_labels, *, condition="exp
     if len(group_labels) == 1:
         suffix_parts.append(util.slugify(group_labels[0]))
     elif len(group_labels) == 2:
-        suffix_parts.append("__vs__".join(util.slugify(label) for label in group_labels))
+        suffix_parts.append(
+            "__vs__".join(util.slugify(label) for label in group_labels)
+        )
     suffix = ("__" + "__".join(suffix_parts)) if suffix_parts else ""
 
+    if metric == "commag":
+        try:
+            bl, _blf = bucketLenForType("commag")
+            bl_float = float(bl)
+            bucket_len = (
+                str(int(round(bl_float))) if bl_float.is_integer() else f"{bl_float:g}"
+            )
+        except Exception:
+            bucket_len = "unknown"
+        return COM_DIST_TO_REWARD_FILE % suffix % bucket_len
     if metric == "between_reward_maxdist":
         return BTW_RWD_MAXDIST_SLI_IMG_FILE % suffix
     if metric == "between_reward_return_leg_dist":
@@ -10046,6 +10058,8 @@ def _build_between_reward_sli_plot_bundles_for_metric(vas, gis, gls, metric):
             bundle = build_between_reward_maxdist_sli_bundle(
                 group_vas, group_opts, [group_label]
             )
+        elif metric == "commag":
+            bundle = build_com_sli_bundle(group_vas, group_opts, [group_label])
         elif metric == "between_reward_return_leg_dist":
             bundle = build_btw_rwd_return_leg_dist_sli_bundle(
                 group_vas, group_opts, [group_label]
@@ -10070,13 +10084,18 @@ def _emit_default_between_reward_sli_plots(vas, gis, gls):
     condition = str(
         getattr(opts, "default_between_reward_sli_condition", "exp") or "exp"
     )
-    for metric in ("between_reward_maxdist", "between_reward_return_leg_dist"):
+    for metric in (
+        "commag",
+        "between_reward_maxdist",
+        "between_reward_return_leg_dist",
+    ):
         try:
+            metric_condition = "exp" if metric == "commag" else condition
             bundles = _build_between_reward_sli_plot_bundles_for_metric(
                 vas, gis, gls, metric
             )
             out_fn = _between_reward_sli_default_out_file(
-                metric, group_labels, condition=condition
+                metric, group_labels, condition=metric_condition
             )
             plot_com_sli_bundle_data(
                 bundles,
@@ -10084,7 +10103,7 @@ def _emit_default_between_reward_sli_plots(vas, gis, gls):
                 num_trainings=opts.num_trainings,
                 opts=opts,
                 metric=metric,
-                turnback_mode=condition,
+                turnback_mode=metric_condition,
             )
         except Exception as exc:
             print(
