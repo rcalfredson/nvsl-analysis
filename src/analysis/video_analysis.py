@@ -592,6 +592,7 @@ class VideoAnalysis:
                     False,
                 )
             )
+            or bool(getattr(self.opts, "btw_rwd_tortuosity_wall_scatter_export", None))
         )
 
         keep_wall_regions_for_btw_rwd_conditioned_com = bool(
@@ -775,6 +776,7 @@ class VideoAnalysis:
             "btw_rwd_tortuosity_hist",
             "btw_rwd_tortuosity_box",
             "btw_rwd_tortuosity_mean_swarm",
+            "btw_rwd_tortuosity_wall_scatter_export",
             "btw_rwd_hexbin",
             "reward_return_distance",
             "return_prob_seg_plots",
