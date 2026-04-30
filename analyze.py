@@ -1139,13 +1139,20 @@ g.add_argument(
 g.add_argument(
     "--btw-rwd-mode",
     type=str,
-    choices=("bucket_random", "first_n_training"),
+    choices=(
+        "bucket_random",
+        "first_n_training",
+        "last_n_training",
+        "first_last_n_training",
+    ),
     default="bucket_random",
     help=(
         "Selection mode for --btw-rwd-plots. 'bucket_random' preserves the current "
         "behavior of sampling intervals from one sync bucket. 'first_n_training' "
         "plots the first N between-reward segments within the selected training for "
-        "the experimental fly, with one color per segment. Default: %(default)s."
+        "the experimental fly; 'last_n_training' plots the last N; "
+        "'first_last_n_training' writes separate first-N and last-N abstract plots. "
+        "Default: %(default)s."
     ),
 )
 g.add_argument(
@@ -1584,8 +1591,8 @@ g.add_argument(
     default=1,
     help=(
         "Number of between-reward trajectory examples to plot per fly "
-        "for the selected mode. In --btw-rwd-mode=first_n_training, this is the "
-        "number of earliest between-reward segments to overlay."
+        "for the selected mode. In first/last training modes, this is the "
+        "number of between-reward segments to overlay."
     ),
 )
 g.add_argument(
@@ -9919,7 +9926,12 @@ def _generate_between_reward_plots(vas, *, saved_bottom=None, saved_top=None):
     saved_top = set(saved_top or [])
     saved_bottom = set(saved_bottom or [])
 
-    if btw_rwd_mode == "first_n_training" and schematic_metric != "none":
+    training_window_modes = {
+        "first_n_training": "first",
+        "last_n_training": "last",
+        "first_last_n_training": "first_last",
+    }
+    if btw_rwd_mode in training_window_modes and schematic_metric != "none":
         print(
             "[btw_rwd_plots] --btw-rwd-schematic currently supports "
             "--btw-rwd-mode=bucket_random only; ignoring schematic overlay."
@@ -9950,14 +9962,15 @@ def _generate_between_reward_plots(vas, *, saved_bottom=None, saved_top=None):
             except Exception:
                 role_idx = int(trj.f)
 
-            if btw_rwd_mode == "first_n_training" and role_idx != 0:
+            if btw_rwd_mode in training_window_modes and role_idx != 0:
                 continue
 
             for out_dir in out_dirs:
-                if btw_rwd_mode == "first_n_training":
+                if btw_rwd_mode in training_window_modes:
                     plotter.plot_first_n_between_reward_training_segments(
                         trn_index=trn_index,
                         first_n=num_examples,
+                        segment_window=training_window_modes[btw_rwd_mode],
                         image_format=opts.imageFormat,
                         role_idx=role_idx,
                         zoom=bool(getattr(opts, "btw_rwd_zoom", False)),

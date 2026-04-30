@@ -3086,6 +3086,7 @@ class EventChainPlotter:
         trn_index: int,
         *,
         first_n: int = 10,
+        segment_window: str = "first",
         image_format: str | None = None,
         role_idx: int | None = None,
         zoom: bool = False,
@@ -3094,12 +3095,30 @@ class EventChainPlotter:
         out_dir: str | None = None,
     ):
         """
-        Plot the first N between-reward trajectory segments within a training on a
-        single arena plot, using a distinct color for each segment.
+        Plot the first and/or last N between-reward trajectory segments within a
+        training on abstract arena plots, using a distinct color for each segment.
         """
 
         image_format = image_format or self.image_format
         first_n = max(1, int(first_n))
+        segment_window = str(segment_window or "first").strip().lower().replace("-", "_")
+        if segment_window in {"first_n", "first_n_training"}:
+            segment_window = "first"
+        elif segment_window in {"last_n", "last_n_training"}:
+            segment_window = "last"
+        elif segment_window in {
+            "first_last",
+            "first_and_last",
+            "first_last_n",
+            "first_last_n_training",
+        }:
+            segment_window = "first_last"
+        elif segment_window not in {"first", "last"}:
+            print(
+                "[plot_first_n_between_reward_training_segments] "
+                f"Unknown segment_window={segment_window!r}; using 'first'."
+            )
+            segment_window = "first"
 
         if trn_index < 0 or trn_index >= len(self.va.trns):
             print(
@@ -3140,8 +3159,18 @@ class EventChainPlotter:
             return
 
         reward_pairs = list(zip(training_rewards[:-1], training_rewards[1:]))
-        selected_pairs = reward_pairs[:first_n]
-        if not selected_pairs:
+        if segment_window == "first_last":
+            selections = [
+                ("first", reward_pairs[:first_n]),
+                ("last", reward_pairs[-first_n:]),
+            ]
+        elif segment_window == "last":
+            selections = [("last", reward_pairs[-first_n:])]
+        else:
+            selections = [("first", reward_pairs[:first_n])]
+
+        selections = [(label, pairs) for label, pairs in selections if pairs]
+        if not selections:
             print(
                 "[plot_first_n_between_reward_training_segments] "
                 f"No between-reward intervals found in training {trn_index + 1} for fly {f_idx}"
@@ -3149,19 +3178,6 @@ class EventChainPlotter:
             return
 
         n_frames = len(self.x)
-        selected_segments = []
-        for start_reward, end_reward in selected_pairs:
-            start_frame = max(0, int(start_reward))
-            end_frame = min(n_frames - 1, int(end_reward))
-            if start_frame < end_frame:
-                selected_segments.append((start_reward, end_reward, start_frame, end_frame))
-
-        if not selected_segments:
-            print(
-                "[plot_first_n_between_reward_training_segments] "
-                f"No valid frame ranges for fly {f_idx}, training {trn_index + 1}"
-            )
-            return
 
         # Conversion: px -> mm for floor coords
         px_per_mm = self.va.ct.pxPerMmFloor() * self.va.xf.fctr
@@ -3192,162 +3208,6 @@ class EventChainPlotter:
             yB = top_left[1] + padding_y
             return yA > yB
 
-        fig, ax = plt.subplots(1, 1, figsize=(8.5, 7.5))
-        plt.sca(ax)
-
-        rect = patches.FancyBboxPatch(
-            (top_left[0], top_left[1]),
-            bottom_right[0] - top_left[0],
-            bottom_right[1] - top_left[1],
-            boxstyle="round,pad=0.05,rounding_size=2",
-            linewidth=1,
-            edgecolor="black",
-            facecolor="none",
-            zorder=2,
-        )
-        ax.add_patch(rect)
-
-        self._draw_sidewall_contact_region(
-            lower_left_x=top_left[0],
-            lower_left_y=top_left[1],
-            top_left=top_left,
-            bottom_right=bottom_right,
-            contact_buffer_px=contact_buffer_px,
-        )
-
-        if reward_circle is not None:
-            rcx, rcy, rcr = reward_circle
-            rc_patch = plt.Circle(
-                (rcx, rcy),
-                rcr,
-                color="lightgray",
-                fill=False,
-                linestyle="-",
-                linewidth=1.5,
-                zorder=3,
-                label="Reward circle",
-            )
-            ax.add_patch(rc_patch)
-
-        ax.set_aspect("equal", adjustable="box")
-        ax.axis("off")
-
-        x0 = x1 = y0 = y1 = None
-        if zoom and reward_circle is not None and px_per_mm is not None:
-            rcx, rcy, rcr = reward_circle
-
-            if zoom_radius_mm is not None:
-                win_rad_px = float(zoom_radius_mm) * float(px_per_mm)
-            else:
-                win_rad_px = float(rcr) * float(zoom_radius_mult)
-
-            win_rad_px = max(win_rad_px, float(rcr) * 1.25)
-
-            floor_y_min = min(top_left[1], bottom_right[1])
-            floor_y_max = max(top_left[1], bottom_right[1])
-            y0 = max(floor_y_min, rcy - win_rad_px)
-            y1 = min(floor_y_max, rcy + win_rad_px)
-
-            floor_x_min = min(top_left[0], bottom_right[0])
-            floor_x_max = max(top_left[0], bottom_right[0])
-            x0 = max(floor_x_min, rcx - win_rad_px)
-            x1 = min(floor_x_max, rcx + win_rad_px)
-
-            if (x1 - x0) < 5 or (y1 - y0) < 5:
-                ax.set_xlim(top_left[0] - padding_x, bottom_right[0] + padding_x)
-                ax.set_ylim(bottom_right[1] - padding_y, top_left[1] + padding_y)
-                x0 = x1 = y0 = y1 = None
-            else:
-                ax.set_xlim(x0, x1)
-                if _ylim_is_inverted_for_full_view():
-                    ax.set_ylim(y1, y0)
-                else:
-                    ax.set_ylim(y0, y1)
-        else:
-            ax.set_xlim(top_left[0] - padding_x, bottom_right[0] + padding_x)
-            ax.set_ylim(bottom_right[1] - padding_y, top_left[1] + padding_y)
-
-        arrow_kwargs = {"length": 1.5, "linewidth": 1.0} if zoom else {
-            "length": 3.0,
-            "linewidth": 2.0,
-        }
-
-        cmap = plt.get_cmap("tab10")
-        handles = []
-        labels = []
-
-        for idx, (start_reward, end_reward, start_frame, end_frame) in enumerate(
-            selected_segments
-        ):
-            color = cmap(idx % 10)
-            last_arrow_idx = None
-            arrow_interval = 3
-
-            for i in range(start_frame, end_frame):
-                if (
-                    np.isnan(self.x[i])
-                    or np.isnan(self.y[i])
-                    or np.isnan(self.x[i + 1])
-                    or np.isnan(self.y[i + 1])
-                ):
-                    continue
-
-                x_start, x_end = self.x[i], self.x[i + 1]
-                y_start, y_end = self.y[i], self.y[i + 1]
-
-                x_start = max(min(x_start, bottom_right[0]), top_left[0])
-                x_end = max(min(x_end, bottom_right[0]), top_left[0])
-
-                ax.plot(
-                    [x_start, x_end],
-                    [y_start, y_end],
-                    color=color,
-                    linewidth=1.3,
-                    alpha=0.95,
-                    zorder=4,
-                )
-
-                if getattr(self.trj, "walking", None) is not None and not self.trj.walking[i + 1]:
-                    continue
-
-                speed = np.hypot(x_end - x_start, y_end - y_start)
-                try:
-                    last_arrow_idx = self._draw_arrow_for_speed(
-                        i,
-                        x_start,
-                        x_end,
-                        y_start,
-                        y_end,
-                        last_arrow_idx,
-                        arrow_interval,
-                        speed,
-                        arrow_kwargs=arrow_kwargs,
-                        arrow_color=color,
-                    )
-                except Exception:
-                    pass
-
-            ax.plot(
-                self.x[start_reward],
-                self.y[start_reward],
-                marker="o",
-                color=color,
-                markerfacecolor="white",
-                markersize=5,
-                zorder=5,
-            )
-            ax.plot(
-                self.x[end_reward],
-                self.y[end_reward],
-                marker="o",
-                color=color,
-                markersize=5,
-                zorder=5,
-            )
-
-            handles.append(plt.Line2D([0], [0], color=color, lw=2))
-            labels.append(f"seg {idx + 1}: {start_reward}->{end_reward}")
-
         video_id = os.path.splitext(os.path.basename(self.va.fn))[0]
         fly_idx = self.va.f
 
@@ -3358,40 +3218,226 @@ class EventChainPlotter:
                 role_idx = int(self.trj.f)
 
         fly_role = "exp" if role_idx == 0 else "yok"
-        fig.suptitle(
-            "First between-reward trajectories in training\n"
-            f"{video_id}, fly {fly_idx}, {fly_role} | trn {trn_index + 1} | "
-            f"first {len(selected_segments)} segments",
-            fontsize=12,
-        )
+        wrote_any = False
+        for selection_label, selected_pairs in selections:
+            selected_segments = []
+            for start_reward, end_reward in selected_pairs:
+                start_frame = max(0, int(start_reward))
+                end_frame = min(n_frames - 1, int(end_reward))
+                if start_frame < end_frame:
+                    selected_segments.append(
+                        (start_reward, end_reward, start_frame, end_frame)
+                    )
 
-        if handles:
-            ax.legend(
-                handles=handles,
-                labels=labels,
-                loc="center left",
-                bbox_to_anchor=(1.02, 0.5),
-                frameon=True,
-                fontsize=8,
+            if not selected_segments:
+                print(
+                    "[plot_first_n_between_reward_training_segments] "
+                    f"No valid {selection_label} frame ranges for fly {f_idx}, "
+                    f"training {trn_index + 1}"
+                )
+                continue
+
+            fig, ax = plt.subplots(1, 1, figsize=(8.5, 7.5))
+            plt.sca(ax)
+
+            rect = patches.FancyBboxPatch(
+                (top_left[0], top_left[1]),
+                bottom_right[0] - top_left[0],
+                bottom_right[1] - top_left[1],
+                boxstyle="round,pad=0.05,rounding_size=2",
+                linewidth=1,
+                edgecolor="black",
+                facecolor="none",
+                zorder=2,
+            )
+            ax.add_patch(rect)
+
+            self._draw_sidewall_contact_region(
+                lower_left_x=top_left[0],
+                lower_left_y=top_left[1],
+                top_left=top_left,
+                bottom_right=bottom_right,
+                contact_buffer_px=contact_buffer_px,
             )
 
-        output_dir = out_dir or "imgs/between_rewards"
-        output_path = (
-            f"{output_dir}/"
-            f"{video_id}__fly{fly_idx}_role{role_idx}_"
-            f"trn{trn_index + 1}_first{len(selected_segments)}"
-            f"{'_zoom' if zoom else ''}."
-            f"{image_format}"
-        )
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        fig.subplots_adjust(left=0.04, right=0.80, top=0.90, bottom=0.04)
-        writeImage(output_path, format=image_format)
-        plt.close(fig)
+            if reward_circle is not None:
+                rcx, rcy, rcr = reward_circle
+                rc_patch = plt.Circle(
+                    (rcx, rcy),
+                    rcr,
+                    color="lightgray",
+                    fill=False,
+                    linestyle="-",
+                    linewidth=1.5,
+                    zorder=3,
+                    label="Reward circle",
+                )
+                ax.add_patch(rc_patch)
 
-        print(
-            "[plot_first_n_between_reward_training_segments] wrote "
-            f"{output_path}"
-        )
+            ax.set_aspect("equal", adjustable="box")
+            ax.axis("off")
+
+            if zoom and reward_circle is not None and px_per_mm is not None:
+                rcx, rcy, rcr = reward_circle
+
+                if zoom_radius_mm is not None:
+                    win_rad_px = float(zoom_radius_mm) * float(px_per_mm)
+                else:
+                    win_rad_px = float(rcr) * float(zoom_radius_mult)
+
+                win_rad_px = max(win_rad_px, float(rcr) * 1.25)
+
+                floor_y_min = min(top_left[1], bottom_right[1])
+                floor_y_max = max(top_left[1], bottom_right[1])
+                y0 = max(floor_y_min, rcy - win_rad_px)
+                y1 = min(floor_y_max, rcy + win_rad_px)
+
+                floor_x_min = min(top_left[0], bottom_right[0])
+                floor_x_max = max(top_left[0], bottom_right[0])
+                x0 = max(floor_x_min, rcx - win_rad_px)
+                x1 = min(floor_x_max, rcx + win_rad_px)
+
+                if (x1 - x0) < 5 or (y1 - y0) < 5:
+                    ax.set_xlim(top_left[0] - padding_x, bottom_right[0] + padding_x)
+                    ax.set_ylim(bottom_right[1] - padding_y, top_left[1] + padding_y)
+                else:
+                    ax.set_xlim(x0, x1)
+                    if _ylim_is_inverted_for_full_view():
+                        ax.set_ylim(y1, y0)
+                    else:
+                        ax.set_ylim(y0, y1)
+            else:
+                ax.set_xlim(top_left[0] - padding_x, bottom_right[0] + padding_x)
+                ax.set_ylim(bottom_right[1] - padding_y, top_left[1] + padding_y)
+
+            arrow_kwargs = (
+                {"length": 1.5, "linewidth": 1.0}
+                if zoom
+                else {"length": 3.0, "linewidth": 2.0}
+            )
+
+            cmap = plt.get_cmap("tab10")
+            handles = []
+            labels = []
+
+            for idx, (start_reward, end_reward, start_frame, end_frame) in enumerate(
+                selected_segments
+            ):
+                color = cmap(idx % 10)
+                last_arrow_idx = None
+                arrow_interval = 3
+
+                for i in range(start_frame, end_frame):
+                    if (
+                        np.isnan(self.x[i])
+                        or np.isnan(self.y[i])
+                        or np.isnan(self.x[i + 1])
+                        or np.isnan(self.y[i + 1])
+                    ):
+                        continue
+
+                    x_start, x_end = self.x[i], self.x[i + 1]
+                    y_start, y_end = self.y[i], self.y[i + 1]
+
+                    x_start = max(min(x_start, bottom_right[0]), top_left[0])
+                    x_end = max(min(x_end, bottom_right[0]), top_left[0])
+
+                    ax.plot(
+                        [x_start, x_end],
+                        [y_start, y_end],
+                        color=color,
+                        linewidth=1.3,
+                        alpha=0.95,
+                        zorder=4,
+                    )
+
+                    if (
+                        getattr(self.trj, "walking", None) is not None
+                        and not self.trj.walking[i + 1]
+                    ):
+                        continue
+
+                    speed = np.hypot(x_end - x_start, y_end - y_start)
+                    try:
+                        last_arrow_idx = self._draw_arrow_for_speed(
+                            i,
+                            x_start,
+                            x_end,
+                            y_start,
+                            y_end,
+                            last_arrow_idx,
+                            arrow_interval,
+                            speed,
+                            arrow_kwargs=arrow_kwargs,
+                            arrow_color=color,
+                        )
+                    except Exception:
+                        pass
+
+                ax.plot(
+                    self.x[start_reward],
+                    self.y[start_reward],
+                    marker="o",
+                    color=color,
+                    markerfacecolor="white",
+                    markersize=5,
+                    zorder=5,
+                )
+                ax.plot(
+                    self.x[end_reward],
+                    self.y[end_reward],
+                    marker="o",
+                    color=color,
+                    markersize=5,
+                    zorder=5,
+                )
+
+                handles.append(plt.Line2D([0], [0], color=color, lw=2))
+                labels.append(f"seg {idx + 1}: {start_reward}->{end_reward}")
+
+            title_label = "First" if selection_label == "first" else "Last"
+            fig.suptitle(
+                f"{title_label} between-reward trajectories in training\n"
+                f"{video_id}, fly {fly_idx}, {fly_role} | trn {trn_index + 1} | "
+                f"{selection_label} {len(selected_segments)} segments",
+                fontsize=12,
+            )
+
+            if handles:
+                ax.legend(
+                    handles=handles,
+                    labels=labels,
+                    loc="center left",
+                    bbox_to_anchor=(1.02, 0.5),
+                    frameon=True,
+                    fontsize=8,
+                )
+
+            output_dir = out_dir or "imgs/between_rewards"
+            output_path = (
+                f"{output_dir}/"
+                f"{video_id}__fly{fly_idx}_role{role_idx}_"
+                f"trn{trn_index + 1}_{selection_label}{len(selected_segments)}"
+                f"{'_zoom' if zoom else ''}."
+                f"{image_format}"
+            )
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            fig.subplots_adjust(left=0.04, right=0.80, top=0.90, bottom=0.04)
+            writeImage(output_path, format=image_format)
+            plt.close(fig)
+            wrote_any = True
+
+            print(
+                "[plot_first_n_between_reward_training_segments] wrote "
+                f"{output_path}"
+            )
+
+        if not wrote_any:
+            print(
+                "[plot_first_n_between_reward_training_segments] "
+                f"No valid {segment_window} frame ranges for fly {f_idx}, "
+                f"training {trn_index + 1}"
+            )
 
     def _draw_sidewall_contact_region(
         self, lower_left_x, lower_left_y, top_left, bottom_right, contact_buffer_px
