@@ -13,19 +13,44 @@ from src.utils.constants import CONTACT_BUFFER_OFFSETS
 
 
 class EventChainPlotter:
-    def __init__(self, trj, va, y_bounds=None, x=None, y=None, image_format="png"):
+    def __init__(
+        self,
+        trj,
+        va,
+        y_bounds=None,
+        x=None,
+        y=None,
+        image_format="png",
+        reward_circle_color=None,
+    ):
         self.trj = trj
         self.va = va
         self.y_bounds = y_bounds
         self.x = np.array(trj.x) if x is None else x
         self.y = np.array(trj.y) if y is None else y
         self.image_format = image_format
+        if reward_circle_color is None:
+            reward_circle_color = getattr(
+                getattr(va, "opts", None),
+                "event_chain_reward_circle_color",
+                "grey",
+            )
+        self.reward_circle_color = self._normalize_reward_circle_color(
+            reward_circle_color
+        )
 
         # track which between-reward intervals have already been plotted
         # key: (trn_index, bucket_index) -> set of (start_reward, end_reward)
         self._used_between_reward_pairs = {}
         self._used_reward_return_episodes = {}
         self._used_return_prob_episodes = {}
+
+    @staticmethod
+    def _normalize_reward_circle_color(color):
+        color = str(color or "grey").strip().lower()
+        if color in {"black", "k"}:
+            return "black"
+        return "lightgray"
 
     @staticmethod
     def _clamp_point_to_floor(x, y, top_left, bottom_right):
@@ -2607,7 +2632,7 @@ class EventChainPlotter:
             fill=False,
             linestyle="-",
             linewidth=1.5,
-            edgecolor="#b8b8b8",
+            edgecolor=self.reward_circle_color,
             alpha=0.95,
             zorder=2,
             label=reward_label,
@@ -3265,7 +3290,7 @@ class EventChainPlotter:
                 rc_patch = plt.Circle(
                     (rcx, rcy),
                     rcr,
-                    color="lightgray",
+                    color=self.reward_circle_color,
                     fill=False,
                     linestyle="-",
                     linewidth=1.5,
@@ -3499,7 +3524,7 @@ class EventChainPlotter:
         training_patch = plt.Circle(
             (cx_trn, cy_trn),
             r_trn,
-            color="lightgray",
+            color=self.reward_circle_color,
             fill=False,
             linestyle=":",
             linewidth=2,
@@ -3640,7 +3665,7 @@ class EventChainPlotter:
             reward_circle_patch = plt.Circle(
                 (reward_circle_x, reward_circle_y),
                 reward_circle_radius,
-                color="lightgray",
+                color=self.reward_circle_color,
                 fill=False,
                 linestyle="--",
                 linewidth=2,
@@ -4100,7 +4125,7 @@ class EventChainPlotter:
             rc_patch = plt.Circle(
                 (rcx, rcy),
                 rcr,
-                color="lightgray",
+                color=self.reward_circle_color,
                 fill=False,
                 linestyle="-",
                 linewidth=1.5,
@@ -4675,7 +4700,7 @@ class EventChainPlotter:
                 rc_patch = plt.Circle(
                     (rcx, rcy),
                     rcr,
-                    color="lightgray",
+                    color=self.reward_circle_color,
                     fill=False,
                     linestyle="-",
                     linewidth=1.5,
@@ -5264,7 +5289,7 @@ class EventChainPlotter:
                     plt.Circle(
                         (rcx, rcy),
                         rcr,
-                        color="lightgray",
+                        color=self.reward_circle_color,
                         fill=False,
                         linestyle="-",
                         linewidth=1.5,
@@ -5627,7 +5652,7 @@ class EventChainPlotter:
                     plt.Circle(
                         (rcx, rcy),
                         rcr,
-                        color="lightgray",
+                        color=self.reward_circle_color,
                         fill=False,
                         linestyle="-",
                         linewidth=1.5,
