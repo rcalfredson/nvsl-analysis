@@ -137,6 +137,10 @@ def _wrapped_ylabel_text(text: str) -> str:
     text = str(text)
     if "\n" in text:
         return text
+    for phrase in (" between-reward ", " return-leg "):
+        if phrase in text:
+            before, after = text.split(phrase, 1)
+            return f"{before}{phrase.rstrip()}\n{after}"
     if ", " in text:
         return text.replace(", ", ",\n", 1)
     if " per " in text:
