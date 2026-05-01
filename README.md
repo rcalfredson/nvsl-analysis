@@ -181,8 +181,8 @@ For more details on optional flags, see the top of `analyze.py` or run `python a
 Most analyses in this repository follow one of four patterns:
 
 - **One-shot plots**: run `analyze.py` with the relevant flag and it writes figures, CSVs, logs, or debug files directly.
-- **Bundle then plot**: run `analyze.py` once per cohort to export an `.npz` bundle, then call a `scripts/plot_*` script to overlay bundles across cohorts, SLI extremes, or conditions.
 - **Analyze import overlay**: run `analyze.py` once per cohort to export a specialized `.npz`, then call `analyze.py` again with matching `*-import-*` flags to make the overlay. In these plotting-stage commands, the `-v` video is just a required placeholder; the plotted data come from the imported NPZ files.
+- **Bundle then plot**: run `analyze.py` once per cohort to export an `.npz` bundle, then call a `scripts/plot_*` script to overlay bundles across cohorts, SLI extremes, or conditions.
 - **Script-only utility**: call a helper in `scripts/` directly for stats, contrast bundles, or figure variants that do not need to reopen video files.
 
 The common base command is:
