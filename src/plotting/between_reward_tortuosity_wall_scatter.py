@@ -59,9 +59,12 @@ class BetweenRewardTortuosityWallScatterExporter:
             return "return_leg"
         return "full"
 
-    @staticmethod
-    def _unit_id(va, *, f: int) -> str:
-        return f"{getattr(va, 'fn', 'unknown_video')}|trx_idx={int(f)}"
+    def _unit_id(self, va, *, role_idx: int, trx_idx: int) -> str:
+        fly_id = self._fly_id(va, role_idx=role_idx, trx_idx=trx_idx)
+        return (
+            f"{getattr(va, 'fn', 'unknown_video')}|fly_id={int(fly_id)}"
+            f"|trx_idx={int(trx_idx)}|role_idx={int(role_idx)}"
+        )
 
     @staticmethod
     def _video_base(va) -> str:
@@ -288,7 +291,9 @@ class BetweenRewardTortuosityWallScatterExporter:
                             "n_metric_frames": int(n_frames_eff),
                             "b_idx": int(getattr(seg, "b_idx", -1)),
                             "video_id": str(video_id),
-                            "unit_id": self._unit_id(va, f=f),
+                            "unit_id": self._unit_id(
+                                va, role_idx=role_idx, trx_idx=f
+                            ),
                             "fly_id": int(self._fly_id(va, role_idx=role_idx, trx_idx=f)),
                             "trx_idx": int(f),
                             "role_idx": int(role_idx),

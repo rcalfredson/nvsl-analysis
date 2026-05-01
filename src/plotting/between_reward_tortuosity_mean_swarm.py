@@ -101,7 +101,15 @@ class BetweenRewardTortuosityMeanSwarmPlotter(TrainingMetricScalarBarsPlotter):
 
     @staticmethod
     def _unit_id(va, *, f: int) -> str:
-        return f"{getattr(va, 'fn', 'unknown_video')}|trx_idx={int(f)}"
+        fly_id = getattr(va, "f", None)
+        try:
+            fly_id = int(fly_id) if fly_id is not None else -1
+        except Exception:
+            fly_id = -1
+        return (
+            f"{getattr(va, 'fn', 'unknown_video')}|fly_id={int(fly_id)}"
+            f"|trx_idx={int(f)}"
+        )
 
     @staticmethod
     def _build_nonwalk_mask(va, f: int, *, fi: int, n_frames: int, enabled: bool):

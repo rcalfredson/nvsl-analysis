@@ -41,7 +41,21 @@ def transformed_tortuosity(y: np.ndarray, *, y_transform: str) -> np.ndarray:
 def bundle_fly_keys(bundle: dict) -> np.ndarray:
     unit = bundle.get("unit_id")
     if unit is not None:
-        return np.asarray(unit, dtype=object).astype(str)
+        unit = np.asarray(unit, dtype=object).astype(str)
+        fly = bundle.get("fly_id")
+        if fly is not None and np.asarray(fly).shape[0] == unit.shape[0]:
+            fly = np.asarray(fly, dtype=object)
+            role = np.asarray(
+                bundle.get("role_idx", np.full(unit.shape, -1)), dtype=object
+            )
+            return np.asarray(
+                [
+                    f"{u}|fly_id={f}|role_idx={r}"
+                    for u, f, r in zip(unit, fly, role)
+                ],
+                dtype=object,
+            )
+        return unit
 
     wall_pct = np.asarray(bundle["wall_pct"], dtype=float)
     video = np.asarray(bundle.get("video_id", np.full(wall_pct.shape, "unknown")), dtype=object)
