@@ -96,6 +96,20 @@ def parse_args() -> argparse.Namespace:
         help="Print additional debug output for stats annotations.",
     )
     p.add_argument(
+        "--show-anova",
+        action="store_true",
+        help=(
+            "When --stats is enabled and there are 3+ groups, display the "
+            "omnibus one-way ANOVA result computed from the plotted per-fly values."
+        ),
+    )
+    p.add_argument(
+        "--anova-loc",
+        choices=("upper_left", "upper_right", "lower_left", "lower_right"),
+        default="upper_left",
+        help="Location for the optional ANOVA text box.",
+    )
+    p.add_argument(
         "--export-npz",
         default=None,
         help="Optional output .npz containing the per-fly correlation values.",
@@ -152,6 +166,8 @@ def main() -> None:
         stats=bool(args.stats),
         stats_alpha=float(args.stats_alpha),
         stats_debug=bool(args.stats_debug),
+        show_anova=bool(args.stats and args.show_anova),
+        anova_loc=args.anova_loc,
         log_tag="btw_rwd_tortuosity_wall_flycorr",
         opts=opts,
     )

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.stats import f_oneway
 
 from src.plotting.overlay_training_metric_scalar_bars import (
     ExportedTrainingScalarBars,
@@ -89,6 +90,87 @@ def wrap_long_ylabel(text: str) -> str:
     return text
 
 
+def _fmt_p(p: float) -> str:
+    if not np.isfinite(p):
+        return "p=n/a"
+    if p <= 0.0 or p < 1e-300:
+        return "p<1e-300"
+    if p < 1e-4:
+        return f"p={p:.1e}"
+    return f"p={p:.3f}"
+
+
+def _anova_text(
+    xs: list[ExportedTrainingScalarBars], *, min_n_per_group: int = 3
+) -> str | None:
+    if len(xs) < 3:
+        return None
+    P = len(xs[0].panel_labels)
+    lines: list[str] = []
+    for p in range(P):
+        samples = []
+        for x in xs:
+            vals = np.asarray(x.per_unit_values_panel[p], dtype=float).ravel()
+            vals = vals[np.isfinite(vals)]
+            if vals.size < int(min_n_per_group):
+                samples = []
+                break
+            samples.append(vals)
+        if len(samples) < 3:
+            continue
+        try:
+            f_stat, p_val = f_oneway(*samples)
+        except Exception:
+            continue
+        n_total = int(sum(s.size for s in samples))
+        df_between = len(samples) - 1
+        df_within = n_total - len(samples)
+        if not np.isfinite(f_stat) or df_within <= 0:
+            continue
+        line = f"ANOVA F({df_between}, {df_within})={float(f_stat):.2f}, {_fmt_p(float(p_val))}"
+        if P > 1:
+            line = f"{xs[0].panel_labels[p]}: {line}"
+        lines.append(line)
+    return "\n".join(lines) if lines else None
+
+
+def _add_anova_box(ax: plt.Axes, text: str, *, loc: str, fontsize: float) -> None:
+    loc = str(loc or "upper_left").lower()
+    if loc == "lower_right":
+        xy = (0.97, 0.04)
+        ha = "right"
+        va = "bottom"
+    elif loc == "lower_left":
+        xy = (0.03, 0.04)
+        ha = "left"
+        va = "bottom"
+    elif loc == "upper_right":
+        xy = (0.97, 0.96)
+        ha = "right"
+        va = "top"
+    else:
+        xy = (0.03, 0.96)
+        ha = "left"
+        va = "top"
+    ax.text(
+        xy[0],
+        xy[1],
+        text,
+        transform=ax.transAxes,
+        ha=ha,
+        va=va,
+        fontsize=fontsize,
+        bbox={
+            "boxstyle": "round,pad=0.25",
+            "facecolor": "white",
+            "edgecolor": "0.75",
+            "alpha": 0.86,
+            "linewidth": 0.6,
+        },
+        zorder=12,
+    )
+
+
 def plot_swarm_overlays(
     xs: list[ExportedTrainingScalarBars],
     *,
@@ -103,6 +185,8 @@ def plot_swarm_overlays(
     stats: bool = False,
     stats_alpha: float = 0.05,
     stats_debug: bool = False,
+    show_anova: bool = False,
+    anova_loc: str = "upper_left",
     log_tag: str = "scalar_swarm",
     opts=None,
 ):
@@ -252,6 +336,17 @@ def plot_swarm_overlays(
             panel_label=None,
             debug=bool(stats_debug),
         )
+        if show_anova:
+            text = _anova_text(xs, min_n_per_group=int(cfg_stats.min_n_per_group))
+            if text:
+                _add_anova_box(
+                    ax,
+                    text,
+                    loc=anova_loc,
+                    fontsize=max(
+                        7, min(float(customizer.in_plot_font_size) - 5.0, 9.0)
+                    ),
+                )
     if title:
         ax.set_title(title)
     if not single_panel and G > 1 and legend_handles:
