@@ -178,11 +178,12 @@ For more details on optional flags, see the top of `analyze.py` or run `python a
 
 ## Analysis Workflow Catalog
 
-Most analyses in this repository follow one of three patterns:
+Most analyses in this repository follow one of four patterns:
 
 - **One-shot plots**: run `analyze.py` with the relevant flag and it writes figures, CSVs, logs, or debug files directly.
 - **Bundle then plot**: run `analyze.py` once per cohort to export an `.npz` bundle, then call a `scripts/plot_*` script to overlay bundles across cohorts, SLI extremes, or conditions.
-- **Cached result overlay**: run `analyze.py` with an export flag for a specialized plot result, then re-run `analyze.py` with matching import flags to overlay cached results without recomputing trajectories.
+- **Analyze import overlay**: run `analyze.py` once per cohort to export a specialized `.npz`, then call `analyze.py` again with matching `*-import-*` flags to make the overlay. In these plotting-stage commands, the `-v` video is just a required placeholder; the plotted data come from the imported NPZ files.
+- **Script-only utility**: call a helper in `scripts/` directly for stats, contrast bundles, or figure variants that do not need to reopen video files.
 
 The common base command is:
 
@@ -207,6 +208,18 @@ python scripts/plot_overlay_training_metric_hist.py \
     --input "Group A=exports/group_a_reward_count_hist.npz" \
     --input "Group B=exports/group_b_reward_count_hist.npz" \
     --out imgs/reward_count_hist_overlay.png
+```
+
+For `analyze.py` import-overlay workflows, keep the normal required `-v` and `-f` arguments but point them at any convenient valid video/fly selection. A small representative or demo video is usually enough because the overlay values are loaded from `LABEL:PATH` import NPZs:
+
+```bash
+python analyze.py \
+    -v "/path/to/any/valid/video.avi" \
+    -f "0-9" \
+    --btw-rwd-conditioned-com \
+    --btw-rwd-conditioned-com-import-npz "Group A:exports/group_a_com_bins.npz" \
+    --btw-rwd-conditioned-com-import-npz "Group B:exports/group_b_com_bins.npz" \
+    --btw-rwd-conditioned-com-import-out imgs/com_binned_overlay.png
 ```
 
 ### One-Shot Workflows
@@ -238,6 +251,18 @@ These metrics can be run directly from `analyze.py`; outputs are usually written
 | Reward count histogram | `--reward-count-hist` | `imgs/rwd_count_hist.png` | Add `--reward-count-export-hist` for script-based overlays. |
 | Reward total bars | `--reward-count-total-bars` | `imgs/rwd_totals.png` | Add `--reward-count-total-export` for script-based overlays and stats. |
 | Wall-contact PMF/totals | `--wall`, `--wall-contacts-pmf-*`, `--wall-contacts-per-reward-interval-total-bars` | wall-contact plots, optional NPZ exports | Some wall-contact outputs can be imported or plotted later. |
+
+### Analyze Import-Overlay Workflows
+
+These are two-stage workflows where `analyze.py` handles both stages: first it exports cached data from real cohort videos, then a later `analyze.py` command imports those cached files and draws the overlay. The plotting-stage video path is arbitrary as long as it is valid enough for the command to run.
+
+| Metric family | Export from cohort run | Plot with `analyze.py` import flags | Notes |
+| --- | --- | --- | --- |
+| Distance-binned COM | `--btw-rwd-conditioned-com --btw-rwd-conditioned-com-export-npz exports/group_a_com_bins.npz` | `--btw-rwd-conditioned-com --btw-rwd-conditioned-com-import-npz "Group A:exports/group_a_com_bins.npz"` | Repeat the import flag for each group; use `--btw-rwd-conditioned-com-import-out` for the output image. |
+| Distance-binned distance traveled | `--btw-rwd-conditioned-disttrav --btw-rwd-conditioned-disttrav-export-npz exports/group_a_disttrav_bins.npz` | `--btw-rwd-conditioned-disttrav --btw-rwd-conditioned-disttrav-import-npz "Group A:exports/group_a_disttrav_bins.npz"` | Repeatable `LABEL:PATH` imports; output path via `--btw-rwd-conditioned-disttrav-import-out`. |
+| Max distance vs. distance traveled | `--btw-rwd-conditioned-dmax-vs-disttrav --btw-rwd-conditioned-dmax-vs-disttrav-export-npz exports/group_a_dmax_vs_disttrav.npz` | `--btw-rwd-conditioned-dmax-vs-disttrav --btw-rwd-conditioned-dmax-vs-disttrav-import-npz "Group A:exports/group_a_dmax_vs_disttrav.npz"` | Supports overlay stats with `--btw-rwd-conditioned-dmax-vs-disttrav-stats`. |
+| Wall-contact PMF | `--export-wall-contacts-per-sync-bkt-npz exports/group_a_wall_sync.npz` or `--export-wall-contacts-per-reward-interval-npz exports/group_a_wall_interval.npz` | `--wall-contacts-pmf-import-npz "Group A:exports/group_a_wall_sync.npz"` | Imports cached wall-contact counts and plots a PMF; output path via `--wall-contacts-pmf-import-out`. |
+| Wall contacts per reward interval totals | `--wall-contacts-per-reward-interval-total-bars --wall-contacts-per-reward-interval-total-export exports/group_a_wall_interval_totals.npz` | `--wall-contacts-per-reward-interval-total-import-npz "Group A:exports/group_a_wall_interval_totals.npz"` | Imports cached scalar-bar NPZs; output path via `--wall-contacts-per-reward-interval-total-import-out`. |
 
 ### Bundle-Then-Plot Workflows
 
