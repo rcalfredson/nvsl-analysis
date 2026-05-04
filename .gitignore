@@ -26,4 +26,5 @@ src/**/*.so
 learning_stats.csv
 learning_stats.csv.1
 large_turn_ratios.csv
+__mixed_control_conditions.tsv
 per_fly_turn_exit_tables/*

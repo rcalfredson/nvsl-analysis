@@ -10522,7 +10522,9 @@ def postAnalyze(vas):
             print("skipped")
             continue
 
-        a = np.array([vaVarForType(va, tp, calc) for va in vas])
+        va_values = [vaVarForType(va, tp, calc) for va in vas]
+        _raise_if_mixed_control_conditions(vas, va_values, tp, calc)
+        a = np.array(va_values)
         a = a.reshape((len(vas), len(trns), -1))
 
         if tp in ("rpid", "rpipd") or "exp_min_yok" in tp:
@@ -12994,6 +12996,90 @@ def postAnalyze(vas):
 
 def frmStat(n):
     return "{:.3f}".format(n) if isinstance(n, (float, np.floating)) else str(n)
+
+
+MIXED_CONTROL_CONDITIONS_FILE = "__mixed_control_conditions.tsv"
+
+
+def _depth_one_len(values):
+    try:
+        return len(values)
+    except TypeError:
+        return None
+
+
+def _video_analysis_label(va):
+    parts = [util.basename(va.fn)]
+    if va.f is not None:
+        parts.append(f"fly={va.f}")
+    if hasattr(va, "gidx"):
+        parts.append(f"group={va.gidx}")
+    return " ".join(parts)
+
+
+def _write_mixed_control_conditions_record(vas, depth_lens, tp, calc, out_fn):
+    with open(out_fn, "w", newline="") as fh:
+        writer = csv.writer(fh, delimiter="\t")
+        writer.writerow(
+            [
+                "condition",
+                "video",
+                "fly_arg",
+                "group_index",
+                "n_flies",
+                "depth_one_length",
+                "analysis_type",
+                "calculated",
+            ]
+        )
+        for va, depth_len in zip(vas, depth_lens):
+            writer.writerow(
+                [
+                    "exp+yoked" if len(va.flies) > 1 else "exp_only",
+                    va.fn,
+                    "" if va.f is None else va.f,
+                    getattr(va, "gidx", ""),
+                    len(va.flies),
+                    "" if depth_len is None else depth_len,
+                    tp,
+                    bool(calc),
+                ]
+            )
+
+
+def _raise_if_mixed_control_conditions(vas, values, tp, calc):
+    depth_lens = [_depth_one_len(v) for v in values]
+    finite_depth_lens = sorted({dl for dl in depth_lens if dl is not None})
+    fly_counts = sorted({len(va.flies) for va in vas})
+
+    has_factor_two_depths = (
+        len(finite_depth_lens) == 2
+        and finite_depth_lens[0] > 0
+        and finite_depth_lens[1] == 2 * finite_depth_lens[0]
+    )
+    has_mixed_control_state = len(fly_counts) > 1 and set(fly_counts).issubset({1, 2})
+    if not (has_factor_two_depths and has_mixed_control_state):
+        return
+
+    _write_mixed_control_conditions_record(
+        vas, depth_lens, tp, calc, MIXED_CONTROL_CONDITIONS_FILE
+    )
+    exp_only = [
+        _video_analysis_label(va) for va in vas if len(va.flies) == 1
+    ]
+    exp_yoked = [
+        _video_analysis_label(va) for va in vas if len(va.flies) > 1
+    ]
+    raise ValueError(
+        "Mixed yoked-control conditions detected while aggregating "
+        f"analysis type {tp!r} (calculated={bool(calc)}). Some videos have only "
+        "experimental flies, while others include experimental+yoked-control flies; "
+        f"the per-video row lengths are {finite_depth_lens}, a 2x mismatch. "
+        "Analyze these conditions in separate video lists. Wrote the separated "
+        f"video lists to {MIXED_CONTROL_CONDITIONS_FILE}. "
+        f"Experimental-only: {', '.join(exp_only) or 'none'}. "
+        f"Experimental+yoked: {', '.join(exp_yoked) or 'none'}."
+    )
 
 
 def basicStatsCols(va):
