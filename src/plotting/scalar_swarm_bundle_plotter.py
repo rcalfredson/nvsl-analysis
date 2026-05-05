@@ -90,6 +90,11 @@ def wrap_long_ylabel(text: str) -> str:
     return text
 
 
+def _italicize_xtick_labels(ax: plt.Axes) -> None:
+    for tick in ax.get_xticklabels():
+        tick.set_fontstyle("italic")
+
+
 def _fmt_p(p: float) -> str:
     if not np.isfinite(p):
         return "p=n/a"
@@ -276,6 +281,8 @@ def plot_swarm_overlays(
 
     ax.set_xticks(tick_pos)
     ax.set_xticklabels(tick_labels, rotation=25 if single_panel else 30, ha="right")
+    if single_panel:
+        _italicize_xtick_labels(ax)
     if xlabel and not (single_panel and str(xlabel).strip().lower() == "training"):
         ax.set_xlabel(xlabel)
     if ylabel:

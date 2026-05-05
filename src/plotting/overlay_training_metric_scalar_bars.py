@@ -78,6 +78,11 @@ def _wrapped_xlabel_text(text: str) -> str:
     return text
 
 
+def _italicize_xtick_labels(ax: plt.Axes) -> None:
+    for tick in ax.get_xticklabels():
+        tick.set_fontstyle("italic")
+
+
 def _ensure_xlabel_visible(fig: plt.Figure, ax: plt.Axes) -> None:
     label = ax.xaxis.get_label()
     if not label.get_text():
@@ -880,6 +885,7 @@ def plot_overlays(
             ha="right",
             rotation_mode="anchor",
         )
+        _italicize_xtick_labels(ax)
         ax.set_xlim(-0.6, float(max(G - 1, 0)) + 0.6)
     else:
         ax.set_xticks(x_centers)
