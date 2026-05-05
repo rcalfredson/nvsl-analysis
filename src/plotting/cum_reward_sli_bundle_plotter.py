@@ -546,7 +546,7 @@ def plot_cum_reward_sli_bundles(
                 borderaxespad=0.0,
             )
         else:
-            plt.legend(frameon=False)
+            plt.legend(frameon=False, prop={"style": "italic"})
     if (
         y_min is not None
         and y_max is not None

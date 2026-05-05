@@ -1023,10 +1023,10 @@ def plot_overlays(
                 )
 
         ax.legend(
-            fontsize=legend_font_size,
             loc="upper left",
             bbox_to_anchor=(1.02, 1.0),
             borderaxespad=0.0,
+            prop={"style": "italic", "size": legend_font_size},
         )
 
     if title:

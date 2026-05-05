@@ -442,10 +442,13 @@ def plot_filled_hist_overlays(
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
         ax.legend(
-            fontsize=max(8, min(float(customizer.in_plot_font_size), 13.0)),
             loc="upper left",
             bbox_to_anchor=(1.02, 1.0),
             borderaxespad=0.0,
+            prop={
+                "style": "italic",
+                "size": max(8, min(float(customizer.in_plot_font_size), 13.0)),
+            },
         )
 
     if title:

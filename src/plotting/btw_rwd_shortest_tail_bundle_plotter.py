@@ -328,6 +328,7 @@ def plot_btw_rwd_shortest_tail_bundles(
         handlelength=3.5,  # default ~2.0; bump it
         handletextpad=0.6,
         markerscale=1.0,
+        prop={"style": "italic"},
     )
 
     # opt-in title

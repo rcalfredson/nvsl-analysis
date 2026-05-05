@@ -730,7 +730,7 @@ def _plot_return_prob_outer_radius_stacked(
     group_legend = ax.legend(
         handles=group_handles,
         loc="upper right",
-        fontsize=max(8, customizer.in_plot_font_size),
+        prop={"style": "italic", "size": max(8, customizer.in_plot_font_size)},
     )
     ax.add_artist(group_legend)
     ax.legend(

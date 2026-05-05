@@ -1504,6 +1504,7 @@ def plot_com_sli_bundle_data(
                 framealpha=0.92,
                 edgecolor="0.8",
                 handlelength=3.2,
+                prop={"style": "italic"},
             ),
         )
 
