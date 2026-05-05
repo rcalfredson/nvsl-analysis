@@ -5054,6 +5054,35 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--btw-rwd-return-leg-dist-sli-debug-bucket",
+    type=str,
+    default=None,
+    metavar="TRN,BKT",
+    help=(
+        "Temporary debug output for between-reward return-leg distance SLI bundles: "
+        "print raw per-fly values for the selected 1-based training and sync bucket, "
+        'sorted largest-to-smallest. Example: "2,4".'
+    ),
+)
+g.add_argument(
+    "--btw-rwd-return-leg-dist-sli-debug-condition",
+    choices=["exp", "ctrl", "both"],
+    default="exp",
+    help=(
+        "Condition to print for --btw-rwd-return-leg-dist-sli-debug-bucket. "
+        "Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-return-leg-dist-sli-debug-top-n",
+    type=int,
+    default=0,
+    help=(
+        "Limit --btw-rwd-return-leg-dist-sli-debug-bucket output to the top N finite "
+        "rows per group/condition. 0 prints all rows. Default: %(default)s."
+    ),
+)
+g.add_argument(
     "--between-reward-maxdist-sli-debug",
     action="store_true",
     help=(
