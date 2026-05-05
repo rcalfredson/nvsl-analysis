@@ -6107,7 +6107,16 @@ def columnNamesForBoundaryContactType(va, tp):
                    trial information, and the fly involved, formatted for clarity and
                    specificity.
     """
-    evt_tp = "_".join(tp.split("_")[:-1])
+    parts = tp.split("_")
+    if (
+        len(parts) >= 4
+        and parts[-1] == "csv"
+        and parts[-2] in ("edge", "ctr")
+        and parts[-3] in ("pct", "dur")
+    ):
+        evt_tp = "_".join(parts[:-2])
+    else:
+        evt_tp = "_".join(parts[:-1])
     directions = [""]
     if evt_tp == "wall":
         contact_types = ["all-wall", "sidewall", "agarose-adjacent"]
@@ -6160,6 +6169,13 @@ def columnNamesForBoundaryContactType(va, tp):
                         else:
                             prefix = "%s%s%s- " % (direction, contact_tp, suffix)
                         columns.append("%s%s (%s)" % (prefix, trn_desc, flyDesc(f)))
+        if evt_tp == "agarose_pct":
+            for t in va.trns:
+                for f in va.flies:
+                    prefix = "%s- " % contact_tp if contact_tp else ""
+                    columns.append(
+                        "%sT%i post last 10m (%s)" % (prefix, t.n, flyDesc(f))
+                    )
     return columns
 
 
@@ -13145,7 +13161,16 @@ def writeStats(vas, sf):
             return False
         if col_index is not None:
             # Skip pairwise exclusion for the first pair in specific tables
-            if tp in ["agarose_pct_edge", "agarose_pct_ctr"] and col_index == 0:
+            if (
+                tp
+                in [
+                    "agarose_pct_edge",
+                    "agarose_pct_ctr",
+                    "agarose_pct_edge_csv",
+                    "agarose_pct_ctr_csv",
+                ]
+                and col_index == 0
+            ):
                 return False
             return True
 

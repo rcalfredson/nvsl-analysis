@@ -2671,45 +2671,77 @@ class VideoAnalysis:
             self.regionPercentagesCsv = {region_label: {"ctr": [], "edge": []}}
         else:
             self.regionPercentagesCsv[region_label] = {"ctr": [], "edge": []}
+
+        def pct_for_interval(trj, tp, intvl):
+            boundary_contact = trj.boundary_event_stats[region_label]["tb"][tp][
+                "original_boundary_contact"
+            ][intvl]
+
+            if region_label != "agarose":
+                wall_contact = trj.boundary_event_stats["wall"]["all"]["opp_edge"][
+                    "boundary_contact"
+                ][intvl]
+                valid_contact = boundary_contact * (~wall_contact.astype(bool)).astype(
+                    int
+                )
+            else:
+                valid_contact = boundary_contact
+
+            if region_label == "agarose":
+                intvl_len = np.sum(~trj.nan[intvl])
+            else:
+                intvl_len = intvl.stop - intvl.start
+
+            if intvl_len <= 0:
+                return np.nan
+            return 100 * np.count_nonzero(valid_contact) / intvl_len
+
         for tp in self.regionPercentagesCsv[region_label]:
             vals = []
             if not hasattr(self, "reward_ranges"):
                 # default reward range has intervals for the pre-period and each training
                 vals.extend(len(self.trx) * (len(self.trns) + 1) * [np.nan])
-                continue
-            for i, intvl in enumerate(self.reward_ranges):
-                try:
-                    intvl = slice(int(intvl.start), int(intvl.stop))
-                except ValueError:
-                    vals.extend(len(self.trx) * [np.nan])
+                if region_label != "agarose":
                     continue
-                for trj in self.trx:
-                    if trj.bad():
-                        vals.append(np.nan)
+            else:
+                for i, intvl in enumerate(self.reward_ranges):
+                    try:
+                        intvl = slice(int(intvl.start), int(intvl.stop))
+                    except ValueError:
+                        vals.extend(len(self.trx) * [np.nan])
                         continue
-                    if self.pair_exclude[i]:
-                        vals.append(np.nan)
-                        continue
-                    boundary_contact = trj.boundary_event_stats[region_label]["tb"][tp][
-                        "original_boundary_contact"
-                    ][intvl]
+                    for trj in self.trx:
+                        if trj.bad():
+                            vals.append(np.nan)
+                            continue
+                        if self.pair_exclude[i]:
+                            vals.append(np.nan)
+                            continue
+                        vals.append(pct_for_interval(trj, tp, intvl))
 
-                    if region_label != "agarose":
-                        wall_contact = trj.boundary_event_stats["wall"]["all"][
-                            "opp_edge"
-                        ]["boundary_contact"][intvl]
-                        valid_contact = boundary_contact * (
-                            ~wall_contact.astype(bool)
-                        ).astype(int)
-                    else:
-                        valid_contact = boundary_contact
-
-                    if region_label == "agarose":
-                        intvl_len = np.sum(~trj.nan[intvl])
-                    else:
-                        intvl_len = intvl.stop - intvl.start
-
-                    vals.append(100 * np.count_nonzero(valid_contact) / intvl_len)
+            if region_label == "agarose":
+                ten_min_frames = self._min2f(10)
+                for t_idx, _trn in enumerate(self.trns):
+                    post_stop = (
+                        int(self.trns[t_idx + 1].start)
+                        if t_idx < len(self.trns) - 1
+                        else int(self.nf)
+                    )
+                    post_start = int(self.fns["startPost"][t_idx])
+                    intvl = slice(
+                        max(post_start, post_stop - ten_min_frames), post_stop
+                    )
+                    pair_exclude_idx = t_idx + 1
+                    excluded = (
+                        hasattr(self, "pair_exclude")
+                        and pair_exclude_idx < len(self.pair_exclude)
+                        and self.pair_exclude[pair_exclude_idx]
+                    )
+                    for trj in self.trx:
+                        if trj.bad() or excluded or intvl.start >= intvl.stop:
+                            vals.append(np.nan)
+                            continue
+                        vals.append(pct_for_interval(trj, tp, intvl))
             self.regionPercentagesCsv[region_label][tp].extend(vals)
 
     # measures % of time on agarose, or in a defined region, by sync bucket.
