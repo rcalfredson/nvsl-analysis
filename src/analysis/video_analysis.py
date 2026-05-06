@@ -2685,6 +2685,11 @@ class VideoAnalysis:
                     int
                 )
             else:
+                if tp == 'edge':
+                    print(f"file name: {self.fn}")
+                    print(f"fly num: {self.f}")
+                    print(f"agarose contact events: {trj.boundary_event_stats[region_label]["tb"][tp]['boundary_contact_regions']}")
+                    input()
                 valid_contact = boundary_contact
 
             if region_label == "agarose":
