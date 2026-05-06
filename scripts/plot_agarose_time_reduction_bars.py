@@ -9,6 +9,7 @@ import sys
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/nvsl-analysis-matplotlib")
 
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -69,6 +70,11 @@ def _errorbar_lengths(
     lo = np.where(np.isfinite(ci_low), np.maximum(means - ci_low, 0.0), 0.0)
     hi = np.where(np.isfinite(ci_high), np.maximum(ci_high - means, 0.0), 0.0)
     return np.vstack([lo, hi])
+
+
+def _blend_with_white(color: str, amount: float = 0.55) -> tuple[float, float, float]:
+    rgb = np.asarray(mcolors.to_rgb(color), dtype=float)
+    return tuple(rgb + (1.0 - rgb) * float(amount))
 
 
 def _set_ylim_for_values(
@@ -183,6 +189,7 @@ def build_figure(
     title: str | None,
     ylabel: str,
     control_group: str | None,
+    posthoc_scope: str,
     stats_alpha: float,
     show_stats: bool,
     show_points: bool,
@@ -231,18 +238,25 @@ def build_figure(
             zorder=2,
         )
     yerr = _errorbar_lengths(means, ci_low, ci_high)
-    ax.errorbar(
-        x,
-        means,
-        yerr=yerr,
-        fmt="none",
-        ecolor="white",
-        elinewidth=2.3,
-        capsize=5,
-        capthick=2.3,
-        alpha=0.5,
-        zorder=5.8,
-    )
+    for i in range(len(means)):
+        if not np.isfinite(means[i]):
+            continue
+        halo_color = _blend_with_white(
+            group_metric_fill_color(i, "between_reward_distance"),
+            amount=0.58,
+        )
+        ax.errorbar(
+            [x[i]],
+            [means[i]],
+            yerr=yerr[:, [i]],
+            fmt="none",
+            ecolor=halo_color,
+            elinewidth=2.3,
+            capsize=5,
+            capthick=2.3,
+            alpha=0.5,
+            zorder=5.8,
+        )
     ax.errorbar(
         x,
         means,
@@ -316,7 +330,7 @@ def build_figure(
         _anova, posthoc = reduction_anova_and_posthoc(
             paired,
             control_group=control_group,
-            posthoc_scope="control",
+            posthoc_scope=posthoc_scope,
         )
         _draw_stats(
             ax,
@@ -377,6 +391,15 @@ def parse_args() -> argparse.Namespace:
         help="Control group label for post-hoc comparisons. Defaults to first group.",
     )
     p.add_argument(
+        "--posthoc-scope",
+        choices=["control", "all"],
+        default="control",
+        help=(
+            "Post-hoc comparison family for Holm correction and plot stars. "
+            "'control' compares only control-vs-other groups; 'all' compares all pairs."
+        ),
+    )
+    p.add_argument(
         "--stats-alpha",
         type=float,
         default=0.05,
@@ -385,7 +408,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--no-stats",
         action="store_true",
-        help="Do not draw control-vs-experimental Holm post-hoc stars.",
+        help="Do not draw Holm-adjusted post-hoc stars.",
     )
     p.add_argument(
         "--hide-points",
@@ -410,6 +433,7 @@ def main() -> int:
         title=args.title,
         ylabel=args.ylabel,
         control_group=args.control_group,
+        posthoc_scope=args.posthoc_scope,
         stats_alpha=args.stats_alpha,
         show_stats=not args.no_stats,
         show_points=not args.hide_points,
