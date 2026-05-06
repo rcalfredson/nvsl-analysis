@@ -73,6 +73,34 @@ class WelchTest:
 
 
 @dataclass(frozen=True)
+class ReductionAnova:
+    groups: tuple[str, ...]
+    df_between: float
+    df_within: float
+    f_stat: float
+    p_value: float
+    test: str
+
+
+@dataclass(frozen=True)
+class ReductionPosthocTest:
+    group_a: str
+    group_b: str
+    n_a: int
+    n_b: int
+    mean_reduction_a: float
+    mean_reduction_b: float
+    mean_difference_a_minus_b: float
+    ci95_low: float
+    ci95_high: float
+    t_stat: float
+    df: float
+    p_value: float
+    p_value_holm: float
+    test: str
+
+
+@dataclass(frozen=True)
 class ParsedGroup:
     label: str
     path: str
@@ -345,6 +373,129 @@ def welch_reduction_test(a: PairedTest, b: PairedTest) -> WelchTest:
     )
 
 
+def _clean_reductions(test: PairedTest) -> np.ndarray:
+    x = np.asarray(test.reductions, dtype=float).reshape(-1)
+    return x[np.isfinite(x)]
+
+
+def _holm_adjust(pvals: list[float]) -> list[float]:
+    p = np.asarray(pvals, dtype=float)
+    if p.size == 0:
+        return []
+    out = np.full_like(p, np.nan)
+    finite = np.isfinite(p)
+    if not np.any(finite):
+        return out.tolist()
+
+    pf = np.clip(p[finite], 0.0, 1.0)
+    order = np.argsort(pf)
+    p_sorted = pf[order]
+    adj_sorted = np.empty_like(p_sorted)
+    running_max = 0.0
+    m = int(p_sorted.size)
+    for idx, pv in enumerate(p_sorted):
+        running_max = max(running_max, float((m - idx) * pv))
+        adj_sorted[idx] = min(1.0, running_max)
+    adj = np.empty_like(adj_sorted)
+    adj[order] = adj_sorted
+    out[finite] = adj
+    return out.tolist()
+
+
+def _welch_reduction_posthoc(
+    a: PairedTest, b: PairedTest, *, p_value_holm: float = np.nan
+) -> ReductionPosthocTest:
+    welch = welch_reduction_test(a, b)
+    return ReductionPosthocTest(
+        group_a=welch.group_a,
+        group_b=welch.group_b,
+        n_a=welch.n_a,
+        n_b=welch.n_b,
+        mean_reduction_a=welch.mean_reduction_a,
+        mean_reduction_b=welch.mean_reduction_b,
+        mean_difference_a_minus_b=welch.mean_difference_a_minus_b,
+        ci95_low=welch.ci95_low,
+        ci95_high=welch.ci95_high,
+        t_stat=welch.t_stat,
+        df=welch.df,
+        p_value=welch.p_value,
+        p_value_holm=float(p_value_holm),
+        test="Welch independent-samples t-test, Holm-adjusted family",
+    )
+
+
+def reduction_anova_and_posthoc(
+    tests: list[PairedTest],
+    *,
+    control_group: str | None = None,
+    posthoc_scope: str = "control",
+    min_n_per_group: int = 2,
+) -> tuple[ReductionAnova | None, list[ReductionPosthocTest]]:
+    """
+    Compare paired reduction scores across groups.
+
+    posthoc_scope may be "control" or "all". In control mode, only pairs involving
+    control_group are tested; if control_group is None, the first supplied group is
+    used as the control.
+    """
+    if len(tests) < 2:
+        return None, []
+    if posthoc_scope not in {"control", "all"}:
+        raise ValueError("posthoc_scope must be 'control' or 'all'")
+
+    samples = [_clean_reductions(t) for t in tests]
+    anova_samples = [x for x in samples if x.size >= int(min_n_per_group)]
+    if len(anova_samples) >= 2:
+        f_stat, p_value = stats.f_oneway(*anova_samples)
+        if np.isfinite(f_stat) and f_stat <= 0:
+            f_stat = 0.0
+            p_value = 1.0
+        n_total = int(sum(x.size for x in anova_samples))
+        k = int(len(anova_samples))
+        anova = ReductionAnova(
+            groups=tuple(
+                t.group
+                for t, x in zip(tests, samples)
+                if x.size >= int(min_n_per_group)
+            ),
+            df_between=float(k - 1),
+            df_within=float(n_total - k),
+            f_stat=float(f_stat),
+            p_value=float(p_value),
+            test="One-way ANOVA on paired reduction scores",
+        )
+    else:
+        anova = ReductionAnova(
+            groups=tuple(t.group for t in tests),
+            df_between=np.nan,
+            df_within=np.nan,
+            f_stat=np.nan,
+            p_value=np.nan,
+            test="One-way ANOVA on paired reduction scores",
+        )
+
+    if posthoc_scope == "control":
+        control = tests[0].group if control_group is None else str(control_group)
+        control_idx = next((i for i, t in enumerate(tests) if t.group == control), None)
+        if control_idx is None:
+            available = [t.group for t in tests]
+            raise ValueError(
+                f"Control group {control!r} was not found. "
+                f"Available groups: {available}"
+            )
+        pairs = [(control_idx, j) for j in range(len(tests)) if j != control_idx]
+    else:
+        pairs = [(i, j) for i in range(len(tests)) for j in range(i + 1, len(tests))]
+
+    raw_results = [_welch_reduction_posthoc(tests[i], tests[j]) for i, j in pairs]
+    p_holm = _holm_adjust([r.p_value for r in raw_results])
+    posthoc = [
+        _welch_reduction_posthoc(tests[i], tests[j], p_value_holm=p_adj)
+        for (i, j), p_adj in zip(pairs, p_holm)
+    ]
+    return anova, posthoc
+
+
 def between_group_rows(test: WelchTest | None) -> list[dict[str, Any]]:
     if test is None:
         return []
@@ -364,6 +515,45 @@ def between_group_rows(test: WelchTest | None) -> list[dict[str, Any]]:
             "p_value": test.p_value,
             "test": test.test,
         }
+    ]
+
+
+def reduction_anova_rows(test: ReductionAnova | None) -> list[dict[str, Any]]:
+    if test is None:
+        return []
+    return [
+        {
+            "groups": ";".join(test.groups),
+            "df_between": test.df_between,
+            "df_within": test.df_within,
+            "f_stat": test.f_stat,
+            "p_value": test.p_value,
+            "test": test.test,
+        }
+    ]
+
+
+def reduction_posthoc_rows(
+    tests: list[ReductionPosthocTest],
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "group_a": test.group_a,
+            "group_b": test.group_b,
+            "n_a": test.n_a,
+            "n_b": test.n_b,
+            "mean_reduction_a": test.mean_reduction_a,
+            "mean_reduction_b": test.mean_reduction_b,
+            "mean_difference_a_minus_b": test.mean_difference_a_minus_b,
+            "ci95_low": test.ci95_low,
+            "ci95_high": test.ci95_high,
+            "t_stat": test.t_stat,
+            "df": test.df,
+            "p_value": test.p_value,
+            "p_value_holm": test.p_value_holm,
+            "test": test.test,
+        }
+        for test in tests
     ]
 
 
@@ -405,19 +595,19 @@ def write_wiki_summary_html(
                 "<body>",
                 "<h1>Agarose Time Summary</h1>",
                 "<p>Summarized percent-time-over-agarose metrics, within-group "
-                "paired reductions, and the two-group Welch comparison of paired "
+                "paired reductions, and between-group comparisons of paired "
                 "reduction scores.</p>",
                 f"<p><strong>Metric section analyzed:</strong> {html.escape(section)}</p>",
                 "<h2>Descriptive Results</h2>",
                 _html_table(summary_rows),
                 "<h2>Paired t-tests</h2>",
                 _html_table(paired_rows),
-                "<h2>Between-genotype Welch Test</h2>",
+                "<h2>Between-group Reduction Tests</h2>",
                 (
                     _html_table(between_rows)
                     if between_rows
-                    else "<p>Between-group test was skipped because exactly two "
-                    "groups were not supplied.</p>"
+                    else "<p>Between-group tests were skipped because fewer than "
+                    "two groups were supplied.</p>"
                 ),
                 "<h2>Takeaway</h2>",
                 f"<p>{html.escape(_takeaway(paired_rows, between_rows))}</p>",
@@ -458,12 +648,13 @@ def _takeaway(
     ]
     if between_rows:
         row = between_rows[0]
+        p_key = "p_value_holm" if "p_value_holm" in row else "p_value"
         return (
             "; ".join(paired_bits)
             + f". The between-group reduction difference ({row['group_a']} - {row['group_b']}) "
             f"was {_fmt_value(row['mean_difference_a_minus_b'])} percentage points "
             f"(95% CI {_fmt_value(row['ci95_low'])} to {_fmt_value(row['ci95_high'])}, "
-            f"p={_fmt_value(row['p_value'])})."
+            f"p={_fmt_value(row[p_key])})."
         )
     return "; ".join(paired_bits) + "."
 

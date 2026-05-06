@@ -19,6 +19,9 @@ from src.analysis.agarose_time_summary import (
     paired_test,
     paired_test_rows,
     parse_group,
+    reduction_anova_and_posthoc,
+    reduction_anova_rows,
+    reduction_posthoc_rows,
     welch_reduction_test,
     write_dict_csv,
     write_wiki_summary_html,
@@ -53,6 +56,23 @@ BETWEEN_FIELDS = [
     "t_stat",
     "df",
     "p_value",
+    "test",
+]
+ANOVA_FIELDS = ["groups", "df_between", "df_within", "f_stat", "p_value", "test"]
+POSTHOC_FIELDS = [
+    "group_a",
+    "group_b",
+    "n_a",
+    "n_b",
+    "mean_reduction_a",
+    "mean_reduction_b",
+    "mean_difference_a_minus_b",
+    "ci95_low",
+    "ci95_high",
+    "t_stat",
+    "df",
+    "p_value",
+    "p_value_holm",
     "test",
 ]
 
@@ -112,7 +132,28 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--out-prefix",
         required=True,
-        help="Output prefix. The script writes *_summary.csv, *_paired_tests.csv, *_between_group_tests.csv, and *_wiki_summary.html.",
+        help=(
+            "Output prefix. The script writes *_summary.csv, *_paired_tests.csv, "
+            "*_reduction_anova.csv, *_reduction_posthoc_tests.csv, and *_wiki_summary.html. "
+            "For two groups it also writes legacy *_between_group_tests.csv."
+        ),
+    )
+    p.add_argument(
+        "--control-group",
+        default=None,
+        help=(
+            "Control group label for post-hoc comparisons. Defaults to the first "
+            "supplied --group."
+        ),
+    )
+    p.add_argument(
+        "--posthoc-scope",
+        choices=["control", "all"],
+        default="control",
+        help=(
+            "Post-hoc comparison family for Holm correction. 'control' compares "
+            "only control-vs-other groups; 'all' compares all pairs."
+        ),
     )
     p.add_argument(
         "--verbose",
@@ -147,17 +188,30 @@ def main(argv: list[str] | None = None) -> int:
     paired_rows_out = paired_test_rows(paired)
     between = welch_reduction_test(paired[0], paired[1]) if len(paired) == 2 else None
     between_rows_out = between_group_rows(between)
+    reduction_anova, reduction_posthoc = reduction_anova_and_posthoc(
+        paired,
+        control_group=args.control_group,
+        posthoc_scope=args.posthoc_scope,
+    )
+    anova_rows_out = reduction_anova_rows(reduction_anova)
+    posthoc_rows_out = reduction_posthoc_rows(reduction_posthoc)
 
     prefix = Path(args.out_prefix)
     write_dict_csv(f"{prefix}_summary.csv", summary, SUMMARY_FIELDS)
     write_dict_csv(f"{prefix}_paired_tests.csv", paired_rows_out, PAIRED_FIELDS)
     write_dict_csv(f"{prefix}_between_group_tests.csv", between_rows_out, BETWEEN_FIELDS)
+    write_dict_csv(f"{prefix}_reduction_anova.csv", anova_rows_out, ANOVA_FIELDS)
+    write_dict_csv(
+        f"{prefix}_reduction_posthoc_tests.csv",
+        posthoc_rows_out,
+        POSTHOC_FIELDS,
+    )
     write_wiki_summary_html(
         f"{prefix}_wiki_summary.html",
         section=args.section,
         summary_rows=summary,
         paired_rows=paired_rows_out,
-        between_rows=between_rows_out,
+        between_rows=posthoc_rows_out,
     )
 
     print("Agarose time summary")
@@ -178,7 +232,20 @@ def main(argv: list[str] | None = None) -> int:
             f"t({_fmt(row['df'])})={_fmt(row['t_stat'])}, p={_fmt(row['p_value'])}"
         )
     else:
-        print("  Between-group Welch test skipped; supply exactly two groups to run it.")
+        print("  Legacy two-group Welch test skipped; supply exactly two groups to run it.")
+    if anova_rows_out:
+        row = anova_rows_out[0]
+        print(
+            f"  ANOVA reductions: F({_fmt(row['df_between'])}, {_fmt(row['df_within'])})="
+            f"{_fmt(row['f_stat'])}, p={_fmt(row['p_value'])}"
+        )
+    for row in posthoc_rows_out:
+        print(
+            f"  Holm post-hoc {row['group_a']} - {row['group_b']}: "
+            f"diff={_fmt(row['mean_difference_a_minus_b'])}, "
+            f"t({_fmt(row['df'])})={_fmt(row['t_stat'])}, "
+            f"p={_fmt(row['p_value'])}, p_holm={_fmt(row['p_value_holm'])}"
+        )
     print(f"Wrote outputs with prefix: {prefix}")
     return 0
 

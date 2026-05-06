@@ -10,6 +10,7 @@ from src.analysis.agarose_time_summary import (
     paired_test,
     parse_group,
     read_learning_stats_section,
+    reduction_anova_and_posthoc,
     welch_reduction_test,
 )
 
@@ -95,6 +96,43 @@ def test_welch_reduction_test_uses_satterthwaite_df(tmp_path):
     assert result.mean_difference_a_minus_b == pytest.approx(xa.mean() - xb.mean())
     assert result.df == pytest.approx(expected_df)
     assert result.t_stat == pytest.approx(stats.ttest_ind(xa, xb, equal_var=False).statistic)
+
+
+def test_reduction_anova_control_posthocs_holm_correct_only_control_family(tmp_path):
+    paths = [tmp_path / f"{label}.csv" for label in ["control", "exp1", "exp2"]]
+    rows_by_group = [
+        [("c1", 1, 12, 1, 1, 8), ("c2", 2, 13, 1, 1, 8), ("c3", 3, 14, 1, 1, 8)],
+        [("e1", 1, 18, 1, 1, 6), ("e2", 2, 19, 1, 1, 6), ("e3", 3, 20, 1, 1, 6)],
+        [("f1", 1, 20, 1, 1, 5), ("f2", 2, 21, 1, 1, 5), ("f3", 3, 22, 1, 1, 5)],
+    ]
+    for path, rows in zip(paths, rows_by_group):
+        _write_learning_stats(path, rows)
+
+    tests = [
+        paired_test(
+            parse_group(label, path, numeric_cols=[PRE, POST]),
+            pre_col=PRE,
+            post_col=POST,
+        )
+        for label, path in zip(["Control", "Exp1", "Exp2"], paths)
+    ]
+
+    anova, posthoc = reduction_anova_and_posthoc(tests, posthoc_scope="control")
+
+    assert anova is not None
+    assert anova.df_between == 2
+    assert anova.df_within == 6
+    assert [(p.group_a, p.group_b) for p in posthoc] == [
+        ("Control", "Exp1"),
+        ("Control", "Exp2"),
+    ]
+    raw_pvals = [p.p_value for p in posthoc]
+    expected_holm = sorted(raw_pvals)
+    expected_holm = [
+        min(1.0, expected_holm[0] * 2),
+        min(1.0, max(expected_holm[0] * 2, expected_holm[1])),
+    ]
+    assert sorted(p.p_value_holm for p in posthoc) == pytest.approx(expected_holm)
 
 
 def test_reference_learning_stats_fixture_can_be_summarized_with_older_post_column():
