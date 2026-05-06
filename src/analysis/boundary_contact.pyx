@@ -1436,6 +1436,75 @@ cdef class EllipseToBoundaryDistCalculator:
                 else:  # Bottom boundary
                     return y > boundary
 
+    def _use_center_reference_for_interpolated_edge_frames(self):
+        if self.ellipse_ref_pt != "edge" or not hasattr(self.trj, "nan"):
+            return
+
+        lost = np.asarray(self.trj.nan, dtype=bool)
+        if not np.any(lost):
+            return
+
+        center_x = np.asarray(self.trj.x)
+        center_y = np.asarray(self.trj.y)
+        lost = lost & np.isfinite(center_x) & np.isfinite(center_y)
+        if not np.any(lost):
+            return
+
+        wall_indices = []
+        boundary_coords = []
+        if self.boundary_combo in ("all", "lr", "agarose_adj"):
+            wall_indices.extend((0, 2))
+            boundary_coords.extend((self.x_bounds_orig[0], self.x_bounds_orig[1]))
+        if self.boundary_combo in ("all", "tb", "agarose_adj"):
+            wall_indices.extend((1, 3))
+            boundary_coords.extend((self.y_bounds[1], self.y_bounds[0]))
+
+        if not wall_indices:
+            return
+
+        distances = np.empty((len(center_x), len(wall_indices)))
+        for j, wall_idx in enumerate(wall_indices):
+            if wall_idx in (0, 2):
+                distances[:, j] = np.abs(center_x - boundary_coords[j])
+            else:
+                distances[:, j] = np.abs(center_y - boundary_coords[j])
+
+        best_cols = np.argmin(distances, axis=1)
+        best_wall_indices = np.asarray(wall_indices)[best_cols]
+        best_boundary_coords = np.asarray(boundary_coords)[best_cols]
+        lost_idxs = np.flatnonzero(lost)
+
+        self.best_wall_indices[lost] = best_wall_indices[lost]
+        self.min_distances[lost] = distances[lost_idxs, best_cols[lost]]
+        self.best_pts["ellipse"][lost, 0] = center_x[lost]
+        self.best_pts["ellipse"][lost, 1] = center_y[lost]
+
+        for i in lost_idxs:
+            if best_wall_indices[i] in (0, 2):
+                self.best_pts["boundary"][i, 0] = best_boundary_coords[i]
+                self.best_pts["boundary"][i, 1] = center_y[i]
+            else:
+                self.best_pts["boundary"][i, 0] = center_x[i]
+                self.best_pts["boundary"][i, 1] = best_boundary_coords[i]
+
+        oob = np.zeros(len(center_x), dtype=bool)
+        ignored_oob = np.zeros(len(center_x), dtype=bool)
+        if self.boundary_combo != "tb":
+            oob |= (center_x < self.x_bounds_orig[0]) | (center_x > self.x_bounds_orig[1])
+        elif self.boundary_combo == "tb":
+            x_offset = (1 / 10) * (self.x_bounds_orig[1] - self.x_bounds_orig[0])
+            ignored_oob = (
+                (center_x < self.x_bounds_orig[0] + x_offset)
+                | (center_x > self.x_bounds_orig[1] - x_offset)
+            )
+        if self.boundary_combo != "lr":
+            oob |= (center_y < self.y_bounds[0]) | (center_y > self.y_bounds[1])
+        elif self.boundary_combo == "lr":
+            ignored_oob = (center_y < self.y_bounds[0]) | (center_y > self.y_bounds[1])
+
+        self.out_of_bounds[lost] = oob[lost]
+        self.oob_on_ignored_wall[lost] = ignored_oob[lost]
+
     def update_return_data_for_boundary_contact_stats(self, wall_contact, near_contact, dist_to_wall=None):
         # Updates the return data structure with statistics related to boundary contact events.
         #
@@ -2137,6 +2206,7 @@ cdef class EllipseToBoundaryDistCalculator:
             self.best_pts[k] = rotate_pts(
                 self.best_pts[k], self.cos_of_angles, self.neg_sin_of_angles, self.origins
             )
+        self._use_center_reference_for_interpolated_edge_frames()
 
         # Set event thresholds and find boundary contact events
         for near_contact in (False, True):
