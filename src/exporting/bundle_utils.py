@@ -4,6 +4,9 @@ from __future__ import annotations
 import os
 import numpy as np
 
+from src.analysis.between_reward_filters import (
+    min_between_reward_sync_bucket_trajectories,
+)
 from src.analysis.sli_bundle_utils import normalize_sli_bundle
 from src.exporting.com_sli_bundle import (
     _safe_group_label,
@@ -125,6 +128,9 @@ def build_metric_plus_sli_bundle(
                 else max(0, int(getattr(opts, "sli_select_keep_first_sync_buckets")))
             ),
             dtype=int,
+        ),
+        btw_rwd_sync_bucket_min_trajectories=np.array(
+            min_between_reward_sync_bucket_trajectories(opts), dtype=int
         ),
     )
 

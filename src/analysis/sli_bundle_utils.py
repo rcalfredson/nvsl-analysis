@@ -15,6 +15,7 @@ REQ_BUNDLE_KEYS = [
 
 BUNDLE_ARRAY_PREFIXES = (
     "commag_",
+    "commagN_",
     "between_reward_",
     "cum_reward_sli_",
     "weaving_",
@@ -81,7 +82,11 @@ def load_sli_bundle(path: str) -> dict:
     for k in d.files:
         if k in out:
             continue
-        if k.startswith(BUNDLE_ARRAY_PREFIXES) or k in ("sli_ts", "fly_ids"):
+        if k.startswith(BUNDLE_ARRAY_PREFIXES) or k in (
+            "sli_ts",
+            "fly_ids",
+            "btw_rwd_sync_bucket_min_trajectories",
+        ):
             out[k] = d[k]
     return normalize_sli_bundle(out, path=path)
 

@@ -3,6 +3,10 @@ from __future__ import annotations
 import os
 import numpy as np
 
+from src.analysis.between_reward_filters import (
+    mask_metric_by_min_between_reward_trajectories,
+    min_between_reward_sync_bucket_trajectories,
+)
 from src.plotting.between_reward_segment_binning import (
     sync_bucket_window,
     build_nonwalk_mask,
@@ -258,6 +262,7 @@ class ReturnLegDistPerFlyCollector:
         )
         exclude_nonwalk = self._exclude_nonwalk()
         min_walk_frames = self._min_walk_frames()
+        min_segments = min_between_reward_sync_bucket_trajectories(self.opts)
 
         warned_missing_wc = [False]
         dist_stats = ("median", "max")
@@ -352,6 +357,9 @@ class ReturnLegDistPerFlyCollector:
                     means = np.full(nb_here, np.nan, dtype=float)
                     keep = counts > 0
                     means[keep] = sums[keep] / counts[keep]
+                    means = mask_metric_by_min_between_reward_trajectories(
+                        means, counts, min_segments
+                    )
 
                     tgt_mean = mean_exp if fly_key == "exp" else mean_ctrl
                     tgt_n = n_exp if fly_key == "exp" else n_ctrl

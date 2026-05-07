@@ -1,6 +1,10 @@
 import numpy as np
 import os
 
+from src.analysis.between_reward_filters import (
+    mask_metric_by_min_between_reward_trajectories,
+    min_between_reward_sync_bucket_trajectories,
+)
 from src.analysis.sli_tools import resolve_sync_bucket_selector
 
 
@@ -13,11 +17,13 @@ def _safe_group_label(opts, gls):
     return "group"
 
 
-def _extract_commag_arrays(vas):
+def _extract_commag_arrays(vas, opts=None):
     """
     Returns:
       commag_exp:  (n_videos, n_trains, nb)
       commag_ctrl: (n_videos, n_trains, nb) (all-NaN if absent)
+      commagN_exp:  (n_videos, n_trains, nb) int, when per-bucket COM counts exist
+      commagN_ctrl: (n_videos, n_trains, nb) int, when per-bucket COM counts exist
     """
     n_videos = len(vas)
     va0 = vas[0]
@@ -27,6 +33,9 @@ def _extract_commag_arrays(vas):
 
     commag_exp = np.full((n_videos, n_trains, nb), np.nan, dtype=float)
     commag_ctrl = np.full((n_videos, n_trains, nb), np.nan, dtype=float)
+    commagN_exp = np.zeros((n_videos, n_trains, nb), dtype=int)
+    commagN_ctrl = np.zeros((n_videos, n_trains, nb), dtype=int)
+    have_counts = any(hasattr(va, "syncCOMMagN") for va in vas)
 
     for vi, va in enumerate(vas):
         # Defensively handle VAs that were skipped or that have missing fields
@@ -46,7 +55,30 @@ def _extract_commag_arrays(vas):
             if ctrl_vals is not None:
                 commag_ctrl[vi, ti, : min(nb, len(ctrl_vals))] = ctrl_vals[:nb]
 
-    return commag_exp, commag_ctrl
+            if have_counts:
+                n_list = getattr(va, "syncCOMMagN", None)
+                if isinstance(n_list, list) and ti < len(n_list):
+                    n_dict = n_list[ti] if isinstance(n_list[ti], dict) else {}
+                    exp_n = np.asarray(n_dict.get("exp", []), dtype=int).reshape(-1)
+                    ctrl_n = np.asarray(n_dict.get("ctrl", []), dtype=int).reshape(-1)
+                    ne = min(nb, exp_n.size)
+                    nc = min(nb, ctrl_n.size)
+                    if ne > 0:
+                        commagN_exp[vi, ti, :ne] = exp_n[:ne]
+                    if nc > 0:
+                        commagN_ctrl[vi, ti, :nc] = ctrl_n[:nc]
+
+    if have_counts:
+        min_segments = min_between_reward_sync_bucket_trajectories(opts)
+        commag_exp = mask_metric_by_min_between_reward_trajectories(
+            commag_exp, commagN_exp, min_segments
+        )
+        commag_ctrl = mask_metric_by_min_between_reward_trajectories(
+            commag_ctrl, commagN_ctrl, min_segments
+        )
+        return commag_exp, commag_ctrl, commagN_exp, commagN_ctrl
+
+    return commag_exp, commag_ctrl, None, None
 
 
 def _compute_sli_scalar_and_timeseries_from_rpid(vas, opts):
@@ -140,7 +172,9 @@ def build_com_sli_bundle(vas, opts, gls) -> dict:
     group_label = _safe_group_label(opts, gls)
 
     # Extract COM magnitude arrays
-    commag_exp, commag_ctrl = _extract_commag_arrays(vas_ok)
+    commag_exp, commag_ctrl, commagN_exp, commagN_ctrl = _extract_commag_arrays(
+        vas_ok, opts
+    )
 
     # Compute SLI
     try:
@@ -199,7 +233,7 @@ def build_com_sli_bundle(vas, opts, gls) -> dict:
     except Exception:
         video_ids = np.array([f"va_{i}" for i in range(len(vas_ok))], dtype=object)
 
-    return dict(
+    payload = dict(
         sli=sli,
         sli_ts=sli_ts,
         commag_exp=commag_exp,
@@ -228,4 +262,13 @@ def build_com_sli_bundle(vas, opts, gls) -> dict:
             ),
             dtype=int,
         ),
+        btw_rwd_sync_bucket_min_trajectories=np.array(
+            min_between_reward_sync_bucket_trajectories(opts), dtype=int
+        ),
     )
+
+    if commagN_exp is not None:
+        payload["commagN_exp"] = commagN_exp
+        payload["commagN_ctrl"] = commagN_ctrl
+
+    return payload

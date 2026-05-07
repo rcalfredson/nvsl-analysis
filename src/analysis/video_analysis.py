@@ -77,6 +77,9 @@ from src.utils.large_turn_debug import save_large_turn_exit_table
 from src.analysis.contact_event_training_comparison import (
     ContactEventTrainingComparison,
 )
+from src.analysis.between_reward_filters import (
+    min_between_reward_sync_bucket_trajectories,
+)
 from src.analysis.ellipse_to_boundary_dist import (
     TrjDataContainer,
     VaDataContainer,
@@ -3760,8 +3763,13 @@ class VideoAnalysis:
         df = self._numRewardsMsg(True, silent=True)
 
         self.syncCOM = []
+        count_based_mag = bool(store_mag)
         if store_mag:
             self.syncCOMMag = []
+        if count_based_mag:
+            self.syncCOMMagN = []
+        elif hasattr(self, "syncCOMMagN"):
+            delattr(self, "syncCOMMagN")
 
         if getattr(self.opts, "com_sli_debug", False):
             self.syncCOMMag_reason = (
@@ -3783,6 +3791,7 @@ class VideoAnalysis:
 
             this_training = {}
             this_training_mag = {} if store_mag else None
+            this_training_mag_n = {} if count_based_mag else None
             this_training_reason = (
                 {} if getattr(self.opts, "com_sli_debug", False) else None
             )
@@ -3804,6 +3813,8 @@ class VideoAnalysis:
                             self._printBucketVals(
                                 [], f=fly_idx, msg=flyDesc(fly_idx), prec=3
                             )
+                    if count_based_mag:
+                        this_training_mag_n[fly_key] = [0] * n_buckets
                     if getattr(self.opts, "com_sli_debug", False):
                         this_training_reason[fly_key] = [
                             COMR_NO_FULL_BUCKETS
@@ -3815,6 +3826,8 @@ class VideoAnalysis:
                 self.syncCOM.append(this_training)
                 if store_mag:
                     self.syncCOMMag.append(this_training_mag)
+                if count_based_mag:
+                    self.syncCOMMagN.append(this_training_mag_n)
                 if getattr(self.opts, "com_sli_debug", False):
                     self.syncCOMMag_reason.append(this_training_reason)
                     self.syncCOMMag_detail.append(this_training_detail)
@@ -3839,6 +3852,8 @@ class VideoAnalysis:
                         this_training_mag[fly_key] = [np.nan] * n_buckets
                         if verbose:
                             print(f"  {flyDesc(fly_idx)}: bad trajectory")
+                    if count_based_mag:
+                        this_training_mag_n[fly_key] = [0] * n_buckets
                     if getattr(self.opts, "com_sli_debug", False):
                         this_training_reason[fly_key] = [COMR_BAD_TRAJ] * n_buckets
                         this_training_detail[fly_key] = [
@@ -3861,6 +3876,14 @@ class VideoAnalysis:
 
                 com_vals = []
                 mag_vals = [] if store_mag else None
+                mag_ns = [0] * n_buckets if count_based_mag else None
+                trajectory_counts = [0] * n_buckets
+                on_for_counts = self._getOn(trn, False, f=fly_idx)
+                if on_for_counts is not None and len(on_for_counts) >= 2:
+                    for s0 in on_for_counts[:-1]:
+                        b_idx0 = int((int(s0) - int(fi)) // int(df))
+                        if 0 <= b_idx0 < n_buckets and complete[b_idx0]:
+                            trajectory_counts[b_idx0] += 1
 
                 if per_segment:
                     agg_mode = str(per_segment_agg or "vector_mean").strip().lower()
@@ -3876,6 +3899,8 @@ class VideoAnalysis:
                         this_training[fly_key] = [(np.nan, np.nan)] * n_buckets
                         if store_mag:
                             this_training_mag[fly_key] = [np.nan] * n_buckets
+                        if count_based_mag:
+                            this_training_mag_n[fly_key] = [0] * n_buckets
 
                         if getattr(self.opts, "com_sli_debug", False):
                             this_training_reason[fly_key] = [
@@ -3961,15 +3986,22 @@ class VideoAnalysis:
                     # average per-segment vectors within each bucket + produce reasons/details
                     com_vals = []
                     mag_vals = [] if store_mag else None
+                    mag_ns = [] if count_based_mag else None
                     reasons = []
                     details = []
+                    min_segments = min_between_reward_sync_bucket_trajectories(
+                        self.opts
+                    )
                     for b_idx in range(n_buckets):
                         st = bucket_stats[b_idx]
+                        n_used = int(st["n_segments_used"])
 
                         if not complete[b_idx]:
                             com_vals.append((np.nan, np.nan))
                             if store_mag:
                                 mag_vals.append(np.nan)
+                            if count_based_mag:
+                                mag_ns.append(0)
                             reasons.append(COMR_INCOMPLETE_BUCKET)
                             details.append(
                                 {
@@ -3984,21 +4016,35 @@ class VideoAnalysis:
 
                         if seg_vecs[b_idx]:
                             v = np.asarray(seg_vecs[b_idx], dtype=float)
-                            if agg_mode == "mean_magnitude":
+                            if n_used < min_segments:
+                                com_vals.append((np.nan, np.nan))
+                                if store_mag:
+                                    mag_vals.append(np.nan)
+                                if count_based_mag:
+                                    mag_ns.append(n_used)
+                                reasons.append(COMR_EMPTY_BUCKET)
+                            elif agg_mode == "mean_magnitude":
                                 com_vals.append((np.nan, np.nan))
                                 if store_mag:
                                     mag_vals.append(float(np.nanmean(v[:, 2])))
+                                if count_based_mag:
+                                    mag_ns.append(n_used)
+                                reasons.append(COMR_OK)
                             else:
                                 mx_mm = np.nanmean(v[:, 0])
                                 my_mm = np.nanmean(v[:, 1])
                                 com_vals.append((mx_mm, my_mm))
                                 if store_mag:
                                     mag_vals.append(np.hypot(mx_mm, my_mm))
-                            reasons.append(COMR_OK)
+                                if count_based_mag:
+                                    mag_ns.append(n_used)
+                                reasons.append(COMR_OK)
                         else:
                             com_vals.append((np.nan, np.nan))
                             if store_mag:
                                 mag_vals.append(np.nan)
+                            if count_based_mag:
+                                mag_ns.append(0)
 
                             # prioritize "strongest" failure signal
                             if st["n_segments_total"] == 0:
@@ -4029,6 +4075,7 @@ class VideoAnalysis:
                                 "bucket": int(b_idx),
                                 "agg_mode": str(agg_mode),
                                 "min_med_mm": float(min_med_mm),
+                                "min_between_reward_trajectories": int(min_segments),
                                 **st,
                             }
                         )
@@ -4052,12 +4099,30 @@ class VideoAnalysis:
                     ]
                     com_vals = [(np.nan, np.nan)] * n_buckets
                     mag_vals = [np.nan] * n_buckets if store_mag else None
+                    mag_ns = list(trajectory_counts) if count_based_mag else None
+                    min_segments = min_between_reward_sync_bucket_trajectories(
+                        self.opts
+                    )
                     for b_idx, (s, e) in enumerate(zip(starts, ends)):
                         if not complete[b_idx]:
                             continue
                         # default
                         r = COMR_OK
                         det = {"s": int(s), "e": int(e), "n_frames": int(e - s)}
+
+                        if trajectory_counts[b_idx] < min_segments:
+                            r = COMR_EMPTY_BUCKET
+                            det["why"] = "too_few_between_reward_trajectories"
+                            det["n_between_reward_trajectories"] = int(
+                                trajectory_counts[b_idx]
+                            )
+                            det["min_between_reward_trajectories"] = int(min_segments)
+                            com_vals[b_idx] = (np.nan, np.nan)
+                            if store_mag:
+                                mag_vals[b_idx] = np.nan
+                            reasons[b_idx] = r
+                            details[b_idx].update(det)
+                            continue
 
                         # if self.is_excluded_pair(fly_idx, trn.n - 1, b_idx):
                         #     r = COMR_EXCLUDED_PAIR
@@ -4127,6 +4192,9 @@ class VideoAnalysis:
                 this_training[fly_key] = com_vals
                 if store_mag:
                     this_training_mag[fly_key] = mag_vals
+                if count_based_mag:
+                    this_training_mag_n[fly_key] = mag_ns
+                if store_mag:
                     if verbose:
                         self._printBucketVals(
                             mag_vals, f=fly_idx, msg=flyDesc(fly_idx), prec=3
@@ -4138,6 +4206,8 @@ class VideoAnalysis:
             self.syncCOM.append(this_training)
             if store_mag:
                 self.syncCOMMag.append(this_training_mag)
+            if count_based_mag:
+                self.syncCOMMagN.append(this_training_mag_n)
             if getattr(self.opts, "com_sli_debug", False):
                 self.syncCOMMag_reason.append(this_training_reason)
                 self.syncCOMMag_detail.append(this_training_detail)
@@ -4588,11 +4658,14 @@ class VideoAnalysis:
 
                 means = [np.nan] * n_buckets
                 ns = [0] * n_buckets
+                min_segments = min_between_reward_sync_bucket_trajectories(self.opts)
                 for b_idx in range(n_buckets):
                     if not complete[b_idx]:
                         continue
-                    if counts[b_idx] > 0:
+                    if counts[b_idx] > 0 and counts[b_idx] >= min_segments:
                         means[b_idx] = sums[b_idx] / counts[b_idx]
+                        ns[b_idx] = int(counts[b_idx])
+                    else:
                         ns[b_idx] = int(counts[b_idx])
 
                 this_training[fly_key] = means

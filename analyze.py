@@ -4607,6 +4607,18 @@ g.add_argument(
     + "(default: %(default)s)",
 )
 g.add_argument(
+    "--btw-rwd-sync-bucket-min-trajectories",
+    type=int,
+    default=5,
+    metavar="N",
+    help=(
+        "Minimum number of between-reward trajectories required for one fly in "
+        "one sync bucket before reporting between-reward sync-bucket metrics "
+        "(mean max distance, return-leg distance, and per-segment COM). "
+        "Use 0 to disable this filter. Default: %(default)s."
+    ),
+)
+g.add_argument(
     "--apply-pi-pre",
     action="store_true",
     help="Apply PI threshold to pre-training reward window as well as training.",
