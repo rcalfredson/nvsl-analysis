@@ -190,6 +190,7 @@ def build_figure(
     ylabel: str,
     control_group: str | None,
     posthoc_scope: str,
+    posthoc_method: str,
     stats_alpha: float,
     show_stats: bool,
     show_points: bool,
@@ -331,6 +332,7 @@ def build_figure(
             paired,
             control_group=control_group,
             posthoc_scope=posthoc_scope,
+            posthoc_method=posthoc_method,
         )
         _draw_stats(
             ax,
@@ -400,6 +402,15 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     p.add_argument(
+        "--posthoc-method",
+        choices=["holm-welch", "games-howell"],
+        default="holm-welch",
+        help=(
+            "Post-hoc method for plot stars. 'holm-welch' runs pairwise Welch "
+            "t-tests with Holm correction; 'games-howell' runs Games-Howell tests."
+        ),
+    )
+    p.add_argument(
         "--stats-alpha",
         type=float,
         default=0.05,
@@ -434,6 +445,7 @@ def main() -> int:
         ylabel=args.ylabel,
         control_group=args.control_group,
         posthoc_scope=args.posthoc_scope,
+        posthoc_method=args.posthoc_method,
         stats_alpha=args.stats_alpha,
         show_stats=not args.no_stats,
         show_points=not args.hide_points,

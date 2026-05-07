@@ -135,6 +135,54 @@ def test_reduction_anova_control_posthocs_holm_correct_only_control_family(tmp_p
     assert sorted(p.p_value_holm for p in posthoc) == pytest.approx(expected_holm)
 
 
+def test_reduction_anova_games_howell_uses_studentized_range(tmp_path):
+    paths = [tmp_path / f"{label}.csv" for label in ["control", "exp1", "exp2"]]
+    rows_by_group = [
+        [("c1", 1, 12, 1, 1, 8), ("c2", 2, 14, 1, 1, 9), ("c3", 3, 15, 1, 1, 10)],
+        [("e1", 1, 20, 1, 1, 6), ("e2", 2, 23, 1, 1, 7), ("e3", 3, 25, 1, 1, 8)],
+        [("f1", 1, 18, 1, 1, 14), ("f2", 2, 27, 1, 1, 10), ("f3", 3, 35, 1, 1, 11)],
+    ]
+    for path, rows in zip(paths, rows_by_group):
+        _write_learning_stats(path, rows)
+
+    tests = [
+        paired_test(
+            parse_group(label, path, numeric_cols=[PRE, POST]),
+            pre_col=PRE,
+            post_col=POST,
+        )
+        for label, path in zip(["Control", "Exp1", "Exp2"], paths)
+    ]
+
+    _anova, posthoc = reduction_anova_and_posthoc(
+        tests,
+        posthoc_scope="all",
+        posthoc_method="games-howell",
+    )
+
+    first = posthoc[0]
+    xa = np.asarray([4.0, 5.0, 5.0])
+    xb = np.asarray([14.0, 16.0, 17.0])
+    se2 = np.var(xa, ddof=1) / len(xa) + np.var(xb, ddof=1) / len(xb)
+    df = se2**2 / (
+        (np.var(xa, ddof=1) / len(xa)) ** 2 / (len(xa) - 1)
+        + (np.var(xb, ddof=1) / len(xb)) ** 2 / (len(xb) - 1)
+    )
+    q_stat = abs(float(np.mean(xa) - np.mean(xb))) / np.sqrt(0.5 * se2)
+    expected_p = stats.studentized_range.sf(q_stat, 3, df)
+
+    assert [(p.group_a, p.group_b) for p in posthoc] == [
+        ("Control", "Exp1"),
+        ("Control", "Exp2"),
+        ("Exp1", "Exp2"),
+    ]
+    assert first.t_stat == pytest.approx(q_stat)
+    assert first.df == pytest.approx(df)
+    assert first.p_value == pytest.approx(expected_p)
+    assert first.p_value_holm == pytest.approx(expected_p)
+    assert "Games-Howell" in first.test
+
+
 def test_reference_learning_stats_fixture_can_be_summarized_with_older_post_column():
     csv_path = Path("test/reference/csv/learning_stats_on_agarose.csv")
     group = parse_group("fixture", csv_path, numeric_cols=[PRE, T1, T3_END])

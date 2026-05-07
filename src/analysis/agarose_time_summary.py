@@ -11,6 +11,12 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from src.analysis.posthoc_tests import (
+    games_howell_pair,
+    holm_adjust,
+    welch_t_pair,
+)
+
 
 DEFAULT_SECTION = (
     "% time over agarose (contact events begin when edge of fitted ellipse crosses "
@@ -378,49 +384,62 @@ def _clean_reductions(test: PairedTest) -> np.ndarray:
     return x[np.isfinite(x)]
 
 
-def _holm_adjust(pvals: list[float]) -> list[float]:
-    p = np.asarray(pvals, dtype=float)
-    if p.size == 0:
-        return []
-    out = np.full_like(p, np.nan)
-    finite = np.isfinite(p)
-    if not np.any(finite):
-        return out.tolist()
-
-    pf = np.clip(p[finite], 0.0, 1.0)
-    order = np.argsort(pf)
-    p_sorted = pf[order]
-    adj_sorted = np.empty_like(p_sorted)
-    running_max = 0.0
-    m = int(p_sorted.size)
-    for idx, pv in enumerate(p_sorted):
-        running_max = max(running_max, float((m - idx) * pv))
-        adj_sorted[idx] = min(1.0, running_max)
-    adj = np.empty_like(adj_sorted)
-    adj[order] = adj_sorted
-    out[finite] = adj
-    return out.tolist()
-
-
 def _welch_reduction_posthoc(
     a: PairedTest, b: PairedTest, *, p_value_holm: float = np.nan
 ) -> ReductionPosthocTest:
-    welch = welch_reduction_test(a, b)
+    welch = welch_t_pair(
+        a.group,
+        a.reductions,
+        b.group,
+        b.reductions,
+        p_value_adjusted=p_value_holm,
+    )
     return ReductionPosthocTest(
         group_a=welch.group_a,
         group_b=welch.group_b,
         n_a=welch.n_a,
         n_b=welch.n_b,
-        mean_reduction_a=welch.mean_reduction_a,
-        mean_reduction_b=welch.mean_reduction_b,
+        mean_reduction_a=welch.mean_a,
+        mean_reduction_b=welch.mean_b,
         mean_difference_a_minus_b=welch.mean_difference_a_minus_b,
         ci95_low=welch.ci95_low,
         ci95_high=welch.ci95_high,
-        t_stat=welch.t_stat,
+        t_stat=welch.statistic,
         df=welch.df,
         p_value=welch.p_value,
-        p_value_holm=float(p_value_holm),
+        p_value_holm=welch.p_value_adjusted,
         test="Welch independent-samples t-test, Holm-adjusted family",
+    )
+
+
+def _games_howell_reduction_posthoc(
+    a: PairedTest, b: PairedTest, *, n_groups: int
+) -> ReductionPosthocTest:
+    result = games_howell_pair(
+        a.group,
+        a.reductions,
+        b.group,
+        b.reductions,
+        n_groups=n_groups,
+    )
+    return ReductionPosthocTest(
+        group_a=result.group_a,
+        group_b=result.group_b,
+        n_a=result.n_a,
+        n_b=result.n_b,
+        mean_reduction_a=result.mean_a,
+        mean_reduction_b=result.mean_b,
+        mean_difference_a_minus_b=result.mean_difference_a_minus_b,
+        ci95_low=result.ci95_low,
+        ci95_high=result.ci95_high,
+        t_stat=result.statistic,
+        df=result.df,
+        p_value=result.p_value,
+        p_value_holm=result.p_value_adjusted,
+        test=(
+            "Games-Howell post-hoc test "
+            f"(studentized range; family includes {int(n_groups)} groups)"
+        ),
     )
 
 
@@ -429,6 +448,7 @@ def reduction_anova_and_posthoc(
     *,
     control_group: str | None = None,
     posthoc_scope: str = "control",
+    posthoc_method: str = "holm-welch",
     min_n_per_group: int = 2,
 ) -> tuple[ReductionAnova | None, list[ReductionPosthocTest]]:
     """
@@ -442,6 +462,8 @@ def reduction_anova_and_posthoc(
         return None, []
     if posthoc_scope not in {"control", "all"}:
         raise ValueError("posthoc_scope must be 'control' or 'all'")
+    if posthoc_method not in {"holm-welch", "games-howell"}:
+        raise ValueError("posthoc_method must be 'holm-welch' or 'games-howell'")
 
     samples = [_clean_reductions(t) for t in tests]
     anova_samples = [x for x in samples if x.size >= int(min_n_per_group)]
@@ -487,12 +509,23 @@ def reduction_anova_and_posthoc(
     else:
         pairs = [(i, j) for i in range(len(tests)) for j in range(i + 1, len(tests))]
 
-    raw_results = [_welch_reduction_posthoc(tests[i], tests[j]) for i, j in pairs]
-    p_holm = _holm_adjust([r.p_value for r in raw_results])
-    posthoc = [
-        _welch_reduction_posthoc(tests[i], tests[j], p_value_holm=p_adj)
-        for (i, j), p_adj in zip(pairs, p_holm)
-    ]
+    if posthoc_method == "games-howell":
+        n_groups = len(anova_samples) if anova_samples else len(tests)
+        posthoc = [
+            _games_howell_reduction_posthoc(
+                tests[i],
+                tests[j],
+                n_groups=n_groups,
+            )
+            for i, j in pairs
+        ]
+    else:
+        raw_results = [_welch_reduction_posthoc(tests[i], tests[j]) for i, j in pairs]
+        p_holm = holm_adjust([r.p_value for r in raw_results])
+        posthoc = [
+            _welch_reduction_posthoc(tests[i], tests[j], p_value_holm=p_adj)
+            for (i, j), p_adj in zip(pairs, p_holm)
+        ]
     return anova, posthoc
 
 

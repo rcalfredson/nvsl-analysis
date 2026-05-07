@@ -156,6 +156,16 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     p.add_argument(
+        "--posthoc-method",
+        choices=["holm-welch", "games-howell"],
+        default="holm-welch",
+        help=(
+            "Post-hoc method for paired reduction scores. 'holm-welch' runs "
+            "pairwise Welch t-tests with Holm correction; 'games-howell' runs "
+            "Games-Howell tests using the studentized range distribution."
+        ),
+    )
+    p.add_argument(
         "--verbose",
         action="store_true",
         help="Print parsed section sizes and numeric coercion warnings.",
@@ -192,6 +202,7 @@ def main(argv: list[str] | None = None) -> int:
         paired,
         control_group=args.control_group,
         posthoc_scope=args.posthoc_scope,
+        posthoc_method=args.posthoc_method,
     )
     anova_rows_out = reduction_anova_rows(reduction_anova)
     posthoc_rows_out = reduction_posthoc_rows(reduction_posthoc)
@@ -240,11 +251,15 @@ def main(argv: list[str] | None = None) -> int:
             f"{_fmt(row['f_stat'])}, p={_fmt(row['p_value'])}"
         )
     for row in posthoc_rows_out:
+        is_games_howell = "Games-Howell" in str(row["test"])
+        label = "Games-Howell post-hoc" if is_games_howell else "Holm post-hoc"
+        stat_label = "q" if is_games_howell else "t"
+        p_adj_label = "p_games_howell" if is_games_howell else "p_holm"
         print(
-            f"  Holm post-hoc {row['group_a']} - {row['group_b']}: "
+            f"  {label} {row['group_a']} - {row['group_b']}: "
             f"diff={_fmt(row['mean_difference_a_minus_b'])}, "
-            f"t({_fmt(row['df'])})={_fmt(row['t_stat'])}, "
-            f"p={_fmt(row['p_value'])}, p_holm={_fmt(row['p_value_holm'])}"
+            f"{stat_label}({_fmt(row['df'])})={_fmt(row['t_stat'])}, "
+            f"p={_fmt(row['p_value'])}, {p_adj_label}={_fmt(row['p_value_holm'])}"
         )
     print(f"Wrote outputs with prefix: {prefix}")
     return 0
