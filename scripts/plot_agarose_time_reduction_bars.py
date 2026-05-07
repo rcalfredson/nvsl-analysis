@@ -31,8 +31,7 @@ from src.plotting.palettes import (
     group_metric_fill_color,
 )
 from src.plotting.plot_customizer import PlotCustomizer
-from src.plotting.stats_bars import draw_sig_bracket
-from src.utils.util import p2stars
+from src.plotting.stats_bars import draw_sig_bracket, format_sig_label
 
 
 def _parse_group_arg(value: str) -> tuple[str, str]:
@@ -119,6 +118,7 @@ def _draw_stats(
     group_names: list[str],
     alpha: float,
     fontsize: float,
+    show_p_value: bool,
 ) -> None:
     sig_rows = [
         row
@@ -132,7 +132,7 @@ def _draw_stats(
     ylim0, ylim1 = ax.get_ylim()
     y_rng = float(ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 1.0
     bracket_h = 0.018 * y_rng
-    step = 0.085 * y_rng
+    step = (0.12 if show_p_value else 0.085) * y_rng
     y = float(y_base + 0.055 * y_rng)
 
     max_top = y
@@ -141,7 +141,7 @@ def _draw_stats(
         j = idx_by_group.get(row.group_b)
         if i is None or j is None:
             continue
-        stars = p2stars(row.p_value_holm, nanR="")
+        stars = format_sig_label(row.p_value_holm, include_p_value=show_p_value)
         if not stars or stars == "ns":
             continue
         y_here = y + level * step
@@ -155,7 +155,10 @@ def _draw_stats(
             fontsize=float(fontsize),
             color=NEUTRAL_DARK,
         )
-        max_top = max(max_top, y_here + bracket_h + 0.06 * y_rng)
+        max_top = max(
+            max_top,
+            y_here + bracket_h + (0.10 if show_p_value else 0.06) * y_rng,
+        )
 
     ylim0, ylim1 = ax.get_ylim()
     if max_top > ylim1:
@@ -193,6 +196,7 @@ def build_figure(
     posthoc_method: str,
     stats_alpha: float,
     show_stats: bool,
+    show_stats_p_value: bool,
     show_points: bool,
     opts,
 ) -> plt.Figure:
@@ -342,6 +346,7 @@ def build_figure(
             group_names=group_names,
             alpha=float(stats_alpha),
             fontsize=text_fontsize,
+            show_p_value=bool(show_stats_p_value),
         )
 
     fig.tight_layout()
@@ -422,6 +427,12 @@ def parse_args() -> argparse.Namespace:
         help="Do not draw Holm-adjusted post-hoc stars.",
     )
     p.add_argument(
+        "--show-stats-p-value",
+        "--show-stats-p-values",
+        action="store_true",
+        help="Show the adjusted p-value below each significant post-hoc star label.",
+    )
+    p.add_argument(
         "--hide-points",
         action="store_true",
         help="Hide per-fly reduction points overlaid on the bars.",
@@ -448,6 +459,7 @@ def main() -> int:
         posthoc_method=args.posthoc_method,
         stats_alpha=args.stats_alpha,
         show_stats=not args.no_stats,
+        show_stats_p_value=args.show_stats_p_value,
         show_points=not args.hide_points,
         opts=opts,
     )

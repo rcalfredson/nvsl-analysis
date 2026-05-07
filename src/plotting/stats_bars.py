@@ -204,6 +204,25 @@ def draw_sig_bracket(
     )
 
 
+def format_sig_label(
+    p_value: float,
+    *,
+    include_p_value: bool = False,
+    p_prefix: str = "p=",
+    p_digits: int = 3,
+    nan_label: str = "",
+) -> str:
+    p = float(p_value)
+    stars = p2stars(p, nanR=nan_label)
+    if not stars or stars == "ns":
+        return stars
+    if not include_p_value:
+        return stars
+    if not np.isfinite(p):
+        return stars
+    return f"{stars}\n{p_prefix}{p:.{int(p_digits)}g}"
+
+
 @dataclass(frozen=True)
 class StatAnnotConfig:
     alpha: float = 0.05
@@ -214,6 +233,8 @@ class StatAnnotConfig:
     gap_above_bars_frac: float = 0.045
     nlabel_off_frac: float = 0.04  # set 0.0 if no n labels
     bracket_fontsize: float = 10.0
+    show_p_value: bool = False
+    p_value_digits: int = 3
 
 
 def annotate_grouped_bars_per_bin(
@@ -245,7 +266,6 @@ def annotate_grouped_bars_per_bin(
     ylim0, ylim1 = ax.get_ylim()
     y_rng = float(ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 1.0
     bracket_h = cfg.bracket_h_frac * y_rng
-    step = bracket_h + cfg.stack_gap_frac * y_rng
     fig = ax.figure
     fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
@@ -254,7 +274,9 @@ def annotate_grouped_bars_per_bin(
     data_per_px = y_rng / ax_h_px
     fontsize_px = float(cfg.bracket_fontsize) * float(fig.dpi) / 72.0
     star_text_pad = max(2.0, 0.15 * fontsize_px) * data_per_px
-    star_text_height = 1.05 * fontsize_px * data_per_px
+    label_lines = 2 if cfg.show_p_value else 1
+    star_text_height = label_lines * 1.05 * fontsize_px * data_per_px
+    step = bracket_h + cfg.stack_gap_frac * y_rng + (label_lines - 1) * star_text_height
 
     gidx = {name: i for i, name in enumerate(group_names)}
     for j in range(B):
@@ -348,7 +370,11 @@ def annotate_grouped_bars_per_bin(
             if x2 < x1:
                 x1, x2 = x2, x1
 
-            stars = p2stars(p)
+            stars = format_sig_label(
+                p,
+                include_p_value=bool(cfg.show_p_value),
+                p_digits=int(cfg.p_value_digits),
+            )
             if not stars:
                 continue
 
