@@ -339,6 +339,51 @@ def _place_interior_legend_min_overlap(
     )
 
 
+def _tick_dodge_step(ticks: np.ndarray) -> float:
+    ticks = np.asarray(ticks, dtype=float).reshape(-1)
+    if ticks.size >= 2:
+        diffs = np.diff(ticks)
+        diffs = diffs[np.isfinite(diffs) & (diffs > 0)]
+        if diffs.size:
+            return float(np.nanmedian(diffs)) * 0.21
+    return 0.21
+
+
+def _centered_x_offsets(count: int, dodge_step: float) -> np.ndarray:
+    if count <= 1 or not np.isfinite(dodge_step) or dodge_step <= 0:
+        return np.zeros((max(count, 1),), dtype=float)
+    idx = np.arange(count, dtype=float) - 0.5 * (count - 1)
+    return idx * (2.0 * float(dodge_step))
+
+
+def _label_final_y(text):
+    if hasattr(text, "_final_y_"):
+        return float(text._final_y_)
+    if hasattr(text, "_y_"):
+        return float(text._y_)
+    return None
+
+
+def _apply_cluster_dodge(
+    texts,
+    *,
+    x: float,
+    y: float,
+    dodge_step: float,
+    span: float,
+) -> tuple[float, float]:
+    count = len(texts) + 1
+    x_offsets = _centered_x_offsets(count, dodge_step)
+    y_offsets = np.arange(count, dtype=float) * 0.025 * float(span)
+    for txt, x_offset, y_offset in zip(texts, x_offsets[:-1], y_offsets[:-1]):
+        if not hasattr(txt, "_base_final_y_"):
+            txt._base_final_y_ = float(txt.get_position()[1])
+        txt.set_x(float(x) + float(x_offset))
+        txt.set_y(float(txt._base_final_y_) + float(y_offset))
+        txt._final_y_ = float(txt.get_position()[1])
+    return float(x) + float(x_offsets[-1]), float(y) + float(y_offsets[-1])
+
+
 def _anova_p_per_bucket(group_samples, *, min_n_per_group=3):
     """
     group_samples: list[np.ndarray], each 1D
@@ -1236,6 +1281,7 @@ def plot_com_sli_bundle_data(
                 "ax": ax,
                 "training_idx": int(ti),
                 "panel_xs": np.asarray(panel_xs, dtype=float),
+                "n_label_dodge_step": _tick_dodge_step(panel_xs),
                 "pending_n_labels": pending_n_labels,
                 "do_anova": bool(do_anova),
                 "do_ttests": bool(do_ttests),
@@ -1312,8 +1358,28 @@ def plot_com_sli_bundle_data(
             )
             if y_n is None:
                 continue
+            bucket_idx = int(info["bucket_idx"])
+            txts_here = lbls.get(bucket_idx, [])
+            bucket_label_ys = [
+                y0
+                for y0 in (_label_final_y(t) for t in txts_here)
+                if y0 is not None and np.isfinite(y0)
+            ]
+            x_pos = float(info["x"])
+            if bucket_label_ys and any(
+                abs(float(y_n) - y0) < 0.06 * span for y0 in bucket_label_ys
+            ):
+                x_pos, y_n = _apply_cluster_dodge(
+                    txts_here,
+                    x=float(info["x"]),
+                    y=float(y_n),
+                    dodge_step=float(ctx["n_label_dodge_step"]),
+                    span=span,
+                )
+                if y_n > ylim[1] - 0.02 * span:
+                    ylim[1] = float(y_n) + 0.05 * span
             txt = util.pltText(
-                float(info["x"]),
+                x_pos,
                 y_n,
                 f"{int(info['n'])}",
                 ha="center",
@@ -1323,7 +1389,8 @@ def plot_com_sli_bundle_data(
             )
             txt._y_ = float(info["anchor_y"])
             txt._final_y_ = float(y_n)
-            lbls[int(info["bucket_idx"])].append(txt)
+            txt._base_final_y_ = float(y_n)
+            lbls[bucket_idx].append(txt)
 
         if (
             ctx["do_anova"]
