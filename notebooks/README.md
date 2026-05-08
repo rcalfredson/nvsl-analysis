@@ -6,6 +6,12 @@ The main notebook is:
 
 - `paper_figure_panels.ipynb`
 
+Additional export notebooks:
+
+- `graphpad_exports.ipynb`: converts selected per-fly scalar exports into
+  GraphPad Prism-friendly CSV files, and contains the standalone agarose
+  percent-time export workflow that is not part of the numbered panel notebook.
+
 The intended pattern for each panel is:
 
 1. A short markdown description of the panel and what biological comparison it shows.

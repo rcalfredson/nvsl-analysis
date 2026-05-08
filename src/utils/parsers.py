@@ -1,3 +1,48 @@
+import argparse
+
+
+def parse_labeled_path(
+    spec: str,
+    *,
+    separators: tuple[str, ...] = ("=",),
+) -> tuple[str, str]:
+    """
+    Parse a LABEL<sep>PATH command-line value.
+
+    The default keeps older CLIs strict about LABEL=PATH. Callers that need to
+    accept existing LABEL:PATH conventions can pass separators=("=", ":").
+    """
+    text = str(spec)
+    positions = [
+        (text.find(sep), sep) for sep in separators if sep and text.find(sep) >= 0
+    ]
+    if not positions:
+        allowed = " or ".join(f"LABEL{sep}PATH" for sep in separators)
+        raise ValueError(f"expected {allowed}, got {spec!r}")
+
+    sep_idx, _sep = min(positions, key=lambda item: item[0])
+    label = text[:sep_idx].strip()
+    path = text[sep_idx + 1 :].strip()
+    if not label or not path:
+        raise ValueError(f"expected non-empty LABEL and PATH in {spec!r}")
+    return label, path
+
+
+def parse_labeled_path_arg(
+    value: str,
+    *,
+    option_name: str = "--group",
+    separators: tuple[str, ...] = ("=",),
+) -> tuple[str, str]:
+    try:
+        return parse_labeled_path(value, separators=separators)
+    except ValueError as exc:
+        allowed = " or ".join(f"LABEL{sep}PATH" for sep in separators)
+        raise argparse.ArgumentTypeError(
+            f"{option_name} must be formatted as {allowed}."
+        ) from exc
+
+
 def parse_distances(distances_str):
     try:
         # Convert the string to a list of floats

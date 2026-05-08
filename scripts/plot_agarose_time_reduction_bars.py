@@ -32,21 +32,11 @@ from src.plotting.palettes import (
 )
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.stats_bars import draw_sig_bracket, format_sig_label
+from src.utils.parsers import parse_labeled_path_arg
 
 
 def _parse_group_arg(value: str) -> tuple[str, str]:
-    if "=" not in value:
-        raise argparse.ArgumentTypeError(
-            "--group must be formatted as LABEL=CSV_PATH, for example Control=learning_stats.csv"
-        )
-    label, path = value.split("=", 1)
-    label = label.strip()
-    path = path.strip()
-    if not label or not path:
-        raise argparse.ArgumentTypeError(
-            "--group must include both a non-empty label and a CSV path."
-        )
-    return label, path
+    return parse_labeled_path_arg(value, option_name="--group")
 
 
 def _savefig(out_path: str, image_format: str) -> None:

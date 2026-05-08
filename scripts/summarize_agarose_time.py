@@ -26,6 +26,7 @@ from src.analysis.agarose_time_summary import (
     write_dict_csv,
     write_wiki_summary_html,
 )
+from src.utils.parsers import parse_labeled_path_arg
 
 
 SUMMARY_FIELDS = ["group", "column", "n", "mean", "sd", "sem", "ci95_low", "ci95_high"]
@@ -78,18 +79,7 @@ POSTHOC_FIELDS = [
 
 
 def _parse_group_arg(value: str) -> tuple[str, str]:
-    if "=" not in value:
-        raise argparse.ArgumentTypeError(
-            "--group must be formatted as LABEL=CSV_PATH, for example Control=learning_stats.csv"
-        )
-    label, path = value.split("=", 1)
-    label = label.strip()
-    path = path.strip()
-    if not label or not path:
-        raise argparse.ArgumentTypeError(
-            "--group must include both a non-empty label and a CSV path."
-        )
-    return label, path
+    return parse_labeled_path_arg(value, option_name="--group")
 
 
 def _fmt(x: float) -> str:
