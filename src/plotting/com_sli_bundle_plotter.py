@@ -339,24 +339,7 @@ def _place_interior_legend_min_overlap(
     )
 
 
-def _tick_dodge_step(ticks: np.ndarray) -> float:
-    ticks = np.asarray(ticks, dtype=float).reshape(-1)
-    if ticks.size >= 2:
-        diffs = np.diff(ticks)
-        diffs = diffs[np.isfinite(diffs) & (diffs > 0)]
-        if diffs.size:
-            return float(np.nanmedian(diffs)) * 0.21
-    return 0.21
-
-
-def _centered_x_offsets(count: int, dodge_step: float) -> np.ndarray:
-    if count <= 1 or not np.isfinite(dodge_step) or dodge_step <= 0:
-        return np.zeros((max(count, 1),), dtype=float)
-    idx = np.arange(count, dtype=float) - 0.5 * (count - 1)
-    return idx * (2.0 * float(dodge_step))
-
-
-def _label_final_y(text):
+def _final_text_y(text):
     if hasattr(text, "_final_y_"):
         return float(text._final_y_)
     if hasattr(text, "_y_"):
@@ -364,24 +347,14 @@ def _label_final_y(text):
     return None
 
 
-def _apply_cluster_dodge(
-    texts,
-    *,
-    x: float,
-    y: float,
-    dodge_step: float,
-    span: float,
-) -> tuple[float, float]:
-    count = len(texts) + 1
-    x_offsets = _centered_x_offsets(count, dodge_step)
-    y_offsets = np.arange(count, dtype=float) * 0.025 * float(span)
-    for txt, x_offset, y_offset in zip(texts, x_offsets[:-1], y_offsets[:-1]):
-        if not hasattr(txt, "_base_final_y_"):
-            txt._base_final_y_ = float(txt.get_position()[1])
-        txt.set_x(float(x) + float(x_offset))
-        txt.set_y(float(txt._base_final_y_) + float(y_offset))
-        txt._final_y_ = float(txt.get_position()[1])
-    return float(x) + float(x_offsets[-1]), float(y) + float(y_offsets[-1])
+def _vertically_spaced_positions(desired_ys, *, min_gap: float) -> list[float]:
+    out = []
+    for y in desired_ys:
+        y = float(y)
+        if out:
+            y = max(y, out[-1] + float(min_gap))
+        out.append(y)
+    return out
 
 
 def _anova_p_per_bucket(group_samples, *, min_n_per_group=3):
@@ -1129,6 +1102,7 @@ def plot_com_sli_bundle_data(
                             "bucket_idx": int(bj),
                             "x": float(panel_xs[bj]),
                             "anchor_y": float(ys[bj]),
+                            "group_idx": int(gi),
                             "n": int(n),
                         }
                     )
@@ -1281,7 +1255,6 @@ def plot_com_sli_bundle_data(
                 "ax": ax,
                 "training_idx": int(ti),
                 "panel_xs": np.asarray(panel_xs, dtype=float),
-                "n_label_dodge_step": _tick_dodge_step(panel_xs),
                 "pending_n_labels": pending_n_labels,
                 "do_anova": bool(do_anova),
                 "do_ttests": bool(do_ttests),
@@ -1348,49 +1321,60 @@ def plot_com_sli_bundle_data(
         plt.sca(ax)
         lbls = defaultdict(list)
 
+        pending_by_bucket = defaultdict(list)
         for info in ctx["pending_n_labels"]:
-            base_y = float(info["anchor_y"]) + 0.04 * span
-            y_n, va_align = pick_above_or_expand(
-                base_y,
-                [float(info["anchor_y"])],
-                ylim,
-                span_override=span,
-            )
-            if y_n is None:
-                continue
-            bucket_idx = int(info["bucket_idx"])
-            txts_here = lbls.get(bucket_idx, [])
-            bucket_label_ys = [
-                y0
-                for y0 in (_label_final_y(t) for t in txts_here)
-                if y0 is not None and np.isfinite(y0)
-            ]
-            x_pos = float(info["x"])
-            if bucket_label_ys and any(
-                abs(float(y_n) - y0) < 0.06 * span for y0 in bucket_label_ys
-            ):
-                x_pos, y_n = _apply_cluster_dodge(
-                    txts_here,
-                    x=float(info["x"]),
-                    y=float(y_n),
-                    dodge_step=float(ctx["n_label_dodge_step"]),
-                    span=span,
+            pending_by_bucket[int(info["bucket_idx"])].append(info)
+
+        for bucket_idx, bucket_infos in pending_by_bucket.items():
+            placed = []
+            for info in bucket_infos:
+                base_y = float(info["anchor_y"]) + 0.04 * span
+                y_n, va_align = pick_above_or_expand(
+                    base_y,
+                    [float(info["anchor_y"])],
+                    ylim,
+                    span_override=span,
                 )
-                if y_n > ylim[1] - 0.02 * span:
-                    ylim[1] = float(y_n) + 0.05 * span
-            txt = util.pltText(
-                x_pos,
-                y_n,
-                f"{int(info['n'])}",
-                ha="center",
-                va=va_align,
-                size=customizer.in_plot_font_size,
-                color=".2",
+                if y_n is None:
+                    continue
+                placed.append(
+                    {
+                        "info": info,
+                        "desired_y": float(y_n),
+                        "va": va_align,
+                    }
+                )
+
+            if not placed:
+                continue
+
+            placed.sort(
+                key=lambda item: (
+                    float(item["info"]["anchor_y"]),
+                    int(item["info"].get("group_idx", 0)),
+                )
             )
-            txt._y_ = float(info["anchor_y"])
-            txt._final_y_ = float(y_n)
-            txt._base_final_y_ = float(y_n)
-            lbls[bucket_idx].append(txt)
+            final_ys = _vertically_spaced_positions(
+                [item["desired_y"] for item in placed],
+                min_gap=0.06 * span,
+            )
+            if final_ys and final_ys[-1] > ylim[1] - 0.02 * span:
+                ylim[1] = float(final_ys[-1]) + 0.05 * span
+
+            for item, y_n in zip(placed, final_ys):
+                info = item["info"]
+                txt = util.pltText(
+                    float(info["x"]),
+                    float(y_n),
+                    f"{int(info['n'])}",
+                    ha="center",
+                    va=item["va"],
+                    size=customizer.in_plot_font_size,
+                    color=".2",
+                )
+                txt._y_ = float(info["anchor_y"])
+                txt._final_y_ = float(y_n)
+                lbls[bucket_idx].append(txt)
 
         if (
             ctx["do_anova"]
@@ -1424,9 +1408,10 @@ def plot_com_sli_bundle_data(
 
                 txts_here = lbls.get(bj, [])
                 avoid_ys = [
-                    (t._final_y_ if hasattr(t, "_final_y_") else t._y_)
+                    y
                     for t in txts_here
-                    if hasattr(t, "_final_y_") or hasattr(t, "_y_")
+                    for y in [_final_text_y(t)]
+                    if y is not None and np.isfinite(y)
                 ]
                 if np.isfinite(anchor_y):
                     avoid_ys.append(float(anchor_y))
@@ -1487,9 +1472,10 @@ def plot_com_sli_bundle_data(
 
                 txts_here = lbls.get(bj, [])
                 avoid_ys = [
-                    (t._final_y_ if hasattr(t, "_final_y_") else t._y_)
+                    y
                     for t in txts_here
-                    if hasattr(t, "_final_y_") or hasattr(t, "_y_")
+                    for y in [_final_text_y(t)]
+                    if y is not None and np.isfinite(y)
                 ]
                 if np.isfinite(anchor_y):
                     avoid_ys.append(float(anchor_y))
@@ -1532,10 +1518,11 @@ def plot_com_sli_bundle_data(
             auc_result = compute_auc_test(ctx["series_by_group_for_auc"])
             if auc_result is not None:
                 existing_ys = [
-                    (t._final_y_ if hasattr(t, "_final_y_") else t._y_)
+                    y
                     for tlist in lbls.values()
                     for t in tlist
-                    if hasattr(t, "_final_y_") or hasattr(t, "_y_")
+                    for y in [_final_text_y(t)]
+                    if y is not None and np.isfinite(y)
                 ]
                 group_tops = []
                 for m in ctx["means_by_group"]:

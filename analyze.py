@@ -7283,6 +7283,34 @@ def plotRewards(
 
         return panel_bottom, panel_top
 
+    def _text_final_y(txt):
+        if hasattr(txt, "_final_y_"):
+            return float(txt._final_y_)
+        if hasattr(txt, "_y_"):
+            return float(txt._y_)
+        return None
+
+    def _relayout_bucket_n_labels(texts, *, x_pos, min_gap):
+        ordered = sorted(
+            texts,
+            key=lambda txt: (
+                float(getattr(txt, "_y_", np.nan)),
+                int(getattr(txt, "_group_idx_", 0)),
+            ),
+        )
+        last_y = None
+        for txt in ordered:
+            y = _text_final_y(txt)
+            if y is None or not np.isfinite(y):
+                continue
+            if last_y is not None:
+                y = max(float(y), float(last_y) + float(min_gap))
+            txt.set_x(float(x_pos))
+            txt.set_y(float(y))
+            txt._final_y_ = float(y)
+            last_y = float(y)
+        return last_y
+
     meanOnly, showN, showV, joinF, fillBtw = True, True, False, True, True
     showPG, showPP = True, True  # p values between groups, for post
     showPFL = (
@@ -7603,15 +7631,6 @@ def plotRewards(
                                     "%.2f" % rewardsAvgs[i + f][j] if pcm else "%d" % n
                                 )
                                 key = util.join("|", (i, j))
-                                existing_bucket_text_ys = [
-                                    t._final_y_ if hasattr(t, "_final_y_") else t._y_
-                                    for t in lbls.get(key, [])
-                                ]
-                                existing_bucket_text_ys = [
-                                    y
-                                    for y in existing_bucket_text_ys
-                                    if y is not None and np.isfinite(y)
-                                ]
 
                                 group_geom_y = mci[0, j]
                                 if not np.isfinite(group_geom_y):
@@ -7629,40 +7648,8 @@ def plotRewards(
                                 if y_pos is None:
                                     continue
 
-                                bucket_txts = lbls.get(key, [])
-                                bucket_label_ys = [
-                                    (
-                                        t._final_y_
-                                        if hasattr(t, "_final_y_")
-                                        else getattr(t, "_y_", None)
-                                    )
-                                    for t in bucket_txts
-                                ]
-                                bucket_label_ys = [
-                                    y
-                                    for y in bucket_label_ys
-                                    if y is not None and np.isfinite(y)
-                                ]
-
-                                need_dodge = False
-                                if ng == 2 and joinF and bucket_label_ys:
-                                    gap_thresh = 0.06 * ann_span
-                                    need_dodge = any(
-                                        abs(y_pos - y0) < gap_thresh
-                                        for y0 in bucket_label_ys
-                                    )
-
-                                if need_dodge:
-                                    dodge = bl * 0.15
-
-                                    prior_txt = lbls[key][0]
-                                    prior_txt.set_x(xs[j] - dodge)
-                                    x_pos = xs[j] + dodge
-                                else:
-                                    x_pos = xs[j]
-
                                 txt = util.pltText(
-                                    x_pos,
+                                    xs[j],
                                     y_pos,
                                     lblText,
                                     ha="center",
@@ -7671,7 +7658,19 @@ def plotRewards(
                                 )
                                 txt._y_ = group_geom_y
                                 txt._final_y_ = y_pos
+                                txt._group_idx_ = int(g)
                                 lbls[key].append(txt)
+                                stack_top = _relayout_bucket_n_labels(
+                                    lbls[key],
+                                    x_pos=xs[j],
+                                    min_gap=0.06 * ann_span,
+                                )
+                                if (
+                                    stack_top is not None
+                                    and np.isfinite(stack_top)
+                                    and stack_top > ylim[1] - 0.02 * ann_span
+                                ):
+                                    ylim[1] = float(stack_top) + 0.05 * ann_span
                     # values
                     if showV:
                         for j, y in enumerate(mci[0, :]):
