@@ -104,6 +104,11 @@ def main():
         ),
     )
     p.add_argument(
+        "--hide-auc",
+        action="store_true",
+        help="Hide per-training AUC test labels.",
+    )
+    p.add_argument(
         "--include-pre",
         action="store_true",
         help=(
@@ -218,6 +223,7 @@ def main():
         include_pre=args.include_pre,
         show_legend=args.show_legend,
         show_description_labels=args.show_description_labels,
+        show_auc=not bool(args.hide_auc),
     )
 
 

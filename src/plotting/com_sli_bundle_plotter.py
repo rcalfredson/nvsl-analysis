@@ -25,6 +25,7 @@ from src.utils.common import (
     pick_non_overlapping_y,
 )
 from src.plotting.plot_customizer import PlotCustomizer
+from src.plotting.time_series_auc import add_auc_label, compute_auc_test
 
 
 def _pct_label(prefix, frac):
@@ -385,6 +386,7 @@ def plot_com_sli_bundle_data(
     include_pre=False,
     show_legend=False,
     show_description_labels=False,
+    show_auc=True,
 ):
     """
     Plot COM magnitude or SLI vs sync bucket from one or more normalized bundles.
@@ -1000,6 +1002,7 @@ def plot_com_sli_bundle_data(
         vals_by_group = [
             None
         ] * n_plot_groups  # each: list[np.ndarray] (finite per-bucket samples)
+        series_by_group_for_auc = [None] * n_plot_groups  # each: (n_videos, nb)
 
         for gi, pg in enumerate(plot_groups):
             b = pg["bundle"]
@@ -1044,6 +1047,9 @@ def plot_com_sli_bundle_data(
                     for bj in range(exp_for_test.shape[1])
                 ]
                 means_by_group[gi] = np.asarray(plot_mci[0, :], dtype=float)
+            if show_auc and n_plot_groups >= 2:
+                auc_series = np.asarray(exp_for_test, dtype=float)
+                series_by_group_for_auc[gi] = auc_series
             ys = plot_mci[0, :]
             fin = np.isfinite(ys)
             ls = linestyles[style_idx % len(linestyles)]
@@ -1228,14 +1234,17 @@ def plot_com_sli_bundle_data(
         panel_annotation_contexts.append(
             {
                 "ax": ax,
+                "training_idx": int(ti),
                 "panel_xs": np.asarray(panel_xs, dtype=float),
                 "pending_n_labels": pending_n_labels,
                 "do_anova": bool(do_anova),
                 "do_ttests": bool(do_ttests),
                 "means_by_group": means_by_group,
                 "vals_by_group": vals_by_group,
+                "series_by_group_for_auc": series_by_group_for_auc,
                 "n_plot_groups": int(n_plot_groups),
                 "min_n_per_group_anova": int(min_n_per_group_anova),
+                "show_auc": bool(show_auc),
             }
         )
 
@@ -1447,6 +1456,40 @@ def plot_com_sli_bundle_data(
                 txt._final_y_ = float(ys_star)
                 lbls[bj].append(txt)
 
+        if (
+            ctx["show_auc"]
+            and ctx["training_idx"] == 1
+            and ctx["n_plot_groups"] >= 2
+            and all(s is not None for s in ctx["series_by_group_for_auc"])
+        ):
+            auc_result = compute_auc_test(ctx["series_by_group_for_auc"])
+            if auc_result is not None:
+                existing_ys = [
+                    (t._final_y_ if hasattr(t, "_final_y_") else t._y_)
+                    for tlist in lbls.values()
+                    for t in tlist
+                    if hasattr(t, "_final_y_") or hasattr(t, "_y_")
+                ]
+                group_tops = []
+                for m in ctx["means_by_group"]:
+                    if m is not None and np.isfinite(m).any():
+                        group_tops.append(float(np.nanmax(m)))
+                y_anchor = max(group_tops) if group_tops else ylim[1]
+                x_span = float(ctx["panel_xs"][-1] - ctx["panel_xs"][0])
+                x_auc = float(ctx["panel_xs"][0] + 0.05 * x_span)
+                txt = add_auc_label(
+                    ax,
+                    x=x_auc,
+                    y_anchor=y_anchor,
+                    ylim=ylim,
+                    span=span,
+                    result=auc_result,
+                    existing_ys=existing_ys,
+                    font_size=customizer.in_plot_font_size,
+                )
+                if txt is not None:
+                    lbls[-1].append(txt)
+
     # legend (or suptitle if only one entry)
     handles, leg_labels = axs[0].get_legend_handles_labels()
     legend_handles = []
@@ -1540,6 +1583,7 @@ def plot_com_sli_bundles(
     include_pre=False,
     show_legend=False,
     show_description_labels=False,
+    show_auc=True,
 ):
     bundles = [load_sli_bundle(p) for p in bundle_paths]
     delta_vs_bundle = load_sli_bundle(delta_vs_path) if delta_vs_path else None
@@ -1566,4 +1610,5 @@ def plot_com_sli_bundles(
         include_pre=include_pre,
         show_legend=show_legend,
         show_description_labels=show_description_labels,
+        show_auc=show_auc,
     )

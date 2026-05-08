@@ -160,6 +160,7 @@ from src.plotting.palettes import (
 from src.utils.parsers import parse_distances, parse_training_selector
 from src.plotting.plot import plotAngularVelocity, plotTurnRadiusHist
 from src.plotting.plot_customizer import PlotCustomizer
+from src.plotting.time_series_auc import format_auc_stars
 from src.analysis.sli_tools import (
     compute_sli_per_fly,
     select_fractional_groups,
@@ -4815,6 +4816,14 @@ g.add_argument(
     help="hide statistical tests displayed in plots saved by plotRewards"
     " (first-to-last bucket significance test and inline text with ABC/AUC test)",
 )
+g.add_argument(
+    "--showExpYokedAUC",
+    action="store_true",
+    help=(
+        "show experimental-vs-yoked AUC labels for single-group plotRewards plots. "
+        "Disabled by default except for rewards per distance."
+    ),
+)
 g.add_argument("--pltAll", dest="plotAll", action="store_true", help="plot all rewards")
 g.add_argument(
     "--pltTrx",
@@ -7761,6 +7770,73 @@ def plotRewards(
                         if i == 0:
                             all_line_vals.append([ys])
 
+                    show_exp_yoked_auc = (
+                        ng == 1
+                        and nf >= 2
+                        and comparable
+                        and not diff_tp
+                        and not tp == "rpip"
+                        and not opts.hidePltTests
+                        and i == 1
+                        and (rpd or getattr(opts, "showExpYokedAUC", False))
+                    )
+                    if show_exp_yoked_auc:
+                        if useMidPlotAUCVerticalAlignment:
+                            base_y_for_auc = max(
+                                global_geom_top + 0.16 * ann_span,
+                                ylim[0] + 0.88 * ann_span,
+                            )
+                            occupied_panel_ys = [
+                                y
+                                for y in [global_geom_top]
+                                if y is not None and np.isfinite(y)
+                            ]
+                            ys_auc, va_align = pick_above_or_expand(
+                                base_y_for_auc,
+                                occupied_panel_ys,
+                                ylim,
+                                span_override=ann_span,
+                            )
+                        else:
+                            base_y_for_auc = -0.79 if nosym else pch(-0.55, -0.46)
+                            avoid_ys = [
+                                (
+                                    t._final_y_
+                                    if hasattr(t, "_final_y_")
+                                    else getattr(t, "_y_", None)
+                                )
+                                for tlist in lbls.values()
+                                for t in tlist
+                                if hasattr(t, "_y_") or hasattr(t, "_final_y_")
+                            ]
+                            avoid_ys = [y for y in avoid_ys if y is not None]
+                            ys_auc, va_align = pick_non_overlapping_y(
+                                base_y_for_auc,
+                                avoid_ys,
+                                ylim,
+                                prefer="above",
+                            )
+
+                        exp_series = getVals(0, None, False, f1=0)
+                        yok_series = getVals(0, None, False, f1=1)
+                        exp_auc = np.abs(areaUnderCurve(exp_series))
+                        yok_auc = np.abs(areaUnderCurve(yok_series))
+                        auc_diff = exp_auc - yok_auc
+                        _t_auc, p_auc, n_auc = ttest_1samp(auc_diff, 0)
+                        placement_ok = ys_auc is not None
+                        p_ok = np.isfinite(p_auc)
+                        if placement_ok and p_ok:
+                            txt = util.pltText(
+                                0.05 * (xs[-1] + 2 * bl - xs[0]),
+                                ys_auc,
+                                "AUC exp vs yok (n=%d): %s"
+                                % (n_auc, format_auc_stars(p_auc)),
+                                size=pch(12, customizer.in_plot_font_size),
+                                color="0",
+                            )
+                            txt._y_ = base_y_for_auc
+                            txt._final_y_ = ys_auc
+
                     # AUC
                     if ng > 1 and not tp == "rpip" and not opts.hidePltTests:
                         if useMidPlotAUCVerticalAlignment:
@@ -7918,7 +7994,7 @@ def plotRewards(
                                     0.05 * (xs[-1] + 2 * bl - xs[0]),
                                     ys,
                                     "%s (n=%d,%d): %s"
-                                    % (nm, tpn[2], tpn[3], util.p2stars(tpn[1], True)),
+                                    % (nm, tpn[2], tpn[3], format_auc_stars(tpn[1])),
                                     size=pch(12, customizer.in_plot_font_size),
                                     color="0",
                                 )

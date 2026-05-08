@@ -118,6 +118,7 @@ At present, this local config supports toggling the default one-shot between-rew
 ```env
 # Local-only defaults for analyze.py
 ENABLE_DEFAULT_BETWEEN_REWARD_SLI_PLOTS=false
+SHOW_AUC_P_VALUES=false
 ```
 
 Accepted boolean values are `1`, `true`, `yes`, `on`, `0`, `false`, `no`, and `off`.
@@ -125,6 +126,7 @@ Accepted boolean values are `1`, `true`, `yes`, `on`, `0`, `false`, `no`, and `o
 Behavior:
 - If `.analyze.local.env` is absent, the repository default behavior is used.
 - If `ENABLE_DEFAULT_BETWEEN_REWARD_SLI_PLOTS=false`, the default one-shot between-reward SLI-bracketed plots are skipped for your local runs only.
+- If `SHOW_AUC_P_VALUES=false`, AUC labels show only significance stars / `ns`, without numeric p-values.
 
 ---
 
