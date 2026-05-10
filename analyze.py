@@ -1585,11 +1585,11 @@ g.add_argument(
         "'maxdist' marks the farthest point from the reward center and draws "
         "the Dmax radius using a real trajectory; 'maxdist_synth' draws a "
         "synthetic explanatory trajectory with a symbolic Dmax label; "
-        "'commag_synth' draws a synthetic explanatory schematic for the active "
-        "per-segment COM aggregation mode selected by --com-per-segment-agg; "
+        "'commag_synth' draws a synthetic explanatory schematic for mean "
+        "per-between-reward-segment COM magnitude aggregation; "
         "'commag_synth_vector_mean' explicitly shows the historical "
         "component-wise vector-mean aggregation; "
-        "'commag_synth_mean_magnitude' explicitly shows the newer mean of "
+        "'commag_synth_mean_magnitude' explicitly shows the mean of "
         "per-segment COM magnitudes aggregation; "
         "'return_leg_dist' highlights the trajectory segment after dMax on a "
         "real between-reward path; 'return_leg_dist_synth' draws a synthetic "
@@ -4249,20 +4249,20 @@ g.add_argument(
     "--com-per-segment",
     action="store_true",
     help=(
-        "Compute COM per between-reward segment and average segment COM vectors "
-        "within each sync bucket (instead of computing COM over all points in the bucket)."
+        "Deprecated compatibility flag. COM is now always computed per "
+        "between-reward segment and averaged by segment COM magnitude within "
+        "each sync bucket."
     ),
 )
 g.add_argument(
     "--com-per-segment-agg",
     type=str,
     choices=("vector_mean", "mean_magnitude"),
-    default="vector_mean",
+    default="mean_magnitude",
     help=(
-        "Aggregation used with --com-per-segment. 'vector_mean' preserves the "
-        "current behavior: average segment COM vectors within each sync bucket, "
-        "then take the magnitude. 'mean_magnitude' instead averages the "
-        "magnitudes of the individual segment COM vectors. "
+        "Deprecated compatibility option. COM sync-bucket values now always "
+        "use 'mean_magnitude': average the magnitudes of individual "
+        "between-reward segment COM vectors. "
         "Default: %(default)s."
     ),
 )
@@ -4271,8 +4271,8 @@ g.add_argument(
     type=float,
     default=1.5,
     help=(
-        "When using --com-per-segment, ignore between-reward segments whose median "
-        "distance to the reward center is <= this threshold (mm). "
+        "Ignore between-reward segments whose median distance to the reward "
+        "center is <= this threshold (mm) when computing COM. "
         "Default: %(default)s mm. Use 0 to disable filtering."
     ),
 )
@@ -4281,9 +4281,7 @@ g.add_argument(
     action="store_true",
     help=(
         "Exclude wall-contact-contaminated data from COM calculation. "
-        "For --com-per-segment: drop any between-reward segment that contains "
-        "a wall-contact frame. For bucket-level COM: mark the bucket NaN if it "
-        "contains any wall-contact frame."
+        "Drop any between-reward segment that contains a wall-contact frame."
     ),
 )
 g.add_argument(
@@ -5637,7 +5635,40 @@ g.add_argument(
 )
 g.add_argument("--play", dest="play", action="store_true", help="play annotated video")
 
+
+def _argv_option_present(argv, option_name: str) -> bool:
+    prefix = option_name + "="
+    return any(arg == option_name or arg.startswith(prefix) for arg in argv)
+
+
+_COM_OPTIONS_NOTICE_EMITTED = False
+
+
+def _normalize_com_options(opts, argv=None):
+    """Keep deprecated COM CLI flags from reintroducing obsolete calculation paths."""
+    global _COM_OPTIONS_NOTICE_EMITTED
+    argv = sys.argv[1:] if argv is None else list(argv)
+    emit_notice = not _COM_OPTIONS_NOTICE_EMITTED
+    if emit_notice and _argv_option_present(argv, "--com-per-segment"):
+        print(
+            "[COM] NOTE: --com-per-segment is deprecated and ignored; COM is "
+            "always computed per between-reward segment."
+        )
+    if emit_notice and _argv_option_present(argv, "--com-per-segment-agg"):
+        requested = str(getattr(opts, "com_per_segment_agg", "")).strip().lower()
+        if requested != "mean_magnitude":
+            print(
+                "[COM] NOTE: --com-per-segment-agg is deprecated and ignored; "
+                "COM sync-bucket values always use mean_magnitude aggregation."
+            )
+    _COM_OPTIONS_NOTICE_EMITTED = True
+
+    opts.com_per_segment = True
+    opts.com_per_segment_agg = "mean_magnitude"
+
+
 opts = p.parse_args()
+_normalize_com_options(opts)
 if opts.timeit:
     start_t = timeit.default_timer()
 
@@ -14213,6 +14244,7 @@ def test():
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     opts = p.parse_args()
+    _normalize_com_options(opts)
 
     if opts.log_fly_grps:
         # Top-level logs directory (parallel to imgs/)

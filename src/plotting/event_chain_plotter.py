@@ -1102,7 +1102,7 @@ class EventChainPlotter:
         return synth
 
     def _synthetic_commag_bucket_segments(
-        self, reward_circle, *, variant=0, rng=None, agg_mode="vector_mean"
+        self, reward_circle, *, variant=0, rng=None, agg_mode="mean_magnitude"
     ):
         if reward_circle is None:
             return None
@@ -1111,7 +1111,7 @@ class EventChainPlotter:
         rng = rng or random.Random()
         colors = ("#4e79a7", "#e15759", "#59a14f")
         rot_deg = (int(variant) % 3 - 1) * 5.0
-        agg_mode = str(agg_mode or "vector_mean").strip().lower()
+        agg_mode = str(agg_mode or "mean_magnitude").strip().lower()
 
         def _rotated_xy(radius, theta):
             dx, dy = self._rotate_local_point(
@@ -1406,11 +1406,11 @@ class EventChainPlotter:
         seed,
         reward_circle,
         floor_coords,
-        agg_mode="vector_mean",
+        agg_mode="mean_magnitude",
     ):
-        agg_mode = str(agg_mode or "vector_mean").strip().lower()
+        agg_mode = str(agg_mode or "mean_magnitude").strip().lower()
         if agg_mode not in ("vector_mean", "mean_magnitude"):
-            agg_mode = "vector_mean"
+            agg_mode = "mean_magnitude"
 
         if seed is None:
             synth_rng = random.Random()
@@ -4505,7 +4505,11 @@ class EventChainPlotter:
                 commag_agg_mode = "vector_mean"
             else:
                 commag_agg_mode = str(
-                    getattr(getattr(self.va, "opts", None), "com_per_segment_agg", "vector_mean")
+                    getattr(
+                        getattr(self.va, "opts", None),
+                        "com_per_segment_agg",
+                        "mean_magnitude",
+                    )
                 ).strip().lower()
             self._plot_between_reward_commag_schematic(
                 trn_index=trn_index,

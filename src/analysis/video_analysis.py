@@ -277,10 +277,6 @@ class VideoAnalysis:
             self.bySyncBucketCOM(
                 relative_to_reward=True,
                 store_mag=True,
-                per_segment=bool(getattr(opts, "com_per_segment", False)),
-                per_segment_agg=str(
-                    getattr(opts, "com_per_segment_agg", "vector_mean")
-                ),
                 per_segment_min_meddist_mm=getattr(
                     opts, "com_per_segment_min_meddist_mm", 1.5
                 ),
@@ -3528,7 +3524,7 @@ class VideoAnalysis:
         Bucketing is based on the *start frame* of the segment:
             b_idx = int((s - fi) // df)
 
-        Filters (matching bySyncBucketCOM(per_segment=True)):
+        Filters (matching the sync-bucket COM calculation):
           - segment must contain at least 1 frame after endpoint handling
           - bucket must be complete
           - optional wall-contact exclusion (any wc[s:e] == True)
@@ -3749,16 +3745,11 @@ class VideoAnalysis:
         relative_to_reward=True,
         store_mag=True,
         verbose=False,
-        per_segment=False,
-        per_segment_agg="vector_mean",
         per_segment_min_meddist_mm=None,
     ):
         if verbose:
             rel = "relative to reward center" if relative_to_reward else "absolute"
-            agg_msg = ""
-            if per_segment:
-                agg_mode = str(per_segment_agg or "vector_mean").strip().lower()
-                agg_msg = f", per-segment agg={agg_mode}"
+            agg_msg = ", per-segment agg=mean_magnitude"
             print(f"\nCOM magnitude by sync bucket (mm) [{rel}{agg_msg}]:")
         df = self._numRewardsMsg(True, silent=True)
 
@@ -3835,8 +3826,6 @@ class VideoAnalysis:
 
             starts = [int(fi + k * df) for k in range(n_buckets)]
             complete = [(trn.stop - s) >= df for s in starts]
-            ends = [s + df for s in starts]
-
             # We'll treat wc as windowed to [fi, fi + n_win), where n_win = n_buckets * df
             fi_i = int(fi)
             df_i = int(df)
@@ -3861,9 +3850,6 @@ class VideoAnalysis:
                         ]
                     continue
 
-                cx, cy, _ = trn.circles(fly_idx)[0]
-                px_per_mm = self.xf.fctr * self.ct.pxPerMmFloor()
-
                 wc = build_wall_contact_mask_for_window(
                     self,
                     traj.f,
@@ -3877,317 +3863,185 @@ class VideoAnalysis:
                 com_vals = []
                 mag_vals = [] if store_mag else None
                 mag_ns = [0] * n_buckets if count_based_mag else None
-                trajectory_counts = [0] * n_buckets
-                on_for_counts = self._getOn(trn, False, f=fly_idx)
-                if on_for_counts is not None and len(on_for_counts) >= 2:
-                    for s0 in on_for_counts[:-1]:
-                        b_idx0 = int((int(s0) - int(fi)) // int(df))
-                        if 0 <= b_idx0 < n_buckets and complete[b_idx0]:
-                            trajectory_counts[b_idx0] += 1
 
-                if per_segment:
-                    agg_mode = str(per_segment_agg or "vector_mean").strip().lower()
-                    if agg_mode not in ("vector_mean", "mean_magnitude"):
-                        agg_mode = "vector_mean"
+                agg_mode = "mean_magnitude"
 
-                    on = self._getOn(trn, False, f=fly_idx)
-                    if on is None or len(on) < 2:
-                        if verbose:
-                            print(
-                                f"  {flyDesc(fly_idx)}: insufficient rewards for segments"
-                            )
-                        this_training[fly_key] = [(np.nan, np.nan)] * n_buckets
-                        if store_mag:
-                            this_training_mag[fly_key] = [np.nan] * n_buckets
-                        if count_based_mag:
-                            this_training_mag_n[fly_key] = [0] * n_buckets
-
-                        if getattr(self.opts, "com_sli_debug", False):
-                            this_training_reason[fly_key] = [
-                                COMR_INSUFF_REWARDS
-                            ] * n_buckets
-                            this_training_detail[fly_key] = [
-                                {"why": "insufficient_rewards"}
-                                for _ in range(n_buckets)
-                            ]
-                        continue
-
-                    # collect per-segment COM vectors per bucket
-                    seg_vecs = [
-                        [] for _ in range(n_buckets)
-                    ]  # each entry: list of (mx_mm, my_mm)
-
-                    bucket_stats = [
-                        dict(
-                            n_segments_total=0,
-                            n_segments_used=0,
-                            n_excluded_pair=0,
-                            n_too_short=0,
-                            n_too_short_excl_endpoints=0,
-                            n_meddist_nan=0,
-                            n_meddist_filtered=0,
-                            n_wall_contact_filtered=0,
-                            n_empty_xy=0,
-                            n_all_nan_x_or_y=0,
-                            n_mean_nan=0,
+                on = self._getOn(trn, False, f=fly_idx)
+                if on is None or len(on) < 2:
+                    if verbose:
+                        print(
+                            f"  {flyDesc(fly_idx)}: insufficient rewards for segments"
                         )
-                        for _ in range(n_buckets)
-                    ]
+                    this_training[fly_key] = [(np.nan, np.nan)] * n_buckets
+                    if store_mag:
+                        this_training_mag[fly_key] = [np.nan] * n_buckets
+                    if count_based_mag:
+                        this_training_mag_n[fly_key] = [0] * n_buckets
 
-                    min_med_mm = per_segment_min_meddist_mm
-                    if min_med_mm is None:
-                        min_med_mm = 0.0
+                    if getattr(self.opts, "com_sli_debug", False):
+                        this_training_reason[fly_key] = [
+                            COMR_INSUFF_REWARDS
+                        ] * n_buckets
+                        this_training_detail[fly_key] = [
+                            {"why": "insufficient_rewards"}
+                            for _ in range(n_buckets)
+                        ]
+                    continue
 
-                    for seg in self._iter_between_reward_segment_com(
-                        trn,
-                        fly_idx,
-                        fi=int(fi),
-                        df=int(df),
-                        n_buckets=int(n_buckets),
-                        complete=complete,
-                        relative_to_reward=relative_to_reward,
-                        per_segment_min_meddist_mm=float(min_med_mm),
-                        exclude_wall=exclude_wall,
-                        wc=wc,
-                        exclude_reward_endpoints=bool(
-                            getattr(
-                                self.opts, "btw_rwd_com_exclude_reward_endpoints", False
-                            )
-                        ),
-                        debug=bool(getattr(self.opts, "com_sli_debug", False)),
-                        yield_skips=True,
-                    ):
-                        b_idx = seg.b_idx
-                        bucket_stats[b_idx]["n_segments_total"] += 1
+                # collect per-segment COM vectors per bucket
+                seg_vecs = [
+                    [] for _ in range(n_buckets)
+                ]  # each entry: list of (mx_mm, my_mm)
 
-                        if seg.why is None:
-                            bucket_stats[b_idx]["n_segments_used"] += 1
-                            seg_vecs[b_idx].append((seg.mx_mm, seg.my_mm, seg.mag_mm))
-                        else:
-                            if seg.why == "too_short":
-                                bucket_stats[b_idx]["n_too_short"] += 1
-                            elif seg.why == "too_short_excl_endpoints":
-                                bucket_stats[b_idx]["n_too_short_excl_endpoints"] += 1
-                            elif seg.why == "wall_contact":
-                                bucket_stats[b_idx]["n_wall_contact_filtered"] += 1
-                            elif seg.why == "meddist_nan":
-                                bucket_stats[b_idx]["n_meddist_nan"] += 1
-                            elif seg.why == "meddist_filtered":
-                                bucket_stats[b_idx]["n_meddist_filtered"] += 1
-                            elif seg.why == "all_nan_x_or_y":
-                                bucket_stats[b_idx]["n_all_nan_x_or_y"] += 1
-                            elif seg.why == "empty_xy":
-                                bucket_stats[b_idx]["n_empty_xy"] += 1
-                            elif seg.why == "mean_nan":
-                                bucket_stats[b_idx]["n_mean_nan"] += 1
-                            else:
-                                pass
-
-                    # average per-segment vectors within each bucket + produce reasons/details
-                    com_vals = []
-                    mag_vals = [] if store_mag else None
-                    mag_ns = [] if count_based_mag else None
-                    reasons = []
-                    details = []
-                    min_segments = min_between_reward_sync_bucket_trajectories(
-                        self.opts
+                bucket_stats = [
+                    dict(
+                        n_segments_total=0,
+                        n_segments_used=0,
+                        n_excluded_pair=0,
+                        n_too_short=0,
+                        n_too_short_excl_endpoints=0,
+                        n_meddist_nan=0,
+                        n_meddist_filtered=0,
+                        n_wall_contact_filtered=0,
+                        n_empty_xy=0,
+                        n_all_nan_x_or_y=0,
+                        n_mean_nan=0,
                     )
-                    for b_idx in range(n_buckets):
-                        st = bucket_stats[b_idx]
-                        n_used = int(st["n_segments_used"])
+                    for _ in range(n_buckets)
+                ]
 
-                        if not complete[b_idx]:
-                            com_vals.append((np.nan, np.nan))
-                            if store_mag:
-                                mag_vals.append(np.nan)
-                            if count_based_mag:
-                                mag_ns.append(0)
-                            reasons.append(COMR_INCOMPLETE_BUCKET)
-                            details.append(
-                                {
-                                    "why": "incomplete_bucket",
-                                    "bucket": int(b_idx),
-                                    "bucket_start": int(starts[b_idx]),
-                                    "df": int(df),
-                                    "trn_stop": int(trn.stop),
-                                }
-                            )
-                            continue
+                min_med_mm = per_segment_min_meddist_mm
+                if min_med_mm is None:
+                    min_med_mm = 0.0
 
-                        if seg_vecs[b_idx]:
-                            v = np.asarray(seg_vecs[b_idx], dtype=float)
-                            if n_used < min_segments:
-                                com_vals.append((np.nan, np.nan))
-                                if store_mag:
-                                    mag_vals.append(np.nan)
-                                if count_based_mag:
-                                    mag_ns.append(n_used)
-                                reasons.append(COMR_EMPTY_BUCKET)
-                            elif agg_mode == "mean_magnitude":
-                                com_vals.append((np.nan, np.nan))
-                                if store_mag:
-                                    mag_vals.append(float(np.nanmean(v[:, 2])))
-                                if count_based_mag:
-                                    mag_ns.append(n_used)
-                                reasons.append(COMR_OK)
-                            else:
-                                mx_mm = np.nanmean(v[:, 0])
-                                my_mm = np.nanmean(v[:, 1])
-                                com_vals.append((mx_mm, my_mm))
-                                if store_mag:
-                                    mag_vals.append(np.hypot(mx_mm, my_mm))
-                                if count_based_mag:
-                                    mag_ns.append(n_used)
-                                reasons.append(COMR_OK)
-                        else:
-                            com_vals.append((np.nan, np.nan))
-                            if store_mag:
-                                mag_vals.append(np.nan)
-                            if count_based_mag:
-                                mag_ns.append(0)
+                for seg in self._iter_between_reward_segment_com(
+                    trn,
+                    fly_idx,
+                    fi=int(fi),
+                    df=int(df),
+                    n_buckets=int(n_buckets),
+                    complete=complete,
+                    relative_to_reward=relative_to_reward,
+                    per_segment_min_meddist_mm=float(min_med_mm),
+                    exclude_wall=exclude_wall,
+                    wc=wc,
+                    exclude_reward_endpoints=bool(
+                        getattr(
+                            self.opts, "btw_rwd_com_exclude_reward_endpoints", False
+                        )
+                    ),
+                    debug=bool(getattr(self.opts, "com_sli_debug", False)),
+                    yield_skips=True,
+                ):
+                    b_idx = seg.b_idx
+                    bucket_stats[b_idx]["n_segments_total"] += 1
 
-                            # prioritize "strongest" failure signal
-                            if st["n_segments_total"] == 0:
-                                reason = COMR_EMPTY_BUCKET
-                            elif st["n_wall_contact_filtered"] > 0:
-                                reason = COMR_SEG_WALL_CONTACT_FILTER
-                            elif st["n_meddist_filtered"] > 0:
-                                reason = COMR_SEG_MEDDIST_FILTER
-                            elif st["n_meddist_nan"] > 0:
-                                reason = COMR_SEG_MEDDIST_NAN
-                            elif st["n_all_nan_x_or_y"] > 0:
-                                reason = COMR_SEG_ALL_NAN_X_OR_Y
-                            elif st["n_empty_xy"] > 0:
-                                reason = COMR_SEG_EMPTY_XY
-                            elif st["n_mean_nan"] > 0:
-                                reason = COMR_SEG_MEAN_NAN
-                            elif st["n_excluded_pair"] > 0:
-                                reason = COMR_EXCLUDED_PAIR
-                            elif st["n_too_short_excl_endpoints"]:
-                                reason = COMR_SEG_TOO_SHORT_EXCL_ENDPOINTS
-                            else:
-                                reason = COMR_SEG_TOO_SHORT
+                    if seg.why is None:
+                        bucket_stats[b_idx]["n_segments_used"] += 1
+                        seg_vecs[b_idx].append((seg.mx_mm, seg.my_mm, seg.mag_mm))
+                    else:
+                        if seg.why == "too_short":
+                            bucket_stats[b_idx]["n_too_short"] += 1
+                        elif seg.why == "too_short_excl_endpoints":
+                            bucket_stats[b_idx]["n_too_short_excl_endpoints"] += 1
+                        elif seg.why == "wall_contact":
+                            bucket_stats[b_idx]["n_wall_contact_filtered"] += 1
+                        elif seg.why == "meddist_nan":
+                            bucket_stats[b_idx]["n_meddist_nan"] += 1
+                        elif seg.why == "meddist_filtered":
+                            bucket_stats[b_idx]["n_meddist_filtered"] += 1
+                        elif seg.why == "all_nan_x_or_y":
+                            bucket_stats[b_idx]["n_all_nan_x_or_y"] += 1
+                        elif seg.why == "empty_xy":
+                            bucket_stats[b_idx]["n_empty_xy"] += 1
+                        elif seg.why == "mean_nan":
+                            bucket_stats[b_idx]["n_mean_nan"] += 1
 
-                            reasons.append(reason)
+                # Average per-segment COM magnitudes within each bucket.
+                com_vals = []
+                mag_vals = [] if store_mag else None
+                mag_ns = [] if count_based_mag else None
+                reasons = []
+                details = []
+                min_segments = min_between_reward_sync_bucket_trajectories(self.opts)
+                for b_idx in range(n_buckets):
+                    st = bucket_stats[b_idx]
+                    n_used = int(st["n_segments_used"])
+
+                    if not complete[b_idx]:
+                        com_vals.append((np.nan, np.nan))
+                        if store_mag:
+                            mag_vals.append(np.nan)
+                        if count_based_mag:
+                            mag_ns.append(0)
+                        reasons.append(COMR_INCOMPLETE_BUCKET)
                         details.append(
                             {
-                                "why": "per_segment",
-                                "bucket": int(b_idx),
-                                "agg_mode": str(agg_mode),
-                                "min_med_mm": float(min_med_mm),
-                                "min_between_reward_trajectories": int(min_segments),
-                                **st,
-                            }
-                        )
-                else:
-                    reasons = [
-                        COMR_INCOMPLETE_BUCKET if not ok else COMR_EMPTY_BUCKET
-                        for ok in complete
-                    ]
-                    details = [
-                        (
-                            {
                                 "why": "incomplete_bucket",
-                                "bucket_start": int(s),
+                                "bucket": int(b_idx),
+                                "bucket_start": int(starts[b_idx]),
                                 "df": int(df),
                                 "trn_stop": int(trn.stop),
                             }
-                            if not ok
-                            else {"why": "unfilled_complete_bucket"}
                         )
-                        for ok, s in zip(complete, starts)
-                    ]
-                    com_vals = [(np.nan, np.nan)] * n_buckets
-                    mag_vals = [np.nan] * n_buckets if store_mag else None
-                    mag_ns = list(trajectory_counts) if count_based_mag else None
-                    min_segments = min_between_reward_sync_bucket_trajectories(
-                        self.opts
-                    )
-                    for b_idx, (s, e) in enumerate(zip(starts, ends)):
-                        if not complete[b_idx]:
-                            continue
-                        # default
-                        r = COMR_OK
-                        det = {"s": int(s), "e": int(e), "n_frames": int(e - s)}
+                        continue
 
-                        if trajectory_counts[b_idx] < min_segments:
-                            r = COMR_EMPTY_BUCKET
-                            det["why"] = "too_few_between_reward_trajectories"
-                            det["n_between_reward_trajectories"] = int(
-                                trajectory_counts[b_idx]
-                            )
-                            det["min_between_reward_trajectories"] = int(min_segments)
-                            com_vals[b_idx] = (np.nan, np.nan)
+                    if seg_vecs[b_idx]:
+                        v = np.asarray(seg_vecs[b_idx], dtype=float)
+                        if n_used < min_segments:
+                            com_vals.append((np.nan, np.nan))
                             if store_mag:
-                                mag_vals[b_idx] = np.nan
-                            reasons[b_idx] = r
-                            details[b_idx].update(det)
-                            continue
-
-                        # if self.is_excluded_pair(fly_idx, trn.n - 1, b_idx):
-                        #     r = COMR_EXCLUDED_PAIR
-                        #     det["why"] = "is_excluded_pair"
-                        #     com_vals.append((np.nan, np.nan))
-                        #     if store_mag:
-                        #         mag_vals.append(np.nan)
-                        #     reasons.append(r)
-                        #     details.append(det)
-                        #     continue
-
-                        if exclude_wall and wc is not None:
-                            # wc is windowed to [fi, fi+n_win)
-                            s2 = max(0, min(int(s) - fi_i, len(wc)))
-                            e2 = max(0, min(int(e) - fi_i, len(wc)))
-                            if e2 > s2 and np.any(wc[s2:e2]):
-                                r = COMR_WALL_CONTACT
-                                det["why"] = "wall_contact_in_bucket"
-                                com_vals[b_idx] = (np.nan, np.nan)
-                                if store_mag:
-                                    mag_vals[b_idx] = np.nan
-                                reasons[b_idx] = r
-                                details[b_idx].update(det)
-                                continue
-
-                        idxs = np.arange(s, e)
-                        if idxs.size == 0:
-                            r = COMR_EMPTY_BUCKET
-                            det["why"] = "empty_idxs"
-                            com_vals[b_idx] = (np.nan, np.nan)
+                                mag_vals.append(np.nan)
+                            if count_based_mag:
+                                mag_ns.append(n_used)
+                            reasons.append(COMR_EMPTY_BUCKET)
+                        else:
+                            com_vals.append((np.nan, np.nan))
                             if store_mag:
-                                mag_vals[b_idx] = np.nan
-                            reasons[b_idx] = r
-                            details[b_idx].update(det)
-                            continue
-
-                        xs = traj.x[idxs]
-                        ys = traj.y[idxs]
-                        mx = np.nanmean(xs)
-                        my = np.nanmean(ys)
-
-                        if not (np.isfinite(mx) and np.isfinite(my)):
-                            r = COMR_NAN_MEAN
-                            det["why"] = "nanmean_not_finite"
-                            det["finite_x"] = int(np.isfinite(xs).sum())
-                            det["finite_y"] = int(np.isfinite(ys).sum())
-                            com_vals[b_idx] = (np.nan, np.nan)
-                            if store_mag:
-                                mag_vals[b_idx] = np.nan
-                            reasons[b_idx] = r
-                            details[b_idx].update(det)
-                            continue
-
-                        if relative_to_reward:
-                            mx -= cx
-                            my -= cy
-
-                        mx_mm = mx / px_per_mm
-                        my_mm = my / px_per_mm
-
-                        com_vals[b_idx] = (mx_mm, my_mm)
+                                mag_vals.append(float(np.nanmean(v[:, 2])))
+                            if count_based_mag:
+                                mag_ns.append(n_used)
+                            reasons.append(COMR_OK)
+                    else:
+                        com_vals.append((np.nan, np.nan))
                         if store_mag:
-                            mag_vals[b_idx] = np.hypot(mx_mm, my_mm)
-                        reasons[b_idx] = r
-                        details[b_idx].update(det)
+                            mag_vals.append(np.nan)
+                        if count_based_mag:
+                            mag_ns.append(0)
+
+                        # prioritize "strongest" failure signal
+                        if st["n_segments_total"] == 0:
+                            reason = COMR_EMPTY_BUCKET
+                        elif st["n_wall_contact_filtered"] > 0:
+                            reason = COMR_SEG_WALL_CONTACT_FILTER
+                        elif st["n_meddist_filtered"] > 0:
+                            reason = COMR_SEG_MEDDIST_FILTER
+                        elif st["n_meddist_nan"] > 0:
+                            reason = COMR_SEG_MEDDIST_NAN
+                        elif st["n_all_nan_x_or_y"] > 0:
+                            reason = COMR_SEG_ALL_NAN_X_OR_Y
+                        elif st["n_empty_xy"] > 0:
+                            reason = COMR_SEG_EMPTY_XY
+                        elif st["n_mean_nan"] > 0:
+                            reason = COMR_SEG_MEAN_NAN
+                        elif st["n_excluded_pair"] > 0:
+                            reason = COMR_EXCLUDED_PAIR
+                        elif st["n_too_short_excl_endpoints"]:
+                            reason = COMR_SEG_TOO_SHORT_EXCL_ENDPOINTS
+                        else:
+                            reason = COMR_SEG_TOO_SHORT
+
+                        reasons.append(reason)
+                    details.append(
+                        {
+                            "why": "per_segment",
+                            "bucket": int(b_idx),
+                            "agg_mode": str(agg_mode),
+                            "min_med_mm": float(min_med_mm),
+                            "min_between_reward_trajectories": int(min_segments),
+                            **st,
+                        }
+                    )
 
                 this_training[fly_key] = com_vals
                 if store_mag:
