@@ -223,6 +223,7 @@ from src.plotting.between_reward_polar_occupancy import (
     BetweenRewardPolarOccupancyPlotter,
     BetweenRewardPolarOccupancyConfig,
 )
+from src.plotting.annotation_layout import resolve_annotation_text_overlaps
 from src.plotting.reward_raster_plotter import RewardRasterConfig, RewardRasterPlotter
 from src.plotting.first_n_reward_diagnostics import (
     FirstNRewardDiagnosticsConfig,
@@ -7495,6 +7496,13 @@ def plotRewards(
             axs = np.array([[axs]])
         else:
             axs = axs[None]
+    annotation_texts_by_ax = collections.defaultdict(list)
+
+    def _track_annotation_text(ax, txt):
+        if txt is not None:
+            annotation_texts_by_ax[ax].append(txt)
+        return txt
+
     mci_min, mci_max = None, None
 
     global_geom_top = -np.inf
@@ -7691,6 +7699,7 @@ def plotRewards(
                                 txt._final_y_ = y_pos
                                 txt._group_idx_ = int(g)
                                 lbls[key].append(txt)
+                                _track_annotation_text(ax, txt)
                                 stack_top = _relayout_bucket_n_labels(
                                     lbls[key],
                                     x_pos=xs[j],
@@ -7796,6 +7805,7 @@ def plotRewards(
                         txt._ontp_ = True
                         key = util.join("|", (i, j))
                         lbls[key].append(txt)
+                        _track_annotation_text(ax, txt)
 
                         if i == 0:
                             all_line_vals.append([ys])
@@ -7866,6 +7876,7 @@ def plotRewards(
                             )
                             txt._y_ = base_y_for_auc
                             txt._final_y_ = ys_auc
+                            _track_annotation_text(ax, txt)
 
                     # AUC
                     if ng > 1 and not tp == "rpip" and not opts.hidePltTests:
@@ -8031,6 +8042,7 @@ def plotRewards(
 
                                 txt._y_ = base_y_for_auc
                                 txt._final_y_ = ys
+                                _track_annotation_text(ax, txt)
 
                 runPFL = showPFL and ng == 1 and f == 0 and not post and comparable
                 runPT = showPT and ng == 1 and f == 0 and not post and comparable
@@ -8285,6 +8297,18 @@ def plotRewards(
         for ax in all_axes:
             ax.set_ylim(ylim[0], ylim[1])
 
+    if annotation_texts_by_ax:
+        for _ in range(2):
+            prev_ymax = float(ylim[1])
+            for ax in all_axes:
+                ax.set_ylim(ylim[0], ylim[1])
+            for ax, texts in annotation_texts_by_ax.items():
+                resolve_annotation_text_overlaps(ax, texts, ylim)
+            if float(ylim[1]) <= prev_ymax + 1e-12:
+                break
+        for ax in all_axes:
+            ax.set_ylim(ylim[0], ylim[1])
+
     if legend is not None:
         fig.canvas.draw()  # ensures renderer exists
 
@@ -8322,6 +8346,7 @@ def plotRewards(
             ymax_global = max(y1 for (_, y1) in ylim_vals) + delta_y_global
             for ax in all_axes:
                 ax.set_ylim(ymin_global, ymax_global)
+            ylim[0], ylim[1] = ymin_global, ymax_global
         elif bottom_star_y is not None and legend_y0 < bottom_star_y < legend_y1:
             # Legend overlaps bottom labels → shift downward
             delta_y_global = min(0.35 * mean_span, 0.35 * med_span)
@@ -8329,6 +8354,17 @@ def plotRewards(
             ymax_global = max(y1 for (_, y1) in ylim_vals)
             for ax in all_axes:
                 ax.set_ylim(ymin_global, ymax_global)
+            ylim[0], ylim[1] = ymin_global, ymax_global
+
+        if annotation_texts_by_ax:
+            for _ in range(2):
+                prev_ymax = float(ylim[1])
+                for ax, texts in annotation_texts_by_ax.items():
+                    resolve_annotation_text_overlaps(ax, texts, ylim)
+                if float(ylim[1]) <= prev_ymax + 1e-12:
+                    break
+            for ax in all_axes:
+                ax.set_ylim(ylim[0], ylim[1])
     if not nrp:
         plt.subplots_adjust(wspace=opts.wspace)
     if tp in ("wall", "agarose") and va.ct is CT.htl:

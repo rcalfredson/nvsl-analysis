@@ -26,6 +26,7 @@ from src.utils.common import (
 )
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.time_series_auc import add_auc_label, compute_auc_test
+from src.plotting.annotation_layout import resolve_annotation_text_overlaps
 
 
 def _pct_label(prefix, frac):
@@ -1256,6 +1257,7 @@ def plot_com_sli_bundle_data(
                 "training_idx": int(ti),
                 "panel_xs": np.asarray(panel_xs, dtype=float),
                 "pending_n_labels": pending_n_labels,
+                "annotation_texts": [],
                 "do_anova": bool(do_anova),
                 "do_ttests": bool(do_ttests),
                 "means_by_group": means_by_group,
@@ -1320,6 +1322,7 @@ def plot_com_sli_bundle_data(
         ax = ctx["ax"]
         plt.sca(ax)
         lbls = defaultdict(list)
+        annotation_texts = ctx["annotation_texts"]
 
         pending_by_bucket = defaultdict(list)
         for info in ctx["pending_n_labels"]:
@@ -1375,6 +1378,7 @@ def plot_com_sli_bundle_data(
                 txt._y_ = float(info["anchor_y"])
                 txt._final_y_ = float(y_n)
                 lbls[bucket_idx].append(txt)
+                annotation_texts.append(txt)
 
         if (
             ctx["do_anova"]
@@ -1444,6 +1448,7 @@ def plot_com_sli_bundle_data(
                 txt._y_ = float(anchor_y)
                 txt._final_y_ = float(ys_star)
                 lbls[bj].append(txt)
+                annotation_texts.append(txt)
 
         if (
             ctx["do_ttests"]
@@ -1508,6 +1513,7 @@ def plot_com_sli_bundle_data(
                 txt._y_ = float(anchor_y)
                 txt._final_y_ = float(ys_star)
                 lbls[bj].append(txt)
+                annotation_texts.append(txt)
 
         if (
             ctx["show_auc"]
@@ -1543,6 +1549,9 @@ def plot_com_sli_bundle_data(
                 )
                 if txt is not None:
                     lbls[-1].append(txt)
+                    annotation_texts.append(txt)
+
+        resolve_annotation_text_overlaps(ax, annotation_texts, ylim)
 
     # legend (or suptitle if only one entry)
     handles, leg_labels = axs[0].get_legend_handles_labels()
@@ -1580,7 +1589,19 @@ def plot_com_sli_bundle_data(
             legend_labels.extend(ctrl_condition_labels)
 
     # Annotation placement can expand the shared y-limits in-place. Re-apply the
-    # final limits after all labels and stars are placed so they stay inside axes.
+    # final limits, then re-check rendered text boxes because a larger y-range
+    # slightly compresses data-space gaps in display space.
+    for _ in range(2):
+        prev_ymax = float(ylim[1])
+        for ax in fig.get_axes():
+            ax.set_ylim(ylim[0], ylim[1])
+        for ctx in panel_annotation_contexts:
+            resolve_annotation_text_overlaps(
+                ctx["ax"], ctx["annotation_texts"], ylim
+            )
+        if float(ylim[1]) <= prev_ymax + 1e-12:
+            break
+
     for ax in fig.get_axes():
         ax.set_ylim(ylim[0], ylim[1])
 
