@@ -4602,7 +4602,7 @@ g.add_argument(
     "--independent-exclusion",
     action="store_true",
     help=(
-        "Unlink the exclusion conditions between experimental and yoked control flies in the learning stats file. "
+        "Unlink the exclusion conditions between experimental and yoked control flies in learning stats and sync-bucket plots. "
         "By default, if a sync bucket value is excluded for one fly (such as due to piTh), then it is also excluded "
         "for the other. Using this flag, each fly is included or excluded independently of its pair."
     ),
@@ -10916,7 +10916,8 @@ def postAnalyze(vas):
         a_orig = a.copy()
 
         if (
-            len(va.flies) > 1
+            not opts.independent_exclusion
+            and len(va.flies) > 1
             and (
                 tp
                 in (

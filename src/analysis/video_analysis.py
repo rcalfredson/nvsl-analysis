@@ -6599,7 +6599,7 @@ class VideoAnalysis:
         Return True if either this fly or its yoked control partner
         is excluded for the given training t_idx and bucket b_idx.
         """
-        if self.noyc:
+        if self.noyc or bool(getattr(self.opts, "independent_exclusion", False)):
             return self.reward_exclusion_mask[t_idx][f][b_idx]
 
         partner = 1 - f
