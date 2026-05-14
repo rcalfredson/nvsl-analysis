@@ -2,6 +2,7 @@ import math
 from math import sin, cos
 import os
 import random
+import textwrap
 from typing import Optional, Tuple
 
 import matplotlib.patches as patches
@@ -51,6 +52,26 @@ class EventChainPlotter:
         if color in {"black", "k"}:
             return "black"
         return "lightgray"
+
+    @staticmethod
+    def _wrap_multiline_text(text, width, *, break_long_words=False):
+        if width is None or int(width) <= 0:
+            return str(text)
+        wrapped_lines = []
+        for line in str(text).splitlines() or [""]:
+            if not line:
+                wrapped_lines.append(line)
+                continue
+            wrapped_lines.extend(
+                textwrap.wrap(
+                    line,
+                    width=int(width),
+                    break_long_words=bool(break_long_words),
+                    break_on_hyphens=bool(break_long_words),
+                )
+                or [line]
+            )
+        return "\n".join(wrapped_lines)
 
     @staticmethod
     def _clamp_point_to_floor(x, y, top_left, bottom_right):
@@ -3944,6 +3965,9 @@ class EventChainPlotter:
         out_path: str | None = None,
         title_suffix: str = "",
         annotation_text: str | None = None,
+        title_wrap_width: int | None = None,
+        annotation_location: str = "axes",
+        annotation_wrap_width: int | None = None,
     ):
         """
         Plot exactly one between-reward trajectory segment for this fly, defined by
@@ -3981,6 +4005,15 @@ class EventChainPlotter:
         annotation_text : str | None
             Optional text box drawn in the upper-right of the axes for per-segment
             metrics such as path length, max radius, or tortuosity.
+        title_wrap_width : int | None
+            If provided, wrap each title line to this many characters before drawing.
+        annotation_location : str
+            Where to draw annotation_text. "axes" keeps the historical upper-right
+            in-axis placement. "figure-top" draws it in reserved figure space below
+            the title, avoiding overlap with the chamber. "figure-right" and
+            "figure-left" place it beside the chamber.
+        annotation_wrap_width : int | None
+            If provided, wrap each annotation line to this many characters before drawing.
         """
 
         image_format = image_format or self.image_format
@@ -4290,11 +4323,22 @@ class EventChainPlotter:
             label="Reward (end)",
         )
 
-        if annotation_text:
+        annotation_location = str(annotation_location or "axes").strip().lower()
+        annotation_text_wrapped = (
+            self._wrap_multiline_text(
+                annotation_text,
+                annotation_wrap_width,
+                break_long_words=annotation_location
+                in {"figure-right", "figure-left"},
+            )
+            if annotation_text
+            else None
+        )
+        if annotation_text_wrapped and annotation_location == "axes":
             ax.text(
                 0.98,
                 0.98,
-                str(annotation_text),
+                annotation_text_wrapped,
                 transform=ax.transAxes,
                 ha="right",
                 va="top",
@@ -4334,7 +4378,46 @@ class EventChainPlotter:
             f"{video_id}, fly {fly_idx}, {fly_role} | trn {trn_index + 1}\n"
             f"rewards {sr}->{er} (frames {start_frame}-{end_frame}){dist_line}{suffix}"
         )
+        global_title = self._wrap_multiline_text(global_title, title_wrap_width)
         fig.suptitle(global_title, fontsize=12)
+
+        if annotation_text_wrapped and annotation_location == "figure-top":
+            fig.text(
+                0.5,
+                0.835,
+                annotation_text_wrapped,
+                ha="center",
+                va="top",
+                fontsize=8.5,
+                color="0.15",
+                bbox=dict(
+                    boxstyle="round,pad=0.28",
+                    facecolor="white",
+                    edgecolor="0.65",
+                    linewidth=0.8,
+                    alpha=0.92,
+                ),
+            )
+        elif annotation_text_wrapped and annotation_location in {
+            "figure-right",
+            "figure-left",
+        }:
+            fig.text(
+                0.965 if annotation_location == "figure-right" else 0.035,
+                0.54,
+                annotation_text_wrapped,
+                ha="right" if annotation_location == "figure-right" else "left",
+                va="center",
+                fontsize=8.5,
+                color="0.15",
+                bbox=dict(
+                    boxstyle="round,pad=0.28",
+                    facecolor="white",
+                    edgecolor="0.65",
+                    linewidth=0.8,
+                    alpha=0.92,
+                ),
+            )
 
         handles, labels = ax.get_legend_handles_labels()
         if handles:
@@ -4349,7 +4432,18 @@ class EventChainPlotter:
                 fontsize=9,
             )
 
-        fig.subplots_adjust(left=0.04, right=0.98, top=0.88, bottom=0.16)
+        top = (
+            0.78
+            if annotation_text_wrapped and annotation_location == "figure-top"
+            else 0.88
+        )
+        left = 0.04
+        right = 0.98
+        if annotation_text_wrapped and annotation_location == "figure-right":
+            right = 0.78
+        elif annotation_text_wrapped and annotation_location == "figure-left":
+            left = 0.22
+        fig.subplots_adjust(left=left, right=right, top=top, bottom=0.16)
 
         # --- Output path ------------------------------------------------------------
         if out_path is None:

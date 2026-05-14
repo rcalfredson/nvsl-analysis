@@ -137,6 +137,15 @@ def _format_float(value: Any, digits: int = 3) -> str:
     return f"{x:.{digits}f}"
 
 
+def _short_text(value: Any, *, max_len: int = 72) -> str:
+    text = str(value or "na").strip()
+    if len(text) <= max_len:
+        return text
+    head = max(8, (max_len - 3) // 2)
+    tail = max(8, max_len - 3 - head)
+    return f"{text[:head]}...{text[-tail:]}"
+
+
 def _fly_idx(row: dict[str, str]) -> int:
     for key in ("experimental_fly_idx", "fly_idx", "fly_id"):
         value = row.get(key)
@@ -379,7 +388,7 @@ def _metadata_label(row: dict[str, str]) -> str:
         f"pred={row.get('prediction_predicted_label', 'na')}",
         f"prob={_format_float(row.get('prediction_probability'))}",
         f"margin={_format_float(row.get('prediction_decision_margin'))}",
-        f"genotype={row.get('genotype', 'na')}",
+        f"geno={row.get('genotype', 'na')}",
         f"cohort={row.get('cohort', 'na')}",
         f"n_segments={row.get('prediction_n_segments', 'na')}",
         f"evidence={row.get('prediction_evidence_bin', 'na')}",
@@ -506,7 +515,7 @@ def main() -> None:
                     _segment_file_name(seg, image_format, training_idx=trn_index),
                 )
                 annotation = (
-                    f"segment_id = {row.get('segment_id', 'na')}\n"
+                    f"segment_id = {_short_text(row.get('segment_id', 'na'), max_len=88)}\n"
                     f"frames = {seg.anchor_reward_frame}->{seg.end_reward_frame}\n"
                     f"duration = {row.get('duration_frames', 'na')} frames\n"
                     f"qc_flags = {row.get('qc_flags', '') or 'none'}"
@@ -523,6 +532,9 @@ def main() -> None:
                     out_path=out_path,
                     title_suffix=_metadata_label(row),
                     annotation_text=annotation,
+                    title_wrap_width=112,
+                    annotation_location="figure-right",
+                    annotation_wrap_width=28,
                 )
                 plt.close("all")
                 plotted += 1
