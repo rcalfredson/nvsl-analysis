@@ -744,6 +744,24 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--corr-export-npz-dir",
+    type=str,
+    default=None,
+    help=(
+        "Optional directory for exporting finite x/y data from each cross-fly "
+        "correlation scatter plot as .npz files."
+    ),
+)
+g.add_argument(
+    "--corr-export-group-label",
+    type=str,
+    default=None,
+    help=(
+        "Optional group label stored in --corr-export-npz-dir scatter exports. "
+        "If omitted, the first label from --gl is used when available."
+    ),
+)
+g.add_argument(
     "--corr-sli-vs-rpt-xlabel",
     type=str,
     default=None,

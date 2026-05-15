@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+import json
 import logging
 import os
 from pathlib import Path
@@ -12,6 +13,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
 
+from src.analysis.correlation_stats import pearson_correlation_summary
 from src.plotting.palettes import (
     MUTED_CATEGORICAL,
     NEUTRAL_LIGHT,
@@ -79,6 +81,8 @@ class CorrelationPlotConfig:
     figsize: tuple = (5.5, 4.5)
     xlim: Optional[Tuple[float, float]] = None
     ylim: Optional[Tuple[float, float]] = None
+    export_npz_dir: Optional[Path] = None
+    export_group_label: Optional[str] = None
 
 
 def _correlation_out_path(out_dir: Path, filename: str, image_format: str) -> Path:
@@ -91,6 +95,68 @@ def _cfg_with_plot_color(cfg: CorrelationPlotConfig, plot_key: str) -> Correlati
         cfg,
         dot_color=correlation_plot_color(plot_key, fallback=cfg.dot_color),
     )
+
+
+def _corr_export_group_label(opts) -> str | None:
+    label = getattr(opts, "corr_export_group_label", None)
+    if label:
+        return str(label)
+    label = getattr(opts, "export_group_label", None)
+    if label:
+        return str(label)
+    labels = getattr(opts, "groupLabels", None)
+    if labels:
+        return str(labels).split("|")[0]
+    return None
+
+
+def _export_scatter_npz(
+    *,
+    x: np.ndarray,
+    y: np.ndarray,
+    title: str,
+    x_label: str,
+    y_label: str,
+    filename: str,
+    cfg: CorrelationPlotConfig,
+    r: float,
+    p: float,
+) -> None:
+    if cfg.export_npz_dir is None:
+        return
+    out_dir = Path(cfg.export_npz_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{filename}.npz"
+    summary = pearson_correlation_summary(x, y)
+    meta = {
+        "metric": "cross_fly_correlation_scatter",
+        "filename": filename,
+        "title": title,
+        "x_label": x_label,
+        "y_label": y_label,
+        "group": cfg.export_group_label,
+        "r": float(r),
+        "p": float(p),
+        "n": int(summary.n),
+        "corr_method": "pearson",
+    }
+    np.savez_compressed(
+        out_path,
+        x=np.asarray(x, dtype=float),
+        y=np.asarray(y, dtype=float),
+        r=np.asarray(float(r), dtype=float),
+        p=np.asarray(float(p), dtype=float),
+        n=np.asarray(int(summary.n), dtype=int),
+        x_label=np.asarray(str(x_label), dtype=object),
+        y_label=np.asarray(str(y_label), dtype=object),
+        title=np.asarray(str(title), dtype=object),
+        group=np.asarray(
+            "" if cfg.export_group_label is None else cfg.export_group_label,
+            dtype=object,
+        ),
+        meta_json=json.dumps(meta, sort_keys=True),
+    )
+    print(f"[correlations] wrote scatter export {out_path}")
 
 
 @dataclass(frozen=True)
@@ -919,6 +985,17 @@ def _scatter_with_corr(
     fig.tight_layout()
     out_path = _correlation_out_path(cfg.out_dir, filename, cfg.image_format)
     writeImage(str(out_path), format=cfg.image_format)
+    _export_scatter_npz(
+        x=x_f,
+        y=y_f,
+        title=title,
+        x_label=x_label,
+        y_label=y_label,
+        filename=filename,
+        cfg=cfg,
+        r=float(r),
+        p=float(p),
+    )
     plt.close(fig)
 
 
@@ -1562,6 +1639,12 @@ def plot_cross_fly_correlations(
         image_format=getattr(opts, "imageFormat", "png"),
         xlim=getattr(opts, "corr_xlim", None),
         ylim=getattr(opts, "corr_ylim", None),
+        export_npz_dir=(
+            None
+            if getattr(opts, "corr_export_npz_dir", None) is None
+            else Path(getattr(opts, "corr_export_npz_dir"))
+        ),
+        export_group_label=_corr_export_group_label(opts),
     )
     frac = getattr(opts, "best_worst_fraction", 0.2)
     customizer = plot_customizer or PlotCustomizer()
