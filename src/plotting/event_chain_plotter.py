@@ -3968,6 +3968,7 @@ class EventChainPlotter:
         title_wrap_width: int | None = None,
         annotation_location: str = "axes",
         annotation_wrap_width: int | None = None,
+        minimal: bool = False,
     ):
         """
         Plot exactly one between-reward trajectory segment for this fly, defined by
@@ -4014,6 +4015,9 @@ class EventChainPlotter:
             "figure-left" place it beside the chamber.
         annotation_wrap_width : int | None
             If provided, wrap each annotation line to this many characters before drawing.
+        minimal : bool
+            If True, render only the chamber boundary, sidewall contact shading,
+            reward circle, trajectory path, and path endpoints.
         """
 
         image_format = image_format or self.image_format
@@ -4122,7 +4126,7 @@ class EventChainPlotter:
             return arrow_kwargs_zoomed if frac <= 0.60 else arrow_kwargs_default
 
         # --- Figure ----------------------------------------------------------------
-        fig, ax = plt.subplots(1, 1, figsize=(7.5, 6.5))
+        fig, ax = plt.subplots(1, 1, figsize=(6.5, 6.5) if minimal else (7.5, 6.5))
         plt.sca(ax)
 
         # Floor box
@@ -4163,7 +4167,7 @@ class EventChainPlotter:
                 linestyle="-",
                 linewidth=1.5,
                 zorder=3,
-                label="Reward circle",
+                label=None if minimal else "Reward circle",
             )
             ax.add_patch(rc_patch)
 
@@ -4204,36 +4208,37 @@ class EventChainPlotter:
                     ax.set_ylim(y0, y1)
 
                 eps = 0.01
-                ax.add_patch(
-                    patches.Rectangle(
-                        (2 * eps, 2 * eps),
-                        1 - 4 * eps,
-                        1 - 4 * eps,
-                        transform=ax.transAxes,
-                        fill=False,
-                        linewidth=1.0,
-                        linestyle="--",
-                        edgecolor="0.6",
-                        zorder=10,
+                if not minimal:
+                    ax.add_patch(
+                        patches.Rectangle(
+                            (2 * eps, 2 * eps),
+                            1 - 4 * eps,
+                            1 - 4 * eps,
+                            transform=ax.transAxes,
+                            fill=False,
+                            linewidth=1.0,
+                            linestyle="--",
+                            edgecolor="0.6",
+                            zorder=10,
+                        )
                     )
-                )
-                ax.text(
-                    0.03,
-                    0.97,
-                    "zoom",
-                    transform=ax.transAxes,
-                    ha="left",
-                    va="top",
-                    fontsize=8,
-                    color="0.35",
-                    zorder=11,
-                    bbox=dict(
-                        boxstyle="round,pad=0.15",
-                        facecolor="white",
-                        edgecolor="none",
-                        alpha=0.7,
-                    ),
-                )
+                    ax.text(
+                        0.03,
+                        0.97,
+                        "zoom",
+                        transform=ax.transAxes,
+                        ha="left",
+                        va="top",
+                        fontsize=8,
+                        color="0.35",
+                        zorder=11,
+                        bbox=dict(
+                            boxstyle="round,pad=0.15",
+                            facecolor="white",
+                            edgecolor="none",
+                            alpha=0.7,
+                        ),
+                    )
         else:
             ax.set_xlim(top_left[0] - padding_x, bottom_right[0] + padding_x)
             ax.set_ylim(bottom_right[1] - padding_y, top_left[1] + padding_y)
@@ -4287,21 +4292,22 @@ class EventChainPlotter:
                     continue
 
             speed = np.hypot(x_end - x_start, y_end - y_start)
-            try:
-                last_arrow_idx = self._draw_arrow_for_speed(
-                    i,
-                    x_start,
-                    x_end,
-                    y_start,
-                    y_end,
-                    last_arrow_idx,
-                    arrow_interval,
-                    speed,
-                    arrow_kwargs=arrow_kwargs,
-                )
-            except Exception:
-                # if arrow helper isn't available / fails, just skip arrows
-                pass
+            if not minimal:
+                try:
+                    last_arrow_idx = self._draw_arrow_for_speed(
+                        i,
+                        x_start,
+                        x_end,
+                        y_start,
+                        y_end,
+                        last_arrow_idx,
+                        arrow_interval,
+                        speed,
+                        arrow_kwargs=arrow_kwargs,
+                    )
+                except Exception:
+                    # if arrow helper isn't available / fails, just skip arrows
+                    pass
 
         # Mark the two reward frames
         ax.plot(
@@ -4311,7 +4317,7 @@ class EventChainPlotter:
             color="green",
             markersize=7,
             zorder=4,
-            label="Reward (start)",
+            label=None if minimal else "Reward (start)",
         )
         ax.plot(
             self.x[er],
@@ -4320,10 +4326,12 @@ class EventChainPlotter:
             color="red",
             markersize=7,
             zorder=4,
-            label="Reward (end)",
+            label=None if minimal else "Reward (end)",
         )
 
         annotation_location = str(annotation_location or "axes").strip().lower()
+        if minimal:
+            annotation_text = None
         annotation_text_wrapped = (
             self._wrap_multiline_text(
                 annotation_text,
@@ -4372,14 +4380,15 @@ class EventChainPlotter:
             if np.isfinite(dmm2):
                 dist_line = f", dist {dmm2:.2f} mm"
 
-        suffix = f" {title_suffix}".rstrip()
-        global_title = (
-            "Between-reward trajectory (selected interval)\n"
-            f"{video_id}, fly {fly_idx}, {fly_role} | trn {trn_index + 1}\n"
-            f"rewards {sr}->{er} (frames {start_frame}-{end_frame}){dist_line}{suffix}"
-        )
-        global_title = self._wrap_multiline_text(global_title, title_wrap_width)
-        fig.suptitle(global_title, fontsize=12)
+        if not minimal:
+            suffix = f" {title_suffix}".rstrip()
+            global_title = (
+                "Between-reward trajectory (selected interval)\n"
+                f"{video_id}, fly {fly_idx}, {fly_role} | trn {trn_index + 1}\n"
+                f"rewards {sr}->{er} (frames {start_frame}-{end_frame}){dist_line}{suffix}"
+            )
+            global_title = self._wrap_multiline_text(global_title, title_wrap_width)
+            fig.suptitle(global_title, fontsize=12)
 
         if annotation_text_wrapped and annotation_location == "figure-top":
             fig.text(
@@ -4420,7 +4429,7 @@ class EventChainPlotter:
             )
 
         handles, labels = ax.get_legend_handles_labels()
-        if handles:
+        if handles and not minimal:
             ax.legend(
                 handles=handles,
                 labels=labels,
@@ -4432,18 +4441,21 @@ class EventChainPlotter:
                 fontsize=9,
             )
 
-        top = (
-            0.78
-            if annotation_text_wrapped and annotation_location == "figure-top"
-            else 0.88
-        )
-        left = 0.04
-        right = 0.98
-        if annotation_text_wrapped and annotation_location == "figure-right":
-            right = 0.78
-        elif annotation_text_wrapped and annotation_location == "figure-left":
-            left = 0.22
-        fig.subplots_adjust(left=left, right=right, top=top, bottom=0.16)
+        if minimal:
+            fig.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01)
+        else:
+            top = (
+                0.78
+                if annotation_text_wrapped and annotation_location == "figure-top"
+                else 0.88
+            )
+            left = 0.04
+            right = 0.98
+            if annotation_text_wrapped and annotation_location == "figure-right":
+                right = 0.78
+            elif annotation_text_wrapped and annotation_location == "figure-left":
+                left = 0.22
+            fig.subplots_adjust(left=left, right=right, top=top, bottom=0.16)
 
         # --- Output path ------------------------------------------------------------
         if out_path is None:

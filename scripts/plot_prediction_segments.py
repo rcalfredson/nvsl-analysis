@@ -83,6 +83,14 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument("--pad", type=int, default=5, help="Frames of plotting context.")
     p.add_argument("--zoom", action="store_true", help="Zoom around reward circle.")
+    p.add_argument(
+        "--minimal",
+        action="store_true",
+        help=(
+            "Render only the chamber boundary, sidewall shading, path endpoints, "
+            "and trajectory path."
+        ),
+    )
     p.add_argument("--zoom-radius-mm", type=float, default=None)
     p.add_argument(
         "--video-path-column",
@@ -414,7 +422,11 @@ def _fly_dir_name(seg: SegmentRow) -> str:
 
 
 def _segment_file_name(
-    seg: SegmentRow, image_format: str, *, training_idx: int | None = None
+    seg: SegmentRow,
+    image_format: str,
+    *,
+    training_idx: int | None = None,
+    minimal: bool = False,
 ) -> str:
     if training_idx is None:
         training_idx = seg.training_idx
@@ -430,7 +442,8 @@ def _segment_file_name(
             f"margin{_sanitize(_format_float(row.get('prediction_decision_margin')))}",
         ]
     )
-    return f"{stem}.{image_format.lstrip('.')}"
+    suffix = "__minimal" if minimal else ""
+    return f"{stem}{suffix}.{image_format.lstrip('.')}"
 
 
 def main() -> None:
@@ -512,7 +525,12 @@ def main() -> None:
                 )
                 out_path = os.path.join(
                     fly_dir,
-                    _segment_file_name(seg, image_format, training_idx=trn_index),
+                    _segment_file_name(
+                        seg,
+                        image_format,
+                        training_idx=trn_index,
+                        minimal=bool(args.minimal),
+                    ),
                 )
                 annotation = (
                     f"segment_id = {_short_text(row.get('segment_id', 'na'), max_len=88)}\n"
@@ -535,6 +553,7 @@ def main() -> None:
                     title_wrap_width=112,
                     annotation_location="figure-right",
                     annotation_wrap_width=28,
+                    minimal=bool(args.minimal),
                 )
                 plt.close("all")
                 plotted += 1
