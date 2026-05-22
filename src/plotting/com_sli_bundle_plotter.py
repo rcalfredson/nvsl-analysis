@@ -394,7 +394,8 @@ def plot_com_sli_bundle_data(
     sli_bottom_fraction=None,
     opts=None,
     metric="commag",
-    turnback_mode="exp",  # exp | ctrl | exp_minus_ctrl
+    metric_condition="exp",  # exp | ctrl | exp_minus_ctrl
+    turnback_mode=None,  # deprecated alias for metric_condition
     delta_vs_bundle=None,  # baseline bundle dict; if set, plot (bundle - baseline)
     delta_label=None,  # label prefix in delta mode
     xlabel=None,
@@ -415,6 +416,10 @@ def plot_com_sli_bundle_data(
     - Optionally filter within each bundle by SLI percentile.
     - Optional top-of-figure description labels are hidden by default.
     """
+    if turnback_mode is not None:
+        metric_condition = turnback_mode
+    turnback_mode = metric_condition
+
     if opts is None:
         # minimal opts object for PlotCustomizer + writeImage usage
         opts = SimpleNamespace(
@@ -1647,7 +1652,8 @@ def plot_com_sli_bundles(
     sli_bottom_fraction=None,
     opts=None,
     metric="commag",
-    turnback_mode="exp",
+    metric_condition="exp",
+    turnback_mode=None,
     delta_vs_path=None,
     delta_label=None,
     xlabel=None,
@@ -1660,6 +1666,9 @@ def plot_com_sli_bundles(
     show_description_labels=False,
     show_auc=True,
 ):
+    if turnback_mode is not None:
+        metric_condition = turnback_mode
+
     bundles = [load_sli_bundle(p) for p in bundle_paths]
     delta_vs_bundle = load_sli_bundle(delta_vs_path) if delta_vs_path else None
     return plot_com_sli_bundle_data(
@@ -1674,7 +1683,7 @@ def plot_com_sli_bundles(
         sli_bottom_fraction=sli_bottom_fraction,
         opts=opts,
         metric=metric,
-        turnback_mode=turnback_mode,
+        metric_condition=metric_condition,
         delta_vs_bundle=delta_vs_bundle,
         delta_label=delta_label,
         xlabel=xlabel,

@@ -88,7 +88,10 @@ from src.exporting.between_reward_maxdist_sli_bundle import (
     build_between_reward_maxdist_sli_bundle,
     export_between_reward_maxdist_sli_bundle,
 )
-from src.exporting.com_sli_bundle import build_com_sli_bundle, export_com_sli_bundle
+from src.exporting.commag_sli_bundle import (
+    build_commag_sli_bundle,
+    export_commag_sli_bundle,
+)
 from src.exporting.cum_reward_sli_bundle import export_cum_reward_sli_bundle
 from src.exporting.lgturn_startdist_sli_bundle import export_lgturn_startdist_sli_bundle
 from src.exporting.reward_lgturn_pathlen_sli_bundle import (
@@ -136,7 +139,7 @@ from src.plotting.reward_count_hist import (
     RewardCountHistogramConfig,
     RewardCountHistogramPlotter,
 )
-from src.plotting.com_sli_bundle_plotter import plot_com_sli_bundle_data
+from src.plotting.metric_sli_bundle_plotter import plot_metric_sli_bundle_data
 from src.plotting.reward_count_totals import (
     RewardCountTotalsConfig,
     RewardCountTotalsPlotter,
@@ -5035,11 +5038,15 @@ g.add_argument(
     help="Deprecated for cumulative-reward SLI bundles; top/bottom selection should be applied at plot time.",
 )
 g.add_argument(
+    "--export-commag-sli-bundle",
     "--export-com-sli-bundle",
+    dest="export_commag_sli_bundle",
     type=str,
     default=None,
-    help="Write an .npz bundle with per-video SLI and COM magnitude time-series "
-    "for this run's vas (used for cross-run top-SLI COM plots).",
+    help=(
+        "Write an .npz bundle with per-video SLI and COM-magnitude time series "
+        "for this run's vas. --export-com-sli-bundle is a deprecated alias."
+    ),
 )
 g.add_argument(
     "--export-between-reward-maxdist-sli-bundle",
@@ -10253,7 +10260,7 @@ def _build_between_reward_sli_plot_bundles_for_metric(vas, gis, gls, metric):
                 group_vas, group_opts, [group_label]
             )
         elif metric == "commag":
-            bundle = build_com_sli_bundle(group_vas, group_opts, [group_label])
+            bundle = build_commag_sli_bundle(group_vas, group_opts, [group_label])
         elif metric == "between_reward_return_leg_dist":
             bundle = build_btw_rwd_return_leg_dist_sli_bundle(
                 group_vas, group_opts, [group_label]
@@ -10291,13 +10298,13 @@ def _emit_default_between_reward_sli_plots(vas, gis, gls):
             out_fn = _between_reward_sli_default_out_file(
                 metric, group_labels, condition=metric_condition
             )
-            plot_com_sli_bundle_data(
+            plot_metric_sli_bundle_data(
                 bundles,
                 out_fn,
                 num_trainings=opts.num_trainings,
                 opts=opts,
                 metric=metric,
-                turnback_mode=metric_condition,
+                metric_condition=metric_condition,
             )
         except Exception as exc:
             print(
@@ -10324,8 +10331,8 @@ def postAnalyze(vas):
     if gls and len(gls) != ng:
         error("numbers of groups and group labels differ")
 
-    if getattr(opts, "export_com_sli_bundle", None):
-        export_com_sli_bundle(vas, opts, gls, opts.export_com_sli_bundle)
+    if getattr(opts, "export_commag_sli_bundle", None):
+        export_commag_sli_bundle(vas, opts, gls, opts.export_commag_sli_bundle)
 
     if getattr(opts, "export_between_reward_maxdist_sli_bundle", None):
         export_between_reward_maxdist_sli_bundle(
