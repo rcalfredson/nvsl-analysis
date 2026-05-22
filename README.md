@@ -340,4 +340,16 @@ It:
 
 Logs like `__analyze_13F02.log` or `__analyze_blind.log` and CSVs like `learning_stats_alt.csv` or `learning_stats_blind.csv` are checked, and images in `test-imgs/key.json` are compared via binary checks.
 
+Paper-metric correctness checks are being added under `test/paper_metrics/`.
+Run them with:
+```bash
+pytest -q test/paper_metrics
+```
+
+The first real-data paper regression manifest covers SLI-related keys in the
+panel-30 SLI bundles. If those local exports are present, check them with:
+```bash
+python scripts/check_bundle_digest.py check-manifest test/reference/bundles/sli_paper_manifest.json
+```
+
 *Thank you for using `nvsl-analysis`! If you have any feedback or questions, please open an issue on GitHub or email the authors.*

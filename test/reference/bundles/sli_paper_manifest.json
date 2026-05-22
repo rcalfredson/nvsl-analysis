@@ -1,0 +1,605 @@
+{
+  "bundles": [
+    {
+      "arrays": {
+        "group_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "e89a883983ddc58a46b200256a417f4ea9cbd9b219982eeb3c7aa4bd7c99fce2",
+          "shape": []
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 59,
+          "kind": "numeric",
+          "nan_count": 10,
+          "sha256": "d4f146168bfc570749fae2db700804b7397e93ec49779dcfa1be61caabffd162",
+          "shape": [
+            69
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 847,
+          "kind": "numeric",
+          "nan_count": 395,
+          "sha256": "d0c722c678aba09e7409135f820bc1b95b4938c0ccb9b87cd7658ba6d3230cec",
+          "shape": [
+            69,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "7e6e55368ace86a77858dc00de69db346d86e69c4412689e8d63238c73c9c669",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "object",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 69,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "9242d4fcf88dee42c16d3fd736097f56281fbee20201cd164caa753a22b91071",
+          "shape": [
+            69
+          ]
+        }
+      },
+      "keys": [
+        "group_label",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_30_flat_ctrl_sli",
+      "path": "exports/sli_intact_ctrlKir_flatLgc_2026-05-21.npz",
+      "sha256": "d3d0cd87d45918211e803154324cbb86e7de2674d1bda068f4624b5ae1f97f05"
+    },
+    {
+      "arrays": {
+        "group_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "06a099c037567ced38da0510efea7f662342e945a9c3f3cc3ff8b998c6d11657",
+          "shape": []
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 45,
+          "kind": "numeric",
+          "nan_count": 21,
+          "sha256": "e99fdaeda4dd0addc72eb5d2ad9eb71c32292d4ea1bc16e85747b1f3035559b8",
+          "shape": [
+            66
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 714,
+          "kind": "numeric",
+          "nan_count": 474,
+          "sha256": "a05bc6b4630ede45a61d098b7f71e3ff9c709731ea20869503b9b78c35bee2fa",
+          "shape": [
+            66,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "7e6e55368ace86a77858dc00de69db346d86e69c4412689e8d63238c73c9c669",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "object",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 66,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "b08398ff7eed90d810d604ccae4cf8f80597ffc45c14ad4a90d57238fc3c22d0",
+          "shape": [
+            66
+          ]
+        }
+      },
+      "keys": [
+        "group_label",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_30_flat_ar_ctrl_sli",
+      "path": "exports/sli_ar_ctrlKir_flatLgc_2026-05-21.npz",
+      "sha256": "96f086a41e094ed76b2e46deb1f385f688431b781c540a7e87efdf3dc7156a86"
+    },
+    {
+      "arrays": {
+        "group_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "442fb87346d53c659207fc7463aa95d5df261121f14d3ee5f34aa286777730f9",
+          "shape": []
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 47,
+          "kind": "numeric",
+          "nan_count": 14,
+          "sha256": "694602188ab13a64aa228e22f24a855e0d93144844ddc21ed826e10fd92fbd39",
+          "shape": [
+            61
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 698,
+          "kind": "numeric",
+          "nan_count": 400,
+          "sha256": "f5342732a54f3cb0c3c3884976e0e5d0bd15138d5ae0b3f1172b081e117c4646",
+          "shape": [
+            61,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "7e6e55368ace86a77858dc00de69db346d86e69c4412689e8d63238c73c9c669",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "object",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 61,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "abf0dc060c8feb451a3d022a7f25453b53789fa16b561d0ef5ef2091680dca6e",
+          "shape": [
+            61
+          ]
+        }
+      },
+      "keys": [
+        "group_label",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_30_flat_pfnd_sli",
+      "path": "exports/sli_intact_pfnKir_flatLgc_2026-05-21.npz",
+      "sha256": "86df0d246a7df8afcd15148dbd434a3bb5a71bfe46d7213d92d7ad4459bcd1d1"
+    },
+    {
+      "arrays": {
+        "group_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "bbe41ae4b4b8f914f34bcee354a76ecb1c8f47f218dad46c84c52b960fe31d5e",
+          "shape": []
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 46,
+          "kind": "numeric",
+          "nan_count": 24,
+          "sha256": "2e763d5f1af907f2393878108ab2494aadf40601d27fd04b99e25b9cd1db8de8",
+          "shape": [
+            70
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 725,
+          "kind": "numeric",
+          "nan_count": 535,
+          "sha256": "a150bb57d279d662974e4b7bac6d2e10e9e0429ea505a20ee465e7b0baba35d2",
+          "shape": [
+            70,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "7e6e55368ace86a77858dc00de69db346d86e69c4412689e8d63238c73c9c669",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "object",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 70,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "ecf5acae59ab4b33174263f089c0f599ea1db072cc6fd69841163681556fd85d",
+          "shape": [
+            70
+          ]
+        }
+      },
+      "keys": [
+        "group_label",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_30_agarose_ctrl_sli",
+      "path": "exports/sli_intact_ctrlKir_agaroseLgc_2026-05-22.npz",
+      "sha256": "4dd8791e7a7e049f382deb7d5b6a5759aae7ffdcf14a675b410c6520716c67d1"
+    },
+    {
+      "arrays": {
+        "group_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "c545a8ece2b73ac312cf0c0db927ab064309af61129c845a310bccc8e467238e",
+          "shape": []
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 45,
+          "kind": "numeric",
+          "nan_count": 19,
+          "sha256": "79af20d1341a0c54d927d20c38138be2d34590efb1e6936b29955948763ba210",
+          "shape": [
+            64
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 646,
+          "kind": "numeric",
+          "nan_count": 506,
+          "sha256": "9f4db91fc936eaa76890fd1ea44caff7294ec7814c385fcd11be2bf43845fc05",
+          "shape": [
+            64,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "7e6e55368ace86a77858dc00de69db346d86e69c4412689e8d63238c73c9c669",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "object",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 64,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "b4681f0b7714818b0beff460bd7706e2f3f881138fa093b0fafb9410a73dbe5e",
+          "shape": [
+            64
+          ]
+        }
+      },
+      "keys": [
+        "group_label",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_30_agarose_ar_ctrl_sli",
+      "path": "exports/sli_ar_ctrlKir_agaroseLgc_2026-05-22.npz",
+      "sha256": "df3ad3834b16fe8cc1b1bb6c8c3ad4c043af619876452d89ffd53d8ea28b0030"
+    },
+    {
+      "arrays": {
+        "group_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "36120744ee171c62a1776c7b88b40ce08381af3e8b7bdaa64d109654fc96fe3f",
+          "shape": []
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 50,
+          "kind": "numeric",
+          "nan_count": 18,
+          "sha256": "6955ff8e7f4783c9d8ebc1361b1be8d15cf9edd6aff61d10066e13805a241ac6",
+          "shape": [
+            68
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 805,
+          "kind": "numeric",
+          "nan_count": 419,
+          "sha256": "9c09b496e7a2e5fecef72084575c4270cb93de95e08ffe4f2ec698942d9efd92",
+          "shape": [
+            68,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "7e6e55368ace86a77858dc00de69db346d86e69c4412689e8d63238c73c9c669",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "object",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 68,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "de65ed6b074433adc765e0f5f8da4a7ba8133eaf717cc1fcb571ec7eb70ce211",
+          "shape": [
+            68
+          ]
+        }
+      },
+      "keys": [
+        "group_label",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_30_agarose_pfnd_sli",
+      "path": "exports/sli_intact_pfnKir_agaroseLgc_2026-05-22.npz",
+      "sha256": "a1c053f3185b096531377d33b45cfb30a621bc911d0203ed456467eeb9b3c764"
+    }
+  ],
+  "schema_version": 1
+}
