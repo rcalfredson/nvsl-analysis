@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import numpy as np
 
-
 REQ_BUNDLE_KEYS = [
     "sli",
     "group_label",
@@ -43,6 +42,80 @@ def as_str_array(x):
     return np.array([str(v) for v in arr], dtype=object)
 
 
+def _bundle_label(bundle: dict, path: str | None = None) -> str:
+    return path or bundle.get("path") or "<unknown>"
+
+
+def validate_sli_bundle(bundle: dict, *, path: str | None = None) -> None:
+    where = _bundle_label(
+        bundle,
+        path,
+    )
+
+    sli = np.asarray(bundle["sli"], dtype=float)
+    if sli.ndim != 1:
+        raise ValueError(f"Bundle {where} has non-1D sli shape {sli.shape}")
+
+    video_ids = as_str_array(bundle["video_ids"])
+    if video_ids.shape[0] != sli.shape[0]:
+        raise ValueError(
+            f"Bundle {where} has len(video_ids)={video_ids.shape[0]} "
+            f"but len(sli)={sli.shape[0]}"
+        )
+
+    training_names = as_str_array(bundle["training_names"])
+    sli_training_idx = int(as_scalar(bundle["sli_training_idx"]))
+    if sli_training_idx < 0:
+        raise ValueError(
+            f"Bundle {where} has negative sli_training_idx={sli_training_idx}"
+        )
+
+    skip = int(as_scalar(bundle.get("sli_select_skip_first_sync_buckets", 0)))
+    keep = int(as_scalar(bundle.get("sli_select_keep_first_sync_buckets", 0)))
+    if skip < 0:
+        raise ValueError(
+            f"Bundle {where} has negative sli_select_skip_first_sync_buckets={skip}"
+        )
+    if keep < 0:
+        raise ValueError(
+            f"Bundle {where} has negative sli_select_keep_first_sync_buckets={keep}"
+        )
+
+    if "sli_ts" not in bundle:
+        return
+
+    sli_ts = np.asarray(bundle["sli_ts"], dtype=float)
+    if sli_ts.ndim != 3:
+        raise ValueError(f"Bundle {where} has non-3D sli_ts shape: {sli_ts.shape}")
+    if sli_ts.shape[0] != sli.shape[0]:
+        raise ValueError(
+            f"Bundle {where} has sli_ts.shape[0]={sli_ts.shape[0]} "
+            f"but len(sli)={sli.shape[0]}"
+        )
+    if training_names.shape[0] != sli_ts.shape[1]:
+        raise ValueError(
+            f"Bundle {where} has len(training_names)={training_names.shape[0]} "
+            f"but sli_ts.shape[1]={sli_ts.shape[1]}"
+        )
+    if sli_ts.shape[1] > 0 and sli_training_idx >= sli_ts.shape[1]:
+        raise ValueError(
+            f"Bundle {where} has sli_training_idx={sli_training_idx} "
+            f"but sli_ts has {sli_ts.shape[1]} trainings"
+        )
+
+    n_sync_buckets = sli_ts.shape[2]
+    if skip > n_sync_buckets:
+        raise ValueError(
+            f"Bundle {where} skips {skip} SLI sync buckets, "
+            f"but sli_ts has only {n_sync_buckets}"
+        )
+    if keep > 0 and skip + keep > n_sync_buckets:
+        raise ValueError(
+            f"Bundle {where} keeps SLI sync-bucket window [{skip}, {skip + keep}) "
+            f"beyond sli_ts bucket count {n_sync_buckets}"
+        )
+
+
 def normalize_sli_bundle(bundle: dict, *, path: str | None = None) -> dict:
     missing = [k for k in REQ_BUNDLE_KEYS if k not in bundle]
     if missing:
@@ -69,6 +142,7 @@ def normalize_sli_bundle(bundle: dict, *, path: str | None = None) -> dict:
         out["path"] = path
     elif "path" in out:
         out["path"] = str(out["path"])
+    validate_sli_bundle(out, path=path)
     return out
 
 
@@ -104,7 +178,9 @@ def bundle_fly_ids(bundle: dict) -> np.ndarray | None:
     return np.asarray(bundle["fly_ids"], dtype=int).reshape(-1)
 
 
-def align_by_video_ids(base_bundle: dict, comp_bundle: dict) -> tuple[np.ndarray | None, np.ndarray | None, int]:
+def align_by_video_ids(
+    base_bundle: dict, comp_bundle: dict
+) -> tuple[np.ndarray | None, np.ndarray | None, int]:
     if "video_ids" not in base_bundle or "video_ids" not in comp_bundle:
         return None, None, 0
     base_ids = bundle_video_ids(base_bundle)
