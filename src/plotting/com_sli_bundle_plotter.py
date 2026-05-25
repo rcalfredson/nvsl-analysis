@@ -70,6 +70,10 @@ def _legend_handle_for_group(label, color, linestyle):
     return handle
 
 
+def _single_line_label(label):
+    return " ".join(str(label).split())
+
+
 def _bundle_metric_palette(metric):
     if metric == "commag":
         return get_palette("commag")
@@ -796,9 +800,9 @@ def plot_com_sli_bundle_data(
     if labels is not None:
         if len(labels) != ng:
             raise ValueError("labels length must match number of bundles")
-        group_labels = list(labels)
+        group_labels = [_single_line_label(label) for label in labels]
     else:
-        group_labels = [b["group_label"] for b in bundles]
+        group_labels = [_single_line_label(b["group_label"]) for b in bundles]
 
     if base_bundle is not None:
         prefix = delta_label or "Δ vs baseline"
@@ -1611,7 +1615,10 @@ def plot_com_sli_bundle_data(
         ax.set_ylim(ylim[0], ylim[1])
 
     if customizer.font_size_customized:
-        customizer.adjust_padding_proportionally(wspace=getattr(opts, "wspace", 0.35))
+        customizer.adjust_padding_proportionally(
+            wspace=getattr(opts, "wspace", 0.35),
+            wrap_legend_labels=False,
+        )
 
     # Only promote to suptitle when there is exactly one legend entry and no explicit legend was requested.
     if not show_legend and len(legend_labels) == 1:

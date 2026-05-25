@@ -7082,6 +7082,8 @@ def drawLegend(tp, ng, nf, nrp, gls, customizer):
     - customizer: Plot customizer with font size attributes.
     """
     kwargs = {}
+    if gls:
+        gls = [" ".join(str(gl).split()) for gl in gls]
     prop_dict = {"style": "italic"}
     if ng == 1 and nf == 2 and not P:
         # Single group with exp vs yok: show both explicitly
@@ -8514,7 +8516,7 @@ def plotRewards(
                 )
     imgFiles["agarose_per_rwd"] = CONTACT_EVENT_PER_RWD_IMG_FILE % ("edge", "agarose")
     if customizer.font_size_customized:
-        customizer.adjust_padding_proportionally()
+        customizer.adjust_padding_proportionally(wrap_legend_labels=False)
 
     base, ext = os.path.splitext(imgFiles[tp] % blf)
     suffix_parts = []

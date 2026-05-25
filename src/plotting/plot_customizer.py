@@ -119,7 +119,11 @@ class PlotCustomizer:
         ax.set_box_aspect(target_aspect)
 
     def adjust_padding_proportionally(
-        self, aspect_ratio=0.75, wspace=0.08, base_hspace=0.35
+        self,
+        aspect_ratio=0.75,
+        wspace=0.08,
+        base_hspace=0.35,
+        wrap_legend_labels=True,
     ):
         """
         Adjusts the figure size and subplot padding proportionally to the font size.
@@ -138,7 +142,7 @@ class PlotCustomizer:
         """
         fig = plt.gcf()
 
-        # --- Step 1: Wrap long legend labels instead of shrinking legend font ---
+        # --- Step 1: Optionally wrap long legend labels instead of shrinking legend font ---
         renderer = None
         try:
             fig.canvas.draw()
@@ -181,27 +185,28 @@ class PlotCustomizer:
 
             text_obj.set_text(wrapped)
 
-        for ax in fig.get_axes():
-            leg = ax.get_legend()
-            if leg is not None:
-                ax_bbox = ax.get_window_extent(renderer=renderer)
-                if ax_bbox.width <= 0:
-                    continue
+        if wrap_legend_labels:
+            for ax in fig.get_axes():
+                leg = ax.get_legend()
+                if leg is not None:
+                    ax_bbox = ax.get_window_extent(renderer=renderer)
+                    if ax_bbox.width <= 0:
+                        continue
 
-                anchor = leg.get_bbox_to_anchor()
-                outside_right = False
-                if anchor is not None:
-                    anchor_box = anchor.transformed(fig.transFigure.inverted())
-                    outside_right = anchor_box.x0 >= 0.95 * ax.get_position().x1
+                    anchor = leg.get_bbox_to_anchor()
+                    outside_right = False
+                    if anchor is not None:
+                        anchor_box = anchor.transformed(fig.transFigure.inverted())
+                        outside_right = anchor_box.x0 >= 0.95 * ax.get_position().x1
 
-                if outside_right:
-                    fig_px_width = fig.get_window_extent(renderer=renderer).width
-                    max_width_px = max(fig_px_width * 0.26, ax_bbox.width * 0.22)
-                else:
-                    max_width_px = ax_bbox.width * 0.45
+                    if outside_right:
+                        fig_px_width = fig.get_window_extent(renderer=renderer).width
+                        max_width_px = max(fig_px_width * 0.26, ax_bbox.width * 0.22)
+                    else:
+                        max_width_px = ax_bbox.width * 0.45
 
-                for text in leg.get_texts():
-                    _wrap_legend_text(text, max_width_px)
+                    for text in leg.get_texts():
+                        _wrap_legend_text(text, max_width_px)
 
         # --- Step 2: Scale figure size only modestly as fonts increase.
         # Keep most of the visual effect in the text itself instead of making
