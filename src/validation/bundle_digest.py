@@ -49,6 +49,75 @@ RETURN_PROB_EXCURSION_BIN_REGRESSION_KEYS = (
     "video_ids",
 )
 
+BETWEEN_REWARD_DISTANCE_HIST_REGRESSION_KEYS = (
+    "bin_edges",
+    "ci_hi",
+    "ci_lo",
+    "counts",
+    "mean",
+    "meta_json",
+    "n_dropped",
+    "n_raw",
+    "n_units",
+    "n_units_panel",
+    "n_used",
+    "panel_labels",
+    "per_unit_ids_panel",
+    "per_unit_panel",
+)
+
+BETWEEN_REWARD_CONDITIONED_DISTTRAV_REGRESSION_KEYS = (
+    "ci_hi_tail",
+    "ci_hi_total",
+    "ci_lo_tail",
+    "ci_lo_total",
+    "mean_tail",
+    "mean_total",
+    "meta",
+    "n_units",
+    "per_unit_ids",
+    "per_unit_tail",
+    "per_unit_total",
+    "x_centers",
+    "x_edges",
+)
+
+BETWEEN_REWARD_MAXDIST_SLI_REGRESSION_KEYS = (
+    "between_reward_maxdistN_ctrl",
+    "between_reward_maxdistN_exp",
+    "between_reward_maxdist_ctrl",
+    "between_reward_maxdist_exp",
+    "btw_rwd_sync_bucket_min_trajectories",
+    "bucket_len_min",
+    "group_label",
+    "sli",
+    "sli_select_keep_first_sync_buckets",
+    "sli_select_skip_first_sync_buckets",
+    "sli_training_idx",
+    "sli_ts",
+    "sli_use_training_mean",
+    "training_names",
+    "video_ids",
+)
+
+BETWEEN_REWARD_RETURN_LEG_DIST_SLI_REGRESSION_KEYS = (
+    "between_reward_return_leg_distN_ctrl",
+    "between_reward_return_leg_distN_exp",
+    "between_reward_return_leg_dist_ctrl",
+    "between_reward_return_leg_dist_exp",
+    "btw_rwd_sync_bucket_min_trajectories",
+    "bucket_len_min",
+    "group_label",
+    "sli",
+    "sli_select_keep_first_sync_buckets",
+    "sli_select_skip_first_sync_buckets",
+    "sli_training_idx",
+    "sli_ts",
+    "sli_use_training_mean",
+    "training_names",
+    "video_ids",
+)
+
 
 def _json_bytes(payload) -> bytes:
     return json.dumps(

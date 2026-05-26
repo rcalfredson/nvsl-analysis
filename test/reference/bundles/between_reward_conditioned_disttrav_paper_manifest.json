@@ -1,0 +1,929 @@
+{
+  "bundles": [
+    {
+      "arrays": {
+        "ci_hi_tail": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b320b19e9bf5df00e080970010303a868659b24532cab85123f8cb47c1cf50f0",
+          "shape": [
+            3
+          ]
+        },
+        "ci_hi_total": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "16abe6a99067481b978dddd0081128ba2cccc0e1f7abae546a143770b8110af5",
+          "shape": [
+            3
+          ]
+        },
+        "ci_lo_tail": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "f793d4822a4ccfa808a3946ca6336d22555e7e89af1cc4b9decf1a4bf9a079ad",
+          "shape": [
+            3
+          ]
+        },
+        "ci_lo_total": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "c537b8e89b05e4df2c24d0c095d2c8ca2eaa6c7f1bbe36e88d46f61432c3fb38",
+          "shape": [
+            3
+          ]
+        },
+        "mean_tail": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "28f038e8b2d3ec1ce7fb3c7189aa8cc3226a86e51010d9e3afefed6371e03468",
+          "shape": [
+            3
+          ]
+        },
+        "mean_total": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "72b91911070b880114df169869e2119d1acdc503519feacfeb10015502a18340",
+          "shape": [
+            3
+          ]
+        },
+        "meta": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4ef10a8895612c575bf25bf087fe1b8eb3823cb6db1d383e957f3af43bde843b",
+          "shape": [
+            1
+          ]
+        },
+        "n_units": {
+          "dtype": "int64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "c873fe09d576729e9126f895f285edd6b045557b9dd83ca7d166c1e268569d90",
+          "shape": [
+            3
+          ]
+        },
+        "per_unit_ids": {
+          "dtype": "object",
+          "finite_count": 62,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "69f80d39322871b8b62fc5fa4d4b1846a6e864b326c8f3c385806b8234bdf1b4",
+          "shape": [
+            62
+          ]
+        },
+        "per_unit_tail": {
+          "dtype": "float64",
+          "finite_count": 184,
+          "kind": "numeric",
+          "nan_count": 2,
+          "sha256": "feaf363c2ec3280301f34806069946c15b2f0e3a5afd1298e9282eabb5337086",
+          "shape": [
+            62,
+            3
+          ]
+        },
+        "per_unit_total": {
+          "dtype": "float64",
+          "finite_count": 184,
+          "kind": "numeric",
+          "nan_count": 2,
+          "sha256": "fb3af2a200e9ad9cba8c8115530c477e87730f73f174f193e73807f28ef6419f",
+          "shape": [
+            62,
+            3
+          ]
+        },
+        "x_centers": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "a67397a9c9ef09831aa81547d46bd0484f739246fa92ef9c7bcaca72456c1217",
+          "shape": [
+            3
+          ]
+        },
+        "x_edges": {
+          "dtype": "float64",
+          "finite_count": 4,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "03f23cdadce8264c0d28476184fa07987f1ac9dbf8f8b913fc9ff7eb49c0817e",
+          "shape": [
+            4
+          ]
+        }
+      },
+      "keys": [
+        "ci_hi_tail",
+        "ci_hi_total",
+        "ci_lo_tail",
+        "ci_lo_total",
+        "mean_tail",
+        "mean_total",
+        "meta",
+        "n_units",
+        "per_unit_ids",
+        "per_unit_tail",
+        "per_unit_total",
+        "x_centers",
+        "x_edges"
+      ],
+      "name": "panel_4_flat_intact_ctrl_disttrav_by_maxdist",
+      "path": "exports/disttrav_by_dist_max_bin_intact_ctrlKir_flatLgc_T1_inclWall_2026-04-08.npz",
+      "sha256": "034e73821a674e54c28f38d0d77f9ff0bcf6efa996b9516ef79d0599250c29cc"
+    },
+    {
+      "arrays": {
+        "ci_hi_tail": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "15780deba5eed594d89aa533ff140229d3868a66ee410a5a22fa02f803d5fc3c",
+          "shape": [
+            3
+          ]
+        },
+        "ci_hi_total": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "f504bfbddcb5fbf6e560acb8aafe1d7c9d5d4ff705c2b179fa8dac1abddb03cf",
+          "shape": [
+            3
+          ]
+        },
+        "ci_lo_tail": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b8f8894e3adcaccd3262b3a7db698fdbbf8ae534ece3c6fbfcad7c66389e940e",
+          "shape": [
+            3
+          ]
+        },
+        "ci_lo_total": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "fb85900b08aab9b252a0f335cc8e746b11f6aef8279cc9a183718f327872b20d",
+          "shape": [
+            3
+          ]
+        },
+        "mean_tail": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "112fa52939b03df6263e0f2529413c7c77128cf73b8770244a7eb6d8a0601272",
+          "shape": [
+            3
+          ]
+        },
+        "mean_total": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "0d110eed749ccb41d5c73cc04b962a281ed4958fa99f17819ce95cddf4dfdc61",
+          "shape": [
+            3
+          ]
+        },
+        "meta": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "abb37a5bfe56ea037e8e9b739ffdb92f30134bc6d792fb75d86a148cbf506bb7",
+          "shape": [
+            1
+          ]
+        },
+        "n_units": {
+          "dtype": "int64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "fcdab5667de2282443ab7cb7b8879c09364e2360523193ecdddd5b042875a10e",
+          "shape": [
+            3
+          ]
+        },
+        "per_unit_ids": {
+          "dtype": "object",
+          "finite_count": 54,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "b8e4588467d68220e8155bd9648c2ace7af0c5373e44e0cffcafb0054e1f67d8",
+          "shape": [
+            54
+          ]
+        },
+        "per_unit_tail": {
+          "dtype": "float64",
+          "finite_count": 158,
+          "kind": "numeric",
+          "nan_count": 4,
+          "sha256": "4cc47d8b8b4c56e73041377f3e66ad968e77ed2cc1616e56c685db0d76642c72",
+          "shape": [
+            54,
+            3
+          ]
+        },
+        "per_unit_total": {
+          "dtype": "float64",
+          "finite_count": 158,
+          "kind": "numeric",
+          "nan_count": 4,
+          "sha256": "f48258d28b0ed1d4e02beaa82a930e5ed9411ddb4551e5704fa065a87a192779",
+          "shape": [
+            54,
+            3
+          ]
+        },
+        "x_centers": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "a67397a9c9ef09831aa81547d46bd0484f739246fa92ef9c7bcaca72456c1217",
+          "shape": [
+            3
+          ]
+        },
+        "x_edges": {
+          "dtype": "float64",
+          "finite_count": 4,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "03f23cdadce8264c0d28476184fa07987f1ac9dbf8f8b913fc9ff7eb49c0817e",
+          "shape": [
+            4
+          ]
+        }
+      },
+      "keys": [
+        "ci_hi_tail",
+        "ci_hi_total",
+        "ci_lo_tail",
+        "ci_lo_total",
+        "mean_tail",
+        "mean_total",
+        "meta",
+        "n_units",
+        "per_unit_ids",
+        "per_unit_tail",
+        "per_unit_total",
+        "x_centers",
+        "x_edges"
+      ],
+      "name": "panel_4_flat_intact_pfn_disttrav_by_maxdist",
+      "path": "exports/disttrav_by_dist_max_bin_intact_pfnKir_flatLgc_T1_inclWall_2026-04-08.npz",
+      "sha256": "b93219f0f09105967e5d15266a90b974f2b10086a4f84daf4152fc000e7dc800"
+    },
+    {
+      "arrays": {
+        "ci_hi_tail": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "68b6d937ef6238318ee1e90f49436dcb722c5d98cfd208975b2186aaa531f84e",
+          "shape": [
+            3
+          ]
+        },
+        "ci_hi_total": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "e52ca12f6eed6350b6f6cbc719b341a597eb09266c8b5e9ba7dd9bac600976e8",
+          "shape": [
+            3
+          ]
+        },
+        "ci_lo_tail": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "687e1813bd661eb3f23763e4cac73bc200ee7dffc48e1b2c99a0cc67536fc562",
+          "shape": [
+            3
+          ]
+        },
+        "ci_lo_total": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "5880efe5da93d214f6759977343f951d3a812ca6aebf010acf9af458a33d6bc3",
+          "shape": [
+            3
+          ]
+        },
+        "mean_tail": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "dad5d4b98b332e0eda130603d4b7819a5cf17da40c0f61a3b7f905a0d1afdd69",
+          "shape": [
+            3
+          ]
+        },
+        "mean_total": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "338883b5f2795e1742eabfa8edaf729634ab810d5d27accaa19e7362bd92415f",
+          "shape": [
+            3
+          ]
+        },
+        "meta": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "cc7b1dac591fc75b718a77f66e4f450a491891da82bd1f6a097aa3d2bb56fa8a",
+          "shape": [
+            1
+          ]
+        },
+        "n_units": {
+          "dtype": "int64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "e0dca5036965ddfa3b16b0f377fa6b3228f495189b03159e4f47243f8afd6103",
+          "shape": [
+            3
+          ]
+        },
+        "per_unit_ids": {
+          "dtype": "object",
+          "finite_count": 58,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "e27b2085b7bb1885e5ca97c65da16d0fdc0172759954455f53abe7799ce60134",
+          "shape": [
+            58
+          ]
+        },
+        "per_unit_tail": {
+          "dtype": "float64",
+          "finite_count": 166,
+          "kind": "numeric",
+          "nan_count": 8,
+          "sha256": "b82fce72fa255f907428d76ee5e07d70fee56487656b45d483833c1cbc98a8cb",
+          "shape": [
+            58,
+            3
+          ]
+        },
+        "per_unit_total": {
+          "dtype": "float64",
+          "finite_count": 166,
+          "kind": "numeric",
+          "nan_count": 8,
+          "sha256": "bef83fab6f71ad004c184148ae6dc6622186938aabd6c77353dfee37e251db2d",
+          "shape": [
+            58,
+            3
+          ]
+        },
+        "x_centers": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "a67397a9c9ef09831aa81547d46bd0484f739246fa92ef9c7bcaca72456c1217",
+          "shape": [
+            3
+          ]
+        },
+        "x_edges": {
+          "dtype": "float64",
+          "finite_count": 4,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "03f23cdadce8264c0d28476184fa07987f1ac9dbf8f8b913fc9ff7eb49c0817e",
+          "shape": [
+            4
+          ]
+        }
+      },
+      "keys": [
+        "ci_hi_tail",
+        "ci_hi_total",
+        "ci_lo_tail",
+        "ci_lo_total",
+        "mean_tail",
+        "mean_total",
+        "meta",
+        "n_units",
+        "per_unit_ids",
+        "per_unit_tail",
+        "per_unit_total",
+        "x_centers",
+        "x_edges"
+      ],
+      "name": "panel_4_flat_ar_ctrl_disttrav_by_maxdist",
+      "path": "exports/disttrav_by_dist_max_bin_ar_ctrlKir_flatLgc_T1_inclWall_2026-04-08.npz",
+      "sha256": "1c32d1ed0d3dd990c55d3d9084fd6f401ec68137d83a7d8f1bca76d175b25499"
+    },
+    {
+      "arrays": {
+        "ci_hi_tail": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "a8e9fc0e4460fd69336b101d9b3609099e34776b6852c5d7d8c9a8bb02585d55",
+          "shape": [
+            1
+          ]
+        },
+        "ci_hi_total": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "2a20919825b26880c4bc4b777aa8b26bcc5de43f2902e4261c9f58f6c7c4bdce",
+          "shape": [
+            1
+          ]
+        },
+        "ci_lo_tail": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "9c606cadab0289390c489dab03c35c9cb6e359b703ebb2e2491e701bec6e62a4",
+          "shape": [
+            1
+          ]
+        },
+        "ci_lo_total": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "541b482981cf2ec37a717ca412c91c530fb31c26143a5d5e5f2653af9a6f553f",
+          "shape": [
+            1
+          ]
+        },
+        "mean_tail": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "78e843a100d03034ff951c7b2513ba4d73a7c4b213dabcd5dba4e353008d3d2c",
+          "shape": [
+            1
+          ]
+        },
+        "mean_total": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "545f2002503a2f0df3ebce164660c9b660fe1452a1da51cfc48cd5ef53d5e588",
+          "shape": [
+            1
+          ]
+        },
+        "meta": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "1f4840270aa295d10c4757980bbf7b1d87da47fcea2c8ba2d62a112a9e931410",
+          "shape": [
+            1
+          ]
+        },
+        "n_units": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "48001b2f2c5137abda63e9487ddf147cc471eff55eb6fef2e0bb9247bc2553c4",
+          "shape": [
+            1
+          ]
+        },
+        "per_unit_ids": {
+          "dtype": "object",
+          "finite_count": 51,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "68f4d8176549d86545bcfdba9521ab700ef0fcad21ab0a1ccedcf950b2a45cc7",
+          "shape": [
+            51
+          ]
+        },
+        "per_unit_tail": {
+          "dtype": "float64",
+          "finite_count": 51,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "2fe5aead50c3df88370b1c70eba22ab6752b05c6470b1f3654b24e9a60767fc5",
+          "shape": [
+            51,
+            1
+          ]
+        },
+        "per_unit_total": {
+          "dtype": "float64",
+          "finite_count": 51,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b040d2bb1ed89eb8d9b853f9ea4e01d873ed7e942ecd3d241aa6101efed323fd",
+          "shape": [
+            51,
+            1
+          ]
+        },
+        "x_centers": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "bb384aa588e9aee3fae923334f5cec1416ad8ab038fe45e772beadf7ebfed103",
+          "shape": [
+            1
+          ]
+        },
+        "x_edges": {
+          "dtype": "float64",
+          "finite_count": 2,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "512785e675385dcb2d7af1cf379ac8784de4ff8d1be3de5be33040e1ef71e701",
+          "shape": [
+            2
+          ]
+        }
+      },
+      "keys": [
+        "ci_hi_tail",
+        "ci_hi_total",
+        "ci_lo_tail",
+        "ci_lo_total",
+        "mean_tail",
+        "mean_total",
+        "meta",
+        "n_units",
+        "per_unit_ids",
+        "per_unit_tail",
+        "per_unit_total",
+        "x_centers",
+        "x_edges"
+      ],
+      "name": "panel_5_flat_intact_ctrl_disttrav_by_maxdist_20_24mm",
+      "path": "exports/disttrav_by_dist_max_bin_intact_ctrlKir_flatLgc_T1_inclWall_20mmMin24mmMax_2026-04-08.npz",
+      "sha256": "7c93a918461c31821d4bec98931057ebafabe87551fbdbca4a8797e002955792"
+    },
+    {
+      "arrays": {
+        "ci_hi_tail": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "aba1313e977566686c3938033be1dac9ddc962f2e8cb77ad5755f553005eb8bd",
+          "shape": [
+            1
+          ]
+        },
+        "ci_hi_total": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "942f05178c887abd058c34a99678e3aa56b9f49996eed4f67e750723e4bbce65",
+          "shape": [
+            1
+          ]
+        },
+        "ci_lo_tail": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "92b2186bb01f8542621d3614b2d499bb32ff559b3e7da01cbe00816d90e18e37",
+          "shape": [
+            1
+          ]
+        },
+        "ci_lo_total": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "f42faf50d05e0cf0a3e10f1d245bb370297bb21f5e600d1aee2bab245c806ddc",
+          "shape": [
+            1
+          ]
+        },
+        "mean_tail": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "56711b082c76d141cf40a8da1b05f47e0f9a7388b3d5e914c7026374ed09366c",
+          "shape": [
+            1
+          ]
+        },
+        "mean_total": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "bd88a8b9c49540f0b0befc4d0ee71bb2a103edd8115751795bd8904307765529",
+          "shape": [
+            1
+          ]
+        },
+        "meta": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "f629c023d1165347c69a178baf639e8714cec01f698f91ae46a6d2eb1cfd7dc7",
+          "shape": [
+            1
+          ]
+        },
+        "n_units": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "dcbe298920b50037fcfb8dda1e57ad49eeeedd8e0ddafc2deed4902c1bc11d3a",
+          "shape": [
+            1
+          ]
+        },
+        "per_unit_ids": {
+          "dtype": "object",
+          "finite_count": 52,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "17be83acb48c3d40959c93a54f06744b991f1c0d7798e5b88bf92f1d36e382ea",
+          "shape": [
+            52
+          ]
+        },
+        "per_unit_tail": {
+          "dtype": "float64",
+          "finite_count": 52,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "9393d19629aaae2d017e2a37268fca88934f9097136977aff69e6713d75586b5",
+          "shape": [
+            52,
+            1
+          ]
+        },
+        "per_unit_total": {
+          "dtype": "float64",
+          "finite_count": 52,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "e972dee5b5483ef0368425625501df040d34798b98b65152b1cc212dcdf905a9",
+          "shape": [
+            52,
+            1
+          ]
+        },
+        "x_centers": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "bb384aa588e9aee3fae923334f5cec1416ad8ab038fe45e772beadf7ebfed103",
+          "shape": [
+            1
+          ]
+        },
+        "x_edges": {
+          "dtype": "float64",
+          "finite_count": 2,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "512785e675385dcb2d7af1cf379ac8784de4ff8d1be3de5be33040e1ef71e701",
+          "shape": [
+            2
+          ]
+        }
+      },
+      "keys": [
+        "ci_hi_tail",
+        "ci_hi_total",
+        "ci_lo_tail",
+        "ci_lo_total",
+        "mean_tail",
+        "mean_total",
+        "meta",
+        "n_units",
+        "per_unit_ids",
+        "per_unit_tail",
+        "per_unit_total",
+        "x_centers",
+        "x_edges"
+      ],
+      "name": "panel_5_flat_intact_pfn_disttrav_by_maxdist_20_24mm",
+      "path": "exports/disttrav_by_dist_max_bin_intact_pfnKir_flatLgc_T1_inclWall_20mmMin24mmMax_2026-04-08.npz",
+      "sha256": "9f7cdc0c76dcab5b37195b7588727c9b2c82cab5b3a140bfbb93ed77d2bd9717"
+    },
+    {
+      "arrays": {
+        "ci_hi_tail": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "d357c174943e9405cf3ddf4172ab0fc5b748d48039082766b3cdf0075c0c9284",
+          "shape": [
+            1
+          ]
+        },
+        "ci_hi_total": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "6fac61f9b1dab4ca3125b004cde9146140cc0c0ae14746be5656365b0f1b4407",
+          "shape": [
+            1
+          ]
+        },
+        "ci_lo_tail": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "410bfe84025f7d78d260f41f0038c65e8a5a4210df4620e1da915636580701b0",
+          "shape": [
+            1
+          ]
+        },
+        "ci_lo_total": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "4c7b9d501718b5028449c97151e5c77ade80ce30ade4d731de901b2f1882f3e2",
+          "shape": [
+            1
+          ]
+        },
+        "mean_tail": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "81d09fd8db87e2950321353a75be708d9ad9344a8d7ba3ac7722fd4bbaf87c46",
+          "shape": [
+            1
+          ]
+        },
+        "mean_total": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "342b25456b0fb789c5916871e9f0dc7af8573371ea65d2d735ccfe14826dc68a",
+          "shape": [
+            1
+          ]
+        },
+        "meta": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "1f251b1d2dbabe23ab3a193b857960ad77a234f87bb2793b81b4fc1d202b3ca6",
+          "shape": [
+            1
+          ]
+        },
+        "n_units": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "563e0ed5fdceb76bf32c350148f6ba0d166833b9cb2f5c5a1d465db005476b84",
+          "shape": [
+            1
+          ]
+        },
+        "per_unit_ids": {
+          "dtype": "object",
+          "finite_count": 53,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "58bb3d847637efb2d04b6c3272a19d5b883f0931f1c968bcafff71221726a5a7",
+          "shape": [
+            53
+          ]
+        },
+        "per_unit_tail": {
+          "dtype": "float64",
+          "finite_count": 53,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "eba8b42b245d04bb5e94095dd83f2b72ef4ef033dd10a7f6dc0fb8b1a5d9d82e",
+          "shape": [
+            53,
+            1
+          ]
+        },
+        "per_unit_total": {
+          "dtype": "float64",
+          "finite_count": 53,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "297721cf6e59a3e2d11b38344cf4a7464dd422320cec6faa7e3fe3386f09e58a",
+          "shape": [
+            53,
+            1
+          ]
+        },
+        "x_centers": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "bb384aa588e9aee3fae923334f5cec1416ad8ab038fe45e772beadf7ebfed103",
+          "shape": [
+            1
+          ]
+        },
+        "x_edges": {
+          "dtype": "float64",
+          "finite_count": 2,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "512785e675385dcb2d7af1cf379ac8784de4ff8d1be3de5be33040e1ef71e701",
+          "shape": [
+            2
+          ]
+        }
+      },
+      "keys": [
+        "ci_hi_tail",
+        "ci_hi_total",
+        "ci_lo_tail",
+        "ci_lo_total",
+        "mean_tail",
+        "mean_total",
+        "meta",
+        "n_units",
+        "per_unit_ids",
+        "per_unit_tail",
+        "per_unit_total",
+        "x_centers",
+        "x_edges"
+      ],
+      "name": "panel_5_flat_ar_ctrl_disttrav_by_maxdist_20_24mm",
+      "path": "exports/disttrav_by_dist_max_bin_ar_ctrlKir_flatLgc_T1_inclWall_20mmMin24mmMax_2026-04-08.npz",
+      "sha256": "42d330cf626c260f5da399baf33ec3822ac1954660af406b1eb95e00460a9c82"
+    }
+  ],
+  "schema_version": 1
+}
