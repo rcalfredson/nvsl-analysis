@@ -1,0 +1,506 @@
+{
+  "bundles": [
+    {
+      "arrays": {
+        "bin_edges": {
+          "dtype": "float64",
+          "finite_count": 4,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "e7466be2f08ac3ee5aefbe80c452d400bf8e8933eb82dc08011183e6ff89ed25",
+          "shape": [
+            1,
+            4
+          ]
+        },
+        "ci_hi": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "5b70d721fd3b17386bd9b09daf9ee634a76bfd54802f1e217b3fd68783d7c007",
+          "shape": [
+            1,
+            3
+          ]
+        },
+        "ci_lo": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "0fca4a1cc7474b7f1e0a71f74c4c52f213fa9ee2aaef6f573f15fd48d271db7c",
+          "shape": [
+            1,
+            3
+          ]
+        },
+        "counts": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "acd75c0c99e3de9988d9de46a026e05dcc7dc46cbb3baa8972c13da55c81df23",
+          "shape": []
+        },
+        "mean": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "5f8ffa03bdd632f6058ade08dff37538fbf3674dd317caa471ef1adfe1ad9987",
+          "shape": [
+            1,
+            3
+          ]
+        },
+        "meta_json": {
+          "dtype": "<U765",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "805ddc7d767fc6b5c96859e3fa2577dfa16e81b62564eac95c0fffeea9cc5c1a",
+          "shape": []
+        },
+        "n_dropped": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "debcea1f166010e428df48387304e45c0bf7843a1fa7f1beb38f852228df789b",
+          "shape": [
+            1
+          ]
+        },
+        "n_raw": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "3084a759a63f5749e68f8cf24361c94c7712a3f25323288c0c3da70de34e043d",
+          "shape": [
+            1
+          ]
+        },
+        "n_units": {
+          "dtype": "int64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "8221c64bdb4c8c3d640f4ce97c4de348a232e61a6731411f7d53beff573d92a2",
+          "shape": [
+            1,
+            3
+          ]
+        },
+        "n_units_panel": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "8250ab532e40d24a67c08f58e0cd1d76cef63a045599ae5dc9279472cada42dd",
+          "shape": [
+            1
+          ]
+        },
+        "n_used": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "d89e8cd6f2ef488ddfe18e10b5c9578edcf051ee4824db55116b841281b72663",
+          "shape": [
+            1
+          ]
+        },
+        "panel_labels": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "8a6832011557ee714db45ca6d93f8541d8127ebd802781333bd8926b0ecd55ac",
+          "shape": [
+            1
+          ]
+        },
+        "per_unit_ids_panel": {
+          "dtype": "object",
+          "finite_count": 63,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "8579e6698278603c0f4c7c9096961579c568eeee4c50d96e0328add964580e0e",
+          "shape": [
+            1,
+            63
+          ]
+        },
+        "per_unit_panel": {
+          "dtype": "object",
+          "finite_count": 189,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "cdb34d83ae6440a89f34acbcc7c53dc0df32439243abe739131e504cd2480a73",
+          "shape": [
+            1,
+            63,
+            3
+          ]
+        }
+      },
+      "keys": [
+        "bin_edges",
+        "ci_hi",
+        "ci_lo",
+        "counts",
+        "mean",
+        "meta_json",
+        "n_dropped",
+        "n_raw",
+        "n_units",
+        "n_units_panel",
+        "n_used",
+        "panel_labels",
+        "per_unit_ids_panel",
+        "per_unit_panel"
+      ],
+      "name": "panel_3_flat_intact_ctrl_between_reward_distance",
+      "path": "exports/dist_trav_intact_ctrlKir_flatLgc_T2_inclWall_2026-04-08.npz",
+      "sha256": "f260fa6beb2b9c68764ce31ae97044ce5330c4daabec3e27972c7b7fa494ff40"
+    },
+    {
+      "arrays": {
+        "bin_edges": {
+          "dtype": "float64",
+          "finite_count": 4,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "e7466be2f08ac3ee5aefbe80c452d400bf8e8933eb82dc08011183e6ff89ed25",
+          "shape": [
+            1,
+            4
+          ]
+        },
+        "ci_hi": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "ac0c81b8160925171f81fcaf03e2f3c5276f35fbd9910c72386439cdd583213c",
+          "shape": [
+            1,
+            3
+          ]
+        },
+        "ci_lo": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b3838527d8e149097a5ebafab9f1f20c82d5ad8c9be2b1ce0fb4205573e02550",
+          "shape": [
+            1,
+            3
+          ]
+        },
+        "counts": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "acd75c0c99e3de9988d9de46a026e05dcc7dc46cbb3baa8972c13da55c81df23",
+          "shape": []
+        },
+        "mean": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "f862abdae6f6341302283f118a8166ceb21c8f197f605a828072e5cf56f29457",
+          "shape": [
+            1,
+            3
+          ]
+        },
+        "meta_json": {
+          "dtype": "<U765",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "d2a8cba04fe078899140ad0175c730d44470a887e10648e6c0103ec8d052c803",
+          "shape": []
+        },
+        "n_dropped": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "3c88bf13b58cba9ca7fe10c55db47931f52b52975cf1e9eaa0c9b0ec29c7c6be",
+          "shape": [
+            1
+          ]
+        },
+        "n_raw": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "fe9ee0930d4c8c6c1bcc3b3987e87b78d9e629c5c9e60879b28383a626d8de82",
+          "shape": [
+            1
+          ]
+        },
+        "n_units": {
+          "dtype": "int64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "70d8c0f58c9448783ebb431344630e6f40b94d8c44f0a56cc37bf1dbd8fa25e4",
+          "shape": [
+            1,
+            3
+          ]
+        },
+        "n_units_panel": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "dcbe298920b50037fcfb8dda1e57ad49eeeedd8e0ddafc2deed4902c1bc11d3a",
+          "shape": [
+            1
+          ]
+        },
+        "n_used": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "54f81d4424e1650babddd21a9827999301027ea5f873a5c092c9c318fc834e74",
+          "shape": [
+            1
+          ]
+        },
+        "panel_labels": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "8a6832011557ee714db45ca6d93f8541d8127ebd802781333bd8926b0ecd55ac",
+          "shape": [
+            1
+          ]
+        },
+        "per_unit_ids_panel": {
+          "dtype": "object",
+          "finite_count": 52,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "dfd4e1cbba888dbeb353375fff0ac01ae7ee94ff8ce177d23f8ed65263fbd939",
+          "shape": [
+            1,
+            52
+          ]
+        },
+        "per_unit_panel": {
+          "dtype": "object",
+          "finite_count": 156,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "52cb5ca008a45ee4a60385ff0109c10cb1abc57b5bbef105528f12d8a6b4c9cc",
+          "shape": [
+            1,
+            52,
+            3
+          ]
+        }
+      },
+      "keys": [
+        "bin_edges",
+        "ci_hi",
+        "ci_lo",
+        "counts",
+        "mean",
+        "meta_json",
+        "n_dropped",
+        "n_raw",
+        "n_units",
+        "n_units_panel",
+        "n_used",
+        "panel_labels",
+        "per_unit_ids_panel",
+        "per_unit_panel"
+      ],
+      "name": "panel_3_flat_intact_pfn_between_reward_distance",
+      "path": "exports/dist_trav_intact_pfnKir_flatLgc_T2_inclWall_2026-04-08.npz",
+      "sha256": "8b697ffd94bd8a50503e46a5860d2f9148bec126865c6ea8b56b8f2079b3dde5"
+    },
+    {
+      "arrays": {
+        "bin_edges": {
+          "dtype": "float64",
+          "finite_count": 4,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "e7466be2f08ac3ee5aefbe80c452d400bf8e8933eb82dc08011183e6ff89ed25",
+          "shape": [
+            1,
+            4
+          ]
+        },
+        "ci_hi": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "22950b34d98d53e72a01f58c7bdd00b17c5a106a08dfb15f30d74f036097a549",
+          "shape": [
+            1,
+            3
+          ]
+        },
+        "ci_lo": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af74348202fd0c75b1b7760eba461fedb87ab2f606098603344f1508c40be5ff",
+          "shape": [
+            1,
+            3
+          ]
+        },
+        "counts": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "acd75c0c99e3de9988d9de46a026e05dcc7dc46cbb3baa8972c13da55c81df23",
+          "shape": []
+        },
+        "mean": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "2c9ef054f4c768d340983284b2ed05a2d8c8e62aa49288a4903f4e12ae9383c4",
+          "shape": [
+            1,
+            3
+          ]
+        },
+        "meta_json": {
+          "dtype": "<U765",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "01edeb852a8b26353ccb7cee06470734e2071d54e050da08d055e01c39d387e1",
+          "shape": []
+        },
+        "n_dropped": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "e7ed77624bef61797eed1a770a22f9886ddb54ebca1d37fe401302b08937ae17",
+          "shape": [
+            1
+          ]
+        },
+        "n_raw": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b58a80af5baa70c6c5bd5ad44f701b198b773411b7cb976a21755cae0243d7ec",
+          "shape": [
+            1
+          ]
+        },
+        "n_units": {
+          "dtype": "int64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "19614069732b01f5951defff2ffc90df96f36c7cb806878fc52bb7a402099edf",
+          "shape": [
+            1,
+            3
+          ]
+        },
+        "n_units_panel": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "563e0ed5fdceb76bf32c350148f6ba0d166833b9cb2f5c5a1d465db005476b84",
+          "shape": [
+            1
+          ]
+        },
+        "n_used": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "4d30baf3d4599c6185f10e6b2cae16f2f581acd7fd2b74e76cc54aa08c2b69f1",
+          "shape": [
+            1
+          ]
+        },
+        "panel_labels": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "8a6832011557ee714db45ca6d93f8541d8127ebd802781333bd8926b0ecd55ac",
+          "shape": [
+            1
+          ]
+        },
+        "per_unit_ids_panel": {
+          "dtype": "object",
+          "finite_count": 53,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "68b739b93c47151f5478c2e35cbc831fd96d16b37cff86e43a3e73d48786aea6",
+          "shape": [
+            1,
+            53
+          ]
+        },
+        "per_unit_panel": {
+          "dtype": "object",
+          "finite_count": 159,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "84122e88da278c0868273e6cfe73fe02a475b4af6b9bee38b54ed0144e61083d",
+          "shape": [
+            1,
+            53,
+            3
+          ]
+        }
+      },
+      "keys": [
+        "bin_edges",
+        "ci_hi",
+        "ci_lo",
+        "counts",
+        "mean",
+        "meta_json",
+        "n_dropped",
+        "n_raw",
+        "n_units",
+        "n_units_panel",
+        "n_used",
+        "panel_labels",
+        "per_unit_ids_panel",
+        "per_unit_panel"
+      ],
+      "name": "panel_3_flat_ar_ctrl_between_reward_distance",
+      "path": "exports/dist_trav_ar_ctrlKir_flatLgc_T2_inclWall_2026-04-08.npz",
+      "sha256": "8ca0e44bce4493290f3c62a5fd5414d644c9e8f30cc5775acb50da8150762633"
+    }
+  ],
+  "schema_version": 1
+}
