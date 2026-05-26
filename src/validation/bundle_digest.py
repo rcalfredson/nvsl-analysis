@@ -21,6 +21,34 @@ SLI_REGRESSION_KEYS = (
     "group_label",
 )
 
+RETURN_PROB_EXCURSION_BIN_REGRESSION_KEYS = (
+    "group_label",
+    "return_prob_excursion_bin_border_width_mm",
+    "return_prob_excursion_bin_edges_mm",
+    "return_prob_excursion_bin_keep_first_sync_buckets",
+    "return_prob_excursion_bin_last_sync_buckets",
+    "return_prob_excursion_bin_open_ended_upper_bin",
+    "return_prob_excursion_bin_ratio_ctrl",
+    "return_prob_excursion_bin_ratio_exp",
+    "return_prob_excursion_bin_requested_edges_mm",
+    "return_prob_excursion_bin_return_ctrl",
+    "return_prob_excursion_bin_return_exp",
+    "return_prob_excursion_bin_reward_delta_mm",
+    "return_prob_excursion_bin_skip_first_sync_buckets",
+    "return_prob_excursion_bin_total_ctrl",
+    "return_prob_excursion_bin_total_exp",
+    "return_prob_excursion_bin_trainings",
+    "return_prob_excursion_bin_window_summary",
+    "sli",
+    "sli_select_keep_first_sync_buckets",
+    "sli_select_skip_first_sync_buckets",
+    "sli_training_idx",
+    "sli_ts",
+    "sli_use_training_mean",
+    "training_names",
+    "video_ids",
+)
+
 
 def _json_bytes(payload) -> bytes:
     return json.dumps(

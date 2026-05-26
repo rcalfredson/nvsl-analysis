@@ -1,0 +1,2975 @@
+{
+  "bundles": [
+    {
+      "arrays": {
+        "group_label": {
+          "dtype": "<U12",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "8e9a5272c02ec04b039a591db294fda16bafd6e9fa6215a94cd7970a2b26ce1a",
+          "shape": []
+        },
+        "return_prob_excursion_bin_border_width_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "45d2b662d9d490ae9b932759c910b26b9a874065de620f4ac0a3a23a65e40b8c",
+          "shape": []
+        },
+        "return_prob_excursion_bin_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 4,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "600bb49a72c2a699197ae6a3819f8db405dc3b717e3a4eb7401fa8858533c7df",
+          "shape": [
+            4
+          ]
+        },
+        "return_prob_excursion_bin_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_last_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_open_ended_upper_bin": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "return_prob_excursion_bin_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 198,
+          "kind": "numeric",
+          "nan_count": 9,
+          "sha256": "1d87872ab84b267b2c9b15e8dff6daf3c53a3785c4e9261a8dab5f2826439527",
+          "shape": [
+            69,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 204,
+          "kind": "numeric",
+          "nan_count": 3,
+          "sha256": "9e46729d4166fbddaa6c74f9a7b0ec14e8a43a1f0a0e8214ab7074845fdfd5a7",
+          "shape": [
+            69,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_requested_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "e93d64fadf98c2a8662467d6f4a431f2437e24d274c4c9a74a8537788a79303c",
+          "shape": [
+            4
+          ]
+        },
+        "return_prob_excursion_bin_return_ctrl": {
+          "dtype": "float64",
+          "finite_count": 207,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "3f018cbe44a1143ad4287f3ef590fa7a1f0f852b4284ba4cb0b45ec1f93df54e",
+          "shape": [
+            69,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_return_exp": {
+          "dtype": "float64",
+          "finite_count": 207,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "1e55cf50278a9edea6d69c473029ad80b4a039235fc0be6de0a95d0b0533b0a7",
+          "shape": [
+            69,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_reward_delta_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 207,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "5c6a384abed5e8c6fdf2ddf8863c58b9448ad5e72c236706bf1576ac14bb5b77",
+          "shape": [
+            69,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_total_exp": {
+          "dtype": "int64",
+          "finite_count": 207,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "3d40eba9778a7ad03b48a6bfa7b6da215bcbca5272c1c37b20ff5b532eecf7ca",
+          "shape": [
+            69,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_trainings": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": [
+            1
+          ]
+        },
+        "return_prob_excursion_bin_window_summary": {
+          "dtype": "object",
+          "finite_count": 69,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "7d216882f65379eaac2bb1e3f013b2db567bd3763523a3f944985a4df26169f8",
+          "shape": [
+            69
+          ]
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 62,
+          "kind": "numeric",
+          "nan_count": 7,
+          "sha256": "31fdbb97d3b48656fd3f11913c909063984a407f43dcd919cd7d010b31caef37",
+          "shape": [
+            69
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 847,
+          "kind": "numeric",
+          "nan_count": 395,
+          "sha256": "d0c722c678aba09e7409135f820bc1b95b4938c0ccb9b87cd7658ba6d3230cec",
+          "shape": [
+            69,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "<U10",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 69,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "9242d4fcf88dee42c16d3fd736097f56281fbee20201cd164caa753a22b91071",
+          "shape": [
+            69
+          ]
+        }
+      },
+      "keys": [
+        "group_label",
+        "return_prob_excursion_bin_border_width_mm",
+        "return_prob_excursion_bin_edges_mm",
+        "return_prob_excursion_bin_keep_first_sync_buckets",
+        "return_prob_excursion_bin_last_sync_buckets",
+        "return_prob_excursion_bin_open_ended_upper_bin",
+        "return_prob_excursion_bin_ratio_ctrl",
+        "return_prob_excursion_bin_ratio_exp",
+        "return_prob_excursion_bin_requested_edges_mm",
+        "return_prob_excursion_bin_return_ctrl",
+        "return_prob_excursion_bin_return_exp",
+        "return_prob_excursion_bin_reward_delta_mm",
+        "return_prob_excursion_bin_skip_first_sync_buckets",
+        "return_prob_excursion_bin_total_ctrl",
+        "return_prob_excursion_bin_total_exp",
+        "return_prob_excursion_bin_trainings",
+        "return_prob_excursion_bin_window_summary",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_1_flat_intact_ctrl_16mm_plus",
+      "path": "exports/ret_prob_binned_intact_ctrlKir_flatLgc_T2_16mmPlus_2026-04-27.npz",
+      "sha256": "089489bf38743713e5efccebd5953bc04efb7d315f3663e33ac2678d9a108014"
+    },
+    {
+      "arrays": {
+        "group_label": {
+          "dtype": "<U12",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "442fb87346d53c659207fc7463aa95d5df261121f14d3ee5f34aa286777730f9",
+          "shape": []
+        },
+        "return_prob_excursion_bin_border_width_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "45d2b662d9d490ae9b932759c910b26b9a874065de620f4ac0a3a23a65e40b8c",
+          "shape": []
+        },
+        "return_prob_excursion_bin_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 4,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "fd8110095dc967295ceccd9c2a8583fd38e692a1a81c6e13e4428d40ad74545f",
+          "shape": [
+            4
+          ]
+        },
+        "return_prob_excursion_bin_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_last_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_open_ended_upper_bin": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "return_prob_excursion_bin_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 168,
+          "kind": "numeric",
+          "nan_count": 15,
+          "sha256": "701cc2a682e583d18403dd8548220f7a5aa46f7c39cc7fbc5dd603f2359a2cfc",
+          "shape": [
+            61,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 171,
+          "kind": "numeric",
+          "nan_count": 12,
+          "sha256": "d58f9519b035cc73f85f381c42de871a6317387a4a714d434a438c70adc3462f",
+          "shape": [
+            61,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_requested_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "e93d64fadf98c2a8662467d6f4a431f2437e24d274c4c9a74a8537788a79303c",
+          "shape": [
+            4
+          ]
+        },
+        "return_prob_excursion_bin_return_ctrl": {
+          "dtype": "float64",
+          "finite_count": 183,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "cfeda74cdce2798e4e65c9b6c2206f78d41cf594db44e58bfe5f3e9a135fe2b8",
+          "shape": [
+            61,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_return_exp": {
+          "dtype": "float64",
+          "finite_count": 183,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "4f83682bb2790f454dff89e8363d2cf9bf29ec81cdcc9c91add64f2f3046f16c",
+          "shape": [
+            61,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_reward_delta_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 183,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "2b94b85140031bb8b347928015be5d23f7989a4b9487cab09c0a5354ea8d0b77",
+          "shape": [
+            61,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_total_exp": {
+          "dtype": "int64",
+          "finite_count": 183,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "979ea66aa66c22398cf7b89817e184213fe6ccf24925a280b16be16370794796",
+          "shape": [
+            61,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_trainings": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": [
+            1
+          ]
+        },
+        "return_prob_excursion_bin_window_summary": {
+          "dtype": "object",
+          "finite_count": 61,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a6ba619923dfb88c8121474c23011e1700f0a3493644b8beda482b0e45cab2cf",
+          "shape": [
+            61
+          ]
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 52,
+          "kind": "numeric",
+          "nan_count": 9,
+          "sha256": "6f8aec8a03575bd0f377321fbda947f9b2bb137a4a7d02d19abfc5108263c6ca",
+          "shape": [
+            61
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 698,
+          "kind": "numeric",
+          "nan_count": 400,
+          "sha256": "f5342732a54f3cb0c3c3884976e0e5d0bd15138d5ae0b3f1172b081e117c4646",
+          "shape": [
+            61,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "<U10",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 61,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "abf0dc060c8feb451a3d022a7f25453b53789fa16b561d0ef5ef2091680dca6e",
+          "shape": [
+            61
+          ]
+        }
+      },
+      "keys": [
+        "group_label",
+        "return_prob_excursion_bin_border_width_mm",
+        "return_prob_excursion_bin_edges_mm",
+        "return_prob_excursion_bin_keep_first_sync_buckets",
+        "return_prob_excursion_bin_last_sync_buckets",
+        "return_prob_excursion_bin_open_ended_upper_bin",
+        "return_prob_excursion_bin_ratio_ctrl",
+        "return_prob_excursion_bin_ratio_exp",
+        "return_prob_excursion_bin_requested_edges_mm",
+        "return_prob_excursion_bin_return_ctrl",
+        "return_prob_excursion_bin_return_exp",
+        "return_prob_excursion_bin_reward_delta_mm",
+        "return_prob_excursion_bin_skip_first_sync_buckets",
+        "return_prob_excursion_bin_total_ctrl",
+        "return_prob_excursion_bin_total_exp",
+        "return_prob_excursion_bin_trainings",
+        "return_prob_excursion_bin_window_summary",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_1_flat_intact_pfn_16mm_plus",
+      "path": "exports/ret_prob_binned_intact_pfnKir_flatLgc_T2_16mmPlus_2026-04-27.npz",
+      "sha256": "b50bc33f486182f2082fac43a701d2c9c02ada0e692b1a3c821f869ae4aa14d9"
+    },
+    {
+      "arrays": {
+        "group_label": {
+          "dtype": "<U15",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "f5c0a07f74cd084e052f5d9264dbb39ab23cb7e94463ca4a29600ffe2331c01c",
+          "shape": []
+        },
+        "return_prob_excursion_bin_border_width_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "45d2b662d9d490ae9b932759c910b26b9a874065de620f4ac0a3a23a65e40b8c",
+          "shape": []
+        },
+        "return_prob_excursion_bin_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 4,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "c89d2601a005932be2e3d75361bc38f253006f6141605799408f443e7f3eabb4",
+          "shape": [
+            4
+          ]
+        },
+        "return_prob_excursion_bin_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_last_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_open_ended_upper_bin": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "return_prob_excursion_bin_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 189,
+          "kind": "numeric",
+          "nan_count": 9,
+          "sha256": "de39e7614ccb9526437d11f183b3d0949a7d92bbc8c8c2dabce629e6824ab7da",
+          "shape": [
+            66,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 192,
+          "kind": "numeric",
+          "nan_count": 6,
+          "sha256": "d42d31dd423aa4141d52e9e84c2789f9a7d2e718f3307f4c983a6ae6558b2406",
+          "shape": [
+            66,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_requested_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "e93d64fadf98c2a8662467d6f4a431f2437e24d274c4c9a74a8537788a79303c",
+          "shape": [
+            4
+          ]
+        },
+        "return_prob_excursion_bin_return_ctrl": {
+          "dtype": "float64",
+          "finite_count": 198,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "2ac0c9c3e494e16f3945f18b8349fdec5b4dc4c4e5afb276b7ccaf9a3c66b192",
+          "shape": [
+            66,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_return_exp": {
+          "dtype": "float64",
+          "finite_count": 198,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "169c24d2b7f33d9f893cd55e3f6b7a90ed4b498a2c85d9091936cc04199bd1b2",
+          "shape": [
+            66,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_reward_delta_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 198,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "9e186b4213491c8da4d48a49f826529c410a77de005cd650aa596c90df524746",
+          "shape": [
+            66,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_total_exp": {
+          "dtype": "int64",
+          "finite_count": 198,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "741e35d8bc00394e90a433c41e1bdbb74afdd19d3cec3bd94e8192396923b239",
+          "shape": [
+            66,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_trainings": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": [
+            1
+          ]
+        },
+        "return_prob_excursion_bin_window_summary": {
+          "dtype": "object",
+          "finite_count": 66,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "77652a173ab9e495c5b33e6016fc080bbe0e3293bba2f281922ea26f9ceb8419",
+          "shape": [
+            66
+          ]
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 55,
+          "kind": "numeric",
+          "nan_count": 11,
+          "sha256": "a8196f842f5c6fcf023d7bb3e3d6e825e165dde52ac6da721d70cef063cd0553",
+          "shape": [
+            66
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 714,
+          "kind": "numeric",
+          "nan_count": 474,
+          "sha256": "a05bc6b4630ede45a61d098b7f71e3ff9c709731ea20869503b9b78c35bee2fa",
+          "shape": [
+            66,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "<U10",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 66,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "b08398ff7eed90d810d604ccae4cf8f80597ffc45c14ad4a90d57238fc3c22d0",
+          "shape": [
+            66
+          ]
+        }
+      },
+      "keys": [
+        "group_label",
+        "return_prob_excursion_bin_border_width_mm",
+        "return_prob_excursion_bin_edges_mm",
+        "return_prob_excursion_bin_keep_first_sync_buckets",
+        "return_prob_excursion_bin_last_sync_buckets",
+        "return_prob_excursion_bin_open_ended_upper_bin",
+        "return_prob_excursion_bin_ratio_ctrl",
+        "return_prob_excursion_bin_ratio_exp",
+        "return_prob_excursion_bin_requested_edges_mm",
+        "return_prob_excursion_bin_return_ctrl",
+        "return_prob_excursion_bin_return_exp",
+        "return_prob_excursion_bin_reward_delta_mm",
+        "return_prob_excursion_bin_skip_first_sync_buckets",
+        "return_prob_excursion_bin_total_ctrl",
+        "return_prob_excursion_bin_total_exp",
+        "return_prob_excursion_bin_trainings",
+        "return_prob_excursion_bin_window_summary",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_1_flat_ar_ctrl_16mm_plus",
+      "path": "exports/ret_prob_binned_ar_ctrlKir_flatLgc_T2_16mmPlus_2026-04-27.npz",
+      "sha256": "ac245a79a9e4f18949393d7be458965345449781664e6a00b890a3f851dfa00a"
+    },
+    {
+      "arrays": {
+        "group_label": {
+          "dtype": "<U15",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "aca3a0be1b3d3d26c43ad958748df9bc4d1ffe94b984b80517389b4b8a3e9b13",
+          "shape": []
+        },
+        "return_prob_excursion_bin_border_width_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "45d2b662d9d490ae9b932759c910b26b9a874065de620f4ac0a3a23a65e40b8c",
+          "shape": []
+        },
+        "return_prob_excursion_bin_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 4,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7fa3eabb5029f52db619d865014b7be8f733cbf133a98087b1567fc458f8240c",
+          "shape": [
+            4
+          ]
+        },
+        "return_prob_excursion_bin_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_last_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_open_ended_upper_bin": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "return_prob_excursion_bin_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 123,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "4d75351b9718e0124be0b3fd75723f0adff8fa2e95e28e1c8727cca3b3047171",
+          "shape": [
+            41,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 117,
+          "kind": "numeric",
+          "nan_count": 6,
+          "sha256": "8e7fb6a335f0395e41dc9e0b3843eaa8125793b70bd433fdc872df80da4ebce2",
+          "shape": [
+            41,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_requested_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "e93d64fadf98c2a8662467d6f4a431f2437e24d274c4c9a74a8537788a79303c",
+          "shape": [
+            4
+          ]
+        },
+        "return_prob_excursion_bin_return_ctrl": {
+          "dtype": "float64",
+          "finite_count": 123,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "275ecd056a9f5a14e76e50ed85a77f76b023ed22575a830dd15a5b1e7cfeebaf",
+          "shape": [
+            41,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_return_exp": {
+          "dtype": "float64",
+          "finite_count": 123,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "d0a15ffa333a697ee6ef0124a18c5ebbd8c3edcc85b305f9a343388962dafcef",
+          "shape": [
+            41,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_reward_delta_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 123,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "c4cff71336261e04d62b49bf16a208b0763f7e33ba5eeec623ffec48ddf4d46c",
+          "shape": [
+            41,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_total_exp": {
+          "dtype": "int64",
+          "finite_count": 123,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "207a92bcad63d09caa57c64e56bd8233cde79a1d3e2eb52ebc76eff324a14b93",
+          "shape": [
+            41,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_trainings": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": [
+            1
+          ]
+        },
+        "return_prob_excursion_bin_window_summary": {
+          "dtype": "object",
+          "finite_count": 41,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "f202df8d9d80c92346cd99a385d610be4a81f854b6c5c93ce212270a2bbbeb2c",
+          "shape": [
+            41
+          ]
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 39,
+          "kind": "numeric",
+          "nan_count": 2,
+          "sha256": "f28514fa0888955425b676437006bc5666b742bd0b24ef8e9070ca339e913010",
+          "shape": [
+            41
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 524,
+          "kind": "numeric",
+          "nan_count": 214,
+          "sha256": "a72d6c93b79d294e2523a4c4b838f698d29c6c5aafe578265681e782fa66abe0",
+          "shape": [
+            41,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "<U10",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 41,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "8ae678e4be3a32c1d1a6fafe318091df64320fcc9e7e8ad87ea9433571197c8b",
+          "shape": [
+            41
+          ]
+        }
+      },
+      "keys": [
+        "group_label",
+        "return_prob_excursion_bin_border_width_mm",
+        "return_prob_excursion_bin_edges_mm",
+        "return_prob_excursion_bin_keep_first_sync_buckets",
+        "return_prob_excursion_bin_last_sync_buckets",
+        "return_prob_excursion_bin_open_ended_upper_bin",
+        "return_prob_excursion_bin_ratio_ctrl",
+        "return_prob_excursion_bin_ratio_exp",
+        "return_prob_excursion_bin_requested_edges_mm",
+        "return_prob_excursion_bin_return_ctrl",
+        "return_prob_excursion_bin_return_exp",
+        "return_prob_excursion_bin_reward_delta_mm",
+        "return_prob_excursion_bin_skip_first_sync_buckets",
+        "return_prob_excursion_bin_total_ctrl",
+        "return_prob_excursion_bin_total_exp",
+        "return_prob_excursion_bin_trainings",
+        "return_prob_excursion_bin_window_summary",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_1_flat_ar_pfn_16mm_plus",
+      "path": "exports/ret_prob_binned_ar_pfnKir_flatLgc_T2_16mmPlus_2026-04-27.npz",
+      "sha256": "1a720d2be2b1b23f90bca4349686545ba02da89285cae0386f31285226d18bf1"
+    },
+    {
+      "arrays": {
+        "group_label": {
+          "dtype": "<U18",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "3d08ba1cb0dff4442a18ba6258e18780ad45f5802d65ad029a519bc4817d171c",
+          "shape": []
+        },
+        "return_prob_excursion_bin_border_width_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "45d2b662d9d490ae9b932759c910b26b9a874065de620f4ac0a3a23a65e40b8c",
+          "shape": []
+        },
+        "return_prob_excursion_bin_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 2,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "512785e675385dcb2d7af1cf379ac8784de4ff8d1be3de5be33040e1ef71e701",
+          "shape": [
+            2
+          ]
+        },
+        "return_prob_excursion_bin_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_last_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_open_ended_upper_bin": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "7e6e55368ace86a77858dc00de69db346d86e69c4412689e8d63238c73c9c669",
+          "shape": []
+        },
+        "return_prob_excursion_bin_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 66,
+          "kind": "numeric",
+          "nan_count": 3,
+          "sha256": "fbacce22870e7c2e3b7e9909a133c491e9d717777323d2a66c2c902e0c762e0d",
+          "shape": [
+            69,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 68,
+          "kind": "numeric",
+          "nan_count": 1,
+          "sha256": "14d9584bd97ce8ad260c8fca4b69afcddd40ce7d08f988003d129dff5652078c",
+          "shape": [
+            69,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_requested_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 2,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "512785e675385dcb2d7af1cf379ac8784de4ff8d1be3de5be33040e1ef71e701",
+          "shape": [
+            2
+          ]
+        },
+        "return_prob_excursion_bin_return_ctrl": {
+          "dtype": "float64",
+          "finite_count": 69,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "4250f8fef902fae2f959db2fe368d4e1d20e57fe06366c3d65925fccfaf0f5d7",
+          "shape": [
+            69,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_return_exp": {
+          "dtype": "float64",
+          "finite_count": 69,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "130468695c6fc5b49900b7e1cf5df25ac19bafb18d5fb4289d562e0be78a385c",
+          "shape": [
+            69,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_reward_delta_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 69,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "cd9c2c2fa84b377fd218d115ac9b7dfbbb09bb6d2ab63201844175dcf3b1d553",
+          "shape": [
+            69,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_total_exp": {
+          "dtype": "int64",
+          "finite_count": 69,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "d30d1392f7a26ea65a61cfcfefcc27d0034fea6a06aae0202334558c59322e3c",
+          "shape": [
+            69,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_trainings": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": [
+            1
+          ]
+        },
+        "return_prob_excursion_bin_window_summary": {
+          "dtype": "object",
+          "finite_count": 69,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "7d216882f65379eaac2bb1e3f013b2db567bd3763523a3f944985a4df26169f8",
+          "shape": [
+            69
+          ]
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 62,
+          "kind": "numeric",
+          "nan_count": 7,
+          "sha256": "31fdbb97d3b48656fd3f11913c909063984a407f43dcd919cd7d010b31caef37",
+          "shape": [
+            69
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 847,
+          "kind": "numeric",
+          "nan_count": 395,
+          "sha256": "d0c722c678aba09e7409135f820bc1b95b4938c0ccb9b87cd7658ba6d3230cec",
+          "shape": [
+            69,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "<U10",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 69,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "9242d4fcf88dee42c16d3fd736097f56281fbee20201cd164caa753a22b91071",
+          "shape": [
+            69
+          ]
+        }
+      },
+      "keys": [
+        "group_label",
+        "return_prob_excursion_bin_border_width_mm",
+        "return_prob_excursion_bin_edges_mm",
+        "return_prob_excursion_bin_keep_first_sync_buckets",
+        "return_prob_excursion_bin_last_sync_buckets",
+        "return_prob_excursion_bin_open_ended_upper_bin",
+        "return_prob_excursion_bin_ratio_ctrl",
+        "return_prob_excursion_bin_ratio_exp",
+        "return_prob_excursion_bin_requested_edges_mm",
+        "return_prob_excursion_bin_return_ctrl",
+        "return_prob_excursion_bin_return_exp",
+        "return_prob_excursion_bin_reward_delta_mm",
+        "return_prob_excursion_bin_skip_first_sync_buckets",
+        "return_prob_excursion_bin_total_ctrl",
+        "return_prob_excursion_bin_total_exp",
+        "return_prob_excursion_bin_trainings",
+        "return_prob_excursion_bin_window_summary",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_2_flat_intact_ctrl_20_24mm",
+      "path": "exports/ret_prob_binned_intact_ctrlKir_flatLgc_T2_20mmMin24mmMax_2026-04-08.npz",
+      "sha256": "9628aea6d7187eae6753068ec5282ea9e378a12a8273e5974dd1c70a354cae29"
+    },
+    {
+      "arrays": {
+        "group_label": {
+          "dtype": "<U15",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "eb680b0cb9588cbc38734cb626aa8cbba8c339b765b7608fd311292fe1cb2cc1",
+          "shape": []
+        },
+        "return_prob_excursion_bin_border_width_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "45d2b662d9d490ae9b932759c910b26b9a874065de620f4ac0a3a23a65e40b8c",
+          "shape": []
+        },
+        "return_prob_excursion_bin_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 2,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "512785e675385dcb2d7af1cf379ac8784de4ff8d1be3de5be33040e1ef71e701",
+          "shape": [
+            2
+          ]
+        },
+        "return_prob_excursion_bin_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_last_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_open_ended_upper_bin": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "7e6e55368ace86a77858dc00de69db346d86e69c4412689e8d63238c73c9c669",
+          "shape": []
+        },
+        "return_prob_excursion_bin_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 56,
+          "kind": "numeric",
+          "nan_count": 5,
+          "sha256": "8ee576ed0db404a664d3c0b6490bc7d888ccbe7a696dff625974dc7a11278284",
+          "shape": [
+            61,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 57,
+          "kind": "numeric",
+          "nan_count": 4,
+          "sha256": "65486ad387cc3629617216117336a823664c19b22dacbc99cf8916d59c404ab4",
+          "shape": [
+            61,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_requested_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 2,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "512785e675385dcb2d7af1cf379ac8784de4ff8d1be3de5be33040e1ef71e701",
+          "shape": [
+            2
+          ]
+        },
+        "return_prob_excursion_bin_return_ctrl": {
+          "dtype": "float64",
+          "finite_count": 61,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "e24b1df157527ef6a3bbd8ac04e5c29acfc72ad36136da6e8b85b24eae5bad68",
+          "shape": [
+            61,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_return_exp": {
+          "dtype": "float64",
+          "finite_count": 61,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b53ce9cbb19c272b270452e1d8de01bafe5ca15e1bfcc5f0ae46aca3e1ebc7a9",
+          "shape": [
+            61,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_reward_delta_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 61,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "d5acc661cc8df3233c7e992a9add7ddda7dc3f87d242e81fe057e915f2a02885",
+          "shape": [
+            61,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_total_exp": {
+          "dtype": "int64",
+          "finite_count": 61,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "3852f69df11ff196b4f1e847f9bcad172d0822597524495c22380e398fbd9fb5",
+          "shape": [
+            61,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_trainings": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": [
+            1
+          ]
+        },
+        "return_prob_excursion_bin_window_summary": {
+          "dtype": "object",
+          "finite_count": 61,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a6ba619923dfb88c8121474c23011e1700f0a3493644b8beda482b0e45cab2cf",
+          "shape": [
+            61
+          ]
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 52,
+          "kind": "numeric",
+          "nan_count": 9,
+          "sha256": "6f8aec8a03575bd0f377321fbda947f9b2bb137a4a7d02d19abfc5108263c6ca",
+          "shape": [
+            61
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 698,
+          "kind": "numeric",
+          "nan_count": 400,
+          "sha256": "f5342732a54f3cb0c3c3884976e0e5d0bd15138d5ae0b3f1172b081e117c4646",
+          "shape": [
+            61,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "<U10",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 61,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "abf0dc060c8feb451a3d022a7f25453b53789fa16b561d0ef5ef2091680dca6e",
+          "shape": [
+            61
+          ]
+        }
+      },
+      "keys": [
+        "group_label",
+        "return_prob_excursion_bin_border_width_mm",
+        "return_prob_excursion_bin_edges_mm",
+        "return_prob_excursion_bin_keep_first_sync_buckets",
+        "return_prob_excursion_bin_last_sync_buckets",
+        "return_prob_excursion_bin_open_ended_upper_bin",
+        "return_prob_excursion_bin_ratio_ctrl",
+        "return_prob_excursion_bin_ratio_exp",
+        "return_prob_excursion_bin_requested_edges_mm",
+        "return_prob_excursion_bin_return_ctrl",
+        "return_prob_excursion_bin_return_exp",
+        "return_prob_excursion_bin_reward_delta_mm",
+        "return_prob_excursion_bin_skip_first_sync_buckets",
+        "return_prob_excursion_bin_total_ctrl",
+        "return_prob_excursion_bin_total_exp",
+        "return_prob_excursion_bin_trainings",
+        "return_prob_excursion_bin_window_summary",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_2_flat_intact_pfn_20_24mm",
+      "path": "exports/ret_prob_binned_intact_pfnKir_flatLgc_T2_20mmMin24mmMax_2026-04-08.npz",
+      "sha256": "eefca5440f088e12c16c7c9fc2026547f4947ce1269502747ba619234fd5df90"
+    },
+    {
+      "arrays": {
+        "group_label": {
+          "dtype": "<U14",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "eca1741183edc24ddf780d8e55ddf93a54b4aa8a8f233054a97357765f01cab2",
+          "shape": []
+        },
+        "return_prob_excursion_bin_border_width_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "45d2b662d9d490ae9b932759c910b26b9a874065de620f4ac0a3a23a65e40b8c",
+          "shape": []
+        },
+        "return_prob_excursion_bin_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 2,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "512785e675385dcb2d7af1cf379ac8784de4ff8d1be3de5be33040e1ef71e701",
+          "shape": [
+            2
+          ]
+        },
+        "return_prob_excursion_bin_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_last_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_open_ended_upper_bin": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "7e6e55368ace86a77858dc00de69db346d86e69c4412689e8d63238c73c9c669",
+          "shape": []
+        },
+        "return_prob_excursion_bin_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 63,
+          "kind": "numeric",
+          "nan_count": 3,
+          "sha256": "6b566754460d5bbc9e52871d75fdc5763ff79ffa8db7ae82a4e5ff9da5122e39",
+          "shape": [
+            66,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 64,
+          "kind": "numeric",
+          "nan_count": 2,
+          "sha256": "e9c38248e7e167c9493f3dc9ed37b5d080e0929d1ba08a25409e5599b01677b7",
+          "shape": [
+            66,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_requested_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 2,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "512785e675385dcb2d7af1cf379ac8784de4ff8d1be3de5be33040e1ef71e701",
+          "shape": [
+            2
+          ]
+        },
+        "return_prob_excursion_bin_return_ctrl": {
+          "dtype": "float64",
+          "finite_count": 66,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "49a4371571fd442bf99a806821fafffbdb939d9406dd90ebb68c93b5e207e751",
+          "shape": [
+            66,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_return_exp": {
+          "dtype": "float64",
+          "finite_count": 66,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b30759764093fc9cb954e9e20d09305c1b160c0ca489c4f8980838a649929b22",
+          "shape": [
+            66,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_reward_delta_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 66,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "07dbc12ced27ba325c6cf18d5758b58d240e4d05768ba24864ce04764ecf0f73",
+          "shape": [
+            66,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_total_exp": {
+          "dtype": "int64",
+          "finite_count": 66,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "bf047244b2338ac2bf9e80af7fe91d5cf7969857956084de8fbc626983750072",
+          "shape": [
+            66,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_trainings": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": [
+            1
+          ]
+        },
+        "return_prob_excursion_bin_window_summary": {
+          "dtype": "object",
+          "finite_count": 66,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "77652a173ab9e495c5b33e6016fc080bbe0e3293bba2f281922ea26f9ceb8419",
+          "shape": [
+            66
+          ]
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 55,
+          "kind": "numeric",
+          "nan_count": 11,
+          "sha256": "a8196f842f5c6fcf023d7bb3e3d6e825e165dde52ac6da721d70cef063cd0553",
+          "shape": [
+            66
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 714,
+          "kind": "numeric",
+          "nan_count": 474,
+          "sha256": "a05bc6b4630ede45a61d098b7f71e3ff9c709731ea20869503b9b78c35bee2fa",
+          "shape": [
+            66,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "<U10",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 66,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "b08398ff7eed90d810d604ccae4cf8f80597ffc45c14ad4a90d57238fc3c22d0",
+          "shape": [
+            66
+          ]
+        }
+      },
+      "keys": [
+        "group_label",
+        "return_prob_excursion_bin_border_width_mm",
+        "return_prob_excursion_bin_edges_mm",
+        "return_prob_excursion_bin_keep_first_sync_buckets",
+        "return_prob_excursion_bin_last_sync_buckets",
+        "return_prob_excursion_bin_open_ended_upper_bin",
+        "return_prob_excursion_bin_ratio_ctrl",
+        "return_prob_excursion_bin_ratio_exp",
+        "return_prob_excursion_bin_requested_edges_mm",
+        "return_prob_excursion_bin_return_ctrl",
+        "return_prob_excursion_bin_return_exp",
+        "return_prob_excursion_bin_reward_delta_mm",
+        "return_prob_excursion_bin_skip_first_sync_buckets",
+        "return_prob_excursion_bin_total_ctrl",
+        "return_prob_excursion_bin_total_exp",
+        "return_prob_excursion_bin_trainings",
+        "return_prob_excursion_bin_window_summary",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_2_flat_ar_ctrl_20_24mm",
+      "path": "exports/ret_prob_binned_ar_ctrlKir_flatLgc_T2_20mmMin24mmMax_2026-04-08.npz",
+      "sha256": "d41d688aa24ad18318d35faf0bc7ef57cb8cc1a14c8b15b79f4ab95a759d39d1"
+    },
+    {
+      "arrays": {
+        "group_label": {
+          "dtype": "<U11",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "3790ae49bd365bea9951f57c3153ba7da2ff438b4fa520b67b09171623340536",
+          "shape": []
+        },
+        "return_prob_excursion_bin_border_width_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "45d2b662d9d490ae9b932759c910b26b9a874065de620f4ac0a3a23a65e40b8c",
+          "shape": []
+        },
+        "return_prob_excursion_bin_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 2,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "512785e675385dcb2d7af1cf379ac8784de4ff8d1be3de5be33040e1ef71e701",
+          "shape": [
+            2
+          ]
+        },
+        "return_prob_excursion_bin_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_last_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_open_ended_upper_bin": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "7e6e55368ace86a77858dc00de69db346d86e69c4412689e8d63238c73c9c669",
+          "shape": []
+        },
+        "return_prob_excursion_bin_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 41,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "abb79b985be91e6b9c18ae5b100ab9e6ce67af1a24d3beef385fd5698eb9acba",
+          "shape": [
+            41,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 39,
+          "kind": "numeric",
+          "nan_count": 2,
+          "sha256": "e86a37a6e499b6ee02729972a227881be07e08a875e33e92b18088e41a4139df",
+          "shape": [
+            41,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_requested_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 2,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "512785e675385dcb2d7af1cf379ac8784de4ff8d1be3de5be33040e1ef71e701",
+          "shape": [
+            2
+          ]
+        },
+        "return_prob_excursion_bin_return_ctrl": {
+          "dtype": "float64",
+          "finite_count": 41,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "9733ad49107018502db8486cd96d8c4954a33f275c5eeb7bb01c03495e2f6fee",
+          "shape": [
+            41,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_return_exp": {
+          "dtype": "float64",
+          "finite_count": 41,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "87121356faf767672a6ea272631a5ed8da18d8b4ed5894dfdd1a033ff7d52f42",
+          "shape": [
+            41,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_reward_delta_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 41,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "11d5d442500d94c8c32a89a8e674da0a89346b0916e89118c798809e530d74fd",
+          "shape": [
+            41,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_total_exp": {
+          "dtype": "int64",
+          "finite_count": 41,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "8be11497169ec1b691e6b43602f936c6e161e7538a30199a7b00edf660fe0fd3",
+          "shape": [
+            41,
+            1
+          ]
+        },
+        "return_prob_excursion_bin_trainings": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": [
+            1
+          ]
+        },
+        "return_prob_excursion_bin_window_summary": {
+          "dtype": "object",
+          "finite_count": 41,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "f202df8d9d80c92346cd99a385d610be4a81f854b6c5c93ce212270a2bbbeb2c",
+          "shape": [
+            41
+          ]
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 39,
+          "kind": "numeric",
+          "nan_count": 2,
+          "sha256": "f28514fa0888955425b676437006bc5666b742bd0b24ef8e9070ca339e913010",
+          "shape": [
+            41
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 524,
+          "kind": "numeric",
+          "nan_count": 214,
+          "sha256": "a72d6c93b79d294e2523a4c4b838f698d29c6c5aafe578265681e782fa66abe0",
+          "shape": [
+            41,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "<U10",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 41,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "8ae678e4be3a32c1d1a6fafe318091df64320fcc9e7e8ad87ea9433571197c8b",
+          "shape": [
+            41
+          ]
+        }
+      },
+      "keys": [
+        "group_label",
+        "return_prob_excursion_bin_border_width_mm",
+        "return_prob_excursion_bin_edges_mm",
+        "return_prob_excursion_bin_keep_first_sync_buckets",
+        "return_prob_excursion_bin_last_sync_buckets",
+        "return_prob_excursion_bin_open_ended_upper_bin",
+        "return_prob_excursion_bin_ratio_ctrl",
+        "return_prob_excursion_bin_ratio_exp",
+        "return_prob_excursion_bin_requested_edges_mm",
+        "return_prob_excursion_bin_return_ctrl",
+        "return_prob_excursion_bin_return_exp",
+        "return_prob_excursion_bin_reward_delta_mm",
+        "return_prob_excursion_bin_skip_first_sync_buckets",
+        "return_prob_excursion_bin_total_ctrl",
+        "return_prob_excursion_bin_total_exp",
+        "return_prob_excursion_bin_trainings",
+        "return_prob_excursion_bin_window_summary",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_2_flat_ar_pfn_20_24mm",
+      "path": "exports/ret_prob_binned_ar_pfnKir_flatLgc_T2_20mmMin24mmMax_2026-04-08.npz",
+      "sha256": "d8a31c02c93a096391e2351a35a3e4fd597bf3684adaf2e47855a274a52e9466"
+    },
+    {
+      "arrays": {
+        "group_label": {
+          "dtype": "<U12",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a4cad8fde309f3f989b2a3ead41ab0499b5bf7a2556bf8b6ed1f0b2992c9ca28",
+          "shape": []
+        },
+        "return_prob_excursion_bin_border_width_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "45d2b662d9d490ae9b932759c910b26b9a874065de620f4ac0a3a23a65e40b8c",
+          "shape": []
+        },
+        "return_prob_excursion_bin_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 4,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "966d665b191df2caa07bf49870a786fd10a03c9f7b69c75142de58de499fd8bd",
+          "shape": [
+            4
+          ]
+        },
+        "return_prob_excursion_bin_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_last_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_open_ended_upper_bin": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "return_prob_excursion_bin_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 201,
+          "kind": "numeric",
+          "nan_count": 9,
+          "sha256": "a2c690b905ab6d1ec57d6a227b5c93072f967c13dde7fee40d32dae8081d8633",
+          "shape": [
+            70,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 204,
+          "kind": "numeric",
+          "nan_count": 6,
+          "sha256": "b7024df7ff67bc44dd3e1efbb2298cc8ff8d89138d2cc5ea84617be968089e27",
+          "shape": [
+            70,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_requested_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "e93d64fadf98c2a8662467d6f4a431f2437e24d274c4c9a74a8537788a79303c",
+          "shape": [
+            4
+          ]
+        },
+        "return_prob_excursion_bin_return_ctrl": {
+          "dtype": "float64",
+          "finite_count": 210,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "6530fa6861692638a760123ab53dbcbfee9bba57693d21571d28170f972f50b5",
+          "shape": [
+            70,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_return_exp": {
+          "dtype": "float64",
+          "finite_count": 210,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "2b49c17778fcd0efe90da1eef31d745676b06f4dad6bf0984a6d838eb6d4c881",
+          "shape": [
+            70,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_reward_delta_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 210,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "75ffd06746bb4625233fd4064e50f6ce66d6ef8a7dd884c0f7e436b72e9f66e9",
+          "shape": [
+            70,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_total_exp": {
+          "dtype": "int64",
+          "finite_count": 210,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b4a80619655d4f6b2ee566131e6fa4e71309eb57fa89f3cc4aa2f33d2f7dba04",
+          "shape": [
+            70,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_trainings": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": [
+            1
+          ]
+        },
+        "return_prob_excursion_bin_window_summary": {
+          "dtype": "object",
+          "finite_count": 70,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "871fc84d661a4a47c5eb02815ce4fa8629be2952d76b9d717f3972c9776f1e60",
+          "shape": [
+            70
+          ]
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 57,
+          "kind": "numeric",
+          "nan_count": 13,
+          "sha256": "f848e9a318ca46c756d0af9df72ea7211e0ad40ac26bd6914b09f56032031ceb",
+          "shape": [
+            70
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 725,
+          "kind": "numeric",
+          "nan_count": 535,
+          "sha256": "a150bb57d279d662974e4b7bac6d2e10e9e0429ea505a20ee465e7b0baba35d2",
+          "shape": [
+            70,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "<U10",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 70,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "ecf5acae59ab4b33174263f089c0f599ea1db072cc6fd69841163681556fd85d",
+          "shape": [
+            70
+          ]
+        }
+      },
+      "keys": [
+        "group_label",
+        "return_prob_excursion_bin_border_width_mm",
+        "return_prob_excursion_bin_edges_mm",
+        "return_prob_excursion_bin_keep_first_sync_buckets",
+        "return_prob_excursion_bin_last_sync_buckets",
+        "return_prob_excursion_bin_open_ended_upper_bin",
+        "return_prob_excursion_bin_ratio_ctrl",
+        "return_prob_excursion_bin_ratio_exp",
+        "return_prob_excursion_bin_requested_edges_mm",
+        "return_prob_excursion_bin_return_ctrl",
+        "return_prob_excursion_bin_return_exp",
+        "return_prob_excursion_bin_reward_delta_mm",
+        "return_prob_excursion_bin_skip_first_sync_buckets",
+        "return_prob_excursion_bin_total_ctrl",
+        "return_prob_excursion_bin_total_exp",
+        "return_prob_excursion_bin_trainings",
+        "return_prob_excursion_bin_window_summary",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_29_agarose_intact_ctrl_16mm_plus",
+      "path": "exports/ret_prob_binned_intact_ctrlKir_agaroseLgc_T2_16mmPlus_2026-05-16.npz",
+      "sha256": "6c585f3d09a02bcc827b16af7c49223e2e4019f4ab4b62ec7a2f9a5f0dbf7069"
+    },
+    {
+      "arrays": {
+        "group_label": {
+          "dtype": "<U12",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "36120744ee171c62a1776c7b88b40ce08381af3e8b7bdaa64d109654fc96fe3f",
+          "shape": []
+        },
+        "return_prob_excursion_bin_border_width_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "45d2b662d9d490ae9b932759c910b26b9a874065de620f4ac0a3a23a65e40b8c",
+          "shape": []
+        },
+        "return_prob_excursion_bin_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 4,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "a75f03a6bdcd75c38e26e6fc14285a0064378a237c8d5bef2401807fb9394ba9",
+          "shape": [
+            4
+          ]
+        },
+        "return_prob_excursion_bin_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_last_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_open_ended_upper_bin": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "return_prob_excursion_bin_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 201,
+          "kind": "numeric",
+          "nan_count": 3,
+          "sha256": "300302ac72a095b9f361ce0e78dd4772d3b5c68645fbf8194a331d7345c3b7ee",
+          "shape": [
+            68,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 195,
+          "kind": "numeric",
+          "nan_count": 9,
+          "sha256": "57b1cc0864357327238a24cb2bff0a739cbbfe33d742b074cbbdd2c7e3a9404f",
+          "shape": [
+            68,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_requested_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "e93d64fadf98c2a8662467d6f4a431f2437e24d274c4c9a74a8537788a79303c",
+          "shape": [
+            4
+          ]
+        },
+        "return_prob_excursion_bin_return_ctrl": {
+          "dtype": "float64",
+          "finite_count": 204,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b861fa8e5fb6c5ce3c68cf5df9654786c5a801120ac9fa5a02ac2686ac41e999",
+          "shape": [
+            68,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_return_exp": {
+          "dtype": "float64",
+          "finite_count": 204,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "02f213c2222a3e9228978b0b6800176625d2be411df9b8b9f571e5575aee2f03",
+          "shape": [
+            68,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_reward_delta_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 204,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "fb38aa452811a39d1d70d2dc7b13bd61e22c7eea7237cc895563825990267d7d",
+          "shape": [
+            68,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_total_exp": {
+          "dtype": "int64",
+          "finite_count": 204,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "5f9f0d5cc5efcf98e49becbb05f8e7a8b141c9ddc0bba2c0cedb279171c6b2a5",
+          "shape": [
+            68,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_trainings": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": [
+            1
+          ]
+        },
+        "return_prob_excursion_bin_window_summary": {
+          "dtype": "object",
+          "finite_count": 68,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "8015fe7ec44d4d5acfdc2cd89fb9df9da5c57e6bd64bd618f06578986a33b888",
+          "shape": [
+            68
+          ]
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 62,
+          "kind": "numeric",
+          "nan_count": 6,
+          "sha256": "0a873e430999a23d6e990e5a4ba3e9e7204febf11799ae186e000ad5d50bde8c",
+          "shape": [
+            68
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 805,
+          "kind": "numeric",
+          "nan_count": 419,
+          "sha256": "9c09b496e7a2e5fecef72084575c4270cb93de95e08ffe4f2ec698942d9efd92",
+          "shape": [
+            68,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "<U10",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 68,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "de65ed6b074433adc765e0f5f8da4a7ba8133eaf717cc1fcb571ec7eb70ce211",
+          "shape": [
+            68
+          ]
+        }
+      },
+      "keys": [
+        "group_label",
+        "return_prob_excursion_bin_border_width_mm",
+        "return_prob_excursion_bin_edges_mm",
+        "return_prob_excursion_bin_keep_first_sync_buckets",
+        "return_prob_excursion_bin_last_sync_buckets",
+        "return_prob_excursion_bin_open_ended_upper_bin",
+        "return_prob_excursion_bin_ratio_ctrl",
+        "return_prob_excursion_bin_ratio_exp",
+        "return_prob_excursion_bin_requested_edges_mm",
+        "return_prob_excursion_bin_return_ctrl",
+        "return_prob_excursion_bin_return_exp",
+        "return_prob_excursion_bin_reward_delta_mm",
+        "return_prob_excursion_bin_skip_first_sync_buckets",
+        "return_prob_excursion_bin_total_ctrl",
+        "return_prob_excursion_bin_total_exp",
+        "return_prob_excursion_bin_trainings",
+        "return_prob_excursion_bin_window_summary",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_29_agarose_intact_pfn_16mm_plus",
+      "path": "exports/ret_prob_binned_intact_pfnKir_agaroseLgc_T2_16mmPlus_2026-05-16.npz",
+      "sha256": "d65d2a32b95e8707238c6ecf7aaaf09b65e828521de74267db347ff134266835"
+    },
+    {
+      "arrays": {
+        "group_label": {
+          "dtype": "<U15",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "92d1aa72852de059939beefe3f8226ee2bb60e2bdd2e1d19f2300f61de351885",
+          "shape": []
+        },
+        "return_prob_excursion_bin_border_width_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "45d2b662d9d490ae9b932759c910b26b9a874065de620f4ac0a3a23a65e40b8c",
+          "shape": []
+        },
+        "return_prob_excursion_bin_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 4,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "e9aebf077d4a39714714ec2112a7e3dc1aa2333654b91598202876f7d98bb63d",
+          "shape": [
+            4
+          ]
+        },
+        "return_prob_excursion_bin_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_last_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_open_ended_upper_bin": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "return_prob_excursion_bin_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 186,
+          "kind": "numeric",
+          "nan_count": 6,
+          "sha256": "9243569fc083f5ea2ecc32d8939a5a80a8308d1cac876ea567010afa4a7ac38d",
+          "shape": [
+            64,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 186,
+          "kind": "numeric",
+          "nan_count": 6,
+          "sha256": "815f5dd3b9950e91ed79333b160d10721646caeed258f2eaf14083755b56363b",
+          "shape": [
+            64,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_requested_edges_mm": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "e93d64fadf98c2a8662467d6f4a431f2437e24d274c4c9a74a8537788a79303c",
+          "shape": [
+            4
+          ]
+        },
+        "return_prob_excursion_bin_return_ctrl": {
+          "dtype": "float64",
+          "finite_count": 192,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "cc0de4b928887d36d6554aae45e6f7714fea0e4f074a8872f925b4bfb740b70a",
+          "shape": [
+            64,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_return_exp": {
+          "dtype": "float64",
+          "finite_count": 192,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "ca01cf2acf85613601748dc883585b5a38f0f8ca0e9fff9215142bc057844131",
+          "shape": [
+            64,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_reward_delta_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "return_prob_excursion_bin_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 192,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "9fb5616eee997f1ddc816814066319ae1a61c6a88c09fe91b9fbe8aaa3863e1d",
+          "shape": [
+            64,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_total_exp": {
+          "dtype": "int64",
+          "finite_count": 192,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "692b0ea5b6b0ceaa06fbf7981723e3924b9411bd0f196d7c936c2e439d7a6c15",
+          "shape": [
+            64,
+            3
+          ]
+        },
+        "return_prob_excursion_bin_trainings": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": [
+            1
+          ]
+        },
+        "return_prob_excursion_bin_window_summary": {
+          "dtype": "object",
+          "finite_count": 64,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a9f3135dadcf75cf6443015cc989df763cf8c6ae2ff482fbbc29652f42418ac0",
+          "shape": [
+            64
+          ]
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 58,
+          "kind": "numeric",
+          "nan_count": 6,
+          "sha256": "f2802c97b981c687973114c8074a06591e638417392f01d34d9d642fa1ee2d26",
+          "shape": [
+            64
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 646,
+          "kind": "numeric",
+          "nan_count": 506,
+          "sha256": "9f4db91fc936eaa76890fd1ea44caff7294ec7814c385fcd11be2bf43845fc05",
+          "shape": [
+            64,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "<U10",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 64,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "b4681f0b7714818b0beff460bd7706e2f3f881138fa093b0fafb9410a73dbe5e",
+          "shape": [
+            64
+          ]
+        }
+      },
+      "keys": [
+        "group_label",
+        "return_prob_excursion_bin_border_width_mm",
+        "return_prob_excursion_bin_edges_mm",
+        "return_prob_excursion_bin_keep_first_sync_buckets",
+        "return_prob_excursion_bin_last_sync_buckets",
+        "return_prob_excursion_bin_open_ended_upper_bin",
+        "return_prob_excursion_bin_ratio_ctrl",
+        "return_prob_excursion_bin_ratio_exp",
+        "return_prob_excursion_bin_requested_edges_mm",
+        "return_prob_excursion_bin_return_ctrl",
+        "return_prob_excursion_bin_return_exp",
+        "return_prob_excursion_bin_reward_delta_mm",
+        "return_prob_excursion_bin_skip_first_sync_buckets",
+        "return_prob_excursion_bin_total_ctrl",
+        "return_prob_excursion_bin_total_exp",
+        "return_prob_excursion_bin_trainings",
+        "return_prob_excursion_bin_window_summary",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_29_agarose_ar_ctrl_16mm_plus",
+      "path": "exports/ret_prob_binned_ar_ctrlKir_agaroseLgc_T2_16mmPlus_2026-05-16.npz",
+      "sha256": "12f8a3dbc3e58d51d8d387beb423ca0e7797bbb1827636f1ff3980191cd7f6fa"
+    }
+  ],
+  "schema_version": 1
+}
