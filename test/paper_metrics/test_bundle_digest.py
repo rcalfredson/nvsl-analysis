@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from src.validation.bundle_digest import (
+    RETURN_PROB_EXCURSION_BIN_REGRESSION_KEYS,
     SLI_REGRESSION_KEYS,
     check_manifest,
     digest_npz,
@@ -22,6 +23,39 @@ def _write_sli_bundle(path, *, sli, unchecked=None):
         "sli_select_skip_first_sync_buckets": np.array(1, dtype=int),
         "sli_select_keep_first_sync_buckets": np.array(2, dtype=int),
         "group_label": np.asarray("Control", dtype=object),
+    }
+    if unchecked is not None:
+        payload["unchecked_metric"] = np.asarray(unchecked, dtype=float)
+    np.savez_compressed(path, **payload)
+
+
+def _write_return_prob_excursion_bin_bundle(path, *, ratio, unchecked=None):
+    payload = {
+        "group_label": np.asarray("Control", dtype=object),
+        "return_prob_excursion_bin_border_width_mm": np.array(0.1, dtype=float),
+        "return_prob_excursion_bin_edges_mm": np.asarray([2.0, 8.0, 16.0]),
+        "return_prob_excursion_bin_keep_first_sync_buckets": np.array(0, dtype=int),
+        "return_prob_excursion_bin_last_sync_buckets": np.array(0, dtype=int),
+        "return_prob_excursion_bin_open_ended_upper_bin": np.array(False),
+        "return_prob_excursion_bin_ratio_ctrl": np.asarray([[0.2, 0.3]]),
+        "return_prob_excursion_bin_ratio_exp": np.asarray(ratio, dtype=float),
+        "return_prob_excursion_bin_requested_edges_mm": np.asarray([2.0, 8.0, 16.0]),
+        "return_prob_excursion_bin_return_ctrl": np.asarray([[1.0, 1.5]]),
+        "return_prob_excursion_bin_return_exp": np.asarray([[2.0, 3.0]]),
+        "return_prob_excursion_bin_reward_delta_mm": np.array(0.0, dtype=float),
+        "return_prob_excursion_bin_skip_first_sync_buckets": np.array(0, dtype=int),
+        "return_prob_excursion_bin_total_ctrl": np.asarray([[5, 5]], dtype=int),
+        "return_prob_excursion_bin_total_exp": np.asarray([[4, 4]], dtype=int),
+        "return_prob_excursion_bin_trainings": np.asarray([1], dtype=int),
+        "return_prob_excursion_bin_window_summary": np.asarray(["T2 training[0,10)"]),
+        "sli": np.asarray([0.1], dtype=float),
+        "sli_select_keep_first_sync_buckets": np.array(0, dtype=int),
+        "sli_select_skip_first_sync_buckets": np.array(1, dtype=int),
+        "sli_training_idx": np.array(1, dtype=int),
+        "sli_ts": np.asarray([[[1.0, np.nan, 3.0]]], dtype=float),
+        "sli_use_training_mean": np.array(True),
+        "training_names": np.asarray(["T1", "T2", "T3"], dtype=object),
+        "video_ids": np.asarray(["video_a"], dtype=object),
     }
     if unchecked is not None:
         payload["unchecked_metric"] = np.asarray(unchecked, dtype=float)
@@ -50,6 +84,21 @@ def test_npz_digest_can_be_limited_to_sli_regression_keys(tmp_path):
     assert (
         digest_npz(a, keys=SLI_REGRESSION_KEYS)["sha256"]
         == digest_npz(b, keys=SLI_REGRESSION_KEYS)["sha256"]
+    )
+    assert digest_npz(a)["sha256"] != digest_npz(b)["sha256"]
+
+
+def test_npz_digest_can_be_limited_to_return_prob_excursion_bin_regression_keys(
+    tmp_path,
+):
+    a = tmp_path / "a.npz"
+    b = tmp_path / "b.npz"
+    _write_return_prob_excursion_bin_bundle(a, ratio=[[0.5, 0.75]], unchecked=[1.0])
+    _write_return_prob_excursion_bin_bundle(b, ratio=[[0.5, 0.75]], unchecked=[999.0])
+
+    assert (
+        digest_npz(a, keys=RETURN_PROB_EXCURSION_BIN_REGRESSION_KEYS)["sha256"]
+        == digest_npz(b, keys=RETURN_PROB_EXCURSION_BIN_REGRESSION_KEYS)["sha256"]
     )
     assert digest_npz(a)["sha256"] != digest_npz(b)["sha256"]
 
