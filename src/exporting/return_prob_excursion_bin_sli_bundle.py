@@ -4,6 +4,10 @@ import os
 
 import numpy as np
 
+from src.analysis.sli_bundle_utils import (
+    validate_return_prob_excursion_bin_bundle,
+    validate_sli_bundle,
+)
 from src.exporting.com_sli_bundle import (
     _compute_sli_scalar_and_timeseries_from_rpid,
     _safe_group_label,
@@ -462,8 +466,7 @@ def export_return_prob_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
     )
 
     os.makedirs(os.path.dirname(out_fn) or ".", exist_ok=True)
-    np.savez_compressed(
-        out_fn,
+    payload = dict(
         sli=np.asarray(sli, dtype=float),
         sli_ts=np.asarray(sli_ts, dtype=float),
         group_label=np.asarray(group_label),
@@ -528,6 +531,9 @@ def export_return_prob_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         ),
         bucket_len_min=np.array(np.nan, dtype=float),
     )
+    validate_sli_bundle(payload, path=out_fn)
+    validate_return_prob_excursion_bin_bundle(payload, path=out_fn)
+    np.savez_compressed(out_fn, **payload)
     print(
         f"[export] Wrote return-prob-excursion-bin+SLI bundle: {out_fn} "
         f"(n={n_videos}, bins={n_bins})"
