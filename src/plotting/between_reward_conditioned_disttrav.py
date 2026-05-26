@@ -340,12 +340,20 @@ class BetweenRewardConditionedDistTravResult:
         edges = np.asarray(self.x_edges, dtype=float)
         if edges.ndim != 1 or edges.size < 2:
             raise ValueError("x_edges must be 1D with >= 2 entries")
+        if not np.all(np.isfinite(edges)):
+            raise ValueError("x_edges must contain only finite values")
+        if np.any(np.diff(edges) <= 0):
+            raise ValueError("x_edges must be strictly increasing")
         B = int(edges.size - 1)
 
         def _check_1d(name: str) -> None:
             arr = np.asarray(getattr(self, name))
             if arr.ndim != 1 or arr.size != B:
                 raise ValueError(f"{name} must be 1D with length {B}")
+
+        def _as_float_1d(name: str) -> np.ndarray:
+            _check_1d(name)
+            return np.asarray(getattr(self, name), dtype=float)
 
         for nm in (
             "x_centers",
@@ -359,26 +367,91 @@ class BetweenRewardConditionedDistTravResult:
         ):
             _check_1d(nm)
 
+        centers = _as_float_1d("x_centers")
+        expected_centers = 0.5 * (edges[:-1] + edges[1:])
+        if not np.all(np.isfinite(centers)):
+            raise ValueError("x_centers must contain only finite values")
+        if not np.allclose(centers, expected_centers, rtol=0.0, atol=1e-12):
+            raise ValueError("x_centers must equal x_edges bin midpoints")
+
+        n_units = np.asarray(self.n_units)
+        n_units_float = n_units.astype(float)
+        if np.any(~np.isfinite(n_units_float)):
+            raise ValueError("n_units must contain only finite values")
+        if np.any(n_units_float < 0):
+            raise ValueError("n_units must be nonnegative")
+        if np.any(n_units_float != np.floor(n_units_float)):
+            raise ValueError("n_units must contain integer values")
+
+        def _check_summary(metric: str) -> None:
+            mean = _as_float_1d(f"mean_{metric}")
+            lo = _as_float_1d(f"ci_lo_{metric}")
+            hi = _as_float_1d(f"ci_hi_{metric}")
+
+            for name, arr in (
+                (f"mean_{metric}", mean),
+                (f"ci_lo_{metric}", lo),
+                (f"ci_hi_{metric}", hi),
+            ):
+                if np.any(np.isinf(arr)):
+                    raise ValueError(f"{name} must not contain infinite values")
+                finite = np.isfinite(arr)
+                if np.any(arr[finite] < 0.0):
+                    raise ValueError(f"{name} must be nonnegative where finite")
+
+            finite_ci = np.isfinite(mean) & np.isfinite(lo) & np.isfinite(hi)
+            if np.any(lo[finite_ci] > mean[finite_ci]):
+                raise ValueError(f"ci_lo_{metric} must be <= mean_{metric}")
+            if np.any(mean[finite_ci] > hi[finite_ci]):
+                raise ValueError(f"mean_{metric} must be <= ci_hi_{metric}")
+
+            empty = n_units_float == 0
+            for name, arr in (
+                (f"mean_{metric}", mean),
+                (f"ci_lo_{metric}", lo),
+                (f"ci_hi_{metric}", hi),
+            ):
+                if np.any(np.isfinite(arr[empty])):
+                    raise ValueError(f"{name} must be NaN where n_units == 0")
+
+        _check_summary("total")
+        _check_summary("tail")
+
+        pu_total = None
         if self.per_unit_total is not None:
-            pu = np.asarray(self.per_unit_total, dtype=float)
-            if pu.ndim != 2 or pu.shape[1] != B:
+            pu_total = np.asarray(self.per_unit_total, dtype=float)
+            if pu_total.ndim != 2 or pu_total.shape[1] != B:
                 raise ValueError(f"per_unit_total must be 2D with shape (N, {B})")
+            if np.any(np.isinf(pu_total)):
+                raise ValueError("per_unit_total must not contain infinite values")
+            finite = np.isfinite(pu_total)
+            if np.any(pu_total[finite] < 0.0):
+                raise ValueError("per_unit_total must be nonnegative where finite")
+
+        pu_tail = None
         if self.per_unit_tail is not None:
-            pu = np.asarray(self.per_unit_tail, dtype=float)
-            if pu.ndim != 2 or pu.shape[1] != B:
+            pu_tail = np.asarray(self.per_unit_tail, dtype=float)
+            if pu_tail.ndim != 2 or pu_tail.shape[1] != B:
                 raise ValueError(f"per_unit_tail must be 2D with shape (N, {B})")
+            if np.any(np.isinf(pu_tail)):
+                raise ValueError("per_unit_tail must not contain infinite values")
+            finite = np.isfinite(pu_tail)
+            if np.any(pu_tail[finite] < 0.0):
+                raise ValueError("per_unit_tail must be nonnegative where finite")
+
+        if pu_total is not None and pu_tail is not None and pu_total.shape != pu_tail.shape:
+            raise ValueError("per_unit_total and per_unit_tail shapes must match")
+
         if self.per_unit_ids is not None:
             ids = np.asarray(self.per_unit_ids, dtype=object).ravel()
             # If per-unit arrays exist, ensure N matches
-            if self.per_unit_total is not None:
-                pu = np.asarray(self.per_unit_total, dtype=float)
-                if ids.shape[0] != pu.shape[0]:
+            if pu_total is not None:
+                if ids.shape[0] != pu_total.shape[0]:
                     raise ValueError(
                         "per_unit_ids length must match per_unit_total rows"
                     )
-            if self.per_unit_tail is not None:
-                pu = np.asarray(self.per_unit_tail, dtype=float)
-                if ids.shape[0] != pu.shape[0]:
+            if pu_tail is not None:
+                if ids.shape[0] != pu_tail.shape[0]:
                     raise ValueError(
                         "per_unit_ids length must match per_unit_tail rows"
                     )
