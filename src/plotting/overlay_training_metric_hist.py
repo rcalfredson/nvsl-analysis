@@ -48,7 +48,9 @@ class ExportedTrainingHistogram:
     #   - flat: (n_panels, bins+1) float array
     #   - grouped: object array length n_panels; each entry is list[np.ndarray] of 1D edges
     bin_edges: np.ndarray
+    n_raw: np.ndarray | None  # (n_panels,)
     n_used: np.ndarray  # (n_panels,)
+    n_dropped: np.ndarray | None  # (n_panels,)
     meta: dict
 
     @property
@@ -71,6 +73,221 @@ class ExportedTrainingHistogram:
     def normalize(self) -> bool:
         # present in histogram config, not always in meta historically
         return bool(self.meta.get("normalize", False))
+
+    def validate(self) -> None:
+        panel_labels = list(self.panel_labels)
+        P = len(panel_labels)
+        bins_meta = self.meta.get("bins", None)
+        if bins_meta is None:
+            raise ValueError("histogram export meta is missing bins")
+        B = int(bins_meta)
+        if B < 0:
+            raise ValueError("histogram export bins must be nonnegative")
+
+        def _check_1d_count(name: str, value, *, required: bool) -> np.ndarray | None:
+            if value is None:
+                if required:
+                    raise ValueError(f"{name} is required")
+                return None
+            arr = np.asarray(value)
+            if arr.ndim != 1 or arr.shape[0] != P:
+                raise ValueError(f"{name} must be 1D with length {P}")
+            arr_float = arr.astype(float)
+            if np.any(~np.isfinite(arr_float)):
+                raise ValueError(f"{name} must contain only finite values")
+            if np.any(arr_float < 0):
+                raise ValueError(f"{name} must be nonnegative")
+            if np.any(arr_float != np.floor(arr_float)):
+                raise ValueError(f"{name} must contain integer values")
+            return arr_float.astype(int)
+
+        n_raw = _check_1d_count("n_raw", self.n_raw, required=False)
+        n_used = _check_1d_count("n_used", self.n_used, required=True)
+        n_dropped = _check_1d_count("n_dropped", self.n_dropped, required=False)
+        if n_raw is not None and n_dropped is not None:
+            if np.any(n_raw != n_used + n_dropped):
+                raise ValueError("n_raw must equal n_used + n_dropped")
+
+        if np.asarray(self.bin_edges).shape[0] != P:
+            raise ValueError(f"bin_edges first dimension must match {P} panels")
+
+        def _panel_edges(panel_idx: int):
+            return normalize_panel_edges(np.asarray(self.bin_edges, dtype=object)[panel_idx])
+
+        def _validate_edges(panel_idx: int) -> int:
+            edges = _panel_edges(panel_idx)
+            if isinstance(edges, list):
+                if not edges:
+                    raise ValueError("grouped bin_edges must contain at least one group")
+                total_bins = 0
+                last_hi = None
+                for gi, group in enumerate(edges):
+                    group = np.asarray(group, dtype=float)
+                    if group.ndim != 1 or group.size < 2:
+                        raise ValueError(
+                            f"bin_edges panel {panel_idx} group {gi} must have >= 2 edges"
+                        )
+                    if not np.all(np.isfinite(group)):
+                        raise ValueError(
+                            f"bin_edges panel {panel_idx} group {gi} must be finite"
+                        )
+                    if np.any(np.diff(group) <= 0):
+                        raise ValueError(
+                            f"bin_edges panel {panel_idx} group {gi} must be strictly increasing"
+                        )
+                    if last_hi is not None and float(group[0]) <= last_hi:
+                        raise ValueError(
+                            f"bin_edges panel {panel_idx} groups must be non-overlapping"
+                        )
+                    last_hi = float(group[-1])
+                    total_bins += int(group.size - 1)
+                return total_bins
+
+            edges = np.asarray(edges, dtype=float)
+            if edges.ndim != 1 or edges.size < 2:
+                raise ValueError(f"bin_edges panel {panel_idx} must have >= 2 edges")
+            if not np.all(np.isfinite(edges)):
+                raise ValueError(f"bin_edges panel {panel_idx} must be finite")
+            if np.any(np.diff(edges) <= 0):
+                raise ValueError(
+                    f"bin_edges panel {panel_idx} must be strictly increasing"
+                )
+            return int(edges.size - 1)
+
+        for p_idx in range(P):
+            if _validate_edges(p_idx) != B:
+                raise ValueError(f"bin_edges panel {p_idx} must define {B} bins")
+
+        if self.per_fly:
+            self._validate_per_fly_payload(P, B, n_used)
+        else:
+            self._validate_pooled_payload(P, B, n_used)
+
+    def _validate_pooled_payload(self, P: int, B: int, n_used: np.ndarray) -> None:
+        counts = np.asarray(self.counts)
+        if counts.ndim != 2 or counts.shape != (P, B):
+            raise ValueError(f"counts must have shape {(P, B)}")
+        counts_float = counts.astype(float)
+        if np.any(~np.isfinite(counts_float)):
+            raise ValueError("counts must contain only finite values")
+        if np.any(counts_float < 0):
+            raise ValueError("counts must be nonnegative")
+        if np.any(counts_float != np.floor(counts_float)):
+            raise ValueError("counts must contain integer values")
+        if np.any(np.sum(counts_float, axis=1).astype(int) != n_used):
+            raise ValueError("pooled counts must sum to n_used per panel")
+
+    def _validate_per_fly_payload(self, P: int, B: int, n_used: np.ndarray) -> None:
+        for name in ("mean", "ci_lo", "ci_hi", "n_units", "n_units_panel"):
+            if getattr(self, name) is None:
+                raise ValueError(f"{name} is required when per_fly=True")
+
+        mean = np.asarray(self.mean, dtype=float)
+        ci_lo = np.asarray(self.ci_lo, dtype=float)
+        ci_hi = np.asarray(self.ci_hi, dtype=float)
+        n_units = np.asarray(self.n_units)
+        n_units_panel = np.asarray(self.n_units_panel)
+        if mean.shape != (P, B):
+            raise ValueError(f"mean must have shape {(P, B)}")
+        if ci_lo.shape != (P, B):
+            raise ValueError(f"ci_lo must have shape {(P, B)}")
+        if ci_hi.shape != (P, B):
+            raise ValueError(f"ci_hi must have shape {(P, B)}")
+        if n_units.shape != (P, B):
+            raise ValueError(f"n_units must have shape {(P, B)}")
+        if n_units_panel.shape != (P,):
+            raise ValueError(f"n_units_panel must have shape {(P,)}")
+
+        n_units_float = n_units.astype(float)
+        n_units_panel_float = n_units_panel.astype(float)
+        for name, arr_float in (
+            ("n_units", n_units_float),
+            ("n_units_panel", n_units_panel_float),
+        ):
+            if np.any(~np.isfinite(arr_float)):
+                raise ValueError(f"{name} must contain only finite values")
+            if np.any(arr_float < 0):
+                raise ValueError(f"{name} must be nonnegative")
+            if np.any(arr_float != np.floor(arr_float)):
+                raise ValueError(f"{name} must contain integer values")
+
+        for name, arr in (("mean", mean), ("ci_lo", ci_lo), ("ci_hi", ci_hi)):
+            if np.any(np.isinf(arr)):
+                raise ValueError(f"{name} must not contain infinite values")
+            finite = np.isfinite(arr)
+            if np.any(arr[finite] < 0.0):
+                raise ValueError(f"{name} must be nonnegative where finite")
+
+        finite_ci = np.isfinite(mean) & np.isfinite(ci_lo) & np.isfinite(ci_hi)
+        if np.any(ci_lo[finite_ci] > mean[finite_ci]):
+            raise ValueError("ci_lo must be <= mean where finite")
+        if np.any(mean[finite_ci] > ci_hi[finite_ci]):
+            raise ValueError("mean must be <= ci_hi where finite")
+
+        empty_bins = n_units_float == 0
+        for name, arr in (("mean", mean), ("ci_lo", ci_lo), ("ci_hi", ci_hi)):
+            if np.any(np.isfinite(arr[empty_bins])):
+                raise ValueError(f"{name} must be NaN where n_units == 0")
+
+        per_unit_panel = self.per_unit_panel
+        per_unit_ids_panel = self.per_unit_ids_panel
+        if per_unit_panel is None or per_unit_ids_panel is None:
+            raise ValueError(
+                "per_unit_panel and per_unit_ids_panel are required when per_fly=True"
+            )
+        if np.asarray(per_unit_panel, dtype=object).shape[0] != P:
+            raise ValueError("per_unit_panel first dimension must match panels")
+        if np.asarray(per_unit_ids_panel, dtype=object).shape[0] != P:
+            raise ValueError("per_unit_ids_panel first dimension must match panels")
+
+        per_unit_panel_arr = np.asarray(per_unit_panel, dtype=object)
+        per_unit_ids_panel_arr = np.asarray(per_unit_ids_panel, dtype=object)
+        for p_idx in range(P):
+            panel_values_raw = per_unit_panel_arr[p_idx]
+            panel_ids_raw = per_unit_ids_panel_arr[p_idx]
+            panel_values = np.asarray(panel_values_raw)
+            panel_ids = np.asarray(
+                [] if panel_ids_raw is None else panel_ids_raw, dtype=object
+            ).reshape(-1)
+
+            if int(n_units_panel_float[p_idx]) == 0:
+                if panel_values_raw is not None and panel_values.size:
+                    raise ValueError(
+                        f"per_unit_panel panel {p_idx} must be empty when n_units_panel == 0"
+                    )
+                if panel_ids.size:
+                    raise ValueError(
+                        f"per_unit_ids_panel panel {p_idx} must be empty when n_units_panel == 0"
+                    )
+                continue
+
+            panel_values = np.asarray(panel_values, dtype=float)
+            if panel_values.ndim != 2 or panel_values.shape[1] != B:
+                raise ValueError(
+                    f"per_unit_panel panel {p_idx} must have shape (N, {B})"
+                )
+            if panel_values.shape[0] != int(n_units_panel_float[p_idx]):
+                raise ValueError(
+                    f"per_unit_panel panel {p_idx} row count must match n_units_panel"
+                )
+            if panel_ids.shape[0] != panel_values.shape[0]:
+                raise ValueError(
+                    f"per_unit_ids_panel panel {p_idx} length must match per_unit rows"
+                )
+            if np.any(np.isinf(panel_values)):
+                raise ValueError(
+                    f"per_unit_panel panel {p_idx} must not contain infinite values"
+                )
+            finite = np.isfinite(panel_values)
+            if np.any(panel_values[finite] < 0.0):
+                raise ValueError(
+                    f"per_unit_panel panel {p_idx} must be nonnegative where finite"
+                )
+            observed_n_units = np.sum(np.isfinite(panel_values), axis=0)
+            if np.any(observed_n_units != n_units[p_idx].astype(int)):
+                raise ValueError(
+                    f"n_units panel {p_idx} must match finite per-unit values"
+                )
 
 
 def _mean_ci_from_util(x: np.ndarray, conf: float) -> tuple[float, float, float, int]:
@@ -240,7 +457,7 @@ def load_export_npz(group: str, path: str) -> ExportedTrainingHistogram:
     if isinstance(meta_json, (bytes, bytearray)):
         meta_json = meta_json.decode("utf-8")
     meta = json.loads(meta_json)
-    return ExportedTrainingHistogram(
+    hist = ExportedTrainingHistogram(
         group=group,
         panel_labels=panel_labels,
         counts=counts,
@@ -252,9 +469,13 @@ def load_export_npz(group: str, path: str) -> ExportedTrainingHistogram:
         per_unit_panel=per_unit_panel,
         per_unit_ids_panel=per_unit_ids_panel,
         bin_edges=bin_edges,
+        n_raw=np.asarray(d["n_raw"]) if "n_raw" in d.files else None,
         n_used=n_used,
+        n_dropped=np.asarray(d["n_dropped"]) if "n_dropped" in d.files else None,
         meta=meta,
     )
+    hist.validate()
+    return hist
 
 
 def _fmt_mismatch(name: str, vals: list) -> str:
