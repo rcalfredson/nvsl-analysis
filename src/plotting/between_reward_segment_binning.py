@@ -115,6 +115,7 @@ def sync_bucket_window(
 def build_nonwalk_mask(opts, va, trx_idx: int, fi: int, n_frames: int):
     exclude_nonwalk = bool(
         getattr(opts, "btw_rwd_conditioned_exclude_nonwalking_frames", False)
+        or getattr(opts, "btw_rwd_return_leg_dist_exclude_nonwalking_frames", False)
     )
     if not exclude_nonwalk:
         return None
