@@ -38,6 +38,20 @@ RETURN_PROB_EXCURSION_BIN_KEYS = (
     "return_prob_excursion_bin_edges_mm",
 )
 
+BETWEEN_REWARD_MAXDIST_KEYS = (
+    "between_reward_maxdist_exp",
+    "between_reward_maxdist_ctrl",
+    "between_reward_maxdistN_exp",
+    "between_reward_maxdistN_ctrl",
+)
+
+BETWEEN_REWARD_RETURN_LEG_DIST_KEYS = (
+    "between_reward_return_leg_dist_exp",
+    "between_reward_return_leg_dist_ctrl",
+    "between_reward_return_leg_distN_exp",
+    "between_reward_return_leg_distN_ctrl",
+)
+
 
 def as_scalar(x):
     if isinstance(x, np.ndarray) and x.shape == ():
@@ -168,6 +182,137 @@ def _validate_return_prob_count_array(
     if np.any(arr != np.floor(arr)):
         raise ValueError(f"Bundle {where} has non-integer values in {key}")
     return arr.astype(int, copy=False)
+
+
+def _validate_3d_distance_metric_array(
+    bundle: dict,
+    key: str,
+    *,
+    where: str,
+    expected_shape: tuple[int, int, int],
+) -> np.ndarray:
+    arr = np.asarray(bundle[key], dtype=float)
+    if arr.ndim != 3:
+        raise ValueError(f"Bundle {where} has non-3D {key} shape {arr.shape}")
+    if arr.shape != expected_shape:
+        raise ValueError(
+            f"Bundle {where} has {key}.shape={arr.shape} "
+            f"but expected {expected_shape}"
+        )
+    if np.any(np.isinf(arr)):
+        raise ValueError(f"Bundle {where} has infinite values in {key}")
+    finite = np.isfinite(arr)
+    if np.any(arr[finite] < 0.0):
+        raise ValueError(f"Bundle {where} has negative values in {key}")
+    return arr
+
+
+def _validate_3d_distance_count_array(
+    bundle: dict,
+    key: str,
+    *,
+    where: str,
+    expected_shape: tuple[int, int, int],
+) -> np.ndarray:
+    arr = np.asarray(bundle[key])
+    if arr.ndim != 3:
+        raise ValueError(f"Bundle {where} has non-3D {key} shape {arr.shape}")
+    if arr.shape != expected_shape:
+        raise ValueError(
+            f"Bundle {where} has {key}.shape={arr.shape} "
+            f"but expected {expected_shape}"
+        )
+    arr_float = arr.astype(float)
+    if np.any(~np.isfinite(arr_float)):
+        raise ValueError(f"Bundle {where} has non-finite values in {key}")
+    if np.any(arr_float < 0):
+        raise ValueError(f"Bundle {where} has negative values in {key}")
+    if np.any(arr_float != np.floor(arr_float)):
+        raise ValueError(f"Bundle {where} has non-integer values in {key}")
+    return arr.astype(int, copy=False)
+
+
+def _expected_sync_bucket_metric_shape(
+    bundle: dict,
+    *,
+    where: str,
+) -> tuple[int, int, int]:
+    sli = np.asarray(bundle["sli"], dtype=float)
+    n_videos = int(sli.shape[0])
+    if "sli_ts" not in bundle:
+        raise ValueError(
+            f"Bundle {where} is missing sli_ts needed to validate sync-bucket metrics"
+        )
+    sli_ts = np.asarray(bundle["sli_ts"], dtype=float)
+    if sli_ts.ndim != 3:
+        raise ValueError(f"Bundle {where} has non-3D sli_ts shape: {sli_ts.shape}")
+    return (n_videos, int(sli_ts.shape[1]), int(sli_ts.shape[2]))
+
+
+def validate_between_reward_sync_bucket_distance_bundle(
+    bundle: dict,
+    *,
+    metric_name: str,
+    value_exp_key: str,
+    value_ctrl_key: str,
+    count_exp_key: str,
+    count_ctrl_key: str,
+    path: str | None = None,
+) -> None:
+    where = _bundle_label(bundle, path)
+    keys = (value_exp_key, value_ctrl_key, count_exp_key, count_ctrl_key)
+    missing = [k for k in keys if k not in bundle]
+    if missing:
+        raise ValueError(f"Bundle {where} is missing {metric_name} keys: {missing}")
+
+    expected_shape = _expected_sync_bucket_metric_shape(bundle, where=where)
+    value_exp = _validate_3d_distance_metric_array(
+        bundle, value_exp_key, where=where, expected_shape=expected_shape
+    )
+    value_ctrl = _validate_3d_distance_metric_array(
+        bundle, value_ctrl_key, where=where, expected_shape=expected_shape
+    )
+    count_exp = _validate_3d_distance_count_array(
+        bundle, count_exp_key, where=where, expected_shape=expected_shape
+    )
+    count_ctrl = _validate_3d_distance_count_array(
+        bundle, count_ctrl_key, where=where, expected_shape=expected_shape
+    )
+
+    for key, values, counts in (
+        (value_exp_key, value_exp, count_exp),
+        (value_ctrl_key, value_ctrl, count_ctrl),
+    ):
+        if np.any(np.isfinite(values[counts == 0])):
+            raise ValueError(f"Bundle {where} has finite {key} where count == 0")
+
+
+def validate_between_reward_maxdist_bundle(
+    bundle: dict, *, path: str | None = None
+) -> None:
+    validate_between_reward_sync_bucket_distance_bundle(
+        bundle,
+        metric_name="between-reward max-distance",
+        value_exp_key="between_reward_maxdist_exp",
+        value_ctrl_key="between_reward_maxdist_ctrl",
+        count_exp_key="between_reward_maxdistN_exp",
+        count_ctrl_key="between_reward_maxdistN_ctrl",
+        path=path,
+    )
+
+
+def validate_between_reward_return_leg_dist_bundle(
+    bundle: dict, *, path: str | None = None
+) -> None:
+    validate_between_reward_sync_bucket_distance_bundle(
+        bundle,
+        metric_name="between-reward return-leg distance",
+        value_exp_key="between_reward_return_leg_dist_exp",
+        value_ctrl_key="between_reward_return_leg_dist_ctrl",
+        count_exp_key="between_reward_return_leg_distN_exp",
+        count_ctrl_key="between_reward_return_leg_distN_ctrl",
+        path=path,
+    )
 
 
 def validate_return_prob_excursion_bin_bundle(
@@ -356,6 +501,10 @@ def normalize_sli_bundle(bundle: dict, *, path: str | None = None) -> dict:
     validate_sli_bundle(out, path=path)
     if any(k in out for k in RETURN_PROB_EXCURSION_BIN_KEYS):
         validate_return_prob_excursion_bin_bundle(out, path=path)
+    if any(k in out for k in BETWEEN_REWARD_MAXDIST_KEYS):
+        validate_between_reward_maxdist_bundle(out, path=path)
+    if any(k in out for k in BETWEEN_REWARD_RETURN_LEG_DIST_KEYS):
+        validate_between_reward_return_leg_dist_bundle(out, path=path)
     return out
 
 
