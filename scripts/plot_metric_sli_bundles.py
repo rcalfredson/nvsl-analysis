@@ -141,7 +141,7 @@ def main():
         help="Fraction of videos to include in the top-SLI subset.",
     )
     p.add_argument(
-        "-bottom-sli-fraction",
+        "--bottom-sli-fraction",
         type=float,
         default=argparse.SUPPRESS,
         help="Fraction of videos to include in the bottom-SLI subset.",
