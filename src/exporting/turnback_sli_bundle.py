@@ -3,6 +3,10 @@ from __future__ import annotations
 import os
 import numpy as np
 
+from src.analysis.sli_bundle_utils import (
+    validate_sli_bundle,
+    validate_turnback_ratio_bundle,
+)
 from src.exporting.com_sli_bundle import (
     _compute_sli_scalar_and_timeseries_from_rpid,
     _safe_group_label,
@@ -224,9 +228,7 @@ def export_turnback_sli_bundle(vas, opts, gls, out_fn):
         fly_ids = np.array([-1] * len(vas_ok), dtype=int)
         video_ids = np.array([f"va_{i}" for i in range(len(vas_ok))], dtype=object)
 
-    os.makedirs(os.path.dirname(out_fn) or ".", exist_ok=True)
-    np.savez_compressed(
-        out_fn,
+    payload = dict(
         sli=sli,
         sli_ts=sli_ts,
         turnback_ratio_exp=ratio_exp,
@@ -269,6 +271,11 @@ def export_turnback_sli_bundle(vas, opts, gls, out_fn):
             float(getattr(opts, "turnback_inner_radius_offset_px", 0.0)), dtype=float
         ),
     )
+    validate_sli_bundle(payload, path=out_fn)
+    validate_turnback_ratio_bundle(payload, path=out_fn)
+
+    os.makedirs(os.path.dirname(out_fn) or ".", exist_ok=True)
+    np.savez_compressed(out_fn, **payload)
     print(f"[export] Wrote turnback+SLI bundle: {out_fn} (n={len(vas_ok)})")
     _dbg(
         opts,
