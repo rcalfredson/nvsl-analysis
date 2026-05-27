@@ -6,6 +6,7 @@ import pytest
 from src.validation.bundle_digest import (
     RETURN_PROB_EXCURSION_BIN_REGRESSION_KEYS,
     SLI_REGRESSION_KEYS,
+    TURNBACK_RATIO_REGRESSION_KEYS,
     check_manifest,
     digest_npz,
     write_manifest,
@@ -62,6 +63,31 @@ def _write_return_prob_excursion_bin_bundle(path, *, ratio, unchecked=None):
     np.savez_compressed(path, **payload)
 
 
+def _write_turnback_ratio_bundle(path, *, ratio, unchecked=None):
+    payload = {
+        "bucket_len_min": np.array(10.0, dtype=float),
+        "group_label": np.asarray("Intact Control>Kir", dtype=object),
+        "sli": np.asarray([0.1], dtype=float),
+        "sli_select_keep_first_sync_buckets": np.array(0, dtype=int),
+        "sli_select_skip_first_sync_buckets": np.array(1, dtype=int),
+        "sli_training_idx": np.array(1, dtype=int),
+        "sli_ts": np.asarray([[[1.0, np.nan, 3.0]]], dtype=float),
+        "sli_use_training_mean": np.array(True),
+        "training_names": np.asarray(["T1"], dtype=object),
+        "turnback_inner_delta_mm": np.array(4.0, dtype=float),
+        "turnback_inner_radius_offset_px": np.array(0.0, dtype=float),
+        "turnback_outer_delta_mm": np.array(8.0, dtype=float),
+        "turnback_ratio_ctrl": np.asarray([[[0.2, np.nan]]], dtype=float),
+        "turnback_ratio_exp": np.asarray(ratio, dtype=float),
+        "turnback_total_ctrl": np.asarray([[[5, 0]]], dtype=int),
+        "turnback_total_exp": np.asarray([[[4, 4]]], dtype=int),
+        "video_ids": np.asarray(["video_a::f7"], dtype=object),
+    }
+    if unchecked is not None:
+        payload["unchecked_metric"] = np.asarray(unchecked, dtype=float)
+    np.savez_compressed(path, **payload)
+
+
 def test_npz_digest_is_stable_across_npz_key_write_order(tmp_path):
     a = tmp_path / "a.npz"
     b = tmp_path / "b.npz"
@@ -99,6 +125,19 @@ def test_npz_digest_can_be_limited_to_return_prob_excursion_bin_regression_keys(
     assert (
         digest_npz(a, keys=RETURN_PROB_EXCURSION_BIN_REGRESSION_KEYS)["sha256"]
         == digest_npz(b, keys=RETURN_PROB_EXCURSION_BIN_REGRESSION_KEYS)["sha256"]
+    )
+    assert digest_npz(a)["sha256"] != digest_npz(b)["sha256"]
+
+
+def test_npz_digest_can_be_limited_to_turnback_ratio_regression_keys(tmp_path):
+    a = tmp_path / "a.npz"
+    b = tmp_path / "b.npz"
+    _write_turnback_ratio_bundle(a, ratio=[[[1.0, 0.5]]], unchecked=[1.0])
+    _write_turnback_ratio_bundle(b, ratio=[[[1.0, 0.5]]], unchecked=[999.0])
+
+    assert (
+        digest_npz(a, keys=TURNBACK_RATIO_REGRESSION_KEYS)["sha256"]
+        == digest_npz(b, keys=TURNBACK_RATIO_REGRESSION_KEYS)["sha256"]
     )
     assert digest_npz(a)["sha256"] != digest_npz(b)["sha256"]
 

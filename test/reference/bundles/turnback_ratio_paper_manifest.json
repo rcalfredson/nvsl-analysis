@@ -1,0 +1,193 @@
+{
+  "bundles": [
+    {
+      "arrays": {
+        "bucket_len_min": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "24b1f4ef66b650ff816e519b01742ff1753733d36e1b4c3e3b52743168915b1f",
+          "shape": []
+        },
+        "group_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "3d08ba1cb0dff4442a18ba6258e18780ad45f5802d65ad029a519bc4817d171c",
+          "shape": []
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 62,
+          "kind": "numeric",
+          "nan_count": 7,
+          "sha256": "31fdbb97d3b48656fd3f11913c909063984a407f43dcd919cd7d010b31caef37",
+          "shape": [
+            69
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 847,
+          "kind": "numeric",
+          "nan_count": 395,
+          "sha256": "d0c722c678aba09e7409135f820bc1b95b4938c0ccb9b87cd7658ba6d3230cec",
+          "shape": [
+            69,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "object",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "turnback_inner_delta_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "400c52dd5bd0047d64c0582af027b387a7938a64283d0d4f727331140cb6462c",
+          "shape": []
+        },
+        "turnback_inner_radius_offset_px": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "turnback_outer_delta_mm": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "2d311251337c35e4d3628720f349d4133233ed476372432e57314e0ab316bc35",
+          "shape": []
+        },
+        "turnback_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 863,
+          "kind": "numeric",
+          "nan_count": 379,
+          "sha256": "66013fb4e5f5f07d22142e9f5e674999e196244f4c96be73db2222ba48842f8a",
+          "shape": [
+            69,
+            3,
+            6
+          ]
+        },
+        "turnback_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 960,
+          "kind": "numeric",
+          "nan_count": 282,
+          "sha256": "bcfa2dd512f70e54def0624bc50079f6d7cf82a30579526050e12bb94c7430cf",
+          "shape": [
+            69,
+            3,
+            6
+          ]
+        },
+        "turnback_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 1242,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "90dee950a4282c23654be7b81da8dfc1e85060b93d90bc24941ef3cc91ffd3f1",
+          "shape": [
+            69,
+            3,
+            6
+          ]
+        },
+        "turnback_total_exp": {
+          "dtype": "int64",
+          "finite_count": 1242,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b9db713f1d37eb09acf32dba993d964cc118a88b2c3873b3c288f63ac9b273c7",
+          "shape": [
+            69,
+            3,
+            6
+          ]
+        },
+        "video_ids": {
+          "dtype": "object",
+          "finite_count": 69,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "67ae8ffff576c7d4b16b7117ddcc25acdb9af9f36266ad2e06c498d1b843c9b0",
+          "shape": [
+            69
+          ]
+        }
+      },
+      "keys": [
+        "bucket_len_min",
+        "group_label",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "turnback_inner_delta_mm",
+        "turnback_inner_radius_offset_px",
+        "turnback_outer_delta_mm",
+        "turnback_ratio_ctrl",
+        "turnback_ratio_exp",
+        "turnback_total_ctrl",
+        "turnback_total_exp",
+        "video_ids"
+      ],
+      "name": "turnback_4mm_8mm_intact_ctrlKir_flatLgc_2026-02-09",
+      "path": "exports/turnback_4mm_8mm_intact_ctrlKir_flatLgc_2026-02-09.npz",
+      "sha256": "d3494c29963dd15e4790300a0652c8ba57af32a5953efa75809998c9cdf1b34d"
+    }
+  ],
+  "schema_version": 1
+}

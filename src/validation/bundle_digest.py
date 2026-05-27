@@ -118,6 +118,26 @@ BETWEEN_REWARD_RETURN_LEG_DIST_SLI_REGRESSION_KEYS = (
     "video_ids",
 )
 
+TURNBACK_RATIO_REGRESSION_KEYS = (
+    "bucket_len_min",
+    "group_label",
+    "sli",
+    "sli_select_keep_first_sync_buckets",
+    "sli_select_skip_first_sync_buckets",
+    "sli_training_idx",
+    "sli_ts",
+    "sli_use_training_mean",
+    "training_names",
+    "turnback_inner_delta_mm",
+    "turnback_inner_radius_offset_px",
+    "turnback_outer_delta_mm",
+    "turnback_ratio_ctrl",
+    "turnback_ratio_exp",
+    "turnback_total_ctrl",
+    "turnback_total_exp",
+    "video_ids",
+)
+
 
 def _json_bytes(payload) -> bytes:
     return json.dumps(
