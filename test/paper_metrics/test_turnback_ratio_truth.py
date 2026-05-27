@@ -1,10 +1,14 @@
+import sys
 from types import SimpleNamespace
 
 import numpy as np
 
 from src.analysis.trajectory import Trajectory
 from src.analysis.video_analysis import VideoAnalysis
-from src.exporting.turnback_sli_bundle import _extract_turnback_arrays
+from src.exporting.turnback_sli_bundle import (
+    _extract_turnback_arrays,
+    export_turnback_sli_bundle,
+)
 
 
 class _CircleTraining:
@@ -159,3 +163,43 @@ def test_turnback_bundle_extraction_keeps_exp_ctrl_axes_and_pads_missing_buckets
     np.testing.assert_allclose(ratio_ctrl, [[[0.0, np.nan, np.nan]]])
     np.testing.assert_array_equal(total_exp, [[[3, 2, 0]]])
     np.testing.assert_array_equal(total_ctrl, [[[1, 0, 0]]])
+
+
+def test_turnback_bundle_export_records_inner_and_outer_radius_metadata(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setitem(
+        sys.modules,
+        "analyze",
+        SimpleNamespace(bucketLenForType=lambda _metric: (10.0, None)),
+    )
+    ratio = np.asarray([[[1.0, 0.5], [0.0, np.nan]]], dtype=float)
+    total = np.asarray([[[3, 2], [1, 0]]], dtype=int)
+    va = SimpleNamespace(
+        fn="fake-video",
+        f=7,
+        _skipped=False,
+        noyc=False,
+        trns=[_CircleTraining(start=0, stop=10)],
+        reward_turnback_dual_circle_counts={"ratio": ratio, "total": total},
+        _numRewardsMsg=lambda *_args, **_kwargs: 5,
+        _syncBucket=lambda _trn, _df: (0, 2, None),
+    )
+    opts = SimpleNamespace(
+        export_group_label="Intact Control>Kir",
+        best_worst_trn=2,
+        sli_use_training_mean=True,
+        sli_select_skip_first_sync_buckets=1,
+        sli_select_keep_first_sync_buckets=0,
+        turnback_inner_delta_mm=4.0,
+        turnback_outer_delta_mm=8.0,
+        turnback_inner_radius_offset_px=0.25,
+    )
+    out = tmp_path / "turnback_bundle.npz"
+
+    export_turnback_sli_bundle([va], opts, gls=None, out_fn=str(out))
+
+    with np.load(out, allow_pickle=True) as bundle:
+        assert float(bundle["turnback_inner_delta_mm"]) == 4.0
+        assert float(bundle["turnback_outer_delta_mm"]) == 8.0
+        assert float(bundle["turnback_inner_radius_offset_px"]) == 0.25

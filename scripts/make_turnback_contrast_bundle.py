@@ -173,6 +173,9 @@ def main():
         turnback_inner_delta_mm=A0.get(
             "turnback_inner_delta_mm", np.array(np.nan, dtype=float)
         ),
+        turnback_outer_delta_mm=A0.get(
+            "turnback_outer_delta_mm", np.array(np.nan, dtype=float)
+        ),
         turnback_inner_radius_offset_px_A=A0.get(
             "turnback_inner_radius_offset_px", np.array(np.nan, dtype=float)
         ),
