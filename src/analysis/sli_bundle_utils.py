@@ -52,6 +52,22 @@ BETWEEN_REWARD_RETURN_LEG_DIST_KEYS = (
     "between_reward_return_leg_distN_ctrl",
 )
 
+TURNBACK_RATIO_KEYS = (
+    "turnback_ratio_exp",
+    "turnback_ratio_ctrl",
+    "turnback_total_exp",
+    "turnback_total_ctrl",
+    "turnback_inner_delta_mm",
+    "turnback_outer_delta_mm",
+)
+
+TURNBACK_RATIO_PRIMARY_KEYS = (
+    "turnback_ratio_exp",
+    "turnback_ratio_ctrl",
+    "turnback_total_exp",
+    "turnback_total_ctrl",
+)
+
 
 def as_scalar(x):
     if isinstance(x, np.ndarray) and x.shape == ():
@@ -315,6 +331,84 @@ def validate_between_reward_return_leg_dist_bundle(
     )
 
 
+def _validate_probability_array(
+    bundle: dict,
+    key: str,
+    *,
+    where: str,
+    expected_shape: tuple[int, int, int],
+) -> np.ndarray:
+    arr = np.asarray(bundle[key], dtype=float)
+    if arr.ndim != 3:
+        raise ValueError(f"Bundle {where} has non-3D {key} shape {arr.shape}")
+    if arr.shape != expected_shape:
+        raise ValueError(
+            f"Bundle {where} has {key}.shape={arr.shape} "
+            f"but expected {expected_shape}"
+        )
+    if np.any(np.isinf(arr)):
+        raise ValueError(f"Bundle {where} has infinite values in {key}")
+    finite = np.isfinite(arr)
+    if np.any((arr[finite] < 0.0) | (arr[finite] > 1.0)):
+        raise ValueError(f"Bundle {where} has out-of-range probabilities in {key}")
+    return arr
+
+
+def validate_turnback_ratio_bundle(bundle: dict, *, path: str | None = None) -> None:
+    where = _bundle_label(bundle, path)
+    missing = [k for k in TURNBACK_RATIO_KEYS if k not in bundle]
+    if missing:
+        raise ValueError(f"Bundle {where} is missing turnback ratio keys: {missing}")
+
+    expected_shape = _expected_sync_bucket_metric_shape(bundle, where=where)
+    ratio_exp = _validate_probability_array(
+        bundle, "turnback_ratio_exp", where=where, expected_shape=expected_shape
+    )
+    ratio_ctrl = _validate_probability_array(
+        bundle, "turnback_ratio_ctrl", where=where, expected_shape=expected_shape
+    )
+    total_exp = _validate_3d_distance_count_array(
+        bundle, "turnback_total_exp", where=where, expected_shape=expected_shape
+    )
+    total_ctrl = _validate_3d_distance_count_array(
+        bundle, "turnback_total_ctrl", where=where, expected_shape=expected_shape
+    )
+
+    for key, ratio, total in (
+        ("turnback_ratio_exp", ratio_exp, total_exp),
+        ("turnback_ratio_ctrl", ratio_ctrl, total_ctrl),
+    ):
+        if np.any(~np.isfinite(ratio[total > 0])):
+            raise ValueError(f"Bundle {where} has non-finite {key} where total > 0")
+        if np.any(np.isfinite(ratio[total == 0])):
+            raise ValueError(f"Bundle {where} has finite {key} where total == 0")
+        implied_turns = ratio[total > 0] * total[total > 0]
+        if np.any(np.abs(implied_turns - np.rint(implied_turns)) > 1e-10):
+            raise ValueError(
+                f"Bundle {where} has {key} values inconsistent with integer counts"
+            )
+
+    inner_delta_mm = float(as_scalar(bundle["turnback_inner_delta_mm"]))
+    outer_delta_mm = float(as_scalar(bundle["turnback_outer_delta_mm"]))
+    if not np.isfinite(inner_delta_mm):
+        raise ValueError(f"Bundle {where} has non-finite turnback_inner_delta_mm")
+    if not np.isfinite(outer_delta_mm):
+        raise ValueError(f"Bundle {where} has non-finite turnback_outer_delta_mm")
+    if inner_delta_mm < 0.0:
+        raise ValueError(f"Bundle {where} has negative turnback_inner_delta_mm")
+    if outer_delta_mm <= inner_delta_mm:
+        raise ValueError(
+            f"Bundle {where} has turnback_outer_delta_mm={outer_delta_mm} "
+            f"<= turnback_inner_delta_mm={inner_delta_mm}"
+        )
+    if "turnback_inner_radius_offset_px" in bundle:
+        offset_px = float(as_scalar(bundle["turnback_inner_radius_offset_px"]))
+        if not np.isfinite(offset_px):
+            raise ValueError(
+                f"Bundle {where} has non-finite turnback_inner_radius_offset_px"
+            )
+
+
 def validate_return_prob_excursion_bin_bundle(
     bundle: dict, *, path: str | None = None
 ) -> None:
@@ -505,6 +599,8 @@ def normalize_sli_bundle(bundle: dict, *, path: str | None = None) -> dict:
         validate_between_reward_maxdist_bundle(out, path=path)
     if any(k in out for k in BETWEEN_REWARD_RETURN_LEG_DIST_KEYS):
         validate_between_reward_return_leg_dist_bundle(out, path=path)
+    if any(k in out for k in TURNBACK_RATIO_PRIMARY_KEYS):
+        validate_turnback_ratio_bundle(out, path=path)
     return out
 
 

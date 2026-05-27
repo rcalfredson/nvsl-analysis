@@ -187,7 +187,7 @@ def test_turnback_bundle_export_records_inner_and_outer_radius_metadata(
     )
     opts = SimpleNamespace(
         export_group_label="Intact Control>Kir",
-        best_worst_trn=2,
+        best_worst_trn=1,
         sli_use_training_mean=True,
         sli_select_skip_first_sync_buckets=1,
         sli_select_keep_first_sync_buckets=0,
