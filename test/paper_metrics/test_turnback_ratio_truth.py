@@ -1,0 +1,161 @@
+from types import SimpleNamespace
+
+import numpy as np
+
+from src.analysis.trajectory import Trajectory
+from src.analysis.video_analysis import VideoAnalysis
+from src.exporting.turnback_sli_bundle import _extract_turnback_arrays
+
+
+class _CircleTraining:
+    def __init__(self, *, start=0, stop=10, circle=True, radius_px=10.0):
+        self.start = int(start)
+        self.stop = int(stop)
+        self._circle = bool(circle)
+        self._radius_px = float(radius_px)
+
+    def isCircle(self):
+        return self._circle
+
+    def circles(self, _fly_idx):
+        return [(0.0, 0.0, self._radius_px)]
+
+    def name(self):
+        return "T1"
+
+    def sname(self):
+        return self.name()
+
+
+class _TrajectoryEpisodes:
+    def __init__(self, episodes, *, bad=False):
+        self._episodes = list(episodes)
+        self._bad = bool(bad)
+        self.calls = []
+
+    def reward_turnback_dual_circle_episodes_for_training(self, **kwargs):
+        self.calls.append(kwargs)
+        return list(self._episodes)
+
+
+def _trajectory_at_distances(distances_px, *, training_stop=None):
+    trj = object.__new__(Trajectory)
+    trj.x = np.asarray(distances_px, dtype=float)
+    trj.y = np.zeros_like(trj.x)
+    trj.f = 0
+    trj.va = SimpleNamespace(
+        xf=SimpleNamespace(fctr=1.0), ct=SimpleNamespace(pxPerMmFloor=lambda: 1.0)
+    )
+    trn = _CircleTraining(
+        start=0,
+        stop=len(trj.x) if training_stop is None else training_stop,
+        radius_px=10.0,
+    )
+    return trj, trn
+
+
+def test_turnback_dual_circle_detects_success_failure_and_excludes_censored_episode():
+    trj, trn = _trajectory_at_distances(
+        [
+            13.0,  # inside inner
+            15.0,  # exit inner, still inside outer
+            16.0,
+            13.0,  # re-enter inner: success
+            13.0,
+            15.0,  # exit inner
+            19.0,  # exit outer before re-entry: failure
+            13.0,
+            13.0,
+            15.0,  # exit inner
+            16.0,  # training end before outcome: censored and excluded
+        ]
+    )
+
+    episodes = trj.reward_turnback_dual_circle_episodes_for_training(
+        trn=trn, inner_delta_mm=4.0, outer_delta_mm=8.0, border_width_mm=0.0
+    )
+
+    assert episodes == [
+        {"start": 1, "stop": 3, "turns_back": True, "end_reason": "reenter_inner"},
+        {
+            "start": 5,
+            "stop": 7,
+            "turns_back": False,
+            "end_reason": "exit_outer",
+        },
+    ]
+
+
+def test_turnback_dual_circle_rejects_invalid_geometry_and_non_circle_training():
+    trj, trn = _trajectory_at_distances([13.0, 15.0, 13.0])
+
+    assert (
+        trj.reward_turnback_dual_circle_episodes_for_training(
+            trn=trn, inner_delta_mm=8.0, outer_delta_mm=4.0, border_width_mm=0.0
+        )
+        == []
+    )
+    assert (
+        trj.reward_turnback_dual_circle_episodes_for_training(
+            trn=_CircleTraining(circle=False),
+            inner_delta_mm=4.0,
+            outer_delta_mm=8.0,
+            border_width_mm=0.0,
+        )
+        == []
+    )
+
+
+def test_turnback_ratio_bins_by_outcome_frame_and_leaves_empty_buckets_nan():
+    exp = _TrajectoryEpisodes(
+        [
+            {"start": 1, "stop": 4, "turns_back": True},
+            {"start": 1, "stop": 6, "turns_back": False},
+            {"start": 8, "stop": 10, "turns_back": True},
+        ]
+    )
+    ctrl = _TrajectoryEpisodes([])
+    va = SimpleNamespace(
+        circle=True,
+        opts=SimpleNamespace(
+            turnback_inner_delta_mm=4.0,
+            turnback_outer_delta_mm=8.0,
+            turnback_border_width_mm=0.0,
+            turnback_inner_radius_offset_px=0.0,
+            turnback_dual_circle_debug=False,
+        ),
+        sync_bucket_ranges=[[(0, 5), (5, 10), (10, 15)]],
+        trns=[_CircleTraining(start=0, stop=15)],
+        trx=[exp, ctrl],
+    )
+
+    VideoAnalysis.analyzeRewardTurnbackDualCircle(va)
+
+    counts = va.reward_turnback_dual_circle_counts
+    np.testing.assert_array_equal(counts["turnback"], [[[1, 1, 0], [0, 0, 0]]])
+    np.testing.assert_array_equal(counts["total"], [[[1, 2, 0], [0, 0, 0]]])
+    np.testing.assert_allclose(
+        counts["ratio"], [[[1.0, 0.5, np.nan], [np.nan, np.nan, np.nan]]]
+    )
+
+    assert exp.calls[0]["inner_delta_mm"] == 4.0
+    assert exp.calls[0]["outer_delta_mm"] == 8.0
+
+
+def test_turnback_bundle_extraction_keeps_exp_ctrl_axes_and_pads_missing_buckets():
+    ratio = np.asarray([[[1.0, 0.5], [0.0, np.nan]]], dtype=float)
+    total = np.asarray([[[3, 2], [1, 0]]], dtype=int)
+    va = SimpleNamespace(
+        fn="fake-video",
+        trns=[_CircleTraining(start=0, stop=15)],
+        reward_turnback_dual_circle_counts={"ratio": ratio, "total": total},
+        _numRewardsMsg=lambda *args, **_kwargs: 5,
+        _syncBucket=lambda _trn, _df: (0, 3, None),
+    )
+
+    ratio_exp, ratio_ctrl, total_exp, total_ctrl = _extract_turnback_arrays([va])
+
+    np.testing.assert_allclose(ratio_exp, [[[1.0, 0.5, np.nan]]])
+    np.testing.assert_allclose(ratio_ctrl, [[[0.0, np.nan, np.nan]]])
+    np.testing.assert_array_equal(total_exp, [[[3, 2, 0]]])
+    np.testing.assert_array_equal(total_ctrl, [[[1, 0, 0]]])
