@@ -346,12 +346,18 @@ Run them with:
 pytest -q test/paper_metrics
 ```
 
-Real-data paper regression manifests currently cover SLI-related keys in the
-panel-30 SLI bundles and binned return-probability keys in the panel 1, 2, and
-29 bundles. If those local exports are present, check them with:
+Real-data paper regression manifests currently cover SLI-related keys,
+binned return-probability keys, between-reward distance metrics, and the
+dual-circle turnback ratio bundle. If those local exports are present, check
+them with:
 ```bash
 python scripts/check_bundle_digest.py check-manifest test/reference/bundles/sli_paper_manifest.json
 python scripts/check_bundle_digest.py check-manifest test/reference/bundles/return_prob_excursion_bin_paper_manifest.json
+python scripts/check_bundle_digest.py check-manifest test/reference/bundles/between_reward_distance_hist_paper_manifest.json
+python scripts/check_bundle_digest.py check-manifest test/reference/bundles/between_reward_conditioned_disttrav_paper_manifest.json
+python scripts/check_bundle_digest.py check-manifest test/reference/bundles/between_reward_maxdist_paper_manifest.json
+python scripts/check_bundle_digest.py check-manifest test/reference/bundles/between_reward_return_leg_dist_paper_manifest.json
+python scripts/check_bundle_digest.py check-manifest test/reference/bundles/turnback_ratio_paper_manifest.json
 ```
 
 *Thank you for using `nvsl-analysis`! If you have any feedback or questions, please open an issue on GitHub or email the authors.*
