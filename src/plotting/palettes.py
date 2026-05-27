@@ -220,7 +220,7 @@ METRIC_PALETTES = {
     "rpd": ["#33a02c", "#b2df8a"],
     "commag": ["#ff7f00", "#fdbf6f"],
     "meddist": ["#6a3d9a", "#cab2d6"],
-    "agarose": [MUTED_CATEGORICAL[2], MUTED_CATEGORICAL[6]],
+    "agarose": [NEUTRAL_DARK, NEUTRAL_LIGHT],
     "turnback": [BRIGHT_YELLOW, _adjust_lightness(BRIGHT_YELLOW, 1.12)],
     "between_reward_maxdist": [
         "#8B5A2B",
