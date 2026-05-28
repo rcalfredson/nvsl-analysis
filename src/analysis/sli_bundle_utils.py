@@ -62,6 +62,16 @@ BETWEEN_REWARD_RETURN_LEG_DIST_KEYS = (
     "between_reward_return_leg_distN_ctrl",
 )
 
+COMMAG_KEYS = (
+    "commag_exp",
+    "commag_ctrl",
+)
+
+COMMAG_COUNT_KEYS = (
+    "commagN_exp",
+    "commagN_ctrl",
+)
+
 TURNBACK_RATIO_KEYS = (
     "turnback_ratio_exp",
     "turnback_ratio_ctrl",
@@ -339,6 +349,59 @@ def validate_between_reward_return_leg_dist_bundle(
         count_ctrl_key="between_reward_return_leg_distN_ctrl",
         path=path,
     )
+
+
+def validate_commag_bundle(bundle: dict, *, path: str | None = None) -> None:
+    where = _bundle_label(bundle, path)
+    missing = [k for k in COMMAG_KEYS if k not in bundle]
+    if missing:
+        raise ValueError(f"Bundle {where} is missing COM-magnitude keys: {missing}")
+
+    expected_shape = _expected_sync_bucket_metric_shape(bundle, where=where)
+    value_exp = _validate_3d_distance_metric_array(
+        bundle, "commag_exp", where=where, expected_shape=expected_shape
+    )
+    value_ctrl = _validate_3d_distance_metric_array(
+        bundle, "commag_ctrl", where=where, expected_shape=expected_shape
+    )
+
+    bucket_len_min = float(as_scalar(bundle.get("bucket_len_min", np.nan)))
+    if not np.isfinite(bucket_len_min) or bucket_len_min <= 0.0:
+        raise ValueError(f"Bundle {where} has invalid bucket_len_min={bucket_len_min}")
+
+    min_segments = int(as_scalar(bundle.get("btw_rwd_sync_bucket_min_trajectories", 1)))
+    if min_segments < 0:
+        raise ValueError(
+            f"Bundle {where} has negative btw_rwd_sync_bucket_min_trajectories"
+        )
+
+    present_count_keys = [k for k in COMMAG_COUNT_KEYS if k in bundle]
+    if present_count_keys and set(present_count_keys) != set(COMMAG_COUNT_KEYS):
+        missing_counts = [k for k in COMMAG_COUNT_KEYS if k not in bundle]
+        raise ValueError(
+            f"Bundle {where} has incomplete COM-magnitude count keys: {missing_counts}"
+        )
+    if not present_count_keys:
+        return
+
+    count_exp = _validate_3d_distance_count_array(
+        bundle, "commagN_exp", where=where, expected_shape=expected_shape
+    )
+    count_ctrl = _validate_3d_distance_count_array(
+        bundle, "commagN_ctrl", where=where, expected_shape=expected_shape
+    )
+
+    sufficient_count = max(1, min_segments)
+    for key, values, counts in (
+        ("commag_exp", value_exp, count_exp),
+        ("commag_ctrl", value_ctrl, count_ctrl),
+    ):
+        finite = np.isfinite(values)
+        if np.any(finite & (counts < sufficient_count)):
+            raise ValueError(
+                f"Bundle {where} has finite {key} where count is below "
+                f"{sufficient_count}"
+            )
 
 
 def _validate_probability_array(
@@ -798,6 +861,8 @@ def normalize_sli_bundle(bundle: dict, *, path: str | None = None) -> dict:
         validate_between_reward_maxdist_bundle(out, path=path)
     if any(k in out for k in BETWEEN_REWARD_RETURN_LEG_DIST_KEYS):
         validate_between_reward_return_leg_dist_bundle(out, path=path)
+    if any(k in out for k in COMMAG_KEYS):
+        validate_commag_bundle(out, path=path)
     if any(k in out for k in TURNBACK_RATIO_PRIMARY_KEYS):
         validate_turnback_ratio_bundle(out, path=path)
     if any(k in out for k in TURNBACK_EXCURSION_BIN_KEYS):
