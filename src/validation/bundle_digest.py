@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 from pathlib import Path
@@ -185,6 +186,44 @@ TURNBACK_RATIO_REGRESSION_KEYS = (
     "video_ids",
 )
 
+FIRST_N_REWARD_DIAGNOSTICS_REGRESSION_KEYS = (
+    "video_basename",
+    "video_path",
+    "va_tag",
+    "fly_idx",
+    "selected_subset_label",
+    "selected_trainings_label",
+    "skip_first_sync_buckets",
+    "keep_first_sync_buckets",
+    "nth_reward_target",
+    "has_selected_window",
+    "actual_reward_count_in_selected_window",
+    "eligible_for_nth_reward_cutoff",
+    "sli",
+    "cutoff_frame",
+    "cutoff_training",
+    "cutoff_time_since_selected_window_start_s",
+    "cutoff_time_since_cutoff_training_start_s",
+    "time_to_first_actual_reward_s",
+    "time_to_nth_actual_reward_s",
+    "first_n_reward_span_s",
+    "actual_reward_count_by_cutoff",
+    "control_reward_count_by_cutoff",
+    "actual_circle_entry_count_by_cutoff",
+    "control_circle_entry_count_by_cutoff",
+    "reward_pi_by_cutoff",
+    "actual_entry_minus_reward_count_by_cutoff",
+    "control_entry_minus_reward_count_by_cutoff",
+    "control_to_actual_entry_ratio_by_cutoff",
+    "control_to_actual_reward_ratio_by_cutoff",
+    "reward_event_type",
+    "selected_reward_count_in_selected_window",
+    "time_to_first_selected_reward_s",
+    "time_to_nth_selected_reward_s",
+    "first_n_selected_reward_span_s",
+    "selected_reward_rate_to_nth_per_min",
+)
+
 
 def _json_bytes(payload) -> bytes:
     return json.dumps(
@@ -269,6 +308,66 @@ def digest_npz(path: str | Path, *, keys: Iterable[str] | None = None) -> dict:
     }
 
 
+def _canonical_csv_cell(raw: str):
+    text = "" if raw is None else str(raw)
+    stripped = text.strip()
+    if stripped:
+        try:
+            value = float(stripped)
+        except Exception:
+            return {"kind": "string", "value": text}
+        if np.isnan(value):
+            return {"kind": "nan"}
+        if np.isinf(value):
+            return {"kind": "inf", "sign": 1 if value > 0 else -1}
+        return {"kind": "number", "value": float(value)}
+    return {"kind": "string", "value": text}
+
+
+def digest_csv(path: str | Path, *, keys: Iterable[str] | None = None) -> dict:
+    path = Path(path)
+    requested = None if keys is None else tuple(keys)
+    with path.open(newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh)
+        available = tuple(reader.fieldnames or ())
+        selected = tuple(available if requested is None else requested)
+        missing = [key for key in selected if key not in available]
+        if missing:
+            raise KeyError(f"{path} is missing digest columns: {missing}")
+        rows = [
+            [_canonical_csv_cell(row.get(key, "")) for key in selected]
+            for row in reader
+        ]
+
+    digest_payload = {
+        "schema_version": SCHEMA_VERSION,
+        "keys": selected,
+        "rows": rows,
+    }
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "path": str(path),
+        "artifact_type": "csv",
+        "keys": list(selected),
+        "row_count": len(rows),
+        "sha256": _hash_bytes(_json_bytes(digest_payload)),
+    }
+
+
+def digest_artifact(
+    path: str | Path,
+    *,
+    keys: Iterable[str] | None = None,
+    artifact_type: str | None = None,
+) -> dict:
+    kind = str(artifact_type or Path(path).suffix.lstrip(".") or "npz").lower()
+    if kind == "csv":
+        return digest_csv(path, keys=keys)
+    if kind == "npz":
+        return digest_npz(path, keys=keys)
+    raise ValueError(f"Unsupported digest artifact type: {artifact_type!r}")
+
+
 def write_manifest(
     entries: Iterable[dict], out_path: str | Path, *, project_root: str | Path = "."
 ) -> dict:
@@ -277,14 +376,17 @@ def write_manifest(
     for entry in entries:
         path = Path(entry["path"])
         keys = entry.get("keys")
-        digest = digest_npz(root / path, keys=keys)
+        artifact_type = entry.get("type") or path.suffix.lstrip(".") or "npz"
+        digest = digest_artifact(root / path, keys=keys, artifact_type=artifact_type)
         bundles.append(
             {
                 "name": entry.get("name", path.stem),
                 "path": str(path),
+                "type": str(artifact_type).lower(),
                 "keys": digest["keys"],
                 "sha256": digest["sha256"],
-                "arrays": digest["arrays"],
+                **({"arrays": digest["arrays"]} if "arrays" in digest else {}),
+                **({"row_count": digest["row_count"]} if "row_count" in digest else {}),
             }
         )
 
@@ -323,7 +425,11 @@ def check_manifest(
                 failures.append(message)
             continue
 
-        observed = digest_npz(path, keys=bundle.get("keys"))
+        observed = digest_artifact(
+            path,
+            keys=bundle.get("keys"),
+            artifact_type=bundle.get("type"),
+        )
         if observed["sha256"] != bundle.get("sha256"):
             failures.append(
                 f"{bundle['name']}: digest mismatch "
@@ -345,11 +451,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    one = sub.add_parser("digest", help="Print a digest for one NPZ bundle.")
+    one = sub.add_parser("digest", help="Print a digest for one NPZ or CSV artifact.")
     one.add_argument("path")
     one.add_argument("--keys", help="Comma-separated keys to include.")
+    one.add_argument(
+        "--type",
+        choices=("npz", "csv"),
+        default=None,
+        help="Artifact type. Defaults to the path suffix.",
+    )
 
-    create = sub.add_parser("write-manifest", help="Write a manifest for NPZ bundles.")
+    create = sub.add_parser(
+        "write-manifest",
+        help="Write a manifest for NPZ bundles or CSV artifacts.",
+    )
     create.add_argument("--out", required=True)
     create.add_argument(
         "--root",
@@ -391,7 +506,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "digest":
         print(
             json.dumps(
-                digest_npz(args.path, keys=_parse_key_list(args.keys)),
+                digest_artifact(
+                    args.path,
+                    keys=_parse_key_list(args.keys),
+                    artifact_type=args.type,
+                ),
                 indent=2,
                 sort_keys=True,
             )
