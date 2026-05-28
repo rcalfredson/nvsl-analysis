@@ -1,6 +1,7 @@
 import numpy as np
 import os
 
+from src.analysis.sli_bundle_utils import validate_commag_bundle, validate_sli_bundle
 from src.analysis.between_reward_filters import (
     mask_metric_by_min_between_reward_trajectories,
     min_between_reward_sync_bucket_trajectories,
@@ -144,6 +145,8 @@ def export_com_sli_bundle(vas, opts, gls, out_fn):
     if not out_fn.lower().endswith(".npz"):
         out_fn += ".npz"
 
+    validate_sli_bundle(bundle, path=out_fn)
+    validate_commag_bundle(bundle, path=out_fn)
     os.makedirs(os.path.dirname(out_fn) or ".", exist_ok=True)
     np.savez_compressed(out_fn, **bundle)
     print(f"[export] Wrote COM+SLI bundle: {out_fn} (n={len(bundle['sli'])})")
