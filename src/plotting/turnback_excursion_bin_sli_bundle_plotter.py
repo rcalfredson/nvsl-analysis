@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
+from src.analysis.sli_bundle_utils import load_sli_bundle
 from src.plotting.return_prob_outer_radius_sli_bundle_plotter import (
     _ci_triplet,
     _selected_groups,
@@ -202,7 +203,7 @@ def plot_turnback_excursion_bin_sli_bundles(
     if opts is None:
         opts = SimpleNamespace(imageFormat="png", fontSize=None, fontFamily=None)
 
-    loaded = [np.load(path, allow_pickle=True) for path in bundles]
+    loaded = [load_sli_bundle(path) for path in bundles]
 
     if sli_top_fraction is None:
         sli_top_fraction = sli_fraction
