@@ -1,0 +1,685 @@
+{
+  "bundles": [
+    {
+      "arrays": {
+        "btw_rwd_sync_bucket_min_trajectories": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "f13ee6ed54ea2aae9fc49a9faeb5da6e8ddef0e12ed5d30d35a624ae813e0485",
+          "shape": []
+        },
+        "bucket_len_min": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "24b1f4ef66b650ff816e519b01742ff1753733d36e1b4c3e3b52743168915b1f",
+          "shape": []
+        },
+        "commagN_ctrl": {
+          "dtype": "int64",
+          "finite_count": 1242,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "ed8b08355536777e67814aa38f63b3ba4f1cf2ca624e2546029615f7884810b0",
+          "shape": [
+            69,
+            3,
+            6
+          ]
+        },
+        "commagN_exp": {
+          "dtype": "int64",
+          "finite_count": 1242,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "d5b8a0ad01b0787edf332b493dbab4cb05254c81c3bc38498605e1a8d48bb02e",
+          "shape": [
+            69,
+            3,
+            6
+          ]
+        },
+        "commag_ctrl": {
+          "dtype": "float64",
+          "finite_count": 878,
+          "kind": "numeric",
+          "nan_count": 364,
+          "sha256": "cee35303fc52c4d6eb1a94cac20b1b99dd6ea919e761a178b058ea284e56694c",
+          "shape": [
+            69,
+            3,
+            6
+          ]
+        },
+        "commag_exp": {
+          "dtype": "float64",
+          "finite_count": 919,
+          "kind": "numeric",
+          "nan_count": 323,
+          "sha256": "35ddb79e0cea4ef994c722998ab722973b5964cdaf63d27e209c4fd629ff1592",
+          "shape": [
+            69,
+            3,
+            6
+          ]
+        },
+        "group_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "3d08ba1cb0dff4442a18ba6258e18780ad45f5802d65ad029a519bc4817d171c",
+          "shape": []
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 62,
+          "kind": "numeric",
+          "nan_count": 7,
+          "sha256": "31fdbb97d3b48656fd3f11913c909063984a407f43dcd919cd7d010b31caef37",
+          "shape": [
+            69
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 847,
+          "kind": "numeric",
+          "nan_count": 395,
+          "sha256": "d0c722c678aba09e7409135f820bc1b95b4938c0ccb9b87cd7658ba6d3230cec",
+          "shape": [
+            69,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "object",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 69,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "9242d4fcf88dee42c16d3fd736097f56281fbee20201cd164caa753a22b91071",
+          "shape": [
+            69
+          ]
+        }
+      },
+      "keys": [
+        "btw_rwd_sync_bucket_min_trajectories",
+        "bucket_len_min",
+        "commagN_ctrl",
+        "commagN_exp",
+        "commag_ctrl",
+        "commag_exp",
+        "group_label",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "intact_ctrl_2026_04_13",
+      "path": "exports/com_dist_intact_ctrlKir_flatLgc_inclWall_meanMag_2026-04-13.npz",
+      "sha256": "d15f7aef79878b090c9ad3ccc886c943da8a046841bf96bdd5bc20bbd78b51ec"
+    },
+    {
+      "arrays": {
+        "btw_rwd_sync_bucket_min_trajectories": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "f13ee6ed54ea2aae9fc49a9faeb5da6e8ddef0e12ed5d30d35a624ae813e0485",
+          "shape": []
+        },
+        "bucket_len_min": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "24b1f4ef66b650ff816e519b01742ff1753733d36e1b4c3e3b52743168915b1f",
+          "shape": []
+        },
+        "commagN_ctrl": {
+          "dtype": "int64",
+          "finite_count": 1098,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "3b2954377765a389116bc0f5b35755972f139aa163d3c62d9d9c47718361a96a",
+          "shape": [
+            61,
+            3,
+            6
+          ]
+        },
+        "commagN_exp": {
+          "dtype": "int64",
+          "finite_count": 1098,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "2f5d9ac8f1e557b160b4caf8f1df68e9734b498432ff302970ae2e0c7f60f31d",
+          "shape": [
+            61,
+            3,
+            6
+          ]
+        },
+        "commag_ctrl": {
+          "dtype": "float64",
+          "finite_count": 676,
+          "kind": "numeric",
+          "nan_count": 422,
+          "sha256": "18e253798e816d53dc733b90b12057df300f24f2227f56a3b9df1874a5f51897",
+          "shape": [
+            61,
+            3,
+            6
+          ]
+        },
+        "commag_exp": {
+          "dtype": "float64",
+          "finite_count": 731,
+          "kind": "numeric",
+          "nan_count": 367,
+          "sha256": "fdc1ec4c9e13f13830d5ac53e31f55ace8b93fa3cfe46c4111b914e32686feed",
+          "shape": [
+            61,
+            3,
+            6
+          ]
+        },
+        "group_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "eb680b0cb9588cbc38734cb626aa8cbba8c339b765b7608fd311292fe1cb2cc1",
+          "shape": []
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 52,
+          "kind": "numeric",
+          "nan_count": 9,
+          "sha256": "6f8aec8a03575bd0f377321fbda947f9b2bb137a4a7d02d19abfc5108263c6ca",
+          "shape": [
+            61
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 698,
+          "kind": "numeric",
+          "nan_count": 400,
+          "sha256": "f5342732a54f3cb0c3c3884976e0e5d0bd15138d5ae0b3f1172b081e117c4646",
+          "shape": [
+            61,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "object",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 61,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "abf0dc060c8feb451a3d022a7f25453b53789fa16b561d0ef5ef2091680dca6e",
+          "shape": [
+            61
+          ]
+        }
+      },
+      "keys": [
+        "btw_rwd_sync_bucket_min_trajectories",
+        "bucket_len_min",
+        "commagN_ctrl",
+        "commagN_exp",
+        "commag_ctrl",
+        "commag_exp",
+        "group_label",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "intact_pfn_2026_04_13",
+      "path": "exports/com_dist_intact_pfnKir_flatLgc_inclWall_meanMag_2026-04-13.npz",
+      "sha256": "47fee62049b6bbcac1ac9cedac0be62a131be9fbb36dba30620bc5f4810ace5a"
+    },
+    {
+      "arrays": {
+        "btw_rwd_sync_bucket_min_trajectories": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "f13ee6ed54ea2aae9fc49a9faeb5da6e8ddef0e12ed5d30d35a624ae813e0485",
+          "shape": []
+        },
+        "bucket_len_min": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "24b1f4ef66b650ff816e519b01742ff1753733d36e1b4c3e3b52743168915b1f",
+          "shape": []
+        },
+        "commagN_ctrl": {
+          "dtype": "int64",
+          "finite_count": 1188,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "16a3b41a669b7de46bc12500c5c25370d55d2328db28fdc02bc653856ce9ff31",
+          "shape": [
+            66,
+            3,
+            6
+          ]
+        },
+        "commagN_exp": {
+          "dtype": "int64",
+          "finite_count": 1188,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "825d5ca4341d0f38c7d4b504e6a04d83a1e71cd57b3852288257670f73c9b32f",
+          "shape": [
+            66,
+            3,
+            6
+          ]
+        },
+        "commag_ctrl": {
+          "dtype": "float64",
+          "finite_count": 719,
+          "kind": "numeric",
+          "nan_count": 469,
+          "sha256": "5a07fbdba63bd49b24b90aea2014d03d09770f21ae30129d4d9e4177f19b699c",
+          "shape": [
+            66,
+            3,
+            6
+          ]
+        },
+        "commag_exp": {
+          "dtype": "float64",
+          "finite_count": 737,
+          "kind": "numeric",
+          "nan_count": 451,
+          "sha256": "c81d427d6f04fd846d44fa23ad6fccb33ce59edbffb7d46fd31d58464c5586a6",
+          "shape": [
+            66,
+            3,
+            6
+          ]
+        },
+        "group_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "eca1741183edc24ddf780d8e55ddf93a54b4aa8a8f233054a97357765f01cab2",
+          "shape": []
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 55,
+          "kind": "numeric",
+          "nan_count": 11,
+          "sha256": "a8196f842f5c6fcf023d7bb3e3d6e825e165dde52ac6da721d70cef063cd0553",
+          "shape": [
+            66
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 714,
+          "kind": "numeric",
+          "nan_count": 474,
+          "sha256": "a05bc6b4630ede45a61d098b7f71e3ff9c709731ea20869503b9b78c35bee2fa",
+          "shape": [
+            66,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "object",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 66,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "b08398ff7eed90d810d604ccae4cf8f80597ffc45c14ad4a90d57238fc3c22d0",
+          "shape": [
+            66
+          ]
+        }
+      },
+      "keys": [
+        "btw_rwd_sync_bucket_min_trajectories",
+        "bucket_len_min",
+        "commagN_ctrl",
+        "commagN_exp",
+        "commag_ctrl",
+        "commag_exp",
+        "group_label",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "ar_ctrl_2026_04_28",
+      "path": "exports/com_dist_ar_ctrlKir_flatLgc_inclWall_meanMag_2026-04-28.npz",
+      "sha256": "bdc7845e78c985aad8b476b0b8529ad69338341a14351efe7559b4a612356585"
+    },
+    {
+      "arrays": {
+        "btw_rwd_sync_bucket_min_trajectories": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "f13ee6ed54ea2aae9fc49a9faeb5da6e8ddef0e12ed5d30d35a624ae813e0485",
+          "shape": []
+        },
+        "bucket_len_min": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "24b1f4ef66b650ff816e519b01742ff1753733d36e1b4c3e3b52743168915b1f",
+          "shape": []
+        },
+        "commagN_ctrl": {
+          "dtype": "int64",
+          "finite_count": 1098,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "3b2954377765a389116bc0f5b35755972f139aa163d3c62d9d9c47718361a96a",
+          "shape": [
+            61,
+            3,
+            6
+          ]
+        },
+        "commagN_exp": {
+          "dtype": "int64",
+          "finite_count": 1098,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "2f5d9ac8f1e557b160b4caf8f1df68e9734b498432ff302970ae2e0c7f60f31d",
+          "shape": [
+            61,
+            3,
+            6
+          ]
+        },
+        "commag_ctrl": {
+          "dtype": "float64",
+          "finite_count": 676,
+          "kind": "numeric",
+          "nan_count": 422,
+          "sha256": "18e253798e816d53dc733b90b12057df300f24f2227f56a3b9df1874a5f51897",
+          "shape": [
+            61,
+            3,
+            6
+          ]
+        },
+        "commag_exp": {
+          "dtype": "float64",
+          "finite_count": 731,
+          "kind": "numeric",
+          "nan_count": 367,
+          "sha256": "fdc1ec4c9e13f13830d5ac53e31f55ace8b93fa3cfe46c4111b914e32686feed",
+          "shape": [
+            61,
+            3,
+            6
+          ]
+        },
+        "group_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "eb680b0cb9588cbc38734cb626aa8cbba8c339b765b7608fd311292fe1cb2cc1",
+          "shape": []
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 52,
+          "kind": "numeric",
+          "nan_count": 9,
+          "sha256": "6f8aec8a03575bd0f377321fbda947f9b2bb137a4a7d02d19abfc5108263c6ca",
+          "shape": [
+            61
+          ]
+        },
+        "sli_select_keep_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+          "shape": []
+        },
+        "sli_select_skip_first_sync_buckets": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 698,
+          "kind": "numeric",
+          "nan_count": 400,
+          "sha256": "f5342732a54f3cb0c3c3884976e0e5d0bd15138d5ae0b3f1172b081e117c4646",
+          "shape": [
+            61,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a2709fcbfdeb023a70c53c31628d48d9306c5f4772ab12de7b67b66f3bf34fa7",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "object",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 61,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "abf0dc060c8feb451a3d022a7f25453b53789fa16b561d0ef5ef2091680dca6e",
+          "shape": [
+            61
+          ]
+        }
+      },
+      "keys": [
+        "btw_rwd_sync_bucket_min_trajectories",
+        "bucket_len_min",
+        "commagN_ctrl",
+        "commagN_exp",
+        "commag_ctrl",
+        "commag_exp",
+        "group_label",
+        "sli",
+        "sli_select_keep_first_sync_buckets",
+        "sli_select_skip_first_sync_buckets",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "intact_pfn_2026_04_28",
+      "path": "exports/com_dist_intact_pfnKir_flatLgc_inclWall_meanMag_2026-04-28.npz",
+      "sha256": "47fee62049b6bbcac1ac9cedac0be62a131be9fbb36dba30620bc5f4810ace5a"
+    }
+  ],
+  "schema_version": 1
+}
