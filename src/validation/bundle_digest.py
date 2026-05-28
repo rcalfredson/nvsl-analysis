@@ -49,6 +49,35 @@ RETURN_PROB_EXCURSION_BIN_REGRESSION_KEYS = (
     "video_ids",
 )
 
+TURNBACK_EXCURSION_BIN_REGRESSION_KEYS = (
+    "group_label",
+    "sli",
+    "sli_select_keep_first_sync_buckets",
+    "sli_select_skip_first_sync_buckets",
+    "sli_training_idx",
+    "sli_ts",
+    "sli_use_training_mean",
+    "training_names",
+    "turnback_excursion_bin_border_width_mm",
+    "turnback_excursion_bin_edges_mm",
+    "turnback_excursion_bin_inner_delta_mm",
+    "turnback_excursion_bin_inner_radius_offset_px",
+    "turnback_excursion_bin_keep_first_sync_buckets",
+    "turnback_excursion_bin_last_sync_buckets",
+    "turnback_excursion_bin_open_ended_upper_bin",
+    "turnback_excursion_bin_ratio_ctrl",
+    "turnback_excursion_bin_ratio_exp",
+    "turnback_excursion_bin_requested_edges_mm",
+    "turnback_excursion_bin_skip_first_sync_buckets",
+    "turnback_excursion_bin_total_ctrl",
+    "turnback_excursion_bin_total_exp",
+    "turnback_excursion_bin_trainings",
+    "turnback_excursion_bin_turn_ctrl",
+    "turnback_excursion_bin_turn_exp",
+    "turnback_excursion_bin_window_summary",
+    "video_ids",
+)
+
 BETWEEN_REWARD_DISTANCE_HIST_REGRESSION_KEYS = (
     "bin_edges",
     "ci_hi",
