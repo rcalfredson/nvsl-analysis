@@ -89,6 +89,22 @@ class FirstNRewardDiagnosticRow:
     selected_reward_rate_to_nth_per_min: float
 
 
+def reward_rate_between_first_and_nth_per_min(n_target: int, span_s: float) -> float:
+    try:
+        n_intervals = int(n_target) - 1
+    except Exception:
+        return np.nan
+    if n_intervals <= 0:
+        return np.nan
+    try:
+        span_s = float(span_s)
+    except Exception:
+        return np.nan
+    if not np.isfinite(span_s) or span_s <= 0:
+        return np.nan
+    return float(n_intervals * 60.0 / span_s)
+
+
 class FirstNRewardDiagnosticsPlotter:
     def __init__(self, vas, opts, gls, cfg: FirstNRewardDiagnosticsConfig):
         self.vas = list(vas)
@@ -116,6 +132,13 @@ class FirstNRewardDiagnosticsPlotter:
 
     def _nth_reward_target(self) -> int:
         return max(1, int(self.cfg.first_n_rewards or 1))
+
+    @staticmethod
+    def _reward_rate_between_first_and_nth_per_min(
+        n_target: int,
+        span_s: float,
+    ) -> float:
+        return reward_rate_between_first_and_nth_per_min(n_target, span_s)
 
     def _selected_trainings(self) -> list[int]:
         if not self.vas:
@@ -363,10 +386,12 @@ class FirstNRewardDiagnosticsPlotter:
                     selected_span_s = float(
                         time_to_nth_selected_s - time_to_first_selected_s
                     )
-                if np.isfinite(time_to_nth_selected_s) and time_to_nth_selected_s > 0:
-                    selected_reward_rate_to_nth_per_min = float(
-                        n_target * 60.0 / time_to_nth_selected_s
+                selected_reward_rate_to_nth_per_min = (
+                    self._reward_rate_between_first_and_nth_per_min(
+                        n_target,
+                        selected_span_s,
                     )
+                )
 
                 cutoff_window = locate_window_for_frame(
                     windows, int(selected_rewards[n_target - 1])
