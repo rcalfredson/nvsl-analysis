@@ -147,6 +147,24 @@ BETWEEN_REWARD_RETURN_LEG_DIST_SLI_REGRESSION_KEYS = (
     "video_ids",
 )
 
+COMMAG_SLI_REGRESSION_KEYS = (
+    "btw_rwd_sync_bucket_min_trajectories",
+    "bucket_len_min",
+    "commagN_ctrl",
+    "commagN_exp",
+    "commag_ctrl",
+    "commag_exp",
+    "group_label",
+    "sli",
+    "sli_select_keep_first_sync_buckets",
+    "sli_select_skip_first_sync_buckets",
+    "sli_training_idx",
+    "sli_ts",
+    "sli_use_training_mean",
+    "training_names",
+    "video_ids",
+)
+
 TURNBACK_RATIO_REGRESSION_KEYS = (
     "bucket_len_min",
     "group_label",

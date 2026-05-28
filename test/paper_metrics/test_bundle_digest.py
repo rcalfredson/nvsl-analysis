@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from src.validation.bundle_digest import (
+    COMMAG_SLI_REGRESSION_KEYS,
     RETURN_PROB_EXCURSION_BIN_REGRESSION_KEYS,
     SLI_REGRESSION_KEYS,
     TURNBACK_RATIO_REGRESSION_KEYS,
@@ -88,6 +89,29 @@ def _write_turnback_ratio_bundle(path, *, ratio, unchecked=None):
     np.savez_compressed(path, **payload)
 
 
+def _write_commag_bundle(path, *, commag, unchecked=None):
+    payload = {
+        "btw_rwd_sync_bucket_min_trajectories": np.array(1, dtype=int),
+        "bucket_len_min": np.array(10.0, dtype=float),
+        "commagN_ctrl": np.asarray([[[1, 0]]], dtype=int),
+        "commagN_exp": np.asarray([[[1, 1]]], dtype=int),
+        "commag_ctrl": np.asarray([[[1.0, np.nan]]], dtype=float),
+        "commag_exp": np.asarray(commag, dtype=float),
+        "group_label": np.asarray("Control", dtype=object),
+        "sli": np.asarray([0.1], dtype=float),
+        "sli_select_keep_first_sync_buckets": np.array(0, dtype=int),
+        "sli_select_skip_first_sync_buckets": np.array(1, dtype=int),
+        "sli_training_idx": np.array(0, dtype=int),
+        "sli_ts": np.asarray([[[1.0, np.nan]]], dtype=float),
+        "sli_use_training_mean": np.array(True),
+        "training_names": np.asarray(["T1"], dtype=object),
+        "video_ids": np.asarray(["video_a"], dtype=object),
+    }
+    if unchecked is not None:
+        payload["unchecked_metric"] = np.asarray(unchecked, dtype=float)
+    np.savez_compressed(path, **payload)
+
+
 def test_npz_digest_is_stable_across_npz_key_write_order(tmp_path):
     a = tmp_path / "a.npz"
     b = tmp_path / "b.npz"
@@ -138,6 +162,19 @@ def test_npz_digest_can_be_limited_to_turnback_ratio_regression_keys(tmp_path):
     assert (
         digest_npz(a, keys=TURNBACK_RATIO_REGRESSION_KEYS)["sha256"]
         == digest_npz(b, keys=TURNBACK_RATIO_REGRESSION_KEYS)["sha256"]
+    )
+    assert digest_npz(a)["sha256"] != digest_npz(b)["sha256"]
+
+
+def test_npz_digest_can_be_limited_to_commag_regression_keys(tmp_path):
+    a = tmp_path / "a.npz"
+    b = tmp_path / "b.npz"
+    _write_commag_bundle(a, commag=[[[1.0, 2.0]]], unchecked=[1.0])
+    _write_commag_bundle(b, commag=[[[1.0, 2.0]]], unchecked=[999.0])
+
+    assert (
+        digest_npz(a, keys=COMMAG_SLI_REGRESSION_KEYS)["sha256"]
+        == digest_npz(b, keys=COMMAG_SLI_REGRESSION_KEYS)["sha256"]
     )
     assert digest_npz(a)["sha256"] != digest_npz(b)["sha256"]
 
