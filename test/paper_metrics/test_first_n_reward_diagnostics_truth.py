@@ -5,6 +5,7 @@ import numpy as np
 from src.plotting.first_n_reward_diagnostics import (
     FirstNRewardDiagnosticsConfig,
     FirstNRewardDiagnosticsPlotter,
+    validate_first_n_reward_diagnostic_rows,
 )
 
 
@@ -107,3 +108,16 @@ def test_first_n_reward_timing_uses_selected_sync_bucket_window():
     assert row.time_to_nth_selected_reward_s == 3.0
     assert row.first_n_selected_reward_span_s == 2.0
     assert row.selected_reward_rate_to_nth_per_min == 30.0
+
+
+def test_first_n_reward_validator_rejects_old_reward_count_rate_formula():
+    [row] = _rows_for_rewards([50, 150, 250, 350, 450, 550, 650, 750, 850, 950])
+    bad = row.__dict__.copy()
+    bad["selected_reward_rate_to_nth_per_min"] = 10 * 60.0 / 95.0
+
+    try:
+        validate_first_n_reward_diagnostic_rows([bad])
+    except ValueError as exc:
+        assert "inconsistent selected reward rate" in str(exc)
+    else:
+        raise AssertionError("validator accepted the old off-by-one rate formula")

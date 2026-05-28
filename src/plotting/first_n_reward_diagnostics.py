@@ -89,6 +89,37 @@ class FirstNRewardDiagnosticRow:
     selected_reward_rate_to_nth_per_min: float
 
 
+FIRST_N_REWARD_DIAGNOSTIC_FIELDS = tuple(
+    FirstNRewardDiagnosticRow.__dataclass_fields__.keys()
+)
+
+
+def _as_bool(value) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes"}
+    return bool(value)
+
+
+def _as_int(value, *, default: int = 0) -> int:
+    try:
+        return int(float(value))
+    except Exception:
+        return int(default)
+
+
+def _as_float(value) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return np.nan
+
+
+def _row_value(row, key: str):
+    if isinstance(row, dict):
+        return row.get(key)
+    return getattr(row, key)
+
+
 def reward_rate_between_first_and_nth_per_min(n_target: int, span_s: float) -> float:
     try:
         n_intervals = int(n_target) - 1
@@ -96,13 +127,139 @@ def reward_rate_between_first_and_nth_per_min(n_target: int, span_s: float) -> f
         return np.nan
     if n_intervals <= 0:
         return np.nan
-    try:
-        span_s = float(span_s)
-    except Exception:
-        return np.nan
+    span_s = _as_float(span_s)
     if not np.isfinite(span_s) or span_s <= 0:
         return np.nan
     return float(n_intervals * 60.0 / span_s)
+
+
+def validate_first_n_reward_diagnostic_rows(rows: Sequence, *, path: str | None = None) -> None:
+    where = path or "<rows>"
+    for idx, row in enumerate(rows):
+        missing = [key for key in FIRST_N_REWARD_DIAGNOSTIC_FIELDS if _row_value(row, key) is None]
+        if missing:
+            raise ValueError(
+                f"First-N reward diagnostics {where} row {idx} is missing columns: {missing}"
+            )
+
+        n_target = _as_int(_row_value(row, "nth_reward_target"), default=0)
+        if n_target < 1:
+            raise ValueError(
+                f"First-N reward diagnostics {where} row {idx} has nth_reward_target={n_target}"
+            )
+
+        has_window = _as_bool(_row_value(row, "has_selected_window"))
+        eligible = _as_bool(_row_value(row, "eligible_for_nth_reward_cutoff"))
+        selected_count = _as_int(
+            _row_value(row, "selected_reward_count_in_selected_window"),
+            default=0,
+        )
+        actual_count = _as_int(
+            _row_value(row, "actual_reward_count_in_selected_window"),
+            default=0,
+        )
+        if selected_count < 0 or actual_count < 0:
+            raise ValueError(
+                f"First-N reward diagnostics {where} row {idx} has negative reward counts"
+            )
+        if eligible and not has_window:
+            raise ValueError(
+                f"First-N reward diagnostics {where} row {idx} is eligible without a selected window"
+            )
+        if eligible and selected_count < n_target:
+            raise ValueError(
+                f"First-N reward diagnostics {where} row {idx} is eligible with "
+                f"{selected_count} selected rewards for target {n_target}"
+            )
+
+        rate = _as_float(_row_value(row, "selected_reward_rate_to_nth_per_min"))
+        span_s = _as_float(_row_value(row, "first_n_selected_reward_span_s"))
+        expected_rate = reward_rate_between_first_and_nth_per_min(n_target, span_s)
+
+        if not eligible:
+            if np.isfinite(rate):
+                raise ValueError(
+                    f"First-N reward diagnostics {where} row {idx} has finite rate while ineligible"
+                )
+            continue
+
+        for key in (
+            "cutoff_frame",
+            "cutoff_time_since_selected_window_start_s",
+            "time_to_first_selected_reward_s",
+            "time_to_nth_selected_reward_s",
+        ):
+            value = _as_float(_row_value(row, key))
+            if not np.isfinite(value) or value < 0:
+                raise ValueError(
+                    f"First-N reward diagnostics {where} row {idx} has invalid {key}={value}"
+                )
+
+        if np.isfinite(expected_rate):
+            if not np.isfinite(rate):
+                raise ValueError(
+                    f"First-N reward diagnostics {where} row {idx} has non-finite selected reward rate"
+                )
+            if abs(rate - expected_rate) > 1e-9:
+                raise ValueError(
+                    f"First-N reward diagnostics {where} row {idx} has inconsistent "
+                    f"selected reward rate {rate}; expected {expected_rate}"
+                )
+        elif np.isfinite(rate):
+            raise ValueError(
+                f"First-N reward diagnostics {where} row {idx} has finite selected "
+                "reward rate without a positive first-to-nth interval"
+            )
+
+
+def validate_first_n_reward_diagnostics_csv(path: str) -> None:
+    with open(path, newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh)
+        fieldnames = tuple(reader.fieldnames or ())
+        missing = [
+            key for key in FIRST_N_REWARD_DIAGNOSTIC_FIELDS if key not in fieldnames
+        ]
+        if missing:
+            raise ValueError(
+                f"First-N reward diagnostics {path} is missing columns: {missing}"
+            )
+        validate_first_n_reward_diagnostic_rows(list(reader), path=path)
+
+
+def load_first_n_reward_diagnostics_npz(path: str) -> dict:
+    with np.load(path, allow_pickle=True) as data:
+        out = {key: data[key] for key in data.files}
+    validate_first_n_reward_diagnostics_bundle(out, path=path)
+    return out
+
+
+def validate_first_n_reward_diagnostics_bundle(
+    bundle: dict, *, path: str | None = None
+) -> None:
+    where = path or "<bundle>"
+    missing = [key for key in FIRST_N_REWARD_DIAGNOSTIC_FIELDS if key not in bundle]
+    if missing:
+        raise ValueError(
+            f"First-N reward diagnostics {where} is missing keys: {missing}"
+        )
+    lengths = {
+        key: int(np.asarray(bundle[key]).reshape(-1).shape[0])
+        for key in FIRST_N_REWARD_DIAGNOSTIC_FIELDS
+    }
+    unique_lengths = set(lengths.values())
+    if len(unique_lengths) != 1:
+        raise ValueError(
+            f"First-N reward diagnostics {where} has inconsistent column lengths: {lengths}"
+        )
+    n_rows = unique_lengths.pop() if unique_lengths else 0
+    rows = [
+        {
+            key: np.asarray(bundle[key], dtype=object).reshape(-1)[idx]
+            for key in FIRST_N_REWARD_DIAGNOSTIC_FIELDS
+        }
+        for idx in range(n_rows)
+    ]
+    validate_first_n_reward_diagnostic_rows(rows, path=where)
 
 
 class FirstNRewardDiagnosticsPlotter:
@@ -128,7 +285,7 @@ class FirstNRewardDiagnosticsPlotter:
 
     @staticmethod
     def _metric_field_names() -> list[str]:
-        return list(FirstNRewardDiagnosticRow.__dataclass_fields__.keys())
+        return list(FIRST_N_REWARD_DIAGNOSTIC_FIELDS)
 
     def _nth_reward_target(self) -> int:
         return max(1, int(self.cfg.first_n_rewards or 1))
@@ -498,6 +655,7 @@ class FirstNRewardDiagnosticsPlotter:
 
     def _write_csv(self, rows: list[FirstNRewardDiagnosticRow]) -> None:
         path = self.cfg.csv_out
+        validate_first_n_reward_diagnostic_rows(rows, path=path)
         util.ensureDir(path)
         fieldnames = list(asdict(rows[0]).keys()) if rows else list(
             FirstNRewardDiagnosticRow.__dataclass_fields__.keys()
@@ -513,6 +671,7 @@ class FirstNRewardDiagnosticsPlotter:
         path = self.cfg.npz_out
         if not path:
             return
+        validate_first_n_reward_diagnostic_rows(rows, path=path)
         util.ensureDir(path)
         cols = {}
         fieldnames = list(FirstNRewardDiagnosticRow.__dataclass_fields__.keys())
@@ -539,7 +698,9 @@ class FirstNRewardDiagnosticsPlotter:
             "keep_first_sync_buckets": int(self.cfg.keep_first_sync_buckets or 0),
             "reward_event_type": str(getattr(self.cfg, "reward_event_type", "actual") or "actual"),
         }
-        np.savez(path, **cols, metadata=np.asarray(meta, dtype=object))
+        payload = {**cols, "metadata": np.asarray(meta, dtype=object)}
+        validate_first_n_reward_diagnostics_bundle(payload, path=path)
+        np.savez(path, **payload)
         print(f"[{self.log_tag}] wrote NPZ: {path}")
 
     def _label_outliers(self, ax, rows: list[FirstNRewardDiagnosticRow], x, y) -> None:
