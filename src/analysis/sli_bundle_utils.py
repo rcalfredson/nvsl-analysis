@@ -38,6 +38,16 @@ RETURN_PROB_EXCURSION_BIN_KEYS = (
     "return_prob_excursion_bin_edges_mm",
 )
 
+TURNBACK_EXCURSION_BIN_KEYS = (
+    "turnback_excursion_bin_ratio_exp",
+    "turnback_excursion_bin_ratio_ctrl",
+    "turnback_excursion_bin_turn_exp",
+    "turnback_excursion_bin_turn_ctrl",
+    "turnback_excursion_bin_total_exp",
+    "turnback_excursion_bin_total_ctrl",
+    "turnback_excursion_bin_edges_mm",
+)
+
 BETWEEN_REWARD_MAXDIST_KEYS = (
     "between_reward_maxdist_exp",
     "between_reward_maxdist_ctrl",
@@ -566,6 +576,195 @@ def validate_return_prob_excursion_bin_bundle(
             raise ValueError(f"Bundle {where} has inconsistent {key} values")
 
 
+def validate_turnback_excursion_bin_bundle(
+    bundle: dict, *, path: str | None = None
+) -> None:
+    where = _bundle_label(bundle, path)
+    missing = [k for k in TURNBACK_EXCURSION_BIN_KEYS if k not in bundle]
+    if missing:
+        raise ValueError(
+            f"Bundle {where} is missing turnback excursion-bin keys: {missing}"
+        )
+
+    sli = np.asarray(bundle["sli"], dtype=float)
+    if sli.ndim != 1:
+        raise ValueError(f"Bundle {where} has non-1D sli shape {sli.shape}")
+    n_videos = int(sli.shape[0])
+
+    edges = np.asarray(bundle["turnback_excursion_bin_edges_mm"], dtype=float)
+    if edges.ndim != 1:
+        raise ValueError(
+            f"Bundle {where} has non-1D turnback_excursion_bin_edges_mm "
+            f"shape {edges.shape}"
+        )
+    if edges.size < 2:
+        raise ValueError(f"Bundle {where} has fewer than two turnback bin edges")
+    if not np.all(np.isfinite(edges)):
+        raise ValueError(f"Bundle {where} has non-finite resolved turnback bin edges")
+    if np.any(np.diff(edges) <= 0):
+        raise ValueError(f"Bundle {where} has non-increasing turnback bin edges")
+    n_bins = int(edges.size - 1)
+
+    if "turnback_excursion_bin_requested_edges_mm" in bundle:
+        requested = np.asarray(
+            bundle["turnback_excursion_bin_requested_edges_mm"], dtype=float
+        )
+        if requested.ndim != 1 or requested.size != edges.size:
+            raise ValueError(
+                f"Bundle {where} has turnback_excursion_bin_requested_edges_mm "
+                f"shape {requested.shape} but expected {(edges.size,)}"
+            )
+        if not np.all(np.isfinite(requested[:-1])):
+            raise ValueError(
+                f"Bundle {where} has non-finite interior requested turnback bin edges"
+            )
+        if np.any(np.diff(requested) <= 0):
+            raise ValueError(
+                f"Bundle {where} has non-increasing requested turnback bin edges"
+            )
+
+    if "turnback_excursion_bin_open_ended_upper_bin" in bundle:
+        open_ended = bool(
+            as_scalar(bundle["turnback_excursion_bin_open_ended_upper_bin"])
+        )
+        if open_ended and "turnback_excursion_bin_requested_edges_mm" in bundle:
+            requested = np.asarray(
+                bundle["turnback_excursion_bin_requested_edges_mm"], dtype=float
+            )
+            if not np.isposinf(float(requested[-1])):
+                raise ValueError(
+                    f"Bundle {where} marks an open-ended turnback bin but the "
+                    "requested last edge is not inf"
+                )
+
+    if "turnback_excursion_bin_trainings" in bundle:
+        trainings = np.asarray(bundle["turnback_excursion_bin_trainings"], dtype=int)
+        if trainings.ndim != 1:
+            raise ValueError(
+                f"Bundle {where} has non-1D turnback_excursion_bin_trainings "
+                f"shape {trainings.shape}"
+            )
+        if np.any(trainings < 0):
+            raise ValueError(
+                f"Bundle {where} has negative turnback_excursion_bin_trainings"
+            )
+
+    if "turnback_excursion_bin_window_summary" in bundle:
+        window_summary = as_str_array(bundle["turnback_excursion_bin_window_summary"])
+        if window_summary.shape[0] != n_videos:
+            raise ValueError(
+                f"Bundle {where} has len(turnback_excursion_bin_window_summary)="
+                f"{window_summary.shape[0]} but len(sli)={n_videos}"
+            )
+
+    for key in (
+        "turnback_excursion_bin_skip_first_sync_buckets",
+        "turnback_excursion_bin_keep_first_sync_buckets",
+        "turnback_excursion_bin_last_sync_buckets",
+    ):
+        if key in bundle and int(as_scalar(bundle[key])) < 0:
+            raise ValueError(f"Bundle {where} has negative {key}")
+
+    for key in (
+        "turnback_excursion_bin_inner_delta_mm",
+        "turnback_excursion_bin_border_width_mm",
+        "turnback_excursion_bin_inner_radius_offset_px",
+    ):
+        if key in bundle and not np.isfinite(float(as_scalar(bundle[key]))):
+            raise ValueError(f"Bundle {where} has non-finite {key}")
+    if (
+        "turnback_excursion_bin_inner_delta_mm" in bundle
+        and float(as_scalar(bundle["turnback_excursion_bin_inner_delta_mm"])) < 0.0
+    ):
+        raise ValueError(
+            f"Bundle {where} has negative turnback_excursion_bin_inner_delta_mm"
+        )
+    if (
+        "turnback_excursion_bin_border_width_mm" in bundle
+        and float(as_scalar(bundle["turnback_excursion_bin_border_width_mm"])) < 0.0
+    ):
+        raise ValueError(
+            f"Bundle {where} has negative turnback_excursion_bin_border_width_mm"
+        )
+
+    ratio_exp = _validate_return_prob_metric_array(
+        bundle,
+        "turnback_excursion_bin_ratio_exp",
+        where=where,
+        n_videos=n_videos,
+        n_bins=n_bins,
+    )
+    ratio_ctrl = _validate_return_prob_metric_array(
+        bundle,
+        "turnback_excursion_bin_ratio_ctrl",
+        where=where,
+        n_videos=n_videos,
+        n_bins=n_bins,
+    )
+    turn_exp = _validate_return_prob_metric_array(
+        bundle,
+        "turnback_excursion_bin_turn_exp",
+        where=where,
+        n_videos=n_videos,
+        n_bins=n_bins,
+    )
+    turn_ctrl = _validate_return_prob_metric_array(
+        bundle,
+        "turnback_excursion_bin_turn_ctrl",
+        where=where,
+        n_videos=n_videos,
+        n_bins=n_bins,
+    )
+    total_exp = _validate_return_prob_count_array(
+        bundle,
+        "turnback_excursion_bin_total_exp",
+        where=where,
+        n_videos=n_videos,
+        n_bins=n_bins,
+    )
+    total_ctrl = _validate_return_prob_count_array(
+        bundle,
+        "turnback_excursion_bin_total_ctrl",
+        where=where,
+        n_videos=n_videos,
+        n_bins=n_bins,
+    )
+
+    for key, ratio in (
+        ("turnback_excursion_bin_ratio_exp", ratio_exp),
+        ("turnback_excursion_bin_ratio_ctrl", ratio_ctrl),
+    ):
+        finite = np.isfinite(ratio)
+        if np.any((ratio[finite] < 0.0) | (ratio[finite] > 1.0)):
+            raise ValueError(f"Bundle {where} has out-of-range probabilities in {key}")
+
+    for key, values, total in (
+        ("turnback_excursion_bin_turn_exp", turn_exp, total_exp),
+        ("turnback_excursion_bin_turn_ctrl", turn_ctrl, total_ctrl),
+    ):
+        finite = np.isfinite(values)
+        if np.any(~finite):
+            raise ValueError(f"Bundle {where} has non-finite values in {key}")
+        if np.any(values[finite] < 0.0):
+            raise ValueError(f"Bundle {where} has negative values in {key}")
+        if np.any(values[finite] > total[finite] + 1e-12):
+            raise ValueError(f"Bundle {where} has {key} values greater than totals")
+
+    for key, ratio, values, total in (
+        ("turnback_excursion_bin_ratio_exp", ratio_exp, turn_exp, total_exp),
+        ("turnback_excursion_bin_ratio_ctrl", ratio_ctrl, turn_ctrl, total_ctrl),
+    ):
+        expected = np.full_like(values, np.nan, dtype=float)
+        np.divide(values, total, out=expected, where=(total > 0))
+        both_finite = np.isfinite(ratio) & np.isfinite(expected)
+        if np.any(~np.isfinite(ratio[total > 0])):
+            raise ValueError(f"Bundle {where} has non-finite {key} where total > 0")
+        if np.any(np.isfinite(ratio[total == 0])):
+            raise ValueError(f"Bundle {where} has finite {key} where total == 0")
+        if np.any(np.abs(ratio[both_finite] - expected[both_finite]) > 1e-10):
+            raise ValueError(f"Bundle {where} has inconsistent {key} values")
+
+
 def normalize_sli_bundle(bundle: dict, *, path: str | None = None) -> dict:
     missing = [k for k in REQ_BUNDLE_KEYS if k not in bundle]
     if missing:
@@ -601,6 +800,8 @@ def normalize_sli_bundle(bundle: dict, *, path: str | None = None) -> dict:
         validate_between_reward_return_leg_dist_bundle(out, path=path)
     if any(k in out for k in TURNBACK_RATIO_PRIMARY_KEYS):
         validate_turnback_ratio_bundle(out, path=path)
+    if any(k in out for k in TURNBACK_EXCURSION_BIN_KEYS):
+        validate_turnback_excursion_bin_bundle(out, path=path)
     return out
 
 
