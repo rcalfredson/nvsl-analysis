@@ -5,10 +5,12 @@ import pytest
 
 from src.validation.bundle_digest import (
     COMMAG_SLI_REGRESSION_KEYS,
+    FIRST_N_REWARD_DIAGNOSTICS_REGRESSION_KEYS,
     RETURN_PROB_EXCURSION_BIN_REGRESSION_KEYS,
     SLI_REGRESSION_KEYS,
     TURNBACK_RATIO_REGRESSION_KEYS,
     check_manifest,
+    digest_csv,
     digest_npz,
     write_manifest,
 )
@@ -177,6 +179,47 @@ def test_npz_digest_can_be_limited_to_commag_regression_keys(tmp_path):
         == digest_npz(b, keys=COMMAG_SLI_REGRESSION_KEYS)["sha256"]
     )
     assert digest_npz(a)["sha256"] != digest_npz(b)["sha256"]
+
+
+def test_csv_digest_can_be_limited_to_first_n_reward_diagnostic_keys(tmp_path):
+    a = tmp_path / "a.csv"
+    b = tmp_path / "b.csv"
+    header = list(FIRST_N_REWARD_DIAGNOSTICS_REGRESSION_KEYS) + ["unchecked_metric"]
+    row = {
+        key: "nan" if key == "sli" else "1"
+        for key in FIRST_N_REWARD_DIAGNOSTICS_REGRESSION_KEYS
+    }
+    row.update(
+        {
+            "video_basename": "video_a",
+            "video_path": "/data/video_a.avi",
+            "selected_subset_label": "All flies",
+            "selected_trainings_label": "T1",
+            "has_selected_window": "True",
+            "eligible_for_nth_reward_cutoff": "True",
+            "nth_reward_target": "2",
+            "first_n_selected_reward_span_s": "30.0",
+            "selected_reward_rate_to_nth_per_min": "2.0",
+            "reward_event_type": "calc",
+        }
+    )
+
+    def write(path, unchecked):
+        path.write_text(
+            ",".join(header)
+            + "\n"
+            + ",".join(str(row.get(key, unchecked)) for key in header)
+            + "\n"
+        )
+
+    write(a, "1.0")
+    write(b, "999.0")
+
+    assert (
+        digest_csv(a, keys=FIRST_N_REWARD_DIAGNOSTICS_REGRESSION_KEYS)["sha256"]
+        == digest_csv(b, keys=FIRST_N_REWARD_DIAGNOSTICS_REGRESSION_KEYS)["sha256"]
+    )
+    assert digest_csv(a)["sha256"] != digest_csv(b)["sha256"]
 
 
 def test_npz_digest_records_shape_counts_and_per_key_hash(tmp_path):
