@@ -347,9 +347,9 @@ pytest -q test/paper_metrics
 ```
 
 Real-data paper regression manifests currently cover SLI-related keys,
-binned return-probability keys, between-reward distance metrics, and the
-dual-circle turnback ratio bundle. If those local exports are present, check
-them with:
+binned return-probability keys, between-reward distance metrics, COM magnitude,
+dual-circle turnback ratio, turnback excursion bins, and first-N reward
+diagnostics. If those local exports are present, check them with:
 ```bash
 python scripts/check_bundle_digest.py check-manifest test/reference/bundles/sli_paper_manifest.json
 python scripts/check_bundle_digest.py check-manifest test/reference/bundles/return_prob_excursion_bin_paper_manifest.json
@@ -357,7 +357,12 @@ python scripts/check_bundle_digest.py check-manifest test/reference/bundles/betw
 python scripts/check_bundle_digest.py check-manifest test/reference/bundles/between_reward_conditioned_disttrav_paper_manifest.json
 python scripts/check_bundle_digest.py check-manifest test/reference/bundles/between_reward_maxdist_paper_manifest.json
 python scripts/check_bundle_digest.py check-manifest test/reference/bundles/between_reward_return_leg_dist_paper_manifest.json
+python scripts/check_bundle_digest.py check-manifest test/reference/bundles/commag_paper_manifest.json
 python scripts/check_bundle_digest.py check-manifest test/reference/bundles/turnback_ratio_paper_manifest.json
+python scripts/check_bundle_digest.py check-manifest test/reference/bundles/turnback_excursion_bin_paper_manifest.json
+python scripts/check_bundle_digest.py check-manifest test/reference/bundles/first_n_reward_diagnostics_paper_manifest.json
 ```
+See `test/reference/bundles/README.md` for the workflow used to refresh these
+manifests after an intentional paper-metric output change.
 
 *Thank you for using `nvsl-analysis`! If you have any feedback or questions, please open an issue on GitHub or email the authors.*

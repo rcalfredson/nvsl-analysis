@@ -12,6 +12,8 @@ from src.validation.bundle_digest import (
     check_manifest,
     digest_csv,
     digest_npz,
+    main,
+    resolve_regression_key_preset,
     write_manifest,
 )
 
@@ -138,6 +140,13 @@ def test_npz_digest_can_be_limited_to_sli_regression_keys(tmp_path):
         == digest_npz(b, keys=SLI_REGRESSION_KEYS)["sha256"]
     )
     assert digest_npz(a)["sha256"] != digest_npz(b)["sha256"]
+
+
+def test_regression_key_preset_resolves_named_key_set():
+    assert resolve_regression_key_preset("sli") == SLI_REGRESSION_KEYS
+
+    with pytest.raises(KeyError, match="Unknown regression key preset"):
+        resolve_regression_key_preset("not_a_metric")
 
 
 def test_npz_digest_can_be_limited_to_return_prob_excursion_bin_regression_keys(
@@ -283,3 +292,71 @@ def test_manifest_check_can_allow_missing_external_bundles(tmp_path):
     assert check_manifest(manifest_path, project_root=tmp_path, require_all=False) == []
     failures = check_manifest(manifest_path, project_root=tmp_path, require_all=True)
     assert "external: missing bundle exports/not_present.npz" in failures
+
+
+def test_write_manifest_cli_accepts_key_preset(tmp_path):
+    path = tmp_path / "bundle.npz"
+    manifest_path = tmp_path / "manifest.json"
+    _write_sli_bundle(path, sli=[0.1])
+
+    assert (
+        main(
+            [
+                "write-manifest",
+                "--root",
+                str(tmp_path),
+                "--out",
+                str(manifest_path),
+                "--bundle",
+                "example=bundle.npz",
+                "--key-preset",
+                "sli",
+            ]
+        )
+        == 0
+    )
+
+    manifest = json.loads(manifest_path.read_text())
+    assert manifest["bundles"][0]["keys"] == sorted(SLI_REGRESSION_KEYS)
+
+
+def test_refresh_manifest_cli_reuses_existing_entries_and_keys(tmp_path):
+    path = tmp_path / "bundle.npz"
+    manifest_path = tmp_path / "manifest.json"
+    _write_sli_bundle(path, sli=[0.1], unchecked=[1.0])
+    original_digest = digest_npz(path, keys=["sli"])
+    original = {
+        "schema_version": 1,
+        "bundles": [
+            {
+                "name": "example",
+                "path": "bundle.npz",
+                "keys": ["sli"],
+                "sha256": original_digest["sha256"],
+                "arrays": original_digest["arrays"],
+            }
+        ],
+    }
+    manifest_path.write_text(json.dumps(original, indent=2, sort_keys=True) + "\n")
+
+    _write_sli_bundle(path, sli=[0.2], unchecked=[999.0])
+
+    assert (
+        main(
+            [
+                "refresh-manifest",
+                str(manifest_path),
+                "--root",
+                str(tmp_path),
+            ]
+        )
+        == 0
+    )
+
+    refreshed = json.loads(manifest_path.read_text())
+    assert refreshed["bundles"][0]["name"] == "example"
+    assert refreshed["bundles"][0]["path"] == "bundle.npz"
+    assert "type" not in refreshed["bundles"][0]
+    assert refreshed["bundles"][0]["keys"] == ["sli"]
+    assert refreshed["bundles"][0]["sha256"] != original["bundles"][0]["sha256"]
+    assert check_manifest(manifest_path, project_root=tmp_path) == []

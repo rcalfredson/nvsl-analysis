@@ -224,6 +224,23 @@ FIRST_N_REWARD_DIAGNOSTICS_REGRESSION_KEYS = (
     "selected_reward_rate_to_nth_per_min",
 )
 
+REGRESSION_KEY_PRESETS = {
+    "between_reward_conditioned_disttrav": (
+        BETWEEN_REWARD_CONDITIONED_DISTTRAV_REGRESSION_KEYS
+    ),
+    "between_reward_distance_hist": BETWEEN_REWARD_DISTANCE_HIST_REGRESSION_KEYS,
+    "between_reward_maxdist_sli": BETWEEN_REWARD_MAXDIST_SLI_REGRESSION_KEYS,
+    "between_reward_return_leg_dist_sli": (
+        BETWEEN_REWARD_RETURN_LEG_DIST_SLI_REGRESSION_KEYS
+    ),
+    "commag_sli": COMMAG_SLI_REGRESSION_KEYS,
+    "first_n_reward_diagnostics": FIRST_N_REWARD_DIAGNOSTICS_REGRESSION_KEYS,
+    "return_prob_excursion_bin": RETURN_PROB_EXCURSION_BIN_REGRESSION_KEYS,
+    "sli": SLI_REGRESSION_KEYS,
+    "turnback_excursion_bin": TURNBACK_EXCURSION_BIN_REGRESSION_KEYS,
+    "turnback_ratio": TURNBACK_RATIO_REGRESSION_KEYS,
+}
+
 
 def _json_bytes(payload) -> bytes:
     return json.dumps(
@@ -378,17 +395,17 @@ def write_manifest(
         keys = entry.get("keys")
         artifact_type = entry.get("type") or path.suffix.lstrip(".") or "npz"
         digest = digest_artifact(root / path, keys=keys, artifact_type=artifact_type)
-        bundles.append(
-            {
-                "name": entry.get("name", path.stem),
-                "path": str(path),
-                "type": str(artifact_type).lower(),
-                "keys": digest["keys"],
-                "sha256": digest["sha256"],
-                **({"arrays": digest["arrays"]} if "arrays" in digest else {}),
-                **({"row_count": digest["row_count"]} if "row_count" in digest else {}),
-            }
-        )
+        bundle = {
+            "name": entry.get("name", path.stem),
+            "path": str(path),
+            "keys": digest["keys"],
+            "sha256": digest["sha256"],
+            **({"arrays": digest["arrays"]} if "arrays" in digest else {}),
+            **({"row_count": digest["row_count"]} if "row_count" in digest else {}),
+        }
+        if entry.get("_include_type", True) or entry.get("type") is not None:
+            bundle["type"] = str(artifact_type).lower()
+        bundles.append(bundle)
 
     manifest = {"schema_version": SCHEMA_VERSION, "bundles": bundles}
 
@@ -396,6 +413,33 @@ def write_manifest(
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     return manifest
+
+
+def refresh_manifest(
+    manifest_path: str | Path,
+    *,
+    out_path: str | Path | None = None,
+    project_root: str | Path = ".",
+    keys: Iterable[str] | None = None,
+) -> dict:
+    manifest_path = Path(manifest_path)
+    manifest = load_manifest(manifest_path)
+    override_keys = None if keys is None else tuple(keys)
+    entries = []
+    for bundle in manifest.get("bundles", []):
+        entry = {
+            "name": bundle.get("name", Path(bundle["path"]).stem),
+            "path": bundle["path"],
+            "type": bundle.get("type"),
+            "_include_type": "type" in bundle,
+            "keys": override_keys if override_keys is not None else bundle.get("keys"),
+        }
+        entries.append(entry)
+    return write_manifest(
+        entries,
+        manifest_path if out_path is None else out_path,
+        project_root=project_root,
+    )
 
 
 def load_manifest(path: str | Path) -> dict:
@@ -445,15 +489,43 @@ def _parse_key_list(raw: str | None) -> list[str] | None:
     return keys or None
 
 
+def resolve_regression_key_preset(name: str | None) -> tuple[str, ...] | None:
+    if name is None:
+        return None
+    try:
+        return REGRESSION_KEY_PRESETS[str(name)]
+    except KeyError as exc:
+        known = ", ".join(sorted(REGRESSION_KEY_PRESETS))
+        raise KeyError(
+            f"Unknown regression key preset {name!r}. Known presets: {known}"
+        ) from exc
+
+
+def _resolve_cli_keys(
+    raw_keys: str | None,
+    key_preset: str | None,
+) -> list[str] | tuple[str, ...] | None:
+    keys = _parse_key_list(raw_keys)
+    preset_keys = resolve_regression_key_preset(key_preset)
+    if keys is not None and preset_keys is not None:
+        raise ValueError("Use either --keys or --key-preset, not both.")
+    return keys if keys is not None else preset_keys
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Create or check canonical NPZ digests."
+        description="Create or check canonical NPZ/CSV digests."
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
     one = sub.add_parser("digest", help="Print a digest for one NPZ or CSV artifact.")
     one.add_argument("path")
     one.add_argument("--keys", help="Comma-separated keys to include.")
+    one.add_argument(
+        "--key-preset",
+        choices=sorted(REGRESSION_KEY_PRESETS),
+        help="Named regression key set to include.",
+    )
     one.add_argument(
         "--type",
         choices=("npz", "csv"),
@@ -487,9 +559,41 @@ def main(argv: list[str] | None = None) -> int:
     create.add_argument(
         "--keys",
         help=(
-            "Comma-separated NPZ keys to include in each bundle digest. Applies to all "
-            "bundles in this manifest."
+            "Comma-separated keys or CSV columns to include in each digest. "
+            "Applies to all artifacts in this manifest."
         ),
+    )
+    create.add_argument(
+        "--key-preset",
+        choices=sorted(REGRESSION_KEY_PRESETS),
+        help="Named regression key set to include in each digest.",
+    )
+
+    refresh = sub.add_parser(
+        "refresh-manifest",
+        help=(
+            "Rewrite a manifest by reusing its existing bundle names, paths, "
+            "artifact types, and keys unless --keys or --key-preset is provided."
+        ),
+    )
+    refresh.add_argument("manifest")
+    refresh.add_argument(
+        "--out",
+        default=None,
+        help="Output path. Defaults to rewriting the input manifest in place.",
+    )
+    refresh.add_argument("--root", default=".")
+    refresh.add_argument(
+        "--keys",
+        help=(
+            "Comma-separated keys or CSV columns to include in each digest. "
+            "Overrides keys stored in the existing manifest."
+        ),
+    )
+    refresh.add_argument(
+        "--key-preset",
+        choices=sorted(REGRESSION_KEY_PRESETS),
+        help="Named regression key set to include in each digest.",
     )
 
     check = sub.add_parser("check-manifest", help="Check bundles against a manifest.")
@@ -504,11 +608,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "digest":
+        keys = _resolve_cli_keys(args.keys, args.key_preset)
         print(
             json.dumps(
                 digest_artifact(
                     args.path,
-                    keys=_parse_key_list(args.keys),
+                    keys=keys,
                     artifact_type=args.type,
                 ),
                 indent=2,
@@ -518,7 +623,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "write-manifest":
-        keys = _parse_key_list(args.keys)
+        keys = _resolve_cli_keys(args.keys, args.key_preset)
         entries = []
         for raw in args.bundle:
             if "=" in raw:
@@ -528,6 +633,16 @@ def main(argv: list[str] | None = None) -> int:
                 name = Path(raw).stem
             entries.append({"name": name, "path": path, "keys": keys})
         write_manifest(entries, args.out, project_root=args.root)
+        return 0
+
+    if args.command == "refresh-manifest":
+        keys = _resolve_cli_keys(args.keys, args.key_preset)
+        refresh_manifest(
+            args.manifest,
+            out_path=args.out,
+            project_root=args.root,
+            keys=keys,
+        )
         return 0
 
     failures = check_manifest(
