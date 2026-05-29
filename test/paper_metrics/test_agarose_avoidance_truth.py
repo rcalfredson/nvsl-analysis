@@ -191,3 +191,39 @@ def test_agarose_bundle_extraction_keeps_exp_ctrl_axes_and_counts():
     np.testing.assert_array_equal(total_ctrl, [[[1, 0, 0]]])
     np.testing.assert_array_equal(avoid_exp, [[[3, 1, 0]]])
     np.testing.assert_array_equal(avoid_ctrl, [[[0, 0, 0]]])
+
+
+def test_agarose_bundle_export_records_min_total_metadata(tmp_path, monkeypatch):
+    monkeypatch.setitem(
+        sys.modules,
+        "analyze",
+        SimpleNamespace(bucketLenForType=lambda _metric: (10.0, None)),
+    )
+    ratio = np.asarray([[[1.0, np.nan], [0.0, np.nan]]], dtype=float)
+    total = np.asarray([[[2, 1], [2, 0]]], dtype=int)
+    avoid = np.asarray([[[2, 1], [0, 0]]], dtype=int)
+    va = _video_analysis_stub(
+        fn="fake-video",
+        f=7,
+        _skipped=False,
+        noyc=False,
+        trns=[_Training(start=0, stop=10, name="T1")],
+        agarose_dual_circle_counts={"ratio": ratio, "total": total, "avoid": avoid},
+        _numRewardsMsg=lambda *_args, **_kwargs: 5,
+        _syncBucket=lambda _trn, _df: (0, 2, None),
+    )
+    opts = SimpleNamespace(
+        export_group_label="Intact Control>Kir",
+        best_worst_trn=1,
+        sli_use_training_mean=True,
+        sli_select_skip_first_sync_buckets=0,
+        sli_select_keep_first_sync_buckets=0,
+        agarose_dual_circle_min_total=2,
+        agarose_sli_include_pre=False,
+    )
+    out = tmp_path / "agarose_bundle.npz"
+
+    export_agarose_sli_bundle([va], opts, gls=None, out_fn=str(out))
+
+    with np.load(out, allow_pickle=True) as bundle:
+        assert int(bundle["agarose_dual_circle_min_total"]) == 2

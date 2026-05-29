@@ -88,6 +88,33 @@ TURNBACK_RATIO_PRIMARY_KEYS = (
     "turnback_total_ctrl",
 )
 
+AGAROSE_RATIO_KEYS = (
+    "agarose_ratio_exp",
+    "agarose_ratio_ctrl",
+    "agarose_total_exp",
+    "agarose_total_ctrl",
+    "agarose_avoid_exp",
+    "agarose_avoid_ctrl",
+)
+
+AGAROSE_PRE_KEYS = (
+    "agarose_pre_ratio_exp",
+    "agarose_pre_ratio_ctrl",
+    "agarose_pre_total_exp",
+    "agarose_pre_total_ctrl",
+    "agarose_pre_avoid_exp",
+    "agarose_pre_avoid_ctrl",
+)
+
+AGAROSE_TRAINING_PRE_KEYS = (
+    "agarose_training_pre_ratio_exp",
+    "agarose_training_pre_ratio_ctrl",
+    "agarose_training_pre_total_exp",
+    "agarose_training_pre_total_ctrl",
+    "agarose_training_pre_avoid_exp",
+    "agarose_training_pre_avoid_ctrl",
+)
+
 
 def as_scalar(x):
     if isinstance(x, np.ndarray) and x.shape == ():
@@ -482,6 +509,170 @@ def validate_turnback_ratio_bundle(bundle: dict, *, path: str | None = None) -> 
             )
 
 
+def _validate_count_array(
+    bundle: dict,
+    key: str,
+    *,
+    where: str,
+    expected_shape: tuple[int, ...],
+) -> np.ndarray:
+    arr = np.asarray(bundle[key])
+    if arr.shape != expected_shape:
+        raise ValueError(
+            f"Bundle {where} has {key}.shape={arr.shape} "
+            f"but expected {expected_shape}"
+        )
+    arr_float = arr.astype(float)
+    if np.any(~np.isfinite(arr_float)):
+        raise ValueError(f"Bundle {where} has non-finite values in {key}")
+    if np.any(arr_float < 0):
+        raise ValueError(f"Bundle {where} has negative values in {key}")
+    if np.any(arr_float != np.floor(arr_float)):
+        raise ValueError(f"Bundle {where} has non-integer values in {key}")
+    return arr.astype(int, copy=False)
+
+
+def _validate_ratio_count_semantics(
+    bundle: dict,
+    *,
+    where: str,
+    ratio_key: str,
+    avoid_key: str,
+    total_key: str,
+    expected_shape: tuple[int, ...],
+    min_total: int,
+) -> None:
+    ratio = np.asarray(bundle[ratio_key], dtype=float)
+    if ratio.shape != expected_shape:
+        raise ValueError(
+            f"Bundle {where} has {ratio_key}.shape={ratio.shape} "
+            f"but expected {expected_shape}"
+        )
+    if np.any(np.isinf(ratio)):
+        raise ValueError(f"Bundle {where} has infinite values in {ratio_key}")
+    finite = np.isfinite(ratio)
+    if np.any((ratio[finite] < 0.0) | (ratio[finite] > 1.0)):
+        raise ValueError(
+            f"Bundle {where} has out-of-range probabilities in {ratio_key}"
+        )
+
+    avoid = _validate_count_array(
+        bundle, avoid_key, where=where, expected_shape=expected_shape
+    )
+    total = _validate_count_array(
+        bundle, total_key, where=where, expected_shape=expected_shape
+    )
+    if np.any(avoid > total):
+        raise ValueError(f"Bundle {where} has {avoid_key} values greater than totals")
+
+    reportable = total >= int(min_total)
+    if min_total <= 0:
+        reportable = total > 0
+    else:
+        reportable &= total > 0
+
+    if np.any(~np.isfinite(ratio[reportable])):
+        raise ValueError(
+            f"Bundle {where} has non-finite {ratio_key} where total passes "
+            f"reporting threshold {min_total}"
+        )
+    if np.any(np.isfinite(ratio[~reportable])):
+        raise ValueError(
+            f"Bundle {where} has finite {ratio_key} where total is below "
+            f"reporting threshold {min_total}"
+        )
+
+    expected = np.full_like(ratio, np.nan, dtype=float)
+    np.divide(avoid, total, out=expected, where=reportable)
+    both_finite = np.isfinite(ratio) & np.isfinite(expected)
+    if np.any(np.abs(ratio[both_finite] - expected[both_finite]) > 1e-10):
+        raise ValueError(f"Bundle {where} has inconsistent {ratio_key} values")
+
+
+def validate_agarose_sli_bundle(bundle: dict, *, path: str | None = None) -> None:
+    where = _bundle_label(bundle, path)
+    missing = [k for k in AGAROSE_RATIO_KEYS if k not in bundle]
+    if missing:
+        raise ValueError(f"Bundle {where} is missing agarose ratio keys: {missing}")
+
+    expected_shape = _expected_sync_bucket_metric_shape(bundle, where=where)
+    min_total = int(as_scalar(bundle.get("agarose_dual_circle_min_total", 10)))
+    if min_total < 0:
+        raise ValueError(f"Bundle {where} has negative agarose_dual_circle_min_total")
+
+    for suffix in ("exp", "ctrl"):
+        _validate_ratio_count_semantics(
+            bundle,
+            where=where,
+            ratio_key=f"agarose_ratio_{suffix}",
+            avoid_key=f"agarose_avoid_{suffix}",
+            total_key=f"agarose_total_{suffix}",
+            expected_shape=expected_shape,
+            min_total=min_total,
+        )
+
+    present_pre = [k for k in AGAROSE_PRE_KEYS if k in bundle]
+    if present_pre and set(present_pre) != set(AGAROSE_PRE_KEYS):
+        missing_pre = [k for k in AGAROSE_PRE_KEYS if k not in bundle]
+        raise ValueError(
+            f"Bundle {where} has incomplete agarose pre keys: {missing_pre}"
+        )
+    if present_pre:
+        n_videos = expected_shape[0]
+        for suffix in ("exp", "ctrl"):
+            _validate_ratio_count_semantics(
+                bundle,
+                where=where,
+                ratio_key=f"agarose_pre_ratio_{suffix}",
+                avoid_key=f"agarose_pre_avoid_{suffix}",
+                total_key=f"agarose_pre_total_{suffix}",
+                expected_shape=(n_videos,),
+                min_total=min_total,
+            )
+        if "agarose_pre_window_min" in bundle:
+            window_min = float(as_scalar(bundle["agarose_pre_window_min"]))
+            if not np.isfinite(window_min) or window_min < 0.0:
+                raise ValueError(f"Bundle {where} has invalid agarose_pre_window_min")
+
+    present_training_pre = [k for k in AGAROSE_TRAINING_PRE_KEYS if k in bundle]
+    if present_training_pre and set(present_training_pre) != set(
+        AGAROSE_TRAINING_PRE_KEYS
+    ):
+        missing_training_pre = [
+            k for k in AGAROSE_TRAINING_PRE_KEYS if k not in bundle
+        ]
+        raise ValueError(
+            f"Bundle {where} has incomplete agarose training-pre keys: "
+            f"{missing_training_pre}"
+        )
+    if present_training_pre:
+        n_videos, n_trainings, _n_sync_buckets = expected_shape
+        for suffix in ("exp", "ctrl"):
+            _validate_ratio_count_semantics(
+                bundle,
+                where=where,
+                ratio_key=f"agarose_training_pre_ratio_{suffix}",
+                avoid_key=f"agarose_training_pre_avoid_{suffix}",
+                total_key=f"agarose_training_pre_total_{suffix}",
+                expected_shape=(n_videos, n_trainings),
+                min_total=min_total,
+            )
+        if "agarose_training_pre_window_min" in bundle:
+            window_min = np.asarray(
+                bundle["agarose_training_pre_window_min"], dtype=float
+            )
+            if window_min.shape != (n_trainings,):
+                raise ValueError(
+                    f"Bundle {where} has agarose_training_pre_window_min.shape="
+                    f"{window_min.shape} but expected {(n_trainings,)}"
+                )
+            finite = np.isfinite(window_min)
+            if np.any(window_min[finite] < 0.0):
+                raise ValueError(
+                    f"Bundle {where} has negative agarose_training_pre_window_min"
+                )
+
+
 def validate_return_prob_excursion_bin_bundle(
     bundle: dict, *, path: str | None = None
 ) -> None:
@@ -865,6 +1056,8 @@ def normalize_sli_bundle(bundle: dict, *, path: str | None = None) -> dict:
         validate_commag_bundle(out, path=path)
     if any(k in out for k in TURNBACK_RATIO_PRIMARY_KEYS):
         validate_turnback_ratio_bundle(out, path=path)
+    if any(k in out for k in AGAROSE_RATIO_KEYS):
+        validate_agarose_sli_bundle(out, path=path)
     if any(k in out for k in TURNBACK_EXCURSION_BIN_KEYS):
         validate_turnback_excursion_bin_bundle(out, path=path)
     return out

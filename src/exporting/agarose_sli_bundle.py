@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import numpy as np
 
+from src.analysis.sli_bundle_utils import validate_agarose_sli_bundle
 from src.exporting.com_sli_bundle import (
     _compute_sli_scalar_and_timeseries_from_rpid,
     _safe_group_label,
@@ -427,27 +428,39 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
             ),
         }
 
-    os.makedirs(os.path.dirname(out_fn) or ".", exist_ok=True)
-    np.savez_compressed(
-        out_fn,
-        sli=sli,
-        sli_ts=sli_ts,
-        agarose_ratio_exp=ratio_exp,
-        agarose_ratio_ctrl=ratio_ctrl,
-        agarose_total_exp=total_exp,
-        agarose_total_ctrl=total_ctrl,
-        agarose_avoid_exp=avoid_exp,
-        agarose_avoid_ctrl=avoid_ctrl,
-        group_label=np.array(group_label, dtype=object),
-        bucket_len_min=np.array(bucket_len_min, dtype=float),
-        training_names=training_names,
-        video_ids=video_ids,
-        sli_training_idx=np.array(getattr(opts, "best_worst_trn", 1) - 1, dtype=int),
-        sli_use_training_mean=np.array(
+    payload = {
+        "sli": sli,
+        "sli_ts": sli_ts,
+        "agarose_ratio_exp": ratio_exp,
+        "agarose_ratio_ctrl": ratio_ctrl,
+        "agarose_total_exp": total_exp,
+        "agarose_total_ctrl": total_ctrl,
+        "agarose_avoid_exp": avoid_exp,
+        "agarose_avoid_ctrl": avoid_ctrl,
+        "agarose_dual_circle_min_total": np.array(
+            max(0, int(getattr(opts, "agarose_dual_circle_min_total", 10))),
+            dtype=int,
+        ),
+        "group_label": np.array(group_label, dtype=object),
+        "bucket_len_min": np.array(bucket_len_min, dtype=float),
+        "training_names": training_names,
+        "video_ids": video_ids,
+        "sli_training_idx": np.array(getattr(opts, "best_worst_trn", 1) - 1, dtype=int),
+        "sli_use_training_mean": np.array(
             bool(getattr(opts, "sli_use_training_mean", False))
         ),
+        "sli_select_skip_first_sync_buckets": np.array(
+            getattr(opts, "sli_select_skip_first_sync_buckets", 0), dtype=int
+        ),
+        "sli_select_keep_first_sync_buckets": np.array(
+            getattr(opts, "sli_select_keep_first_sync_buckets", 0), dtype=int
+        ),
         **pre_payload,
-    )
+    }
+    validate_agarose_sli_bundle(payload, path=out_fn)
+
+    os.makedirs(os.path.dirname(out_fn) or ".", exist_ok=True)
+    np.savez_compressed(out_fn, **payload)
     print(f"[export] Wrote agarose+SLI bundle: {out_fn} (n={len(vas_ok)})")
     _dbg(
         opts,
