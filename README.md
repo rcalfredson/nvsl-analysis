@@ -362,7 +362,8 @@ python scripts/check_bundle_digest.py check-manifest test/reference/bundles/turn
 python scripts/check_bundle_digest.py check-manifest test/reference/bundles/turnback_excursion_bin_paper_manifest.json
 python scripts/check_bundle_digest.py check-manifest test/reference/bundles/first_n_reward_diagnostics_paper_manifest.json
 ```
-See `test/reference/bundles/README.md` for the workflow used to refresh these
-manifests after an intentional paper-metric output change.
+See the [paper metric bundle manifest README](test/reference/bundles/README.md)
+for the workflow used to refresh these manifests after an intentional
+paper-metric output change.
 
 *Thank you for using `nvsl-analysis`! If you have any feedback or questions, please open an issue on GitHub or email the authors.*
