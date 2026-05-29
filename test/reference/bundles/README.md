@@ -101,4 +101,5 @@ values, shapes, row counts, or selected regression keys changed.
 | `between_reward_return_leg_dist_paper_manifest.json` | `between_reward_return_leg_dist_sli` |
 | `commag_paper_manifest.json` | `commag_sli` |
 | `turnback_ratio_paper_manifest.json` | `turnback_ratio` |
+| `agarose_avoidance_paper_manifest.json` | `agarose_sli` |
 | `first_n_reward_diagnostics_paper_manifest.json` | `first_n_reward_diagnostics` |

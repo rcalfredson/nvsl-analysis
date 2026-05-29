@@ -359,6 +359,7 @@ python scripts/check_bundle_digest.py check-manifest test/reference/bundles/betw
 python scripts/check_bundle_digest.py check-manifest test/reference/bundles/between_reward_return_leg_dist_paper_manifest.json
 python scripts/check_bundle_digest.py check-manifest test/reference/bundles/commag_paper_manifest.json
 python scripts/check_bundle_digest.py check-manifest test/reference/bundles/turnback_ratio_paper_manifest.json
+python scripts/check_bundle_digest.py check-manifest test/reference/bundles/agarose_avoidance_paper_manifest.json
 python scripts/check_bundle_digest.py check-manifest test/reference/bundles/turnback_excursion_bin_paper_manifest.json
 python scripts/check_bundle_digest.py check-manifest test/reference/bundles/first_n_reward_diagnostics_paper_manifest.json
 ```

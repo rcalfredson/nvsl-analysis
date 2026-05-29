@@ -1,0 +1,2773 @@
+{
+  "bundles": [
+    {
+      "arrays": {
+        "agarose_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 1242,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "d1c2bf76cfd8013d112e6905336fc1b3b1b6a526ffc4c1164452b734f87a2a51",
+          "shape": [
+            69,
+            3,
+            6
+          ]
+        },
+        "agarose_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 1242,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "43d648e02e94021871735e369c58ee53c5992b7a8b802d0b4ec674bbb36cdcea",
+          "shape": [
+            69,
+            3,
+            6
+          ]
+        },
+        "agarose_pre_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 69,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "6873e4e878fdb553c5d22baf1a419c19b3cb23bfbad358f0c7f7a45d9664eaea",
+          "shape": [
+            69
+          ]
+        },
+        "agarose_pre_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 69,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "4491fa8a90f638fbf361630f304c4d94adaa6f37aff69abe15c843a5e0aee7fe",
+          "shape": [
+            69
+          ]
+        },
+        "agarose_pre_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "b5988984e41c572fc42838e1d7985032c17f2decc55fea6ca605b658cde76360",
+          "shape": []
+        },
+        "agarose_pre_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 49,
+          "kind": "numeric",
+          "nan_count": 20,
+          "sha256": "e7b54464cde6e30512c91139e12b70a86e002e752e0700d9e8b4996165d199e9",
+          "shape": [
+            69
+          ]
+        },
+        "agarose_pre_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 39,
+          "kind": "numeric",
+          "nan_count": 30,
+          "sha256": "98e7533151ef04443f0b8b7e42e0203e338f764bc941a4d312234f23c27cb02f",
+          "shape": [
+            69
+          ]
+        },
+        "agarose_pre_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 69,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "247d1b90b22d7f840c6d43da9a57736e1f5b0784c71963d46800e01f7bae9ee1",
+          "shape": [
+            69
+          ]
+        },
+        "agarose_pre_total_exp": {
+          "dtype": "int64",
+          "finite_count": 69,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "9dd90ac525f27069fd0dc3ce6c084cd35f0f6fe9067b776b34d0a82451dea201",
+          "shape": [
+            69
+          ]
+        },
+        "agarose_pre_window_min": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "24b1f4ef66b650ff816e519b01742ff1753733d36e1b4c3e3b52743168915b1f",
+          "shape": []
+        },
+        "agarose_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 897,
+          "kind": "numeric",
+          "nan_count": 345,
+          "sha256": "20295fcf56787dfbf7ac93bbe1e89ad70022deee401c2066d026cd62e699c4e4",
+          "shape": [
+            69,
+            3,
+            6
+          ]
+        },
+        "agarose_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 950,
+          "kind": "numeric",
+          "nan_count": 292,
+          "sha256": "d8adbc02a540ee0c494aa9eb0dcc683b0f15089d5f964eebea5adf6e011af88f",
+          "shape": [
+            69,
+            3,
+            6
+          ]
+        },
+        "agarose_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 1242,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "8bfc4c8c2ca82a11930ff6ffa3e6274b67e34ac3bcab93cf75abfd678869da64",
+          "shape": [
+            69,
+            3,
+            6
+          ]
+        },
+        "agarose_total_exp": {
+          "dtype": "int64",
+          "finite_count": 1242,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "3232286d53e9083ca2bad71995065e28a0ca01252e6b766889ef14e7e22dd2bd",
+          "shape": [
+            69,
+            3,
+            6
+          ]
+        },
+        "agarose_training_pre_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 207,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "8c122541e36e09b53a2ab88f6f40a3f956556bd0f4606382de5a6ae829e864b0",
+          "shape": [
+            69,
+            3
+          ]
+        },
+        "agarose_training_pre_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 207,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "ee9c696102c3970d02ac9ee5821a6ff18541f511b4ecfcc3d2de3ce9f8bf1d3a",
+          "shape": [
+            69,
+            3
+          ]
+        },
+        "agarose_training_pre_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "2fce7a7d1eee7ef284ffb0e790a9d9beb1372c1ed9a457c407007d57b753c632",
+          "shape": []
+        },
+        "agarose_training_pre_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 176,
+          "kind": "numeric",
+          "nan_count": 31,
+          "sha256": "8987ba3557d86ef71f543c0c360e1891dd3ea413cedbc6a5810d12720b4ff71d",
+          "shape": [
+            69,
+            3
+          ]
+        },
+        "agarose_training_pre_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 173,
+          "kind": "numeric",
+          "nan_count": 34,
+          "sha256": "54bd1ab2cf2af9922eae2d0df850f79c131177d89594b2dcd0db1b6ddd5df75a",
+          "shape": [
+            69,
+            3
+          ]
+        },
+        "agarose_training_pre_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 207,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "40cba51bb1080db9fc63bf8632b8a07bf20ec2714cd221f877553c092d93bbf3",
+          "shape": [
+            69,
+            3
+          ]
+        },
+        "agarose_training_pre_total_exp": {
+          "dtype": "int64",
+          "finite_count": 207,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "03d194d828cee17b65ef4563d9fdb9737456ed5fe9840e4c2d620bd5ba485ca5",
+          "shape": [
+            69,
+            3
+          ]
+        },
+        "agarose_training_pre_window_min": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b41c0225c3e96e18e870c81c42a8e9af6d4a01a6be55dc780639fc5a92ee069f",
+          "shape": [
+            3
+          ]
+        },
+        "bucket_len_min": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "24b1f4ef66b650ff816e519b01742ff1753733d36e1b4c3e3b52743168915b1f",
+          "shape": []
+        },
+        "group_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "8e9a5272c02ec04b039a591db294fda16bafd6e9fa6215a94cd7970a2b26ce1a",
+          "shape": []
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 59,
+          "kind": "numeric",
+          "nan_count": 10,
+          "sha256": "d4f146168bfc570749fae2db700804b7397e93ec49779dcfa1be61caabffd162",
+          "shape": [
+            69
+          ]
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 847,
+          "kind": "numeric",
+          "nan_count": 395,
+          "sha256": "d0c722c678aba09e7409135f820bc1b95b4938c0ccb9b87cd7658ba6d3230cec",
+          "shape": [
+            69,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "7e6e55368ace86a77858dc00de69db346d86e69c4412689e8d63238c73c9c669",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "object",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 69,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "9242d4fcf88dee42c16d3fd736097f56281fbee20201cd164caa753a22b91071",
+          "shape": [
+            69
+          ]
+        }
+      },
+      "keys": [
+        "agarose_avoid_ctrl",
+        "agarose_avoid_exp",
+        "agarose_pre_avoid_ctrl",
+        "agarose_pre_avoid_exp",
+        "agarose_pre_label",
+        "agarose_pre_ratio_ctrl",
+        "agarose_pre_ratio_exp",
+        "agarose_pre_total_ctrl",
+        "agarose_pre_total_exp",
+        "agarose_pre_window_min",
+        "agarose_ratio_ctrl",
+        "agarose_ratio_exp",
+        "agarose_total_ctrl",
+        "agarose_total_exp",
+        "agarose_training_pre_avoid_ctrl",
+        "agarose_training_pre_avoid_exp",
+        "agarose_training_pre_label",
+        "agarose_training_pre_ratio_ctrl",
+        "agarose_training_pre_ratio_exp",
+        "agarose_training_pre_total_ctrl",
+        "agarose_training_pre_total_exp",
+        "agarose_training_pre_window_min",
+        "bucket_len_min",
+        "group_label",
+        "sli",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_15_agarose_avoid_intact_ctrlKir_flat",
+      "path": "exports/agarose_avoid_1mm_intact_ctrlKir_flatLgc_2026-04-10.npz",
+      "sha256": "3f88e69eaef05c2a11d7df1c840463a52107810af59337b924c6aa49fce82c10",
+      "type": "npz"
+    },
+    {
+      "arrays": {
+        "agarose_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 1260,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "9915267712fdd30fa9a5f2686ad117956487fb17d41e06cb1de71738dec92f0c",
+          "shape": [
+            70,
+            3,
+            6
+          ]
+        },
+        "agarose_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 1260,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "6c8094c46ddea80449a7b21e3cb743b0e10f3b5dac7cc692a96c4425bcd6db00",
+          "shape": [
+            70,
+            3,
+            6
+          ]
+        },
+        "agarose_pre_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 70,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "a459bb9e874a346545aa8e0704e83d92e5596e270f378f7974682d1aa739a9f7",
+          "shape": [
+            70
+          ]
+        },
+        "agarose_pre_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 70,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "3ae2feedee7b06ce7cd2c28392b4bf6ebe5723f7728038d6e71cc0290786bfeb",
+          "shape": [
+            70
+          ]
+        },
+        "agarose_pre_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "b5988984e41c572fc42838e1d7985032c17f2decc55fea6ca605b658cde76360",
+          "shape": []
+        },
+        "agarose_pre_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 46,
+          "kind": "numeric",
+          "nan_count": 24,
+          "sha256": "c6ce83849949905516f039be473b90ffecf931949b071e5e78b9bf7625d3f2c5",
+          "shape": [
+            70
+          ]
+        },
+        "agarose_pre_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 45,
+          "kind": "numeric",
+          "nan_count": 25,
+          "sha256": "7b95bc2debf6e6966bb0a520fc8343ff1140d07a930bc75d813cf169fd14ec48",
+          "shape": [
+            70
+          ]
+        },
+        "agarose_pre_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 70,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "6c7b624cc1e8ab43100ce559ec5d745a13070a1a8bf5aa7731a98814404d5597",
+          "shape": [
+            70
+          ]
+        },
+        "agarose_pre_total_exp": {
+          "dtype": "int64",
+          "finite_count": 70,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "a79df4d29533d2f93fc8de906b5c9cf17d69fca3dfb61646412bb1285eab05f3",
+          "shape": [
+            70
+          ]
+        },
+        "agarose_pre_window_min": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "24b1f4ef66b650ff816e519b01742ff1753733d36e1b4c3e3b52743168915b1f",
+          "shape": []
+        },
+        "agarose_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 839,
+          "kind": "numeric",
+          "nan_count": 421,
+          "sha256": "32383fb8d297fd6bc7955c917b6f093ecfd1e5e4609070480259fc0da5784763",
+          "shape": [
+            70,
+            3,
+            6
+          ]
+        },
+        "agarose_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 879,
+          "kind": "numeric",
+          "nan_count": 381,
+          "sha256": "be3495127a1df8ab95f71cf90fcbbac71e12ec0a636e6114ca474a50c6425951",
+          "shape": [
+            70,
+            3,
+            6
+          ]
+        },
+        "agarose_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 1260,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "58c7cdee7e2c38d09ee5a124cbe5a2281baeaa9aa62c6a0e0b89908ed0874437",
+          "shape": [
+            70,
+            3,
+            6
+          ]
+        },
+        "agarose_total_exp": {
+          "dtype": "int64",
+          "finite_count": 1260,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "d2c4bb8774c3c2aab3c99eace5627d7aa7155cd64c38c37fc2581ac70e2228c5",
+          "shape": [
+            70,
+            3,
+            6
+          ]
+        },
+        "agarose_training_pre_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 210,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "9219a86df03c7db864502739945b1bf924e128908d79a48f7a678363b2b05995",
+          "shape": [
+            70,
+            3
+          ]
+        },
+        "agarose_training_pre_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 210,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "23e00d68f16ccb65280b70333772ee783280b20b78adc9c3a55cea60cb12e0ba",
+          "shape": [
+            70,
+            3
+          ]
+        },
+        "agarose_training_pre_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "2fce7a7d1eee7ef284ffb0e790a9d9beb1372c1ed9a457c407007d57b753c632",
+          "shape": []
+        },
+        "agarose_training_pre_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 166,
+          "kind": "numeric",
+          "nan_count": 44,
+          "sha256": "7e7e700d1b61b487eae3be911fe58264c0ed6bff85db09cfcf0de372b91ecb40",
+          "shape": [
+            70,
+            3
+          ]
+        },
+        "agarose_training_pre_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 174,
+          "kind": "numeric",
+          "nan_count": 36,
+          "sha256": "73cd2e19d44cb1e2865a8aaac722c62eb31a521beb2e726fe781ef1f5e317b35",
+          "shape": [
+            70,
+            3
+          ]
+        },
+        "agarose_training_pre_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 210,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "233e6224226540ee377e5a5f073d3b47ab87ac5b0309bfbe1f32c911ef2f79d2",
+          "shape": [
+            70,
+            3
+          ]
+        },
+        "agarose_training_pre_total_exp": {
+          "dtype": "int64",
+          "finite_count": 210,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "41cdbee58fc56033657e0b5e452befb4de523c3f014c6e564a214b2f46bd3b49",
+          "shape": [
+            70,
+            3
+          ]
+        },
+        "agarose_training_pre_window_min": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b41c0225c3e96e18e870c81c42a8e9af6d4a01a6be55dc780639fc5a92ee069f",
+          "shape": [
+            3
+          ]
+        },
+        "bucket_len_min": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "24b1f4ef66b650ff816e519b01742ff1753733d36e1b4c3e3b52743168915b1f",
+          "shape": []
+        },
+        "group_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "a4cad8fde309f3f989b2a3ead41ab0499b5bf7a2556bf8b6ed1f0b2992c9ca28",
+          "shape": []
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 46,
+          "kind": "numeric",
+          "nan_count": 24,
+          "sha256": "2e763d5f1af907f2393878108ab2494aadf40601d27fd04b99e25b9cd1db8de8",
+          "shape": [
+            70
+          ]
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 725,
+          "kind": "numeric",
+          "nan_count": 535,
+          "sha256": "a150bb57d279d662974e4b7bac6d2e10e9e0429ea505a20ee465e7b0baba35d2",
+          "shape": [
+            70,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "7e6e55368ace86a77858dc00de69db346d86e69c4412689e8d63238c73c9c669",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "object",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 70,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "ecf5acae59ab4b33174263f089c0f599ea1db072cc6fd69841163681556fd85d",
+          "shape": [
+            70
+          ]
+        }
+      },
+      "keys": [
+        "agarose_avoid_ctrl",
+        "agarose_avoid_exp",
+        "agarose_pre_avoid_ctrl",
+        "agarose_pre_avoid_exp",
+        "agarose_pre_label",
+        "agarose_pre_ratio_ctrl",
+        "agarose_pre_ratio_exp",
+        "agarose_pre_total_ctrl",
+        "agarose_pre_total_exp",
+        "agarose_pre_window_min",
+        "agarose_ratio_ctrl",
+        "agarose_ratio_exp",
+        "agarose_total_ctrl",
+        "agarose_total_exp",
+        "agarose_training_pre_avoid_ctrl",
+        "agarose_training_pre_avoid_exp",
+        "agarose_training_pre_label",
+        "agarose_training_pre_ratio_ctrl",
+        "agarose_training_pre_ratio_exp",
+        "agarose_training_pre_total_ctrl",
+        "agarose_training_pre_total_exp",
+        "agarose_training_pre_window_min",
+        "bucket_len_min",
+        "group_label",
+        "sli",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_15_agarose_avoid_intact_ctrlKir_agarose",
+      "path": "exports/agarose_avoid_1mm_intact_ctrlKir_agaroseLgc_2026-04-10.npz",
+      "sha256": "b2bbd60179d255bbbc9799cf911eef76465568b3578a45be40e05ee181275687",
+      "type": "npz"
+    },
+    {
+      "arrays": {
+        "agarose_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 1188,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b15679d17aec7634a139bb0fc05a19422b3616523a56e4fe0c6d456245610ace",
+          "shape": [
+            66,
+            3,
+            6
+          ]
+        },
+        "agarose_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 1188,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "e60870064dff662ff8dec0d60d2bf8dd27fac38dc5e76291a7984e2c948e610c",
+          "shape": [
+            66,
+            3,
+            6
+          ]
+        },
+        "agarose_pre_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 66,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "83f3c5799fb3e674e8853daf0e0546716baf4b1e353eb353730df469a03d24b0",
+          "shape": [
+            66
+          ]
+        },
+        "agarose_pre_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 66,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "4c2710c48957f5307b96517dbc89842064a219303c0374f2c79fa56df556d9ec",
+          "shape": [
+            66
+          ]
+        },
+        "agarose_pre_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "b5988984e41c572fc42838e1d7985032c17f2decc55fea6ca605b658cde76360",
+          "shape": []
+        },
+        "agarose_pre_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 36,
+          "kind": "numeric",
+          "nan_count": 30,
+          "sha256": "5d736b98a7ccb36d324fd54546712a910443a54cb51fbb451a963ee89253fe99",
+          "shape": [
+            66
+          ]
+        },
+        "agarose_pre_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 40,
+          "kind": "numeric",
+          "nan_count": 26,
+          "sha256": "46ed9604a923fdce093e065c61d09d1d7409629918ee2e554369d8b6240ba6b5",
+          "shape": [
+            66
+          ]
+        },
+        "agarose_pre_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 66,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "2f4c8e37f0bedd0e6a60d4f265d91d72ec3a9fe00e8602122a5e21b6f1e696e4",
+          "shape": [
+            66
+          ]
+        },
+        "agarose_pre_total_exp": {
+          "dtype": "int64",
+          "finite_count": 66,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "d0eff36b471b30bf72baf056d850b0580e551db56435837f42e6c6747562f2f1",
+          "shape": [
+            66
+          ]
+        },
+        "agarose_pre_window_min": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "24b1f4ef66b650ff816e519b01742ff1753733d36e1b4c3e3b52743168915b1f",
+          "shape": []
+        },
+        "agarose_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 800,
+          "kind": "numeric",
+          "nan_count": 388,
+          "sha256": "8b3657103ecd797fc489eb4fd72e576754fbb9818f0825645219cccfcffdac32",
+          "shape": [
+            66,
+            3,
+            6
+          ]
+        },
+        "agarose_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 888,
+          "kind": "numeric",
+          "nan_count": 300,
+          "sha256": "431e491a364cc1c424a13b4ca8e5de06233e599255242a5eb447140d3ebfb1ba",
+          "shape": [
+            66,
+            3,
+            6
+          ]
+        },
+        "agarose_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 1188,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "e80c5cd4d879a794e8c5460a647f121252d3842c4a62fdcf8362baa064f543dd",
+          "shape": [
+            66,
+            3,
+            6
+          ]
+        },
+        "agarose_total_exp": {
+          "dtype": "int64",
+          "finite_count": 1188,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "85d9f198c7dc9b7464141965205c31461df5fe9015474eda652c5baab0ba675c",
+          "shape": [
+            66,
+            3,
+            6
+          ]
+        },
+        "agarose_training_pre_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 198,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "040097f1ce9593032d917be4acdd6b7daf8bf9dc7257a61931facec72f45a278",
+          "shape": [
+            66,
+            3
+          ]
+        },
+        "agarose_training_pre_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 198,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "f1db83e00ccc78b795a8016990575cd8459433b575ba2681323f8f1113abf0fd",
+          "shape": [
+            66,
+            3
+          ]
+        },
+        "agarose_training_pre_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "2fce7a7d1eee7ef284ffb0e790a9d9beb1372c1ed9a457c407007d57b753c632",
+          "shape": []
+        },
+        "agarose_training_pre_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 149,
+          "kind": "numeric",
+          "nan_count": 49,
+          "sha256": "5669acfe66760424e0bb7e992d0ba723c5278ecfa635aa31a39c41ecf02f273f",
+          "shape": [
+            66,
+            3
+          ]
+        },
+        "agarose_training_pre_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 164,
+          "kind": "numeric",
+          "nan_count": 34,
+          "sha256": "f0b4b8c4f4055c32f604b51a61611d421ca655e906f0e807b5cf3d60408f5fa5",
+          "shape": [
+            66,
+            3
+          ]
+        },
+        "agarose_training_pre_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 198,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "6ac1731b448b9d860d80fbdd219aeffd97f107162d4caa9c6ea67ae7922b2c4c",
+          "shape": [
+            66,
+            3
+          ]
+        },
+        "agarose_training_pre_total_exp": {
+          "dtype": "int64",
+          "finite_count": 198,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "acd21c79dddc13d247ccae7a93e5823f7baefeb1946c0158d243203e3300f6f2",
+          "shape": [
+            66,
+            3
+          ]
+        },
+        "agarose_training_pre_window_min": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b41c0225c3e96e18e870c81c42a8e9af6d4a01a6be55dc780639fc5a92ee069f",
+          "shape": [
+            3
+          ]
+        },
+        "bucket_len_min": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "24b1f4ef66b650ff816e519b01742ff1753733d36e1b4c3e3b52743168915b1f",
+          "shape": []
+        },
+        "group_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "f5c0a07f74cd084e052f5d9264dbb39ab23cb7e94463ca4a29600ffe2331c01c",
+          "shape": []
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 45,
+          "kind": "numeric",
+          "nan_count": 21,
+          "sha256": "e99fdaeda4dd0addc72eb5d2ad9eb71c32292d4ea1bc16e85747b1f3035559b8",
+          "shape": [
+            66
+          ]
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 714,
+          "kind": "numeric",
+          "nan_count": 474,
+          "sha256": "a05bc6b4630ede45a61d098b7f71e3ff9c709731ea20869503b9b78c35bee2fa",
+          "shape": [
+            66,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "7e6e55368ace86a77858dc00de69db346d86e69c4412689e8d63238c73c9c669",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "object",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 66,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "b08398ff7eed90d810d604ccae4cf8f80597ffc45c14ad4a90d57238fc3c22d0",
+          "shape": [
+            66
+          ]
+        }
+      },
+      "keys": [
+        "agarose_avoid_ctrl",
+        "agarose_avoid_exp",
+        "agarose_pre_avoid_ctrl",
+        "agarose_pre_avoid_exp",
+        "agarose_pre_label",
+        "agarose_pre_ratio_ctrl",
+        "agarose_pre_ratio_exp",
+        "agarose_pre_total_ctrl",
+        "agarose_pre_total_exp",
+        "agarose_pre_window_min",
+        "agarose_ratio_ctrl",
+        "agarose_ratio_exp",
+        "agarose_total_ctrl",
+        "agarose_total_exp",
+        "agarose_training_pre_avoid_ctrl",
+        "agarose_training_pre_avoid_exp",
+        "agarose_training_pre_label",
+        "agarose_training_pre_ratio_ctrl",
+        "agarose_training_pre_ratio_exp",
+        "agarose_training_pre_total_ctrl",
+        "agarose_training_pre_total_exp",
+        "agarose_training_pre_window_min",
+        "bucket_len_min",
+        "group_label",
+        "sli",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_15_agarose_avoid_ar_ctrlKir_flat",
+      "path": "exports/agarose_avoid_1mm_ar_ctrlKir_flatLgc_2026-04-10.npz",
+      "sha256": "6cc9852f2c89e41a7ec4ce1c471adba2a36feaab52758b124e27f6a9e6ac25b1",
+      "type": "npz"
+    },
+    {
+      "arrays": {
+        "agarose_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 1152,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "d95b06720beb0805d82994545888bc153eef5b8ac68a674c32284e2adc1f3b48",
+          "shape": [
+            64,
+            3,
+            6
+          ]
+        },
+        "agarose_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 1152,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "6e56afeccc1bfc9cc2b7d1fd107e75a32e0d5669df8a5d6a554903f6d96a62e9",
+          "shape": [
+            64,
+            3,
+            6
+          ]
+        },
+        "agarose_pre_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 64,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "defaf9f65ac02da0033e5df720aa91f2ec0bc4bea124567b5bfd4546dd26f55b",
+          "shape": [
+            64
+          ]
+        },
+        "agarose_pre_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 64,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "3c9a199aad56a62f550113ac48a640b4bb0d226e4860ae845d50219b03166fc8",
+          "shape": [
+            64
+          ]
+        },
+        "agarose_pre_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "b5988984e41c572fc42838e1d7985032c17f2decc55fea6ca605b658cde76360",
+          "shape": []
+        },
+        "agarose_pre_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 31,
+          "kind": "numeric",
+          "nan_count": 33,
+          "sha256": "1be7594c350be5c4d70f3e06655bc95e749ae0718aab88f42e887bc67c902c9f",
+          "shape": [
+            64
+          ]
+        },
+        "agarose_pre_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 33,
+          "kind": "numeric",
+          "nan_count": 31,
+          "sha256": "11e7b17d68a3dd3546782dfe88ebe200b6d0116bb3e30448bdf7b45d08b9c50f",
+          "shape": [
+            64
+          ]
+        },
+        "agarose_pre_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 64,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "254afa7b091a9ab55e37027e259f7bcc963704fd827e805a957f18c7d1fe7101",
+          "shape": [
+            64
+          ]
+        },
+        "agarose_pre_total_exp": {
+          "dtype": "int64",
+          "finite_count": 64,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "af8db634dd2e51b0ba8532d6634b6b4ebf7a8e1963d48cf6248eb91b34a9e327",
+          "shape": [
+            64
+          ]
+        },
+        "agarose_pre_window_min": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "24b1f4ef66b650ff816e519b01742ff1753733d36e1b4c3e3b52743168915b1f",
+          "shape": []
+        },
+        "agarose_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 755,
+          "kind": "numeric",
+          "nan_count": 397,
+          "sha256": "37df5310c358794ddcf4c10a6fedb34278d43282ab35894db83f4b9c054b94fb",
+          "shape": [
+            64,
+            3,
+            6
+          ]
+        },
+        "agarose_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 836,
+          "kind": "numeric",
+          "nan_count": 316,
+          "sha256": "181812a05dfbc05dc449d19f41f0e3ec6d416bbca6686e7d020964090628300e",
+          "shape": [
+            64,
+            3,
+            6
+          ]
+        },
+        "agarose_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 1152,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "ccd94cd6a53a40436fc5a79659d2ea4ae92cb988bc56cde7fe0507f93b005d80",
+          "shape": [
+            64,
+            3,
+            6
+          ]
+        },
+        "agarose_total_exp": {
+          "dtype": "int64",
+          "finite_count": 1152,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "2703fb43c0b3df37ab2f249bc9310f218bb2b6ed4a50cf605fd7066bfbdf4a34",
+          "shape": [
+            64,
+            3,
+            6
+          ]
+        },
+        "agarose_training_pre_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 192,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "a23ef182bece08873f08e85c025773ff988e8c844d8f6c8f16e08419faa6b9a5",
+          "shape": [
+            64,
+            3
+          ]
+        },
+        "agarose_training_pre_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 192,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "711d1677845886c5e61f06f4ccadde9b6aa9810c50e3b152b207488314e8d0e3",
+          "shape": [
+            64,
+            3
+          ]
+        },
+        "agarose_training_pre_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "2fce7a7d1eee7ef284ffb0e790a9d9beb1372c1ed9a457c407007d57b753c632",
+          "shape": []
+        },
+        "agarose_training_pre_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 146,
+          "kind": "numeric",
+          "nan_count": 46,
+          "sha256": "dd136ec19110efc4dcecebf66321f01bbc78e9056652a551597fc6f3386d0c00",
+          "shape": [
+            64,
+            3
+          ]
+        },
+        "agarose_training_pre_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 150,
+          "kind": "numeric",
+          "nan_count": 42,
+          "sha256": "7b05bfe31b56dab4866b19c42018b2c07ee2a8719f9759a3acc9f1047fafbc0d",
+          "shape": [
+            64,
+            3
+          ]
+        },
+        "agarose_training_pre_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 192,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "d7b92039023d70c876d3aed86ef04b2afd4f4515fbc3d51c1b7c465f1a34166c",
+          "shape": [
+            64,
+            3
+          ]
+        },
+        "agarose_training_pre_total_exp": {
+          "dtype": "int64",
+          "finite_count": 192,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "df3b79202e8fa979c122fad90657bdc802a5eef851a88956615b1768d705bdd4",
+          "shape": [
+            64,
+            3
+          ]
+        },
+        "agarose_training_pre_window_min": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b41c0225c3e96e18e870c81c42a8e9af6d4a01a6be55dc780639fc5a92ee069f",
+          "shape": [
+            3
+          ]
+        },
+        "bucket_len_min": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "24b1f4ef66b650ff816e519b01742ff1753733d36e1b4c3e3b52743168915b1f",
+          "shape": []
+        },
+        "group_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "92d1aa72852de059939beefe3f8226ee2bb60e2bdd2e1d19f2300f61de351885",
+          "shape": []
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 45,
+          "kind": "numeric",
+          "nan_count": 19,
+          "sha256": "79af20d1341a0c54d927d20c38138be2d34590efb1e6936b29955948763ba210",
+          "shape": [
+            64
+          ]
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 646,
+          "kind": "numeric",
+          "nan_count": 506,
+          "sha256": "9f4db91fc936eaa76890fd1ea44caff7294ec7814c385fcd11be2bf43845fc05",
+          "shape": [
+            64,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "7e6e55368ace86a77858dc00de69db346d86e69c4412689e8d63238c73c9c669",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "object",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 64,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "b4681f0b7714818b0beff460bd7706e2f3f881138fa093b0fafb9410a73dbe5e",
+          "shape": [
+            64
+          ]
+        }
+      },
+      "keys": [
+        "agarose_avoid_ctrl",
+        "agarose_avoid_exp",
+        "agarose_pre_avoid_ctrl",
+        "agarose_pre_avoid_exp",
+        "agarose_pre_label",
+        "agarose_pre_ratio_ctrl",
+        "agarose_pre_ratio_exp",
+        "agarose_pre_total_ctrl",
+        "agarose_pre_total_exp",
+        "agarose_pre_window_min",
+        "agarose_ratio_ctrl",
+        "agarose_ratio_exp",
+        "agarose_total_ctrl",
+        "agarose_total_exp",
+        "agarose_training_pre_avoid_ctrl",
+        "agarose_training_pre_avoid_exp",
+        "agarose_training_pre_label",
+        "agarose_training_pre_ratio_ctrl",
+        "agarose_training_pre_ratio_exp",
+        "agarose_training_pre_total_ctrl",
+        "agarose_training_pre_total_exp",
+        "agarose_training_pre_window_min",
+        "bucket_len_min",
+        "group_label",
+        "sli",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_15_agarose_avoid_ar_ctrlKir_agarose",
+      "path": "exports/agarose_avoid_1mm_ar_ctrlKir_agaroseLgc_2026-04-10.npz",
+      "sha256": "b977bda44ed98c18de136c8ee71e9de6172266a5bf0c8011614c6603636a6580",
+      "type": "npz"
+    },
+    {
+      "arrays": {
+        "agarose_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 1098,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "034ac749f8a3f350fd8f5b87edfeecb2b385ae5b80bbf2b37e5a058f270d268e",
+          "shape": [
+            61,
+            3,
+            6
+          ]
+        },
+        "agarose_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 1098,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "023b720127da8879d41300676a40233b88ca1197e21c94787f57f3ca9c6241ef",
+          "shape": [
+            61,
+            3,
+            6
+          ]
+        },
+        "agarose_pre_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 61,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "a8fdb8da195878b300259f9f57115a6cb53cbc0b8fab03126e58d589a5cba20c",
+          "shape": [
+            61
+          ]
+        },
+        "agarose_pre_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 61,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "67d6c8160043fab442fb78c648d64f89ec0ee91fce3aeed19e752bb936d83b23",
+          "shape": [
+            61
+          ]
+        },
+        "agarose_pre_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "b5988984e41c572fc42838e1d7985032c17f2decc55fea6ca605b658cde76360",
+          "shape": []
+        },
+        "agarose_pre_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 35,
+          "kind": "numeric",
+          "nan_count": 26,
+          "sha256": "ccdf37b0eb6d97c9bb3b7cf96f14f476d32395f0a202b466811fdf7ad63f4338",
+          "shape": [
+            61
+          ]
+        },
+        "agarose_pre_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 31,
+          "kind": "numeric",
+          "nan_count": 30,
+          "sha256": "7a29e096cf695d7d0bf6ca7b42960a4b73af850057bb618d5bcb2a33acde12d6",
+          "shape": [
+            61
+          ]
+        },
+        "agarose_pre_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 61,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "fa5fd18e0b2e45ea0b9574e58fa84c9ac609756c06d5ebf1d10c0ba3dfeddc06",
+          "shape": [
+            61
+          ]
+        },
+        "agarose_pre_total_exp": {
+          "dtype": "int64",
+          "finite_count": 61,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "4a5887f416a2cbc2cbab0239efa53fad6ada473ddc68d05750a0214477626c7a",
+          "shape": [
+            61
+          ]
+        },
+        "agarose_pre_window_min": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "24b1f4ef66b650ff816e519b01742ff1753733d36e1b4c3e3b52743168915b1f",
+          "shape": []
+        },
+        "agarose_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 757,
+          "kind": "numeric",
+          "nan_count": 341,
+          "sha256": "f6bed966d0392e65efbb6a926d2c4ca543f1ef473adda620e65396e54fffa1fb",
+          "shape": [
+            61,
+            3,
+            6
+          ]
+        },
+        "agarose_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 820,
+          "kind": "numeric",
+          "nan_count": 278,
+          "sha256": "4e0c9fef6e0ebbbec629159d1be282a4858c2446ede5b6772bc8772c64076628",
+          "shape": [
+            61,
+            3,
+            6
+          ]
+        },
+        "agarose_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 1098,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "11fc097f3b0be687624307d999b62ae26985d67b3981acee3e8f1db16f4c53b1",
+          "shape": [
+            61,
+            3,
+            6
+          ]
+        },
+        "agarose_total_exp": {
+          "dtype": "int64",
+          "finite_count": 1098,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "64d3874142d1bdd25f9b7c163e2c79a898feec2152703b2e8b242b9cc51868ef",
+          "shape": [
+            61,
+            3,
+            6
+          ]
+        },
+        "agarose_training_pre_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 183,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "5692a1220499469a73faca262bc2f6c308c7fbb873704b8acadc887e3a4cd875",
+          "shape": [
+            61,
+            3
+          ]
+        },
+        "agarose_training_pre_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 183,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "cd64264ec015f53bf4ee6c57708f2ba5205eb99b539bfc1c1f6be0e3d606dd7e",
+          "shape": [
+            61,
+            3
+          ]
+        },
+        "agarose_training_pre_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "2fce7a7d1eee7ef284ffb0e790a9d9beb1372c1ed9a457c407007d57b753c632",
+          "shape": []
+        },
+        "agarose_training_pre_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 141,
+          "kind": "numeric",
+          "nan_count": 42,
+          "sha256": "1ff90f728ea77f17b2a546490405cea4d28380569194e8566ecba8cf73895f33",
+          "shape": [
+            61,
+            3
+          ]
+        },
+        "agarose_training_pre_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 147,
+          "kind": "numeric",
+          "nan_count": 36,
+          "sha256": "926b2635f59cbf7248c8316b50d5a0f954a55277a3a2afc026e26509ab0a9b5b",
+          "shape": [
+            61,
+            3
+          ]
+        },
+        "agarose_training_pre_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 183,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "550fedbfdee459196edff827f2ed53c908e14c3abe6771fdb8038e55508cc9db",
+          "shape": [
+            61,
+            3
+          ]
+        },
+        "agarose_training_pre_total_exp": {
+          "dtype": "int64",
+          "finite_count": 183,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "4733892ae9ceb09d6e536749efd677e312596291934291c251abc3e4c071f75b",
+          "shape": [
+            61,
+            3
+          ]
+        },
+        "agarose_training_pre_window_min": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b41c0225c3e96e18e870c81c42a8e9af6d4a01a6be55dc780639fc5a92ee069f",
+          "shape": [
+            3
+          ]
+        },
+        "bucket_len_min": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "24b1f4ef66b650ff816e519b01742ff1753733d36e1b4c3e3b52743168915b1f",
+          "shape": []
+        },
+        "group_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "442fb87346d53c659207fc7463aa95d5df261121f14d3ee5f34aa286777730f9",
+          "shape": []
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 47,
+          "kind": "numeric",
+          "nan_count": 14,
+          "sha256": "694602188ab13a64aa228e22f24a855e0d93144844ddc21ed826e10fd92fbd39",
+          "shape": [
+            61
+          ]
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 698,
+          "kind": "numeric",
+          "nan_count": 400,
+          "sha256": "f5342732a54f3cb0c3c3884976e0e5d0bd15138d5ae0b3f1172b081e117c4646",
+          "shape": [
+            61,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "7e6e55368ace86a77858dc00de69db346d86e69c4412689e8d63238c73c9c669",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "object",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 61,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "abf0dc060c8feb451a3d022a7f25453b53789fa16b561d0ef5ef2091680dca6e",
+          "shape": [
+            61
+          ]
+        }
+      },
+      "keys": [
+        "agarose_avoid_ctrl",
+        "agarose_avoid_exp",
+        "agarose_pre_avoid_ctrl",
+        "agarose_pre_avoid_exp",
+        "agarose_pre_label",
+        "agarose_pre_ratio_ctrl",
+        "agarose_pre_ratio_exp",
+        "agarose_pre_total_ctrl",
+        "agarose_pre_total_exp",
+        "agarose_pre_window_min",
+        "agarose_ratio_ctrl",
+        "agarose_ratio_exp",
+        "agarose_total_ctrl",
+        "agarose_total_exp",
+        "agarose_training_pre_avoid_ctrl",
+        "agarose_training_pre_avoid_exp",
+        "agarose_training_pre_label",
+        "agarose_training_pre_ratio_ctrl",
+        "agarose_training_pre_ratio_exp",
+        "agarose_training_pre_total_ctrl",
+        "agarose_training_pre_total_exp",
+        "agarose_training_pre_window_min",
+        "bucket_len_min",
+        "group_label",
+        "sli",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_15_agarose_avoid_intact_pfnKir_flat",
+      "path": "exports/agarose_avoid_1mm_intact_pfnKir_flatLgc_2026-04-10.npz",
+      "sha256": "3a114e9e73eb6026dc4534d3cd2456447dce62f72cfe6f5ff0632c3c730bf359",
+      "type": "npz"
+    },
+    {
+      "arrays": {
+        "agarose_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 1224,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b3f97f8166454c0d8f237670cfd2822e6078d7b5da2b0c53b1b41a119a4b9c82",
+          "shape": [
+            68,
+            3,
+            6
+          ]
+        },
+        "agarose_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 1224,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "a7285ec2d446ab40062fe8035fd5d62bf4f80e6310fc9b0bcc0ce142f933539a",
+          "shape": [
+            68,
+            3,
+            6
+          ]
+        },
+        "agarose_pre_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 68,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "8e1a7efe0fa3194e7f6d3424f7b41ea3cbf448aa111fe2aad31c15f75b1c5cfb",
+          "shape": [
+            68
+          ]
+        },
+        "agarose_pre_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 68,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "8254c3432030934f56060dada1ad64b60fcb13331ac6f9a1a467276ae5677e0e",
+          "shape": [
+            68
+          ]
+        },
+        "agarose_pre_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "b5988984e41c572fc42838e1d7985032c17f2decc55fea6ca605b658cde76360",
+          "shape": []
+        },
+        "agarose_pre_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 49,
+          "kind": "numeric",
+          "nan_count": 19,
+          "sha256": "6e305e528ca1a3b8c77522b4b85d7c17a69d6fc16b0e41c530f72c366f76a37d",
+          "shape": [
+            68
+          ]
+        },
+        "agarose_pre_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 48,
+          "kind": "numeric",
+          "nan_count": 20,
+          "sha256": "ffa530d51c552ec7fc6da7c1e0fc0bfcfc29b8ac68fbe85a92e5c43954376ab6",
+          "shape": [
+            68
+          ]
+        },
+        "agarose_pre_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 68,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "d49de724262621a3d67f719ffc1430512b735bd293e4e456556485c9148841d4",
+          "shape": [
+            68
+          ]
+        },
+        "agarose_pre_total_exp": {
+          "dtype": "int64",
+          "finite_count": 68,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "58c366a899ad54f5b1ea08de9a9dc7f7d516cd111157ecb42776052388cefc8e",
+          "shape": [
+            68
+          ]
+        },
+        "agarose_pre_window_min": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "24b1f4ef66b650ff816e519b01742ff1753733d36e1b4c3e3b52743168915b1f",
+          "shape": []
+        },
+        "agarose_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 876,
+          "kind": "numeric",
+          "nan_count": 348,
+          "sha256": "856c5ccf171fd21387cfd9454ce2302d5513dacb29883e87f648affe2a8738af",
+          "shape": [
+            68,
+            3,
+            6
+          ]
+        },
+        "agarose_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 941,
+          "kind": "numeric",
+          "nan_count": 283,
+          "sha256": "8c246dd87f1c1b0831fd8f7cb372ad6d5a5d72bddeaea3b12a4b1a0e78cbc926",
+          "shape": [
+            68,
+            3,
+            6
+          ]
+        },
+        "agarose_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 1224,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "d79ef0b0bf5b1500376dd232c55b46ebeedc6bac41b0649b755308ec83091377",
+          "shape": [
+            68,
+            3,
+            6
+          ]
+        },
+        "agarose_total_exp": {
+          "dtype": "int64",
+          "finite_count": 1224,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "53f13bec46df7b33974d4b916de905bd2b2f77e1574159475ace2d7636381c66",
+          "shape": [
+            68,
+            3,
+            6
+          ]
+        },
+        "agarose_training_pre_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 204,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "9f40a671908b9ae4a7457f5fbe673e4a1b4fdcc7a61dc20f821a8ff64fe0391b",
+          "shape": [
+            68,
+            3
+          ]
+        },
+        "agarose_training_pre_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 204,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "204b6d821862b315f52ede8125746aa44759f779af050f9796f572b07403486f",
+          "shape": [
+            68,
+            3
+          ]
+        },
+        "agarose_training_pre_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "2fce7a7d1eee7ef284ffb0e790a9d9beb1372c1ed9a457c407007d57b753c632",
+          "shape": []
+        },
+        "agarose_training_pre_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 158,
+          "kind": "numeric",
+          "nan_count": 46,
+          "sha256": "07bb1a9e86b360b02a2f6790c2244ee70340fc822a8dfb85373c27c79610f6d9",
+          "shape": [
+            68,
+            3
+          ]
+        },
+        "agarose_training_pre_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 175,
+          "kind": "numeric",
+          "nan_count": 29,
+          "sha256": "9d6fbb32e0194bfc65159f12d6a12306b3331be4455e00072d2897c514637551",
+          "shape": [
+            68,
+            3
+          ]
+        },
+        "agarose_training_pre_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 204,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "1bdfabf579a72514ec0d0114861464ec21042bba5078aaf32637d9a4dc30c6c9",
+          "shape": [
+            68,
+            3
+          ]
+        },
+        "agarose_training_pre_total_exp": {
+          "dtype": "int64",
+          "finite_count": 204,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "a1dcbc5c4518d9761784284f01a46bf66dce43be9339516d0718f6bb67eb10a5",
+          "shape": [
+            68,
+            3
+          ]
+        },
+        "agarose_training_pre_window_min": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b41c0225c3e96e18e870c81c42a8e9af6d4a01a6be55dc780639fc5a92ee069f",
+          "shape": [
+            3
+          ]
+        },
+        "bucket_len_min": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "24b1f4ef66b650ff816e519b01742ff1753733d36e1b4c3e3b52743168915b1f",
+          "shape": []
+        },
+        "group_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "36120744ee171c62a1776c7b88b40ce08381af3e8b7bdaa64d109654fc96fe3f",
+          "shape": []
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 50,
+          "kind": "numeric",
+          "nan_count": 18,
+          "sha256": "6955ff8e7f4783c9d8ebc1361b1be8d15cf9edd6aff61d10066e13805a241ac6",
+          "shape": [
+            68
+          ]
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 805,
+          "kind": "numeric",
+          "nan_count": 419,
+          "sha256": "9c09b496e7a2e5fecef72084575c4270cb93de95e08ffe4f2ec698942d9efd92",
+          "shape": [
+            68,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "7e6e55368ace86a77858dc00de69db346d86e69c4412689e8d63238c73c9c669",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "object",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 68,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "de65ed6b074433adc765e0f5f8da4a7ba8133eaf717cc1fcb571ec7eb70ce211",
+          "shape": [
+            68
+          ]
+        }
+      },
+      "keys": [
+        "agarose_avoid_ctrl",
+        "agarose_avoid_exp",
+        "agarose_pre_avoid_ctrl",
+        "agarose_pre_avoid_exp",
+        "agarose_pre_label",
+        "agarose_pre_ratio_ctrl",
+        "agarose_pre_ratio_exp",
+        "agarose_pre_total_ctrl",
+        "agarose_pre_total_exp",
+        "agarose_pre_window_min",
+        "agarose_ratio_ctrl",
+        "agarose_ratio_exp",
+        "agarose_total_ctrl",
+        "agarose_total_exp",
+        "agarose_training_pre_avoid_ctrl",
+        "agarose_training_pre_avoid_exp",
+        "agarose_training_pre_label",
+        "agarose_training_pre_ratio_ctrl",
+        "agarose_training_pre_ratio_exp",
+        "agarose_training_pre_total_ctrl",
+        "agarose_training_pre_total_exp",
+        "agarose_training_pre_window_min",
+        "bucket_len_min",
+        "group_label",
+        "sli",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_15_agarose_avoid_intact_pfnKir_agarose",
+      "path": "exports/agarose_avoid_1mm_intact_pfnKir_agaroseLgc_2026-04-10.npz",
+      "sha256": "04df6eb95717db1a2c17e5e96f0a2619d128a3879ada8e5f048fb3e690270d0c",
+      "type": "npz"
+    },
+    {
+      "arrays": {
+        "agarose_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 936,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "eaa273a2d21b2165ff9855c723eb0541e1a388988943d907f27408a85b295de4",
+          "shape": [
+            52,
+            3,
+            6
+          ]
+        },
+        "agarose_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 936,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "6242ff8f23ccf66d4514d749424edf2e2b93e5a63f1d456ac7c4b455b075d5c6",
+          "shape": [
+            52,
+            3,
+            6
+          ]
+        },
+        "agarose_pre_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 52,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "4d5dab7f20d27f14b954d54237dd5463b35dc25835b000b8aa48bc81c2d7eaa9",
+          "shape": [
+            52
+          ]
+        },
+        "agarose_pre_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 52,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "5a9350f4b5c8223d8d18ce76d01351997bc360ad5f4811bf0b6d62d5c206dcb1",
+          "shape": [
+            52
+          ]
+        },
+        "agarose_pre_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "b5988984e41c572fc42838e1d7985032c17f2decc55fea6ca605b658cde76360",
+          "shape": []
+        },
+        "agarose_pre_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 44,
+          "kind": "numeric",
+          "nan_count": 8,
+          "sha256": "7a21574682166d528a603d07121dbe1f397ea8b5a61316abc2a6575a53d6c5e2",
+          "shape": [
+            52
+          ]
+        },
+        "agarose_pre_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 42,
+          "kind": "numeric",
+          "nan_count": 10,
+          "sha256": "d3dffcb8f3ab3286e795cde303e8c4a6cf7548c5ff21815186eff52d7f33ddca",
+          "shape": [
+            52
+          ]
+        },
+        "agarose_pre_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 52,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "dd592c86f7c0021c1881f7e2236e5b853fd292a95e8a065f28ee76a8d200be57",
+          "shape": [
+            52
+          ]
+        },
+        "agarose_pre_total_exp": {
+          "dtype": "int64",
+          "finite_count": 52,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "a8da32a222b9de03c64283e98d77e4475209f18dc254d6469f085e9b16a22b48",
+          "shape": [
+            52
+          ]
+        },
+        "agarose_pre_window_min": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "24b1f4ef66b650ff816e519b01742ff1753733d36e1b4c3e3b52743168915b1f",
+          "shape": []
+        },
+        "agarose_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 720,
+          "kind": "numeric",
+          "nan_count": 216,
+          "sha256": "a2e396f5725bdefda2561e519b65f141bc552ada5407cd1193ddbc14025b22f9",
+          "shape": [
+            52,
+            3,
+            6
+          ]
+        },
+        "agarose_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 743,
+          "kind": "numeric",
+          "nan_count": 193,
+          "sha256": "c88dc68534935260cb47e09aebe6a2dca43c97a769b4efec722b802ee261360d",
+          "shape": [
+            52,
+            3,
+            6
+          ]
+        },
+        "agarose_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 936,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "be0d703b72e014217bf0cbc70736ff1b802afd73b9d8b5bba1add8e0a6a2d7d5",
+          "shape": [
+            52,
+            3,
+            6
+          ]
+        },
+        "agarose_total_exp": {
+          "dtype": "int64",
+          "finite_count": 936,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "c307f1b50fb67c61788367264c4a3add8d8d7a20e491a6b745b9d75b3fc5d626",
+          "shape": [
+            52,
+            3,
+            6
+          ]
+        },
+        "agarose_training_pre_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 156,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "59b2a0f4cda2728334b5f54b745296df4ecbfaa151ff4cdd22ce50b886243852",
+          "shape": [
+            52,
+            3
+          ]
+        },
+        "agarose_training_pre_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 156,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "968a9881bcda28717f02aeb97841018350c7315618235b9dbd6623266d298d05",
+          "shape": [
+            52,
+            3
+          ]
+        },
+        "agarose_training_pre_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "2fce7a7d1eee7ef284ffb0e790a9d9beb1372c1ed9a457c407007d57b753c632",
+          "shape": []
+        },
+        "agarose_training_pre_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 144,
+          "kind": "numeric",
+          "nan_count": 12,
+          "sha256": "ffdda44d931cd0f2375a0e918148b6a1f6fd64af8ab872c7f7821aa9bebc6780",
+          "shape": [
+            52,
+            3
+          ]
+        },
+        "agarose_training_pre_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 141,
+          "kind": "numeric",
+          "nan_count": 15,
+          "sha256": "484214c6f766e2de30000e580ceb8411e5b0d895e439eebad6aab0cfd26704c8",
+          "shape": [
+            52,
+            3
+          ]
+        },
+        "agarose_training_pre_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 156,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "2192ebb54332d92aa433d114fa8063138d3b1af0155e5cef02b23effe39da3ad",
+          "shape": [
+            52,
+            3
+          ]
+        },
+        "agarose_training_pre_total_exp": {
+          "dtype": "int64",
+          "finite_count": 156,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "09474108188dbcf74f9ce68c5a03c05b824c33eb82b60420998f1c790111cfcb",
+          "shape": [
+            52,
+            3
+          ]
+        },
+        "agarose_training_pre_window_min": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b41c0225c3e96e18e870c81c42a8e9af6d4a01a6be55dc780639fc5a92ee069f",
+          "shape": [
+            3
+          ]
+        },
+        "bucket_len_min": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "24b1f4ef66b650ff816e519b01742ff1753733d36e1b4c3e3b52743168915b1f",
+          "shape": []
+        },
+        "group_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "b74e5a90ce3148f479e76b0b731b570a137326aebb4c876392b48c3f165385d0",
+          "shape": []
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 49,
+          "kind": "numeric",
+          "nan_count": 3,
+          "sha256": "72ec04027b7b4ffd6334e3b5e0d7bd6a051e0c5cb5a1400385f11ef971a4d287",
+          "shape": [
+            52
+          ]
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 686,
+          "kind": "numeric",
+          "nan_count": 250,
+          "sha256": "da81a5bc2cc2f270c229bf4e37b14f929827180e755145ebffbd02e0c45ccaf8",
+          "shape": [
+            52,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "7e6e55368ace86a77858dc00de69db346d86e69c4412689e8d63238c73c9c669",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "object",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U73",
+          "finite_count": 52,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "69aad3ed8cf31353e4661a2dc70b2b1c58124ff0f87c9f7f11def823256cfa60",
+          "shape": [
+            52
+          ]
+        }
+      },
+      "keys": [
+        "agarose_avoid_ctrl",
+        "agarose_avoid_exp",
+        "agarose_pre_avoid_ctrl",
+        "agarose_pre_avoid_exp",
+        "agarose_pre_label",
+        "agarose_pre_ratio_ctrl",
+        "agarose_pre_ratio_exp",
+        "agarose_pre_total_ctrl",
+        "agarose_pre_total_exp",
+        "agarose_pre_window_min",
+        "agarose_ratio_ctrl",
+        "agarose_ratio_exp",
+        "agarose_total_ctrl",
+        "agarose_total_exp",
+        "agarose_training_pre_avoid_ctrl",
+        "agarose_training_pre_avoid_exp",
+        "agarose_training_pre_label",
+        "agarose_training_pre_ratio_ctrl",
+        "agarose_training_pre_ratio_exp",
+        "agarose_training_pre_total_ctrl",
+        "agarose_training_pre_total_exp",
+        "agarose_training_pre_window_min",
+        "bucket_len_min",
+        "group_label",
+        "sli",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_15_agarose_avoid_intact_epgKir_flat",
+      "path": "exports/agarose_avoid_1mm_intact_epgKir_flatLgc_2026-05-04.npz",
+      "sha256": "cf140a55d687c820804aa6f35d061a6727002cea75616c068a721572492864bb",
+      "type": "npz"
+    },
+    {
+      "arrays": {
+        "agarose_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 1008,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "20f882976b37f0a05711a7fb4bbe5e23fa3bdcbd49cef2f57acf5bbbd544dfe5",
+          "shape": [
+            56,
+            3,
+            6
+          ]
+        },
+        "agarose_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 1008,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "834920c733232689d37a5d7d727e8b7cf8aab1f1dd0b0ac49a60568276369f3f",
+          "shape": [
+            56,
+            3,
+            6
+          ]
+        },
+        "agarose_pre_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 56,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "c459581a03951d445a7a91c99b81130be09e78666194b791ec6b77cadee753b4",
+          "shape": [
+            56
+          ]
+        },
+        "agarose_pre_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 56,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "cdc5d5db73cca54b12b80dfc16d356eb261d350bd5d5937dc19f4f39f9a7a348",
+          "shape": [
+            56
+          ]
+        },
+        "agarose_pre_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "b5988984e41c572fc42838e1d7985032c17f2decc55fea6ca605b658cde76360",
+          "shape": []
+        },
+        "agarose_pre_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 43,
+          "kind": "numeric",
+          "nan_count": 13,
+          "sha256": "c23c333957361f10c2aebaa66cb46cd320c652cb41450f31af76717f1e18caa6",
+          "shape": [
+            56
+          ]
+        },
+        "agarose_pre_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 42,
+          "kind": "numeric",
+          "nan_count": 14,
+          "sha256": "54c633da4608488f9de7e95451e4c1ff510905ecd89563fa04551161d3b3c7a3",
+          "shape": [
+            56
+          ]
+        },
+        "agarose_pre_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 56,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "c6f4a178616d0c7fab981dd434776ced2607f8b104f20ba4c723571bf348d426",
+          "shape": [
+            56
+          ]
+        },
+        "agarose_pre_total_exp": {
+          "dtype": "int64",
+          "finite_count": 56,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "acd26854e7581d78e1d3157ae33a4592306c30f36148cb725460c0b6eb18e479",
+          "shape": [
+            56
+          ]
+        },
+        "agarose_pre_window_min": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "24b1f4ef66b650ff816e519b01742ff1753733d36e1b4c3e3b52743168915b1f",
+          "shape": []
+        },
+        "agarose_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 698,
+          "kind": "numeric",
+          "nan_count": 310,
+          "sha256": "8efe2f74005b190559919f983a0ac58572e19af9a47f6e56d2a5ae7229a78534",
+          "shape": [
+            56,
+            3,
+            6
+          ]
+        },
+        "agarose_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 733,
+          "kind": "numeric",
+          "nan_count": 275,
+          "sha256": "e2c7651ba4c40c82b164b933921ba9520989595fc7643df2ce5845816a418bb8",
+          "shape": [
+            56,
+            3,
+            6
+          ]
+        },
+        "agarose_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 1008,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "85f3c1b59befd1fe80edd660619234e4a09bfc477e57d0f28edb5dc155f0b98b",
+          "shape": [
+            56,
+            3,
+            6
+          ]
+        },
+        "agarose_total_exp": {
+          "dtype": "int64",
+          "finite_count": 1008,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "040fddc1c3221c39cf620ddc1bcfe07369ca16b0a3c60a5762ea12ed5a4e08d7",
+          "shape": [
+            56,
+            3,
+            6
+          ]
+        },
+        "agarose_training_pre_avoid_ctrl": {
+          "dtype": "int64",
+          "finite_count": 168,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "d05d410373ae0c0072467f40361deca12d13ed7ba085d3527a7727ae11f0d187",
+          "shape": [
+            56,
+            3
+          ]
+        },
+        "agarose_training_pre_avoid_exp": {
+          "dtype": "int64",
+          "finite_count": 168,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b1a45ebec57459907e0c7f608b6f984037f0625ae6b75eccf0d1695aea114665",
+          "shape": [
+            56,
+            3
+          ]
+        },
+        "agarose_training_pre_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "2fce7a7d1eee7ef284ffb0e790a9d9beb1372c1ed9a457c407007d57b753c632",
+          "shape": []
+        },
+        "agarose_training_pre_ratio_ctrl": {
+          "dtype": "float64",
+          "finite_count": 149,
+          "kind": "numeric",
+          "nan_count": 19,
+          "sha256": "11dbeedf9ee829c0a908e7bb4d2ab7747c7e429470b9217cdde96ed76a3ac791",
+          "shape": [
+            56,
+            3
+          ]
+        },
+        "agarose_training_pre_ratio_exp": {
+          "dtype": "float64",
+          "finite_count": 149,
+          "kind": "numeric",
+          "nan_count": 19,
+          "sha256": "871ebae52f855a9538b9e013219e66673eb43a23c2ee5588cf3f0f06fa29861c",
+          "shape": [
+            56,
+            3
+          ]
+        },
+        "agarose_training_pre_total_ctrl": {
+          "dtype": "int64",
+          "finite_count": 168,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "8d127c01c65187ad32967185e26980150fee1818e7ed8114613175fbd9cbd1d4",
+          "shape": [
+            56,
+            3
+          ]
+        },
+        "agarose_training_pre_total_exp": {
+          "dtype": "int64",
+          "finite_count": 168,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "6838aaf0c6284925998a0a61aa65e0f877e736e3eb7a221cc725d709e75ed0a9",
+          "shape": [
+            56,
+            3
+          ]
+        },
+        "agarose_training_pre_window_min": {
+          "dtype": "float64",
+          "finite_count": 3,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b41c0225c3e96e18e870c81c42a8e9af6d4a01a6be55dc780639fc5a92ee069f",
+          "shape": [
+            3
+          ]
+        },
+        "bucket_len_min": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "24b1f4ef66b650ff816e519b01742ff1753733d36e1b4c3e3b52743168915b1f",
+          "shape": []
+        },
+        "group_label": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "9bd298dd124955b91726fd1ddc7e2200eb636793079f4537d67f08c1a191a3d3",
+          "shape": []
+        },
+        "sli": {
+          "dtype": "float64",
+          "finite_count": 42,
+          "kind": "numeric",
+          "nan_count": 14,
+          "sha256": "5ebc87809adafbea872ccf43cc523c52c1e61fe652900d2c8b5a31180337f686",
+          "shape": [
+            56
+          ]
+        },
+        "sli_training_idx": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8",
+          "shape": []
+        },
+        "sli_ts": {
+          "dtype": "float64",
+          "finite_count": 611,
+          "kind": "numeric",
+          "nan_count": 397,
+          "sha256": "74bb047ef0048d447c4c7a5af0333c4399b5aa46173759442bdb67d4ef6490b7",
+          "shape": [
+            56,
+            3,
+            6
+          ]
+        },
+        "sli_use_training_mean": {
+          "dtype": "bool",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "7e6e55368ace86a77858dc00de69db346d86e69c4412689e8d63238c73c9c669",
+          "shape": []
+        },
+        "training_names": {
+          "dtype": "object",
+          "finite_count": 3,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "4860b8926b4845ace4d18e00fcbf676c260d49d4d5ebe5df07e1aee6693e70f2",
+          "shape": [
+            3
+          ]
+        },
+        "video_ids": {
+          "dtype": "<U77",
+          "finite_count": 56,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "eb2986e0bdd882d9ce8dcc28e9b575660c2a9eb8fcefdfd81918990c7e7edf01",
+          "shape": [
+            56
+          ]
+        }
+      },
+      "keys": [
+        "agarose_avoid_ctrl",
+        "agarose_avoid_exp",
+        "agarose_pre_avoid_ctrl",
+        "agarose_pre_avoid_exp",
+        "agarose_pre_label",
+        "agarose_pre_ratio_ctrl",
+        "agarose_pre_ratio_exp",
+        "agarose_pre_total_ctrl",
+        "agarose_pre_total_exp",
+        "agarose_pre_window_min",
+        "agarose_ratio_ctrl",
+        "agarose_ratio_exp",
+        "agarose_total_ctrl",
+        "agarose_total_exp",
+        "agarose_training_pre_avoid_ctrl",
+        "agarose_training_pre_avoid_exp",
+        "agarose_training_pre_label",
+        "agarose_training_pre_ratio_ctrl",
+        "agarose_training_pre_ratio_exp",
+        "agarose_training_pre_total_ctrl",
+        "agarose_training_pre_total_exp",
+        "agarose_training_pre_window_min",
+        "bucket_len_min",
+        "group_label",
+        "sli",
+        "sli_training_idx",
+        "sli_ts",
+        "sli_use_training_mean",
+        "training_names",
+        "video_ids"
+      ],
+      "name": "panel_15_agarose_avoid_intact_epgKir_agarose",
+      "path": "exports/agarose_avoid_1mm_intact_epgKir_agaroseLgc_2026-05-04.npz",
+      "sha256": "241702bf64ab7eed555fa4536494447db5e174ed790c5c045803cf3b419f662c",
+      "type": "npz"
+    }
+  ],
+  "schema_version": 1
+}

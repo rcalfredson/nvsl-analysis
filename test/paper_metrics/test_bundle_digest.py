@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from src.validation.bundle_digest import (
+    AGAROSE_SLI_REGRESSION_KEYS,
     COMMAG_SLI_REGRESSION_KEYS,
     FIRST_N_REWARD_DIAGNOSTICS_REGRESSION_KEYS,
     RETURN_PROB_EXCURSION_BIN_REGRESSION_KEYS,
@@ -93,6 +94,48 @@ def _write_turnback_ratio_bundle(path, *, ratio, unchecked=None):
     np.savez_compressed(path, **payload)
 
 
+def _write_agarose_bundle(path, *, ratio, unchecked=None):
+    payload = {
+        "agarose_avoid_ctrl": np.asarray([[[1, 0]]], dtype=int),
+        "agarose_avoid_exp": np.asarray([[[2, 1]]], dtype=int),
+        "agarose_pre_avoid_ctrl": np.asarray([1], dtype=int),
+        "agarose_pre_avoid_exp": np.asarray([1], dtype=int),
+        "agarose_pre_label": np.asarray("pre last 10m", dtype=object),
+        "agarose_pre_ratio_ctrl": np.asarray([0.5], dtype=float),
+        "agarose_pre_ratio_exp": np.asarray([0.5], dtype=float),
+        "agarose_pre_total_ctrl": np.asarray([2], dtype=int),
+        "agarose_pre_total_exp": np.asarray([2], dtype=int),
+        "agarose_pre_window_min": np.array(10.0, dtype=float),
+        "agarose_ratio_ctrl": np.asarray([[[0.5, np.nan]]], dtype=float),
+        "agarose_ratio_exp": np.asarray(ratio, dtype=float),
+        "agarose_total_ctrl": np.asarray([[[2, 0]]], dtype=int),
+        "agarose_total_exp": np.asarray([[[2, 2]]], dtype=int),
+        "agarose_training_pre_avoid_ctrl": np.asarray([[1]], dtype=int),
+        "agarose_training_pre_avoid_exp": np.asarray([[1]], dtype=int),
+        "agarose_training_pre_label": np.asarray(
+            "training-specific pre last 10m", dtype=object
+        ),
+        "agarose_training_pre_ratio_ctrl": np.asarray([[0.5]], dtype=float),
+        "agarose_training_pre_ratio_exp": np.asarray([[0.5]], dtype=float),
+        "agarose_training_pre_total_ctrl": np.asarray([[2]], dtype=int),
+        "agarose_training_pre_total_exp": np.asarray([[2]], dtype=int),
+        "agarose_training_pre_window_min": np.asarray([10.0], dtype=float),
+        "bucket_len_min": np.array(10.0, dtype=float),
+        "group_label": np.asarray("Intact Control>Kir", dtype=object),
+        "sli": np.asarray([0.1], dtype=float),
+        "sli_select_keep_first_sync_buckets": np.array(0, dtype=int),
+        "sli_select_skip_first_sync_buckets": np.array(0, dtype=int),
+        "sli_training_idx": np.array(0, dtype=int),
+        "sli_ts": np.asarray([[[1.0, np.nan]]], dtype=float),
+        "sli_use_training_mean": np.array(True),
+        "training_names": np.asarray(["T1"], dtype=object),
+        "video_ids": np.asarray(["video_a::f7"], dtype=object),
+    }
+    if unchecked is not None:
+        payload["unchecked_metric"] = np.asarray(unchecked, dtype=float)
+    np.savez_compressed(path, **payload)
+
+
 def _write_commag_bundle(path, *, commag, unchecked=None):
     payload = {
         "btw_rwd_sync_bucket_min_trajectories": np.array(1, dtype=int),
@@ -173,6 +216,19 @@ def test_npz_digest_can_be_limited_to_turnback_ratio_regression_keys(tmp_path):
     assert (
         digest_npz(a, keys=TURNBACK_RATIO_REGRESSION_KEYS)["sha256"]
         == digest_npz(b, keys=TURNBACK_RATIO_REGRESSION_KEYS)["sha256"]
+    )
+    assert digest_npz(a)["sha256"] != digest_npz(b)["sha256"]
+
+
+def test_npz_digest_can_be_limited_to_agarose_regression_keys(tmp_path):
+    a = tmp_path / "a.npz"
+    b = tmp_path / "b.npz"
+    _write_agarose_bundle(a, ratio=[[[1.0, 0.5]]], unchecked=[1.0])
+    _write_agarose_bundle(b, ratio=[[[1.0, 0.5]]], unchecked=[999.0])
+
+    assert (
+        digest_npz(a, keys=AGAROSE_SLI_REGRESSION_KEYS)["sha256"]
+        == digest_npz(b, keys=AGAROSE_SLI_REGRESSION_KEYS)["sha256"]
     )
     assert digest_npz(a)["sha256"] != digest_npz(b)["sha256"]
 

@@ -186,6 +186,39 @@ TURNBACK_RATIO_REGRESSION_KEYS = (
     "video_ids",
 )
 
+AGAROSE_SLI_REGRESSION_KEYS = (
+    "agarose_avoid_ctrl",
+    "agarose_avoid_exp",
+    "agarose_pre_avoid_ctrl",
+    "agarose_pre_avoid_exp",
+    "agarose_pre_label",
+    "agarose_pre_ratio_ctrl",
+    "agarose_pre_ratio_exp",
+    "agarose_pre_total_ctrl",
+    "agarose_pre_total_exp",
+    "agarose_pre_window_min",
+    "agarose_ratio_ctrl",
+    "agarose_ratio_exp",
+    "agarose_total_ctrl",
+    "agarose_total_exp",
+    "agarose_training_pre_avoid_ctrl",
+    "agarose_training_pre_avoid_exp",
+    "agarose_training_pre_label",
+    "agarose_training_pre_ratio_ctrl",
+    "agarose_training_pre_ratio_exp",
+    "agarose_training_pre_total_ctrl",
+    "agarose_training_pre_total_exp",
+    "agarose_training_pre_window_min",
+    "bucket_len_min",
+    "group_label",
+    "sli",
+    "sli_training_idx",
+    "sli_ts",
+    "sli_use_training_mean",
+    "training_names",
+    "video_ids",
+)
+
 FIRST_N_REWARD_DIAGNOSTICS_REGRESSION_KEYS = (
     "video_basename",
     "video_path",
@@ -233,6 +266,7 @@ REGRESSION_KEY_PRESETS = {
     "between_reward_return_leg_dist_sli": (
         BETWEEN_REWARD_RETURN_LEG_DIST_SLI_REGRESSION_KEYS
     ),
+    "agarose_sli": AGAROSE_SLI_REGRESSION_KEYS,
     "commag_sli": COMMAG_SLI_REGRESSION_KEYS,
     "first_n_reward_diagnostics": FIRST_N_REWARD_DIAGNOSTICS_REGRESSION_KEYS,
     "return_prob_excursion_bin": RETURN_PROB_EXCURSION_BIN_REGRESSION_KEYS,
