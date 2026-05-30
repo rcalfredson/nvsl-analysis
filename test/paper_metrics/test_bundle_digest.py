@@ -5,6 +5,7 @@ import pytest
 
 from src.validation.bundle_digest import (
     AGAROSE_SLI_REGRESSION_KEYS,
+    BETWEEN_REWARD_TORTUOSITY_MEAN_REGRESSION_KEYS,
     COMMAG_SLI_REGRESSION_KEYS,
     FIRST_N_REWARD_DIAGNOSTICS_REGRESSION_KEYS,
     RETURN_PROB_EXCURSION_BIN_REGRESSION_KEYS,
@@ -159,6 +160,36 @@ def _write_commag_bundle(path, *, commag, unchecked=None):
     np.savez_compressed(path, **payload)
 
 
+def _write_tortuosity_scalar_export(path, *, values, unchecked=None):
+    vals = np.asarray(values, dtype=float)
+    payload = {
+        "panel_labels": np.asarray(["T2"], dtype=object),
+        "per_unit_values_panel": np.asarray([vals], dtype=object),
+        "per_unit_ids_panel": np.asarray(
+            [np.asarray([f"fly_{i}" for i in range(vals.size)], dtype=object)],
+            dtype=object,
+        ),
+        "mean": np.asarray([np.nanmean(vals)], dtype=float),
+        "ci_lo": np.asarray([np.nan], dtype=float),
+        "ci_hi": np.asarray([np.nan], dtype=float),
+        "n_units_panel": np.asarray([int(np.isfinite(vals).sum())], dtype=int),
+        "meta_json": np.asarray(
+            json.dumps(
+                {
+                    "metric": "between_reward_tortuosity_mean",
+                    "metric_mode": "path_over_max_radius",
+                    "segment_scope": "full",
+                },
+                sort_keys=True,
+            ),
+            dtype=object,
+        ),
+    }
+    if unchecked is not None:
+        payload["unchecked_metric"] = np.asarray(unchecked, dtype=float)
+    np.savez_compressed(path, **payload)
+
+
 def test_npz_digest_is_stable_across_npz_key_write_order(tmp_path):
     a = tmp_path / "a.npz"
     b = tmp_path / "b.npz"
@@ -242,6 +273,21 @@ def test_npz_digest_can_be_limited_to_commag_regression_keys(tmp_path):
     assert (
         digest_npz(a, keys=COMMAG_SLI_REGRESSION_KEYS)["sha256"]
         == digest_npz(b, keys=COMMAG_SLI_REGRESSION_KEYS)["sha256"]
+    )
+    assert digest_npz(a)["sha256"] != digest_npz(b)["sha256"]
+
+
+def test_npz_digest_can_be_limited_to_tortuosity_scalar_regression_keys(tmp_path):
+    a = tmp_path / "a.npz"
+    b = tmp_path / "b.npz"
+    _write_tortuosity_scalar_export(a, values=[1.0, 2.0], unchecked=[1.0])
+    _write_tortuosity_scalar_export(b, values=[1.0, 2.0], unchecked=[999.0])
+
+    assert (
+        digest_npz(a, keys=BETWEEN_REWARD_TORTUOSITY_MEAN_REGRESSION_KEYS)["sha256"]
+        == digest_npz(b, keys=BETWEEN_REWARD_TORTUOSITY_MEAN_REGRESSION_KEYS)[
+            "sha256"
+        ]
     )
     assert digest_npz(a)["sha256"] != digest_npz(b)["sha256"]
 

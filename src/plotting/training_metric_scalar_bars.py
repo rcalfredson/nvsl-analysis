@@ -246,16 +246,25 @@ class TrainingMetricScalarBarsPlotter:
         if not data["panel_labels"]:
             print(f"[{self.log_tag}] no data found; skipping export.")
             return
+        payload = {
+            "panel_labels": np.asarray(data["panel_labels"], dtype=object),
+            "per_unit_values_panel": data["per_unit_values_panel"],
+            "per_unit_ids_panel": data["per_unit_ids_panel"],
+            "mean": data["mean"],
+            "ci_lo": data["ci_lo"],
+            "ci_hi": data["ci_hi"],
+            "n_units_panel": data["n_units_panel"],
+            "meta_json": json.dumps(data["meta"], sort_keys=True),
+        }
+        if data.get("meta", {}).get("metric") == "between_reward_tortuosity_mean":
+            from src.validation.between_reward_tortuosity import (
+                validate_between_reward_tortuosity_scalar_export,
+            )
+
+            validate_between_reward_tortuosity_scalar_export(payload, path=out_npz)
         np.savez_compressed(
             out_npz,
-            panel_labels=np.asarray(data["panel_labels"], dtype=object),
-            per_unit_values_panel=data["per_unit_values_panel"],
-            per_unit_ids_panel=data["per_unit_ids_panel"],
-            mean=data["mean"],
-            ci_lo=data["ci_lo"],
-            ci_hi=data["ci_hi"],
-            n_units_panel=data["n_units_panel"],
-            meta_json=json.dumps(data["meta"], sort_keys=True),
+            **payload,
         )
         print(f"[{self.log_tag}] wrote scalar export {out_npz}")
 

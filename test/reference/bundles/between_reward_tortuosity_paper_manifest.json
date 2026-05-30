@@ -1,0 +1,311 @@
+{
+  "bundles": [
+    {
+      "arrays": {
+        "ci_hi": {
+          "dtype": "float64",
+          "finite_count": 0,
+          "kind": "numeric",
+          "nan_count": 1,
+          "sha256": "74999fd28ab18ccca2bee199f260d19764603a3c78353d773d16d215eebe8e19",
+          "shape": [
+            1
+          ]
+        },
+        "ci_lo": {
+          "dtype": "float64",
+          "finite_count": 0,
+          "kind": "numeric",
+          "nan_count": 1,
+          "sha256": "74999fd28ab18ccca2bee199f260d19764603a3c78353d773d16d215eebe8e19",
+          "shape": [
+            1
+          ]
+        },
+        "mean": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "9619713d13017c3d3ede57868381267ade95b6753d17c90277dac8e36e5766da",
+          "shape": [
+            1
+          ]
+        },
+        "meta_json": {
+          "dtype": "<U842",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "3df01418712612303bb9786ea9d42ec6351bf1a2f2c6b17a8a199a1ce66a6c66",
+          "shape": []
+        },
+        "n_units_panel": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "1ff66ac9fef32032c75d065f1dca8f58d995c9d35d75070503e83446305b3979",
+          "shape": [
+            1
+          ]
+        },
+        "panel_labels": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "8a6832011557ee714db45ca6d93f8541d8127ebd802781333bd8926b0ecd55ac",
+          "shape": [
+            1
+          ]
+        },
+        "per_unit_ids_panel": {
+          "dtype": "object",
+          "finite_count": 68,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "eea3f87a34ee8aef8ea248338e4610e6f39c953643c0d08642b61a8b02e9f6d4",
+          "shape": [
+            1,
+            68
+          ]
+        },
+        "per_unit_values_panel": {
+          "dtype": "object",
+          "finite_count": 68,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "0304df399a0a71bc18ce6e08f96a5995de2a494b78b5befaf807d2c3bc336fc6",
+          "shape": [
+            1,
+            68
+          ]
+        }
+      },
+      "keys": [
+        "ci_hi",
+        "ci_lo",
+        "mean",
+        "meta_json",
+        "n_units_panel",
+        "panel_labels",
+        "per_unit_ids_panel",
+        "per_unit_values_panel"
+      ],
+      "name": "panel_26_tortuosity_ctrl_flc_t2_full",
+      "path": "exports/tort_mean_fullPath_intact_ctrlKir_flatLgc_T2_inclWall_2026-04-29.npz",
+      "sha256": "3f5d3d785a7a3e29259331b12d3e801a6a7fdcad167e6369af51fe3e5f2510f2",
+      "type": "npz"
+    },
+    {
+      "arrays": {
+        "ci_hi": {
+          "dtype": "float64",
+          "finite_count": 0,
+          "kind": "numeric",
+          "nan_count": 1,
+          "sha256": "74999fd28ab18ccca2bee199f260d19764603a3c78353d773d16d215eebe8e19",
+          "shape": [
+            1
+          ]
+        },
+        "ci_lo": {
+          "dtype": "float64",
+          "finite_count": 0,
+          "kind": "numeric",
+          "nan_count": 1,
+          "sha256": "74999fd28ab18ccca2bee199f260d19764603a3c78353d773d16d215eebe8e19",
+          "shape": [
+            1
+          ]
+        },
+        "mean": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "133621ba194d48d92bd742ffc26fd91b3ad51243111f92e5bb6cbc51ceb9c9f0",
+          "shape": [
+            1
+          ]
+        },
+        "meta_json": {
+          "dtype": "<U842",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "3e510a68668aef2ac87110005b921241fd1ec94346b90e0a73685cdd232bd260",
+          "shape": []
+        },
+        "n_units_panel": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "aa5b32a6d61a6f373077d40bc01eb6b408eee56ec9a5eaec649dd267c6b348cf",
+          "shape": [
+            1
+          ]
+        },
+        "panel_labels": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "8a6832011557ee714db45ca6d93f8541d8127ebd802781333bd8926b0ecd55ac",
+          "shape": [
+            1
+          ]
+        },
+        "per_unit_ids_panel": {
+          "dtype": "object",
+          "finite_count": 57,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "af7efa471a0de0ae197c97e72497463cc993946cf5a3a97dafc9024ac34a5cec",
+          "shape": [
+            1,
+            57
+          ]
+        },
+        "per_unit_values_panel": {
+          "dtype": "object",
+          "finite_count": 57,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "3426391fa60f07c1e6213cd521ac005cb0637fd908c9eccb2a560ac2991ded0f",
+          "shape": [
+            1,
+            57
+          ]
+        }
+      },
+      "keys": [
+        "ci_hi",
+        "ci_lo",
+        "mean",
+        "meta_json",
+        "n_units_panel",
+        "panel_labels",
+        "per_unit_ids_panel",
+        "per_unit_values_panel"
+      ],
+      "name": "panel_26_tortuosity_pfnd_flc_t2_full",
+      "path": "exports/tort_mean_fullPath_intact_pfnKir_flatLgc_T2_inclWall_2026-04-29.npz",
+      "sha256": "f5f24e82678475f0b3868c3741e069c9358e63817542a5e8996d3d533251e354",
+      "type": "npz"
+    },
+    {
+      "arrays": {
+        "ci_hi": {
+          "dtype": "float64",
+          "finite_count": 0,
+          "kind": "numeric",
+          "nan_count": 1,
+          "sha256": "74999fd28ab18ccca2bee199f260d19764603a3c78353d773d16d215eebe8e19",
+          "shape": [
+            1
+          ]
+        },
+        "ci_lo": {
+          "dtype": "float64",
+          "finite_count": 0,
+          "kind": "numeric",
+          "nan_count": 1,
+          "sha256": "74999fd28ab18ccca2bee199f260d19764603a3c78353d773d16d215eebe8e19",
+          "shape": [
+            1
+          ]
+        },
+        "mean": {
+          "dtype": "float64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "b2c0997be814981ddff99f5c26f0c101fa50d871e7d1335a9f53527c916e75a5",
+          "shape": [
+            1
+          ]
+        },
+        "meta_json": {
+          "dtype": "<U842",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "092dcdd9d6a77114414e47c2701f0d2c27a0c513762ad5c2a217dc0c480ae0d2",
+          "shape": []
+        },
+        "n_units_panel": {
+          "dtype": "int64",
+          "finite_count": 1,
+          "kind": "numeric",
+          "nan_count": 0,
+          "sha256": "0334e6b55d71f1dc204118d5a631267c8ac81714f9031d8a0be8d9cc4de12282",
+          "shape": [
+            1
+          ]
+        },
+        "panel_labels": {
+          "dtype": "object",
+          "finite_count": 1,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "8a6832011557ee714db45ca6d93f8541d8127ebd802781333bd8926b0ecd55ac",
+          "shape": [
+            1
+          ]
+        },
+        "per_unit_ids_panel": {
+          "dtype": "object",
+          "finite_count": 62,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "202576649a040f6566ab851504d161fab95e82879a049508424b39be66b30ae6",
+          "shape": [
+            1,
+            62
+          ]
+        },
+        "per_unit_values_panel": {
+          "dtype": "object",
+          "finite_count": 62,
+          "kind": "string",
+          "nan_count": 0,
+          "sha256": "7cf160180517a25029c6a806b457bd2004afab92b4250778e3ad6b0f5d2b16af",
+          "shape": [
+            1,
+            62
+          ]
+        }
+      },
+      "keys": [
+        "ci_hi",
+        "ci_lo",
+        "mean",
+        "meta_json",
+        "n_units_panel",
+        "panel_labels",
+        "per_unit_ids_panel",
+        "per_unit_values_panel"
+      ],
+      "name": "panel_26_tortuosity_ar_ctrl_flc_t2_full",
+      "path": "exports/tort_mean_fullPath_ar_ctrlKir_flatLgc_T2_inclWall_2026-04-29.npz",
+      "sha256": "cf35b227aafc956463a360c996b9cd88e4fb6a33e8120523414b9117b97dbe24",
+      "type": "npz"
+    },
+    {
+      "keys": [
+        "Ctrl>Kir FLC",
+        "PFN>Kir FLC",
+        "AR Ctrl>Kir FLC"
+      ],
+      "name": "panel_26_tortuosity_graphpad_csv",
+      "path": "exports/between_reward_tortuosity_mean_graphpad.csv",
+      "row_count": 68,
+      "sha256": "0bdc0063db9666cedf7b71b27fc94bf3b9e5cc7bcf9b7f2088c766b8ce24b8d9",
+      "type": "csv"
+    }
+  ],
+  "schema_version": 1
+}

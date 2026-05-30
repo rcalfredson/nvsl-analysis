@@ -10,6 +10,11 @@ from src.plotting.between_reward_segment_metrics import (
     dist_traveled_mm_masked,
     max_radial_distance_mm_masked,
     path_length_and_max_radius_mm_masked,
+    tortuosity_metric_masked,
+)
+from src.plotting.between_reward_tortuosity_mean_swarm import (
+    BetweenRewardTortuosityMeanSwarmConfig,
+    BetweenRewardTortuosityMeanSwarmPlotter,
 )
 from src.plotting.btw_rwd_return_leg_dist_collectors import (
     ReturnLegDistPerFlyCollector,
@@ -27,6 +32,7 @@ class _Trajectory:
         self.walking = walking
         self._bad = bad
         self.f = f
+        self.pxPerMmFloor = 1.0
 
     def bad(self):
         return self._bad
@@ -176,6 +182,227 @@ def test_path_length_and_max_radius_share_validity_gate():
 
     assert np.isnan(path_mm)
     assert np.isnan(radius_mm)
+
+
+def test_between_reward_tortuosity_uses_path_over_max_reward_radius():
+    traj = _Trajectory(x=[1, 0, -1], y=[0, 1, 0])
+
+    val = tortuosity_metric_masked(
+        traj=traj,
+        s=0,
+        e=3,
+        fi=0,
+        nonwalk_mask=None,
+        exclude_nonwalk=False,
+        px_per_mm=1.0,
+        mode="path_over_max_radius",
+        reward_center_xy=(0.0, 0.0),
+    )
+
+    assert val == np.sqrt(2.0) * 2.0
+
+
+
+
+def test_between_reward_tortuosity_returns_nan_for_zero_or_nonfinite_denominator():
+    centered = _Trajectory(x=[0, 0, 0], y=[0, 0, 0], d=[0, 0])
+    moving = _Trajectory(x=[0, 3, 6], y=[0, 4, 0], d=[5, 5])
+
+    assert np.isnan(
+        tortuosity_metric_masked(
+            traj=centered,
+            s=0,
+            e=3,
+            fi=0,
+            nonwalk_mask=None,
+            exclude_nonwalk=False,
+            px_per_mm=1.0,
+            mode="path_over_max_radius",
+            reward_center_xy=(0.0, 0.0),
+        )
+    )
+    assert np.isnan(
+        tortuosity_metric_masked(
+            traj=moving,
+            s=0,
+            e=3,
+            fi=0,
+            nonwalk_mask=None,
+            exclude_nonwalk=False,
+            px_per_mm=1.0,
+            mode="path_over_max_radius",
+            reward_center_xy=(np.nan, 0.0),
+        )
+    )
+    assert np.isnan(
+        tortuosity_metric_masked(
+            traj=moving,
+            s=0,
+            e=3,
+            fi=0,
+            nonwalk_mask=None,
+            exclude_nonwalk=False,
+            px_per_mm=1.0,
+            mode="path_over_displacement",
+            reward_center_xy=None,
+            min_displacement_mm=10.0,
+        )
+    )
+
+
+def test_between_reward_tortuosity_excludes_nonwalking_steps_and_radius_frames():
+    traj = _Trajectory(x=[0, 3, 6, 9], y=[0, 0, 0, 0], d=[3, 3, 3])
+
+    unmasked = tortuosity_metric_masked(
+        traj=traj,
+        s=0,
+        e=4,
+        fi=0,
+        nonwalk_mask=None,
+        exclude_nonwalk=False,
+        px_per_mm=1.0,
+        mode="path_over_max_radius",
+        reward_center_xy=(0.0, 0.0),
+    )
+    masked = tortuosity_metric_masked(
+        traj=traj,
+        s=0,
+        e=4,
+        fi=0,
+        nonwalk_mask=np.asarray([False, True, False, False]),
+        exclude_nonwalk=True,
+        px_per_mm=1.0,
+        mode="path_over_max_radius",
+        reward_center_xy=(0.0, 0.0),
+    )
+
+    assert unmasked == 1.0
+    assert masked == 3.0 / 9.0
+
+
+def test_between_reward_tortuosity_mean_export_filters_invalid_segments():
+    traj = _Trajectory(x=[1, 0, -1, 0, 0, 0], y=[0, 1, 0, 0, 0, 0])
+    va = _Video(
+        trx=[traj],
+        segments_by_fly={0: [_segment(s=0, e=3), _segment(s=3, e=6)]},
+        sync_bucket_ranges=[[(0, 6)]],
+    )
+    cfg = BetweenRewardTortuosityMeanSwarmConfig(
+        out_file="unused.png",
+        trainings=[1],
+        metric_mode="path_over_max_radius",
+        segment_scope="full",
+        min_segments_per_fly=1,
+    )
+    plotter = BetweenRewardTortuosityMeanSwarmPlotter(
+        [va],
+        SimpleNamespace(imageFormat="png"),
+        gls=None,
+        customizer=None,
+        cfg=cfg,
+    )
+
+    data = plotter.compute_scalar_panels()
+
+    assert data["n_units_panel"].tolist() == [1]
+    np.testing.assert_allclose(
+        np.asarray(data["per_unit_values_panel"][0], dtype=float),
+        [np.sqrt(2.0) * 2.0],
+    )
+
+
+def test_between_reward_tortuosity_uses_path_over_max_reward_radius():
+    traj = _Trajectory(x=[1, 0, -1], y=[0, 1, 0])
+
+    val = tortuosity_metric_masked(
+        traj=traj,
+        s=0,
+        e=3,
+        fi=0,
+        nonwalk_mask=None,
+        exclude_nonwalk=False,
+        px_per_mm=1.0,
+        mode="path_over_max_radius",
+        reward_center_xy=(0.0, 0.0),
+    )
+
+    assert val == np.sqrt(2.0) * 2.0
+
+
+def test_between_reward_tortuosity_returns_nan_for_zero_or_nonfinite_denominator():
+    centered = _Trajectory(x=[0, 0, 0], y=[0, 0, 0], d=[0, 0])
+    moving = _Trajectory(x=[0, 3, 6], y=[0, 4, 0], d=[5, 5])
+
+    assert np.isnan(
+        tortuosity_metric_masked(
+            traj=centered,
+            s=0,
+            e=3,
+            fi=0,
+            nonwalk_mask=None,
+            exclude_nonwalk=False,
+            px_per_mm=1.0,
+            mode="path_over_max_radius",
+            reward_center_xy=(0.0, 0.0),
+        )
+    )
+    assert np.isnan(
+        tortuosity_metric_masked(
+            traj=moving,
+            s=0,
+            e=3,
+            fi=0,
+            nonwalk_mask=None,
+            exclude_nonwalk=False,
+            px_per_mm=1.0,
+            mode="path_over_max_radius",
+            reward_center_xy=(np.nan, 0.0),
+        )
+    )
+    assert np.isnan(
+        tortuosity_metric_masked(
+            traj=moving,
+            s=0,
+            e=3,
+            fi=0,
+            nonwalk_mask=None,
+            exclude_nonwalk=False,
+            px_per_mm=1.0,
+            mode="path_over_displacement",
+            reward_center_xy=None,
+            min_displacement_mm=10.0,
+        )
+    )
+
+
+def test_between_reward_tortuosity_excludes_nonwalking_steps_and_radius_frames():
+    traj = _Trajectory(x=[0, 3, 6, 9], y=[0, 0, 0, 0], d=[3, 3, 3])
+
+    unmasked = tortuosity_metric_masked(
+        traj=traj,
+        s=0,
+        e=4,
+        fi=0,
+        nonwalk_mask=None,
+        exclude_nonwalk=False,
+        px_per_mm=1.0,
+        mode="path_over_max_radius",
+        reward_center_xy=(0.0, 0.0),
+    )
+    masked = tortuosity_metric_masked(
+        traj=traj,
+        s=0,
+        e=4,
+        fi=0,
+        nonwalk_mask=np.asarray([False, True, False, False]),
+        exclude_nonwalk=True,
+        px_per_mm=1.0,
+        mode="path_over_max_radius",
+        reward_center_xy=(0.0, 0.0),
+    )
+
+    assert unmasked == 1.0
+    assert masked == 3.0 / 9.0
 
 
 def test_conditioned_distance_traveled_bins_total_and_return_leg_per_fly():

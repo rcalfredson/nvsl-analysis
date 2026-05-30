@@ -363,8 +363,14 @@ class BetweenRewardTortuosityWallScatterExporter:
     def export_npz(self, out_npz: str) -> None:
         data = self.collect_records()
         meta = dict(data.pop("meta"))
+        payload = {**data, "meta_json": json.dumps(meta, sort_keys=True)}
+        from src.validation.between_reward_tortuosity import (
+            validate_between_reward_tortuosity_wall_scatter_export,
+        )
+
+        validate_between_reward_tortuosity_wall_scatter_export(payload, path=out_npz)
         util.ensureDir(out_npz)
-        np.savez_compressed(out_npz, **data, meta_json=json.dumps(meta, sort_keys=True))
+        np.savez_compressed(out_npz, **payload)
         print(
             f"[{self.log_tag}] wrote {out_npz} "
             f"({int(meta.get('n_segments', 0))} segment(s))"

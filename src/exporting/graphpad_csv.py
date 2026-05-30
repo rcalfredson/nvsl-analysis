@@ -112,6 +112,18 @@ def write_scalar_exports_graphpad_csv(
     panel: int | str | None = None,
 ) -> None:
     headers, columns = scalar_exports_to_graphpad_columns(exports, panel=panel)
+    if any(
+        dict(getattr(export, "meta", {}) or {}).get("metric")
+        == "between_reward_tortuosity_mean"
+        for export in exports
+    ):
+        from src.validation.between_reward_tortuosity import (
+            validate_between_reward_tortuosity_graphpad_columns,
+        )
+
+        validate_between_reward_tortuosity_graphpad_columns(
+            headers, columns, path=out_csv
+        )
     _write_wide_numeric_csv(out_csv, headers, columns)
 
 

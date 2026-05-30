@@ -296,6 +296,15 @@ def load_export_npz(group: str, path: str) -> ExportedTrainingScalarBars:
     if isinstance(meta_json, (bytes, bytearray)):
         meta_json = meta_json.decode("utf-8")
     meta = json.loads(meta_json)
+    if meta.get("metric") == "between_reward_tortuosity_mean":
+        from src.validation.between_reward_tortuosity import (
+            validate_between_reward_tortuosity_scalar_export,
+        )
+
+        validate_between_reward_tortuosity_scalar_export(
+            {key: d[key] for key in d.files},
+            path=path,
+        )
 
     return ExportedTrainingScalarBars(
         group=group,

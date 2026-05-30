@@ -67,6 +67,11 @@ class BetweenRewardTortuosityDistanceBoxResult:
     meta: dict
 
     def save_npz(self, path: str) -> None:
+        from src.validation.between_reward_tortuosity import (
+            validate_between_reward_tortuosity_distance_box_result,
+        )
+
+        validate_between_reward_tortuosity_distance_box_result(self, path=path)
         util.ensureDir(path)
         np.savez_compressed(
             path,
@@ -91,7 +96,7 @@ class BetweenRewardTortuosityDistanceBoxResult:
         meta_json = z["meta_json"].item() if "meta_json" in z.files else "{}"
         if isinstance(meta_json, (bytes, bytearray)):
             meta_json = meta_json.decode("utf-8")
-        return BetweenRewardTortuosityDistanceBoxResult(
+        result = BetweenRewardTortuosityDistanceBoxResult(
             x_edges_mm=np.asarray(z["x_edges_mm"], dtype=float),
             bin_labels=np.asarray(z["bin_labels"], dtype=object),
             values_by_bin=np.asarray(z["values_by_bin"], dtype=object),
@@ -106,6 +111,12 @@ class BetweenRewardTortuosityDistanceBoxResult:
             whisker_high=np.asarray(z["whisker_high"], dtype=float),
             meta=json.loads(str(meta_json)),
         )
+        from src.validation.between_reward_tortuosity import (
+            validate_between_reward_tortuosity_distance_box_result,
+        )
+
+        validate_between_reward_tortuosity_distance_box_result(result, path=path)
+        return result
 
 
 class BetweenRewardTortuosityDistanceBoxPlotter:

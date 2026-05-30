@@ -148,6 +148,17 @@ BETWEEN_REWARD_RETURN_LEG_DIST_SLI_REGRESSION_KEYS = (
     "video_ids",
 )
 
+BETWEEN_REWARD_TORTUOSITY_MEAN_REGRESSION_KEYS = (
+    "ci_hi",
+    "ci_lo",
+    "mean",
+    "meta_json",
+    "n_units_panel",
+    "panel_labels",
+    "per_unit_ids_panel",
+    "per_unit_values_panel",
+)
+
 COMMAG_SLI_REGRESSION_KEYS = (
     "btw_rwd_sync_bucket_min_trajectories",
     "bucket_len_min",
@@ -265,6 +276,9 @@ REGRESSION_KEY_PRESETS = {
     "between_reward_maxdist_sli": BETWEEN_REWARD_MAXDIST_SLI_REGRESSION_KEYS,
     "between_reward_return_leg_dist_sli": (
         BETWEEN_REWARD_RETURN_LEG_DIST_SLI_REGRESSION_KEYS
+    ),
+    "between_reward_tortuosity_mean": (
+        BETWEEN_REWARD_TORTUOSITY_MEAN_REGRESSION_KEYS
     ),
     "agarose_sli": AGAROSE_SLI_REGRESSION_KEYS,
     "commag_sli": COMMAG_SLI_REGRESSION_KEYS,
