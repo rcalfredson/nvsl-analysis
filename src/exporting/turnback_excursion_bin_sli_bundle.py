@@ -79,6 +79,46 @@ def _bin_edges_mm(opts) -> np.ndarray:
     return vals
 
 
+def _pair_deltas_mm(opts) -> tuple[np.ndarray, np.ndarray] | None:
+    raw = getattr(opts, "turnback_excursion_bin_pairs_mm", None)
+    if raw is None or not str(raw).strip():
+        return None
+
+    inner_vals: list[float] = []
+    outer_vals: list[float] = []
+    for part in str(raw).split(","):
+        item = part.strip()
+        if not item:
+            continue
+        if ":" not in item:
+            raise ValueError(
+                "--turnback-excursion-bin-pairs-mm entries must use inner:outer "
+                "format, e.g. '2:4,6:8,14:16'."
+            )
+        inner_raw, outer_raw = item.split(":", 1)
+        inner = float(parse_distances(inner_raw.strip())[0])
+        outer = float(parse_distances(outer_raw.strip())[0])
+        if not np.isfinite(inner) or not np.isfinite(outer):
+            raise ValueError("--turnback-excursion-bin-pairs-mm values must be finite.")
+        if inner < 0.0:
+            raise ValueError(
+                "--turnback-excursion-bin-pairs-mm inner deltas must be non-negative."
+            )
+        if outer <= inner:
+            raise ValueError(
+                "--turnback-excursion-bin-pairs-mm outer deltas must be greater "
+                "than their matching inner deltas."
+            )
+        inner_vals.append(float(inner))
+        outer_vals.append(float(outer))
+
+    if not inner_vals:
+        raise ValueError(
+            "--turnback-excursion-bin-pairs-mm must contain at least one inner:outer pair."
+        )
+    return np.asarray(inner_vals, dtype=float), np.asarray(outer_vals, dtype=float)
+
+
 def _effective_windowing(opts) -> tuple[int, int, int]:
     raw_skip = getattr(opts, "turnback_excursion_bin_skip_first_sync_buckets", None)
     raw_keep = getattr(opts, "turnback_excursion_bin_keep_first_sync_buckets", None)
@@ -89,9 +129,7 @@ def _effective_windowing(opts) -> tuple[int, int, int]:
         getattr(opts, "keep_first_sync_buckets", 0) if raw_keep is None else raw_keep
     )
     last_sync = int(getattr(opts, "turnback_excursion_bin_last_sync_buckets", 0) or 0)
-    return max(0, int(skip_first or 0)), max(0, int(keep_first or 0)), max(
-        0, last_sync
-    )
+    return max(0, int(skip_first or 0)), max(0, int(keep_first or 0)), max(0, last_sync)
 
 
 def _selected_windows_for_va(
@@ -202,9 +240,7 @@ def _resolve_open_ended_upper_edge(
         )
         if not windows:
             continue
-        windows_by_training = {
-            int(win["training_idx"]): [win] for win in windows
-        }
+        windows_by_training = {int(win["training_idx"]): [win] for win in windows}
         for fly_idx, trj in enumerate(getattr(va, "trx", [])):
             if getattr(trj, "_bad", False):
                 continue
@@ -305,9 +341,7 @@ def _compute_turnback_curves(
             )
             continue
 
-        windows_by_training = {
-            int(win["training_idx"]): [win] for win in windows
-        }
+        windows_by_training = {int(win["training_idx"]): [win] for win in windows}
 
         for fly_idx, trj in enumerate(getattr(va, "trx", [])):
             if getattr(trj, "_bad", False):
@@ -400,7 +434,134 @@ def _compute_turnback_curves(
             f"(outer bin at/below effective inner radius): n={int(invalid_bin_hits)}",
         )
 
-    return ratio_exp, ratio_ctrl, turn_exp, turn_ctrl, total_exp, total_ctrl, windows_meta
+    return (
+        ratio_exp,
+        ratio_ctrl,
+        turn_exp,
+        turn_ctrl,
+        total_exp,
+        total_ctrl,
+        windows_meta,
+    )
+
+
+def _compute_pair_curves(
+    vas,
+    *,
+    inner_deltas_mm: np.ndarray,
+    outer_deltas_mm: np.ndarray,
+    border_width_mm: float,
+    radius_offset_px: float,
+    selected_trainings: list[int],
+    skip_first: int,
+    keep_first: int,
+    last_sync_buckets: int,
+    debug: bool,
+):
+    n_videos = len(vas)
+    n_pairs = int(inner_deltas_mm.size)
+    ratio_exp = np.full((n_videos, n_pairs), np.nan, dtype=float)
+    ratio_ctrl = np.full((n_videos, n_pairs), np.nan, dtype=float)
+    turn_exp = np.zeros((n_videos, n_pairs), dtype=float)
+    turn_ctrl = np.zeros((n_videos, n_pairs), dtype=float)
+    total_exp = np.zeros((n_videos, n_pairs), dtype=int)
+    total_ctrl = np.zeros((n_videos, n_pairs), dtype=int)
+    windows_meta = []
+
+    for vi, va in enumerate(vas):
+        vid = getattr(va, "fn", f"va_{vi}")
+        windows = _selected_windows_for_va(
+            va,
+            selected_trainings,
+            skip_first=skip_first,
+            keep_first=keep_first,
+            last_sync_buckets=last_sync_buckets,
+        )
+        windows_meta.append(windows)
+        if not windows:
+            _dbg_if(
+                debug,
+                f"[turnback-excursion-bin] {vid}: no eligible windows after selection",
+            )
+            continue
+        windows_by_training = {int(win["training_idx"]): [win] for win in windows}
+
+        for pair_idx, (inner_delta_mm, outer_delta_mm) in enumerate(
+            zip(inner_deltas_mm, outer_deltas_mm)
+        ):
+            for fly_idx, trj in enumerate(getattr(va, "trx", [])):
+                if getattr(trj, "_bad", False):
+                    continue
+                if fly_idx > 1:
+                    continue
+                if fly_idx == 1 and getattr(va, "noyc", False):
+                    continue
+
+                turns = 0
+                total = 0
+                for t_idx in selected_trainings:
+                    if t_idx >= len(getattr(va, "trns", [])):
+                        continue
+                    trn = va.trns[t_idx]
+                    if trn is None or not trn.isCircle():
+                        continue
+                    if t_idx not in windows_by_training:
+                        continue
+
+                    episodes = trj.reward_turnback_dual_circle_episodes_for_training(
+                        trn=trn,
+                        inner_delta_mm=float(inner_delta_mm),
+                        outer_delta_mm=float(outer_delta_mm),
+                        border_width_mm=float(border_width_mm),
+                        debug=False,
+                        radius_offset_px=float(radius_offset_px),
+                    )
+                    if not episodes:
+                        continue
+
+                    for ep in episodes:
+                        event_t = int(ep["stop"]) - 1
+                        if not _frame_in_windows(event_t, windows_by_training[t_idx]):
+                            continue
+                        total += 1
+                        if bool(ep.get("turns_back", False)):
+                            turns += 1
+
+                ratio = np.nan if total <= 0 else float(turns) / float(total)
+                if fly_idx == 0:
+                    turn_exp[vi, pair_idx] = float(turns)
+                    total_exp[vi, pair_idx] = int(total)
+                    ratio_exp[vi, pair_idx] = ratio
+                elif fly_idx == 1:
+                    turn_ctrl[vi, pair_idx] = float(turns)
+                    total_ctrl[vi, pair_idx] = int(total)
+                    ratio_ctrl[vi, pair_idx] = ratio
+
+            _dbg_if(
+                debug,
+                (
+                    f"[turnback-excursion-bin] {vid}: "
+                    f"pair={float(inner_delta_mm):g}:{float(outer_delta_mm):g} "
+                    f"exp={turn_exp[vi, pair_idx]:g}/{total_exp[vi, pair_idx]}"
+                    + (
+                        ""
+                        if getattr(va, "noyc", False)
+                        else (
+                            f" ctrl={turn_ctrl[vi, pair_idx]:g}/"
+                            f"{total_ctrl[vi, pair_idx]}"
+                        )
+                    )
+                ),
+            )
+    return (
+        ratio_exp,
+        ratio_ctrl,
+        turn_exp,
+        turn_ctrl,
+        total_exp,
+        total_ctrl,
+        windows_meta,
+    )
 
 
 def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
@@ -412,7 +573,8 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         print(f"[export] No non-skipped VideoAnalysis instances; not writing {out_fn}")
         return
 
-    requested_bin_edges_mm = _bin_edges_mm(opts)
+    pair_deltas_mm = _pair_deltas_mm(opts)
+    requested_bin_edges_mm = None if pair_deltas_mm is not None else _bin_edges_mm(opts)
     selected_trainings = _selected_training_indices(vas_ok, opts)
     skip_first, keep_first, last_sync_buckets = _effective_windowing(opts)
     inner_delta_mm = float(getattr(opts, "turnback_inner_delta_mm", 0.0) or 0.0)
@@ -422,41 +584,68 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
     )
     debug = bool(getattr(opts, "turnback_excursion_bin_debug", False))
 
-    bin_edges_mm, open_ended_upper_bin = _resolve_open_ended_upper_edge(
-        vas_ok,
-        bin_edges_mm=requested_bin_edges_mm,
-        inner_delta_mm=inner_delta_mm,
-        border_width_mm=border_width_mm,
-        radius_offset_px=radius_offset_px,
-        selected_trainings=selected_trainings,
-        skip_first=skip_first,
-        keep_first=keep_first,
-        last_sync_buckets=last_sync_buckets,
-        debug=debug,
-    )
-    (
-        ratio_exp,
-        ratio_ctrl,
-        turn_exp,
-        turn_ctrl,
-        total_exp,
-        total_ctrl,
-        windows_meta,
-    ) = _compute_turnback_curves(
-        vas_ok,
-        bin_edges_mm=bin_edges_mm,
-        inner_delta_mm=inner_delta_mm,
-        border_width_mm=border_width_mm,
-        radius_offset_px=radius_offset_px,
-        selected_trainings=selected_trainings,
-        skip_first=skip_first,
-        keep_first=keep_first,
-        last_sync_buckets=last_sync_buckets,
-        debug=debug,
-    )
+    if pair_deltas_mm is None:
+        bin_edges_mm, open_ended_upper_bin = _resolve_open_ended_upper_edge(
+            vas_ok,
+            bin_edges_mm=requested_bin_edges_mm,
+            inner_delta_mm=inner_delta_mm,
+            border_width_mm=border_width_mm,
+            radius_offset_px=radius_offset_px,
+            selected_trainings=selected_trainings,
+            skip_first=skip_first,
+            keep_first=keep_first,
+            last_sync_buckets=last_sync_buckets,
+            debug=debug,
+        )
+        (
+            ratio_exp,
+            ratio_ctrl,
+            turn_exp,
+            turn_ctrl,
+            total_exp,
+            total_ctrl,
+            windows_meta,
+        ) = _compute_turnback_curves(
+            vas_ok,
+            bin_edges_mm=bin_edges_mm,
+            inner_delta_mm=inner_delta_mm,
+            border_width_mm=border_width_mm,
+            radius_offset_px=radius_offset_px,
+            selected_trainings=selected_trainings,
+            skip_first=skip_first,
+            keep_first=keep_first,
+            last_sync_buckets=last_sync_buckets,
+            debug=debug,
+        )
+        pair_inner_deltas_mm = None
+        pair_outer_deltas_mm = None
+    else:
+        pair_inner_deltas_mm, pair_outer_deltas_mm = pair_deltas_mm
+        open_ended_upper_bin = False
+        bin_edges_mm = np.asarray([], dtype=float)
+        (
+            ratio_exp,
+            ratio_ctrl,
+            turn_exp,
+            turn_ctrl,
+            total_exp,
+            total_ctrl,
+            windows_meta,
+        ) = _compute_pair_curves(
+            vas_ok,
+            inner_deltas_mm=pair_inner_deltas_mm,
+            outer_deltas_mm=pair_outer_deltas_mm,
+            border_width_mm=border_width_mm,
+            radius_offset_px=radius_offset_px,
+            selected_trainings=selected_trainings,
+            skip_first=skip_first,
+            keep_first=keep_first,
+            last_sync_buckets=last_sync_buckets,
+            debug=debug,
+        )
 
     n_videos = len(vas_ok)
-    n_bins = int(bin_edges_mm.size - 1)
+    n_bins = int(ratio_exp.shape[1])
 
     try:
         sli, sli_ts = _compute_sli_scalar_and_timeseries_from_rpid(vas_ok, opts)
@@ -466,7 +655,9 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
             f"bundle: {exc}"
         )
         sli = np.full((n_videos,), np.nan, dtype=float)
-        sli_ts = np.full((n_videos, len(getattr(vas_ok[0], "trns", []) or []), 0), np.nan)
+        sli_ts = np.full(
+            (n_videos, len(getattr(vas_ok[0], "trns", []) or []), 0), np.nan
+        )
 
     group_label = _safe_group_label(opts, gls)
     try:
@@ -527,7 +718,8 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         turnback_excursion_bin_total_ctrl=np.asarray(total_ctrl, dtype=int),
         turnback_excursion_bin_edges_mm=np.asarray(bin_edges_mm, dtype=float),
         turnback_excursion_bin_requested_edges_mm=np.asarray(
-            requested_bin_edges_mm, dtype=float
+            [] if requested_bin_edges_mm is None else requested_bin_edges_mm,
+            dtype=float,
         ),
         turnback_excursion_bin_open_ended_upper_bin=np.array(
             open_ended_upper_bin, dtype=bool
@@ -535,22 +727,32 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         turnback_excursion_bin_trainings=np.asarray(selected_trainings, dtype=int),
         turnback_excursion_bin_skip_first_sync_buckets=np.array(skip_first, dtype=int),
         turnback_excursion_bin_keep_first_sync_buckets=np.array(keep_first, dtype=int),
-        turnback_excursion_bin_last_sync_buckets=np.array(
-            last_sync_buckets, dtype=int
-        ),
+        turnback_excursion_bin_last_sync_buckets=np.array(last_sync_buckets, dtype=int),
         turnback_excursion_bin_inner_delta_mm=np.array(inner_delta_mm, dtype=float),
         turnback_excursion_bin_inner_radius_offset_px=np.array(
             radius_offset_px, dtype=float
         ),
-        turnback_excursion_bin_border_width_mm=np.array(
-            border_width_mm, dtype=float
-        ),
+        turnback_excursion_bin_border_width_mm=np.array(border_width_mm, dtype=float),
         turnback_excursion_bin_window_summary=window_strings,
         turnback_excursion_bin_description=np.asarray(
-            "Exact bin-averaged turnback probability over outer-radius bins above reward circle"
+            (
+                "Fixed dual-circle turnback probability for independent inner/outer radius pairs"
+                if pair_deltas_mm is not None
+                else "Exact bin-averaged turnback probability over outer-radius bins above reward circle"
+            )
         ),
         bucket_len_min=np.array(np.nan, dtype=float),
     )
+    if pair_deltas_mm is not None:
+        payload.update(
+            turnback_excursion_bin_pair_inner_deltas_mm=np.asarray(
+                pair_inner_deltas_mm, dtype=float
+            ),
+            turnback_excursion_bin_pair_outer_deltas_mm=np.asarray(
+                pair_outer_deltas_mm, dtype=float
+            ),
+            turnback_excursion_bin_pair_mode=np.array(True, dtype=bool),
+        )
     validate_sli_bundle(payload, path=out_fn)
     validate_turnback_excursion_bin_bundle(payload, path=out_fn)
     np.savez_compressed(out_fn, **payload)

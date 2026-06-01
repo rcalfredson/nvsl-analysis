@@ -5286,6 +5286,18 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--turnback-excursion-bin-pairs-mm",
+    type=str,
+    default=None,
+    help=(
+        "Optional comma-separated independent inner:outer radius-delta pairs "
+        "(mm beyond reward-circle radius) for the turnback-excursion-bin export, "
+        "e.g. '2:4,6:8,14:16'. When provided, this replaces "
+        "--turnback-excursion-bin-edges-mm and computes one fixed dual-circle "
+        "turnback ratio per pair."
+    ),
+)
+g.add_argument(
     "--turnback-outer-radius-skip-first-sync-buckets",
     type=int,
     default=None,

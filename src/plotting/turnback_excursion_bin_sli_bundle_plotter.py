@@ -16,6 +16,13 @@ from src.plotting.overlay_training_metric_scalar_bars import (
 from src.utils.common import writeImage
 
 
+def _scalar_str(value) -> str:
+    arr = np.asarray(value)
+    if arr.shape == ():
+        return str(arr.item())
+    return str(arr.reshape(-1)[0])
+
+
 def _metric_arrays(bundle, metric: str) -> tuple[np.ndarray, np.ndarray]:
     if metric == "ratio":
         exp = np.asarray(bundle["turnback_excursion_bin_ratio_exp"], dtype=float)
@@ -56,6 +63,18 @@ def _mode_values(bundle, mode: str, metric: str) -> np.ndarray:
 
 
 def _panel_labels(bundle) -> list[str]:
+    if (
+        "turnback_excursion_bin_pair_inner_deltas_mm" in bundle
+        and "turnback_excursion_bin_pair_outer_deltas_mm" in bundle
+    ):
+        inner = np.asarray(
+            bundle["turnback_excursion_bin_pair_inner_deltas_mm"], dtype=float
+        ).reshape(-1)
+        outer = np.asarray(
+            bundle["turnback_excursion_bin_pair_outer_deltas_mm"], dtype=float
+        ).reshape(-1)
+        return [f"{float(i):g}-{float(o):g} mm" for i, o in zip(inner, outer)]
+
     edges = np.asarray(bundle["turnback_excursion_bin_edges_mm"], dtype=float).reshape(
         -1
     )
@@ -74,6 +93,13 @@ def _panel_labels(bundle) -> list[str]:
     return labels
 
 
+def _is_pair_mode(bundle) -> bool:
+    return (
+        "turnback_excursion_bin_pair_inner_deltas_mm" in bundle
+        and "turnback_excursion_bin_pair_outer_deltas_mm" in bundle
+    )
+
+
 def _bundle_to_exported(
     bundle,
     *,
@@ -86,6 +112,8 @@ def _bundle_to_exported(
     video_ids_full = np.asarray(bundle["video_ids"], dtype=object).reshape(-1)
     vals = np.asarray(vals[sub_idx, :], dtype=float)
     video_ids = np.asarray(video_ids_full[sub_idx], dtype=object)
+
+    pair_mode = _is_pair_mode(bundle)
 
     panel_labels = _panel_labels(bundle)
     per_unit_values_panel = []
@@ -112,35 +140,67 @@ def _bundle_to_exported(
         ylabel = (
             "Turnback ratio (exp - yok)"
             if mode == "exp_minus_ctrl"
-            else (
-                "Turnback ratio (yoked)"
-                if mode == "ctrl"
-                else "Turnback ratio"
-            )
+            else ("Turnback ratio (yoked)" if mode == "ctrl" else "Turnback ratio")
         )
-        base_title = "Bin-averaged turnback ratio vs outer-radius bin"
+        base_title = (
+            "Turnback ratio vs inner/outer radius pair"
+            if pair_mode
+            else "Bin-averaged turnback ratio vs outer-radius bin"
+        )
     elif metric == "success":
         ylabel = (
-            "Turnback success mass per fly (exp - yok)"
-            if mode == "exp_minus_ctrl"
+            "Turnback success count per fly (exp - yok)"
+            if pair_mode and mode == "exp_minus_ctrl"
             else (
-                "Turnback success mass per fly (yoked)"
-                if mode == "ctrl"
-                else "Turnback success mass per fly"
+                "Turnback success count per fly (yoked)"
+                if pair_mode and mode == "ctrl"
+                else (
+                    "Turnback success count per fly"
+                    if pair_mode
+                    else (
+                        "Turnback success mass per fly (exp - yok)"
+                        if mode == "exp_minus_ctrl"
+                        else (
+                            "Turnback success mass per fly (yoked)"
+                            if mode == "ctrl"
+                            else "Turnback success mass per fly"
+                        )
+                    )
+                )
             )
         )
-        base_title = "Integrated turnback success mass vs outer-radius bin"
+        base_title = (
+            "Turnback success count vs inner/outer radius pair"
+            if pair_mode
+            else "Integrated turnback success mass vs outer-radius bin"
+        )
     elif metric == "failure":
         ylabel = (
-            "Non-turnback mass per fly (exp - yok)"
-            if mode == "exp_minus_ctrl"
+            "Non-turnback count per fly (exp - yok)"
+            if pair_mode and mode == "exp_minus_ctrl"
             else (
-                "Non-turnback mass per fly (yoked)"
-                if mode == "ctrl"
-                else "Non-turnback mass per fly"
+                "Non-turnback count per fly (yoked)"
+                if pair_mode and mode == "ctrl"
+                else (
+                    "Non-turnback count per fly"
+                    if pair_mode
+                    else (
+                        "Non-turnback mass per fly (exp - yok)"
+                        if mode == "exp_minus_ctrl"
+                        else (
+                            "Non-turnback mass per fly (yoked)"
+                            if mode == "ctrl"
+                            else "Non-turnback mass per fly"
+                        )
+                    )
+                )
             )
         )
-        base_title = "Integrated non-turnback mass vs outer-radius bin"
+        base_title = (
+            "Non-turnback count vs inner/outer radius pair"
+            if pair_mode
+            else "Integrated non-turnback mass vs outer-radius bin"
+        )
     elif metric == "total":
         ylabel = (
             "Resolved turnback excursions per fly (exp - yok)"
@@ -151,7 +211,11 @@ def _bundle_to_exported(
                 else "Resolved turnback excursions per fly"
             )
         )
-        base_title = "Resolved turnback excursion count vs outer-radius bin"
+        base_title = (
+            "Resolved turnback excursion count vs inner/outer radius pair"
+            if pair_mode
+            else "Resolved turnback excursion count vs outer-radius bin"
+        )
     else:
         raise ValueError(f"Unknown metric={metric!r}")
 
@@ -215,7 +279,7 @@ def plot_turnback_excursion_bin_sli_bundles(
         bundle_label = (
             labels[i]
             if labels is not None and i < len(labels)
-            else str(bundle["group_label"].reshape(()).item())
+            else _scalar_str(bundle["group_label"])
         )
         for subset_label, idx in _selected_groups(
             bundle,
@@ -238,7 +302,13 @@ def plot_turnback_excursion_bin_sli_bundles(
     if not exported:
         raise ValueError("No non-empty plotted groups after SLI filtering.")
 
-    xlabel = xlabel or "Outer-radius bin from reward circle (mm)"
+    if xlabel is None:
+        all_pair_mode = all(_is_pair_mode(bundle) for bundle in loaded)
+        xlabel = (
+            "Inner/outer radius delta pair from reward circle (mm)"
+            if all_pair_mode
+            else "Outer-radius bin from reward circle (mm)"
+        )
     ylabel = ylabel or exported[0].meta.get("y_label", "Turnback ratio")
     fig = plot_overlays(
         exported,

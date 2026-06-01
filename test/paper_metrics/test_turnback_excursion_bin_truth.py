@@ -5,9 +5,11 @@ import pytest
 
 from src.exporting.turnback_excursion_bin_sli_bundle import (
     _bin_edges_mm,
+    _compute_pair_curves,
     _compute_turnback_curves,
     _effective_windowing,
     _integrated_bin_contribution,
+    _pair_deltas_mm,
     _selected_training_indices,
     _selected_windows_for_va,
 )
@@ -34,6 +36,10 @@ class _Trajectory:
         self.calls = []
 
     def reward_turnback_excursion_episodes_for_training(self, **kwargs):
+        self.calls.append(kwargs)
+        return list(self._episodes)
+
+    def reward_turnback_dual_circle_episodes_for_training(self, **kwargs):
         self.calls.append(kwargs)
         return list(self._episodes)
 
@@ -82,6 +88,22 @@ def _curves(vas, edges=(2.0, 8.0, 16.0), **overrides):
     return _compute_turnback_curves(vas, **params)
 
 
+def _pair_curves(vas, pairs=((2.0, 4.0), (6.0, 8.0)), **overrides):
+    params = {
+        "inner_deltas_mm": np.asarray([p[0] for p in pairs], dtype=float),
+        "outer_deltas_mm": np.asarray([p[1] for p in pairs], dtype=float),
+        "border_width_mm": 0.1,
+        "radius_offset_px": 0.0,
+        "selected_trainings": [0],
+        "skip_first": 0,
+        "keep_first": 0,
+        "last_sync_buckets": 0,
+        "debug": False,
+    }
+    params.update(overrides)
+    return _compute_pair_curves(vas, **params)
+
+
 def test_integrated_bin_contribution_is_exact_threshold_average_above_inner_radius():
     assert (
         _integrated_bin_contribution(1.0, 2.0, 8.0, min_valid_outer_delta_mm=2.0) == 1.0
@@ -114,6 +136,21 @@ def test_bin_edges_accept_panel_edges_and_reject_bad_inputs():
         ValueError, match="monotonically increasing|strictly increasing"
     ):
         _bin_edges_mm(SimpleNamespace(turnback_excursion_bin_edges_mm="2,8,8"))
+
+
+def test_pair_deltas_accept_independent_inner_outer_pairs_and_reject_bad_inputs():
+    opts = SimpleNamespace(turnback_excursion_bin_pairs_mm="2:4,6:8,14:16")
+    inner, outer = _pair_deltas_mm(opts)
+    np.testing.assert_allclose(inner, [2.0, 6.0, 14.0])
+    np.testing.assert_allclose(outer, [4.0, 8.0, 16.0])
+
+    assert _pair_deltas_mm(SimpleNamespace(turnback_excursion_bin_pairs_mm=None)) is None
+
+    with pytest.raises(ValueError, match="inner:outer"):
+        _pair_deltas_mm(SimpleNamespace(turnback_excursion_bin_pairs_mm="2-4"))
+
+    with pytest.raises(ValueError, match="greater"):
+        _pair_deltas_mm(SimpleNamespace(turnback_excursion_bin_pairs_mm="4:4"))
 
 
 def test_training_selection_and_windowing_match_panel_metadata_conventions():
@@ -225,3 +262,26 @@ def test_bins_at_or_below_effective_inner_radius_are_not_counted():
     assert np.isnan(ratio_exp[0, 0])
     np.testing.assert_array_equal(total_exp, [[0, 1]])
     np.testing.assert_allclose(turn_exp, [[0.0, 1.0]])
+
+
+def test_independent_pair_curves_call_dual_circle_metric_per_pair():
+    exp = _Trajectory([_episode(10, 0.0, True), _episode(20, 0.0, False)])
+    ctrl = _Trajectory([_episode(10, 0.0, False)])
+    va = _va(trx=[exp, ctrl], sync_bucket_ranges=[[(0, 50)]])
+
+    ratio_exp, ratio_ctrl, turn_exp, turn_ctrl, total_exp, total_ctrl, _ = _pair_curves(
+        [va],
+        pairs=((2.0, 4.0), (6.0, 8.0), (14.0, 16.0)),
+    )
+
+    np.testing.assert_allclose(ratio_exp, [[0.5, 0.5, 0.5]])
+    np.testing.assert_allclose(ratio_ctrl, [[0.0, 0.0, 0.0]])
+    np.testing.assert_allclose(turn_exp, [[1.0, 1.0, 1.0]])
+    np.testing.assert_allclose(turn_ctrl, [[0.0, 0.0, 0.0]])
+    np.testing.assert_array_equal(total_exp, [[2, 2, 2]])
+    np.testing.assert_array_equal(total_ctrl, [[1, 1, 1]])
+
+    assert [
+        (call["inner_delta_mm"], call["outer_delta_mm"])
+        for call in exp.calls
+    ] == [(2.0, 4.0), (6.0, 8.0), (14.0, 16.0)]

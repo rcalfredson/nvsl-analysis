@@ -638,9 +638,7 @@ def validate_agarose_sli_bundle(bundle: dict, *, path: str | None = None) -> Non
     if present_training_pre and set(present_training_pre) != set(
         AGAROSE_TRAINING_PRE_KEYS
     ):
-        missing_training_pre = [
-            k for k in AGAROSE_TRAINING_PRE_KEYS if k not in bundle
-        ]
+        missing_training_pre = [k for k in AGAROSE_TRAINING_PRE_KEYS if k not in bundle]
         raise ValueError(
             f"Bundle {where} has incomplete agarose training-pre keys: "
             f"{missing_training_pre}"
@@ -722,12 +720,12 @@ def validate_return_prob_excursion_bin_bundle(
                 f"Bundle {where} has non-finite interior requested bin edges"
             )
         if np.any(np.diff(requested) <= 0):
-            raise ValueError(
-                f"Bundle {where} has non-increasing requested bin edges"
-            )
+            raise ValueError(f"Bundle {where} has non-increasing requested bin edges")
 
     if "return_prob_excursion_bin_window_summary" in bundle:
-        window_summary = as_str_array(bundle["return_prob_excursion_bin_window_summary"])
+        window_summary = as_str_array(
+            bundle["return_prob_excursion_bin_window_summary"]
+        )
         if window_summary.shape[0] != n_videos:
             raise ValueError(
                 f"Bundle {where} has len(return_prob_excursion_bin_window_summary)="
@@ -845,34 +843,66 @@ def validate_turnback_excursion_bin_bundle(
         raise ValueError(f"Bundle {where} has non-1D sli shape {sli.shape}")
     n_videos = int(sli.shape[0])
 
+    pair_mode = bool(
+        "turnback_excursion_bin_pair_inner_deltas_mm" in bundle
+        or "turnback_excursion_bin_pair_outer_deltas_mm" in bundle
+    )
+
     edges = np.asarray(bundle["turnback_excursion_bin_edges_mm"], dtype=float)
     if edges.ndim != 1:
         raise ValueError(
             f"Bundle {where} has non-1D turnback_excursion_bin_edges_mm "
             f"shape {edges.shape}"
         )
-    if edges.size < 2:
-        raise ValueError(f"Bundle {where} has fewer than two turnback bin edges")
-    if not np.all(np.isfinite(edges)):
-        raise ValueError(f"Bundle {where} has non-finite resolved turnback bin edges")
-    if np.any(np.diff(edges) <= 0):
-        raise ValueError(f"Bundle {where} has non-increasing turnback bin edges")
-    n_bins = int(edges.size - 1)
+    if pair_mode:
+        pair_inner = np.asarray(
+            bundle.get("turnback_excursion_bin_pair_inner_deltas_mm", []), dtype=float
+        )
+        pair_outer = np.asarray(
+            bundle.get("turnback_excursion_bin_pair_outer_deltas_mm", []), dtype=float
+        )
+        if pair_inner.ndim != 1 or pair_outer.ndim != 1:
+            raise ValueError(f"Bundle {where} has non-1D turnback pair metadata")
+        if pair_inner.size == 0 or pair_inner.size != pair_outer.size:
+            raise ValueError(
+                f"Bundle {where} has mismatched turnback pair metadata shapes "
+                f"{pair_inner.shape} and {pair_outer.shape}"
+            )
+        if not np.all(np.isfinite(pair_inner)) or not np.all(np.isfinite(pair_outer)):
+            raise ValueError(f"Bundle {where} has non-finite turnback pair metadata")
+        if np.any(pair_inner < 0.0):
+            raise ValueError(f"Bundle {where} has negative turnback pair inner deltas")
+        if np.any(pair_outer <= pair_inner):
+            raise ValueError(
+                f"Bundle {where} has turnback pair outer deltas <= inner deltas"
+            )
+        n_bins = int(pair_inner.size)
+    else:
+        if edges.size < 2:
+            raise ValueError(f"Bundle {where} has fewer than two turnback bin edges")
+        if not np.all(np.isfinite(edges)):
+            raise ValueError(
+                f"Bundle {where} has non-finite resolved turnback bin edges"
+            )
+        if np.any(np.diff(edges) <= 0):
+            raise ValueError(f"Bundle {where} has non-increasing turnback bin edges")
+        n_bins = int(edges.size - 1)
 
     if "turnback_excursion_bin_requested_edges_mm" in bundle:
         requested = np.asarray(
             bundle["turnback_excursion_bin_requested_edges_mm"], dtype=float
         )
-        if requested.ndim != 1 or requested.size != edges.size:
+        expected_requested_size = 0 if pair_mode else edges.size
+        if requested.ndim != 1 or requested.size != expected_requested_size:
             raise ValueError(
                 f"Bundle {where} has turnback_excursion_bin_requested_edges_mm "
-                f"shape {requested.shape} but expected {(edges.size,)}"
+                f"shape {requested.shape} but expected {(expected_requested_size,)}"
             )
-        if not np.all(np.isfinite(requested[:-1])):
+        if requested.size and not np.all(np.isfinite(requested[:-1])):
             raise ValueError(
                 f"Bundle {where} has non-finite interior requested turnback bin edges"
             )
-        if np.any(np.diff(requested) <= 0):
+        if requested.size and np.any(np.diff(requested) <= 0):
             raise ValueError(
                 f"Bundle {where} has non-increasing requested turnback bin edges"
             )
@@ -881,6 +911,10 @@ def validate_turnback_excursion_bin_bundle(
         open_ended = bool(
             as_scalar(bundle["turnback_excursion_bin_open_ended_upper_bin"])
         )
+        if open_ended and pair_mode:
+            raise ValueError(
+                f"Bundle {where} marks an open-ended turnback bin in pair mode"
+            )
         if open_ended and "turnback_excursion_bin_requested_edges_mm" in bundle:
             requested = np.asarray(
                 bundle["turnback_excursion_bin_requested_edges_mm"], dtype=float

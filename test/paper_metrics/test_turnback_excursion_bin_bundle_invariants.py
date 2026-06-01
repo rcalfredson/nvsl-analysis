@@ -50,6 +50,18 @@ def test_validate_turnback_excursion_bin_bundle_accepts_valid_shapes_and_metadat
     assert normalized["turnback_excursion_bin_ratio_exp"].shape == (1, 2)
 
 
+def test_validate_turnback_excursion_bin_bundle_accepts_pair_mode_metadata():
+    validate_turnback_excursion_bin_bundle(
+        _bundle(
+            turnback_excursion_bin_edges_mm=np.asarray([]),
+            turnback_excursion_bin_requested_edges_mm=np.asarray([]),
+            turnback_excursion_bin_pair_inner_deltas_mm=np.asarray([2.0, 6.0]),
+            turnback_excursion_bin_pair_outer_deltas_mm=np.asarray([4.0, 8.0]),
+            turnback_excursion_bin_pair_mode=np.asarray(True),
+        )
+    )
+
+
 def test_validate_turnback_excursion_bin_bundle_rejects_missing_metric_key():
     bundle = _bundle()
     del bundle["turnback_excursion_bin_ratio_exp"]
@@ -162,6 +174,16 @@ def test_validate_turnback_excursion_bin_bundle_rejects_bad_metadata():
     with pytest.raises(ValueError, match="negative turnback_excursion_bin_trainings"):
         validate_turnback_excursion_bin_bundle(
             _bundle(turnback_excursion_bin_trainings=np.asarray([-1]))
+        )
+
+    with pytest.raises(ValueError, match="outer deltas <= inner"):
+        validate_turnback_excursion_bin_bundle(
+            _bundle(
+                turnback_excursion_bin_edges_mm=np.asarray([]),
+                turnback_excursion_bin_requested_edges_mm=np.asarray([]),
+                turnback_excursion_bin_pair_inner_deltas_mm=np.asarray([2.0]),
+                turnback_excursion_bin_pair_outer_deltas_mm=np.asarray([2.0]),
+            )
         )
 
     with pytest.raises(ValueError, match="requested last edge is not inf"):
