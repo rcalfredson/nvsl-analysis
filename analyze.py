@@ -4357,6 +4357,52 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--behavior-state-plots",
+    action="store_true",
+    help=(
+        "Write color-coded trajectory plots for opt-in behavior states. "
+        "Implies --behavior-state-analysis."
+    ),
+)
+g.add_argument(
+    "--behavior-state-plot-minimal",
+    action="store_true",
+    help="Render behavior-state trajectory plots in minimal mode.",
+)
+g.add_argument(
+    "--behavior-state-plot-trn",
+    type=int,
+    default=None,
+    help=(
+        "1-based training index to plot for behavior-state trajectories. "
+        "If omitted and no explicit frame window is supplied, the whole trajectory is plotted."
+    ),
+)
+g.add_argument(
+    "--behavior-state-plot-start-frame",
+    type=int,
+    default=None,
+    help="Optional start frame for behavior-state trajectory plots.",
+)
+g.add_argument(
+    "--behavior-state-plot-stop-frame",
+    type=int,
+    default=None,
+    help="Optional stop frame for behavior-state trajectory plots.",
+)
+g.add_argument(
+    "--behavior-state-plot-pad",
+    type=int,
+    default=0,
+    help="Frames of context to add on both sides of behavior-state trajectory plots.",
+)
+g.add_argument(
+    "--behavior-state-plot-out-dir",
+    type=str,
+    default="imgs/behavior_states",
+    help="Output directory for behavior-state trajectory plots.",
+)
+g.add_argument(
     "--turn-dir",
     action="store_true",
     help="analyze directionality of agarose- and/or boundary-anchored turns",
@@ -10215,6 +10261,47 @@ def _generate_between_reward_plots(vas, *, saved_bottom=None, saved_top=None):
                     )
 
 
+def _generate_behavior_state_plots(vas):
+    if not getattr(opts, "behavior_state_plots", False):
+        return
+
+    trn_index = (
+        int(opts.behavior_state_plot_trn) - 1
+        if getattr(opts, "behavior_state_plot_trn", None) is not None
+        else None
+    )
+    start_frame = getattr(opts, "behavior_state_plot_start_frame", None)
+    stop_frame = getattr(opts, "behavior_state_plot_stop_frame", None)
+    out_dir = getattr(opts, "behavior_state_plot_out_dir", "imgs/behavior_states")
+
+    for va in vas:
+        for trj in va.trx:
+            if va._bad(trj.f):
+                continue
+
+            try:
+                role_idx = va.flies.index(trj.f)
+            except Exception:
+                role_idx = int(trj.f)
+
+            plotter = EventChainPlotter(
+                trj,
+                va,
+                y_bounds=None,
+                image_format=opts.imageFormat,
+            )
+            plotter.plot_behavior_state_trajectory(
+                trn_index=trn_index,
+                start_frame=start_frame,
+                stop_frame=stop_frame,
+                pad=int(getattr(opts, "behavior_state_plot_pad", 0) or 0),
+                minimal=bool(getattr(opts, "behavior_state_plot_minimal", False)),
+                out_dir=out_dir,
+                image_format=opts.imageFormat,
+                role_idx=role_idx,
+            )
+
+
 def _iter_group_vas(vas, gis, gls):
     ng = int(gis.max()) + 1 if len(gis) else 0
     for gi in range(ng):
@@ -10326,6 +10413,7 @@ def _emit_default_between_reward_sli_plots(vas, gis, gls):
 
 def postAnalyze(vas):
     if len(vas) <= 1:
+        _generate_behavior_state_plots(vas)
         _generate_between_reward_plots(vas)
         return
 
@@ -10710,6 +10798,7 @@ def postAnalyze(vas):
         saved_bottom=saved_bottom,
         saved_top=saved_top,
     )
+    _generate_behavior_state_plots(vas)
 
     for tc in tcs:
         tp, calc = typeCalc(tc)
@@ -14347,6 +14436,9 @@ if __name__ == "__main__":
         opts.turn.remove("reward")
     else:
         opts.rTurnAnlyz = False
+
+    if getattr(opts, "behavior_state_plots", False):
+        opts.behavior_state_analysis = True
 
     # If polar wants wall-contact exclusion, we must compute wall contact
     if getattr(opts, "btw_rwd_polar_exclude_wall_contact", False):

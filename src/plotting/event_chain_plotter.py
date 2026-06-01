@@ -9,6 +9,10 @@ import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 
+from src.analysis.behavior_states import (
+    BehaviorState,
+    analyze_trajectory_behavior_states,
+)
 from src.utils.common import writeImage
 from src.utils.constants import CONTACT_BUFFER_OFFSETS
 
@@ -4481,6 +4485,326 @@ class EventChainPlotter:
         plt.close(fig)
 
         print(f"[plot_between_reward_interval] wrote {out_path}")
+
+    def plot_behavior_state_trajectory(
+        self,
+        *,
+        trn_index: int | None = None,
+        start_frame: int | None = None,
+        stop_frame: int | None = None,
+        pad: int = 0,
+        minimal: bool = False,
+        out_dir: str | None = None,
+        image_format: str | None = None,
+        role_idx: int | None = None,
+    ):
+        """
+        Plot a trajectory window color-coded by behavior state.
+
+        States are expected on ``trj.behavior_state`` and are generated on demand
+        if absent. Colors follow the opt-in detector labels:
+        rest = grey, turn = orange/red, run = blue/green.
+        """
+        image_format = image_format or self.image_format
+        states = getattr(self.trj, "behavior_state", None)
+        if states is None:
+            states = analyze_trajectory_behavior_states(self.trj)
+        if states is None:
+            print(
+                f"[plot_behavior_state_trajectory] No behavior states for fly {self.trj.f}; skipping."
+            )
+            return
+
+        states = np.asarray(states, dtype=np.int8)
+        n_frames = min(len(self.x), len(self.y), len(states))
+        if n_frames < 2:
+            print("[plot_behavior_state_trajectory] Too few frames to plot; skipping.")
+            return
+
+        if start_frame is None or stop_frame is None:
+            if trn_index is not None:
+                if trn_index < 0 or trn_index >= len(self.va.trns):
+                    print(
+                        f"[plot_behavior_state_trajectory] Invalid trn_index={trn_index}; "
+                        f"valid range is 0..{len(self.va.trns) - 1}"
+                    )
+                    return
+                trn = self.va.trns[trn_index]
+                if start_frame is None:
+                    start_frame = int(trn.start)
+                if stop_frame is None:
+                    stop_frame = int(trn.stop)
+            else:
+                if start_frame is None:
+                    start_frame = 0
+                if stop_frame is None:
+                    stop_frame = n_frames - 1
+
+        start_frame = max(0, int(start_frame) - int(pad))
+        stop_frame = min(n_frames - 1, int(stop_frame) + int(pad))
+        if stop_frame <= start_frame:
+            print(
+                f"[plot_behavior_state_trajectory] Empty frame window "
+                f"{start_frame}-{stop_frame}; skipping."
+            )
+            return
+
+        floor_coords = list(
+            self.va.ct.floor(self.va.xf, f=self.va.nef * (self.trj.f) + self.va.ef)
+        )
+        top_left, bottom_right = floor_coords[0], floor_coords[1]
+        padding_x = (bottom_right[0] - top_left[0]) * 0.1
+        padding_y = (top_left[1] - bottom_right[1]) * 0.1
+        contact_buffer_px = (
+            self.va.ct.pxPerMmFloor()
+            * self.va.xf.fctr
+            * CONTACT_BUFFER_OFFSETS["wall"]["max"]
+        )
+
+        reward_circles = []
+        seen_reward_circle_keys = set()
+        for ti, trn in enumerate(getattr(self.va, "trns", [])):
+            if int(getattr(trn, "stop", -1)) < start_frame:
+                continue
+            if int(getattr(trn, "start", n_frames)) > stop_frame:
+                continue
+            try:
+                circle = trn.circles(self.trj.f)[0]
+            except Exception:
+                continue
+            if circle is None:
+                continue
+            try:
+                cx, cy, r = (float(v) for v in circle)
+            except Exception:
+                continue
+            if not np.all(np.isfinite([cx, cy, r])):
+                continue
+
+            key = tuple(np.round([cx, cy, r], 3))
+            if key in seen_reward_circle_keys:
+                for entry in reward_circles:
+                    if entry["key"] == key:
+                        entry["trainings"].append(ti)
+                        break
+                continue
+            seen_reward_circle_keys.add(key)
+            reward_circles.append(
+                {
+                    "key": key,
+                    "circle": (cx, cy, r),
+                    "trainings": [ti],
+                }
+            )
+
+        colors = {
+            BehaviorState.REST: "#5a3d8f",
+            BehaviorState.TURN: "#d95f02",
+            BehaviorState.RUN: "#1f77b4",
+        }
+        labels = {
+            BehaviorState.REST: "Rest",
+            BehaviorState.TURN: "Turn",
+            BehaviorState.RUN: "Run",
+        }
+
+        fig, ax = plt.subplots(1, 1, figsize=(6.5, 6.5) if minimal else (7.5, 6.5))
+        plt.sca(ax)
+
+        rect = patches.FancyBboxPatch(
+            (top_left[0], top_left[1]),
+            bottom_right[0] - top_left[0],
+            bottom_right[1] - top_left[1],
+            boxstyle="round,pad=0.05,rounding_size=2",
+            linewidth=1,
+            edgecolor="black",
+            facecolor="none",
+            zorder=2,
+        )
+        ax.add_patch(rect)
+
+        try:
+            self._draw_sidewall_contact_region(
+                lower_left_x=top_left[0],
+                lower_left_y=top_left[1],
+                top_left=top_left,
+                bottom_right=bottom_right,
+                contact_buffer_px=contact_buffer_px,
+            )
+        except Exception as e:
+            print(
+                f"[plot_behavior_state_trajectory] Warning: failed to draw contact region: {e}"
+            )
+
+        for ci, entry in enumerate(reward_circles):
+            rcx, rcy, rcr = entry["circle"]
+            trn_nums = [idx + 1 for idx in entry["trainings"]]
+            if len(trn_nums) == 1:
+                circle_label = f"Reward circle T{trn_nums[0]}"
+            else:
+                circle_label = "Reward circle T%s" % ",".join(
+                    str(n) for n in trn_nums
+                )
+            ax.add_patch(
+                plt.Circle(
+                    (rcx, rcy),
+                    rcr,
+                    color=self.reward_circle_color,
+                    fill=False,
+                    linestyle="-",
+                    linewidth=1.5,
+                    zorder=3 + ci,
+                    label=None if minimal else circle_label,
+                )
+            )
+
+        window_states = states[start_frame : stop_frame + 1]
+        used_state_labels = set()
+        for i in range(start_frame, stop_frame):
+            if (
+                np.isnan(self.x[i])
+                or np.isnan(self.y[i])
+                or np.isnan(self.x[i + 1])
+                or np.isnan(self.y[i + 1])
+            ):
+                continue
+
+            state = BehaviorState(int(states[i]))
+            x_start = max(min(self.x[i], bottom_right[0]), top_left[0])
+            x_end = max(min(self.x[i + 1], bottom_right[0]), top_left[0])
+            y_start, y_end = self.y[i], self.y[i + 1]
+            label = None
+            if not minimal and state not in used_state_labels:
+                label = labels[state]
+                used_state_labels.add(state)
+            ax.plot(
+                [x_start, x_end],
+                [y_start, y_end],
+                color=colors[state],
+                linewidth=(
+                    1.35
+                    if state == BehaviorState.TURN
+                    else 1.05 if state == BehaviorState.REST else 0.85
+                ),
+                alpha=(
+                    0.98
+                    if state == BehaviorState.TURN
+                    else 0.95 if state == BehaviorState.REST else 0.86
+                ),
+                solid_capstyle="round",
+                zorder=5 if state != BehaviorState.RUN else 4,
+                label=label,
+            )
+
+        rest_frames = np.arange(start_frame, stop_frame + 1, dtype=int)
+        rest_frames = rest_frames[window_states == int(BehaviorState.REST)]
+        rest_frames = rest_frames[
+            np.isfinite(self.x[rest_frames]) & np.isfinite(self.y[rest_frames])
+        ]
+        if rest_frames.size:
+            marker_step = max(1, int(np.ceil(rest_frames.size / 350)))
+            rest_markers = rest_frames[::marker_step]
+            ax.scatter(
+                self.x[rest_markers],
+                self.y[rest_markers],
+                s=8 if minimal else 12,
+                color=colors[BehaviorState.REST],
+                edgecolors="white" if not minimal else "none",
+                linewidths=0.35 if not minimal else 0.0,
+                alpha=0.95,
+                zorder=6,
+                label=(
+                    None
+                    if minimal or BehaviorState.REST in used_state_labels
+                    else labels[BehaviorState.REST]
+                ),
+            )
+
+        ax.plot(
+            self.x[start_frame],
+            self.y[start_frame],
+            marker="o",
+            color="#2ca02c",
+            markersize=5 if minimal else 7,
+            zorder=7,
+            label=None if minimal else "Window start",
+        )
+        ax.plot(
+            self.x[stop_frame],
+            self.y[stop_frame],
+            marker="o",
+            color="#b22222",
+            markersize=5 if minimal else 7,
+            zorder=7,
+            label=None if minimal else "Window stop",
+        )
+
+        ax.set_xlim(top_left[0] - padding_x, bottom_right[0] + padding_x)
+        ax.set_ylim(bottom_right[1] - padding_y, top_left[1] + padding_y)
+        ax.set_aspect("equal", adjustable="box")
+        ax.axis("off")
+
+        video_id = os.path.splitext(os.path.basename(self.va.fn))[0]
+        fly_idx = self.va.f
+        if role_idx is None:
+            try:
+                role_idx = self.va.flies.index(self.trj.f)
+            except Exception:
+                role_idx = int(self.trj.f)
+        fly_role = "exp" if role_idx == 0 else "yok"
+
+        counts = {
+            state: int(np.count_nonzero(window_states == int(state)))
+            for state in (BehaviorState.REST, BehaviorState.TURN, BehaviorState.RUN)
+        }
+
+        if not minimal:
+            total = max(1, sum(counts.values()))
+            count_text = ", ".join(
+                f"{labels[state].lower()} {counts[state] / total:.1%}"
+                for state in (BehaviorState.REST, BehaviorState.TURN, BehaviorState.RUN)
+            )
+            title_trn = (
+                f" | trn {trn_index + 1}" if trn_index is not None else ""
+            )
+            fig.suptitle(
+                "Behavior-state trajectory\n"
+                f"{video_id}, fly {fly_idx}, {fly_role}{title_trn} | "
+                f"frames {start_frame}-{stop_frame}\n"
+                f"{count_text}",
+                fontsize=12,
+            )
+
+            handles, leg_labels = ax.get_legend_handles_labels()
+            if handles:
+                ax.legend(
+                    handles=handles,
+                    labels=leg_labels,
+                    loc="lower center",
+                    bbox_to_anchor=(0.5, -0.08),
+                    fancybox=True,
+                    shadow=True,
+                    ncol=4,
+                    fontsize=9,
+                )
+
+        if minimal:
+            fig.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01)
+        else:
+            fig.subplots_adjust(left=0.04, right=0.98, top=0.86, bottom=0.16)
+
+        out_dir = out_dir or os.path.join("imgs", "behavior_states")
+        os.makedirs(out_dir, exist_ok=True)
+        trn_tag = f"trn{trn_index + 1}" if trn_index is not None else "frames"
+        minimal_tag = "_minimal" if minimal else ""
+        out_path = os.path.join(
+            out_dir,
+            f"{video_id}__fly{fly_idx}_role{role_idx}_{trn_tag}_"
+            f"{start_frame}-{stop_frame}{minimal_tag}.{image_format}",
+        )
+        writeImage(out_path, format=image_format)
+        plt.close(fig)
+        print(f"[plot_behavior_state_trajectory] wrote {out_path}")
 
     def plot_between_reward_chain(
         self,

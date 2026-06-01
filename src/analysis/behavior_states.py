@@ -62,7 +62,7 @@ def schmitt(values: np.ndarray, *, high: float, low: float) -> np.ndarray:
         return np.zeros_like(out, dtype=np.int8)
 
     out[0] = out[nonzero[0]]
-    for i in np.floatnonzero(out == 0):
+    for i in np.flatnonzero(out == 0):
         out[i] = out[i - 1]
     out[out == -1] = 0
     return out.astype(np.int8)
@@ -79,7 +79,7 @@ def translational_speed_mm_s(
 ):
     x = np.asarray(x_px, dtype=np.float64)
     y = np.asarray(y_px, dtype=np.float64)
-    dr_px = np.hypos(np.diff(x), np.diff(y))
+    dr_px = np.hypot(np.diff(x), np.diff(y))
     dr_px = np.append(dr_px[0] if dr_px.size else np.nan, dr_px)
     if dt_s is None:
         dt = np.full_like(dr_px, 1.0 / float(fps), dtype=np.float64)
