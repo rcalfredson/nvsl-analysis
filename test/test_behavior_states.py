@@ -3,7 +3,7 @@ import numpy as np
 from src.analysis.behavior_states import (
     BehaviorState,
     DEFAULT_BEHAVIOR_STATE_CONFIG,
-    _savgol_like_reference,
+    _reference_savgol_filter,
     analyze_trajectory_behavior_states,
     classify_behavior_states,
     find_turns,
@@ -27,8 +27,8 @@ def _reference_find_turns(angular_speed, head_speed, body_speed):
         + (hbdiff > cfg.head_body_large_turn_mm_s).astype(float)
     )
     return (
-        _savgol_like_reference(turns_mask1)
-        + _savgol_like_reference(turns_mask2)
+        _reference_savgol_filter(turns_mask1)
+        + _reference_savgol_filter(turns_mask2)
         >= cfg.turn_score_threshold
     )
 
@@ -60,7 +60,7 @@ def test_classify_behavior_states_uses_turns_before_run_schmitt():
 
     states = classify_behavior_states(body_speed, angular_speed, head_speed)
     turn_mask = find_turns(angular_speed, head_speed, body_speed)
-    walking = schmitt(_savgol_like_reference(body_speed), high=3.0, low=1.0) > 0
+    walking = schmitt(_reference_savgol_filter(body_speed), high=3.0, low=1.0) > 0
 
     np.testing.assert_array_equal(states == BehaviorState.TURN, turn_mask)
     np.testing.assert_array_equal(states == BehaviorState.RUN, walking & ~turn_mask)
