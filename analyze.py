@@ -4347,6 +4347,16 @@ g.add_argument(
     nargs="+",
 )
 g.add_argument(
+    "--behavior-state-analysis",
+    action="store_true",
+    help=(
+        "Opt in to frame-wise behavior state detection for turn/run/rest. "
+        "This mirrors tmp/behaviorseg.py: turn detection combines angular speed "
+        "with head-body speed difference, then non-turn frames are split into "
+        "run/rest by a Schmitt trigger on body speed."
+    ),
+)
+g.add_argument(
     "--turn-dir",
     action="store_true",
     help="analyze directionality of agarose- and/or boundary-anchored turns",
