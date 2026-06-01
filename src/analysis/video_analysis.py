@@ -80,6 +80,7 @@ from src.analysis.contact_event_training_comparison import (
 from src.analysis.between_reward_filters import (
     min_between_reward_sync_bucket_trajectories,
 )
+from src.analysis.behavior_states import analyze_trajectory_behavior_states
 from src.analysis.ellipse_to_boundary_dist import (
     TrjDataContainer,
     VaDataContainer,
@@ -227,7 +228,7 @@ class VideoAnalysis:
         needs_tp = (
             opts.contact_geometry == "horizontal" and opts.turn_prob_by_dist
         ) or (opts.contact_geometry == "circular" and opts.outside_circle_radii)
-        if needs_tp:
+        if needs_tp or getattr(opts, "behavior_state_analysis", False):
             opts.chooseOrientations = True
 
         if (
@@ -245,6 +246,8 @@ class VideoAnalysis:
         self._initTrx()
         self._initSlots()
         self._readNoteFile(fn)  # possibly overrides whether trajectories bad
+        if getattr(opts, "behavior_state_analysis", False):
+            self._analyzeBehaviorStates()
         if opts.circle:
             self._analyzeCircularAndTurningMotion()
         self.runBoundaryContactAnalyses()
@@ -2568,6 +2571,32 @@ class VideoAnalysis:
         collator = DataCombiner(self, self.opts)
         collator.combineCircleResults()
         collator.combineTurnResults()
+
+    def _analyzeBehaviorStates(self):
+        """
+        Opt-in frame-wise turn/run/rest classification.
+
+        The detector mirrors the reference behaviorseg.py method: turns are scored
+        from angular speed and the head-body speed difference; non-turn frames are
+        split into run/rest with a Schmitt trigger on body speed.
+        """
+        print("\nanalyzing behavior states (turn/run/rest)...")
+        self.behavior_state_counts = []
+        for trj in self.trx:
+            states = analyze_trajectory_behavior_states(trj)
+            if states is None:
+                self.behavior_state_counts.append({})
+                continue
+            counts = {
+                "rest": int(np.count_nonzero(states == 0)),
+                "turn": int(np.count_nonzero(states == 1)),
+                "run": int(np.count_nonzero(states == 2)),
+            }
+            self.behavior_state_counts.append(counts)
+            print(
+                "  f%d: rest=%d, turn=%d, run=%d"
+                % (trj.f + 1, counts["rest"], counts["turn"], counts["run"])
+            )
 
     def calcOnRegionVisitDurationsForCsv(self, region_label):
         """
