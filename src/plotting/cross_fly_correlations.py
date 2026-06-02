@@ -1912,7 +1912,8 @@ def plot_cross_fly_correlations(
             if cutoff_suffix is not None and np.isfinite(cutoff_suffix):
                 rpt_suffix = f"{rpt_suffix}__maxtime{cutoff_suffix:g}s"
 
-    rpd_y_label = "rewards per distance $[m^{{-1}}]$"
+    rpd_label = "rewards per distance $(m^{{-1}})$"
+    rpd_y_label = rpd_label
     if reward_first_n > 0:
         rpt_y_label = _first_n_reward_rate_label(
             first_n_rewards=reward_first_n,
@@ -1925,14 +1926,14 @@ def plot_cross_fly_correlations(
 
     if sli_ctx.average_over_buckets:
         window_txt = sli_ctx._window_text(abbrev_sb=True)
-        rpd_y_label = f"rewards per distance $[m^{{-1}}]$\n(mean {window_txt})"
+        rpd_y_label = f"{rpd_label}\n(mean {window_txt})"
     else:
         if sli_bucket_idx is not None:
             window_txt = sli_ctx._window_text(abbrev_sb=True)
-            rpd_y_label = f"rewards per distance $[m^{{-1}}]$\n(T{sli_ctx.training_idx + 1}, {window_txt})"
+            rpd_y_label = f"{rpd_label}\n(T{sli_ctx.training_idx + 1}, {window_txt})"
         elif skip_k or keep_k:
             window_txt = sli_ctx._window_text(abbrev_sb=True)
-            rpd_y_label = f"rewards per distance $[m^{{-1}}]$\n({window_txt})"
+            rpd_y_label = f"{rpd_label}\n({window_txt})"
 
     # --- Plot 1: SLI_final vs reward-per-distance ---
     _scatter_with_corr(

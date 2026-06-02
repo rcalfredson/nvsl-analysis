@@ -7632,7 +7632,7 @@ def plotRewards(
     elif tp == "dbr":
         ylim = [0, 1600]
     elif tp == "rpd":
-        ylim = [0, 120]
+        ylim = [0, 80]
     elif tp == "rpd_exp_min_yok":
         ylim = [-0.5, 0.5]
     elif tp == "meddist":
@@ -8389,8 +8389,8 @@ def plotRewards(
                         r_no_contact=CONTACTLESS_RWDS_LABEL,
                         rpid="SLI",
                         rpipd="SLI",
-                        rpd="rewards per distance $[m^{-1}]$",
-                        rpd_exp_min_yok="rewards per distance $[m^{-1}]$\n$(\\text{exp} - \\text{yok})$",
+                        rpd="rewards per distance $(m^{-1})$",
+                        rpd_exp_min_yok="rewards per distance $(m^{-1})$\n$(\\text{exp} - \\text{yok})$",
                         agarose_dual_circle="dual-circle agarose avoidance ratio",
                         agarose_dual_circle_exp_min_yok="dual-circle agarose avoidance ratio\n$(\\text{exp} - \\text{yok})$",
                         turnback_dual_circle="dual-circle reward turnback ratio",
