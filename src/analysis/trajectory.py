@@ -922,6 +922,7 @@ class Trajectory:
         def _episodes_for_radii(inner_r_eff_px: float, outer_r_eff_px: float):
             in_inner = np.zeros(t1 - t0, dtype=bool)
             in_outer = np.zeros(t1 - t0, dtype=bool)
+            dist_px = np.full(t1 - t0, np.nan, dtype=float)
 
             if np.any(good):
                 inner_state = self.calc_in_circle(
@@ -942,6 +943,7 @@ class Trajectory:
                 )
                 in_inner[good] = inner_state > 0
                 in_outer[good] = outer_state > 0
+                dist_px[good] = np.hypot(xs[good] - float(cx), ys[good] - float(cy))
 
             prev = in_inner[:-1]
             curr = in_inner[1:]
@@ -959,6 +961,79 @@ class Trajectory:
             dropped_empty_window = 0
             dropped_trn_end_censored = 0
 
+            def _episode_record(
+                *,
+                start_rel: int,
+                stop_rel: int,
+                turns_back: bool,
+                end_reason: str,
+            ) -> dict:
+                event_rel = max(int(start_rel), int(stop_rel) - 1)
+                start_abs = int(t0 + start_rel)
+                stop_abs = int(t0 + stop_rel)
+                event_abs = int(t0 + event_rel)
+                start_dist_px = (
+                    float(dist_px[start_rel])
+                    if 0 <= start_rel < dist_px.size and np.isfinite(dist_px[start_rel])
+                    else np.nan
+                )
+                event_dist_px = (
+                    float(dist_px[event_rel])
+                    if 0 <= event_rel < dist_px.size and np.isfinite(dist_px[event_rel])
+                    else np.nan
+                )
+                return {
+                    "start": start_abs,
+                    "stop": stop_abs,
+                    "event_frame": event_abs,
+                    "turns_back": bool(turns_back),
+                    "end_reason": end_reason,
+                    "reward_cx_px": float(cx),
+                    "reward_cy_px": float(cy),
+                    "reward_radius_px": float(r_px),
+                    "reward_radius_mm": float(reward_radius_mm),
+                    "px_per_mm": float(px_per_mm),
+                    "inner_radius_px": float(inner_r_eff_px),
+                    "outer_radius_px": float(outer_r_eff_px),
+                    "inner_radius_mm": float(inner_r_eff_px) / float(px_per_mm),
+                    "outer_radius_mm": float(outer_r_eff_px) / float(px_per_mm),
+                    "inner_border_px": float(inner_border_px),
+                    "outer_border_px": float(outer_border_px),
+                    "border_width_mm": float(border_width_mm),
+                    "start_x_px": (
+                        float(xs[start_rel])
+                        if 0 <= start_rel < xs.size and np.isfinite(xs[start_rel])
+                        else np.nan
+                    ),
+                    "start_y_px": (
+                        float(ys[start_rel])
+                        if 0 <= start_rel < ys.size and np.isfinite(ys[start_rel])
+                        else np.nan
+                    ),
+                    "event_x_px": (
+                        float(xs[event_rel])
+                        if 0 <= event_rel < xs.size and np.isfinite(xs[event_rel])
+                        else np.nan
+                    ),
+                    "event_y_px": (
+                        float(ys[event_rel])
+                        if 0 <= event_rel < ys.size and np.isfinite(ys[event_rel])
+                        else np.nan
+                    ),
+                    "start_distance_px": start_dist_px,
+                    "event_distance_px": event_dist_px,
+                    "start_distance_mm": (
+                        float(start_dist_px) / float(px_per_mm)
+                        if np.isfinite(start_dist_px)
+                        else np.nan
+                    ),
+                    "event_distance_mm": (
+                        float(event_dist_px) / float(px_per_mm)
+                        if np.isfinite(event_dist_px)
+                        else np.nan
+                    ),
+                }
+
             enter_ptr = 0
             for ex in exit_idxs:
                 while enter_ptr < len(enter_idxs) and enter_idxs[enter_ptr] <= ex:
@@ -975,23 +1050,23 @@ class Trajectory:
                 if outer_violation_rel.size > 0:
                     vio = ex + int(outer_violation_rel[0])
                     episodes_local.append(
-                        {
-                            "start": int(t0 + ex),
-                            "stop": int(t0 + vio + 1),
-                            "turns_back": False,
-                            "end_reason": "exit_outer",
-                        }
+                        _episode_record(
+                            start_rel=int(ex),
+                            stop_rel=int(vio + 1),
+                            turns_back=False,
+                            end_reason="exit_outer",
+                        )
                     )
                     continue
 
                 if next_enter is not None:
                     episodes_local.append(
-                        {
-                            "start": int(t0 + ex),
-                            "stop": int(t0 + next_enter),
-                            "turns_back": True,
-                            "end_reason": "reenter_inner",
-                        }
+                        _episode_record(
+                            start_rel=int(ex),
+                            stop_rel=int(next_enter),
+                            turns_back=True,
+                            end_reason="reenter_inner",
+                        )
                     )
                 else:
                     dropped_trn_end_censored += 1

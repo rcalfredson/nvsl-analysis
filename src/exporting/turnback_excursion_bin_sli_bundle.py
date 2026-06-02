@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import csv
 
 import numpy as np
 
@@ -604,6 +605,158 @@ def _compute_pair_curves(
     )
 
 
+_DEBUG_EPISODE_FIELDS = [
+    "video_index",
+    "video_id",
+    "fly_idx",
+    "fly_role",
+    "training_idx",
+    "training_name",
+    "pair_idx",
+    "requested_inner_mm",
+    "requested_outer_mm",
+    "pair_mode",
+    "window_start",
+    "window_stop",
+    "episode_idx",
+    "start",
+    "stop",
+    "event_frame",
+    "turns_back",
+    "end_reason",
+    "reward_cx_px",
+    "reward_cy_px",
+    "reward_radius_px",
+    "reward_radius_mm",
+    "px_per_mm",
+    "inner_radius_px",
+    "outer_radius_px",
+    "inner_radius_mm",
+    "outer_radius_mm",
+    "inner_border_px",
+    "outer_border_px",
+    "border_width_mm",
+    "start_x_px",
+    "start_y_px",
+    "event_x_px",
+    "event_y_px",
+    "start_distance_px",
+    "event_distance_px",
+    "start_distance_mm",
+    "event_distance_mm",
+]
+
+
+def _write_turnback_pair_debug_episodes_csv(
+    vas,
+    *,
+    out_csv: str,
+    inner_deltas_mm: np.ndarray,
+    outer_deltas_mm: np.ndarray,
+    legacy_pair_deltas: bool,
+    border_width_mm: float,
+    radius_offset_px: float,
+    selected_trainings: list[int],
+    skip_first: int,
+    keep_first: int,
+    last_sync_buckets: int,
+) -> int:
+    os.makedirs(os.path.dirname(out_csv) or ".", exist_ok=True)
+    n_rows = 0
+    with open(out_csv, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=_DEBUG_EPISODE_FIELDS)
+        writer.writeheader()
+
+        for vi, va in enumerate(vas):
+            vid = getattr(va, "fn", f"va_{vi}")
+            windows = _selected_windows_for_va(
+                va,
+                selected_trainings,
+                skip_first=skip_first,
+                keep_first=keep_first,
+                last_sync_buckets=last_sync_buckets,
+            )
+            if not windows:
+                continue
+            windows_by_training = {int(win["training_idx"]): [win] for win in windows}
+
+            for pair_idx, (inner_delta_mm, outer_delta_mm) in enumerate(
+                zip(inner_deltas_mm, outer_deltas_mm)
+            ):
+                for fly_idx, trj in enumerate(getattr(va, "trx", [])):
+                    if getattr(trj, "_bad", False):
+                        continue
+                    if fly_idx > 1:
+                        continue
+                    if fly_idx == 1 and getattr(va, "noyc", False):
+                        continue
+
+                    fly_role = "exp" if fly_idx == 0 else "ctrl"
+                    for t_idx in selected_trainings:
+                        if t_idx >= len(getattr(va, "trns", [])):
+                            continue
+                        trn = va.trns[t_idx]
+                        if trn is None or not trn.isCircle():
+                            continue
+                        if t_idx not in windows_by_training:
+                            continue
+
+                        episodes = trj.reward_turnback_dual_circle_episodes_for_training(
+                            trn=trn,
+                            inner_radius_mm=(
+                                None if legacy_pair_deltas else float(inner_delta_mm)
+                            ),
+                            inner_delta_mm=(
+                                float(inner_delta_mm) if legacy_pair_deltas else None
+                            ),
+                            outer_radius_mm=(
+                                None if legacy_pair_deltas else float(outer_delta_mm)
+                            ),
+                            outer_delta_mm=(
+                                float(outer_delta_mm) if legacy_pair_deltas else None
+                            ),
+                            border_width_mm=float(border_width_mm),
+                            debug=False,
+                            radius_offset_px=float(radius_offset_px),
+                        )
+                        if not episodes:
+                            continue
+
+                        for ep_idx, ep in enumerate(episodes):
+                            event_t = int(ep["stop"]) - 1
+                            matched_windows = [
+                                win
+                                for win in windows_by_training[t_idx]
+                                if _frame_in_windows(event_t, [win])
+                            ]
+                            if not matched_windows:
+                                continue
+                            for win in matched_windows:
+                                row = {
+                                    "video_index": int(vi),
+                                    "video_id": vid,
+                                    "fly_idx": int(fly_idx),
+                                    "fly_role": fly_role,
+                                    "training_idx": int(t_idx),
+                                    "training_name": trn.name(),
+                                    "pair_idx": int(pair_idx),
+                                    "requested_inner_mm": float(inner_delta_mm),
+                                    "requested_outer_mm": float(outer_delta_mm),
+                                    "pair_mode": (
+                                        "delta" if legacy_pair_deltas else "radius"
+                                    ),
+                                    "window_start": int(win["start"]),
+                                    "window_stop": int(win["stop"]),
+                                    "episode_idx": int(ep_idx),
+                                }
+                                for key in _DEBUG_EPISODE_FIELDS:
+                                    if key not in row and key in ep:
+                                        row[key] = ep[key]
+                                writer.writerow(row)
+                                n_rows += 1
+    return n_rows
+
+
 def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
     if not out_fn.lower().endswith(".npz"):
         out_fn += ".npz"
@@ -821,6 +974,35 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
     validate_sli_bundle(payload, path=out_fn)
     validate_turnback_excursion_bin_bundle(payload, path=out_fn)
     np.savez_compressed(out_fn, **payload)
+
+    debug_episodes_csv = getattr(
+        opts, "turnback_excursion_bin_debug_episodes_csv", None
+    )
+    if debug_episodes_csv:
+        if pair_deltas_mm is None:
+            print(
+                "[export] WARNING: --turnback-excursion-bin-debug-episodes-csv "
+                "currently writes fixed pair-mode episodes only; skipping "
+                "because no turnback excursion-bin pairs were requested."
+            )
+        else:
+            n_debug_rows = _write_turnback_pair_debug_episodes_csv(
+                vas_ok,
+                out_csv=str(debug_episodes_csv),
+                inner_deltas_mm=pair_inner_deltas_mm,
+                outer_deltas_mm=pair_outer_deltas_mm,
+                legacy_pair_deltas=legacy_pair_deltas,
+                border_width_mm=border_width_mm,
+                radius_offset_px=radius_offset_px,
+                selected_trainings=selected_trainings,
+                skip_first=skip_first,
+                keep_first=keep_first,
+                last_sync_buckets=last_sync_buckets,
+            )
+            print(
+                "[export] Wrote turnback-excursion-bin debug episodes CSV: "
+                f"{debug_episodes_csv} (rows={n_debug_rows})"
+            )
     print(
         f"[export] Wrote turnback-excursion-bin+SLI bundle: {out_fn} "
         f"(n={n_videos}, bins={n_bins})"

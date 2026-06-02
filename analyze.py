@@ -5510,6 +5510,17 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--turnback-excursion-bin-debug-episodes-csv",
+    type=str,
+    default=None,
+    help=(
+        "Optional sidecar CSV for turnback-excursion-bin fixed pair-mode exports. "
+        "Writes one row per selected dual-circle episode, including event indices, "
+        "turnback outcome, reward circle geometry, resolved inner/outer radii, "
+        "and start/outcome positions."
+    ),
+)
+g.add_argument(
     "--return-prob-excursion-bin-debug",
     action="store_true",
     help=(
