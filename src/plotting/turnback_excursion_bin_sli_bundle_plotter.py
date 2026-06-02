@@ -305,9 +305,9 @@ def plot_turnback_excursion_bin_sli_bundles(
     if xlabel is None:
         all_pair_mode = all(_is_pair_mode(bundle) for bundle in loaded)
         xlabel = (
-            "Inner/outer radius delta pair from reward circle (mm)"
+            "Inner/outer radius pair from reward center (mm)"
             if all_pair_mode
-            else "Outer-radius bin from reward circle (mm)"
+            else "Outer-radius bin from reward center (mm)"
         )
     ylabel = ylabel or exported[0].meta.get("y_label", "Turnback ratio")
     fig = plot_overlays(

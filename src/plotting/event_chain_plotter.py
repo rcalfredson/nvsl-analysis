@@ -2123,8 +2123,12 @@ class EventChainPlotter:
             return None
 
         opts = getattr(self.va, "opts", None)
-        inner_delta_mm = float(getattr(opts, "turnback_inner_delta_mm", 0.0) or 0.0)
-        outer_delta_mm = float(getattr(opts, "turnback_outer_delta_mm", 2.0) or 2.0)
+        raw_inner_radius = getattr(opts, "turnback_inner_radius_mm", None)
+        raw_outer_radius = getattr(opts, "turnback_outer_radius_mm", None)
+        inner_delta_mm = getattr(opts, "turnback_inner_delta_mm", None)
+        outer_delta_mm = getattr(opts, "turnback_outer_delta_mm", None)
+        inner_delta_mm = 0.0 if inner_delta_mm is None else float(inner_delta_mm)
+        outer_delta_mm = 2.0 if outer_delta_mm is None else float(outer_delta_mm)
         border_width_mm = float(
             getattr(opts, "turnback_border_width_mm", 0.1) or 0.1
         )
@@ -2134,11 +2138,15 @@ class EventChainPlotter:
 
         cx, cy, reward_r_px = (float(v) for v in reward_circle)
         inner_r_px = (
-            float(reward_r_px)
-            + float(inner_delta_mm) * float(px_per_mm)
-            + float(inner_radius_offset_px)
+            float(raw_inner_radius) * float(px_per_mm)
+            if raw_inner_radius is not None
+            else float(reward_r_px) + float(inner_delta_mm) * float(px_per_mm)
+        ) + float(inner_radius_offset_px)
+        outer_r_px = (
+            float(raw_outer_radius) * float(px_per_mm)
+            if raw_outer_radius is not None
+            else float(reward_r_px) + float(outer_delta_mm) * float(px_per_mm)
         )
-        outer_r_px = float(reward_r_px) + float(outer_delta_mm) * float(px_per_mm)
         border_width_px = float(border_width_mm) * float(px_per_mm)
 
         if not np.isfinite(inner_r_px) or not np.isfinite(outer_r_px):
@@ -2985,8 +2993,10 @@ class EventChainPlotter:
         self,
         *,
         trn_index: int,
-        outer_delta_mm: float,
-        reward_delta_mm: float,
+        outer_delta_mm: float | None,
+        reward_delta_mm: float | None,
+        outer_radius_mm: float | None = None,
+        reward_radius_mm: float | None = None,
         border_width_mm: float,
         ctrl: bool,
     ) -> Tuple[Optional[Tuple[int, int, int]], str]:
@@ -2998,7 +3008,9 @@ class EventChainPlotter:
         episodes = self.trj.reward_return_probability_episodes_for_training(
             trn=trn,
             outer_delta_mm=outer_delta_mm,
+            outer_radius_mm=outer_radius_mm,
             reward_delta_mm=reward_delta_mm,
+            reward_radius_mm=reward_radius_mm,
             border_width_mm=border_width_mm,
             ctrl=ctrl,
             debug=False,
@@ -5887,8 +5899,10 @@ class EventChainPlotter:
         trn_index: int,
         bucket_index: int,
         *,
-        outer_delta_mm: float,
-        reward_delta_mm: float = 0.0,
+        outer_delta_mm: float | None = None,
+        reward_delta_mm: float | None = None,
+        outer_radius_mm: float | None = None,
+        reward_radius_mm: float | None = None,
         border_width_mm: float = 0.1,
         seed: Optional[int] = None,
         image_format: Optional[str] = None,
@@ -5943,7 +5957,9 @@ class EventChainPlotter:
         window_counts, window_label = self._return_prob_window_counts(
             trn_index=trn_index,
             outer_delta_mm=outer_delta_mm,
+            outer_radius_mm=outer_radius_mm,
             reward_delta_mm=reward_delta_mm,
+            reward_radius_mm=reward_radius_mm,
             border_width_mm=border_width_mm,
             ctrl=ctrl,
         )
@@ -5951,7 +5967,9 @@ class EventChainPlotter:
         episodes = self.trj.reward_return_probability_episodes_for_training(
             trn=trn,
             outer_delta_mm=outer_delta_mm,
+            outer_radius_mm=outer_radius_mm,
             reward_delta_mm=reward_delta_mm,
+            reward_radius_mm=reward_radius_mm,
             border_width_mm=border_width_mm,
             ctrl=ctrl,
             debug=False,
@@ -5978,7 +5996,12 @@ class EventChainPlotter:
             )
             return
 
-        key = (trn_index, bucket_index, float(outer_delta_mm), bool(ctrl))
+        outer_key_mm = (
+            float(outer_radius_mm)
+            if outer_radius_mm is not None
+            else float(outer_delta_mm or 0.0)
+        )
+        key = (trn_index, bucket_index, outer_key_mm, bool(ctrl))
         used = self._used_return_prob_episodes.setdefault(key, set())
 
         def _ep_key(ep) -> Tuple[int, int, str]:
@@ -6041,8 +6064,16 @@ class EventChainPlotter:
         outer_circle = None
         if reward_circle is not None:
             rcx, rcy, rcr = reward_circle
-            outer_circle = (rcx, rcy, float(rcr) + float(outer_delta_mm) * px_per_mm)
-            reward_circle = (rcx, rcy, float(rcr) + float(reward_delta_mm) * px_per_mm)
+            if reward_radius_mm is None:
+                reward_px = float(rcr) + float(reward_delta_mm or 0.0) * px_per_mm
+            else:
+                reward_px = float(reward_radius_mm) * px_per_mm
+            if outer_radius_mm is None:
+                outer_px = reward_px + float(outer_delta_mm or 0.0) * px_per_mm
+            else:
+                outer_px = float(outer_radius_mm) * px_per_mm
+            outer_circle = (rcx, rcy, outer_px)
+            reward_circle = (rcx, rcy, reward_px)
 
         padding_x = (bottom_right[0] - top_left[0]) * 0.1
         padding_y = (top_left[1] - bottom_right[1]) * 0.1
@@ -6221,7 +6252,8 @@ class EventChainPlotter:
         fig.suptitle(
             "Return-probability trajectories\n"
             f"{video_id}, fly {fly_idx}, {fly_role}\n"
-            f"trn {trn_index + 1}, bucket {bucket_index + 1}, outer+{float(outer_delta_mm):g} mm ({mode})"
+            f"trn {trn_index + 1}, bucket {bucket_index + 1}, "
+            f"outer radius {float(outer_radius_mm if outer_radius_mm is not None else outer_delta_mm):g} mm ({mode})"
             f"{window_line}",
             fontsize=12,
         )
@@ -6230,7 +6262,7 @@ class EventChainPlotter:
             f"imgs/return_probability/"
             f"{video_id}__fly{fly_idx}_role{role_idx}_"
             f"trn{trn_index + 1}_bkt{bucket_index + 1}_"
-            f"outer{float(outer_delta_mm):g}mm_"
+            f"outer{float(outer_radius_mm if outer_radius_mm is not None else outer_delta_mm):g}mm_"
             f"N{n_examples}_seed{seed_str}_{mode}."
             f"{image_format}"
         )

@@ -261,11 +261,37 @@ def export_turnback_sli_bundle(vas, opts, gls, out_fn):
             ),
             dtype=int,
         ),
+        turnback_inner_radius_mm=np.array(
+            (
+                np.nan
+                if getattr(opts, "turnback_inner_radius_mm", None) is None
+                else float(getattr(opts, "turnback_inner_radius_mm"))
+            ),
+            dtype=float,
+        ),
+        turnback_outer_radius_mm=np.array(
+            (
+                np.nan
+                if getattr(opts, "turnback_outer_radius_mm", None) is None
+                else float(getattr(opts, "turnback_outer_radius_mm"))
+            ),
+            dtype=float,
+        ),
         turnback_inner_delta_mm=np.array(
-            float(getattr(opts, "turnback_inner_delta_mm", 0.0)), dtype=float
+            (
+                0.0
+                if getattr(opts, "turnback_inner_delta_mm", None) is None
+                else float(getattr(opts, "turnback_inner_delta_mm"))
+            ),
+            dtype=float,
         ),
         turnback_outer_delta_mm=np.array(
-            float(getattr(opts, "turnback_outer_delta_mm", 2.0)), dtype=float
+            (
+                2.0
+                if getattr(opts, "turnback_outer_delta_mm", None) is None
+                else float(getattr(opts, "turnback_outer_delta_mm"))
+            ),
+            dtype=float,
         ),
         turnback_inner_radius_offset_px=np.array(
             float(getattr(opts, "turnback_inner_radius_offset_px", 0.0)), dtype=float

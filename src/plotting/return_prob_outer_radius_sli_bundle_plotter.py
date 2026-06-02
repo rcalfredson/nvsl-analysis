@@ -179,10 +179,14 @@ def _mode_values(bundle, mode: str, metric: str) -> np.ndarray:
 
 
 def _panel_labels(bundle) -> list[str]:
-    outer_deltas = np.asarray(
-        bundle["return_prob_outer_radius_outer_deltas_mm"], dtype=float
-    ).reshape(-1)
-    return [f"+{float(x):g} mm" for x in outer_deltas]
+    key = (
+        "return_prob_outer_radius_outer_radii_mm"
+        if "return_prob_outer_radius_outer_radii_mm" in bundle
+        else "return_prob_outer_radius_outer_deltas_mm"
+    )
+    radii = np.asarray(bundle[key], dtype=float).reshape(-1)
+    prefix = "" if key.endswith("_radii_mm") else "+"
+    return [f"{prefix}{float(x):g} mm" for x in radii]
 
 
 def _ci_triplet(x: np.ndarray) -> tuple[float, float, float, int]:
@@ -710,7 +714,7 @@ def _plot_return_prob_outer_radius_stacked(
 
     ax.set_xticks(x_centers)
     ax.set_xticklabels(panel_labels, rotation=30, ha="right")
-    ax.set_xlabel("Outer-circle radius delta from reward circle (mm)")
+    ax.set_xlabel("Outer-circle radius from reward center (mm)")
     ax.set_ylabel(
         "Resolved excursions per fly"
         if mode == "exp"
@@ -814,7 +818,7 @@ def plot_return_prob_outer_radius_sli_bundles(
     fig = plot_overlays(
         exported,
         title=title,
-        xlabel="Outer-circle radius delta from reward circle (mm)",
+        xlabel="Outer-circle radius from reward center (mm)",
         ylabel=ylabel,
         ymax=ymax,
         stats=bool(stats),

@@ -50,19 +50,23 @@ def _selected_training_indices(vas, opts) -> list[int]:
     return list(range(n_trn))
 
 
-def _outer_deltas_mm(opts) -> np.ndarray:
-    raw = getattr(opts, "turnback_outer_radius_outer_deltas_mm", None)
+def _outer_radii_mm(opts) -> tuple[np.ndarray, bool]:
+    raw = getattr(opts, "turnback_outer_radius_outer_radii_mm", None)
+    legacy = False
+    if raw is None or not str(raw).strip():
+        raw = getattr(opts, "turnback_outer_radius_outer_deltas_mm", None)
+        legacy = raw is not None and str(raw).strip()
     if raw is None or not str(raw).strip():
         raise ValueError(
-            "--turnback-outer-radius-outer-deltas-mm is required when exporting "
+            "--turnback-outer-radius-outer-radii-mm is required when exporting "
             "turnback-outer-radius bundles."
         )
     vals = np.asarray(parse_distances(str(raw)), dtype=float)
     if vals.size == 0:
         raise ValueError(
-            "--turnback-outer-radius-outer-deltas-mm must contain at least one value."
+            "--turnback-outer-radius-outer-radii-mm must contain at least one value."
         )
-    return vals
+    return vals, bool(legacy)
 
 
 def _effective_windowing(opts) -> tuple[int, int, int]:
@@ -139,8 +143,10 @@ def _frame_in_windows(frame: int, windows) -> bool:
 def _compute_outer_radius_curves(
     vas,
     *,
-    outer_deltas_mm: np.ndarray,
-    inner_delta_mm: float,
+    outer_radii_mm: np.ndarray,
+    legacy_outer_radii: bool,
+    inner_radius_mm: float | None,
+    inner_delta_mm: float | None,
     border_width_mm: float,
     radius_offset_px: float,
     selected_trainings: list[int],
@@ -150,7 +156,7 @@ def _compute_outer_radius_curves(
     debug: bool,
 ):
     n_videos = len(vas)
-    n_radii = int(outer_deltas_mm.size)
+    n_radii = int(outer_radii_mm.size)
     ratio_exp = np.full((n_videos, n_radii), np.nan, dtype=float)
     ratio_ctrl = np.full((n_videos, n_radii), np.nan, dtype=float)
     turn_exp = np.zeros((n_videos, n_radii), dtype=int)
@@ -180,7 +186,7 @@ def _compute_outer_radius_curves(
             int(win["training_idx"]): [win] for win in windows
         }
 
-        for ri, outer_delta_mm in enumerate(outer_deltas_mm):
+        for ri, outer_radius_mm in enumerate(outer_radii_mm):
             for fly_idx, trj in enumerate(getattr(va, "trx", [])):
                 if getattr(trj, "_bad", False):
                     continue
@@ -198,8 +204,14 @@ def _compute_outer_radius_curves(
 
                     episodes = trj.reward_turnback_dual_circle_episodes_for_training(
                         trn=trn,
-                        inner_delta_mm=float(inner_delta_mm),
-                        outer_delta_mm=float(outer_delta_mm),
+                        inner_radius_mm=inner_radius_mm,
+                        inner_delta_mm=inner_delta_mm,
+                        outer_radius_mm=(
+                            None if legacy_outer_radii else float(outer_radius_mm)
+                        ),
+                        outer_delta_mm=(
+                            float(outer_radius_mm) if legacy_outer_radii else None
+                        ),
                         border_width_mm=float(border_width_mm),
                         debug=False,
                         radius_offset_px=float(radius_offset_px),
@@ -228,7 +240,7 @@ def _compute_outer_radius_curves(
             _dbg_if(
                 debug,
                 (
-                    f"[turnback-outer-radius] {vid}: outer_delta={float(outer_delta_mm):g} "
+                    f"[turnback-outer-radius] {vid}: outer_radius={float(outer_radius_mm):g} "
                     f"exp={turn_exp[vi, ri]}/{total_exp[vi, ri]}"
                     + (
                         ""
@@ -250,10 +262,17 @@ def export_turnback_outer_radius_sli_bundle(vas, opts, gls, out_fn):
         print(f"[export] No non-skipped VideoAnalysis instances; not writing {out_fn}")
         return
 
-    outer_deltas_mm = _outer_deltas_mm(opts)
+    outer_radii_mm, legacy_outer_radii = _outer_radii_mm(opts)
     selected_trainings = _selected_training_indices(vas_ok, opts)
     skip_first, keep_first, last_sync_buckets = _effective_windowing(opts)
-    inner_delta_mm = float(getattr(opts, "turnback_inner_delta_mm", 0.0) or 0.0)
+    inner_radius_mm = getattr(opts, "turnback_inner_radius_mm", None)
+    inner_delta_mm = getattr(opts, "turnback_inner_delta_mm", None)
+    if inner_radius_mm is not None:
+        inner_radius_mm = float(inner_radius_mm)
+    elif inner_delta_mm is None:
+        inner_delta_mm = 0.0
+    if inner_delta_mm is not None:
+        inner_delta_mm = float(inner_delta_mm)
     border_width_mm = float(getattr(opts, "turnback_border_width_mm", 0.1) or 0.1)
     radius_offset_px = float(
         getattr(opts, "turnback_inner_radius_offset_px", 0.0) or 0.0
@@ -269,7 +288,8 @@ def export_turnback_outer_radius_sli_bundle(vas, opts, gls, out_fn):
             f"trainings={[t + 1 for t in selected_trainings]} "
             f"skip_first={skip_first} keep_first={keep_first} "
             f"last_sync_buckets={last_sync_buckets} "
-            f"outer_deltas_mm={outer_deltas_mm.tolist()}"
+            f"outer_radii_mm={outer_radii_mm.tolist()}"
+            f"{' (legacy deltas)' if legacy_outer_radii else ''}"
         ),
     )
 
@@ -283,7 +303,9 @@ def export_turnback_outer_radius_sli_bundle(vas, opts, gls, out_fn):
         windows_meta,
     ) = _compute_outer_radius_curves(
         vas_ok,
-        outer_deltas_mm=outer_deltas_mm,
+        outer_radii_mm=outer_radii_mm,
+        legacy_outer_radii=legacy_outer_radii,
+        inner_radius_mm=inner_radius_mm,
         inner_delta_mm=inner_delta_mm,
         border_width_mm=border_width_mm,
         radius_offset_px=radius_offset_px,
@@ -354,7 +376,10 @@ def export_turnback_outer_radius_sli_bundle(vas, opts, gls, out_fn):
         turnback_outer_radius_turn_ctrl=np.asarray(turn_ctrl, dtype=int),
         turnback_outer_radius_total_exp=np.asarray(total_exp, dtype=int),
         turnback_outer_radius_total_ctrl=np.asarray(total_ctrl, dtype=int),
-        turnback_outer_radius_outer_deltas_mm=np.asarray(outer_deltas_mm, dtype=float),
+        turnback_outer_radius_outer_radii_mm=np.asarray(outer_radii_mm, dtype=float),
+        turnback_outer_radius_outer_deltas_mm=np.asarray(
+            outer_radii_mm if legacy_outer_radii else [], dtype=float
+        ),
         turnback_outer_radius_trainings=np.asarray(
             np.array(selected_trainings, dtype=int) + 1, dtype=int
         ),
@@ -363,7 +388,12 @@ def export_turnback_outer_radius_sli_bundle(vas, opts, gls, out_fn):
         turnback_outer_radius_last_sync_buckets=np.array(
             last_sync_buckets, dtype=int
         ),
-        turnback_outer_radius_inner_delta_mm=np.array(inner_delta_mm, dtype=float),
+        turnback_outer_radius_inner_radius_mm=np.array(
+            np.nan if inner_radius_mm is None else inner_radius_mm, dtype=float
+        ),
+        turnback_outer_radius_inner_delta_mm=np.array(
+            np.nan if inner_delta_mm is None else inner_delta_mm, dtype=float
+        ),
         turnback_outer_radius_inner_radius_offset_px=np.array(
             radius_offset_px, dtype=float
         ),

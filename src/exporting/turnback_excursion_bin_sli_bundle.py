@@ -53,10 +53,12 @@ def _selected_training_indices(vas, opts) -> list[int]:
 
 
 def _bin_edges_mm(opts) -> np.ndarray:
-    raw = getattr(opts, "turnback_excursion_bin_edges_mm", None)
+    raw = getattr(opts, "turnback_excursion_bin_radii_mm", None)
+    if raw is None or not str(raw).strip():
+        raw = getattr(opts, "turnback_excursion_bin_edges_mm", None)
     if raw is None or not str(raw).strip():
         raise ValueError(
-            "--turnback-excursion-bin-edges-mm is required when exporting "
+            "--turnback-excursion-bin-radii-mm is required when exporting "
             "turnback-excursion-bin bundles."
         )
     vals = np.asarray(parse_distances(str(raw)), dtype=float)
@@ -79,8 +81,18 @@ def _bin_edges_mm(opts) -> np.ndarray:
     return vals
 
 
+def _uses_legacy_bin_edges(opts) -> bool:
+    raw_new = getattr(opts, "turnback_excursion_bin_radii_mm", None)
+    raw_old = getattr(opts, "turnback_excursion_bin_edges_mm", None)
+    return not (raw_new is not None and str(raw_new).strip()) and (
+        raw_old is not None and str(raw_old).strip()
+    )
+
+
 def _pair_deltas_mm(opts) -> tuple[np.ndarray, np.ndarray] | None:
-    raw = getattr(opts, "turnback_excursion_bin_pairs_mm", None)
+    raw = getattr(opts, "turnback_excursion_bin_radius_pairs_mm", None)
+    if raw is None or not str(raw).strip():
+        raw = getattr(opts, "turnback_excursion_bin_pairs_mm", None)
     if raw is None or not str(raw).strip():
         return None
 
@@ -218,6 +230,8 @@ def _resolve_open_ended_upper_edge(
     inner_delta_mm: float,
     border_width_mm: float,
     radius_offset_px: float,
+    inner_radius_mm: float | None = None,
+    legacy_bin_edges: bool = True,
     selected_trainings: list[int],
     skip_first: int,
     keep_first: int,
@@ -258,7 +272,8 @@ def _resolve_open_ended_upper_edge(
                     continue
                 episodes = trj.reward_turnback_excursion_episodes_for_training(
                     trn=trn,
-                    inner_delta_mm=float(inner_delta_mm),
+                    inner_radius_mm=inner_radius_mm,
+                    inner_delta_mm=inner_delta_mm,
                     border_width_mm=float(border_width_mm),
                     debug=False,
                     radius_offset_px=float(radius_offset_px),
@@ -267,9 +282,11 @@ def _resolve_open_ended_upper_edge(
                     event_t = int(ep["stop"]) - 1
                     if not _frame_in_windows(event_t, windows_by_training[t_idx]):
                         continue
-                    max_outer_delta_mm = float(ep.get("max_outer_delta_mm", np.nan))
-                    if np.isfinite(max_outer_delta_mm):
-                        max_observed = max(max_observed, max_outer_delta_mm)
+                    radial_mm = float(
+                        ep.get("max_outer_delta_mm" if legacy_bin_edges else "max_outer_radius_mm", np.nan)
+                    )
+                    if np.isfinite(radial_mm):
+                        max_observed = max(max_observed, radial_mm)
 
     if not np.isfinite(max_observed) or max_observed <= lower:
         raise ValueError(
@@ -282,7 +299,7 @@ def _resolve_open_ended_upper_edge(
     _dbg_if(
         debug,
         "[turnback-excursion-bin] resolved final 'inf' edge to "
-        f"{float(max_observed):g} mm (max observed outer-radius delta)",
+        f"{float(max_observed):g} mm (max observed outer-radius {'delta' if legacy_bin_edges else 'distance'})",
     )
     return resolved, True
 
@@ -294,6 +311,8 @@ def _compute_turnback_curves(
     inner_delta_mm: float,
     border_width_mm: float,
     radius_offset_px: float,
+    inner_radius_mm: float | None = None,
+    legacy_bin_edges: bool = True,
     selected_trainings: list[int],
     skip_first: int,
     keep_first: int,
@@ -305,6 +324,8 @@ def _compute_turnback_curves(
         bin_edges_mm=bin_edges_mm,
         inner_delta_mm=inner_delta_mm,
         border_width_mm=border_width_mm,
+        inner_radius_mm=inner_radius_mm,
+        legacy_bin_edges=legacy_bin_edges,
         radius_offset_px=radius_offset_px,
         selected_trainings=selected_trainings,
         skip_first=skip_first,
@@ -365,7 +386,8 @@ def _compute_turnback_curves(
 
                 episodes = trj.reward_turnback_excursion_episodes_for_training(
                     trn=trn,
-                    inner_delta_mm=float(inner_delta_mm),
+                    inner_radius_mm=inner_radius_mm,
+                    inner_delta_mm=inner_delta_mm,
                     border_width_mm=float(border_width_mm),
                     debug=False,
                     radius_offset_px=float(radius_offset_px),
@@ -377,13 +399,20 @@ def _compute_turnback_curves(
                     event_t = int(ep["stop"]) - 1
                     if not _frame_in_windows(event_t, windows_by_training[t_idx]):
                         continue
-                    max_outer_delta_mm = float(ep.get("max_outer_delta_mm", np.nan))
-                    effective_inner_delta_mm = float(
-                        ep.get("effective_inner_delta_mm", np.nan)
+                    radial_mm = float(
+                        ep.get("max_outer_delta_mm" if legacy_bin_edges else "max_outer_radius_mm", np.nan)
                     )
-                    if not np.isfinite(max_outer_delta_mm):
+                    effective_inner_mm = float(
+                        ep.get(
+                            "effective_inner_delta_mm"
+                            if legacy_bin_edges
+                            else "effective_inner_radius_mm",
+                            np.nan,
+                        )
+                    )
+                    if not np.isfinite(radial_mm):
                         continue
-                    if not np.isfinite(effective_inner_delta_mm):
+                    if not np.isfinite(effective_inner_mm):
                         continue
                     if not bool(ep.get("turns_back", False)):
                         continue
@@ -391,13 +420,13 @@ def _compute_turnback_curves(
                         a_mm = float(bin_edges_mm[bin_idx])
                         b_mm = float(bin_edges_mm[bin_idx + 1])
                         contrib = _integrated_bin_contribution(
-                            max_outer_delta_mm,
+                            radial_mm,
                             a_mm,
                             b_mm,
-                            min_valid_outer_delta_mm=effective_inner_delta_mm,
+                            min_valid_outer_delta_mm=effective_inner_mm,
                         )
                         if not np.isfinite(contrib):
-                            if float(b_mm) <= float(effective_inner_delta_mm):
+                            if float(b_mm) <= float(effective_inner_mm):
                                 invalid_bin_hits += 1
                             continue
                         total[bin_idx] += 1
@@ -450,6 +479,7 @@ def _compute_pair_curves(
     *,
     inner_deltas_mm: np.ndarray,
     outer_deltas_mm: np.ndarray,
+    legacy_pair_deltas: bool = True,
     border_width_mm: float,
     radius_offset_px: float,
     selected_trainings: list[int],
@@ -510,8 +540,18 @@ def _compute_pair_curves(
 
                     episodes = trj.reward_turnback_dual_circle_episodes_for_training(
                         trn=trn,
-                        inner_delta_mm=float(inner_delta_mm),
-                        outer_delta_mm=float(outer_delta_mm),
+                        inner_radius_mm=(
+                            None if legacy_pair_deltas else float(inner_delta_mm)
+                        ),
+                        inner_delta_mm=(
+                            float(inner_delta_mm) if legacy_pair_deltas else None
+                        ),
+                        outer_radius_mm=(
+                            None if legacy_pair_deltas else float(outer_delta_mm)
+                        ),
+                        outer_delta_mm=(
+                            float(outer_delta_mm) if legacy_pair_deltas else None
+                        ),
                         border_width_mm=float(border_width_mm),
                         debug=False,
                         radius_offset_px=float(radius_offset_px),
@@ -574,10 +614,22 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         return
 
     pair_deltas_mm = _pair_deltas_mm(opts)
+    legacy_pair_deltas = not (
+        getattr(opts, "turnback_excursion_bin_radius_pairs_mm", None) is not None
+        and str(getattr(opts, "turnback_excursion_bin_radius_pairs_mm")).strip()
+    )
     requested_bin_edges_mm = None if pair_deltas_mm is not None else _bin_edges_mm(opts)
+    legacy_bin_edges = _uses_legacy_bin_edges(opts)
     selected_trainings = _selected_training_indices(vas_ok, opts)
     skip_first, keep_first, last_sync_buckets = _effective_windowing(opts)
-    inner_delta_mm = float(getattr(opts, "turnback_inner_delta_mm", 0.0) or 0.0)
+    inner_radius_mm = getattr(opts, "turnback_inner_radius_mm", None)
+    inner_delta_mm = getattr(opts, "turnback_inner_delta_mm", None)
+    if inner_radius_mm is not None:
+        inner_radius_mm = float(inner_radius_mm)
+    elif inner_delta_mm is None:
+        inner_delta_mm = 0.0
+    if inner_delta_mm is not None:
+        inner_delta_mm = float(inner_delta_mm)
     border_width_mm = float(getattr(opts, "turnback_border_width_mm", 0.1) or 0.1)
     radius_offset_px = float(
         getattr(opts, "turnback_inner_radius_offset_px", 0.0) or 0.0
@@ -591,6 +643,8 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
             inner_delta_mm=inner_delta_mm,
             border_width_mm=border_width_mm,
             radius_offset_px=radius_offset_px,
+            inner_radius_mm=inner_radius_mm,
+            legacy_bin_edges=legacy_bin_edges,
             selected_trainings=selected_trainings,
             skip_first=skip_first,
             keep_first=keep_first,
@@ -611,6 +665,8 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
             inner_delta_mm=inner_delta_mm,
             border_width_mm=border_width_mm,
             radius_offset_px=radius_offset_px,
+            inner_radius_mm=inner_radius_mm,
+            legacy_bin_edges=legacy_bin_edges,
             selected_trainings=selected_trainings,
             skip_first=skip_first,
             keep_first=keep_first,
@@ -635,6 +691,7 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
             vas_ok,
             inner_deltas_mm=pair_inner_deltas_mm,
             outer_deltas_mm=pair_outer_deltas_mm,
+            legacy_pair_deltas=legacy_pair_deltas,
             border_width_mm=border_width_mm,
             radius_offset_px=radius_offset_px,
             selected_trainings=selected_trainings,
@@ -717,6 +774,9 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         turnback_excursion_bin_total_exp=np.asarray(total_exp, dtype=int),
         turnback_excursion_bin_total_ctrl=np.asarray(total_ctrl, dtype=int),
         turnback_excursion_bin_edges_mm=np.asarray(bin_edges_mm, dtype=float),
+        turnback_excursion_bin_radii_mm=np.asarray(
+            [] if legacy_bin_edges else bin_edges_mm, dtype=float
+        ),
         turnback_excursion_bin_requested_edges_mm=np.asarray(
             [] if requested_bin_edges_mm is None else requested_bin_edges_mm,
             dtype=float,
@@ -728,7 +788,12 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         turnback_excursion_bin_skip_first_sync_buckets=np.array(skip_first, dtype=int),
         turnback_excursion_bin_keep_first_sync_buckets=np.array(keep_first, dtype=int),
         turnback_excursion_bin_last_sync_buckets=np.array(last_sync_buckets, dtype=int),
-        turnback_excursion_bin_inner_delta_mm=np.array(inner_delta_mm, dtype=float),
+        turnback_excursion_bin_inner_radius_mm=np.array(
+            np.nan if inner_radius_mm is None else inner_radius_mm, dtype=float
+        ),
+        turnback_excursion_bin_inner_delta_mm=np.array(
+            np.nan if inner_delta_mm is None else inner_delta_mm, dtype=float
+        ),
         turnback_excursion_bin_inner_radius_offset_px=np.array(
             radius_offset_px, dtype=float
         ),
@@ -738,7 +803,7 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
             (
                 "Fixed dual-circle turnback probability for independent inner/outer radius pairs"
                 if pair_deltas_mm is not None
-                else "Exact bin-averaged turnback probability over outer-radius bins above reward circle"
+                else "Exact bin-averaged turnback probability over radial distance bins from reward center"
             )
         ),
         bucket_len_min=np.array(np.nan, dtype=float),

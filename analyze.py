@@ -4024,10 +4024,16 @@ rpseg.add_argument(
     help="1-based sync bucket index for --return-prob-seg-plots.",
 )
 rpseg.add_argument(
+    "--return-prob-seg-outer-radius-mm",
+    type=float,
+    default=None,
+    help="Outer-circle radius from reward-circle center (mm) for plotted segments.",
+)
+rpseg.add_argument(
     "--return-prob-seg-outer-delta-mm",
     type=float,
-    default=6.0,
-    help="Outer-circle radius offset from reward circle (mm) for plotted segments.",
+    default=None,
+    help="Deprecated: outer-circle radius offset from reward circle (mm) for plotted segments.",
 )
 rpseg.add_argument(
     "--return-prob-seg-num",
@@ -4492,16 +4498,34 @@ g.add_argument(
     help="analyze dual-circle reward turn-back metric",
 )
 g.add_argument(
+    "--turnback-inner-radius-mm",
+    type=float,
+    default=None,
+    help=(
+        "Inner-circle radius from reward-circle center (mm) for turnback metric. "
+        "If omitted, defaults to the reward-circle radius."
+    ),
+)
+g.add_argument(
     "--turnback-inner-delta-mm",
     type=float,
-    default=0.0,
-    help="inner padding (mm) added to reward-circle radius for turnback metric",
+    default=None,
+    help="Deprecated: inner padding (mm) added to reward-circle radius for turnback metric",
+)
+g.add_argument(
+    "--turnback-outer-radius-mm",
+    type=float,
+    default=None,
+    help=(
+        "Outer-circle radius from reward-circle center (mm) for turnback metric. "
+        "If omitted, defaults to reward-circle radius + 2 mm."
+    ),
 )
 g.add_argument(
     "--turnback-outer-delta-mm",
     type=float,
-    default=2.0,
-    help="outer padding (mm) added to reward-circle radius for turnback metric",
+    default=None,
+    help="Deprecated: outer padding (mm) added to reward-circle radius for turnback metric",
 )
 g.add_argument(
     "--turnback-border-width-mm",
@@ -5246,12 +5270,30 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--turnback-outer-radius-outer-radii-mm",
+    type=str,
+    default=None,
+    help=(
+        "Comma-separated outer-circle radii from reward-circle center (mm) for "
+        "the turnback-outer-radius export, e.g. '15.5,16,16.5,17'."
+    ),
+)
+g.add_argument(
     "--turnback-outer-radius-outer-deltas-mm",
     type=str,
     default=None,
     help=(
-        "Comma-separated outer-circle radius paddings (mm) for the turnback-outer-"
+        "Deprecated: comma-separated outer-circle radius paddings (mm) for the turnback-outer-"
         "radius export, e.g. '0.5,1.0,1.5,2.0'."
+    ),
+)
+g.add_argument(
+    "--return-prob-outer-radius-outer-radii-mm",
+    type=str,
+    default=None,
+    help=(
+        "Comma-separated outer-circle radii from reward-circle center (mm) for "
+        "the return-prob-outer-radius export, e.g. '15.5,16,16.5,17'."
     ),
 )
 g.add_argument(
@@ -5259,8 +5301,19 @@ g.add_argument(
     type=str,
     default=None,
     help=(
-        "Comma-separated outer-circle radius paddings (mm) for the return-prob-"
+        "Deprecated: comma-separated outer-circle radius paddings (mm) for the return-prob-"
         "outer-radius export, e.g. '0.5,1.0,1.5,2.0'."
+    ),
+)
+g.add_argument(
+    "--return-prob-excursion-bin-radii-mm",
+    type=str,
+    default=None,
+    help=(
+        "Comma-separated radial distance bin edges from reward-circle center (mm) "
+        "for the return-prob-excursion-bin export. Use 'inf' as the final edge "
+        "for an open-ended upper bin resolved to the maximum observed distance, "
+        "e.g. '17,23,31,inf'."
     ),
 )
 g.add_argument(
@@ -5268,10 +5321,21 @@ g.add_argument(
     type=str,
     default=None,
     help=(
-        "Comma-separated bin edges (mm beyond reward-circle radius) for the "
+        "Deprecated: comma-separated bin edges (mm beyond reward-circle radius) for the "
         "return-prob-excursion-bin export. Use 'inf' as the final edge for an "
         "open-ended upper bin resolved to the maximum observed excursion, "
         "e.g. '2,8,16,inf'."
+    ),
+)
+g.add_argument(
+    "--turnback-excursion-bin-radii-mm",
+    type=str,
+    default=None,
+    help=(
+        "Comma-separated outer-radius bin edges from reward-circle center (mm) "
+        "for the turnback-excursion-bin export. Use 'inf' as the final edge for "
+        "an open-ended upper bin resolved to the maximum observed distance, "
+        "e.g. '17,23,31,inf'."
     ),
 )
 g.add_argument(
@@ -5279,10 +5343,22 @@ g.add_argument(
     type=str,
     default=None,
     help=(
-        "Comma-separated outer-radius bin edges (mm beyond reward-circle radius) "
+        "Deprecated: comma-separated outer-radius bin edges (mm beyond reward-circle radius) "
         "for the turnback-excursion-bin export. Use 'inf' as the final edge for "
         "an open-ended upper bin resolved to the maximum observed excursion, "
         "e.g. '2,8,16,inf'."
+    ),
+)
+g.add_argument(
+    "--turnback-excursion-bin-radius-pairs-mm",
+    type=str,
+    default=None,
+    help=(
+        "Optional comma-separated independent inner:outer radius pairs from "
+        "reward-circle center (mm) for the turnback-excursion-bin export, "
+        "e.g. '17:19,21:23,29:31'. When provided, this replaces "
+        "--turnback-excursion-bin-radii-mm and computes one fixed dual-circle "
+        "turnback ratio per pair."
     ),
 )
 g.add_argument(
@@ -5290,7 +5366,7 @@ g.add_argument(
     type=str,
     default=None,
     help=(
-        "Optional comma-separated independent inner:outer radius-delta pairs "
+        "Deprecated: optional comma-separated independent inner:outer radius-delta pairs "
         "(mm beyond reward-circle radius) for the turnback-excursion-bin export, "
         "e.g. '2:4,6:8,14:16'. When provided, this replaces "
         "--turnback-excursion-bin-edges-mm and computes one fixed dual-circle "
@@ -5442,17 +5518,32 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--return-prob-reward-radius-mm",
+    type=float,
+    default=None,
+    help="Reward-circle classification radius from reward-circle center (mm) for the return-prob metric.",
+)
+g.add_argument(
     "--return-prob-reward-delta-mm",
     type=float,
-    default=0.0,
-    help="Padding (mm) added to reward-circle radius for the return-prob metric.",
+    default=None,
+    help="Deprecated: padding (mm) added to reward-circle radius for the return-prob metric.",
+)
+g.add_argument(
+    "--return-prob-excursion-bin-reward-radius-mm",
+    type=float,
+    default=None,
+    help=(
+        "Reward-circle classification radius from reward-circle center (mm) for "
+        "the return-prob-excursion-bin metric."
+    ),
 )
 g.add_argument(
     "--return-prob-excursion-bin-reward-delta-mm",
     type=float,
-    default=0.0,
+    default=None,
     help=(
-        "Padding (mm) added to reward-circle radius for the return-prob-"
+        "Deprecated: padding (mm) added to reward-circle radius for the return-prob-"
         "excursion-bin metric."
     ),
 )

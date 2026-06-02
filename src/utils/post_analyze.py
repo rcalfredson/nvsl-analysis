@@ -6,6 +6,8 @@ def turnback_counts_exp_by_bucket(
     *,
     inner_delta_mm: float,
     outer_delta_mm: float,
+    inner_radius_mm: float | None = None,
+    outer_radius_mm: float | None = None,
     border_width_mm: float,
     radius_offset_px: float = 0.0,
 ):
@@ -47,6 +49,8 @@ def turnback_counts_exp_by_bucket(
             trn=trn,
             inner_delta_mm=inner_delta_mm,
             outer_delta_mm=outer_delta_mm,
+            inner_radius_mm=inner_radius_mm,
+            outer_radius_mm=outer_radius_mm,
             border_width_mm=border_width_mm,
             debug=False,
             radius_offset_px=radius_offset_px,
@@ -98,8 +102,14 @@ def report_turnback_sensitivity(vas, opts):
     )
 
     # Pull the same params used in the metric
-    inner_delta_mm = float(getattr(opts, "turnback_inner_delta_mm", 0.0) or 0.0)
-    outer_delta_mm = float(getattr(opts, "turnback_outer_delta_mm", 2.0) or 2.0)
+    inner_radius_mm = getattr(opts, "turnback_inner_radius_mm", None)
+    outer_radius_mm = getattr(opts, "turnback_outer_radius_mm", None)
+    inner_radius_mm = None if inner_radius_mm is None else float(inner_radius_mm)
+    outer_radius_mm = None if outer_radius_mm is None else float(outer_radius_mm)
+    inner_delta_mm = getattr(opts, "turnback_inner_delta_mm", None)
+    outer_delta_mm = getattr(opts, "turnback_outer_delta_mm", None)
+    inner_delta_mm = 0.0 if inner_delta_mm is None else float(inner_delta_mm)
+    outer_delta_mm = 2.0 if outer_delta_mm is None else float(outer_delta_mm)
     border_width_mm = float(getattr(opts, "turnback_border_width_mm", 0.1) or 0.1)
 
     # Accumulate per-video maxima per training
@@ -124,6 +134,8 @@ def report_turnback_sensitivity(vas, opts):
             va,
             inner_delta_mm=inner_delta_mm,
             outer_delta_mm=outer_delta_mm,
+            inner_radius_mm=inner_radius_mm,
+            outer_radius_mm=outer_radius_mm,
             border_width_mm=border_width_mm,
             radius_offset_px=0.0,
         )
@@ -149,6 +161,8 @@ def report_turnback_sensitivity(vas, opts):
                     va,
                     inner_delta_mm=inner_delta_mm,
                     outer_delta_mm=outer_delta_mm,
+                    inner_radius_mm=inner_radius_mm,
+                    outer_radius_mm=outer_radius_mm,
                     border_width_mm=border_width_mm,
                     radius_offset_px=sign * d,
                 )

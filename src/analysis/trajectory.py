@@ -855,8 +855,10 @@ class Trajectory:
         self,
         *,
         trn,
-        inner_delta_mm: float = 0.0,
-        outer_delta_mm: float = 2.0,
+        inner_delta_mm: float | None = None,
+        outer_delta_mm: float | None = None,
+        inner_radius_mm: float | None = None,
+        outer_radius_mm: float | None = None,
         border_width_mm: float = 0.1,
         debug: bool = False,
         radius_offset_px: float = 0.0,
@@ -892,8 +894,15 @@ class Trajectory:
         # mm -> px conversion in the same coordinate space as x/y
         fctr = float(getattr(self.va.xf, "fctr", 1.0) or 1.0)
         px_per_mm = float(self.va.ct.pxPerMmFloor()) * fctr
-        inner_r_px = float(r_px) + float(inner_delta_mm) * px_per_mm
-        outer_r_px = float(r_px) + float(outer_delta_mm) * px_per_mm
+        reward_radius_mm = float(r_px) / float(px_per_mm)
+        if inner_radius_mm is None:
+            inner_radius_mm = reward_radius_mm + float(inner_delta_mm or 0.0)
+        if outer_radius_mm is None:
+            outer_radius_mm = reward_radius_mm + float(
+                2.0 if outer_delta_mm is None else outer_delta_mm
+            )
+        inner_r_px = float(inner_radius_mm) * px_per_mm
+        outer_r_px = float(outer_radius_mm) * px_per_mm
         if outer_r_px <= inner_r_px:
             return episodes
 
@@ -1009,8 +1018,10 @@ class Trajectory:
         self,
         *,
         trn,
-        outer_delta_mm: float,
-        reward_delta_mm: float = 0.0,
+        outer_delta_mm: float | None = None,
+        reward_delta_mm: float | None = None,
+        outer_radius_mm: float | None = None,
+        reward_radius_mm: float | None = None,
         border_width_mm: float = 0.1,
         ctrl: bool = False,
         debug: bool = False,
@@ -1054,8 +1065,13 @@ class Trajectory:
 
         fctr = float(getattr(self.va.xf, "fctr", 1.0) or 1.0)
         px_per_mm = float(self.va.ct.pxPerMmFloor()) * fctr
-        reward_r_px = float(r_px) + float(reward_delta_mm) * px_per_mm
-        outer_r_px = reward_r_px + float(outer_delta_mm) * px_per_mm
+        base_reward_radius_mm = float(r_px) / float(px_per_mm)
+        if reward_radius_mm is None:
+            reward_radius_mm = base_reward_radius_mm + float(reward_delta_mm or 0.0)
+        if outer_radius_mm is None:
+            outer_radius_mm = float(reward_radius_mm) + float(outer_delta_mm or 0.0)
+        reward_r_px = float(reward_radius_mm) * px_per_mm
+        outer_r_px = float(outer_radius_mm) * px_per_mm
         if outer_r_px <= reward_r_px:
             return episodes
 
@@ -1153,7 +1169,8 @@ class Trajectory:
         self,
         *,
         trn,
-        reward_delta_mm: float = 0.0,
+        reward_delta_mm: float | None = None,
+        reward_radius_mm: float | None = None,
         border_width_mm: float = 0.1,
         ctrl: bool = False,
         debug: bool = False,
@@ -1201,7 +1218,10 @@ class Trajectory:
 
         fctr = float(getattr(self.va.xf, "fctr", 1.0) or 1.0)
         px_per_mm = float(self.va.ct.pxPerMmFloor()) * fctr
-        reward_r_px = float(r_px) + float(reward_delta_mm) * px_per_mm
+        base_reward_radius_mm = float(r_px) / float(px_per_mm)
+        if reward_radius_mm is None:
+            reward_radius_mm = base_reward_radius_mm + float(reward_delta_mm or 0.0)
+        reward_r_px = float(reward_radius_mm) * px_per_mm
         border_width_px = float(border_width_mm) * px_per_mm
 
         t0 = int(trn.start)
@@ -1287,6 +1307,7 @@ class Trajectory:
                     "anchor_reward": int(reward_frame),
                     "max_dist_px": float(max_dist_px) if np.isfinite(max_dist_px) else np.nan,
                     "max_dist_mm": float(max_dist_mm),
+                    "max_radius_mm": float(max_dist_mm),
                     "max_excursion_mm": float(max_excursion_mm),
                     "max_dist_frame": max_frame,
                 }
@@ -1298,7 +1319,8 @@ class Trajectory:
         self,
         *,
         trn,
-        inner_delta_mm: float = 0.0,
+        inner_delta_mm: float | None = None,
+        inner_radius_mm: float | None = None,
         border_width_mm: float = 0.1,
         debug: bool = False,
         radius_offset_px: float = 0.0,
@@ -1339,11 +1361,10 @@ class Trajectory:
 
         fctr = float(getattr(self.va.xf, "fctr", 1.0) or 1.0)
         px_per_mm = float(self.va.ct.pxPerMmFloor()) * fctr
-        inner_r_px = (
-            float(r_px)
-            + float(inner_delta_mm) * px_per_mm
-            + float(radius_offset_px)
-        )
+        reward_radius_mm = float(r_px) / float(px_per_mm)
+        if inner_radius_mm is None:
+            inner_radius_mm = reward_radius_mm + float(inner_delta_mm or 0.0)
+        inner_r_px = float(inner_radius_mm) * px_per_mm + float(radius_offset_px)
         inner_border_px = float(border_width_mm) * px_per_mm
 
         t0 = int(trn.start)
@@ -1421,6 +1442,7 @@ class Trajectory:
                     / float(px_per_mm)
                 ),
             )
+            effective_inner_radius_mm = float(inner_r_px) / float(px_per_mm)
 
             turns_back = next_enter is not None
             episodes.append(
@@ -1431,7 +1453,9 @@ class Trajectory:
                     "end_reason": "reenter_inner" if turns_back else "training_end",
                     "max_dist_px": float(max_dist_px) if np.isfinite(max_dist_px) else np.nan,
                     "max_dist_mm": float(max_dist_mm),
+                    "max_outer_radius_mm": float(max_dist_mm),
                     "max_outer_delta_mm": float(max_outer_delta_mm),
+                    "effective_inner_radius_mm": float(effective_inner_radius_mm),
                     "effective_inner_delta_mm": float(effective_inner_delta_mm),
                     "max_dist_frame": max_frame,
                 }

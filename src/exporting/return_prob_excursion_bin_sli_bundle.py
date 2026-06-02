@@ -55,10 +55,12 @@ def _selected_training_indices(vas, opts) -> list[int]:
 
 
 def _bin_edges_mm(opts) -> np.ndarray:
-    raw = getattr(opts, "return_prob_excursion_bin_edges_mm", None)
+    raw = getattr(opts, "return_prob_excursion_bin_radii_mm", None)
+    if raw is None or not str(raw).strip():
+        raw = getattr(opts, "return_prob_excursion_bin_edges_mm", None)
     if raw is None or not str(raw).strip():
         raise ValueError(
-            "--return-prob-excursion-bin-edges-mm is required when exporting "
+            "--return-prob-excursion-bin-radii-mm is required when exporting "
             "return-prob-excursion-bin bundles."
         )
     vals = np.asarray(parse_distances(str(raw)), dtype=float)
@@ -79,6 +81,14 @@ def _bin_edges_mm(opts) -> np.ndarray:
             "--return-prob-excursion-bin-edges-mm must be strictly increasing."
         )
     return vals
+
+
+def _uses_legacy_bin_edges(opts) -> bool:
+    raw_new = getattr(opts, "return_prob_excursion_bin_radii_mm", None)
+    raw_old = getattr(opts, "return_prob_excursion_bin_edges_mm", None)
+    return not (raw_new is not None and str(raw_new).strip()) and (
+        raw_old is not None and str(raw_old).strip()
+    )
 
 
 def _effective_windowing(opts) -> tuple[int, int, int]:
@@ -175,11 +185,13 @@ def _resolve_open_ended_upper_edge(
     bin_edges_mm: np.ndarray,
     reward_delta_mm: float,
     border_width_mm: float,
+    reward_radius_mm: float | None = None,
     selected_trainings: list[int],
     skip_first: int,
     keep_first: int,
     last_sync_buckets: int,
     debug: bool,
+    legacy_bin_edges: bool = True,
 ) -> tuple[np.ndarray, bool]:
     if not np.isposinf(float(bin_edges_mm[-1])):
         return np.asarray(bin_edges_mm, dtype=float), False
@@ -216,7 +228,8 @@ def _resolve_open_ended_upper_edge(
                     continue
                 episodes = trj.reward_return_excursion_episodes_for_training(
                     trn=trn,
-                    reward_delta_mm=float(reward_delta_mm),
+                    reward_radius_mm=reward_radius_mm,
+                    reward_delta_mm=reward_delta_mm,
                     border_width_mm=float(border_width_mm),
                     ctrl=ctrl,
                     debug=False,
@@ -225,9 +238,11 @@ def _resolve_open_ended_upper_edge(
                     event_t = int(ep["stop"]) - 1
                     if not _frame_in_windows(event_t, windows_by_training[t_idx]):
                         continue
-                    max_excursion_mm = float(ep.get("max_excursion_mm", np.nan))
-                    if np.isfinite(max_excursion_mm):
-                        max_observed = max(max_observed, max_excursion_mm)
+                    radial_mm = float(
+                        ep.get("max_excursion_mm" if legacy_bin_edges else "max_radius_mm", np.nan)
+                    )
+                    if np.isfinite(radial_mm):
+                        max_observed = max(max_observed, radial_mm)
 
     if not np.isfinite(max_observed) or max_observed <= lower:
         raise ValueError(
@@ -240,7 +255,7 @@ def _resolve_open_ended_upper_edge(
     _dbg_if(
         debug,
         "[return-prob-excursion-bin] resolved final 'inf' edge to "
-        f"{float(max_observed):g} mm (max observed radial excursion)",
+        f"{float(max_observed):g} mm (max observed radial {'excursion' if legacy_bin_edges else 'distance'})",
     )
     return resolved, True
 
@@ -251,6 +266,8 @@ def _compute_return_prob_curves(
     bin_edges_mm: np.ndarray,
     reward_delta_mm: float,
     border_width_mm: float,
+    reward_radius_mm: float | None = None,
+    legacy_bin_edges: bool = True,
     selected_trainings: list[int],
     skip_first: int,
     keep_first: int,
@@ -261,6 +278,8 @@ def _compute_return_prob_curves(
         vas,
         bin_edges_mm=bin_edges_mm,
         reward_delta_mm=reward_delta_mm,
+        reward_radius_mm=reward_radius_mm,
+        legacy_bin_edges=legacy_bin_edges,
         border_width_mm=border_width_mm,
         selected_trainings=selected_trainings,
         skip_first=skip_first,
@@ -321,7 +340,8 @@ def _compute_return_prob_curves(
 
                 episodes = trj.reward_return_excursion_episodes_for_training(
                     trn=trn,
-                    reward_delta_mm=float(reward_delta_mm),
+                    reward_radius_mm=reward_radius_mm,
+                    reward_delta_mm=reward_delta_mm,
                     border_width_mm=float(border_width_mm),
                     ctrl=ctrl,
                     debug=False,
@@ -333,8 +353,10 @@ def _compute_return_prob_curves(
                     event_t = int(ep["stop"]) - 1
                     if not _frame_in_windows(event_t, windows_by_training[t_idx]):
                         continue
-                    max_excursion_mm = float(ep.get("max_excursion_mm", np.nan))
-                    if not np.isfinite(max_excursion_mm):
+                    radial_mm = float(
+                        ep.get("max_excursion_mm" if legacy_bin_edges else "max_radius_mm", np.nan)
+                    )
+                    if not np.isfinite(radial_mm):
                         continue
                     if not bool(ep.get("returns", False)):
                         continue
@@ -342,7 +364,7 @@ def _compute_return_prob_curves(
                         a_mm = float(bin_edges_mm[bin_idx])
                         b_mm = float(bin_edges_mm[bin_idx + 1])
                         contrib = _integrated_bin_contribution(
-                            max_excursion_mm, a_mm, b_mm
+                            radial_mm, a_mm, b_mm
                         )
                         if not np.isfinite(contrib):
                             continue
@@ -386,11 +408,17 @@ def export_return_prob_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         return
 
     requested_bin_edges_mm = _bin_edges_mm(opts)
+    legacy_bin_edges = _uses_legacy_bin_edges(opts)
     selected_trainings = _selected_training_indices(vas_ok, opts)
     skip_first, keep_first, last_sync_buckets = _effective_windowing(opts)
-    reward_delta_mm = float(
-        getattr(opts, "return_prob_excursion_bin_reward_delta_mm", 0.0) or 0.0
-    )
+    reward_radius_mm = getattr(opts, "return_prob_excursion_bin_reward_radius_mm", None)
+    reward_delta_mm = getattr(opts, "return_prob_excursion_bin_reward_delta_mm", None)
+    if reward_radius_mm is not None:
+        reward_radius_mm = float(reward_radius_mm)
+    elif reward_delta_mm is None:
+        reward_delta_mm = 0.0
+    if reward_delta_mm is not None:
+        reward_delta_mm = float(reward_delta_mm)
     border_width_mm = float(
         getattr(opts, "return_prob_excursion_bin_border_width_mm", 0.1) or 0.1
     )
@@ -401,6 +429,8 @@ def export_return_prob_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         bin_edges_mm=requested_bin_edges_mm,
         reward_delta_mm=reward_delta_mm,
         border_width_mm=border_width_mm,
+        reward_radius_mm=reward_radius_mm,
+        legacy_bin_edges=legacy_bin_edges,
         selected_trainings=selected_trainings,
         skip_first=skip_first,
         keep_first=keep_first,
@@ -420,6 +450,8 @@ def export_return_prob_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         bin_edges_mm=bin_edges_mm,
         reward_delta_mm=reward_delta_mm,
         border_width_mm=border_width_mm,
+        reward_radius_mm=reward_radius_mm,
+        legacy_bin_edges=legacy_bin_edges,
         selected_trainings=selected_trainings,
         skip_first=skip_first,
         keep_first=keep_first,
@@ -501,6 +533,9 @@ def export_return_prob_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         return_prob_excursion_bin_total_exp=np.asarray(total_exp, dtype=int),
         return_prob_excursion_bin_total_ctrl=np.asarray(total_ctrl, dtype=int),
         return_prob_excursion_bin_edges_mm=np.asarray(bin_edges_mm, dtype=float),
+        return_prob_excursion_bin_radii_mm=np.asarray(
+            [] if legacy_bin_edges else bin_edges_mm, dtype=float
+        ),
         return_prob_excursion_bin_requested_edges_mm=np.asarray(
             requested_bin_edges_mm, dtype=float
         ),
@@ -520,14 +555,17 @@ def export_return_prob_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
             last_sync_buckets, dtype=int
         ),
         return_prob_excursion_bin_reward_delta_mm=np.array(
-            reward_delta_mm, dtype=float
+            np.nan if reward_delta_mm is None else reward_delta_mm, dtype=float
+        ),
+        return_prob_excursion_bin_reward_radius_mm=np.array(
+            np.nan if reward_radius_mm is None else reward_radius_mm, dtype=float
         ),
         return_prob_excursion_bin_border_width_mm=np.array(
             border_width_mm, dtype=float
         ),
         return_prob_excursion_bin_window_summary=window_strings,
         return_prob_excursion_bin_description=np.asarray(
-            "Exact bin-averaged threshold return probability over radial-delta bins above reward circle"
+            "Exact bin-averaged threshold return probability over radial distance bins from reward center"
         ),
         bucket_len_min=np.array(np.nan, dtype=float),
     )

@@ -90,10 +90,14 @@ def _mode_values(bundle, mode: str) -> np.ndarray:
 
 
 def _panel_labels(bundle) -> list[str]:
-    outer_deltas = np.asarray(
-        bundle["turnback_outer_radius_outer_deltas_mm"], dtype=float
-    ).reshape(-1)
-    return [f"+{float(x):g} mm" for x in outer_deltas]
+    key = (
+        "turnback_outer_radius_outer_radii_mm"
+        if "turnback_outer_radius_outer_radii_mm" in bundle
+        else "turnback_outer_radius_outer_deltas_mm"
+    )
+    radii = np.asarray(bundle[key], dtype=float).reshape(-1)
+    prefix = "" if key.endswith("_radii_mm") else "+"
+    return [f"{prefix}{float(x):g} mm" for x in radii]
 
 
 def _ci_triplet(x: np.ndarray) -> tuple[float, float, float, int]:
@@ -274,7 +278,7 @@ def plot_turnback_outer_radius_sli_bundles(
     fig = plot_overlays(
         exported,
         title=title,
-        xlabel="Outer-circle radius delta from reward circle (mm)",
+        xlabel="Outer-circle radius from reward center (mm)",
         ylabel=ylabel,
         ymax=ymax,
         stats=bool(stats),

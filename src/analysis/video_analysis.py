@@ -1494,17 +1494,27 @@ class VideoAnalysis:
 
         trn_index = int(opts.return_prob_seg_trn) - 1
         bucket_index = int(opts.return_prob_seg_bkt) - 1
-        outer_delta_mm = float(
-            getattr(opts, "return_prob_seg_outer_delta_mm", 6.0) or 6.0
-        )
+        outer_radius_mm = getattr(opts, "return_prob_seg_outer_radius_mm", None)
+        outer_delta_mm = getattr(opts, "return_prob_seg_outer_delta_mm", None)
+        if outer_radius_mm is not None:
+            outer_radius_mm = float(outer_radius_mm)
+        elif outer_delta_mm is None:
+            outer_delta_mm = 6.0
+        if outer_delta_mm is not None:
+            outer_delta_mm = float(outer_delta_mm)
         num_examples = int(getattr(opts, "return_prob_seg_num", 1) or 1)
         seed = getattr(opts, "return_prob_seg_seed", None)
         include_failures = bool(
             getattr(opts, "return_prob_seg_include_failures", False)
         )
-        reward_delta_mm = float(
-            getattr(opts, "return_prob_reward_delta_mm", 0.0) or 0.0
-        )
+        reward_radius_mm = getattr(opts, "return_prob_reward_radius_mm", None)
+        reward_delta_mm = getattr(opts, "return_prob_reward_delta_mm", None)
+        if reward_radius_mm is not None:
+            reward_radius_mm = float(reward_radius_mm)
+        elif reward_delta_mm is None:
+            reward_delta_mm = 0.0
+        if reward_delta_mm is not None:
+            reward_delta_mm = float(reward_delta_mm)
         border_width_mm = float(
             getattr(opts, "return_prob_border_width_mm", 0.1) or 0.1
         )
@@ -1529,7 +1539,9 @@ class VideoAnalysis:
                 trn_index=trn_index,
                 bucket_index=bucket_index,
                 outer_delta_mm=outer_delta_mm,
+                outer_radius_mm=outer_radius_mm,
                 reward_delta_mm=reward_delta_mm,
+                reward_radius_mm=reward_radius_mm,
                 border_width_mm=border_width_mm,
                 seed=seed,
                 image_format=opts.imageFormat,
@@ -1746,7 +1758,11 @@ class VideoAnalysis:
         self.rrdMeanDistByBktMm = rrd_rows
 
     def analyzeRewardTurnbackDualCircle(
-        self, inner_delta_mm: float | None = None, outer_delta_mm: float | None = None
+        self,
+        inner_delta_mm: float | None = None,
+        outer_delta_mm: float | None = None,
+        inner_radius_mm: float | None = None,
+        outer_radius_mm: float | None = None,
     ):
         """
         Dual-circle 'turn-back' metric around reward circle, aggregated by sync bucket.
@@ -1779,15 +1795,24 @@ class VideoAnalysis:
         if not getattr(self, "circle", False):
             return
 
-        # options / defaults
+        # options / defaults. Prefer center-distance radii; keep legacy deltas
+        # as a compatibility fallback.
+        if inner_radius_mm is None:
+            raw_inner_radius = getattr(self.opts, "turnback_inner_radius_mm", None)
+            inner_radius_mm = (
+                None if raw_inner_radius is None else float(raw_inner_radius)
+            )
+        if outer_radius_mm is None:
+            raw_outer_radius = getattr(self.opts, "turnback_outer_radius_mm", None)
+            outer_radius_mm = (
+                None if raw_outer_radius is None else float(raw_outer_radius)
+            )
         if inner_delta_mm is None:
-            inner_delta_mm = float(
-                getattr(self.opts, "turnback_inner_delta_mm", 0.0) or 0.0
-            )
+            raw_inner_delta = getattr(self.opts, "turnback_inner_delta_mm", None)
+            inner_delta_mm = None if raw_inner_delta is None else float(raw_inner_delta)
         if outer_delta_mm is None:
-            outer_delta_mm = float(
-                getattr(self.opts, "turnback_outer_delta_mm", 2.0) or 2.0
-            )
+            raw_outer_delta = getattr(self.opts, "turnback_outer_delta_mm", None)
+            outer_delta_mm = None if raw_outer_delta is None else float(raw_outer_delta)
 
         border_width_mm = float(
             getattr(self.opts, "turnback_border_width_mm", 0.1) or 0.1
@@ -1839,6 +1864,8 @@ class VideoAnalysis:
                     trn=trn,
                     inner_delta_mm=inner_delta_mm,
                     outer_delta_mm=outer_delta_mm,
+                    inner_radius_mm=inner_radius_mm,
+                    outer_radius_mm=outer_radius_mm,
                     border_width_mm=border_width_mm,
                     debug=debug,
                     radius_offset_px=radius_offset_px,

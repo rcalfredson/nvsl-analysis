@@ -241,7 +241,7 @@ def plot_return_prob_excursion_bin_sli_bundles(
     if not exported:
         raise ValueError("No non-empty plotted groups after SLI filtering.")
 
-    xlabel = xlabel or "Radial-delta bin from reward circle (mm)"
+    xlabel = xlabel or "Radial distance bin from reward center (mm)"
     ylabel = ylabel or exported[0].meta.get("y_label", "Return probability")
     fig = plot_overlays(
         exported,
