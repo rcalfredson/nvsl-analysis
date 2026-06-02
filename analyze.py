@@ -7701,6 +7701,12 @@ def plotRewards(
             annotation_texts_by_ax[ax].append(txt)
         return txt
 
+    def _subplot_title(t, f):
+        title = ("post %d" % t.n) if post else t.name()
+        if joinF:
+            return title
+        return ("%s " % title if f == 0 else "") + "fly %d" % (f + 1)
+
     mci_min, mci_max = None, None
 
     global_geom_top = -np.inf
@@ -8359,19 +8365,7 @@ def plotRewards(
                         )
             if f == 0 or not joinF:
                 plt.title(
-                    maybe_sentence_case(
-                        pcap(
-                            ("post " if post else "")
-                            + (
-                                t.name()
-                                if joinF
-                                else (
-                                    ("%s " % t.name() if f == 0 else "")
-                                    + "fly %d" % (f + 1)
-                                )
-                            )
-                        )
-                    )
+                    maybe_sentence_case(pcap(_subplot_title(t, f)))
                 )
                 xlabel_text = sync_bucket_endpoint_xlabel(bl)
                 if opts.plot_rewards_xlabel is not None:
