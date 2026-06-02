@@ -455,6 +455,18 @@ def skipMsg(mins):
     return "(first %s min of each bucket skipped)" % util.formatFloat(mins, 1)
 
 
+def sync_bucket_endpoint_xlabel(bucket_len_min):
+    if bucket_len_min is None:
+        return "sync-bucket endpoint (min)"
+    try:
+        bl = float(bucket_len_min)
+    except (TypeError, ValueError):
+        return "sync-bucket endpoint (min)"
+    if not np.isfinite(bl):
+        return "sync-bucket endpoint (min)"
+    return "%s-min sync-bucket endpoint (min)" % util.formatFloat(bl, 1)
+
+
 # - - - signal processing
 def filterDataAndCalcDiffs(data_to_flt):
     flt = {}

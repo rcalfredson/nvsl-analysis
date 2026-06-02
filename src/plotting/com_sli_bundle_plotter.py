@@ -20,6 +20,7 @@ from src.utils.common import (
     maybe_sentence_case,
     pch,
     pick_above_or_expand,
+    sync_bucket_endpoint_xlabel,
     writeImage,
     ttest_ind,
     pick_non_overlapping_y,
@@ -1172,7 +1173,7 @@ def plot_com_sli_bundle_data(
                         )
 
         plt.title(maybe_sentence_case(title))
-        default_xlabel = "time elapsed [min]"
+        default_xlabel = sync_bucket_endpoint_xlabel(bl)
         plt.xlabel(maybe_sentence_case(str(xlabel or default_xlabel)))
 
         if metric == "commag":

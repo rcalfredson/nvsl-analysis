@@ -66,6 +66,7 @@ from src.utils.common import (
     pick_non_overlapping_y,
     propagate_nans,
     skipMsg,
+    sync_bucket_endpoint_xlabel,
     ttest_1samp,
     ttest_ind,
     ttest_rel,
@@ -8372,7 +8373,7 @@ def plotRewards(
                         )
                     )
                 )
-                xlabel_text = "time elapsed [min]"
+                xlabel_text = sync_bucket_endpoint_xlabel(bl)
                 if opts.plot_rewards_xlabel is not None:
                     xlabel_text = str(opts.plot_rewards_xlabel)
                 plt.xlabel(maybe_sentence_case(pcap(xlabel_text)))
