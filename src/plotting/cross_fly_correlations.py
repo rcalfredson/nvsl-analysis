@@ -440,12 +440,72 @@ def _shrink_clipped_ylabels(fig, *, min_scale: float = 0.72, pad_px: float = 2.0
     return changed
 
 
+def _split_axis_label_evenly(text: str) -> str:
+    words = text.split()
+    if len(words) < 4:
+        return text
+    mid = len(words) // 2
+    left, right = words[:mid], words[mid:]
+    if len(left) < 2 or len(right) < 2:
+        return text
+    return " ".join(left) + "\n" + " ".join(right)
+
+
+def _wrap_clipped_axis_labels(fig, *, pad_px: float = 2.0) -> bool:
+    """
+    Wrap axis labels only when their rendered bbox exceeds the figure.
+    """
+    try:
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        fig_bbox = fig.get_window_extent(renderer=renderer)
+    except Exception:
+        return False
+
+    changed = False
+    for ax in fig.get_axes():
+        x_label = ax.xaxis.get_label()
+        x_text = x_label.get_text()
+        if x_label.get_visible() and x_text and "\n" not in x_text:
+            bbox = x_label.get_window_extent(renderer=renderer)
+            clipped = (
+                float(bbox.x0) < float(fig_bbox.x0) + pad_px
+                or float(bbox.x1) > float(fig_bbox.x1) - pad_px
+            )
+            if clipped:
+                wrapped = _split_axis_label_evenly(x_text)
+                if wrapped != x_text:
+                    x_label.set_text(wrapped)
+                    changed = True
+
+        y_label = ax.yaxis.get_label()
+        y_text = y_label.get_text()
+        if y_label.get_visible() and y_text and "\n" not in y_text:
+            bbox = y_label.get_window_extent(renderer=renderer)
+            clipped = (
+                float(bbox.y0) < float(fig_bbox.y0) + pad_px
+                or float(bbox.y1) > float(fig_bbox.y1) - pad_px
+            )
+            if clipped:
+                wrapped = _split_axis_label_evenly(y_text)
+                if wrapped != y_text:
+                    y_label.set_text(wrapped)
+                    changed = True
+
+    return changed
+
+
 def _finalize_correlation_layout(fig, customizer: PlotCustomizer, *, rect=None) -> None:
-    customizer.adjust_padding_proportionally()
+    customizer.adjust_padding_proportionally(wrap_axis_labels=False)
     if rect is None:
         fig.tight_layout()
     else:
         fig.tight_layout(rect=rect)
+    if _wrap_clipped_axis_labels(fig):
+        if rect is None:
+            fig.tight_layout()
+        else:
+            fig.tight_layout(rect=rect)
     if _shrink_clipped_ylabels(fig):
         if rect is None:
             fig.tight_layout()
@@ -2186,7 +2246,14 @@ def plot_cross_fly_correlations(
             time_basis=reward_first_n_time_basis,
         )
     else:
-        rpt_y_label = _windowed_metric_label("rewards per minute", reward_rate_ctx)
+        rpt_y_label = reward_rate_ctx.metric_axis_label(
+            "Reward rate",
+            unit="$min^{-1}$",
+        )
+    pre_period_exploration_title = "Pre-period exploration and SLI"
+    pre_period_exploration_xlabel = (
+        "Fraction of floor explored during pre period (exp fly)"
+    )
 
     # --- Plot 1: SLI_final vs reward-per-distance ---
     _scatter_with_corr(
@@ -2294,7 +2361,7 @@ def plot_cross_fly_correlations(
     _scatter_with_corr(
         x=sli_vals,
         y=rpt_vals,
-        title="Rewards per minute vs SLI",
+        title="Reward rate vs SLI",
         x_label=str(corr_sli_vs_rpt_xlabel_override or x_label_sli),
         y_label=str(corr_sli_vs_rpt_ylabel_override or rpt_y_label),
         cfg=_cfg_with_plot_color(cfg, "rewards_per_minute_vs_sli"),
@@ -2303,13 +2370,13 @@ def plot_cross_fly_correlations(
     )
     if selected_mode is not None:
         if selected_mode == "top":
-            title_1c_sel = "Rewards per minute vs SLI (top SLI-selected learners)"
+            title_1c_sel = "Reward rate vs SLI (top SLI-selected learners)"
             filename_1c_sel = f"corr_rpt_vs_sli_{rpt_suffix}_top_selected"
         elif selected_mode == "bottom":
-            title_1c_sel = "Rewards per minute vs SLI (bottom SLI-selected learners)"
+            title_1c_sel = "Reward rate vs SLI (bottom SLI-selected learners)"
             filename_1c_sel = f"corr_rpt_vs_sli_{rpt_suffix}_bottom_selected"
         else:
-            title_1c_sel = "Rewards per minute vs SLI (top vs bottom SLI-selected learners)"
+            title_1c_sel = "Reward rate vs SLI (top vs bottom SLI-selected learners)"
             filename_1c_sel = f"corr_rpt_vs_sli_{rpt_suffix}_selected_extremes"
 
         plot_selected_group_scatter(
@@ -2357,15 +2424,15 @@ def plot_cross_fly_correlations(
         customizer=customizer,
     )
 
-    # --- Plot 3b: Pre-training exploration vs SLI at T1, first sync bucket ---
+    # --- Plot 3b: Pre-period exploration vs SLI at T1, first sync bucket ---
     if reward_pi_training_vals is not None:
         _scatter_with_corr(
             x=pre_coverage_vals,
             y=reward_pi_training_vals,
-            title="Pre-training exploration vs early SLI",
+            title=pre_period_exploration_title,
             x_label=str(
                 corr_pre_floor_exploration_vs_sli_xlabel_override
-                or "Fraction of floor explored during pre-training\n(exp fly)"
+                or pre_period_exploration_xlabel
             ),
             y_label=str(
                 corr_pre_floor_exploration_vs_sli_ylabel_override or early_lbl
@@ -2377,18 +2444,23 @@ def plot_cross_fly_correlations(
         if selected_mode is not None:
             if selected_mode == "top":
                 title_3b_sel = (
-                    "Pre-training exploration vs early SLI (top SLI-selected learners)"
+                    f"{pre_period_exploration_title} (top SLI-selected learners)"
                 )
                 filename_3b_sel = (
                     "corr_pre_floor_exploration_vs_sli_T1_first_top_selected"
                 )
             elif selected_mode == "bottom":
-                title_3b_sel = "Pre-training exploration vs early SLI (bottom SLI-selected learners)"
+                title_3b_sel = (
+                    f"{pre_period_exploration_title} (bottom SLI-selected learners)"
+                )
                 filename_3b_sel = (
                     "corr_pre_floor_exploration_vs_sli_T1_first_bottom_selected"
                 )
             else:
-                title_3b_sel = "Pre-training exploration vs early SLI (top vs bottom SLI-selected learners)"
+                title_3b_sel = (
+                    f"{pre_period_exploration_title} "
+                    "(top vs bottom SLI-selected learners)"
+                )
                 filename_3b_sel = (
                     "corr_pre_floor_exploration_vs_sli_T1_first_selected_extremes"
                 )
@@ -2402,7 +2474,7 @@ def plot_cross_fly_correlations(
                 title=title_3b_sel,
                 x_label=str(
                     corr_pre_floor_exploration_vs_sli_xlabel_override
-                    or "Fraction of floor explored during pre-training\n(exp fly)"
+                    or pre_period_exploration_xlabel
                 ),
                 y_label=str(
                     corr_pre_floor_exploration_vs_sli_ylabel_override or early_lbl
@@ -2419,17 +2491,17 @@ def plot_cross_fly_correlations(
     else:
         print(
             "[correlations] WARNING: missing reward_pi_training_vals; "
-            "skipping pre-training exploration vs early SLI plot"
+            "skipping pre-period exploration vs early SLI plot"
         )
 
-    # --- Plot 3c: Pre-training exploration vs SLI_final (training {trn_label_idx}) ---
+    # --- Plot 3c: Pre-period exploration vs SLI_final (training {trn_label_idx}) ---
     _scatter_with_corr(
         x=pre_coverage_vals,
         y=sli_vals,
-        title="Pre-training exploration vs SLI",
+        title=pre_period_exploration_title,
         x_label=str(
             corr_pre_floor_exploration_vs_sli_xlabel_override
-            or "Fraction of floor explored during pre-training\n(exp fly)"
+            or pre_period_exploration_xlabel
         ),
         y_label=str(corr_pre_floor_exploration_vs_sli_ylabel_override or y_label_sli),
         cfg=_cfg_with_plot_color(cfg, "pre_training_exploration_vs_sli"),
@@ -2439,16 +2511,19 @@ def plot_cross_fly_correlations(
 
     if selected_mode is not None:
         if selected_mode == "top":
-            title_3c_sel = "Pre-training exploration vs SLI (top SLI-selected learners)"
+            title_3c_sel = (
+                f"{pre_period_exploration_title} (top SLI-selected learners)"
+            )
             filename_3c_sel = "corr_pre_floor_exploration_vs_sli_final_top_selected"
         elif selected_mode == "bottom":
             title_3c_sel = (
-                "Pre-training exploration vs SLI (bottom SLI-selected learners)"
+                f"{pre_period_exploration_title} (bottom SLI-selected learners)"
             )
             filename_3c_sel = "corr_pre_floor_exploration_vs_sli_final_bottom_selected"
         else:
             title_3c_sel = (
-                "Pre-training exploration vs SLI (top vs bottom SLI-selected learners)"
+                f"{pre_period_exploration_title} "
+                "(top vs bottom SLI-selected learners)"
             )
             filename_3c_sel = (
                 "corr_pre_floor_exploration_vs_sli_final_selected_extremes"
@@ -2463,7 +2538,7 @@ def plot_cross_fly_correlations(
             title=title_3c_sel,
             x_label=str(
                 corr_pre_floor_exploration_vs_sli_xlabel_override
-                or "Fraction of floor explored during pre-training\n(exp fly)"
+                or pre_period_exploration_xlabel
             ),
             y_label=str(
                 corr_pre_floor_exploration_vs_sli_ylabel_override or y_label_sli
