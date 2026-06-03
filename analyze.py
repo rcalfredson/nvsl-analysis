@@ -8681,14 +8681,14 @@ def plotRewards(
                 )
     imgFiles["agarose_per_rwd"] = CONTACT_EVENT_PER_RWD_IMG_FILE % ("edge", "agarose")
     if customizer.font_size_customized:
-        wrap_axis_labels = True
+        wrap_x_axis_labels = True
         try:
-            wrap_axis_labels = float(customizer.font_size) < 20.0
+            wrap_x_axis_labels = float(customizer.font_size) < 20.0
         except (TypeError, ValueError):
             pass
         customizer.adjust_padding_proportionally(
             wrap_legend_labels=False,
-            wrap_axis_labels=wrap_axis_labels,
+            wrap_x_axis_labels=wrap_x_axis_labels,
         )
 
     base, ext = os.path.splitext(imgFiles[tp] % blf)
