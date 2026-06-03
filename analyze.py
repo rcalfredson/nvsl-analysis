@@ -769,13 +769,13 @@ g.add_argument(
     "--corr-sli-vs-rpt-xlabel",
     type=str,
     default=None,
-    help="Optional x-axis label override for the 'SLI vs rewards per minute' correlation plot family.",
+    help="Optional x-axis label override for the 'rewards per minute vs SLI' correlation plot family.",
 )
 g.add_argument(
     "--corr-sli-vs-rpt-ylabel",
     type=str,
     default=None,
-    help="Optional y-axis label override for the 'SLI vs rewards per minute' correlation plot family.",
+    help="Optional y-axis label override for the 'rewards per minute vs SLI' correlation plot family.",
 )
 g.add_argument(
     "--corr-pre-reward-pi-vs-sli-xlabel",
@@ -819,7 +819,7 @@ g.add_argument(
     default=None,
     help=(
         "Training session to use for the reward-rate axis in the "
-        "'SLI vs rewards per minute' correlation plot. If omitted, "
+        "'rewards per minute vs SLI' correlation plot. If omitted, "
         "inherits the SLI training/window."
     ),
 )
@@ -829,7 +829,7 @@ g.add_argument(
     default=None,
     help=(
         "Exclude the first K sync buckets when computing reward rate for the "
-        "'SLI vs rewards per minute' correlation plot. If omitted, inherits "
+        "'rewards per minute vs SLI' correlation plot. If omitted, inherits "
         "the SLI window."
     ),
 )
@@ -839,7 +839,7 @@ g.add_argument(
     default=None,
     help=(
         "Cap reward-rate computation to the first K sync buckets (after skip) "
-        "for the 'SLI vs rewards per minute' correlation plot. If omitted, "
+        "for the 'rewards per minute vs SLI' correlation plot. If omitted, "
         "inherits the SLI window."
     ),
 )
@@ -851,7 +851,7 @@ g.add_argument(
     default=None,
     help=(
         "Use the mean reward rate across the selected reward-rate window in the "
-        "'SLI vs rewards per minute' correlation plot. If omitted, inherits the "
+        "'rewards per minute vs SLI' correlation plot. If omitted, inherits the "
         "SLI reduction mode."
     ),
 )
@@ -863,7 +863,7 @@ g.add_argument(
     default=None,
     help=(
         "Use the last valid reward-rate sync bucket within the selected reward-rate "
-        "window in the 'SLI vs rewards per minute' correlation plot. If omitted, "
+        "window in the 'rewards per minute vs SLI' correlation plot. If omitted, "
         "inherits the SLI reduction mode."
     ),
 )
@@ -872,7 +872,7 @@ g.add_argument(
     type=int,
     default=0,
     help=(
-        "For the 'SLI vs rewards per minute' correlation plot, compute reward rate "
+        "For the 'rewards per minute vs SLI' correlation plot, compute reward rate "
         "from the first N calculated rewards of the experimental fly within the "
         "selected reward-rate window, using N / time-to-Nth-reward. "
         "Use 0 to keep the existing sync-bucket-based reward-rate calculation."

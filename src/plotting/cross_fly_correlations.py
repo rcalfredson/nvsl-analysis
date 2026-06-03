@@ -2290,37 +2290,37 @@ def plot_cross_fly_correlations(
             image_format=cfg.image_format,
         )
 
-    # --- Plot 1c: SLI_final vs reward-per-time (SLI on Y axis) ---
+    # --- Plot 1c: SLI_final vs reward-per-time ---
     _scatter_with_corr(
-        x=rpt_vals,
-        y=sli_vals,
-        title="SLI vs rewards per minute",
-        x_label=str(corr_sli_vs_rpt_xlabel_override or rpt_y_label),
-        y_label=str(corr_sli_vs_rpt_ylabel_override or y_label_sli),
+        x=sli_vals,
+        y=rpt_vals,
+        title="Rewards per minute vs SLI",
+        x_label=str(corr_sli_vs_rpt_xlabel_override or x_label_sli),
+        y_label=str(corr_sli_vs_rpt_ylabel_override or rpt_y_label),
         cfg=_cfg_with_plot_color(cfg, "rewards_per_minute_vs_sli"),
-        filename=f"corr_sli_vs_rpt_{rpt_suffix}",
+        filename=f"corr_rpt_vs_sli_{rpt_suffix}",
         customizer=customizer,
     )
     if selected_mode is not None:
         if selected_mode == "top":
-            title_1c_sel = "SLI vs rewards per minute (top SLI-selected learners)"
-            filename_1c_sel = f"corr_sli_vs_rpt_{rpt_suffix}_top_selected"
+            title_1c_sel = "Rewards per minute vs SLI (top SLI-selected learners)"
+            filename_1c_sel = f"corr_rpt_vs_sli_{rpt_suffix}_top_selected"
         elif selected_mode == "bottom":
-            title_1c_sel = "SLI vs rewards per minute (bottom SLI-selected learners)"
-            filename_1c_sel = f"corr_sli_vs_rpt_{rpt_suffix}_bottom_selected"
+            title_1c_sel = "Rewards per minute vs SLI (bottom SLI-selected learners)"
+            filename_1c_sel = f"corr_rpt_vs_sli_{rpt_suffix}_bottom_selected"
         else:
-            title_1c_sel = "SLI vs rewards per minute (top vs bottom SLI-selected learners)"
-            filename_1c_sel = f"corr_sli_vs_rpt_{rpt_suffix}_selected_extremes"
+            title_1c_sel = "Rewards per minute vs SLI (top vs bottom SLI-selected learners)"
+            filename_1c_sel = f"corr_rpt_vs_sli_{rpt_suffix}_selected_extremes"
 
         plot_selected_group_scatter(
-            x=rpt_vals,
-            y=sli_vals,
+            x=sli_vals,
+            y=rpt_vals,
             bottom_idx=selected_bottom_idx,
             top_idx=selected_top_idx,
             mode=selected_mode,
             title=title_1c_sel,
-            x_label=str(corr_sli_vs_rpt_xlabel_override or rpt_y_label),
-            y_label=str(corr_sli_vs_rpt_ylabel_override or y_label_sli),
+            x_label=str(corr_sli_vs_rpt_xlabel_override or x_label_sli),
+            y_label=str(corr_sli_vs_rpt_ylabel_override or rpt_y_label),
             filename=filename_1c_sel,
             out_dir=out_dir,
             customizer=customizer,
