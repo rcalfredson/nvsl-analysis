@@ -237,6 +237,7 @@ METRIC_PALETTES = {
 # accents. This lets us keep a stable semantic color per plot type.
 CORRELATION_PLOT_COLORS = {
     "rewards_per_distance_vs_sli": ACCENT_BLUE,
+    "rewards_per_distance_exp_minus_yoked_vs_sli": ACCENT_TEAL,
     "rewards_per_minute_vs_sli": ACCENT_ORANGE,
     "first_n_reward_rate_vs_sli": ACCENT_TEAL,
     "median_distance_vs_sli": ACCENT_GREEN,

@@ -1927,6 +1927,7 @@ def plot_cross_fly_correlations(
     )  # always SB1
 
     rpd_vals = []
+    rpd_exp_minus_yoked_vals = []
     rpt_vals = []
     med_train_vals = []
     pre_pi_diff_vals = []
@@ -1936,9 +1937,10 @@ def plot_cross_fly_correlations(
     for va in vas:
         # --- Reward per distance (final bucket of training_idx) ---
         if _ensure_rewards_per_distance(va):
-            row_idx = 2 * training_idx  # exp row
-            if 0 <= row_idx < len(va.rwdsPerDist):
-                exp_row = va.rwdsPerDist[row_idx]
+            exp_row_idx = 2 * training_idx
+            yoked_row_idx = exp_row_idx + 1
+            if 0 <= exp_row_idx < len(va.rwdsPerDist):
+                exp_row = va.rwdsPerDist[exp_row_idx]
                 rpd_val = _reduce_sync_bucket_series(
                     exp_row,
                     bucket_idx=sli_bucket_idx,
@@ -1948,8 +1950,21 @@ def plot_cross_fly_correlations(
                 )
             else:
                 rpd_val = np.nan
+            if 0 <= yoked_row_idx < len(va.rwdsPerDist):
+                yoked_row = va.rwdsPerDist[yoked_row_idx]
+                rpd_yoked_val = _reduce_sync_bucket_series(
+                    yoked_row,
+                    bucket_idx=sli_bucket_idx,
+                    average_over_buckets=bool(sli_ctx.average_over_buckets),
+                    skip_first_sync_buckets=skip_k,
+                    keep_first_sync_buckets=keep_k,
+                )
+            else:
+                rpd_yoked_val = np.nan
         else:
             rpd_val = np.nan
+            rpd_yoked_val = np.nan
+        rpd_exp_minus_yoked_val = rpd_val - rpd_yoked_val
 
         # --- Reward per time (may use a different training/window from SLI) ---
         if reward_first_n > 0:
@@ -2052,6 +2067,7 @@ def plot_cross_fly_correlations(
             total_rewards = np.nan
 
         rpd_vals.append(rpd_val)
+        rpd_exp_minus_yoked_vals.append(rpd_exp_minus_yoked_val)
         rpt_vals.append(rpt_val)
         med_train_vals.append(med_train)
         pre_pi_diff_vals.append(pre_diff)
@@ -2059,6 +2075,7 @@ def plot_cross_fly_correlations(
         pre_coverage_vals.append(coverage)
 
     rpd_vals = np.asarray(rpd_vals, float)
+    rpd_exp_minus_yoked_vals = np.asarray(rpd_exp_minus_yoked_vals, float)
     rpt_vals = np.asarray(rpt_vals, float)
     med_train_vals = np.asarray(med_train_vals, float)
     pre_pi_diff_vals = np.asarray(pre_pi_diff_vals, float)
@@ -2101,6 +2118,10 @@ def plot_cross_fly_correlations(
                 rpt_suffix = f"{rpt_suffix}__maxtime{cutoff_suffix:g}s"
 
     rpd_y_label = sli_ctx.metric_axis_label("Rewards per distance", unit="$m^{-1}$")
+    rpd_diff_y_label = sli_ctx.metric_axis_label(
+        "Rewards per distance, exp - yok",
+        unit="$m^{-1}$",
+    )
     if reward_first_n > 0:
         rpt_y_label = _first_n_reward_rate_label(
             first_n_rewards=reward_first_n,
@@ -2154,7 +2175,66 @@ def plot_cross_fly_correlations(
             image_format=cfg.image_format,
         )
 
-    # --- Plot 1b: SLI_final vs reward-per-time (SLI on Y axis) ---
+    # --- Plot 1b: SLI_final vs exp-minus-yoked reward-per-distance ---
+    _scatter_with_corr(
+        x=sli_vals,
+        y=rpd_exp_minus_yoked_vals,
+        title="Δ rewards per distance vs SLI",
+        x_label=x_label_sli,
+        y_label=rpd_diff_y_label,
+        cfg=_cfg_with_plot_color(
+            cfg,
+            "rewards_per_distance_exp_minus_yoked_vs_sli",
+        ),
+        filename=f"corr_rpd_exp_minus_yoked_vs_sli_{rpd_suffix}",
+        customizer=customizer,
+    )
+    if selected_mode is not None:
+        if selected_mode == "top":
+            title_1b_sel = (
+                "Exp-minus-yoked rewards per distance vs SLI "
+                "(top SLI-selected learners)"
+            )
+            filename_1b_sel = (
+                f"corr_rpd_exp_minus_yoked_vs_sli_{rpd_suffix}_top_selected"
+            )
+        elif selected_mode == "bottom":
+            title_1b_sel = (
+                "Exp-minus-yoked rewards per distance vs SLI "
+                "(bottom SLI-selected learners)"
+            )
+            filename_1b_sel = (
+                f"corr_rpd_exp_minus_yoked_vs_sli_{rpd_suffix}_bottom_selected"
+            )
+        else:
+            title_1b_sel = (
+                "Exp-minus-yoked rewards per distance vs SLI "
+                "(top vs bottom SLI-selected learners)"
+            )
+            filename_1b_sel = (
+                f"corr_rpd_exp_minus_yoked_vs_sli_{rpd_suffix}_selected_extremes"
+            )
+
+        plot_selected_group_scatter(
+            x=sli_vals,
+            y=rpd_exp_minus_yoked_vals,
+            bottom_idx=selected_bottom_idx,
+            top_idx=selected_top_idx,
+            mode=selected_mode,
+            title=title_1b_sel,
+            x_label=x_label_sli,
+            y_label=rpd_diff_y_label,
+            filename=filename_1b_sel,
+            out_dir=out_dir,
+            customizer=customizer,
+            top_label=top_sel_label,
+            bottom_label=bottom_sel_label,
+            xlim=cfg.xlim,
+            ylim=cfg.ylim,
+            image_format=cfg.image_format,
+        )
+
+    # --- Plot 1c: SLI_final vs reward-per-time (SLI on Y axis) ---
     _scatter_with_corr(
         x=rpt_vals,
         y=sli_vals,
@@ -2167,14 +2247,14 @@ def plot_cross_fly_correlations(
     )
     if selected_mode is not None:
         if selected_mode == "top":
-            title_1b_sel = "SLI vs rewards per minute (top SLI-selected learners)"
-            filename_1b_sel = f"corr_sli_vs_rpt_{rpt_suffix}_top_selected"
+            title_1c_sel = "SLI vs rewards per minute (top SLI-selected learners)"
+            filename_1c_sel = f"corr_sli_vs_rpt_{rpt_suffix}_top_selected"
         elif selected_mode == "bottom":
-            title_1b_sel = "SLI vs rewards per minute (bottom SLI-selected learners)"
-            filename_1b_sel = f"corr_sli_vs_rpt_{rpt_suffix}_bottom_selected"
+            title_1c_sel = "SLI vs rewards per minute (bottom SLI-selected learners)"
+            filename_1c_sel = f"corr_sli_vs_rpt_{rpt_suffix}_bottom_selected"
         else:
-            title_1b_sel = "SLI vs rewards per minute (top vs bottom SLI-selected learners)"
-            filename_1b_sel = f"corr_sli_vs_rpt_{rpt_suffix}_selected_extremes"
+            title_1c_sel = "SLI vs rewards per minute (top vs bottom SLI-selected learners)"
+            filename_1c_sel = f"corr_sli_vs_rpt_{rpt_suffix}_selected_extremes"
 
         plot_selected_group_scatter(
             x=rpt_vals,
@@ -2182,10 +2262,10 @@ def plot_cross_fly_correlations(
             bottom_idx=selected_bottom_idx,
             top_idx=selected_top_idx,
             mode=selected_mode,
-            title=title_1b_sel,
+            title=title_1c_sel,
             x_label=str(corr_sli_vs_rpt_xlabel_override or rpt_y_label),
             y_label=str(corr_sli_vs_rpt_ylabel_override or y_label_sli),
-            filename=filename_1b_sel,
+            filename=filename_1c_sel,
             out_dir=out_dir,
             customizer=customizer,
             top_label=top_sel_label,
