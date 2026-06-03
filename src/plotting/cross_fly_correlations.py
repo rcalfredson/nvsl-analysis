@@ -1971,7 +1971,7 @@ def plot_cross_fly_correlations(
             if cutoff_suffix is not None and np.isfinite(cutoff_suffix):
                 rpt_suffix = f"{rpt_suffix}__maxtime{cutoff_suffix:g}s"
 
-    rpd_y_label = sli_ctx.metric_axis_label("Rewards per distance", unit="m⁻¹")
+    rpd_y_label = sli_ctx.metric_axis_label("Rewards per distance", unit="$m^{-1}$")
     if reward_first_n > 0:
         rpt_y_label = _first_n_reward_rate_label(
             first_n_rewards=reward_first_n,
