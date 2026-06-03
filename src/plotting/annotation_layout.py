@@ -21,6 +21,23 @@ def _move_text_by_display_dy(ax, text, dy_px: float) -> float:
     return float(y_new)
 
 
+def _expand_ylim_if_text_exceeds_top(ax, text, bbox, ylim, *, pad_px: float) -> None:
+    fig = ax.figure
+    renderer = fig.canvas.get_renderer()
+    axes_bbox = ax.get_window_extent(renderer=renderer)
+    excess_px = float(bbox.y1) + float(pad_px) - float(axes_bbox.y1)
+    if excess_px <= 0.0:
+        return
+
+    x, _y = text.get_position()
+    _x_disp, top_disp = ax.transData.transform((float(x), float(ylim[1])))
+    _x_new, y_needed = ax.transData.inverted().transform(
+        (_x_disp, top_disp + excess_px)
+    )
+    if np.isfinite(y_needed):
+        ylim[1] = max(float(ylim[1]), float(y_needed))
+
+
 def resolve_annotation_text_overlaps(ax, texts, ylim, *, pad_px=None, max_iter=16):
     """
     Resolve annotation collisions using rendered text extents.
@@ -67,16 +84,19 @@ def resolve_annotation_text_overlaps(ax, texts, ylim, *, pad_px=None, max_iter=1
                     needed_shift_px = max(needed_shift_px, overlap_px + pad_px)
 
             if needed_shift_px > 0.0:
-                y_new = _move_text_by_display_dy(ax, text, needed_shift_px)
-                ylim[1] = max(
-                    float(ylim[1]),
-                    y_new + 0.05 * (float(ylim[1]) - float(ylim[0])),
-                )
+                _move_text_by_display_dy(ax, text, needed_shift_px)
                 moved = True
                 fig.canvas.draw()
                 bbox = _expanded_text_bbox(
                     text.get_window_extent(renderer=fig.canvas.get_renderer()),
                     pad_px,
+                )
+                _expand_ylim_if_text_exceeds_top(
+                    ax,
+                    text,
+                    bbox,
+                    ylim,
+                    pad_px=pad_px,
                 )
 
             placed.append(bbox)
