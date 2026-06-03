@@ -2412,15 +2412,12 @@ def plot_cross_fly_correlations(
         customizer=customizer,
     )
 
-    # --- Plot 3: Pre-training reward PI (exp − yoked) vs SLI_final ---
+    # --- Plot 3: Pre-period SLI vs SLI_final ---
     _scatter_with_corr(
         x=pre_pi_diff_vals,
         y=sli_vals,
-        title="Baseline PI vs SLI",
-        x_label=str(
-            corr_pre_reward_pi_vs_sli_xlabel_override
-            or "Baseline PI\n(exp − yok, pre-training)"
-        ),
+        title="Pre-period SLI and SLI",
+        x_label=str(corr_pre_reward_pi_vs_sli_xlabel_override or "Pre-period SLI"),
         y_label=str(corr_pre_reward_pi_vs_sli_ylabel_override or y_label_sli),
         cfg=_cfg_with_plot_color(cfg, "baseline_pi_vs_sli"),
         filename="corr_pre_reward_pi_vs_sli",
