@@ -33,6 +33,7 @@ from src.utils.debug_fly_groups import log_fly_group
 BBOX_STYLE = dict(
     facecolor="white", alpha=0.80, edgecolor="none", boxstyle="round,pad=0.25"
 )
+STATS_BOX_MIN_FONTSIZE = 12.0
 
 
 _layout_logger = logging.getLogger("cross_fly_corr_layout")
@@ -281,12 +282,17 @@ def early_sli_label(*, training_idx: int, skip_first_sync_buckets: int) -> str:
     return f"SLI (T{trn}, {sb_txt})"
 
 
+def _format_corr_annotation(r: float, p: float, n: int, *, label: str | None = None) -> str:
+    stats = f"r = {r:.3f}, p = {p:.3g}, n = {int(n)}"
+    return f"{label}: {stats}" if label else stats
+
+
 def _compute_group_corr(
     x: np.ndarray, y: np.ndarray, idx: np.ndarray
-) -> tuple[float, float] | None:
+) -> tuple[float, float, int] | None:
     """
     Compute Pearson correlation for a given index set, handling NaNs and
-    small sample sizes. Returns (r, p) or None if not enough valid data.
+    small sample sizes. Returns (r, p, n) or None if not enough valid data.
     """
     if idx is None or idx.size == 0:
         return None
@@ -296,10 +302,12 @@ def _compute_group_corr(
     y_g = np.asarray(y, float)[idx]
 
     mask = np.isfinite(x_g) & np.isfinite(y_g)
-    if np.sum(mask) < 3:
+    n = int(np.sum(mask))
+    if n < 3:
         return None
 
-    return pearsonr(x_g[mask], y_g[mask])
+    r, p = pearsonr(x_g[mask], y_g[mask])
+    return float(r), float(p), n
 
 
 def _place_legend_without_point_overlap(
@@ -467,7 +475,7 @@ def _add_smart_stats_box(
     x: np.ndarray,
     y: np.ndarray,
     *,
-    fontsize: int = 10,
+    fontsize: float | None = None,
     max_overlap_frac: float = 0.08,
 ):
     """
@@ -482,6 +490,15 @@ def _add_smart_stats_box(
     finite = np.isfinite(x) & np.isfinite(y)
     x_f = x[finite]
     y_f = y[finite]
+    if fontsize is None:
+        reference_sizes = [
+            ax.xaxis.label.get_size(),
+            ax.yaxis.label.get_size(),
+            *(tick.get_size() for tick in ax.get_xticklabels()),
+            *(tick.get_size() for tick in ax.get_yticklabels()),
+        ]
+        reference_size = max(float(size) for size in reference_sizes if size is not None)
+        fontsize = max(STATS_BOX_MIN_FONTSIZE, 0.90 * reference_size)
 
     if x_f.size == 0:
         return ax.text(
@@ -875,21 +892,25 @@ def plot_selected_group_scatter(
     if include_all_corr:
         if corr_all is not None:
             r_a, p_a, n_a = corr_all
-            lines.append(f"All (finite): r = {r_a:.3f}, p = {p_a:.3g} (n={n_a})")
+            lines.append(
+                _format_corr_annotation(r_a, p_a, n_a, label="All (finite)")
+            )
         else:
             lines.append("All (finite): r = n/a")
 
     if mode in ("both", "top"):
         if corr_top is not None:
             r_t, p_t, n_t = corr_top
-            lines.append(f"{top_label}: r = {r_t:.3f}, p = {p_t:.3g} (n={n_t})")
+            lines.append(_format_corr_annotation(r_t, p_t, n_t, label=top_label))
         else:
             lines.append(f"{top_label}: r = n/a")
 
     if mode in ("both", "bottom"):
         if corr_bottom is not None:
             r_b, p_b, n_b = corr_bottom
-            lines.append(f"{bottom_label}: r = {r_b:.3f}, p = {p_b:.3g} (n={n_b})")
+            lines.append(
+                _format_corr_annotation(r_b, p_b, n_b, label=bottom_label)
+            )
         else:
             lines.append(f"{bottom_label}: r = n/a")
 
@@ -979,7 +1000,7 @@ def _scatter_with_corr(
     ax.set_title(title, pad=10)
     ax.grid(False)
 
-    _add_smart_stats_box(ax, f"r = {r:.3f}\np = {p:.3g}", x_f, y_f)
+    _add_smart_stats_box(ax, _format_corr_annotation(r, p, x_f.size), x_f, y_f)
 
     customizer.adjust_padding_proportionally()
     fig.tight_layout()
@@ -1389,18 +1410,24 @@ def plot_fast_vs_strong_scatter(
     lines = []
     if corr_all is not None:
         r_a, p_a, n_a = corr_all
-        lines.append(f"All (finite):           r = {r_a:.3f}, p = {p_a:.3g} (n={n_a})")
+        lines.append(
+            _format_corr_annotation(r_a, p_a, n_a, label="All (finite)")
+        )
     else:
         lines.append("All (finite):           r = n/a")
     if corr_fast_incl_overlap is not None:
         r_f, p_f, n_f = corr_fast_incl_overlap
-        lines.append(f"Fast (incl overlap):  r = {r_f:.3f}, p = {p_f:.3g} (n={n_f})")
+        lines.append(
+            _format_corr_annotation(r_f, p_f, n_f, label="Fast (incl overlap)")
+        )
     else:
         lines.append("Fast (incl overlap):  r = n/a")
 
     if corr_strong_incl_overlap is not None:
         r_s, p_s, n_s = corr_strong_incl_overlap
-        lines.append(f"Strong (incl overlap): r = {r_s:.3f}, p = {p_s:.3g} (n={n_s})")
+        lines.append(
+            _format_corr_annotation(r_s, p_s, n_s, label="Strong (incl overlap)")
+        )
     else:
         lines.append("Strong (incl overlap): r = n/a")
 
@@ -1572,14 +1599,14 @@ def plot_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow(
 
     lines = []
     if corr_fast is not None:
-        r_f, p_f = corr_fast
-        lines.append(f"Fast:  r = {r_f:.3f}, p = {p_f:.3g}")
+        r_f, p_f, n_f = corr_fast
+        lines.append(_format_corr_annotation(r_f, p_f, n_f, label="Fast"))
     else:
         lines.append("Fast:  r = n/a")
 
     if corr_slow is not None:
-        r_s, p_s = corr_slow
-        lines.append(f"Slow:  r = {r_s:.3f}, p = {p_s:.3g}")
+        r_s, p_s, n_s = corr_slow
+        lines.append(_format_corr_annotation(r_s, p_s, n_s, label="Slow"))
     else:
         lines.append("Slow:  r = n/a")
 
