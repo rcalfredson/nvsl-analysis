@@ -2246,7 +2246,10 @@ def plot_cross_fly_correlations(
             time_basis=reward_first_n_time_basis,
         )
     else:
-        rpt_y_label = _windowed_metric_label("rewards per minute", reward_rate_ctx)
+        rpt_y_label = reward_rate_ctx.metric_axis_label(
+            "Reward rate",
+            unit="$min^{-1}$",
+        )
     pre_period_exploration_title = "Pre-period exploration and SLI"
     pre_period_exploration_xlabel = (
         "Fraction of floor explored during pre period (exp fly)"
@@ -2358,7 +2361,7 @@ def plot_cross_fly_correlations(
     _scatter_with_corr(
         x=sli_vals,
         y=rpt_vals,
-        title="Rewards per minute vs SLI",
+        title="Reward rate vs SLI",
         x_label=str(corr_sli_vs_rpt_xlabel_override or x_label_sli),
         y_label=str(corr_sli_vs_rpt_ylabel_override or rpt_y_label),
         cfg=_cfg_with_plot_color(cfg, "rewards_per_minute_vs_sli"),
@@ -2367,13 +2370,13 @@ def plot_cross_fly_correlations(
     )
     if selected_mode is not None:
         if selected_mode == "top":
-            title_1c_sel = "Rewards per minute vs SLI (top SLI-selected learners)"
+            title_1c_sel = "Reward rate vs SLI (top SLI-selected learners)"
             filename_1c_sel = f"corr_rpt_vs_sli_{rpt_suffix}_top_selected"
         elif selected_mode == "bottom":
-            title_1c_sel = "Rewards per minute vs SLI (bottom SLI-selected learners)"
+            title_1c_sel = "Reward rate vs SLI (bottom SLI-selected learners)"
             filename_1c_sel = f"corr_rpt_vs_sli_{rpt_suffix}_bottom_selected"
         else:
-            title_1c_sel = "Rewards per minute vs SLI (top vs bottom SLI-selected learners)"
+            title_1c_sel = "Reward rate vs SLI (top vs bottom SLI-selected learners)"
             filename_1c_sel = f"corr_rpt_vs_sli_{rpt_suffix}_selected_extremes"
 
         plot_selected_group_scatter(
