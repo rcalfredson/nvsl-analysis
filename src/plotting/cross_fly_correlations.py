@@ -283,7 +283,7 @@ def early_sli_label(*, training_idx: int, skip_first_sync_buckets: int) -> str:
 
 
 def _format_corr_annotation(r: float, p: float, n: int, *, label: str | None = None) -> str:
-    stats = f"r = {r:.3f}, p = {p:.3g}, n = {int(n)}"
+    stats = f"n = {int(n)}, r = {r:.3f}, p = {p:.3g}"
     return f"{label}: {stats}" if label else stats
 
 
