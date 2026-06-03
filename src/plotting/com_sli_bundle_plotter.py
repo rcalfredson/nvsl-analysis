@@ -1616,15 +1616,15 @@ def plot_com_sli_bundle_data(
         ax.set_ylim(ylim[0], ylim[1])
 
     if customizer.font_size_customized:
-        wrap_axis_labels = True
+        wrap_x_axis_labels = True
         try:
-            wrap_axis_labels = float(customizer.font_size) < 20.0
+            wrap_x_axis_labels = float(customizer.font_size) < 20.0
         except (TypeError, ValueError):
             pass
         customizer.adjust_padding_proportionally(
             wspace=getattr(opts, "wspace", 0.35),
             wrap_legend_labels=False,
-            wrap_axis_labels=wrap_axis_labels,
+            wrap_x_axis_labels=wrap_x_axis_labels,
         )
 
     # Only promote to suptitle when there is exactly one legend entry and no explicit legend was requested.

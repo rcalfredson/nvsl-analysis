@@ -125,6 +125,8 @@ class PlotCustomizer:
         base_hspace=0.35,
         wrap_legend_labels=True,
         wrap_axis_labels=True,
+        wrap_x_axis_labels=None,
+        wrap_y_axis_labels=None,
     ):
         """
         Adjusts the figure size and subplot padding proportionally to the font size.
@@ -142,8 +144,18 @@ class PlotCustomizer:
             Baseline vertical spacing between subplot rows.
         wrap_axis_labels : bool
             Whether to insert newlines into long axis labels at larger font sizes.
+        wrap_x_axis_labels : bool
+            Whether to insert newlines into long X-axis labels. Defaults to
+            wrap_axis_labels.
+        wrap_y_axis_labels : bool
+            Whether to insert newlines into long Y-axis labels. Defaults to
+            wrap_axis_labels.
         """
         fig = plt.gcf()
+        if wrap_x_axis_labels is None:
+            wrap_x_axis_labels = wrap_axis_labels
+        if wrap_y_axis_labels is None:
+            wrap_y_axis_labels = wrap_axis_labels
 
         # --- Step 1: Optionally wrap long legend labels instead of shrinking legend font ---
         renderer = None
@@ -267,7 +279,7 @@ class PlotCustomizer:
                     ax.yaxis.set_major_formatter(FuncFormatter(_adaptive_fmt))
 
         # --- Step 5: Add newlines for long axis labels ---
-        if wrap_axis_labels:
+        if wrap_x_axis_labels or wrap_y_axis_labels:
             font_threshold = 20
 
             def split_evenly(s: str) -> str:
@@ -282,7 +294,12 @@ class PlotCustomizer:
                 return " ".join(left) + "\n" + " ".join(right)
 
             for ax in fig.get_axes():
-                for label in [ax.xaxis.get_label(), ax.yaxis.get_label()]:
+                labels = []
+                if wrap_x_axis_labels:
+                    labels.append(ax.xaxis.get_label())
+                if wrap_y_axis_labels:
+                    labels.append(ax.yaxis.get_label())
+                for label in labels:
                     if label.get_text() and label.get_fontsize() > font_threshold:
                         s = label.get_text()
                         if "\n" not in s:
