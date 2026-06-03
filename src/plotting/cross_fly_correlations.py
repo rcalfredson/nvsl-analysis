@@ -199,6 +199,42 @@ class SLIContext:
             return f"sync bucket {start_sb}"
         return f"sync buckets {start_sb}-{end_sb}"
 
+    def _axis_window_text(self) -> str:
+        trn = self.training_idx + 1
+        start_sb, end_sb = self._window_bounds()
+        if end_sb is None:
+            return f"T{trn} SB{start_sb}–end"
+        if end_sb == start_sb:
+            return f"T{trn} SB{start_sb}"
+        return f"T{trn} SB{start_sb}–{end_sb}"
+
+    def axis_label(self) -> str:
+        window_txt = self._axis_window_text()
+        start_sb, end_sb = self._window_bounds()
+        if self.average_over_buckets:
+            return f"Mean SLI over {window_txt}"
+        if start_sb == end_sb:
+            return f"SLI at {window_txt}"
+        if end_sb is None and start_sb == 1:
+            return f"SLI at final SB of T{self.training_idx + 1}"
+        return f"SLI at final SB in {window_txt}"
+
+    def metric_axis_label(self, metric_name: str, *, unit: str | None = None) -> str:
+        window_txt = self._axis_window_text()
+        start_sb, end_sb = self._window_bounds()
+        if self.average_over_buckets:
+            window_phrase = f"mean over {window_txt}"
+        elif start_sb == end_sb:
+            window_phrase = f"at {window_txt}"
+        elif end_sb is None and start_sb == 1:
+            window_phrase = f"at final SB of T{self.training_idx + 1}"
+        else:
+            window_phrase = f"at final SB in {window_txt}"
+        label = f"{metric_name}, {window_phrase}"
+        if unit:
+            label = f"{label} ({unit})"
+        return label
+
     def label_long(self) -> str:
         trn = self.training_idx + 1
         start_sb, end_sb = self._window_bounds()
@@ -274,12 +310,8 @@ def _first_n_reward_rate_label(
 
 
 def early_sli_label(*, training_idx: int, skip_first_sync_buckets: int) -> str:
-    # training_idx is 0-based
-    trn = training_idx + 1
     k = int(skip_first_sync_buckets or 0)
-    sb = k + 1  # 1-based
-    sb_txt = "first sync bucket" if sb == 1 else f"SB{sb}"
-    return f"SLI (T{trn}, {sb_txt})"
+    return SLIContext(training_idx=training_idx, explicit_bucket_idx=k).axis_label()
 
 
 def _format_corr_annotation(r: float, p: float, n: int, *, label: str | None = None) -> str:
@@ -1715,8 +1747,8 @@ def plot_cross_fly_correlations(
     if reward_rate_ctx is None:
         reward_rate_ctx = sli_ctx
 
-    x_label_sli = sli_ctx.label_short(abbrev_sb=False)
-    y_label_sli = sli_ctx.label_short(abbrev_sb=True)
+    x_label_sli = sli_ctx.axis_label()
+    y_label_sli = sli_ctx.axis_label()
     corr_sli_vs_rpt_xlabel_override = getattr(opts, "corr_sli_vs_rpt_xlabel", None)
     corr_sli_vs_rpt_ylabel_override = getattr(opts, "corr_sli_vs_rpt_ylabel", None)
     corr_pre_reward_pi_vs_sli_xlabel_override = getattr(
@@ -1939,8 +1971,7 @@ def plot_cross_fly_correlations(
             if cutoff_suffix is not None and np.isfinite(cutoff_suffix):
                 rpt_suffix = f"{rpt_suffix}__maxtime{cutoff_suffix:g}s"
 
-    rpd_label = "rewards per distance $(m^{{-1}})$"
-    rpd_y_label = rpd_label
+    rpd_y_label = sli_ctx.metric_axis_label("Rewards per distance", unit="m⁻¹")
     if reward_first_n > 0:
         rpt_y_label = _first_n_reward_rate_label(
             first_n_rewards=reward_first_n,
@@ -1950,17 +1981,6 @@ def plot_cross_fly_correlations(
         )
     else:
         rpt_y_label = _windowed_metric_label("rewards per minute", reward_rate_ctx)
-
-    if sli_ctx.average_over_buckets:
-        window_txt = sli_ctx._window_text(abbrev_sb=True)
-        rpd_y_label = f"{rpd_label}\n(mean {window_txt})"
-    else:
-        if sli_bucket_idx is not None:
-            window_txt = sli_ctx._window_text(abbrev_sb=True)
-            rpd_y_label = f"{rpd_label}\n(T{sli_ctx.training_idx + 1}, {window_txt})"
-        elif skip_k or keep_k:
-            window_txt = sli_ctx._window_text(abbrev_sb=True)
-            rpd_y_label = f"{rpd_label}\n({window_txt})"
 
     # --- Plot 1: SLI_final vs reward-per-distance ---
     _scatter_with_corr(
@@ -2215,7 +2235,7 @@ def plot_cross_fly_correlations(
             y=reward_pi_training_vals,
             title="Baseline PI vs early SLI",
             x_label="Baseline PI\n(exp - yok, pre-training)",
-            y_label=early_lbl.replace("SLI", "SLI\n"),
+            y_label=early_lbl,
             cfg=_cfg_with_plot_color(cfg, "baseline_pi_vs_sli"),
             filename="corr_pre_reward_pi_vs_T1_first_bucket_reward_pi_all",
             customizer=customizer,
@@ -2235,7 +2255,7 @@ def plot_cross_fly_correlations(
                     y=reward_pi_training_vals[fast_idx],
                     title="Baseline PI vs early SLI (fast learners)",
                     x_label="Baseline PI\n(exp - yok, pre-training)",
-                    y_label=early_lbl.replace("SLI", "SLI\n"),
+                    y_label=early_lbl,
                     cfg=_cfg_with_plot_color(cfg, "baseline_pi_vs_sli"),
                     filename="corr_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast",
                     customizer=customizer,
@@ -2297,7 +2317,7 @@ def plot_cross_fly_correlations(
                 mode=selected_mode,
                 title=title_5_sel,
                 x_label="Baseline PI\n(exp - yok, pre-training)",
-                y_label=early_lbl.replace("SLI", "SLI\n"),
+                y_label=early_lbl,
                 filename=filename_5_sel,
                 out_dir=out_dir,
                 customizer=customizer,
