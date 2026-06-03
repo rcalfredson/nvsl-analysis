@@ -34,6 +34,7 @@ BBOX_STYLE = dict(
     facecolor="white", alpha=0.80, edgecolor="none", boxstyle="round,pad=0.25"
 )
 STATS_BOX_MIN_FONTSIZE = 12.0
+TREND_LINE_P_THRESHOLD = 0.05
 
 
 _layout_logger = logging.getLogger("cross_fly_corr_layout")
@@ -340,6 +341,62 @@ def _compute_group_corr(
 
     r, p = pearsonr(x_g[mask], y_g[mask])
     return float(r), float(p), n
+
+
+def _add_significant_trend_line(
+    ax,
+    x: np.ndarray,
+    y: np.ndarray,
+    p: float,
+    *,
+    color: str,
+    linestyle: str = "--",
+    linewidth: float = 1.6,
+    alpha: float = 0.85,
+) -> bool:
+    """
+    Draw a linear trend line when the reported Pearson p-value is significant.
+    """
+    try:
+        p_val = float(p)
+    except (TypeError, ValueError):
+        return False
+    if not np.isfinite(p_val) or p_val > TREND_LINE_P_THRESHOLD:
+        return False
+
+    x = np.asarray(x, float)
+    y = np.asarray(y, float)
+    finite = np.isfinite(x) & np.isfinite(y)
+    x_f = x[finite]
+    y_f = y[finite]
+    if x_f.size < 3 or np.unique(x_f).size < 2:
+        return False
+
+    try:
+        slope, intercept = np.polyfit(x_f, y_f, 1)
+    except (FloatingPointError, np.linalg.LinAlgError, ValueError):
+        return False
+    if not (np.isfinite(slope) and np.isfinite(intercept)):
+        return False
+
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+    x_line = np.asarray(xlim, float)
+    if x_line.size != 2 or not np.all(np.isfinite(x_line)):
+        return False
+    y_line = slope * x_line + intercept
+    ax.plot(
+        x_line,
+        y_line,
+        color=color,
+        linestyle=linestyle,
+        linewidth=linewidth,
+        alpha=alpha,
+        zorder=2,
+    )
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    return True
 
 
 def _place_legend_without_point_overlap(
@@ -946,6 +1003,30 @@ def plot_selected_group_scatter(
         else:
             lines.append(f"{bottom_label}: r = n/a")
 
+    if corr_all is not None:
+        _r_a, p_a, _n_a = corr_all
+        _add_significant_trend_line(ax, x_f, y_f, p_a, color=NEUTRAL_MID)
+    if corr_top is not None:
+        _r_t, p_t, _n_t = corr_top
+        top_mask = classes_arr == "top"
+        _add_significant_trend_line(
+            ax,
+            x_f[top_mask],
+            y_f[top_mask],
+            p_t,
+            color=top_color,
+        )
+    if corr_bottom is not None:
+        _r_b, p_b, _n_b = corr_bottom
+        bottom_mask = classes_arr == "bottom"
+        _add_significant_trend_line(
+            ax,
+            x_f[bottom_mask],
+            y_f[bottom_mask],
+            p_b,
+            color=bottom_color,
+        )
+
     handles = []
     if mode in ("both", "top"):
         handles.append(
@@ -1032,6 +1113,7 @@ def _scatter_with_corr(
     ax.set_title(title, pad=10)
     ax.grid(False)
 
+    _add_significant_trend_line(ax, x_f, y_f, p, color=cfg.dot_color)
     _add_smart_stats_box(ax, _format_corr_annotation(r, p, x_f.size), x_f, y_f)
 
     customizer.adjust_padding_proportionally()
@@ -1463,6 +1545,30 @@ def plot_fast_vs_strong_scatter(
     else:
         lines.append("Strong (incl overlap): r = n/a")
 
+    if corr_all is not None:
+        _r_a, p_a, _n_a = corr_all
+        _add_significant_trend_line(ax, x_f, y_f, p_a, color=NEUTRAL_MID)
+    if corr_fast_incl_overlap is not None:
+        _r_f, p_f, _n_f = corr_fast_incl_overlap
+        fast_line_mask = (classes_arr == "fast") | (classes_arr == "overlap")
+        _add_significant_trend_line(
+            ax,
+            x_f[fast_line_mask],
+            y_f[fast_line_mask],
+            p_f,
+            color=color_map["fast"],
+        )
+    if corr_strong_incl_overlap is not None:
+        _r_s, p_s, _n_s = corr_strong_incl_overlap
+        strong_line_mask = (classes_arr == "strong") | (classes_arr == "overlap")
+        _add_significant_trend_line(
+            ax,
+            x_f[strong_line_mask],
+            y_f[strong_line_mask],
+            p_s,
+            color=color_map["strong"],
+        )
+
     # Legend
     handles = [
         plt.Line2D(
@@ -1581,6 +1687,8 @@ def plot_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow(
         classes.append(cls)
         point_colors.append(color_map[cls])
 
+    classes_arr = np.asarray(classes, dtype=object)
+
     fig, ax = plt.subplots(figsize=(5.5, 4.5))
     scatter_artist = ax.scatter(x_f, y_f, c=point_colors, alpha=0.85)
 
@@ -1641,6 +1749,27 @@ def plot_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow(
         lines.append(_format_corr_annotation(r_s, p_s, n_s, label="Slow"))
     else:
         lines.append("Slow:  r = n/a")
+
+    if corr_fast is not None:
+        _r_f, p_f, _n_f = corr_fast
+        fast_mask = classes_arr == "fast"
+        _add_significant_trend_line(
+            ax,
+            x_f[fast_mask],
+            y_f[fast_mask],
+            p_f,
+            color=color_map["fast"],
+        )
+    if corr_slow is not None:
+        _r_s, p_s, _n_s = corr_slow
+        slow_mask = classes_arr == "slow"
+        _add_significant_trend_line(
+            ax,
+            x_f[slow_mask],
+            y_f[slow_mask],
+            p_s,
+            color=color_map["slow"],
+        )
 
     _add_smart_stats_box(ax, "\n".join(lines), x_f, y_f)
 
