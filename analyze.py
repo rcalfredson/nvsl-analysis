@@ -781,13 +781,13 @@ g.add_argument(
     "--corr-pre-reward-pi-vs-sli-xlabel",
     type=str,
     default=None,
-    help="Optional x-axis label override for the 'Baseline PI vs SLI' correlation plot family.",
+    help="Optional x-axis label override for the 'Pre-period SLI and SLI' correlation plot family.",
 )
 g.add_argument(
     "--corr-pre-reward-pi-vs-sli-ylabel",
     type=str,
     default=None,
-    help="Optional y-axis label override for the 'Baseline PI vs SLI' correlation plot family.",
+    help="Optional y-axis label override for the 'Pre-period SLI and SLI' correlation plot family.",
 )
 g.add_argument(
     "--corr-pre-floor-exploration-vs-sli-xlabel",
