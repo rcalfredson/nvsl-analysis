@@ -399,6 +399,60 @@ def _add_significant_trend_line(
     return True
 
 
+def _shrink_clipped_ylabels(fig, *, min_scale: float = 0.72, pad_px: float = 2.0) -> bool:
+    """
+    Reduce oversized Y-axis labels only when their rendered bbox is clipped.
+    """
+    try:
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        fig_bbox = fig.get_window_extent(renderer=renderer)
+    except Exception:
+        return False
+
+    changed = False
+    for ax in fig.get_axes():
+        label = ax.yaxis.get_label()
+        if not label.get_visible() or not label.get_text():
+            continue
+
+        original_size = float(label.get_fontsize())
+        min_size = original_size * float(min_scale)
+        for _ in range(10):
+            bbox = label.get_window_extent(renderer=renderer)
+            clipped = (
+                float(bbox.x0) < float(fig_bbox.x0) + pad_px
+                or float(bbox.y0) < float(fig_bbox.y0) + pad_px
+                or float(bbox.y1) > float(fig_bbox.y1) - pad_px
+            )
+            if not clipped:
+                break
+
+            current_size = float(label.get_fontsize())
+            next_size = max(min_size, current_size * 0.94)
+            if next_size >= current_size:
+                break
+            label.set_fontsize(next_size)
+            changed = True
+            fig.canvas.draw()
+            renderer = fig.canvas.get_renderer()
+
+    return changed
+
+
+def _finalize_correlation_layout(fig, customizer: PlotCustomizer, *, rect=None) -> None:
+    customizer.adjust_padding_proportionally()
+    if rect is None:
+        fig.tight_layout()
+    else:
+        fig.tight_layout(rect=rect)
+    if _shrink_clipped_ylabels(fig):
+        if rect is None:
+            fig.tight_layout()
+        else:
+            fig.tight_layout(rect=rect)
+
+
 def _place_legend_without_point_overlap(
     ax,
     handles,
@@ -1070,8 +1124,7 @@ def plot_selected_group_scatter(
     )
     _add_smart_stats_box(ax, "\n".join(lines), x_f, y_f)
 
-    customizer.adjust_padding_proportionally()
-    fig.tight_layout(rect=(0, 0, 1, 0.98))
+    _finalize_correlation_layout(fig, customizer, rect=(0, 0, 1, 0.98))
     out_path = _correlation_out_path(out_dir, filename, image_format)
     writeImage(str(out_path), format=image_format)
     plt.close(fig)
@@ -1116,8 +1169,7 @@ def _scatter_with_corr(
     _add_significant_trend_line(ax, x_f, y_f, p, color=cfg.dot_color)
     _add_smart_stats_box(ax, _format_corr_annotation(r, p, x_f.size), x_f, y_f)
 
-    customizer.adjust_padding_proportionally()
-    fig.tight_layout()
+    _finalize_correlation_layout(fig, customizer)
     out_path = _correlation_out_path(cfg.out_dir, filename, cfg.image_format)
     writeImage(str(out_path), format=cfg.image_format)
     _export_scatter_npz(
@@ -1614,9 +1666,7 @@ def plot_fast_vs_strong_scatter(
     _add_smart_stats_box(ax, "\n".join(lines), x_f, y_f)
 
     # Optional proportional padding
-    customizer.adjust_padding_proportionally()
-
-    fig.tight_layout(rect=(0, 0, 1, 0.96))
+    _finalize_correlation_layout(fig, customizer, rect=(0, 0, 1, 0.96))
     out_path = _correlation_out_path(out_dir, "scatter_fast_vs_strong", image_format)
     writeImage(str(out_path), format=image_format)
     plt.close(fig)
@@ -1773,7 +1823,7 @@ def plot_pre_reward_pi_vs_T1_first_bucket_reward_pi_fast_slow(
 
     _add_smart_stats_box(ax, "\n".join(lines), x_f, y_f)
 
-    customizer.adjust_padding_proportionally()
+    _finalize_correlation_layout(fig, customizer)
 
     out_path = _correlation_out_path(
         out_dir,
