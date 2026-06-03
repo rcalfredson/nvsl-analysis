@@ -8507,22 +8507,25 @@ def plotRewards(
         # Convert legend bbox to figure coords
         legend_bbox = legend.get_window_extent(fig.canvas.renderer)
         legend_bbox_fig = legend_bbox.transformed(fig.transFigure.inverted())
-        legend_y0, legend_y1 = legend_bbox_fig.y0, legend_bbox_fig.y1
+        legend_y_mid = 0.5 * (legend_bbox_fig.y0 + legend_bbox_fig.y1)
 
-        # Find approximate top position of all star texts (using axis transforms)
-        top_star_y, bottom_star_y = None, None
+        # Check rendered label boxes against the legend box. A y-only check can
+        # falsely trigger from annotations in neighboring subplots.
+        overlapping_label_centers = []
         for ax in all_axes:
             for txt in ax.texts:
                 s = txt.get_text()
                 if "*" in s or s == "ns" or re.fullmatch(r"\d+", s):
-                    # transform data coords to figure coords
-                    xy_fig = ax.transData.transform(txt.get_position())
-                    xy_fig = fig.transFigure.inverted().transform(xy_fig)
-                    y_fig = xy_fig[1]
-                    if top_star_y is None or y_fig > top_star_y:
-                        top_star_y = y_fig
-                    if bottom_star_y is None or y_fig < bottom_star_y:
-                        bottom_star_y = y_fig
+                    try:
+                        text_bbox_fig = txt.get_window_extent(
+                            renderer=fig.canvas.renderer
+                        ).transformed(fig.transFigure.inverted())
+                    except Exception:
+                        continue
+                    if text_bbox_fig.overlaps(legend_bbox_fig):
+                        overlapping_label_centers.append(
+                            0.5 * (text_bbox_fig.y0 + text_bbox_fig.y1)
+                        )
 
         # Compute all axes’ y-lims
         ylim_vals = [ax.get_ylim() for ax in all_axes]
@@ -8530,8 +8533,7 @@ def plotRewards(
         mean_span = np.mean(y_spans)
         med_span = np.median(y_spans)
 
-        # Compare in same figure coordinate space
-        if top_star_y is not None and legend_y0 < top_star_y < legend_y1:
+        if overlapping_label_centers and max(overlapping_label_centers) >= legend_y_mid:
             # Legend overlaps top labels → expand upward
             delta_y_global = min(0.2 * mean_span, 0.3 * med_span)
             ymin_global = min(y0 for (y0, _) in ylim_vals)
@@ -8539,7 +8541,7 @@ def plotRewards(
             for ax in all_axes:
                 ax.set_ylim(ymin_global, ymax_global)
             ylim[0], ylim[1] = ymin_global, ymax_global
-        elif bottom_star_y is not None and legend_y0 < bottom_star_y < legend_y1:
+        elif overlapping_label_centers:
             # Legend overlaps bottom labels → shift downward
             delta_y_global = min(0.35 * mean_span, 0.35 * med_span)
             ymin_global = min(y0 for (y0, _) in ylim_vals) - delta_y_global
