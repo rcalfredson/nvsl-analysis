@@ -21,6 +21,13 @@ from src.plotting.reward_window_utils import (
 import src.utils.util as util
 
 
+BBOX_STYLE = dict(
+    facecolor="white", alpha=0.80, edgecolor="none", boxstyle="round,pad=0.25"
+)
+STATS_BOX_MIN_FONTSIZE = 12.0
+TREND_LINE_P_THRESHOLD = 0.05
+
+
 @dataclass(frozen=True)
 class FirstNRewardDiagnosticsConfig:
     csv_out: str
@@ -316,7 +323,7 @@ class FirstNRewardDiagnosticsPlotter:
 
         explicit_bucket_idx = getattr(self.cfg, "sli_explicit_bucket_idx", None)
         if explicit_bucket_idx is not None:
-            return f"SLI ({training_txt}, SB{int(explicit_bucket_idx) + 1})"
+            return f"SLI at {training_txt} SB{int(explicit_bucket_idx) + 1}"
 
         skip_first_raw = getattr(self.cfg, "sli_skip_first_sync_buckets", None)
         keep_first_raw = getattr(self.cfg, "sli_keep_first_sync_buckets", None)
@@ -340,14 +347,18 @@ class FirstNRewardDiagnosticsPlotter:
         end_sb = None if keep_first <= 0 else start_sb + keep_first - 1
 
         if end_sb is None:
-            bucket_txt = f"SB{start_sb}-end"
+            window_txt = f"{training_txt} SB{start_sb}–end"
         elif end_sb == start_sb:
-            bucket_txt = f"SB{start_sb}"
+            window_txt = f"{training_txt} SB{start_sb}"
         else:
-            bucket_txt = f"SB{start_sb}-SB{end_sb}"
-        if bool(getattr(self.cfg, "sli_average_over_buckets", False)) and end_sb != start_sb:
-            return f"SLI ({training_txt}, mean, {bucket_txt})"
-        return f"SLI ({training_txt}, {bucket_txt})"
+            window_txt = f"{training_txt} SB{start_sb}–{end_sb}"
+        if bool(getattr(self.cfg, "sli_average_over_buckets", False)):
+            return f"Mean SLI over {window_txt}"
+        if end_sb is None and start_sb == 1:
+            return f"SLI at final SB of {training_txt}"
+        if end_sb != start_sb:
+            return f"SLI at final SB in {window_txt}"
+        return f"SLI at {window_txt}"
 
     def _metric_label(self, name: str) -> str:
         n_target = self._nth_reward_target()
@@ -381,7 +392,8 @@ class FirstNRewardDiagnosticsPlotter:
                 f"Time from 1st to {n_target}th {reward_phrase_singular} (s)"
             ),
             "selected_reward_rate_to_nth_per_min": (
-                f"Rate to first {n_target} {reward_phrase} (/min)"
+                f"Reward rate during first {n_target} {reward_phrase} "
+                r"($min^{-1}$)"
             ),
         }
         return labels.get(str(name), str(name).replace("_", " "))
@@ -724,17 +736,147 @@ class FirstNRewardDiagnosticsPlotter:
             )
 
     @staticmethod
-    def _correlation_text(x: np.ndarray, y: np.ndarray) -> str:
+    def _correlation_stats(x: np.ndarray, y: np.ndarray) -> tuple[float, float, int] | None:
         n = int(min(len(x), len(y)))
-        if n < 2:
-            return "Pearson r: n/a\np: n/a\nn: 0"
+        if n < 3:
+            return None
         if np.allclose(x, x[0]) or np.allclose(y, y[0]):
-            return f"Pearson r: n/a\np: n/a\nn: {n}"
+            return None
         try:
             r, p = pearsonr(x, y)
         except Exception:
-            return f"Pearson r: n/a\np: n/a\nn: {n}"
-        return f"Pearson r = {r:.3f}\np = {p:.3g}\nn = {n}"
+            return None
+        return float(r), float(p), n
+
+    @staticmethod
+    def _correlation_text(stats: tuple[float, float, int] | None, n: int) -> str:
+        if stats is None:
+            return f"n = {int(n)}, r = n/a, p = n/a"
+        r, p, n = stats
+        return f"n = {int(n)}, r = {r:.3f}, p = {p:.3g}"
+
+    @staticmethod
+    def _add_significant_trend_line(
+        ax,
+        x: np.ndarray,
+        y: np.ndarray,
+        stats: tuple[float, float, int] | None,
+        *,
+        color: str,
+    ) -> bool:
+        if stats is None:
+            return False
+        _, p, _ = stats
+        if not np.isfinite(p) or float(p) > TREND_LINE_P_THRESHOLD:
+            return False
+
+        x = np.asarray(x, float)
+        y = np.asarray(y, float)
+        finite = np.isfinite(x) & np.isfinite(y)
+        x_f = x[finite]
+        y_f = y[finite]
+        if x_f.size < 3 or np.unique(x_f).size < 2:
+            return False
+
+        try:
+            slope, intercept = np.polyfit(x_f, y_f, 1)
+        except (FloatingPointError, np.linalg.LinAlgError, ValueError):
+            return False
+        if not (np.isfinite(slope) and np.isfinite(intercept)):
+            return False
+
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
+        x_line = np.asarray(xlim, float)
+        if x_line.size != 2 or not np.all(np.isfinite(x_line)):
+            return False
+        y_line = slope * x_line + intercept
+        ax.plot(
+            x_line,
+            y_line,
+            color=color,
+            linestyle="--",
+            linewidth=1.6,
+            alpha=0.85,
+            zorder=2,
+        )
+        ax.set_xlim(xlim)
+        ax.set_ylim(ylim)
+        return True
+
+    @staticmethod
+    def _stats_box_fontsize(ax) -> float:
+        reference_sizes = [
+            ax.xaxis.label.get_size(),
+            ax.yaxis.label.get_size(),
+            *(tick.get_size() for tick in ax.get_xticklabels()),
+            *(tick.get_size() for tick in ax.get_yticklabels()),
+        ]
+        finite_sizes = [
+            float(size)
+            for size in reference_sizes
+            if size is not None and np.isfinite(float(size))
+        ]
+        reference_size = max(finite_sizes) if finite_sizes else STATS_BOX_MIN_FONTSIZE
+        return max(STATS_BOX_MIN_FONTSIZE, 0.90 * reference_size)
+
+    @staticmethod
+    def _split_axis_label_evenly(text: str) -> str:
+        words = text.split()
+        if len(words) < 4:
+            return text
+        mid = len(words) // 2
+        left, right = words[:mid], words[mid:]
+        if len(left) < 2 or len(right) < 2:
+            return text
+        return " ".join(left) + "\n" + " ".join(right)
+
+    @classmethod
+    def _wrap_clipped_axis_labels(cls, fig, *, pad_px: float = 2.0) -> bool:
+        try:
+            fig.canvas.draw()
+            renderer = fig.canvas.get_renderer()
+            fig_bbox = fig.get_window_extent(renderer=renderer)
+        except Exception:
+            return False
+
+        changed = False
+        for ax in fig.get_axes():
+            x_label = ax.xaxis.get_label()
+            x_text = x_label.get_text()
+            if x_label.get_visible() and x_text and "\n" not in x_text:
+                bbox = x_label.get_window_extent(renderer=renderer)
+                clipped = (
+                    float(bbox.x0) < float(fig_bbox.x0) + pad_px
+                    or float(bbox.x1) > float(fig_bbox.x1) - pad_px
+                )
+                if clipped:
+                    wrapped = cls._split_axis_label_evenly(x_text)
+                    if wrapped != x_text:
+                        x_label.set_text(wrapped)
+                        changed = True
+
+            y_label = ax.yaxis.get_label()
+            y_text = y_label.get_text()
+            if y_label.get_visible() and y_text and "\n" not in y_text:
+                bbox = y_label.get_window_extent(renderer=renderer)
+                clipped = (
+                    float(bbox.y0) < float(fig_bbox.y0) + pad_px
+                    or float(bbox.y1) > float(fig_bbox.y1) - pad_px
+                )
+                if clipped:
+                    wrapped = cls._split_axis_label_evenly(y_text)
+                    if wrapped != y_text:
+                        y_label.set_text(wrapped)
+                        changed = True
+
+        return changed
+
+    @staticmethod
+    def _title_for_metrics(x_key: str, y_key: str) -> str:
+        if x_key == "selected_reward_rate_to_nth_per_min" and y_key == "sli":
+            return "Initial reward rate and SLI"
+        return ""
 
     def _write_plot(self, rows: list[FirstNRewardDiagnosticRow]) -> None:
         path = self.cfg.plot_out
@@ -795,27 +937,44 @@ class FirstNRewardDiagnosticsPlotter:
                         scatter_kwargs["color"] = plain_scatter_color
                     ax.scatter(x, y, **scatter_kwargs)
 
-                self._label_outliers(ax, plot_rows, x, y)
-                ax.text(
-                    0.02,
-                    0.98,
-                    self._correlation_text(x, y),
-                    transform=ax.transAxes,
-                    ha="left",
-                    va="top",
-                    fontsize=9,
-                    bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.8},
+                corr_stats = self._correlation_stats(x, y)
+                self._add_significant_trend_line(
+                    ax,
+                    x,
+                    y,
+                    corr_stats,
+                    color=plain_scatter_color,
                 )
+                self._label_outliers(ax, plot_rows, x, y)
                 ax.set_xlabel(str(self.cfg.xlabel or self._metric_label(x_key)))
                 ax.set_ylabel(str(self.cfg.ylabel or self._metric_label(y_key)))
                 ax.grid(True, alpha=0.2)
+                ax.text(
+                    0.02,
+                    0.98,
+                    self._correlation_text(corr_stats, len(x)),
+                    transform=ax.transAxes,
+                    ha="left",
+                    va="top",
+                    fontsize=self._stats_box_fontsize(ax),
+                    bbox=BBOX_STYLE,
+                )
 
-        title = (
-            f"First-{int(self.cfg.first_n_rewards)} reward diagnostics"
-            f" ({self._selected_subset_label()})"
+        title = self._title_for_metrics(
+            self._resolve_metric_name(
+                getattr(self.cfg, "x_by", None), fallback="first_n_reward_span_s"
+            ),
+            self._resolve_metric_name(getattr(self.cfg, "y_by", None), fallback="sli"),
         )
+        if not title:
+            title = (
+                f"First-{int(self.cfg.first_n_rewards)} reward diagnostics"
+                f" ({self._selected_subset_label()})"
+            )
         ax.set_title(title)
         fig.tight_layout()
+        if self._wrap_clipped_axis_labels(fig):
+            fig.tight_layout()
         fig.savefig(path, dpi=200)
         plt.close(fig)
         print(f"[{self.log_tag}] wrote plot: {path}")
