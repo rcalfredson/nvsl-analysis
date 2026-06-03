@@ -2171,6 +2171,12 @@ def plot_cross_fly_correlations(
     rpd_diff_y_label = sli_ctx.metric_axis_label(
         "Rewards per distance, exp - yok",
         unit="$m^{-1}$",
+    ).replace(
+        ", mean over ",
+        ",\nmean over ",
+    ).replace(
+        ", at ",
+        ",\nat ",
     )
     if reward_first_n > 0:
         rpt_y_label = _first_n_reward_rate_label(
