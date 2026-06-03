@@ -124,6 +124,7 @@ class PlotCustomizer:
         wspace=0.08,
         base_hspace=0.35,
         wrap_legend_labels=True,
+        wrap_axis_labels=True,
     ):
         """
         Adjusts the figure size and subplot padding proportionally to the font size.
@@ -139,6 +140,8 @@ class PlotCustomizer:
             Horizontal spacing between subplots, as a fraction of axis width.
         base_hspace : float
             Baseline vertical spacing between subplot rows.
+        wrap_axis_labels : bool
+            Whether to insert newlines into long axis labels at larger font sizes.
         """
         fig = plt.gcf()
 
@@ -263,36 +266,27 @@ class PlotCustomizer:
 
                     ax.yaxis.set_major_formatter(FuncFormatter(_adaptive_fmt))
 
-        # --- Step 5: Add newlines for long texts and axis labels ---
-        font_threshold = 20
+        # --- Step 5: Add newlines for long axis labels ---
+        if wrap_axis_labels:
+            font_threshold = 20
 
-        def split_evenly(s: str) -> str:
-            """Split string into two roughly even parts by word count."""
-            words = s.split()
-            if len(words) < 4:
-                return s
-            mid = len(words) // 2
-            left, right = words[:mid], words[mid:]
-            if len(left) < 2 or len(right) < 2:
-                return s
-            return " ".join(left) + "\n" + " ".join(right)
+            def split_evenly(s: str) -> str:
+                """Split string into two roughly even parts by word count."""
+                words = s.split()
+                if len(words) < 4:
+                    return s
+                mid = len(words) // 2
+                left, right = words[:mid], words[mid:]
+                if len(left) < 2 or len(right) < 2:
+                    return s
+                return " ".join(left) + "\n" + " ".join(right)
 
-        def split_at_colon(s: str) -> str:
-            """Split at the last colon, but only if both sides have ≥2 words."""
-            if ":" not in s:
-                return s
-            head, tail = s.rsplit(":", 1)
-            head_words, tail_words = head.split(), tail.split()
-            if len(head_words) < 2 or len(tail_words) < 2:
-                return s
-            return head + ":\n  " + tail.strip()
-
-        for ax in fig.get_axes():
-            for label in [ax.xaxis.get_label(), ax.yaxis.get_label()]:
-                if label.get_text() and label.get_fontsize() > font_threshold:
-                    s = label.get_text()
-                    if "\n" not in s:
-                        label.set_text(split_evenly(s))
+            for ax in fig.get_axes():
+                for label in [ax.xaxis.get_label(), ax.yaxis.get_label()]:
+                    if label.get_text() and label.get_fontsize() > font_threshold:
+                        s = label.get_text()
+                        if "\n" not in s:
+                            label.set_text(split_evenly(s))
 
         # --- Step 6: Shared axis label logic when font size exceeds the default ---
         axes = fig.get_axes()
