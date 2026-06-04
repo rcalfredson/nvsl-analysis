@@ -237,6 +237,7 @@ from src.plotting.first_n_reward_sli_comparison import (
     FirstNRewardSLIComparisonConfig,
     FirstNRewardSLIComparisonPlotter,
 )
+from src.plotting.sli_label_utils import pct_label
 from src.plotting.turn_directionality_plotter import TurnDirectionalityPlotter
 from src.plotting.turn_prob_dist_plotter import TurnProbabilityByDistancePlotter
 from src.utils.debug_fly_groups import init_fly_group_logging, log_fly_group
@@ -7327,11 +7328,6 @@ def plotRewards(
         - RuntimeError: If there's an issue generating the plot.
     """
 
-    def _pct_label(prefix, frac):
-        if frac is None:
-            return prefix
-        return f"{prefix} {int(round(frac * 100))}%"
-
     def _pct_tag(frac):
         if frac is None:
             return ""
@@ -7433,17 +7429,17 @@ def plotRewards(
         if sli_extremes == "bottom":
             selected = bottom
             selected_groups = [0] * len(selected)
-            gls = [_pct_label("Bottom", sli_bottom_fraction)]
+            gls = [pct_label("Bottom", sli_bottom_fraction)]
         elif sli_extremes == "top":
             selected = top
             selected_groups = [0] * len(selected)
-            gls = [_pct_label("Top", sli_top_fraction)]
+            gls = [pct_label("Top", sli_top_fraction)]
         elif sli_extremes == "both":
             selected = bottom + top
             selected_groups = ([0] * len(bottom)) + ([1] * len(top))
             gls = [
-                _pct_label("Bottom", sli_bottom_fraction),
-                _pct_label("Top", sli_top_fraction),
+                pct_label("Bottom", sli_bottom_fraction),
+                pct_label("Top", sli_top_fraction),
             ]
         if tp == "rpid" and sli_extremes and getattr(opts, "log_fly_grps", False):
             log_fly_group("SLI_BOTTOM_LEARNERS", bottom, vas)

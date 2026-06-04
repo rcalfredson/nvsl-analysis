@@ -11,14 +11,9 @@ from src.plotting.overlay_training_metric_scalar_bars import (
     ExportedTrainingScalarBars,
     plot_overlays,
 )
+from src.plotting.sli_label_utils import pct_label
 from src.utils.common import writeImage
 from src.utils.util import meanConfInt
-
-
-def _pct_label(which, frac):
-    if frac is None:
-        return which
-    return f"{which} {int(round(100 * frac))}%"
 
 
 def _selected_indices(
@@ -57,23 +52,23 @@ def _subset_plot_label(
 ) -> str:
     label = str(group_label)
     if which == "top":
-        extreme_label = _pct_label("Top", sli_top_fraction)
+        extreme_label = pct_label("Top", sli_top_fraction)
         return (
             extreme_label
             if standalone_extreme_labels
             else f"{label} ({extreme_label.lower()})"
         )
     if which == "bottom":
-        extreme_label = _pct_label("Bottom", sli_bottom_fraction)
+        extreme_label = pct_label("Bottom", sli_bottom_fraction)
         return (
             extreme_label
             if standalone_extreme_labels
             else f"{label} ({extreme_label.lower()})"
         )
     if sli_extremes == "top":
-        return f"{label} ({_pct_label('top', sli_top_fraction)})"
+        return f"{label} ({pct_label('top', sli_top_fraction)})"
     if sli_extremes == "bottom":
-        return f"{label} ({_pct_label('bottom', sli_bottom_fraction)})"
+        return f"{label} ({pct_label('bottom', sli_bottom_fraction)})"
     return label
 
 

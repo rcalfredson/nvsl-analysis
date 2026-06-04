@@ -16,15 +16,10 @@ from src.analysis.sli_bundle_utils import (
     load_sli_bundle,
 )
 from src.analysis.sli_tools import select_fractional_groups
+from src.plotting.sli_label_utils import pct_label
 from src.plotting.plot_customizer import PlotCustomizer
 from src.utils.common import pick_above_or_expand, ttest_ind, writeImage
 import src.utils.util as util
-
-
-def _pct_label(which, frac):
-    if frac is None:
-        return which
-    return f"{which} {int(round(100 * frac))}%"
 
 
 def _selected_indices(
@@ -242,23 +237,23 @@ def _subset_plot_label(
 ) -> str:
     label = str(group_label)
     if which == "top":
-        extreme_label = _pct_label("Top", sli_top_fraction)
+        extreme_label = pct_label("Top", sli_top_fraction)
         return (
             extreme_label
             if standalone_extreme_labels
             else f"{label} ({extreme_label.lower()})"
         )
     if which == "bottom":
-        extreme_label = _pct_label("Bottom", sli_bottom_fraction)
+        extreme_label = pct_label("Bottom", sli_bottom_fraction)
         return (
             extreme_label
             if standalone_extreme_labels
             else f"{label} ({extreme_label.lower()})"
         )
     if sli_extremes == "top":
-        return f"{label} ({_pct_label('top', sli_top_fraction)})"
+        return f"{label} ({pct_label('top', sli_top_fraction)})"
     if sli_extremes == "bottom":
-        return f"{label} ({_pct_label('bottom', sli_bottom_fraction)})"
+        return f"{label} ({pct_label('bottom', sli_bottom_fraction)})"
     return label
 
 

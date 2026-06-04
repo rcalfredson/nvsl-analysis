@@ -26,14 +26,9 @@ from src.utils.common import (
     pick_non_overlapping_y,
 )
 from src.plotting.plot_customizer import PlotCustomizer
+from src.plotting.sli_label_utils import pct_label
 from src.plotting.time_series_auc import add_auc_label, compute_auc_test
 from src.plotting.annotation_layout import resolve_annotation_text_overlaps
-
-
-def _pct_label(prefix, frac):
-    if frac is None:
-        return prefix
-    return f"{prefix} {int(round(frac * 100))}%"
 
 
 def _format_sli_training_mean_window(skip_first_sync_buckets, keep_first_sync_buckets):
@@ -177,8 +172,8 @@ def _select_sli_extremes(
             return (
                 np.array([], dtype=int),
                 [
-                    _pct_label("Bottom", bottom_fraction),
-                    _pct_label("Top", top_fraction),
+                    pct_label("Bottom", bottom_fraction),
+                    pct_label("Top", top_fraction),
                 ],
                 np.array([], dtype=int),
             )
@@ -225,8 +220,8 @@ def _select_sli_extremes(
         idx = np.array(bottom + top, dtype=int)
         gid = np.array([0] * len(bottom) + [1] * len(top), dtype=int)
         labels = [
-            _pct_label("Bottom", bottom_fraction),
-            _pct_label("Top", top_fraction),
+            pct_label("Bottom", bottom_fraction),
+            pct_label("Top", top_fraction),
         ]
         return idx, labels, gid
 
@@ -950,13 +945,13 @@ def plot_com_sli_bundle_data(
                 skips[0], keeps[0]
             )
         if sli_extremes == "top":
-            sel_txt = _pct_label("Top", sli_top_fraction)
+            sel_txt = pct_label("Top", sli_top_fraction)
         elif sli_extremes == "bottom":
-            sel_txt = _pct_label("Bottom", sli_bottom_fraction)
+            sel_txt = pct_label("Bottom", sli_bottom_fraction)
         elif sli_extremes == "both":
             sel_txt = (
-                f"{_pct_label('Bottom', sli_bottom_fraction)} vs "
-                f"{_pct_label('Top', sli_top_fraction)}"
+                f"{pct_label('Bottom', sli_bottom_fraction)} vs "
+                f"{pct_label('Top', sli_top_fraction)}"
             )
         else:
             sel_txt = None
