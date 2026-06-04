@@ -39,6 +39,7 @@ class FirstNRewardSLIComparisonConfig:
     sli_skip_first_sync_buckets: int | None = None
     sli_keep_first_sync_buckets: int | None = None
     sli_explicit_bucket_idx: int | None = None
+    sli_total_sync_buckets: int | None = None
 
 
 @dataclass(frozen=True)
@@ -144,6 +145,7 @@ class FirstNRewardSLIComparisonPlotter:
             sli_skip_first_sync_buckets=self.cfg.sli_skip_first_sync_buckets,
             sli_keep_first_sync_buckets=self.cfg.sli_keep_first_sync_buckets,
             sli_explicit_bucket_idx=self.cfg.sli_explicit_bucket_idx,
+            sli_total_sync_buckets=self.cfg.sli_total_sync_buckets,
         )
 
     def _compute_rows_for_group(self, vas, *, sli_values, subset_label: str) -> _GroupComputation:

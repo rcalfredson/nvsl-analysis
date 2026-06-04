@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import pearsonr
 
+from src.analysis.sli_tools import default_single_bucket_idx
 from src.plotting.palettes import correlation_plot_color_for_metrics
 from src.plotting.between_reward_segment_binning import video_base
 from src.plotting.reward_window_utils import (
@@ -55,6 +56,7 @@ class FirstNRewardDiagnosticsConfig:
     sli_skip_first_sync_buckets: int | None = None
     sli_keep_first_sync_buckets: int | None = None
     sli_explicit_bucket_idx: int | None = None
+    sli_total_sync_buckets: int | None = None
 
 
 @dataclass(frozen=True)
@@ -344,7 +346,18 @@ class FirstNRewardDiagnosticsPlotter:
             ),
         )
         start_sb = skip_first + 1
-        end_sb = None if keep_first <= 0 else start_sb + keep_first - 1
+        if keep_first > 0:
+            end_sb = start_sb + keep_first - 1
+        else:
+            total_sync_buckets = getattr(self.cfg, "sli_total_sync_buckets", None)
+            if total_sync_buckets is None:
+                total_sync_buckets = self._infer_sli_total_sync_buckets()
+            start_idx = start_sb - 1
+            end_sb = (
+                None
+                if total_sync_buckets is None or int(total_sync_buckets) <= start_idx
+                else default_single_bucket_idx(start_idx, int(total_sync_buckets)) + 1
+            )
 
         if end_sb is None:
             window_txt = f"{training_txt} SB{start_sb}–end"
@@ -359,6 +372,28 @@ class FirstNRewardDiagnosticsPlotter:
         if end_sb != start_sb:
             return f"SLI at final SB in {window_txt}"
         return f"SLI at {window_txt}"
+
+    def _infer_sli_total_sync_buckets(self) -> int | None:
+        if not self.vas:
+            return None
+        sli_training_idx = getattr(self.cfg, "sli_training_idx", None)
+        if sli_training_idx is None:
+            return None
+        try:
+            ref_va = self.vas[0]
+            vals = np.asarray(getattr(ref_va, "rewardPI", []))
+            trns = getattr(ref_va, "trns", None) or []
+            n_trainings = len(trns)
+            flies = getattr(ref_va, "flies", None) or []
+            n_flies = len(flies)
+            if vals.size <= 0 or n_trainings <= 0 or n_flies <= 0:
+                return None
+            per_training = vals.size // n_trainings
+            if per_training <= 0 or per_training % n_flies != 0:
+                return None
+            return max(1, int(per_training // n_flies))
+        except Exception:
+            return None
 
     def _metric_label(self, name: str) -> str:
         n_target = self._nth_reward_target()

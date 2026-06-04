@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
 
 from src.analysis.correlation_stats import pearson_correlation_summary
+from src.analysis.sli_tools import default_single_bucket_idx
 from src.plotting.palettes import (
     MUTED_CATEGORICAL,
     NEUTRAL_LIGHT,
@@ -175,6 +176,7 @@ class SLIContext:
     skip_first_sync_buckets: int = 0
     keep_first_sync_buckets: int = 0
     explicit_bucket_idx: int | None = None
+    total_sync_buckets: int | None = None
 
     def _window_bounds(self) -> tuple[int, int | None]:
         if self.explicit_bucket_idx is not None:
@@ -182,7 +184,18 @@ class SLIContext:
             return sb, sb
         start_sb = int(self.skip_first_sync_buckets or 0) + 1  # 1-based
         keep = int(self.keep_first_sync_buckets or 0)
-        end_sb = None if keep <= 0 else start_sb + keep - 1
+        if keep > 0:
+            end_sb = start_sb + keep - 1
+        elif self.total_sync_buckets is not None:
+            start_idx = start_sb - 1
+            total = int(self.total_sync_buckets)
+            end_sb = (
+                None
+                if total <= start_idx
+                else default_single_bucket_idx(start_idx, total) + 1
+            )
+        else:
+            end_sb = None
         return start_sb, end_sb
 
     def _window_text(self, *, abbrev_sb: bool = True) -> str:
@@ -318,6 +331,17 @@ def early_sli_label(*, training_idx: int, skip_first_sync_buckets: int) -> str:
 def _format_corr_annotation(r: float, p: float, n: int, *, label: str | None = None) -> str:
     stats = f"n = {int(n)}, r = {r:.3f}, p = {p:.3g}"
     return f"{label}: {stats}" if label else stats
+
+
+def _format_labeled_corr_with_n(
+    r: float, p: float, n: int, *, label: str | None = None
+) -> str:
+    stats = f"r = {r:.3f}, p = {p:.3g}"
+    return f"{label} (n = {int(n)}): {stats}" if label else f"n = {int(n)}, {stats}"
+
+
+def _format_labeled_corr_na_with_n(n: int, *, label: str) -> str:
+    return f"{label} (n = {int(n)}): r = n/a, p = n/a"
 
 
 def _compute_group_corr(
@@ -1604,6 +1628,8 @@ def plot_fast_vs_strong_scatter(
     corr_strong_incl_overlap = _corr_from_class_mask(
         (classes_arr == "strong") | (classes_arr == "overlap")
     )
+    fast_corr_mask = (classes_arr == "fast") | (classes_arr == "overlap")
+    strong_corr_mask = (classes_arr == "strong") | (classes_arr == "overlap")
 
     # Correlation across *all* plotted points (finite x/y only)
     corr_all = None
@@ -1627,56 +1653,59 @@ def plot_fast_vs_strong_scatter(
 
     ax.set_xlabel(x_label)
     ax.set_ylabel(strong_y_label)
-    ax.set_title(
-        f"Fast vs Strong Learners ({strong_title_suffix}, top {frac*100:.0f}% each)",
-        pad=10,
-    )
+    ax.set_title("Initial SLI and later SLI", pad=10)
 
     # Display descriptive correlations (fast/strong each including overlap)
     lines = []
     if corr_all is not None:
         r_a, p_a, n_a = corr_all
         lines.append(
-            _format_corr_annotation(r_a, p_a, n_a, label="All (finite)")
+            _format_labeled_corr_with_n(r_a, p_a, n_a, label="All flies")
         )
     else:
-        lines.append("All (finite):           r = n/a")
+        lines.append(_format_labeled_corr_na_with_n(n_all, label="All flies"))
     if corr_fast_incl_overlap is not None:
         r_f, p_f, n_f = corr_fast_incl_overlap
         lines.append(
-            _format_corr_annotation(r_f, p_f, n_f, label="Fast (incl overlap)")
+            _format_labeled_corr_with_n(r_f, p_f, n_f, label="Fast learners")
         )
     else:
-        lines.append("Fast (incl overlap):  r = n/a")
+        lines.append(
+            _format_labeled_corr_na_with_n(
+                int(np.sum(fast_corr_mask)), label="Fast learners"
+            )
+        )
 
     if corr_strong_incl_overlap is not None:
         r_s, p_s, n_s = corr_strong_incl_overlap
         lines.append(
-            _format_corr_annotation(r_s, p_s, n_s, label="Strong (incl overlap)")
+            _format_labeled_corr_with_n(r_s, p_s, n_s, label="Strong learners")
         )
     else:
-        lines.append("Strong (incl overlap): r = n/a")
+        lines.append(
+            _format_labeled_corr_na_with_n(
+                int(np.sum(strong_corr_mask)), label="Strong learners"
+            )
+        )
 
     if corr_all is not None:
         _r_a, p_a, _n_a = corr_all
         _add_significant_trend_line(ax, x_f, y_f, p_a, color=NEUTRAL_MID)
     if corr_fast_incl_overlap is not None:
         _r_f, p_f, _n_f = corr_fast_incl_overlap
-        fast_line_mask = (classes_arr == "fast") | (classes_arr == "overlap")
         _add_significant_trend_line(
             ax,
-            x_f[fast_line_mask],
-            y_f[fast_line_mask],
+            x_f[fast_corr_mask],
+            y_f[fast_corr_mask],
             p_f,
             color=color_map["fast"],
         )
     if corr_strong_incl_overlap is not None:
         _r_s, p_s, _n_s = corr_strong_incl_overlap
-        strong_line_mask = (classes_arr == "strong") | (classes_arr == "overlap")
         _add_significant_trend_line(
             ax,
-            x_f[strong_line_mask],
-            y_f[strong_line_mask],
+            x_f[strong_corr_mask],
+            y_f[strong_corr_mask],
             p_s,
             color=color_map["strong"],
         )
@@ -1690,7 +1719,7 @@ def plot_fast_vs_strong_scatter(
             color="w",
             markerfacecolor=color_map["fast"],
             markersize=8,
-            label="Fast only",
+            label="Fast learners only",
         ),
         plt.Line2D(
             [0],
@@ -1699,7 +1728,7 @@ def plot_fast_vs_strong_scatter(
             color="w",
             markerfacecolor=color_map["strong"],
             markersize=8,
-            label="Strong only",
+            label="Strong learners only",
         ),
         plt.Line2D(
             [0],
@@ -1708,7 +1737,7 @@ def plot_fast_vs_strong_scatter(
             color="w",
             markerfacecolor=color_map["overlap"],
             markersize=8,
-            label="Overlap",
+            label="Fast + strong",
         ),
         plt.Line2D(
             [0],
@@ -1717,7 +1746,7 @@ def plot_fast_vs_strong_scatter(
             color="w",
             markerfacecolor=color_map["other"],
             markersize=8,
-            label="Other",
+            label="Other flies",
         ),
     ]
     _place_legend_without_point_overlap(
@@ -2683,6 +2712,6 @@ def plot_cross_fly_correlations(
             customizer=customizer,
             strong_y_label=str(corr_fast_vs_strong_ylabel_override or x_label_sli),
             strong_title_suffix=sli_ctx.label_short(),
-            x_label=str(corr_fast_vs_strong_xlabel_override or t1_sb1_lbl),
+            x_label=str(corr_fast_vs_strong_xlabel_override or "SLI for T1 SB1"),
             image_format=cfg.image_format,
         )
