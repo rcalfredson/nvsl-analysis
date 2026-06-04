@@ -10959,6 +10959,24 @@ def postAnalyze(vas):
             )
 
             if tp == "rpid":
+                if sli_ser is None:
+                    sli_total_sync_buckets = int(nb)
+                    sel_bucket_idx = _resolve_sli_select_bucket_idx(
+                        opts,
+                        nb=nb,
+                        skip_first_sync_buckets=sel_skip_k,
+                        keep_first_sync_buckets=sel_keep_k,
+                        average_over_buckets=use_training_mean,
+                    )
+                    sli_ser = compute_sli_per_fly(
+                        raw_4,
+                        sli_training_idx,
+                        bucket_idx=sel_bucket_idx,
+                        average_over_buckets=use_training_mean,
+                        skip_first_sync_buckets=sel_skip_k,
+                        keep_first_sync_buckets=sel_keep_k,
+                    )
+
                 # Reward index (exp − yoked) for T1, SB1.
                 reward_pi_first_bucket = None
                 try:
@@ -11072,91 +11090,96 @@ def postAnalyze(vas):
                     sli_selected=(selected_bottom or [], selected_top or []),
                 )
 
-            if tp == "rpid" and sli_ser is not None:
-                sli_ctx = SLIContext(
-                    training_idx=sli_training_idx,
-                    average_over_buckets=use_training_mean,
-                    skip_first_sync_buckets=sel_skip_k,
-                    keep_first_sync_buckets=sel_keep_k,
-                    explicit_bucket_idx=sel_bucket_idx,
-                    total_sync_buckets=sli_total_sync_buckets,
-                )
-                reward_rate_inherits_sli_bucket = (
-                    getattr(opts, "corr_reward_rate_trn", None) is None
-                    and getattr(opts, "corr_reward_rate_use_training_mean", None) is None
-                    and getattr(opts, "corr_reward_rate_skip_first_sync_buckets", None)
+        if tp == "rpid" and sli_ser is not None:
+            sli_ctx = SLIContext(
+                training_idx=sli_training_idx,
+                average_over_buckets=use_training_mean,
+                skip_first_sync_buckets=sel_skip_k,
+                keep_first_sync_buckets=sel_keep_k,
+                explicit_bucket_idx=sel_bucket_idx,
+                total_sync_buckets=sli_total_sync_buckets,
+            )
+            reward_rate_inherits_sli_bucket = (
+                getattr(opts, "corr_reward_rate_trn", None) is None
+                and getattr(opts, "corr_reward_rate_use_training_mean", None) is None
+                and getattr(opts, "corr_reward_rate_skip_first_sync_buckets", None)
+                is None
+                and getattr(opts, "corr_reward_rate_keep_first_sync_buckets", None)
+                is None
+            )
+            reward_rate_ctx = SLIContext(
+                training_idx=(
+                    sli_ctx.training_idx
+                    if getattr(opts, "corr_reward_rate_trn", None) is None
+                    else int(getattr(opts, "corr_reward_rate_trn")) - 1
+                ),
+                average_over_buckets=(
+                    sli_ctx.average_over_buckets
+                    if getattr(opts, "corr_reward_rate_use_training_mean", None)
                     is None
-                    and getattr(opts, "corr_reward_rate_keep_first_sync_buckets", None)
+                    else bool(getattr(opts, "corr_reward_rate_use_training_mean"))
+                ),
+                skip_first_sync_buckets=(
+                    sli_ctx.skip_first_sync_buckets
+                    if getattr(opts, "corr_reward_rate_skip_first_sync_buckets", None)
                     is None
+                    else max(
+                        0,
+                        int(
+                            getattr(
+                                opts,
+                                "corr_reward_rate_skip_first_sync_buckets",
+                            )
+                        ),
+                    )
+                ),
+                keep_first_sync_buckets=(
+                    sli_ctx.keep_first_sync_buckets
+                    if getattr(opts, "corr_reward_rate_keep_first_sync_buckets", None)
+                    is None
+                    else max(
+                        0,
+                        int(
+                            getattr(
+                                opts,
+                                "corr_reward_rate_keep_first_sync_buckets",
+                            )
+                        ),
+                    )
+                ),
+                explicit_bucket_idx=(
+                    sli_ctx.explicit_bucket_idx
+                    if reward_rate_inherits_sli_bucket
+                    else None
+                ),
+                total_sync_buckets=sli_total_sync_buckets,
+            )
+            sli_selected_for_correlations = None
+            sli_extremes_for_correlations = None
+            if opts.best_worst_sli and (
+                selected_bottom is not None or selected_top is not None
+            ):
+                sli_selected_for_correlations = (
+                    selected_bottom or [],
+                    selected_top or [],
                 )
-                reward_rate_ctx = SLIContext(
-                    training_idx=(
-                        sli_ctx.training_idx
-                        if getattr(opts, "corr_reward_rate_trn", None) is None
-                        else int(getattr(opts, "corr_reward_rate_trn")) - 1
-                    ),
-                    average_over_buckets=(
-                        sli_ctx.average_over_buckets
-                        if getattr(opts, "corr_reward_rate_use_training_mean", None)
-                        is None
-                        else bool(getattr(opts, "corr_reward_rate_use_training_mean"))
-                    ),
-                    skip_first_sync_buckets=(
-                        sli_ctx.skip_first_sync_buckets
-                        if getattr(
-                            opts, "corr_reward_rate_skip_first_sync_buckets", None
-                        )
-                        is None
-                        else max(
-                            0,
-                            int(
-                                getattr(
-                                    opts,
-                                    "corr_reward_rate_skip_first_sync_buckets",
-                                )
-                            ),
-                        )
-                    ),
-                    keep_first_sync_buckets=(
-                        sli_ctx.keep_first_sync_buckets
-                        if getattr(
-                            opts, "corr_reward_rate_keep_first_sync_buckets", None
-                        )
-                        is None
-                        else max(
-                            0,
-                            int(
-                                getattr(
-                                    opts,
-                                    "corr_reward_rate_keep_first_sync_buckets",
-                                )
-                            ),
-                        )
-                    ),
-                    explicit_bucket_idx=(
-                        sli_ctx.explicit_bucket_idx
-                        if reward_rate_inherits_sli_bucket
-                        else None
-                    ),
-                    total_sync_buckets=sli_total_sync_buckets,
+                sli_extremes_for_correlations = getattr(
+                    opts, "best_worst_extreme", "both"
                 )
-                plot_cross_fly_correlations(
-                    sli_values=sli_ser,
-                    vas=vas,
-                    training_idx=sli_training_idx,
-                    opts=opts,
-                    reward_pi_first_bucket=reward_pi_first_bucket,
-                    out_dir="imgs/correlations",
-                    plot_customizer=customizer,
-                    sli_ctx=sli_ctx,
-                    reward_rate_ctx=reward_rate_ctx,
-                    sli_selected=(selected_bottom or [], selected_top or []),
-                    sli_extremes=(
-                        getattr(opts, "best_worst_extreme", "both")
-                        if opts.best_worst_sli
-                        else None
-                    ),
-                )
+
+            plot_cross_fly_correlations(
+                sli_values=sli_ser,
+                vas=vas,
+                training_idx=sli_training_idx,
+                opts=opts,
+                reward_pi_first_bucket=reward_pi_first_bucket,
+                out_dir="imgs/correlations",
+                plot_customizer=customizer,
+                sli_ctx=sli_ctx,
+                reward_rate_ctx=reward_rate_ctx,
+                sli_selected=sli_selected_for_correlations,
+                sli_extremes=sli_extremes_for_correlations,
+            )
 
         a_orig = a.copy()
 
