@@ -704,6 +704,7 @@ def _add_smart_stats_box(
     *,
     fontsize: float | None = None,
     max_overlap_frac: float = 0.08,
+    max_headroom_frac: float = 0.25,
 ):
     """
     Place a stats textbox where it obscures as few points as possible.
@@ -911,6 +912,120 @@ def _add_smart_stats_box(
         legend_clear_frac = np.clip(legend_top_frac - 0.03, 0.10, 0.95)
         extra_top = max(extra_top, y_span * (1.0 / legend_clear_frac - 1.0))
     original_top = y1
+
+    if best_candidate is not None and extra_top > max_headroom_frac * y_span:
+        capped_extra_top = max_headroom_frac * y_span
+        ax.set_ylim(y0, y1 + capped_extra_top)
+        fig.canvas.draw()
+        pts_display = ax.transData.transform(np.column_stack([x_f, y_f]))
+
+        fallback_fontsize = float(fontsize)
+        fallback_candidate = best_candidate
+        fallback_score = None
+        fallback_raw_overlap = None
+        min_fontsize = STATS_BOX_MIN_FONTSIZE
+
+        probe = ax.text(
+            fallback_candidate["x"],
+            fallback_candidate["y"],
+            text,
+            transform=ax.transAxes,
+            va=fallback_candidate["va"],
+            ha=fallback_candidate["ha"],
+            fontsize=fallback_fontsize,
+            zorder=5,
+            alpha=0.0,
+            bbox=BBOX_STYLE,
+        )
+        for scale in (0.95, 0.90, 0.85, 0.80, 0.75, 0.70, 0.65, 0.60):
+            candidate_fontsize = max(min_fontsize, float(fontsize) * scale)
+            probe.set_fontsize(candidate_fontsize)
+            fig.canvas.draw()
+            patch_bbox = probe.get_bbox_patch().get_window_extent(renderer=renderer)
+            patch_pts_axes = ax.transAxes.inverted().transform(
+                np.array([[patch_bbox.x0, patch_bbox.y0], [patch_bbox.x1, patch_bbox.y1]])
+            )
+            patch_axes_bbox = (
+                float(np.min(patch_pts_axes[:, 0])),
+                float(np.min(patch_pts_axes[:, 1])),
+                float(np.max(patch_pts_axes[:, 0])),
+                float(np.max(patch_pts_axes[:, 1])),
+            )
+            inside = (
+                (pts_display[:, 0] >= patch_bbox.x0)
+                & (pts_display[:, 0] <= patch_bbox.x1)
+                & (pts_display[:, 1] >= patch_bbox.y0)
+                & (pts_display[:, 1] <= patch_bbox.y1)
+            )
+            raw_overlap = float(np.mean(inside))
+            score = raw_overlap
+            overflows_axes = (
+                patch_axes_bbox[0] < 0.0
+                or patch_axes_bbox[2] > 1.0
+                or patch_axes_bbox[1] < 0.0
+                or patch_axes_bbox[3] > 1.0
+            )
+            if overflows_axes:
+                score = 1.0 + score
+            if legend_bbox is not None:
+                overlaps_legend = not (
+                    patch_bbox.x1 < legend_bbox.x0
+                    or patch_bbox.x0 > legend_bbox.x1
+                    or patch_bbox.y1 < legend_bbox.y0
+                    or patch_bbox.y0 > legend_bbox.y1
+                )
+                if overlaps_legend:
+                    score = 1.0 + score
+            if fallback_score is None or score < fallback_score:
+                fallback_fontsize = candidate_fontsize
+                fallback_score = score
+                fallback_raw_overlap = raw_overlap
+            if score <= max_overlap_frac and not overflows_axes:
+                break
+        probe.remove()
+
+        text_artist = ax.text(
+            fallback_candidate["x"],
+            fallback_candidate["y"],
+            text,
+            transform=ax.transAxes,
+            va=fallback_candidate["va"],
+            ha=fallback_candidate["ha"],
+            fontsize=fallback_fontsize,
+            zorder=5,
+            bbox=BBOX_STYLE,
+        )
+        fig.canvas.draw()
+        stats_bbox = text_artist.get_bbox_patch().get_window_extent(renderer=renderer)
+        intersects_legend = (
+            legend_bbox is not None
+            and not (
+                stats_bbox.x1 < legend_bbox.x0
+                or stats_bbox.x0 > legend_bbox.x1
+                or stats_bbox.y1 < legend_bbox.y0
+                or stats_bbox.y0 > legend_bbox.y1
+            )
+        )
+        stats_pts_axes = ax.transAxes.inverted().transform(
+            np.array([[stats_bbox.x0, stats_bbox.y0], [stats_bbox.x1, stats_bbox.y1]])
+        )
+        stats_axes_bbox = (
+            float(np.min(stats_pts_axes[:, 0])),
+            float(np.min(stats_pts_axes[:, 1])),
+            float(np.max(stats_pts_axes[:, 0])),
+            float(np.max(stats_pts_axes[:, 1])),
+        )
+        _log_correlation_layout(
+            f"title={ax.get_title()!r} mode=corner_capped_headroom "
+            f"candidate={fallback_candidate} raw_overlap={fallback_raw_overlap:.4f} "
+            f"score={fallback_score:.4f} requested_extra_top={extra_top:.4f} "
+            f"capped_extra_top={capped_extra_top:.4f} "
+            f"fontsize={fallback_fontsize:.2f} "
+            f"legend_axes_bbox={legend_axes_bbox} stats_axes_bbox={stats_axes_bbox} "
+            f"intersects_legend={intersects_legend}"
+        )
+        return text_artist
+
     ax.set_ylim(y0, y1 + extra_top)
 
     x0, x1 = ax.get_xlim()
