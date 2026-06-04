@@ -10748,6 +10748,7 @@ def postAnalyze(vas):
     saved_custom_selection = None
     custom_label = None
     sli_ser = None
+    sli_total_sync_buckets = None
     reward_pi_first_bucket = None
     sli_training_idx = getattr(opts, "best_worst_trn", 1) - 1
     use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
@@ -10792,6 +10793,7 @@ def postAnalyze(vas):
             n_trains = len(trns_sli)
             n_flies = len(va.flies)
             nb_sli = raw_perf.shape[2] // n_flies
+            sli_total_sync_buckets = int(nb_sli)
             raw_4 = raw_perf.reshape((n_videos, n_trains, n_flies, nb_sli))
             sel_bucket_idx = _resolve_sli_select_bucket_idx(
                 opts,
@@ -11081,6 +11083,7 @@ def postAnalyze(vas):
                     skip_first_sync_buckets=sel_skip_k,
                     keep_first_sync_buckets=sel_keep_k,
                     explicit_bucket_idx=sel_bucket_idx,
+                    total_sync_buckets=sli_total_sync_buckets,
                 )
                 reward_rate_inherits_sli_bucket = (
                     getattr(opts, "corr_reward_rate_trn", None) is None
@@ -11139,6 +11142,7 @@ def postAnalyze(vas):
                         if reward_rate_inherits_sli_bucket
                         else None
                     ),
+                    total_sync_buckets=sli_total_sync_buckets,
                 )
                 plot_cross_fly_correlations(
                     sli_values=sli_ser,
@@ -11608,6 +11612,7 @@ def postAnalyze(vas):
             sli_skip_first_sync_buckets=sel_skip_k,
             sli_keep_first_sync_buckets=sel_keep_k,
             sli_explicit_bucket_idx=sel_bucket_idx,
+            sli_total_sync_buckets=sli_total_sync_buckets,
         )
         diag_plotter = FirstNRewardDiagnosticsPlotter(
             vas=vas_for_diag,
@@ -11696,6 +11701,7 @@ def postAnalyze(vas):
                 sli_skip_first_sync_buckets=sel_skip_k,
                 sli_keep_first_sync_buckets=sel_keep_k,
                 sli_explicit_bucket_idx=sel_bucket_idx,
+                sli_total_sync_buckets=sli_total_sync_buckets,
             )
             cmp_plotter = FirstNRewardSLIComparisonPlotter(
                 vas_top=[vas[i] for i in saved_top],
