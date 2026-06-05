@@ -5,6 +5,9 @@ import os
 
 import numpy as np
 
+from src.analysis.between_reward_filters import (
+    min_between_reward_sync_bucket_trajectories,
+)
 from src.plotting.between_reward_segment_binning import sync_bucket_window
 from src.plotting.training_metric_scalar_bars import (
     TrainingMetricScalarBarsConfig,
@@ -104,11 +107,17 @@ class WallContactsPerRewardIntervalPerFlyCollector:
 
         return counts
 
-    def _collect_wall_contact_interval_means_by_training_per_fly(
+    def _collect_wall_contact_interval_aggregates_by_training_per_fly(
         self,
-    ) -> list[list[tuple[str, float]]]:
+    ) -> list[list[tuple[str, float, int]]]:
+        """
+        Return wall-contact sums and interval counts per fly/training.
+
+        The count is the number of valid between-reward intervals in the selected
+        sync-bucket window, so it is also the denominator for the episode filter.
+        """
         n_trn = self._n_trainings()
-        out: list[list[tuple[str, float]]] = [[] for _ in range(n_trn)]
+        out: list[list[tuple[str, float, int]]] = [[] for _ in range(n_trn)]
 
         for va in self.vas:
             if getattr(va, "_skipped", False):
@@ -153,8 +162,59 @@ class WallContactsPerRewardIntervalPerFlyCollector:
                         continue
 
                     uid = self._unit_id(va, f=f)
-                    out[t_idx].append((uid, float(np.mean(counts.astype(float)))))
+                    out[t_idx].append(
+                        (
+                            uid,
+                            float(np.sum(counts.astype(float))),
+                            int(counts.size),
+                        )
+                    )
 
+        return out
+
+    def _collect_wall_contact_interval_means_by_training_per_fly(
+        self,
+    ) -> list[list[tuple[str, float]]]:
+        """
+        Return per-training means after applying the between-reward episode filter.
+        """
+        min_intervals = min_between_reward_sync_bucket_trajectories(self.opts)
+        out: list[list[tuple[str, float]]] = []
+
+        for panel in self._collect_wall_contact_interval_aggregates_by_training_per_fly():
+            vals: list[tuple[str, float]] = []
+            for uid, total, count in panel:
+                if count >= min_intervals and count > 0:
+                    vals.append((uid, float(total) / float(count)))
+                elif count > 0:
+                    vals.append((uid, np.nan))
+            out.append(vals)
+
+        return out
+
+    def _collect_wall_contact_interval_pooled_means_per_fly(
+        self, training_indices
+    ) -> list[tuple[str, float]]:
+        """
+        Return one scalar per fly after pooling selected trainings at episode level.
+        """
+        min_intervals = min_between_reward_sync_bucket_trajectories(self.opts)
+        by_training = self._collect_wall_contact_interval_aggregates_by_training_per_fly()
+        sums: dict[str, float] = {}
+        counts: dict[str, int] = {}
+
+        for t_idx in training_indices:
+            if t_idx < 0 or t_idx >= len(by_training):
+                continue
+            for uid, total, count in by_training[t_idx]:
+                sums[uid] = sums.get(uid, 0.0) + float(total)
+                counts[uid] = counts.get(uid, 0) + int(count)
+
+        out: list[tuple[str, float]] = []
+        for uid in sorted(sums):
+            count = counts.get(uid, 0)
+            if count >= min_intervals and count > 0:
+                out.append((uid, float(sums[uid]) / float(count)))
         return out
 
 
@@ -182,3 +242,6 @@ class WallContactsPerRewardIntervalTotalsPlotter(
 
     def _collect_values_by_training_per_fly_scalar(self):
         return self._collect_wall_contact_interval_means_by_training_per_fly()
+
+    def _collect_pooled_values_per_fly_scalar(self, training_indices):
+        return self._collect_wall_contact_interval_pooled_means_per_fly(training_indices)
