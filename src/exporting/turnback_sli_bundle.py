@@ -3,6 +3,10 @@ from __future__ import annotations
 import os
 import numpy as np
 
+from src.analysis.episode_filters import (
+    EPISODE_TYPE_INNER_EXIT_REENTRY,
+    min_episode_count_for_type,
+)
 from src.analysis.sli_bundle_utils import (
     validate_sli_bundle,
     validate_turnback_ratio_bundle,
@@ -295,6 +299,10 @@ def export_turnback_sli_bundle(vas, opts, gls, out_fn):
         ),
         turnback_inner_radius_offset_px=np.array(
             float(getattr(opts, "turnback_inner_radius_offset_px", 0.0)), dtype=float
+        ),
+        min_turnback_episodes=np.array(
+            min_episode_count_for_type(opts, EPISODE_TYPE_INNER_EXIT_REENTRY),
+            dtype=int,
         ),
     )
     validate_sli_bundle(payload, path=out_fn)

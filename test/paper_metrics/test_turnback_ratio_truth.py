@@ -233,6 +233,7 @@ def test_turnback_bundle_export_records_inner_and_outer_radius_metadata(
         turnback_inner_delta_mm=4.0,
         turnback_outer_delta_mm=8.0,
         turnback_inner_radius_offset_px=0.25,
+        min_turnback_episodes=1,
     )
     out = tmp_path / "turnback_bundle.npz"
 

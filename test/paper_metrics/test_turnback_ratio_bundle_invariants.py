@@ -110,7 +110,9 @@ def test_validate_turnback_ratio_bundle_rejects_bad_probabilities():
             )
         )
 
-    with pytest.raises(ValueError, match="finite turnback_ratio_exp where total == 0"):
+    with pytest.raises(
+        ValueError, match="finite turnback_ratio_exp.*below reporting threshold"
+    ):
         validate_turnback_ratio_bundle(
             _bundle(
                 turnback_ratio_exp=np.asarray(

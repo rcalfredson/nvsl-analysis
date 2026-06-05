@@ -8,6 +8,7 @@ from src.exporting.turnback_excursion_bin_sli_bundle import (
     _compute_pair_curves,
     _compute_turnback_curves,
     _effective_windowing,
+    export_turnback_excursion_bin_sli_bundle,
     _integrated_bin_contribution,
     _pair_deltas_mm,
     _selected_training_indices,
@@ -235,6 +236,26 @@ def test_turnback_binned_average_is_not_bin_membership():
     np.testing.assert_allclose(ratio_exp, [[0.375, 0.75]])
 
 
+def test_turnback_binned_masks_below_min_episode_count():
+    exp = _Trajectory(
+        [
+            _episode(10, 1.0, True),
+            _episode(20, 5.0, True),
+            _episode(30, 8.0, True),
+            _episode(40, 20.0, True),
+        ]
+    )
+
+    ratio_exp, _, turn_exp, _, total_exp, _, _ = _curves(
+        [_va(trx=[exp], noyc=True)],
+        min_episodes=5,
+    )
+
+    assert np.isnan(ratio_exp).all()
+    np.testing.assert_allclose(turn_exp, [[1.5, 3.0]])
+    np.testing.assert_array_equal(total_exp, [[4, 4]])
+
+
 def test_open_ended_bin_resolves_from_nonturning_excursions_but_does_not_count_them():
     exp = _Trajectory([_episode(10, 20.0, False)])
 
@@ -285,3 +306,68 @@ def test_independent_pair_curves_call_dual_circle_metric_per_pair():
         (call["inner_delta_mm"], call["outer_delta_mm"])
         for call in exp.calls
     ] == [(2.0, 4.0), (6.0, 8.0), (14.0, 16.0)]
+
+
+def test_independent_pair_curves_mask_below_min_episode_count():
+    exp = _Trajectory([_episode(10, 0.0, True), _episode(20, 0.0, False)])
+
+    ratio_exp, _, turn_exp, _, total_exp, _, _ = _pair_curves(
+        [_va(trx=[exp], noyc=True)],
+        pairs=((2.0, 4.0),),
+        min_episodes=3,
+    )
+
+    assert np.isnan(ratio_exp).all()
+    np.testing.assert_allclose(turn_exp, [[1.0]])
+    np.testing.assert_array_equal(total_exp, [[2]])
+
+
+def test_turnback_excursion_bin_export_records_min_episode_filter(tmp_path, monkeypatch):
+    exp = _Trajectory(
+        [
+            _episode(10, 1.0, True),
+            _episode(20, 5.0, True),
+            _episode(30, 8.0, True),
+            _episode(40, 20.0, True),
+        ]
+    )
+    va = _va(trx=[exp], noyc=True, sync_bucket_ranges=[[(0, 50)]])
+    opts = SimpleNamespace(
+        export_group_label="group",
+        turnback_excursion_bin_edges_mm="2,8,16",
+        turnback_excursion_bin_radii_mm=None,
+        turnback_excursion_bin_radius_pairs_mm=None,
+        turnback_excursion_bin_pairs_mm=None,
+        turnback_excursion_bin_trainings=None,
+        turnback_excursion_bin_skip_first_sync_buckets=0,
+        turnback_excursion_bin_keep_first_sync_buckets=0,
+        turnback_excursion_bin_last_sync_buckets=0,
+        turnback_inner_delta_mm=2.0,
+        turnback_inner_radius_mm=None,
+        turnback_border_width_mm=0.1,
+        turnback_inner_radius_offset_px=0.0,
+        turnback_excursion_bin_debug=False,
+        best_worst_trn=1,
+        sli_use_training_mean=True,
+        sli_select_skip_first_sync_buckets=0,
+        sli_select_keep_first_sync_buckets=0,
+        min_turnback_episodes=5,
+        turnback_excursion_bin_debug_episodes_csv=None,
+    )
+    monkeypatch.setattr(
+        "src.exporting.turnback_excursion_bin_sli_bundle._compute_sli_scalar_and_timeseries_from_rpid",
+        lambda _vas, _opts: (
+            np.asarray([0.1], dtype=float),
+            np.asarray([[[0.1]]], dtype=float),
+        ),
+    )
+    out = tmp_path / "turnback_excursion_bin.npz"
+
+    export_turnback_excursion_bin_sli_bundle([va], opts, gls=None, out_fn=str(out))
+
+    with np.load(out, allow_pickle=True) as bundle:
+        assert int(bundle["min_turnback_episodes"]) == 5
+        assert np.isnan(bundle["turnback_excursion_bin_ratio_exp"]).all()
+        np.testing.assert_array_equal(
+            bundle["turnback_excursion_bin_total_exp"], [[4, 4]]
+        )
