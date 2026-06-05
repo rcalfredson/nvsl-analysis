@@ -616,9 +616,16 @@ def validate_agarose_sli_bundle(bundle: dict, *, path: str | None = None) -> Non
         raise ValueError(f"Bundle {where} is missing agarose ratio keys: {missing}")
 
     expected_shape = _expected_sync_bucket_metric_shape(bundle, where=where)
-    min_total = int(as_scalar(bundle.get("agarose_dual_circle_min_total", 10)))
+    min_total = int(
+        as_scalar(
+            bundle.get(
+                "min_agarose_episodes",
+                bundle.get("agarose_dual_circle_min_total", 10),
+            )
+        )
+    )
     if min_total < 0:
-        raise ValueError(f"Bundle {where} has negative agarose_dual_circle_min_total")
+        raise ValueError(f"Bundle {where} has negative min_agarose_episodes")
 
     for suffix in ("exp", "ctrl"):
         _validate_ratio_count_semantics(

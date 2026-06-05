@@ -432,6 +432,10 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
             ),
         }
 
+    min_agarose_episodes = min_episode_count_for_type(
+        opts, EPISODE_TYPE_OUTER_ENTRY_REEXIT
+    )
+
     payload = {
         "sli": sli,
         "sli_ts": sli_ts,
@@ -441,10 +445,8 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
         "agarose_total_ctrl": total_ctrl,
         "agarose_avoid_exp": avoid_exp,
         "agarose_avoid_ctrl": avoid_ctrl,
-        "agarose_dual_circle_min_total": np.array(
-            min_episode_count_for_type(opts, EPISODE_TYPE_OUTER_ENTRY_REEXIT),
-            dtype=int,
-        ),
+        "min_agarose_episodes": np.array(min_agarose_episodes, dtype=int),
+        "agarose_dual_circle_min_total": np.array(min_agarose_episodes, dtype=int),
         "group_label": np.array(group_label, dtype=object),
         "bucket_len_min": np.array(bucket_len_min, dtype=float),
         "training_names": training_names,
