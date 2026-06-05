@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from src.analysis.sli_bundle_utils import load_sli_bundle
 from src.exporting.turnback_excursion_bin_sli_bundle import (
     _bin_edges_mm,
     _compute_pair_curves,
@@ -379,3 +380,7 @@ def test_turnback_excursion_bin_export_records_min_episode_filter(tmp_path, monk
             bundle["episode_filter_turnback_excursion_bin_exp_excluded_episode_counts"],
             [4, 4],
         )
+
+    loaded = load_sli_bundle(str(out))
+    assert int(loaded["min_turnback_episodes"]) == 5
+    assert np.isnan(loaded["turnback_excursion_bin_ratio_exp"]).all()

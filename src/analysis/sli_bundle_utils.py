@@ -1162,6 +1162,9 @@ def load_sli_bundle(path: str) -> dict:
             "sli_ts",
             "fly_ids",
             "btw_rwd_sync_bucket_min_trajectories",
+            "min_between_reward_trajectories",
+            "min_turnback_episodes",
+            "min_agarose_episodes",
         ):
             out[k] = d[k]
     return normalize_sli_bundle(out, path=path)
