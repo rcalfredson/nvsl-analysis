@@ -17,6 +17,7 @@ BUNDLE_ARRAY_PREFIXES = (
     "commagN_",
     "between_reward_",
     "cum_reward_sli_",
+    "episode_filter_",
     "weaving_",
     "wallpct_",
     "turnback_",

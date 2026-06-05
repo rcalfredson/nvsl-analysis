@@ -243,3 +243,15 @@ def test_turnback_bundle_export_records_inner_and_outer_radius_metadata(
         assert float(bundle["turnback_inner_delta_mm"]) == 4.0
         assert float(bundle["turnback_outer_delta_mm"]) == 8.0
         assert float(bundle["turnback_inner_radius_offset_px"]) == 0.25
+        assert int(bundle["episode_filter_turnback_sync_exp_min_episodes"]) == 1
+        assert int(bundle["episode_filter_turnback_sync_exp_unit_count"]) == 2
+        assert int(bundle["episode_filter_turnback_sync_exp_included_count"]) == 2
+        assert int(bundle["episode_filter_turnback_sync_exp_excluded_count"]) == 0
+        np.testing.assert_array_equal(
+            bundle["episode_filter_turnback_sync_exp_episode_counts"], [3, 2]
+        )
+        assert int(bundle["episode_filter_turnback_sync_ctrl_included_count"]) == 1
+        assert int(bundle["episode_filter_turnback_sync_ctrl_excluded_count"]) == 1
+        np.testing.assert_array_equal(
+            bundle["episode_filter_turnback_sync_ctrl_excluded_episode_counts"], [0]
+        )

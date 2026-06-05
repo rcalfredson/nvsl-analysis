@@ -6,6 +6,7 @@ import numpy as np
 
 from src.analysis.episode_filters import (
     EPISODE_TYPE_INNER_EXIT_REENTRY,
+    episode_filter_accounting_payload,
     min_episode_count_for_type,
 )
 from src.exporting.com_sli_bundle import (
@@ -388,6 +389,16 @@ def export_turnback_outer_radius_sli_bundle(vas, opts, gls, out_fn):
         turnback_outer_radius_turn_ctrl=np.asarray(turn_ctrl, dtype=int),
         turnback_outer_radius_total_exp=np.asarray(total_exp, dtype=int),
         turnback_outer_radius_total_ctrl=np.asarray(total_ctrl, dtype=int),
+        **episode_filter_accounting_payload(
+            "episode_filter_turnback_outer_radius_exp",
+            total_exp,
+            min_episodes,
+        ),
+        **episode_filter_accounting_payload(
+            "episode_filter_turnback_outer_radius_ctrl",
+            total_ctrl,
+            min_episodes,
+        ),
         turnback_outer_radius_outer_radii_mm=np.asarray(outer_radii_mm, dtype=float),
         turnback_outer_radius_outer_deltas_mm=np.asarray(
             outer_radii_mm if legacy_outer_radii else [], dtype=float

@@ -5,6 +5,7 @@ import numpy as np
 
 from src.analysis.episode_filters import (
     EPISODE_TYPE_INNER_EXIT_REENTRY,
+    episode_filter_accounting_payload,
     min_episode_count_for_type,
 )
 from src.analysis.sli_bundle_utils import (
@@ -232,6 +233,10 @@ def export_turnback_sli_bundle(vas, opts, gls, out_fn):
         fly_ids = np.array([-1] * len(vas_ok), dtype=int)
         video_ids = np.array([f"va_{i}" for i in range(len(vas_ok))], dtype=object)
 
+    min_turnback_episodes = min_episode_count_for_type(
+        opts, EPISODE_TYPE_INNER_EXIT_REENTRY
+    )
+
     payload = dict(
         sli=sli,
         sli_ts=sli_ts,
@@ -239,6 +244,16 @@ def export_turnback_sli_bundle(vas, opts, gls, out_fn):
         turnback_ratio_ctrl=ratio_ctrl,
         turnback_total_exp=total_exp,
         turnback_total_ctrl=total_ctrl,
+        **episode_filter_accounting_payload(
+            "episode_filter_turnback_sync_exp",
+            total_exp,
+            min_turnback_episodes,
+        ),
+        **episode_filter_accounting_payload(
+            "episode_filter_turnback_sync_ctrl",
+            total_ctrl,
+            min_turnback_episodes,
+        ),
         group_label=np.array(group_label, dtype=object),
         bucket_len_min=np.array(bucket_len_min, dtype=float),
         training_names=training_names,
@@ -300,10 +315,7 @@ def export_turnback_sli_bundle(vas, opts, gls, out_fn):
         turnback_inner_radius_offset_px=np.array(
             float(getattr(opts, "turnback_inner_radius_offset_px", 0.0)), dtype=float
         ),
-        min_turnback_episodes=np.array(
-            min_episode_count_for_type(opts, EPISODE_TYPE_INNER_EXIT_REENTRY),
-            dtype=int,
-        ),
+        min_turnback_episodes=np.array(min_turnback_episodes, dtype=int),
     )
     validate_sli_bundle(payload, path=out_fn)
     validate_turnback_ratio_bundle(payload, path=out_fn)

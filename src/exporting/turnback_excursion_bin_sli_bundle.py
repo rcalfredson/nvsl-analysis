@@ -7,6 +7,7 @@ import numpy as np
 
 from src.analysis.episode_filters import (
     EPISODE_TYPE_INNER_EXIT_REENTRY,
+    episode_filter_accounting_payload,
     min_episode_count_for_type,
 )
 from src.analysis.sli_bundle_utils import (
@@ -943,6 +944,16 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         turnback_excursion_bin_turn_ctrl=np.asarray(turn_ctrl, dtype=float),
         turnback_excursion_bin_total_exp=np.asarray(total_exp, dtype=int),
         turnback_excursion_bin_total_ctrl=np.asarray(total_ctrl, dtype=int),
+        **episode_filter_accounting_payload(
+            "episode_filter_turnback_excursion_bin_exp",
+            total_exp,
+            min_episodes,
+        ),
+        **episode_filter_accounting_payload(
+            "episode_filter_turnback_excursion_bin_ctrl",
+            total_ctrl,
+            min_episodes,
+        ),
         turnback_excursion_bin_edges_mm=np.asarray(bin_edges_mm, dtype=float),
         turnback_excursion_bin_radii_mm=np.asarray(
             [] if legacy_bin_edges else bin_edges_mm, dtype=float
