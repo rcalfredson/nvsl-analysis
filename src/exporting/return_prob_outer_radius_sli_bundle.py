@@ -4,6 +4,9 @@ import os
 
 import numpy as np
 
+from src.analysis.between_reward_filters import (
+    min_between_reward_sync_bucket_trajectories,
+)
 from src.exporting.com_sli_bundle import (
     _compute_sli_scalar_and_timeseries_from_rpid,
     _safe_group_label,
@@ -155,6 +158,7 @@ def _compute_return_prob_curves(
     keep_first: int,
     last_sync_buckets: int,
     debug: bool,
+    min_trajectories: int = 0,
 ):
     n_videos = len(vas)
     n_radii = int(outer_radii_mm.size)
@@ -233,6 +237,8 @@ def _compute_return_prob_curves(
                             returns += 1
 
                 ratio = np.nan if total <= 0 else (float(returns) / float(total))
+                if min_trajectories > 0 and total < int(min_trajectories):
+                    ratio = np.nan
                 if fly_idx == 0:
                     ret_exp[vi, ri] = int(returns)
                     total_exp[vi, ri] = int(total)
@@ -282,6 +288,7 @@ def export_return_prob_outer_radius_sli_bundle(vas, opts, gls, out_fn):
         getattr(opts, "return_prob_border_width_mm", 0.1) or 0.1
     )
     debug = bool(getattr(opts, "return_prob_outer_radius_debug", False))
+    min_trajectories = min_between_reward_sync_bucket_trajectories(opts)
 
     group_label = _safe_group_label(opts, gls)
     _dbg(opts, f"[return-prob-outer-radius] out={out_fn}")
@@ -316,6 +323,7 @@ def export_return_prob_outer_radius_sli_bundle(vas, opts, gls, out_fn):
         skip_first=skip_first,
         keep_first=keep_first,
         last_sync_buckets=last_sync_buckets,
+        min_trajectories=min_trajectories,
         debug=debug,
     )
 
@@ -379,6 +387,9 @@ def export_return_prob_outer_radius_sli_bundle(vas, opts, gls, out_fn):
         return_prob_outer_radius_return_ctrl=np.asarray(ret_ctrl, dtype=int),
         return_prob_outer_radius_total_exp=np.asarray(total_exp, dtype=int),
         return_prob_outer_radius_total_ctrl=np.asarray(total_ctrl, dtype=int),
+        btw_rwd_sync_bucket_min_trajectories=np.array(
+            min_trajectories, dtype=int
+        ),
         return_prob_outer_radius_outer_radii_mm=np.asarray(
             outer_radii_mm, dtype=float
         ),

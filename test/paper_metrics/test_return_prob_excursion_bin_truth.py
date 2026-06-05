@@ -11,6 +11,9 @@ from src.exporting.return_prob_excursion_bin_sli_bundle import (
     _selected_training_indices,
     _selected_windows_for_va,
 )
+from src.exporting.return_prob_outer_radius_sli_bundle import (
+    _compute_return_prob_curves as _compute_return_prob_outer_radius_curves,
+)
 
 
 class _Training:
@@ -34,6 +37,12 @@ class _Trajectory:
         self.calls = []
 
     def reward_return_excursion_episodes_for_training(self, **kwargs):
+        self.calls.append(kwargs)
+        return list(self._episodes)
+
+
+class _OuterRadiusTrajectory(_Trajectory):
+    def reward_return_probability_episodes_for_training(self, **kwargs):
         self.calls.append(kwargs)
         return list(self._episodes)
 
@@ -203,6 +212,56 @@ def test_return_probability_leaves_bins_nan_when_no_valid_denominator_exists():
     np.testing.assert_array_equal(ret_ctrl, [[0.0, 0.0]])
     np.testing.assert_array_equal(total_exp, [[0, 0]])
     np.testing.assert_array_equal(total_ctrl, [[0, 0]])
+
+
+def test_return_probability_masks_bins_below_min_trajectory_count():
+    exp = _Trajectory(
+        [
+            _episode(10, 1.0, True),
+            _episode(20, 5.0, True),
+            _episode(30, 8.0, True),
+            _episode(40, 20.0, True),
+        ]
+    )
+
+    ratio_exp, _, ret_exp, _, total_exp, _, _ = _curves(
+        [_va(trx=[exp], noyc=True)], min_trajectories=5
+    )
+
+    assert np.isnan(ratio_exp).all()
+    np.testing.assert_allclose(ret_exp, [[1.5, 3.0]])
+    np.testing.assert_array_equal(total_exp, [[4, 4]])
+
+
+def test_return_probability_outer_radius_masks_below_min_trajectory_count():
+    exp = _OuterRadiusTrajectory(
+        [
+            {"stop": 10, "returns": True},
+            {"stop": 20, "returns": False},
+            {"stop": 30, "returns": True},
+        ]
+    )
+
+    ratio_exp, _, ret_exp, _, total_exp, _, _ = (
+        _compute_return_prob_outer_radius_curves(
+            [_va(trx=[exp], noyc=True)],
+            outer_radii_mm=np.asarray([16.0], dtype=float),
+            legacy_outer_radii=False,
+            reward_radius_mm=None,
+            reward_delta_mm=0.0,
+            border_width_mm=0.1,
+            selected_trainings=[0],
+            skip_first=0,
+            keep_first=0,
+            last_sync_buckets=0,
+            debug=False,
+            min_trajectories=4,
+        )
+    )
+
+    np.testing.assert_array_equal(ret_exp, [[2]])
+    np.testing.assert_array_equal(total_exp, [[3]])
+    assert np.isnan(ratio_exp).all()
 
 
 def test_open_ended_bin_resolves_from_nonreturning_censored_excursions_but_does_not_count_them():

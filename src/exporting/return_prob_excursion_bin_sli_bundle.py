@@ -4,6 +4,9 @@ import os
 
 import numpy as np
 
+from src.analysis.between_reward_filters import (
+    min_between_reward_sync_bucket_trajectories,
+)
 from src.analysis.sli_bundle_utils import (
     validate_return_prob_excursion_bin_bundle,
     validate_sli_bundle,
@@ -273,6 +276,7 @@ def _compute_return_prob_curves(
     keep_first: int,
     last_sync_buckets: int,
     debug: bool,
+    min_trajectories: int = 0,
 ):
     bin_edges_mm, _open_ended_upper_bin = _resolve_open_ended_upper_edge(
         vas,
@@ -373,6 +377,8 @@ def _compute_return_prob_curves(
 
             ratio = np.full(n_bins, np.nan, dtype=float)
             np.divide(returns, total, out=ratio, where=(total > 0))
+            if min_trajectories > 0:
+                ratio[total < int(min_trajectories)] = np.nan
             if fly_idx == 0:
                 ret_exp[vi, :] = returns
                 total_exp[vi, :] = total
@@ -423,6 +429,7 @@ def export_return_prob_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         getattr(opts, "return_prob_excursion_bin_border_width_mm", 0.1) or 0.1
     )
     debug = bool(getattr(opts, "return_prob_excursion_bin_debug", False))
+    min_trajectories = min_between_reward_sync_bucket_trajectories(opts)
 
     bin_edges_mm, open_ended_upper_bin = _resolve_open_ended_upper_edge(
         vas_ok,
@@ -435,6 +442,7 @@ def export_return_prob_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         skip_first=skip_first,
         keep_first=keep_first,
         last_sync_buckets=last_sync_buckets,
+        min_trajectories=min_trajectories,
         debug=debug,
     )
     (
@@ -532,6 +540,9 @@ def export_return_prob_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         return_prob_excursion_bin_return_ctrl=np.asarray(ret_ctrl, dtype=float),
         return_prob_excursion_bin_total_exp=np.asarray(total_exp, dtype=int),
         return_prob_excursion_bin_total_ctrl=np.asarray(total_ctrl, dtype=int),
+        btw_rwd_sync_bucket_min_trajectories=np.array(
+            min_trajectories, dtype=int
+        ),
         return_prob_excursion_bin_edges_mm=np.asarray(bin_edges_mm, dtype=float),
         return_prob_excursion_bin_radii_mm=np.asarray(
             [] if legacy_bin_edges else bin_edges_mm, dtype=float
