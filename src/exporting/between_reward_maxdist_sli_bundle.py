@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import numpy as np
 
+from src.analysis.between_reward_filters import (
+    mask_metric_by_min_between_reward_trajectories,
+    min_between_reward_sync_bucket_trajectories,
+)
 from src.exporting.bundle_utils import (
     build_metric_plus_sli_bundle,
     save_sli_bundle,
@@ -108,6 +112,14 @@ def _extract_between_reward_maxdist_arrays(vas, opts=None):
             opts,
             f"[between-reward-maxdist-export] {vid}: exp finite={np.isfinite(mean_exp[vi]).sum()} / {mean_exp[vi].size}",
         )
+
+    min_segments = min_between_reward_sync_bucket_trajectories(opts)
+    mean_exp = mask_metric_by_min_between_reward_trajectories(
+        mean_exp, n_exp, min_segments
+    )
+    mean_ctrl = mask_metric_by_min_between_reward_trajectories(
+        mean_ctrl, n_ctrl, min_segments
+    )
 
     return mean_exp, mean_ctrl, n_exp, n_ctrl
 

@@ -179,3 +179,23 @@ def test_extract_commag_arrays_applies_min_segment_count_masking():
     np.testing.assert_allclose(ctrl, [[[np.nan, 4.0]]])
     np.testing.assert_array_equal(n_exp, [[[2, 1]]])
     np.testing.assert_array_equal(n_ctrl, [[[0, 3]]])
+
+
+def test_extract_commag_arrays_prefers_episode_threshold_option():
+    va = SimpleNamespace(
+        syncCOMMag=[{"exp": [1.0, 2.0], "ctrl": [3.0, 4.0]}],
+        syncCOMMagN=[{"exp": [2, 1], "ctrl": [1, 3]}],
+    )
+
+    exp, ctrl, n_exp, n_ctrl = _extract_commag_arrays(
+        [va],
+        SimpleNamespace(
+            min_between_reward_trajectories=2,
+            btw_rwd_sync_bucket_min_trajectories=99,
+        ),
+    )
+
+    np.testing.assert_allclose(exp, [[[1.0, np.nan]]])
+    np.testing.assert_allclose(ctrl, [[[np.nan, 4.0]]])
+    np.testing.assert_array_equal(n_exp, [[[2, 1]]])
+    np.testing.assert_array_equal(n_ctrl, [[[1, 3]]])

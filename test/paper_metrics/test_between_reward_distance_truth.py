@@ -18,6 +18,9 @@ from src.plotting.btw_rwd_return_leg_dist_totals import (
     ReturnLegDistTotalsConfig,
     ReturnLegDistTotalsPlotter,
 )
+from src.exporting.between_reward_maxdist_sli_bundle import (
+    _extract_between_reward_maxdist_arrays,
+)
 
 
 class _Trajectory:
@@ -70,6 +73,27 @@ class _Video:
 
     def _iter_between_reward_segment_com(self, _trn, fly_idx, **_kwargs):
         yield from self._segments_by_fly.get(fly_idx, [])
+
+
+class _MaxDistVideo:
+    def __init__(self):
+        self.fn = "fake-video"
+        self.trns = [_Training()]
+        self.syncMeanBetweenRewardMaxDist = [
+            {"exp": [1.0, 2.0], "ctrl": [3.0, 4.0]}
+        ]
+        self.syncMeanBetweenRewardMaxDistN = [
+            {"exp": [2, 1], "ctrl": [1, 3]}
+        ]
+
+    def _numRewardsMsg(self, *_args, **_kwargs):
+        return 5
+
+    def _syncBucket(self, _trn, _df):
+        return 0, 2, None
+
+    def bySyncBucketMeanBetweenRewardMaxDist(self, **_kwargs):
+        return None
 
 
 def _segment(*, s, e, b_idx=0, max_i=None, max_d_mm=4.0):
@@ -261,6 +285,19 @@ def test_return_leg_collector_averages_by_sync_bucket_and_honors_nonwalk_option(
     np.testing.assert_allclose(mean_ctrl, [[[2.0, np.nan]]])
     np.testing.assert_array_equal(n_exp, [[[2, 1]]])
     np.testing.assert_array_equal(n_ctrl, [[[1, 0]]])
+
+
+def test_between_reward_maxdist_export_masks_by_min_trajectory_count():
+    va = _MaxDistVideo()
+
+    mean_exp, mean_ctrl, n_exp, n_ctrl = _extract_between_reward_maxdist_arrays(
+        [va], SimpleNamespace(min_between_reward_trajectories=2)
+    )
+
+    np.testing.assert_allclose(mean_exp, [[[1.0, np.nan]]])
+    np.testing.assert_allclose(mean_ctrl, [[[np.nan, 4.0]]])
+    np.testing.assert_array_equal(n_exp, [[[2, 1]]])
+    np.testing.assert_array_equal(n_ctrl, [[[1, 3]]])
 
 
 def test_return_leg_sync_bucket_filter_masks_low_count_buckets():

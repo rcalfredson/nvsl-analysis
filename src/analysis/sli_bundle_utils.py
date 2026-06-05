@@ -341,13 +341,23 @@ def validate_between_reward_sync_bucket_distance_bundle(
     count_ctrl = _validate_3d_distance_count_array(
         bundle, count_ctrl_key, where=where, expected_shape=expected_shape
     )
+    min_segments = int(as_scalar(bundle.get("btw_rwd_sync_bucket_min_trajectories", 1)))
+    if min_segments < 0:
+        raise ValueError(
+            f"Bundle {where} has negative btw_rwd_sync_bucket_min_trajectories"
+        )
+    sufficient_count = max(1, min_segments)
 
     for key, values, counts in (
         (value_exp_key, value_exp, count_exp),
         (value_ctrl_key, value_ctrl, count_ctrl),
     ):
-        if np.any(np.isfinite(values[counts == 0])):
-            raise ValueError(f"Bundle {where} has finite {key} where count == 0")
+        finite = np.isfinite(values)
+        if np.any(finite & (counts < sufficient_count)):
+            raise ValueError(
+                f"Bundle {where} has finite {key} where count is below "
+                f"{sufficient_count}"
+            )
 
 
 def validate_between_reward_maxdist_bundle(
