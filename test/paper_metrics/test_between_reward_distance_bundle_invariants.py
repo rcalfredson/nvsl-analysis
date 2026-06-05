@@ -175,3 +175,32 @@ def test_validate_between_reward_distance_bundle_rejects_finite_value_with_zero_
                 ),
             )
         )
+
+
+def test_validate_between_reward_distance_bundle_rejects_finite_value_below_threshold():
+    with pytest.raises(
+        ValueError, match="finite between_reward_maxdist_exp where count is below 2"
+    ):
+        validate_between_reward_maxdist_bundle(
+            _maxdist_bundle(
+                btw_rwd_sync_bucket_min_trajectories=np.array(2, dtype=int),
+                between_reward_maxdist_exp=np.asarray(
+                    [
+                        [[1.0, np.nan, np.nan], [3.0, 4.0, 5.0]],
+                        [[np.nan, 1.5, 2.5], [2.0, np.nan, 3.0]],
+                    ],
+                    dtype=float,
+                ),
+                between_reward_maxdistN_exp=np.asarray(
+                    [[[2, 1, 0], [2, 2, 2]], [[0, 1, 2], [2, 0, 2]]],
+                    dtype=int,
+                ),
+                between_reward_maxdistN_ctrl=np.asarray(
+                    [
+                        [[2, 0, 2], [2, 2, 0]],
+                        [[0, 0, 2], [2, 2, 2]],
+                    ],
+                    dtype=int,
+                ),
+            )
+        )
