@@ -4,6 +4,10 @@ import os
 
 import numpy as np
 
+from src.analysis.episode_filters import (
+    EPISODE_TYPE_INNER_EXIT_REENTRY,
+    min_episode_count_for_type,
+)
 from src.exporting.com_sli_bundle import (
     _compute_sli_scalar_and_timeseries_from_rpid,
     _safe_group_label,
@@ -154,6 +158,7 @@ def _compute_outer_radius_curves(
     keep_first: int,
     last_sync_buckets: int,
     debug: bool,
+    min_episodes: int = 0,
 ):
     n_videos = len(vas)
     n_radii = int(outer_radii_mm.size)
@@ -227,7 +232,12 @@ def _compute_outer_radius_curves(
                         if bool(ep.get("turns_back", False)):
                             turns += 1
 
-                ratio = np.nan if total <= 0 else (float(turns) / float(total))
+                min_n = max(0, int(min_episodes or 0))
+                ratio = (
+                    np.nan
+                    if total <= 0 or (min_n > 0 and total < min_n)
+                    else (float(turns) / float(total))
+                )
                 if fly_idx == 0:
                     turn_exp[vi, ri] = int(turns)
                     total_exp[vi, ri] = int(total)
@@ -278,6 +288,7 @@ def export_turnback_outer_radius_sli_bundle(vas, opts, gls, out_fn):
         getattr(opts, "turnback_inner_radius_offset_px", 0.0) or 0.0
     )
     debug = bool(getattr(opts, "turnback_outer_radius_debug", False))
+    min_episodes = min_episode_count_for_type(opts, EPISODE_TYPE_INNER_EXIT_REENTRY)
 
     group_label = _safe_group_label(opts, gls)
     _dbg(opts, f"[turnback-outer-radius] out={out_fn}")
@@ -314,6 +325,7 @@ def export_turnback_outer_radius_sli_bundle(vas, opts, gls, out_fn):
         keep_first=keep_first,
         last_sync_buckets=last_sync_buckets,
         debug=debug,
+        min_episodes=min_episodes,
     )
 
     try:
@@ -398,6 +410,7 @@ def export_turnback_outer_radius_sli_bundle(vas, opts, gls, out_fn):
             radius_offset_px, dtype=float
         ),
         turnback_outer_radius_border_width_mm=np.array(border_width_mm, dtype=float),
+        min_turnback_episodes=np.array(min_episodes, dtype=int),
         turnback_outer_radius_window_summary=np.asarray(window_strings, dtype=object),
         group_label=np.array(group_label, dtype=object),
         training_names=training_names,

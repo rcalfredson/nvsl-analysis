@@ -5,6 +5,10 @@ import csv
 
 import numpy as np
 
+from src.analysis.episode_filters import (
+    EPISODE_TYPE_INNER_EXIT_REENTRY,
+    min_episode_count_for_type,
+)
 from src.analysis.sli_bundle_utils import (
     validate_sli_bundle,
     validate_turnback_excursion_bin_bundle,
@@ -319,6 +323,7 @@ def _compute_turnback_curves(
     keep_first: int,
     last_sync_buckets: int,
     debug: bool,
+    min_episodes: int = 0,
 ):
     bin_edges_mm, _open_ended_upper_bin = _resolve_open_ended_upper_edge(
         vas,
@@ -435,6 +440,9 @@ def _compute_turnback_curves(
 
             ratio = np.full(n_bins, np.nan, dtype=float)
             np.divide(turns, total, out=ratio, where=(total > 0))
+            min_n = max(0, int(min_episodes or 0))
+            if min_n > 0:
+                ratio[total < min_n] = np.nan
             if fly_idx == 0:
                 turn_exp[vi, :] = turns
                 total_exp[vi, :] = total
@@ -488,6 +496,7 @@ def _compute_pair_curves(
     keep_first: int,
     last_sync_buckets: int,
     debug: bool,
+    min_episodes: int = 0,
 ):
     n_videos = len(vas)
     n_pairs = int(inner_deltas_mm.size)
@@ -568,7 +577,12 @@ def _compute_pair_curves(
                         if bool(ep.get("turns_back", False)):
                             turns += 1
 
-                ratio = np.nan if total <= 0 else float(turns) / float(total)
+                min_n = max(0, int(min_episodes or 0))
+                ratio = (
+                    np.nan
+                    if total <= 0 or (min_n > 0 and total < min_n)
+                    else float(turns) / float(total)
+                )
                 if fly_idx == 0:
                     turn_exp[vi, pair_idx] = float(turns)
                     total_exp[vi, pair_idx] = int(total)
@@ -788,6 +802,7 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         getattr(opts, "turnback_inner_radius_offset_px", 0.0) or 0.0
     )
     debug = bool(getattr(opts, "turnback_excursion_bin_debug", False))
+    min_episodes = min_episode_count_for_type(opts, EPISODE_TYPE_INNER_EXIT_REENTRY)
 
     if pair_deltas_mm is None:
         bin_edges_mm, open_ended_upper_bin = _resolve_open_ended_upper_edge(
@@ -825,6 +840,7 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
             keep_first=keep_first,
             last_sync_buckets=last_sync_buckets,
             debug=debug,
+            min_episodes=min_episodes,
         )
         pair_inner_deltas_mm = None
         pair_outer_deltas_mm = None
@@ -852,6 +868,7 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
             keep_first=keep_first,
             last_sync_buckets=last_sync_buckets,
             debug=debug,
+            min_episodes=min_episodes,
         )
 
     n_videos = len(vas_ok)
@@ -951,6 +968,7 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
             radius_offset_px, dtype=float
         ),
         turnback_excursion_bin_border_width_mm=np.array(border_width_mm, dtype=float),
+        min_turnback_episodes=np.array(min_episodes, dtype=int),
         turnback_excursion_bin_window_summary=window_strings,
         turnback_excursion_bin_description=np.asarray(
             (

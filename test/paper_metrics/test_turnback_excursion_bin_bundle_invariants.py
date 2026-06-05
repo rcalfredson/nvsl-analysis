@@ -124,7 +124,7 @@ def test_validate_turnback_excursion_bin_bundle_rejects_bad_probabilities():
             _bundle(turnback_excursion_bin_ratio_exp=np.asarray([[1.2, np.nan]]))
         )
 
-    with pytest.raises(ValueError, match="finite .* where total == 0"):
+    with pytest.raises(ValueError, match="finite .* below reporting threshold"):
         validate_turnback_excursion_bin_bundle(
             _bundle(turnback_excursion_bin_ratio_exp=np.asarray([[0.5, 0.0]]))
         )
