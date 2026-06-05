@@ -6,6 +6,9 @@ from typing import Sequence
 import numpy as np
 import matplotlib.pyplot as plt
 
+from src.analysis.between_reward_filters import (
+    min_between_reward_sync_bucket_trajectories,
+)
 from src.plotting.between_reward_segment_binning import sync_bucket_window
 from src.plotting.between_reward_segment_metrics import tortuosity_metric_masked
 from src.plotting.palettes import (
@@ -128,14 +131,18 @@ class BetweenRewardTortuosityMeanSwarmPlotter(TrainingMetricScalarBarsPlotter):
             wwin[: len(wseg)] = wseg > 0
         return ~wwin
 
-    def _collect_values_by_training_per_fly_scalar(
+    def _effective_min_segments_per_fly(self) -> int:
+        shared_min = min_between_reward_sync_bucket_trajectories(self.opts)
+        legacy_min = int(max(1, getattr(self.cfg, "min_segments_per_fly", 1) or 1))
+        return max(shared_min, legacy_min)
+
+    def _collect_tortuosity_aggregates_by_training_per_fly(
         self,
-    ) -> list[list[tuple[str, float]]]:
+    ) -> list[list[tuple[str, float, int]]]:
         n_trn = self._n_trainings()
-        out: list[list[tuple[str, float]]] = [[] for _ in range(n_trn)]
+        out: list[list[tuple[str, float, int]]] = [[] for _ in range(n_trn)]
         warned_missing_wc = [False]
         min_walk_frames = int(max(2, getattr(self.cfg, "min_walk_frames", 2) or 2))
-        min_segments = int(max(1, getattr(self.cfg, "min_segments_per_fly", 1) or 1))
         mode = str(
             getattr(self.cfg, "metric_mode", "path_over_max_radius")
             or "path_over_max_radius"
@@ -275,14 +282,53 @@ class BetweenRewardTortuosityMeanSwarmPlotter(TrainingMetricScalarBarsPlotter):
                         if np.isfinite(val):
                             vals.append(float(val))
 
-                    if len(vals) < min_segments:
+                    if not vals:
                         continue
+                    arr = np.asarray(vals, dtype=float)
                     out[t_idx].append(
                         (
                             self._unit_id(va, f=f),
-                            float(np.nanmean(np.asarray(vals, dtype=float))),
+                            float(np.nansum(arr)),
+                            int(np.sum(np.isfinite(arr))),
                         )
                     )
+        return out
+
+    def _collect_values_by_training_per_fly_scalar(
+        self,
+    ) -> list[list[tuple[str, float]]]:
+        min_segments = self._effective_min_segments_per_fly()
+        out: list[list[tuple[str, float]]] = []
+
+        for panel in self._collect_tortuosity_aggregates_by_training_per_fly():
+            vals: list[tuple[str, float]] = []
+            for uid, total, count in panel:
+                if count >= min_segments and count > 0:
+                    vals.append((uid, float(total) / float(count)))
+                elif count > 0:
+                    vals.append((uid, np.nan))
+            out.append(vals)
+
+        return out
+
+    def _collect_pooled_values_per_fly_scalar(self, training_indices):
+        min_segments = self._effective_min_segments_per_fly()
+        by_training = self._collect_tortuosity_aggregates_by_training_per_fly()
+        sums: dict[str, float] = {}
+        counts: dict[str, int] = {}
+
+        for t_idx in training_indices:
+            if t_idx < 0 or t_idx >= len(by_training):
+                continue
+            for uid, total, count in by_training[t_idx]:
+                sums[uid] = sums.get(uid, 0.0) + float(total)
+                counts[uid] = counts.get(uid, 0) + int(count)
+
+        out: list[tuple[str, float]] = []
+        for uid in sorted(sums):
+            count = counts.get(uid, 0)
+            if count >= min_segments and count > 0:
+                out.append((uid, float(sums[uid]) / float(count)))
         return out
 
     def compute_scalar_panels(self) -> dict:
@@ -306,9 +352,7 @@ class BetweenRewardTortuosityMeanSwarmPlotter(TrainingMetricScalarBarsPlotter):
                     getattr(self.cfg, "exclude_reward_endpoints", False)
                 ),
                 "min_walk_frames": int(getattr(self.cfg, "min_walk_frames", 2) or 2),
-                "min_segments_per_fly": int(
-                    getattr(self.cfg, "min_segments_per_fly", 1) or 1
-                ),
+                "min_segments_per_fly": int(self._effective_min_segments_per_fly()),
                 "min_displacement_mm": float(
                     getattr(self.cfg, "min_displacement_mm", 0.0) or 0.0
                 ),
