@@ -85,7 +85,8 @@ def test_agarose_ratio_uses_avoid_over_total_and_min_total_masks_ratio():
         ct=CT.large,
         opts=SimpleNamespace(
             agarose_outer_delta_mm=1.0,
-            agarose_dual_circle_min_total=2,
+            min_agarose_episodes=2,
+            agarose_dual_circle_min_total=1,
             agarose_dual_circle_debug_csv=None,
         ),
         sync_bucket_ranges=[[(0, 5), (5, 10)]],
@@ -118,7 +119,7 @@ def test_agarose_episode_assignment_uses_episode_start_frame_for_sync_bucket():
         ct=CT.large,
         opts=SimpleNamespace(
             agarose_outer_delta_mm=1.0,
-            agarose_dual_circle_min_total=1,
+            min_agarose_episodes=1,
             agarose_dual_circle_debug_csv=None,
         ),
         sync_bucket_ranges=[[(0, 5), (5, 10)], [(10, 15)]],
@@ -147,7 +148,7 @@ def test_agarose_pre_windows_use_episode_start_frame():
         {"start": 29, "stop": 31, "avoids_inner": False},
     ]
     va = _video_analysis_stub(
-        opts=SimpleNamespace(agarose_dual_circle_min_total=1),
+        opts=SimpleNamespace(min_agarose_episodes=1),
         trx=[SimpleNamespace(_bad=False)],
         trns=[
             _Training(start=10, stop=20, name="T1"),
@@ -218,7 +219,8 @@ def test_agarose_bundle_export_records_min_total_metadata(tmp_path, monkeypatch)
         sli_use_training_mean=True,
         sli_select_skip_first_sync_buckets=0,
         sli_select_keep_first_sync_buckets=0,
-        agarose_dual_circle_min_total=2,
+        min_agarose_episodes=2,
+        agarose_dual_circle_min_total=1,
         agarose_sli_include_pre=False,
     )
     out = tmp_path / "agarose_bundle.npz"
@@ -226,4 +228,5 @@ def test_agarose_bundle_export_records_min_total_metadata(tmp_path, monkeypatch)
     export_agarose_sli_bundle([va], opts, gls=None, out_fn=str(out))
 
     with np.load(out, allow_pickle=True) as bundle:
+        assert int(bundle["min_agarose_episodes"]) == 2
         assert int(bundle["agarose_dual_circle_min_total"]) == 2

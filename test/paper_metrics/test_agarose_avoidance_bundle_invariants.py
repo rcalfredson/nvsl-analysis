@@ -24,6 +24,7 @@ def _bundle(**overrides):
         "sli_use_training_mean": np.array(True),
         "sli_select_skip_first_sync_buckets": np.array(1, dtype=int),
         "sli_select_keep_first_sync_buckets": np.array(0, dtype=int),
+        "min_agarose_episodes": np.array(2, dtype=int),
         "agarose_dual_circle_min_total": np.array(2, dtype=int),
         "agarose_ratio_exp": np.asarray(
             [
@@ -75,6 +76,23 @@ def test_validate_agarose_bundle_accepts_valid_shapes_counts_and_metadata():
 
     normalized = normalize_sli_bundle(_bundle())
     assert normalized["agarose_ratio_exp"].shape == (2, 2, 3)
+
+
+def test_validate_agarose_bundle_accepts_legacy_min_total_metadata():
+    bundle = _bundle()
+    del bundle["min_agarose_episodes"]
+
+    validate_agarose_sli_bundle(bundle)
+
+
+def test_validate_agarose_bundle_prefers_primary_min_episode_metadata():
+    with pytest.raises(ValueError, match="where total is below reporting threshold"):
+        validate_agarose_sli_bundle(
+            _bundle(
+                min_agarose_episodes=np.array(3, dtype=int),
+                agarose_dual_circle_min_total=np.array(2, dtype=int),
+            )
+        )
 
 
 def test_validate_agarose_bundle_rejects_missing_metric_key():
