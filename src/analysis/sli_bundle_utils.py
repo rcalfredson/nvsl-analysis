@@ -792,6 +792,12 @@ def validate_return_prob_excursion_bin_bundle(
         n_videos=n_videos,
         n_bins=n_bins,
     )
+    min_segments = int(as_scalar(bundle.get("btw_rwd_sync_bucket_min_trajectories", 1)))
+    if min_segments < 0:
+        raise ValueError(
+            f"Bundle {where} has negative btw_rwd_sync_bucket_min_trajectories"
+        )
+    sufficient_count = max(1, min_segments)
 
     for key, ratio in (
         ("return_prob_excursion_bin_ratio_exp", ratio_exp),
@@ -828,12 +834,19 @@ def validate_return_prob_excursion_bin_bundle(
         ),
     ):
         expected = np.full_like(values, np.nan, dtype=float)
-        np.divide(values, total, out=expected, where=(total > 0))
+        reportable = total >= sufficient_count
+        np.divide(values, total, out=expected, where=reportable)
         both_finite = np.isfinite(ratio) & np.isfinite(expected)
-        if np.any(~np.isfinite(ratio[total > 0])):
-            raise ValueError(f"Bundle {where} has non-finite {key} where total > 0")
-        if np.any(np.isfinite(ratio[total == 0])):
-            raise ValueError(f"Bundle {where} has finite {key} where total == 0")
+        if np.any(~np.isfinite(ratio[reportable])):
+            raise ValueError(
+                f"Bundle {where} has non-finite {key} where total passes "
+                f"reporting threshold {sufficient_count}"
+            )
+        if np.any(np.isfinite(ratio[~reportable])):
+            raise ValueError(
+                f"Bundle {where} has finite {key} where total is below "
+                f"reporting threshold {sufficient_count}"
+            )
         if np.any(np.abs(ratio[both_finite] - expected[both_finite]) > 1e-10):
             raise ValueError(f"Bundle {where} has inconsistent {key} values")
 

@@ -111,10 +111,33 @@ def test_validate_return_prob_excursion_bin_bundle_rejects_bad_probabilities():
             _bundle(return_prob_excursion_bin_ratio_exp=np.asarray([[1.2, np.nan]]))
         )
 
-    with pytest.raises(ValueError, match="finite .* where total == 0"):
+    with pytest.raises(ValueError, match="finite .* where total is below"):
         validate_return_prob_excursion_bin_bundle(
             _bundle(return_prob_excursion_bin_ratio_exp=np.asarray([[0.5, 0.0]]))
         )
+
+
+def test_validate_return_prob_excursion_bin_bundle_rejects_finite_ratio_below_threshold():
+    with pytest.raises(
+        ValueError,
+        match="finite return_prob_excursion_bin_ratio_exp where total is below reporting threshold 5",
+    ):
+        validate_return_prob_excursion_bin_bundle(
+            _bundle(
+                btw_rwd_sync_bucket_min_trajectories=np.array(5, dtype=int),
+                return_prob_excursion_bin_ratio_exp=np.asarray([[0.5, np.nan]]),
+            )
+        )
+
+
+def test_validate_return_prob_excursion_bin_bundle_allows_nan_below_threshold():
+    validate_return_prob_excursion_bin_bundle(
+        _bundle(
+            btw_rwd_sync_bucket_min_trajectories=np.array(5, dtype=int),
+            return_prob_excursion_bin_ratio_exp=np.asarray([[np.nan, np.nan]]),
+            return_prob_excursion_bin_ratio_ctrl=np.asarray([[0.2, 0.6]]),
+        )
+    )
 
 
 def test_validate_return_prob_excursion_bin_bundle_rejects_inconsistent_ratio():
