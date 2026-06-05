@@ -118,6 +118,39 @@ class TrainingMetricScalarBarsPlotter:
             "trainings_ignored": False,
         }
 
+    def _pooled_training_indices(self, n_panels: int):
+        t = self.cfg.trainings
+        if not t:
+            return list(range(n_panels)), {
+                "trainings_user": None,
+                "trainings_effective": list(range(1, n_panels + 1)),
+                "trainings_dropped_out_of_range": [],
+                "trainings_ignored": False,
+            }
+
+        keep = []
+        dropped = []
+        seen = set()
+        for x in t:
+            try:
+                idx0 = int(x) - 1
+            except Exception:
+                continue
+            if idx0 < 0 or idx0 >= n_panels:
+                dropped.append(int(x))
+                continue
+            if idx0 not in seen:
+                keep.append(idx0)
+                seen.add(idx0)
+
+        keep.sort()
+        return keep, {
+            "trainings_user": list(t),
+            "trainings_effective": [i + 1 for i in keep],
+            "trainings_dropped_out_of_range": sorted(set(dropped)),
+            "trainings_ignored": False,
+        }
+
     def _collect_values_by_training_per_fly_scalar(
         self,
     ) -> list[list[tuple[str, float]]]:
@@ -126,6 +159,17 @@ class TrainingMetricScalarBarsPlotter:
           out[t] = list of (unit_id, scalar_value)
         """
         raise NotImplementedError
+
+    def _collect_pooled_values_per_fly_scalar(
+        self, training_indices: Sequence[int]
+    ) -> list[tuple[str, float]] | None:
+        """
+        Optionally return one scalar per unit after pooling selected trainings.
+
+        Subclasses that need denominator-aware pooling can override this. Returning
+        None keeps the legacy fallback, which combines already-reduced scalars.
+        """
+        return None
 
     def compute_scalar_panels(self) -> dict[str, Any]:
         vals_by_trn = self._collect_values_by_training_per_fly_scalar()
@@ -142,27 +186,35 @@ class TrainingMetricScalarBarsPlotter:
             }
 
         if self.cfg.pool_trainings:
-            acc = defaultdict(float)
-            for panel in vals_by_trn:
-                for uid, v in panel:
-                    if v is None:
+            pool_indices, sel_info = self._pooled_training_indices(len(vals_by_trn))
+            pooled_values = self._collect_pooled_values_per_fly_scalar(pool_indices)
+            if pooled_values is not None:
+                vals_by_panel = [list(pooled_values)]
+            else:
+                acc = defaultdict(float)
+                for i in pool_indices:
+                    if i < 0 or i >= len(vals_by_trn):
                         continue
-                    try:
-                        vv = float(v)
-                    except Exception:
-                        continue
-                    if np.isfinite(vv):
-                        acc[uid] += vv
+                    panel = vals_by_trn[i]
+                    for uid, v in panel:
+                        if v is None:
+                            continue
+                        try:
+                            vv = float(v)
+                        except Exception:
+                            continue
+                        if np.isfinite(vv):
+                            acc[uid] += vv
 
-            pooled_ids = sorted(acc.keys())
-            vals_by_panel = [[(uid, float(acc[uid])) for uid in pooled_ids]]
-            panel_labels = ["All trainings combined"]
-            sel_info = {
-                "trainings_ignored": True,
-                "trainings_user": (
-                    list(self.cfg.trainings) if self.cfg.trainings else None
-                ),
-            }
+                pooled_ids = sorted(acc.keys())
+                vals_by_panel = [[(uid, float(acc[uid])) for uid in pooled_ids]]
+            panel_labels = [
+                (
+                    "All trainings combined"
+                    if not self.cfg.trainings
+                    else "Selected trainings combined"
+                )
+            ]
         else:
             vals_by_panel = vals_by_trn
             panel_labels = self._training_labels(len(vals_by_panel))

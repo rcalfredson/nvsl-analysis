@@ -14,6 +14,10 @@ from src.plotting.between_reward_segment_metrics import (
 from src.plotting.btw_rwd_return_leg_dist_collectors import (
     ReturnLegDistPerFlyCollector,
 )
+from src.plotting.btw_rwd_return_leg_dist_totals import (
+    ReturnLegDistTotalsConfig,
+    ReturnLegDistTotalsPlotter,
+)
 
 
 class _Trajectory:
@@ -257,3 +261,114 @@ def test_return_leg_collector_averages_by_sync_bucket_and_honors_nonwalk_option(
     np.testing.assert_allclose(mean_ctrl, [[[2.0, np.nan]]])
     np.testing.assert_array_equal(n_exp, [[[2, 1]]])
     np.testing.assert_array_equal(n_ctrl, [[[1, 0]]])
+
+
+def test_return_leg_sync_bucket_filter_masks_low_count_buckets():
+    exp = _Trajectory(x=np.arange(12, dtype=float), d=np.ones(11))
+    va = _Video(
+        trx=[exp],
+        segments_by_fly={
+            0: [
+                _segment(s=0, e=4, b_idx=0, max_i=2),
+                _segment(s=4, e=7, b_idx=0, max_i=5),
+                _segment(s=6, e=10, b_idx=1, max_i=8),
+            ],
+        },
+    )
+
+    collector = ReturnLegDistPerFlyCollector()
+    collector.vas = [va]
+    collector.opts = SimpleNamespace(
+        com_exclude_wall_contact=False,
+        min_between_reward_trajectories=2,
+        btw_rwd_return_leg_dist_exclude_nonwalking_frames=False,
+        btw_rwd_return_leg_dist_min_walk_frames=2,
+    )
+    collector.cfg = SimpleNamespace(
+        skip_first_sync_buckets=0, keep_first_sync_buckets=0
+    )
+
+    mean_exp, _mean_ctrl, n_exp, _n_ctrl = (
+        collector.collect_return_leg_sync_bucket_arrays()
+    )
+
+    np.testing.assert_allclose(mean_exp, [[[0.5, np.nan]]])
+    np.testing.assert_array_equal(n_exp, [[[2, 1]]])
+
+
+def test_return_leg_scalar_bars_filter_after_pooling_selected_episodes():
+    exp = _Trajectory(x=np.arange(12, dtype=float), d=np.ones(11))
+    va = _Video(
+        trx=[exp],
+        segments_by_fly={
+            0: [
+                _segment(s=0, e=4, b_idx=0, max_i=2),
+                _segment(s=4, e=7, b_idx=0, max_i=5),
+                _segment(s=6, e=10, b_idx=1, max_i=8),
+            ],
+        },
+    )
+    va.trns = [_Training(), _Training()]
+
+    opts = SimpleNamespace(
+        com_exclude_wall_contact=False,
+        min_between_reward_trajectories=4,
+        btw_rwd_return_leg_dist_exclude_nonwalking_frames=False,
+        btw_rwd_return_leg_dist_min_walk_frames=2,
+    )
+    cfg = ReturnLegDistTotalsConfig(
+        out_file="unused.png",
+        pool_trainings=True,
+        trainings=[1, 2],
+        skip_first_sync_buckets=0,
+        keep_first_sync_buckets=0,
+    )
+    plotter = ReturnLegDistTotalsPlotter(
+        vas=[va], opts=opts, gls=None, customizer=None, cfg=cfg
+    )
+
+    data = plotter.compute_scalar_panels()
+
+    assert data["panel_labels"] == ["Selected trainings combined"]
+    assert int(data["n_units_panel"][0]) == 1
+    np.testing.assert_allclose(
+        np.asarray(data["per_unit_values_panel"][0], dtype=float), [0.5]
+    )
+    assert data["meta"]["training_selection"]["trainings_effective"] == [1, 2]
+
+
+def test_return_leg_scalar_bars_single_training_filter_uses_selected_episode_count():
+    exp = _Trajectory(x=np.arange(12, dtype=float), d=np.ones(11))
+    va = _Video(
+        trx=[exp],
+        segments_by_fly={
+            0: [
+                _segment(s=0, e=4, b_idx=0, max_i=2),
+                _segment(s=4, e=7, b_idx=0, max_i=5),
+                _segment(s=6, e=10, b_idx=1, max_i=8),
+            ],
+        },
+    )
+
+    opts = SimpleNamespace(
+        com_exclude_wall_contact=False,
+        min_between_reward_trajectories=4,
+        btw_rwd_return_leg_dist_exclude_nonwalking_frames=False,
+        btw_rwd_return_leg_dist_min_walk_frames=2,
+    )
+    cfg = ReturnLegDistTotalsConfig(
+        out_file="unused.png",
+        pool_trainings=False,
+        trainings=[1],
+        skip_first_sync_buckets=0,
+        keep_first_sync_buckets=0,
+    )
+    plotter = ReturnLegDistTotalsPlotter(
+        vas=[va], opts=opts, gls=None, customizer=None, cfg=cfg
+    )
+
+    data = plotter.compute_scalar_panels()
+
+    assert data["panel_labels"] == ["T1"]
+    assert int(data["n_units_panel"][0]) == 0
+    assert data["per_unit_values_panel"][0].size == 0

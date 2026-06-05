@@ -4488,16 +4488,37 @@ g.add_argument(
 g.add_argument(
     "--agarose-dual-circle-min-total",
     type=int,
-    default=10,
+    default=None,
     help=(
-        "minimum number of dual-circle agarose episodes required to report a ratio "
-        "for a fly/window; smaller totals are left as NaN (use 0 for legacy behavior)"
+        "Deprecated alias for --min-agarose-episodes: minimum number of "
+        "dual-circle agarose episodes required to report a ratio for a fly/window; "
+        "smaller totals are left as NaN (use 0 to disable this filter)"
+    ),
+)
+g.add_argument(
+    "--min-agarose-episodes",
+    type=int,
+    default=None,
+    metavar="N",
+    help=(
+        "Minimum number of outer-circle entry/re-exit episodes required for one "
+        "fly/window before reporting agarose-avoidance metrics. Default: 5."
     ),
 )
 g.add_argument(
     "--turnback-dual-circle",
     action="store_true",
     help="analyze dual-circle reward turn-back metric",
+)
+g.add_argument(
+    "--min-turnback-episodes",
+    type=int,
+    default=None,
+    metavar="N",
+    help=(
+        "Minimum number of inner-circle exit/re-entry episodes required for one "
+        "fly/window before reporting turnback metrics. Default: 5."
+    ),
 )
 g.add_argument(
     "--turnback-inner-radius-mm",
@@ -4683,10 +4704,20 @@ g.add_argument(
     default=5,
     metavar="N",
     help=(
-        "Minimum number of between-reward trajectories required for one fly in "
-        "one sync bucket before reporting between-reward sync-bucket metrics "
-        "(mean max distance, return-leg distance, and per-segment COM). "
-        "Use 0 to disable this filter. Default: %(default)s."
+        "Deprecated alias for --min-between-reward-trajectories: minimum number "
+        "of between-reward trajectories required for one fly in one sync bucket "
+        "before reporting between-reward sync-bucket metrics. Use 0 to disable "
+        "this filter. Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--min-between-reward-trajectories",
+    type=int,
+    default=None,
+    metavar="N",
+    help=(
+        "Minimum number of between-reward trajectories required for one fly/window "
+        "before reporting between-reward trajectory metrics. Default: 5."
     ),
 )
 g.add_argument(

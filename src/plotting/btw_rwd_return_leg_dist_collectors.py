@@ -72,19 +72,20 @@ class ReturnLegDistPerFlyCollector:
             pass
         return None
 
-    def _collect_return_leg_means_by_training_per_fly(
+    def _collect_return_leg_aggregates_by_training_per_fly(
         self,
-    ) -> list[list[tuple[str, float]]]:
+    ) -> list[list[tuple[str, float, int]]]:
         """
         Returns
         -------
-        list[list[tuple[str, float]]]
+        list[list[tuple[str, float, int]]]
             Outer list length n_trainings.
             For each training t:
-              out[t] is a list of (unit_id, mean_dt_tail_mm_per_segment) for flies with >=1 valid segment.
+              out[t] is a list of (unit_id, sum_dt_tail_mm, n_segments) for flies
+              with >=1 valid segment.
         """
         n_trn = self._n_trainings()
-        out: list[list[tuple[str, float]]] = [[] for _ in range(n_trn)]
+        out: list[list[tuple[str, float, int]]] = [[] for _ in range(n_trn)]
 
         # Shared knobs (same names/behavior as the binned disttrav plotter)
         exclude_wall = bool(getattr(self.opts, "com_exclude_wall_contact", False))
@@ -192,10 +193,52 @@ class ReturnLegDistPerFlyCollector:
                     if not tail_vals:
                         continue
 
+                    vals = np.asarray(tail_vals, dtype=float)
                     uid = self._unit_id(va, f=f)
-                    out[t_idx].append(
-                        (uid, float(np.mean(np.asarray(tail_vals, dtype=float))))
-                    )
+                    out[t_idx].append((uid, float(np.sum(vals)), int(vals.size)))
+        return out
+
+    def _collect_return_leg_means_by_training_per_fly(
+        self,
+    ) -> list[list[tuple[str, float]]]:
+        """
+        Return per-training scalar means after applying the selected episode filter.
+        """
+        min_segments = min_between_reward_sync_bucket_trajectories(self.opts)
+        out: list[list[tuple[str, float]]] = []
+        for panel in self._collect_return_leg_aggregates_by_training_per_fly():
+            vals: list[tuple[str, float]] = []
+            for uid, total, count in panel:
+                if count >= min_segments and count > 0:
+                    vals.append((uid, float(total) / float(count)))
+                elif count > 0:
+                    vals.append((uid, np.nan))
+            out.append(vals)
+        return out
+
+    def _collect_return_leg_pooled_means_per_fly(
+        self, training_indices
+    ) -> list[tuple[str, float]]:
+        """
+        Return one scalar per fly after pooling selected trainings at episode level.
+        """
+        min_segments = min_between_reward_sync_bucket_trajectories(self.opts)
+        by_training = self._collect_return_leg_aggregates_by_training_per_fly()
+        sums: dict[str, float] = {}
+        counts: dict[str, int] = {}
+
+        for t_idx in training_indices:
+            if t_idx < 0 or t_idx >= len(by_training):
+                continue
+            for uid, total, count in by_training[t_idx]:
+                sums[uid] = sums.get(uid, 0.0) + float(total)
+                counts[uid] = counts.get(uid, 0) + int(count)
+
+        out: list[tuple[str, float]] = []
+        for uid in sorted(sums):
+            count = counts.get(uid, 0)
+            if count >= min_segments and count > 0:
+                out.append((uid, float(sums[uid]) / float(count)))
         return out
 
     def collect_return_leg_sync_bucket_arrays(

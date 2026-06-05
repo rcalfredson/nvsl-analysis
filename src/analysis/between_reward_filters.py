@@ -1,23 +1,20 @@
 from __future__ import annotations
 
-import numpy as np
+from src.analysis.episode_filters import (
+    DEFAULT_MIN_EPISODES,
+    EPISODE_TYPE_BETWEEN_REWARD_TRAJECTORY,
+    mask_metric_by_min_episode_count,
+    min_episode_count_for_type,
+)
 
 
-DEFAULT_MIN_BETWEEN_REWARD_SYNC_BUCKET_TRAJECTORIES = 5
+DEFAULT_MIN_BETWEEN_REWARD_SYNC_BUCKET_TRAJECTORIES = DEFAULT_MIN_EPISODES
 BTW_RWD_MIN_TRAJECTORIES_OPT = "btw_rwd_sync_bucket_min_trajectories"
 
 
 def min_between_reward_sync_bucket_trajectories(opts) -> int:
     """Return the per-fly, per-sync-bucket between-reward trajectory threshold."""
-    raw = getattr(
-        opts,
-        BTW_RWD_MIN_TRAJECTORIES_OPT,
-        DEFAULT_MIN_BETWEEN_REWARD_SYNC_BUCKET_TRAJECTORIES,
-    )
-    try:
-        return max(0, int(raw or 0))
-    except (TypeError, ValueError):
-        return DEFAULT_MIN_BETWEEN_REWARD_SYNC_BUCKET_TRAJECTORIES
+    return min_episode_count_for_type(opts, EPISODE_TYPE_BETWEEN_REWARD_TRAJECTORY)
 
 
 def mask_metric_by_min_between_reward_trajectories(
@@ -31,9 +28,4 @@ def mask_metric_by_min_between_reward_trajectories(
     The filter is per fly/condition and per sync bucket. Counts are returned separately
     by callers so they remain the raw number of contributing trajectories.
     """
-    arr = np.asarray(values, dtype=float)
-    n = np.asarray(counts, dtype=int)
-    min_n = max(0, int(min_trajectories or 0))
-    if min_n <= 0:
-        return arr
-    return np.where(n >= min_n, arr, np.nan)
+    return mask_metric_by_min_episode_count(values, counts, min_trajectories)

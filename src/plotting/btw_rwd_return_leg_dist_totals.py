@@ -32,3 +32,6 @@ class ReturnLegDistTotalsPlotter(
 
     def _collect_values_by_training_per_fly_scalar(self):
         return self._collect_return_leg_means_by_training_per_fly()
+
+    def _collect_pooled_values_per_fly_scalar(self, training_indices):
+        return self._collect_return_leg_pooled_means_per_fly(training_indices)

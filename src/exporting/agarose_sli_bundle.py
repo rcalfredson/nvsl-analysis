@@ -3,6 +3,10 @@ from __future__ import annotations
 import os
 import numpy as np
 
+from src.analysis.episode_filters import (
+    EPISODE_TYPE_OUTER_ENTRY_REEXIT,
+    min_episode_count_for_type,
+)
 from src.analysis.sli_bundle_utils import validate_agarose_sli_bundle
 from src.exporting.com_sli_bundle import (
     _compute_sli_scalar_and_timeseries_from_rpid,
@@ -438,7 +442,7 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
         "agarose_avoid_exp": avoid_exp,
         "agarose_avoid_ctrl": avoid_ctrl,
         "agarose_dual_circle_min_total": np.array(
-            max(0, int(getattr(opts, "agarose_dual_circle_min_total", 10))),
+            min_episode_count_for_type(opts, EPISODE_TYPE_OUTER_ENTRY_REEXIT),
             dtype=int,
         ),
         "group_label": np.array(group_label, dtype=object),

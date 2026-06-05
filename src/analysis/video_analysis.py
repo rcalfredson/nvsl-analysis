@@ -80,6 +80,11 @@ from src.analysis.contact_event_training_comparison import (
 from src.analysis.between_reward_filters import (
     min_between_reward_sync_bucket_trajectories,
 )
+from src.analysis.episode_filters import (
+    EPISODE_TYPE_INNER_EXIT_REENTRY,
+    EPISODE_TYPE_OUTER_ENTRY_REEXIT,
+    min_episode_count_for_type,
+)
 from src.analysis.behavior_states import analyze_trajectory_behavior_states
 from src.analysis.ellipse_to_boundary_dist import (
     TrjDataContainer,
@@ -1821,6 +1826,9 @@ class VideoAnalysis:
             getattr(self.opts, "turnback_inner_radius_offset_px", 0.0) or 0.0
         )
         debug = bool(getattr(self.opts, "turnback_dual_circle_debug", False))
+        min_total = min_episode_count_for_type(
+            self.opts, EPISODE_TYPE_INNER_EXIT_REENTRY
+        )
 
         sync_ranges = getattr(self, "sync_bucket_ranges", None)
         if sync_ranges is None:
@@ -1888,6 +1896,8 @@ class VideoAnalysis:
                             break
         ratio = np.full_like(turn_counts, np.nan, dtype=float)
         np.divide(turn_counts, total_counts, out=ratio, where=(total_counts > 0))
+        if min_total > 0:
+            ratio[total_counts < min_total] = np.nan
 
         self.reward_turnback_dual_circle_counts = {
             "turnback": turn_counts,
@@ -1907,8 +1917,8 @@ class VideoAnalysis:
                  /
                 (# all such episodes whose entry frame falls in bucket b)
 
-        Ratios are reported as NaN when the denominator is below
-        opts.agarose_dual_circle_min_total.
+        Ratios are reported as NaN when the denominator is below the configured
+        outer entry/re-exit episode threshold.
 
         Results are stored in:
             self.agarose_dual_circle_counts = {
@@ -1924,8 +1934,8 @@ class VideoAnalysis:
         # Allow override but fall back to an option or default
         if delta_mm is None:
             delta_mm = getattr(self.opts, "agarose_outer_delta_mm", 0.5)
-        min_total = max(
-            0, int(getattr(self.opts, "agarose_dual_circle_min_total", 10))
+        min_total = min_episode_count_for_type(
+            self.opts, EPISODE_TYPE_OUTER_ENTRY_REEXIT
         )
 
         sync_ranges = getattr(self, "sync_bucket_ranges", None)
@@ -2025,8 +2035,8 @@ class VideoAnalysis:
         avoid_counts = np.zeros(n_flies, dtype=int)
         total_counts = np.zeros(n_flies, dtype=int)
         ratio = np.full(n_flies, np.nan, dtype=float)
-        min_total = max(
-            0, int(getattr(self.opts, "agarose_dual_circle_min_total", 10))
+        min_total = min_episode_count_for_type(
+            self.opts, EPISODE_TYPE_OUTER_ENTRY_REEXIT
         )
 
         pre_start = np.nan
@@ -2096,8 +2106,8 @@ class VideoAnalysis:
         avoid_counts = np.zeros((n_trn, n_flies), dtype=int)
         total_counts = np.zeros((n_trn, n_flies), dtype=int)
         ratio = np.full((n_trn, n_flies), np.nan, dtype=float)
-        min_total = max(
-            0, int(getattr(self.opts, "agarose_dual_circle_min_total", 10))
+        min_total = min_episode_count_for_type(
+            self.opts, EPISODE_TYPE_OUTER_ENTRY_REEXIT
         )
         pre_start = np.full(n_trn, np.nan, dtype=float)
         pre_stop = np.full(n_trn, np.nan, dtype=float)

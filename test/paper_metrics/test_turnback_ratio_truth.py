@@ -79,7 +79,15 @@ def test_turnback_dual_circle_detects_success_failure_and_excludes_censored_epis
         trn=trn, inner_delta_mm=4.0, outer_delta_mm=8.0, border_width_mm=0.0
     )
 
-    assert episodes == [
+    assert [
+        {
+            "start": ep["start"],
+            "stop": ep["stop"],
+            "turns_back": ep["turns_back"],
+            "end_reason": ep["end_reason"],
+        }
+        for ep in episodes
+    ] == [
         {"start": 1, "stop": 3, "turns_back": True, "end_reason": "reenter_inner"},
         {
             "start": 5,
@@ -127,6 +135,7 @@ def test_turnback_ratio_bins_by_outcome_frame_and_leaves_empty_buckets_nan():
             turnback_border_width_mm=0.0,
             turnback_inner_radius_offset_px=0.0,
             turnback_dual_circle_debug=False,
+            min_turnback_episodes=1,
         ),
         sync_bucket_ranges=[[(0, 5), (5, 10), (10, 15)]],
         trns=[_CircleTraining(start=0, stop=15)],
@@ -144,6 +153,36 @@ def test_turnback_ratio_bins_by_outcome_frame_and_leaves_empty_buckets_nan():
 
     assert exp.calls[0]["inner_delta_mm"] == 4.0
     assert exp.calls[0]["outer_delta_mm"] == 8.0
+
+
+def test_turnback_ratio_min_episode_filter_masks_low_total_buckets():
+    exp = _TrajectoryEpisodes(
+        [
+            {"start": 1, "stop": 4, "turns_back": True},
+            {"start": 1, "stop": 6, "turns_back": False},
+            {"start": 8, "stop": 10, "turns_back": True},
+        ]
+    )
+    va = SimpleNamespace(
+        circle=True,
+        opts=SimpleNamespace(
+            turnback_inner_delta_mm=4.0,
+            turnback_outer_delta_mm=8.0,
+            turnback_border_width_mm=0.0,
+            turnback_inner_radius_offset_px=0.0,
+            turnback_dual_circle_debug=False,
+            min_turnback_episodes=2,
+        ),
+        sync_bucket_ranges=[[(0, 5), (5, 10), (10, 15)]],
+        trns=[_CircleTraining(start=0, stop=15)],
+        trx=[exp],
+    )
+
+    VideoAnalysis.analyzeRewardTurnbackDualCircle(va)
+
+    counts = va.reward_turnback_dual_circle_counts
+    np.testing.assert_array_equal(counts["total"], [[[1, 2, 0]]])
+    np.testing.assert_allclose(counts["ratio"], [[[np.nan, 0.5, np.nan]]])
 
 
 def test_turnback_bundle_extraction_keeps_exp_ctrl_axes_and_pads_missing_buckets():
