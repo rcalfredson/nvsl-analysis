@@ -5,6 +5,7 @@ import numpy as np
 
 from src.analysis.episode_filters import (
     EPISODE_TYPE_OUTER_ENTRY_REEXIT,
+    episode_filter_accounting_payload,
     min_episode_count_for_type,
 )
 from src.analysis.sli_bundle_utils import validate_agarose_sli_bundle
@@ -389,6 +390,10 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
     except Exception:
         video_ids = np.array([f"va_{i}" for i in range(len(vas_ok))], dtype=object)
 
+    min_agarose_episodes = min_episode_count_for_type(
+        opts, EPISODE_TYPE_OUTER_ENTRY_REEXIT
+    )
+
     pre_payload = {}
     if bool(getattr(opts, "agarose_sli_include_pre", False)):
         (
@@ -430,11 +435,27 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
             "agarose_training_pre_label": np.array(
                 "training-specific pre last 10m", dtype=object
             ),
+            **episode_filter_accounting_payload(
+                "episode_filter_agarose_pre_exp",
+                pre_total_exp,
+                min_agarose_episodes,
+            ),
+            **episode_filter_accounting_payload(
+                "episode_filter_agarose_pre_ctrl",
+                pre_total_ctrl,
+                min_agarose_episodes,
+            ),
+            **episode_filter_accounting_payload(
+                "episode_filter_agarose_training_pre_exp",
+                trn_pre_total_exp,
+                min_agarose_episodes,
+            ),
+            **episode_filter_accounting_payload(
+                "episode_filter_agarose_training_pre_ctrl",
+                trn_pre_total_ctrl,
+                min_agarose_episodes,
+            ),
         }
-
-    min_agarose_episodes = min_episode_count_for_type(
-        opts, EPISODE_TYPE_OUTER_ENTRY_REEXIT
-    )
 
     payload = {
         "sli": sli,
@@ -447,6 +468,16 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
         "agarose_avoid_ctrl": avoid_ctrl,
         "min_agarose_episodes": np.array(min_agarose_episodes, dtype=int),
         "agarose_dual_circle_min_total": np.array(min_agarose_episodes, dtype=int),
+        **episode_filter_accounting_payload(
+            "episode_filter_agarose_sync_exp",
+            total_exp,
+            min_agarose_episodes,
+        ),
+        **episode_filter_accounting_payload(
+            "episode_filter_agarose_sync_ctrl",
+            total_ctrl,
+            min_agarose_episodes,
+        ),
         "group_label": np.array(group_label, dtype=object),
         "bucket_len_min": np.array(bucket_len_min, dtype=float),
         "training_names": training_names,

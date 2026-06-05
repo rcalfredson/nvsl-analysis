@@ -87,3 +87,44 @@ def mask_metric_by_min_episode_count(values, counts, min_episodes: int):
     arr = np.asarray(values, dtype=float)
     keep = eligible_by_min_episode_count(counts, min_episodes)
     return np.where(keep, arr, np.nan)
+
+
+def episode_filter_accounting(counts, min_episodes: int, *, observed=None) -> dict:
+    """
+    Summarize how an episode-count threshold partitions metric units.
+
+    A "unit" is whatever shape the caller passes in: a fly for pooled scalar
+    metrics, or a fly/training/sync-bucket cell for time-dependent metrics.
+    """
+    n = np.asarray(counts, dtype=int)
+    if observed is None:
+        observed_mask = np.ones(n.shape, dtype=bool)
+    else:
+        observed_mask = np.asarray(observed, dtype=bool)
+        if observed_mask.shape != n.shape:
+            observed_mask = np.broadcast_to(observed_mask, n.shape)
+
+    min_n = max(0, int(min_episodes or 0))
+    eligible = eligible_by_min_episode_count(n, min_n)
+    considered = n[observed_mask].reshape(-1)
+    included = eligible[observed_mask].reshape(-1)
+    excluded_counts = considered[~included]
+
+    return {
+        "min_episodes": np.array(min_n, dtype=int),
+        "unit_count": np.array(considered.size, dtype=int),
+        "included_count": np.array(int(np.count_nonzero(included)), dtype=int),
+        "excluded_count": np.array(int(np.count_nonzero(~included)), dtype=int),
+        "episode_counts": np.asarray(considered, dtype=int),
+        "excluded_episode_counts": np.asarray(excluded_counts, dtype=int),
+    }
+
+
+def episode_filter_accounting_payload(
+    prefix: str, counts, min_episodes: int, *, observed=None
+) -> dict:
+    """Return NPZ-friendly accounting keys prefixed for a metric/scope/group."""
+    summary = episode_filter_accounting(
+        counts, min_episodes, observed=observed
+    )
+    return {f"{prefix}_{key}": value for key, value in summary.items()}

@@ -371,3 +371,11 @@ def test_turnback_excursion_bin_export_records_min_episode_filter(tmp_path, monk
         np.testing.assert_array_equal(
             bundle["turnback_excursion_bin_total_exp"], [[4, 4]]
         )
+        assert int(bundle["episode_filter_turnback_excursion_bin_exp_min_episodes"]) == 5
+        assert int(bundle["episode_filter_turnback_excursion_bin_exp_unit_count"]) == 2
+        assert int(bundle["episode_filter_turnback_excursion_bin_exp_included_count"]) == 0
+        assert int(bundle["episode_filter_turnback_excursion_bin_exp_excluded_count"]) == 2
+        np.testing.assert_array_equal(
+            bundle["episode_filter_turnback_excursion_bin_exp_excluded_episode_counts"],
+            [4, 4],
+        )

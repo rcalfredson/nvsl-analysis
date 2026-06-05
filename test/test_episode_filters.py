@@ -9,6 +9,8 @@ from src.analysis.episode_filters import (
     EPISODE_TYPE_INNER_EXIT_REENTRY,
     EPISODE_TYPE_OUTER_ENTRY_REEXIT,
     eligible_by_min_episode_count,
+    episode_filter_accounting,
+    episode_filter_accounting_payload,
     mask_metric_by_min_episode_count,
     min_episode_count_for_type,
 )
@@ -86,3 +88,26 @@ def test_mask_metric_by_min_episode_count_keeps_counts_external():
 
     np.testing.assert_allclose(masked, [[np.nan, 2.0, 3.0]])
     np.testing.assert_array_equal(counts, [[4, 5, 6]])
+
+
+def test_episode_filter_accounting_reports_included_and_excluded_units():
+    counts = np.array([[0, 4, 5], [6, 2, 8]])
+    observed = np.array([[False, True, True], [True, False, True]])
+
+    summary = episode_filter_accounting(counts, 5, observed=observed)
+
+    assert int(summary["min_episodes"]) == 5
+    assert int(summary["unit_count"]) == 4
+    assert int(summary["included_count"]) == 3
+    assert int(summary["excluded_count"]) == 1
+    np.testing.assert_array_equal(summary["episode_counts"], [4, 5, 6, 8])
+    np.testing.assert_array_equal(summary["excluded_episode_counts"], [4])
+
+
+def test_episode_filter_accounting_payload_prefixes_summary_keys():
+    payload = episode_filter_accounting_payload("episode_filter_demo", [1, 2], 2)
+
+    assert int(payload["episode_filter_demo_included_count"]) == 1
+    np.testing.assert_array_equal(
+        payload["episode_filter_demo_excluded_episode_counts"], [1]
+    )

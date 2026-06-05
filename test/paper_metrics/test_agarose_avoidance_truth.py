@@ -230,3 +230,13 @@ def test_agarose_bundle_export_records_min_total_metadata(tmp_path, monkeypatch)
     with np.load(out, allow_pickle=True) as bundle:
         assert int(bundle["min_agarose_episodes"]) == 2
         assert int(bundle["agarose_dual_circle_min_total"]) == 2
+        assert int(bundle["episode_filter_agarose_sync_exp_min_episodes"]) == 2
+        assert int(bundle["episode_filter_agarose_sync_exp_unit_count"]) == 2
+        assert int(bundle["episode_filter_agarose_sync_exp_included_count"]) == 1
+        assert int(bundle["episode_filter_agarose_sync_exp_excluded_count"]) == 1
+        np.testing.assert_array_equal(
+            bundle["episode_filter_agarose_sync_exp_episode_counts"], [2, 1]
+        )
+        np.testing.assert_array_equal(
+            bundle["episode_filter_agarose_sync_exp_excluded_episode_counts"], [1]
+        )
