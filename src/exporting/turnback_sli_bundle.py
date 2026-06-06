@@ -8,6 +8,11 @@ from src.analysis.episode_filters import (
     episode_filter_accounting_payload,
     min_episode_count_for_type,
 )
+from src.analysis.pi_threshold_filters import (
+    exp_pi_threshold_eligibility_mask,
+    exp_pi_threshold_filter_payload,
+    mask_by_exp_pi_threshold_filter,
+)
 from src.analysis.sli_bundle_utils import (
     validate_sli_bundle,
     validate_turnback_ratio_bundle,
@@ -207,6 +212,11 @@ def export_turnback_sli_bundle(vas, opts, gls, out_fn):
         sli = np.full((len(vas_ok),), np.nan, dtype=float)
         sli_ts = np.full((len(vas_ok), ratio_exp.shape[1], ratio_exp.shape[2]), np.nan)
 
+    pi_eligible = exp_pi_threshold_eligibility_mask(vas_ok, opts)
+    ratio_exp = mask_by_exp_pi_threshold_filter(ratio_exp, pi_eligible)
+    sli = mask_by_exp_pi_threshold_filter(sli, pi_eligible)
+    sli_ts = mask_by_exp_pi_threshold_filter(sli_ts, pi_eligible)
+
     _dbg(opts, f"[turnback-export] SLI finite={np.isfinite(sli).sum()} / {sli.size}")
     _dbg(opts, f"[turnback-export] sli_ts shape={getattr(sli_ts, 'shape', None)}")
 
@@ -253,6 +263,11 @@ def export_turnback_sli_bundle(vas, opts, gls, out_fn):
             "episode_filter_turnback_sync_ctrl",
             total_ctrl,
             min_turnback_episodes,
+        ),
+        **exp_pi_threshold_filter_payload(
+            vas_ok,
+            opts,
+            prefix="exp_pi_threshold_filter",
         ),
         group_label=np.array(group_label, dtype=object),
         bucket_len_min=np.array(bucket_len_min, dtype=float),

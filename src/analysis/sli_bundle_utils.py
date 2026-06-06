@@ -489,11 +489,26 @@ def validate_turnback_ratio_bundle(bundle: dict, *, path: str | None = None) -> 
     if min_total < 0:
         raise ValueError(f"Bundle {where} has negative min_turnback_episodes")
 
+    exp_pi_eligible = np.asarray(
+        bundle.get(
+            "exp_pi_threshold_filter_eligible",
+            np.ones(expected_shape[0], dtype=bool),
+        ),
+        dtype=bool,
+    ).reshape(-1)
+    if exp_pi_eligible.size != expected_shape[0]:
+        raise ValueError(
+            f"Bundle {where} has exp_pi_threshold_filter_eligible.shape="
+            f"{exp_pi_eligible.shape} but expected {(expected_shape[0],)}"
+        )
+
     for key, ratio, total in (
         ("turnback_ratio_exp", ratio_exp, total_exp),
         ("turnback_ratio_ctrl", ratio_ctrl, total_ctrl),
     ):
         reportable = total >= max(1, min_total)
+        if key.endswith("_exp"):
+            reportable = reportable & exp_pi_eligible[:, None, None]
         if np.any(~np.isfinite(ratio[reportable])):
             raise ValueError(
                 f"Bundle {where} has non-finite {key} where total passes "
