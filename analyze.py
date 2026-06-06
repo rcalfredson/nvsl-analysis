@@ -4726,6 +4726,15 @@ g.add_argument(
     help="Apply PI threshold to pre-training reward window as well as training.",
 )
 g.add_argument(
+    "--require-exp-pi-threshold-bucket",
+    action="store_true",
+    help=(
+        "Withhold experimental-fly metric outputs for videos whose experimental "
+        "fly does not pass the reward PI count threshold (--piTh) in training 2, "
+        "sync bucket 5. Default: disabled."
+    ),
+)
+g.add_argument(
     "--pre-explor-grid-sz",
     type=float,
     default=1.0,
