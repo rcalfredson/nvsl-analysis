@@ -10,6 +10,11 @@ from src.analysis.episode_filters import (
     episode_filter_accounting_payload,
     min_episode_count_for_type,
 )
+from src.analysis.pi_threshold_filters import (
+    exp_pi_threshold_eligibility_mask,
+    exp_pi_threshold_filter_payload,
+    mask_by_exp_pi_threshold_filter,
+)
 from src.analysis.sli_bundle_utils import (
     validate_sli_bundle,
     validate_turnback_excursion_bin_bundle,
@@ -887,6 +892,11 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
             (n_videos, len(getattr(vas_ok[0], "trns", []) or []), 0), np.nan
         )
 
+    pi_eligible = exp_pi_threshold_eligibility_mask(vas_ok, opts)
+    ratio_exp = mask_by_exp_pi_threshold_filter(ratio_exp, pi_eligible)
+    sli = mask_by_exp_pi_threshold_filter(sli, pi_eligible)
+    sli_ts = mask_by_exp_pi_threshold_filter(sli_ts, pi_eligible)
+
     group_label = _safe_group_label(opts, gls)
     try:
         training_names = np.array([t.name() for t in vas_ok[0].trns], dtype=object)
@@ -953,6 +963,11 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
             "episode_filter_turnback_excursion_bin_ctrl",
             total_ctrl,
             min_episodes,
+        ),
+        **exp_pi_threshold_filter_payload(
+            vas_ok,
+            opts,
+            prefix="exp_pi_threshold_filter",
         ),
         turnback_excursion_bin_edges_mm=np.asarray(bin_edges_mm, dtype=float),
         turnback_excursion_bin_radii_mm=np.asarray(

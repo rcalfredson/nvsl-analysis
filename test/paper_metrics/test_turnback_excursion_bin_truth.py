@@ -384,3 +384,63 @@ def test_turnback_excursion_bin_export_records_min_episode_filter(tmp_path, monk
     loaded = load_sli_bundle(str(out))
     assert int(loaded["min_turnback_episodes"]) == 5
     assert np.isnan(loaded["turnback_excursion_bin_ratio_exp"]).all()
+
+
+def test_turnback_pair_export_applies_exp_pi_threshold_filter(tmp_path, monkeypatch):
+    exp = _Trajectory([_episode(10, 0.0, True), _episode(20, 0.0, False)])
+    va = _va(trx=[exp], noyc=True, sync_bucket_ranges=[[(0, 50)]])
+    va.reward_exclusion_mask = [[[True]]]
+    opts = SimpleNamespace(
+        export_group_label="group",
+        turnback_excursion_bin_edges_mm=None,
+        turnback_excursion_bin_radii_mm=None,
+        turnback_excursion_bin_radius_pairs_mm="2:4",
+        turnback_excursion_bin_pairs_mm=None,
+        turnback_excursion_bin_trainings="1",
+        turnback_excursion_bin_skip_first_sync_buckets=0,
+        turnback_excursion_bin_keep_first_sync_buckets=0,
+        turnback_excursion_bin_last_sync_buckets=0,
+        turnback_inner_delta_mm=2.0,
+        turnback_inner_radius_mm=None,
+        turnback_border_width_mm=0.1,
+        turnback_inner_radius_offset_px=0.0,
+        turnback_excursion_bin_debug=False,
+        best_worst_trn=1,
+        sli_use_training_mean=True,
+        sli_select_skip_first_sync_buckets=0,
+        sli_select_keep_first_sync_buckets=0,
+        min_turnback_episodes=1,
+        require_exp_pi_threshold_bucket=True,
+        exp_pi_threshold_filter_training=1,
+        exp_pi_threshold_filter_sync_bucket=1,
+        piTh=10,
+        turnback_excursion_bin_debug_episodes_csv=None,
+    )
+    monkeypatch.setattr(
+        "src.exporting.turnback_excursion_bin_sli_bundle._compute_sli_scalar_and_timeseries_from_rpid",
+        lambda _vas, _opts: (
+            np.asarray([0.1], dtype=float),
+            np.asarray([[[0.1]]], dtype=float),
+        ),
+    )
+    out = tmp_path / "turnback_pairs.npz"
+
+    export_turnback_excursion_bin_sli_bundle([va], opts, gls=None, out_fn=str(out))
+
+    with np.load(out, allow_pickle=True) as bundle:
+        assert bool(bundle["exp_pi_threshold_filter_enabled"])
+        np.testing.assert_array_equal(
+            bundle["exp_pi_threshold_filter_eligible"], [False]
+        )
+        np.testing.assert_array_equal(
+            bundle["exp_pi_threshold_filter_reason"], ["pi_threshold_failed"]
+        )
+        assert np.isnan(bundle["sli"]).all()
+        assert np.isnan(bundle["sli_ts"]).all()
+        assert np.isnan(bundle["turnback_excursion_bin_ratio_exp"]).all()
+        np.testing.assert_array_equal(bundle["turnback_excursion_bin_total_exp"], [[2]])
+        np.testing.assert_allclose(bundle["turnback_excursion_bin_turn_exp"], [[1.0]])
+
+    loaded = load_sli_bundle(str(out))
+    assert np.isnan(loaded["turnback_excursion_bin_ratio_exp"]).all()
+    np.testing.assert_array_equal(loaded["exp_pi_threshold_filter_eligible"], [False])
