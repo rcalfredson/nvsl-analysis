@@ -6,6 +6,11 @@ from src.analysis.between_reward_filters import (
     mask_metric_by_min_between_reward_trajectories,
     min_between_reward_sync_bucket_trajectories,
 )
+from src.analysis.pi_threshold_filters import (
+    exp_pi_threshold_eligibility_mask,
+    exp_pi_threshold_filter_payload,
+    mask_by_exp_pi_threshold_filter,
+)
 from src.analysis.sli_tools import resolve_sync_bucket_selector
 
 
@@ -190,6 +195,11 @@ def build_com_sli_bundle(vas, opts, gls) -> dict:
             (len(vas_ok), commag_exp.shape[1], commag_exp.shape[2]), np.nan, dtype=float
         )
 
+    pi_eligible = exp_pi_threshold_eligibility_mask(vas_ok, opts)
+    commag_exp = mask_by_exp_pi_threshold_filter(commag_exp, pi_eligible)
+    sli = mask_by_exp_pi_threshold_filter(sli, pi_eligible)
+    sli_ts = mask_by_exp_pi_threshold_filter(sli_ts, pi_eligible)
+
     if getattr(opts, "com_sli_debug", False):
         print(
             f"[export][com-sli-debug] group={group_label} "
@@ -267,6 +277,11 @@ def build_com_sli_bundle(vas, opts, gls) -> dict:
         ),
         btw_rwd_sync_bucket_min_trajectories=np.array(
             min_between_reward_sync_bucket_trajectories(opts), dtype=int
+        ),
+        **exp_pi_threshold_filter_payload(
+            vas_ok,
+            opts,
+            prefix="exp_pi_threshold_filter",
         ),
     )
 

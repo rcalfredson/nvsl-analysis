@@ -1,9 +1,10 @@
+import sys
 from types import SimpleNamespace
 
 import numpy as np
 
 from src.analysis.video_analysis import VideoAnalysis
-from src.exporting.com_sli_bundle import _extract_commag_arrays
+from src.exporting.com_sli_bundle import _extract_commag_arrays, build_com_sli_bundle
 
 
 class _Trajectory:
@@ -199,3 +200,51 @@ def test_extract_commag_arrays_prefers_episode_threshold_option():
     np.testing.assert_allclose(ctrl, [[[np.nan, 4.0]]])
     np.testing.assert_array_equal(n_exp, [[[2, 1]]])
     np.testing.assert_array_equal(n_ctrl, [[[1, 3]]])
+
+
+def test_com_bundle_applies_exp_pi_threshold_filter(monkeypatch):
+    monkeypatch.setitem(
+        sys.modules,
+        "analyze",
+        SimpleNamespace(bucketLenForType=lambda _metric: (10.0, None)),
+    )
+    monkeypatch.setattr(
+        "src.exporting.com_sli_bundle._compute_sli_scalar_and_timeseries_from_rpid",
+        lambda _vas, _opts: (
+            np.asarray([0.1], dtype=float),
+            np.asarray([[[0.1, 0.2]]], dtype=float),
+        ),
+    )
+    va = SimpleNamespace(
+        _skipped=False,
+        syncCOMMag=[{"exp": [1.0, 2.0], "ctrl": [3.0, 4.0]}],
+        syncCOMMagN=[{"exp": [2, 2], "ctrl": [2, 2]}],
+        trns=[_Training()],
+        fn="fake-video",
+        reward_exclusion_mask=[[[True]]],
+    )
+    opts = SimpleNamespace(
+        export_group_label="group",
+        best_worst_trn=1,
+        sli_use_training_mean=True,
+        sli_select_skip_first_sync_buckets=0,
+        sli_select_keep_first_sync_buckets=0,
+        min_between_reward_trajectories=1,
+        require_exp_pi_threshold_bucket=True,
+        exp_pi_threshold_filter_training=1,
+        exp_pi_threshold_filter_sync_bucket=1,
+        piTh=10,
+        com_sli_debug=False,
+    )
+
+    bundle = build_com_sli_bundle([va], opts, gls=None)
+
+    assert np.isnan(bundle["sli"]).all()
+    assert np.isnan(bundle["sli_ts"]).all()
+    assert np.isnan(bundle["commag_exp"]).all()
+    np.testing.assert_allclose(bundle["commag_ctrl"], [[[3.0, 4.0]]])
+    np.testing.assert_array_equal(bundle["commagN_exp"], [[[2, 2]]])
+    np.testing.assert_array_equal(bundle["exp_pi_threshold_filter_eligible"], [False])
+    np.testing.assert_array_equal(
+        bundle["exp_pi_threshold_filter_reason"], ["pi_threshold_failed"]
+    )
