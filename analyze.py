@@ -4006,12 +4006,15 @@ rrd.add_argument(
     help="Include failure episodes (exit_return/trn_end/dropped_wall) in plotted segments.",
 )
 
-rpseg = p.add_argument_group("Return-probability segment plots")
+rpseg = p.add_argument_group("Fraction-within-radius segment plots")
 
 rpseg.add_argument(
     "--return-prob-seg-plots",
     action="store_true",
-    help="Write debug plots of return-probability trajectory segments for a chosen training/bucket.",
+    help=(
+        "Write debug plots of fraction-within-radius trajectory segments for a "
+        "chosen training/bucket."
+    ),
 )
 rpseg.add_argument(
     "--return-prob-seg-trn",
@@ -5253,8 +5256,8 @@ g.add_argument(
     type=str,
     default=None,
     help=(
-        "Write an .npz bundle with calculated-reward return probabilities as a "
-        "function of outer-circle radius for multi-group overlays/stats."
+        "Write an .npz bundle with the fraction of trajectories within radius "
+        "as a function of outer-circle radius for multi-group overlays/stats."
     ),
 )
 g.add_argument(
@@ -5262,8 +5265,9 @@ g.add_argument(
     type=str,
     default=None,
     help=(
-        "Write an .npz bundle with reward-exit return probability as a function "
-        "of realized max-excursion bins for multi-group overlays/stats."
+        "Write an .npz bundle with the fraction of reward-exit trajectories "
+        "within radius as a function of realized max-excursion bins for "
+        "multi-group overlays/stats."
     ),
 )
 g.add_argument(
@@ -5574,13 +5578,19 @@ g.add_argument(
     "--return-prob-reward-radius-mm",
     type=float,
     default=None,
-    help="Reward-circle classification radius from reward-circle center (mm) for the return-prob metric.",
+    help=(
+        "Reward-circle classification radius from reward-circle center (mm) for "
+        "the fraction-within-radius metric."
+    ),
 )
 g.add_argument(
     "--return-prob-reward-delta-mm",
     type=float,
     default=None,
-    help="Deprecated: padding (mm) added to reward-circle radius for the return-prob metric.",
+    help=(
+        "Deprecated: padding (mm) added to reward-circle radius for the "
+        "fraction-within-radius metric."
+    ),
 )
 g.add_argument(
     "--return-prob-excursion-bin-reward-radius-mm",
@@ -5588,7 +5598,7 @@ g.add_argument(
     default=None,
     help=(
         "Reward-circle classification radius from reward-circle center (mm) for "
-        "the return-prob-excursion-bin metric."
+        "the excursion-bin fraction-within-radius metric."
     ),
 )
 g.add_argument(
@@ -5596,23 +5606,26 @@ g.add_argument(
     type=float,
     default=None,
     help=(
-        "Deprecated: padding (mm) added to reward-circle radius for the return-prob-"
-        "excursion-bin metric."
+        "Deprecated: padding (mm) added to reward-circle radius for the "
+        "excursion-bin fraction-within-radius metric."
     ),
 )
 g.add_argument(
     "--return-prob-border-width-mm",
     type=float,
     default=0.1,
-    help="Border thickness (mm) used for in-circle classification in the return-prob metric.",
+    help=(
+        "Border thickness (mm) used for in-circle classification in the "
+        "fraction-within-radius metric."
+    ),
 )
 g.add_argument(
     "--return-prob-excursion-bin-border-width-mm",
     type=float,
     default=0.1,
     help=(
-        "Border thickness (mm) used for in-circle classification in the return-"
-        "prob-excursion-bin metric."
+        "Border thickness (mm) used for in-circle classification in the "
+        "excursion-bin fraction-within-radius metric."
     ),
 )
 g.add_argument(

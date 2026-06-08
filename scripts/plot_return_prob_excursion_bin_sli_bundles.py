@@ -12,7 +12,10 @@ def main():
     p.add_argument(
         "--bundles",
         required=True,
-        help="Comma-separated list of return-prob-excursion-bin .npz bundles.",
+        help=(
+            "Comma-separated list of fraction-within-radius excursion-bin .npz "
+            "bundles."
+        ),
     )
     p.add_argument("--out", required=True, help="Output image filename (png/pdf).")
     p.add_argument("--labels", default=None, help="Optional comma-separated labels.")

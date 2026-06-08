@@ -590,7 +590,7 @@ def export_return_prob_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         ),
         return_prob_excursion_bin_window_summary=window_strings,
         return_prob_excursion_bin_description=np.asarray(
-            "Exact bin-averaged threshold return probability over radial distance bins from reward center"
+            "Exact bin-averaged fraction of trajectories within radius over radial distance bins from reward center"
         ),
         bucket_len_min=np.array(np.nan, dtype=float),
     )

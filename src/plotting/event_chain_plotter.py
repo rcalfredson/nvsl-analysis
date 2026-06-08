@@ -5912,7 +5912,7 @@ class EventChainPlotter:
         pad_frames: int = 5,
     ) -> None:
         """
-        Plot one or more return-probability trajectory segments for this fly,
+        Plot one or more fraction-within-radius trajectory segments for this fly,
         sampled within the specified training and sync bucket.
 
         Episodes are sourced from Trajectory.reward_return_probability_episodes_for_training().
@@ -5976,7 +5976,7 @@ class EventChainPlotter:
         )
         if not episodes:
             print(
-                f"[plot_return_prob_chain] No return-probability episodes for fly {self.trj.f}, "
+                f"[plot_return_prob_chain] No fraction-within-radius episodes for fly {self.trj.f}, "
                 f"training {trn_index + 1}."
             )
             return
@@ -5991,7 +5991,7 @@ class EventChainPlotter:
         if not eps_in_bucket:
             mode = "incl failures" if include_failures else "success-only"
             print(
-                f"[plot_return_prob_chain] No return-probability episodes in bucket "
+                f"[plot_return_prob_chain] No fraction-within-radius episodes in bucket "
                 f"{bucket_index + 1} ({mode}) for fly {self.trj.f}, trn {trn_index + 1}."
             )
             return
@@ -6014,7 +6014,7 @@ class EventChainPlotter:
         candidates = [ep for ep in eps_in_bucket if _ep_key(ep) not in used]
         if not candidates:
             print(
-                f"[plot_return_prob_chain] All return-probability episodes already used "
+                f"[plot_return_prob_chain] All fraction-within-radius episodes already used "
                 f"for fly {self.trj.f}, trn {trn_index + 1}, bucket {bucket_index + 1}."
             )
             return

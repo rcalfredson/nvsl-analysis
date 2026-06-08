@@ -240,15 +240,15 @@ def _bundle_to_exported(
 
     if metric == "ratio":
         ylabel = (
-            "Return probability (exp - yok)"
+            "Fraction of trajectories within radius (exp - yok)"
             if mode == "exp_minus_ctrl"
             else (
-                "Return probability (yoked)"
+                "Fraction of trajectories within radius (yoked)"
                 if mode == "ctrl"
-                else "Return probability"
+                else "Fraction of trajectories within radius"
             )
         )
-        base_title = "Return probability vs outer-circle radius"
+        base_title = "Fraction of trajectories within radius vs outer-circle radius"
     elif metric == "success":
         ylabel = (
             "Successful returns per fly (exp - yok)"
@@ -809,7 +809,9 @@ def plot_return_prob_outer_radius_sli_bundles(
     if not exported:
         raise ValueError("No non-empty plotted groups after SLI filtering.")
 
-    ylabel = exported[0].meta.get("y_label", "Return probability")
+    ylabel = exported[0].meta.get(
+        "y_label", "Fraction of trajectories within radius"
+    )
     fig = plot_overlays(
         exported,
         title=title,

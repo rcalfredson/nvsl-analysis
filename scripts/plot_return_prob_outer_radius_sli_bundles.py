@@ -15,7 +15,10 @@ def main():
     p.add_argument(
         "--bundles",
         required=True,
-        help="Comma-separated list of return-prob-outer-radius .npz bundles.",
+        help=(
+            "Comma-separated list of fraction-within-radius outer-radius .npz "
+            "bundles."
+        ),
     )
     p.add_argument(
         "--labels",
@@ -27,7 +30,7 @@ def main():
         "--mode",
         default="exp",
         choices=["exp", "ctrl", "exp_minus_ctrl"],
-        help="Which return-probability curve to plot.",
+        help="Which fraction-within-radius curve to plot.",
     )
     p.add_argument(
         "--metric",
