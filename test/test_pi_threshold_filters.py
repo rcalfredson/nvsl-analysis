@@ -17,6 +17,20 @@ def _va_with_mask(mask):
     return SimpleNamespace(reward_exclusion_mask=mask)
 
 
+def _va_with_counts(exp_counts, ctrl_counts, *, n_flies=1):
+    prefix_rows = [tuple() for _ in range(n_flies)]
+    return SimpleNamespace(
+        flies=list(range(n_flies)),
+        numRewardsTot=[
+            [[]],
+            [
+                prefix_rows + [tuple(exp_counts)],
+                prefix_rows + [tuple(ctrl_counts)],
+            ],
+        ],
+    )
+
+
 def _default_mask(*, excluded=False):
     mask = [
         [[False] * DEFAULT_EXP_PI_FILTER_SYNC_BUCKET],
@@ -55,6 +69,52 @@ def test_exp_pi_threshold_filter_uses_target_experimental_bucket():
     assert passing.reason == "passes"
     assert not failing.eligible
     assert failing.reason == "pi_threshold_failed"
+
+
+def test_exp_pi_threshold_filter_uses_target_count_sum_when_available():
+    opts = SimpleNamespace(require_exp_pi_threshold_bucket=True, piTh=10)
+
+    passing = exp_pi_threshold_filter_result(
+        _va_with_counts([0, 0, 0, 0, 6], [0, 0, 0, 0, 4]),
+        opts,
+    )
+    failing = exp_pi_threshold_filter_result(
+        _va_with_counts([0, 0, 0, 0, 5], [0, 0, 0, 0, 4]),
+        opts,
+    )
+
+    assert passing.eligible
+    assert passing.reason == "passes"
+    assert passing.target_count_sum == 10
+    assert not failing.eligible
+    assert failing.reason == "pi_threshold_failed"
+    assert failing.target_count_sum == 9
+
+
+def test_exp_pi_threshold_filter_reports_nan_target_bucket_separately():
+    opts = SimpleNamespace(require_exp_pi_threshold_bucket=True, piTh=10)
+
+    result = exp_pi_threshold_filter_result(
+        _va_with_counts([0, 0, 0, 0, np.nan], [0, 0, 0, 0, np.nan]),
+        opts,
+    )
+
+    assert not result.eligible
+    assert result.reason == "target_sync_bucket_nan"
+    assert np.isnan(result.target_count_sum)
+
+
+def test_exp_pi_threshold_filter_reports_short_target_training_separately():
+    opts = SimpleNamespace(require_exp_pi_threshold_bucket=True, piTh=10)
+
+    result = exp_pi_threshold_filter_result(
+        _va_with_counts([0], [2]),
+        opts,
+    )
+
+    assert not result.eligible
+    assert result.reason == "target_sync_bucket_missing"
+    assert np.isnan(result.target_count_sum)
 
 
 def test_exp_pi_threshold_filter_can_use_custom_training_and_bucket():
@@ -109,6 +169,7 @@ def test_exp_pi_threshold_eligibility_mask_and_payload_report_per_video_results(
         payload["exp_pi_threshold_filter_reason"],
         ["passes", "pi_threshold_failed"],
     )
+    assert "exp_pi_threshold_filter_target_count_sum" in payload
 
 
 def test_mask_by_exp_pi_threshold_filter_masks_first_dimension_rows():
