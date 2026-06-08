@@ -49,6 +49,15 @@ def test_validate_return_prob_excursion_bin_bundle_accepts_valid_shapes_and_meta
     assert normalized["return_prob_excursion_bin_ratio_exp"].shape == (1, 2)
 
 
+def test_validate_return_prob_excursion_bin_bundle_allows_pi_filtered_exp_ratio():
+    validate_return_prob_excursion_bin_bundle(
+        _bundle(
+            return_prob_excursion_bin_ratio_exp=np.asarray([[np.nan, np.nan]]),
+            exp_pi_threshold_filter_eligible=np.asarray([False]),
+        )
+    )
+
+
 def test_validate_return_prob_excursion_bin_bundle_rejects_missing_metric_key():
     bundle = _bundle()
     del bundle["return_prob_excursion_bin_ratio_exp"]

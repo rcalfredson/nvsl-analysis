@@ -7,6 +7,11 @@ import numpy as np
 from src.analysis.between_reward_filters import (
     min_between_reward_sync_bucket_trajectories,
 )
+from src.analysis.pi_threshold_filters import (
+    exp_pi_threshold_eligibility_mask,
+    exp_pi_threshold_filter_payload,
+    mask_by_exp_pi_threshold_filter,
+)
 from src.analysis.sli_bundle_utils import (
     validate_return_prob_excursion_bin_bundle,
     validate_sli_bundle,
@@ -442,7 +447,6 @@ def export_return_prob_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         skip_first=skip_first,
         keep_first=keep_first,
         last_sync_buckets=last_sync_buckets,
-        min_trajectories=min_trajectories,
         debug=debug,
     )
     (
@@ -479,6 +483,11 @@ def export_return_prob_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         )
         sli = np.full((n_videos,), np.nan, dtype=float)
         sli_ts = np.full((n_videos, len(getattr(vas_ok[0], "trns", []) or []), 0), np.nan)
+
+    pi_eligible = exp_pi_threshold_eligibility_mask(vas_ok, opts)
+    ratio_exp = mask_by_exp_pi_threshold_filter(ratio_exp, pi_eligible)
+    sli = mask_by_exp_pi_threshold_filter(sli, pi_eligible)
+    sli_ts = mask_by_exp_pi_threshold_filter(sli_ts, pi_eligible)
 
     group_label = _safe_group_label(opts, gls)
     try:
@@ -542,6 +551,11 @@ def export_return_prob_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         return_prob_excursion_bin_total_ctrl=np.asarray(total_ctrl, dtype=int),
         btw_rwd_sync_bucket_min_trajectories=np.array(
             min_trajectories, dtype=int
+        ),
+        **exp_pi_threshold_filter_payload(
+            vas_ok,
+            opts,
+            prefix="exp_pi_threshold_filter",
         ),
         return_prob_excursion_bin_edges_mm=np.asarray(bin_edges_mm, dtype=float),
         return_prob_excursion_bin_radii_mm=np.asarray(

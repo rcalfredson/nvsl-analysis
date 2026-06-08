@@ -833,6 +833,19 @@ def validate_return_prob_excursion_bin_bundle(
         )
     sufficient_count = max(1, min_segments)
 
+    exp_pi_eligible = np.asarray(
+        bundle.get(
+            "exp_pi_threshold_filter_eligible",
+            np.ones(n_videos, dtype=bool),
+        ),
+        dtype=bool,
+    ).reshape(-1)
+    if exp_pi_eligible.size != n_videos:
+        raise ValueError(
+            f"Bundle {where} has exp_pi_threshold_filter_eligible.shape="
+            f"{exp_pi_eligible.shape} but expected {(n_videos,)}"
+        )
+
     for key, ratio in (
         ("return_prob_excursion_bin_ratio_exp", ratio_exp),
         ("return_prob_excursion_bin_ratio_ctrl", ratio_ctrl),
@@ -869,6 +882,8 @@ def validate_return_prob_excursion_bin_bundle(
     ):
         expected = np.full_like(values, np.nan, dtype=float)
         reportable = total >= sufficient_count
+        if key.endswith("_exp"):
+            reportable = reportable & exp_pi_eligible[:, None]
         np.divide(values, total, out=expected, where=reportable)
         both_finite = np.isfinite(ratio) & np.isfinite(expected)
         if np.any(~np.isfinite(ratio[reportable])):

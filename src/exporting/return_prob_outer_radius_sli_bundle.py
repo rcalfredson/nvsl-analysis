@@ -7,6 +7,11 @@ import numpy as np
 from src.analysis.between_reward_filters import (
     min_between_reward_sync_bucket_trajectories,
 )
+from src.analysis.pi_threshold_filters import (
+    exp_pi_threshold_eligibility_mask,
+    exp_pi_threshold_filter_payload,
+    mask_by_exp_pi_threshold_filter,
+)
 from src.exporting.com_sli_bundle import (
     _compute_sli_scalar_and_timeseries_from_rpid,
     _safe_group_label,
@@ -337,6 +342,11 @@ def export_return_prob_outer_radius_sli_bundle(vas, opts, gls, out_fn):
         sli = np.full((len(vas_ok),), np.nan, dtype=float)
         sli_ts = np.full((len(vas_ok), 0, 0), np.nan, dtype=float)
 
+    pi_eligible = exp_pi_threshold_eligibility_mask(vas_ok, opts)
+    ratio_exp = mask_by_exp_pi_threshold_filter(ratio_exp, pi_eligible)
+    sli = mask_by_exp_pi_threshold_filter(sli, pi_eligible)
+    sli_ts = mask_by_exp_pi_threshold_filter(sli_ts, pi_eligible)
+
     try:
         training_names = np.array(
             [vas_ok[0].trns[t_idx].name() for t_idx in selected_trainings],
@@ -389,6 +399,11 @@ def export_return_prob_outer_radius_sli_bundle(vas, opts, gls, out_fn):
         return_prob_outer_radius_total_ctrl=np.asarray(total_ctrl, dtype=int),
         btw_rwd_sync_bucket_min_trajectories=np.array(
             min_trajectories, dtype=int
+        ),
+        **exp_pi_threshold_filter_payload(
+            vas_ok,
+            opts,
+            prefix="exp_pi_threshold_filter",
         ),
         return_prob_outer_radius_outer_radii_mm=np.asarray(
             outer_radii_mm, dtype=float
