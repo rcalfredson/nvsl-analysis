@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from src.analysis.sli_bundle_utils import load_sli_bundle
 from src.analysis.sli_tools import select_fractional_groups
 from src.plotting.overlay_training_metric_scalar_bars import (
     ExportedTrainingScalarBars,
@@ -134,28 +135,44 @@ def _subset_plot_label(
 
 def _metric_arrays(bundle, metric: str) -> tuple[np.ndarray, np.ndarray]:
     if metric == "ratio":
-        exp = np.asarray(bundle["return_prob_outer_radius_ratio_exp"], dtype=float)
-        ctrl = np.asarray(bundle["return_prob_outer_radius_ratio_ctrl"], dtype=float)
+        exp = np.asarray(
+            bundle["fraction_within_radius_outer_radius_ratio_exp"], dtype=float
+        )
+        ctrl = np.asarray(
+            bundle["fraction_within_radius_outer_radius_ratio_ctrl"], dtype=float
+        )
         return exp, ctrl
 
     if metric == "success":
-        exp = np.asarray(bundle["return_prob_outer_radius_return_exp"], dtype=float)
-        ctrl = np.asarray(bundle["return_prob_outer_radius_return_ctrl"], dtype=float)
+        exp = np.asarray(
+            bundle["fraction_within_radius_outer_radius_return_exp"], dtype=float
+        )
+        ctrl = np.asarray(
+            bundle["fraction_within_radius_outer_radius_return_ctrl"], dtype=float
+        )
         return exp, ctrl
 
     if metric == "total":
-        exp = np.asarray(bundle["return_prob_outer_radius_total_exp"], dtype=float)
-        ctrl = np.asarray(bundle["return_prob_outer_radius_total_ctrl"], dtype=float)
+        exp = np.asarray(
+            bundle["fraction_within_radius_outer_radius_total_exp"], dtype=float
+        )
+        ctrl = np.asarray(
+            bundle["fraction_within_radius_outer_radius_total_ctrl"], dtype=float
+        )
         return exp, ctrl
 
     if metric == "failure":
-        exp_total = np.asarray(bundle["return_prob_outer_radius_total_exp"], dtype=float)
-        ctrl_total = np.asarray(
-            bundle["return_prob_outer_radius_total_ctrl"], dtype=float
+        exp_total = np.asarray(
+            bundle["fraction_within_radius_outer_radius_total_exp"], dtype=float
         )
-        exp_succ = np.asarray(bundle["return_prob_outer_radius_return_exp"], dtype=float)
+        ctrl_total = np.asarray(
+            bundle["fraction_within_radius_outer_radius_total_ctrl"], dtype=float
+        )
+        exp_succ = np.asarray(
+            bundle["fraction_within_radius_outer_radius_return_exp"], dtype=float
+        )
         ctrl_succ = np.asarray(
-            bundle["return_prob_outer_radius_return_ctrl"], dtype=float
+            bundle["fraction_within_radius_outer_radius_return_ctrl"], dtype=float
         )
         return exp_total - exp_succ, ctrl_total - ctrl_succ
 
@@ -175,9 +192,9 @@ def _mode_values(bundle, mode: str, metric: str) -> np.ndarray:
 
 def _panel_labels(bundle) -> list[str]:
     key = (
-        "return_prob_outer_radius_outer_radii_mm"
-        if "return_prob_outer_radius_outer_radii_mm" in bundle
-        else "return_prob_outer_radius_outer_deltas_mm"
+        "fraction_within_radius_outer_radius_outer_radii_mm"
+        if "fraction_within_radius_outer_radius_outer_radii_mm" in bundle
+        else "fraction_within_radius_outer_radius_outer_deltas_mm"
     )
     radii = np.asarray(bundle[key], dtype=float).reshape(-1)
     prefix = "" if key.endswith("_radii_mm") else "+"
@@ -363,7 +380,7 @@ def export_return_prob_outer_radius_csv(
             "CSV export does not support mode='exp_minus_ctrl'; use exp or ctrl."
         )
 
-    loaded = [np.load(path, allow_pickle=True) for path in bundles]
+    loaded = [load_sli_bundle(path) for path in bundles]
     if sli_top_fraction is None:
         sli_top_fraction = sli_fraction
     if sli_bottom_fraction is None:
@@ -374,10 +391,10 @@ def export_return_prob_outer_radius_csv(
         bundle_label = (
             labels[i]
             if labels is not None and i < len(labels)
-            else str(bundle["group_label"].reshape(()).item())
+            else str(bundle["group_label"])
         )
         deltas = np.asarray(
-            bundle["return_prob_outer_radius_outer_deltas_mm"], dtype=float
+            bundle["fraction_within_radius_outer_radius_outer_deltas_mm"], dtype=float
         ).reshape(-1)
         matches = np.where(np.isclose(deltas, float(outer_delta_mm), atol=1e-9))[0]
         if matches.size == 0:
@@ -387,17 +404,23 @@ def export_return_prob_outer_radius_csv(
             )
         p_idx = int(matches[0])
 
-        succ_exp = np.asarray(bundle["return_prob_outer_radius_return_exp"], dtype=float)
+        succ_exp = np.asarray(
+            bundle["fraction_within_radius_outer_radius_return_exp"], dtype=float
+        )
         succ_ctrl = np.asarray(
-            bundle["return_prob_outer_radius_return_ctrl"], dtype=float
+            bundle["fraction_within_radius_outer_radius_return_ctrl"], dtype=float
         )
-        total_exp = np.asarray(bundle["return_prob_outer_radius_total_exp"], dtype=float)
+        total_exp = np.asarray(
+            bundle["fraction_within_radius_outer_radius_total_exp"], dtype=float
+        )
         total_ctrl = np.asarray(
-            bundle["return_prob_outer_radius_total_ctrl"], dtype=float
+            bundle["fraction_within_radius_outer_radius_total_ctrl"], dtype=float
         )
-        ratio_exp = np.asarray(bundle["return_prob_outer_radius_ratio_exp"], dtype=float)
+        ratio_exp = np.asarray(
+            bundle["fraction_within_radius_outer_radius_ratio_exp"], dtype=float
+        )
         ratio_ctrl = np.asarray(
-            bundle["return_prob_outer_radius_ratio_ctrl"], dtype=float
+            bundle["fraction_within_radius_outer_radius_ratio_ctrl"], dtype=float
         )
 
         if mode == "exp":
@@ -467,10 +490,18 @@ def _stacked_group_summary(
             "metric='stacked' does not support mode='exp_minus_ctrl'; use exp or ctrl."
         )
 
-    succ_exp = np.asarray(bundle["return_prob_outer_radius_return_exp"], dtype=float)
-    succ_ctrl = np.asarray(bundle["return_prob_outer_radius_return_ctrl"], dtype=float)
-    total_exp = np.asarray(bundle["return_prob_outer_radius_total_exp"], dtype=float)
-    total_ctrl = np.asarray(bundle["return_prob_outer_radius_total_ctrl"], dtype=float)
+    succ_exp = np.asarray(
+        bundle["fraction_within_radius_outer_radius_return_exp"], dtype=float
+    )
+    succ_ctrl = np.asarray(
+        bundle["fraction_within_radius_outer_radius_return_ctrl"], dtype=float
+    )
+    total_exp = np.asarray(
+        bundle["fraction_within_radius_outer_radius_total_exp"], dtype=float
+    )
+    total_ctrl = np.asarray(
+        bundle["fraction_within_radius_outer_radius_total_ctrl"], dtype=float
+    )
 
     if mode == "exp":
         succ = succ_exp

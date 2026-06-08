@@ -26,11 +26,22 @@ BUNDLE_ARRAY_PREFIXES = (
     "lgturn_",
     "reward_lgturn_",
     "reward_lv_",
+    "fraction_within_radius_",
     "return_prob_",
     "sli_",
 )
 
-RETURN_PROB_EXCURSION_BIN_KEYS = (
+FRACTION_WITHIN_RADIUS_EXCURSION_BIN_KEYS = (
+    "fraction_within_radius_excursion_bin_ratio_exp",
+    "fraction_within_radius_excursion_bin_ratio_ctrl",
+    "fraction_within_radius_excursion_bin_return_exp",
+    "fraction_within_radius_excursion_bin_return_ctrl",
+    "fraction_within_radius_excursion_bin_total_exp",
+    "fraction_within_radius_excursion_bin_total_ctrl",
+    "fraction_within_radius_excursion_bin_edges_mm",
+)
+
+FRACTION_WITHIN_RADIUS_EXCURSION_BIN_LEGACY_KEYS = (
     "return_prob_excursion_bin_ratio_exp",
     "return_prob_excursion_bin_ratio_ctrl",
     "return_prob_excursion_bin_return_exp",
@@ -38,6 +49,50 @@ RETURN_PROB_EXCURSION_BIN_KEYS = (
     "return_prob_excursion_bin_total_exp",
     "return_prob_excursion_bin_total_ctrl",
     "return_prob_excursion_bin_edges_mm",
+)
+
+FRACTION_WITHIN_RADIUS_LEGACY_KEY_ALIASES = {
+    "return_prob_outer_radius_ratio_exp": "fraction_within_radius_outer_radius_ratio_exp",
+    "return_prob_outer_radius_ratio_ctrl": "fraction_within_radius_outer_radius_ratio_ctrl",
+    "return_prob_outer_radius_return_exp": "fraction_within_radius_outer_radius_return_exp",
+    "return_prob_outer_radius_return_ctrl": "fraction_within_radius_outer_radius_return_ctrl",
+    "return_prob_outer_radius_total_exp": "fraction_within_radius_outer_radius_total_exp",
+    "return_prob_outer_radius_total_ctrl": "fraction_within_radius_outer_radius_total_ctrl",
+    "return_prob_outer_radius_outer_radii_mm": "fraction_within_radius_outer_radius_outer_radii_mm",
+    "return_prob_outer_radius_outer_deltas_mm": "fraction_within_radius_outer_radius_outer_deltas_mm",
+    "return_prob_outer_radius_trainings": "fraction_within_radius_outer_radius_trainings",
+    "return_prob_outer_radius_skip_first_sync_buckets": "fraction_within_radius_outer_radius_skip_first_sync_buckets",
+    "return_prob_outer_radius_keep_first_sync_buckets": "fraction_within_radius_outer_radius_keep_first_sync_buckets",
+    "return_prob_outer_radius_last_sync_buckets": "fraction_within_radius_outer_radius_last_sync_buckets",
+    "return_prob_outer_radius_reward_radius_mm": "fraction_within_radius_outer_radius_reward_radius_mm",
+    "return_prob_outer_radius_reward_delta_mm": "fraction_within_radius_outer_radius_reward_delta_mm",
+    "return_prob_outer_radius_border_width_mm": "fraction_within_radius_outer_radius_border_width_mm",
+    "return_prob_outer_radius_window_summary": "fraction_within_radius_outer_radius_window_summary",
+    "return_prob_excursion_bin_ratio_exp": "fraction_within_radius_excursion_bin_ratio_exp",
+    "return_prob_excursion_bin_ratio_ctrl": "fraction_within_radius_excursion_bin_ratio_ctrl",
+    "return_prob_excursion_bin_return_exp": "fraction_within_radius_excursion_bin_return_exp",
+    "return_prob_excursion_bin_return_ctrl": "fraction_within_radius_excursion_bin_return_ctrl",
+    "return_prob_excursion_bin_total_exp": "fraction_within_radius_excursion_bin_total_exp",
+    "return_prob_excursion_bin_total_ctrl": "fraction_within_radius_excursion_bin_total_ctrl",
+    "return_prob_excursion_bin_edges_mm": "fraction_within_radius_excursion_bin_edges_mm",
+    "return_prob_excursion_bin_radii_mm": "fraction_within_radius_excursion_bin_radii_mm",
+    "return_prob_excursion_bin_requested_edges_mm": "fraction_within_radius_excursion_bin_requested_edges_mm",
+    "return_prob_excursion_bin_open_ended_upper_bin": "fraction_within_radius_excursion_bin_open_ended_upper_bin",
+    "return_prob_excursion_bin_trainings": "fraction_within_radius_excursion_bin_trainings",
+    "return_prob_excursion_bin_skip_first_sync_buckets": "fraction_within_radius_excursion_bin_skip_first_sync_buckets",
+    "return_prob_excursion_bin_keep_first_sync_buckets": "fraction_within_radius_excursion_bin_keep_first_sync_buckets",
+    "return_prob_excursion_bin_last_sync_buckets": "fraction_within_radius_excursion_bin_last_sync_buckets",
+    "return_prob_excursion_bin_reward_delta_mm": "fraction_within_radius_excursion_bin_reward_delta_mm",
+    "return_prob_excursion_bin_reward_radius_mm": "fraction_within_radius_excursion_bin_reward_radius_mm",
+    "return_prob_excursion_bin_border_width_mm": "fraction_within_radius_excursion_bin_border_width_mm",
+    "return_prob_excursion_bin_window_summary": "fraction_within_radius_excursion_bin_window_summary",
+    "return_prob_excursion_bin_description": "fraction_within_radius_excursion_bin_description",
+}
+
+RETURN_PROB_EXCURSION_BIN_KEYS = FRACTION_WITHIN_RADIUS_EXCURSION_BIN_KEYS
+
+RETURN_PROB_EXCURSION_BIN_LEGACY_KEYS = (
+    FRACTION_WITHIN_RADIUS_EXCURSION_BIN_LEGACY_KEYS
 )
 
 TURNBACK_EXCURSION_BIN_KEYS = (
@@ -129,6 +184,15 @@ def as_str_array(x):
     if arr.ndim != 1:
         arr = arr.reshape(-1)
     return np.array([str(v) for v in arr], dtype=object)
+
+
+def add_fraction_within_radius_key_aliases(bundle: dict) -> dict:
+    """Populate permanent fraction-within-radius keys from legacy return-prob keys."""
+    out = dict(bundle)
+    for legacy_key, new_key in FRACTION_WITHIN_RADIUS_LEGACY_KEY_ALIASES.items():
+        if new_key not in out and legacy_key in out:
+            out[new_key] = out[legacy_key]
+    return out
 
 
 def _bundle_label(bundle: dict, path: str | None = None) -> str:
@@ -715,14 +779,15 @@ def validate_agarose_sli_bundle(bundle: dict, *, path: str | None = None) -> Non
                 )
 
 
-def validate_return_prob_excursion_bin_bundle(
+def validate_fraction_within_radius_excursion_bin_bundle(
     bundle: dict, *, path: str | None = None
 ) -> None:
+    bundle = add_fraction_within_radius_key_aliases(bundle)
     where = _bundle_label(bundle, path)
     missing = [k for k in RETURN_PROB_EXCURSION_BIN_KEYS if k not in bundle]
     if missing:
         raise ValueError(
-            f"Bundle {where} is missing return-probability excursion-bin keys: {missing}"
+            f"Bundle {where} is missing fraction-within-radius excursion-bin keys: {missing}"
         )
 
     sli = np.asarray(bundle["sli"], dtype=float)
@@ -730,33 +795,33 @@ def validate_return_prob_excursion_bin_bundle(
         raise ValueError(f"Bundle {where} has non-1D sli shape {sli.shape}")
     n_videos = int(sli.shape[0])
 
-    edges = np.asarray(bundle["return_prob_excursion_bin_edges_mm"], dtype=float)
+    edges = np.asarray(bundle["fraction_within_radius_excursion_bin_edges_mm"], dtype=float)
     if edges.ndim != 1:
         raise ValueError(
-            f"Bundle {where} has non-1D return_prob_excursion_bin_edges_mm "
+            f"Bundle {where} has non-1D fraction_within_radius_excursion_bin_edges_mm "
             f"shape {edges.shape}"
         )
     if edges.size < 2:
         raise ValueError(
-            f"Bundle {where} has fewer than two return-probability bin edges"
+            f"Bundle {where} has fewer than two fraction-within-radius bin edges"
         )
     if not np.all(np.isfinite(edges)):
         raise ValueError(
-            f"Bundle {where} has non-finite resolved return-probability bin edges"
+            f"Bundle {where} has non-finite resolved fraction-within-radius bin edges"
         )
     if np.any(np.diff(edges) <= 0):
         raise ValueError(
-            f"Bundle {where} has non-increasing return-probability bin edges"
+            f"Bundle {where} has non-increasing fraction-within-radius bin edges"
         )
     n_bins = int(edges.size - 1)
 
-    if "return_prob_excursion_bin_requested_edges_mm" in bundle:
+    if "fraction_within_radius_excursion_bin_requested_edges_mm" in bundle:
         requested = np.asarray(
-            bundle["return_prob_excursion_bin_requested_edges_mm"], dtype=float
+            bundle["fraction_within_radius_excursion_bin_requested_edges_mm"], dtype=float
         )
         if requested.ndim != 1 or requested.size != edges.size:
             raise ValueError(
-                f"Bundle {where} has return_prob_excursion_bin_requested_edges_mm "
+                f"Bundle {where} has fraction_within_radius_excursion_bin_requested_edges_mm "
                 f"shape {requested.shape} but expected {(edges.size,)}"
             )
         if not np.all(np.isfinite(requested[:-1])):
@@ -766,62 +831,62 @@ def validate_return_prob_excursion_bin_bundle(
         if np.any(np.diff(requested) <= 0):
             raise ValueError(f"Bundle {where} has non-increasing requested bin edges")
 
-    if "return_prob_excursion_bin_window_summary" in bundle:
+    if "fraction_within_radius_excursion_bin_window_summary" in bundle:
         window_summary = as_str_array(
-            bundle["return_prob_excursion_bin_window_summary"]
+            bundle["fraction_within_radius_excursion_bin_window_summary"]
         )
         if window_summary.shape[0] != n_videos:
             raise ValueError(
-                f"Bundle {where} has len(return_prob_excursion_bin_window_summary)="
+                f"Bundle {where} has len(fraction_within_radius_excursion_bin_window_summary)="
                 f"{window_summary.shape[0]} but len(sli)={n_videos}"
             )
 
     for key in (
-        "return_prob_excursion_bin_skip_first_sync_buckets",
-        "return_prob_excursion_bin_keep_first_sync_buckets",
-        "return_prob_excursion_bin_last_sync_buckets",
+        "fraction_within_radius_excursion_bin_skip_first_sync_buckets",
+        "fraction_within_radius_excursion_bin_keep_first_sync_buckets",
+        "fraction_within_radius_excursion_bin_last_sync_buckets",
     ):
         if key in bundle and int(as_scalar(bundle[key])) < 0:
             raise ValueError(f"Bundle {where} has negative {key}")
 
     ratio_exp = _validate_return_prob_metric_array(
         bundle,
-        "return_prob_excursion_bin_ratio_exp",
+        "fraction_within_radius_excursion_bin_ratio_exp",
         where=where,
         n_videos=n_videos,
         n_bins=n_bins,
     )
     ratio_ctrl = _validate_return_prob_metric_array(
         bundle,
-        "return_prob_excursion_bin_ratio_ctrl",
+        "fraction_within_radius_excursion_bin_ratio_ctrl",
         where=where,
         n_videos=n_videos,
         n_bins=n_bins,
     )
     ret_exp = _validate_return_prob_metric_array(
         bundle,
-        "return_prob_excursion_bin_return_exp",
+        "fraction_within_radius_excursion_bin_return_exp",
         where=where,
         n_videos=n_videos,
         n_bins=n_bins,
     )
     ret_ctrl = _validate_return_prob_metric_array(
         bundle,
-        "return_prob_excursion_bin_return_ctrl",
+        "fraction_within_radius_excursion_bin_return_ctrl",
         where=where,
         n_videos=n_videos,
         n_bins=n_bins,
     )
     total_exp = _validate_return_prob_count_array(
         bundle,
-        "return_prob_excursion_bin_total_exp",
+        "fraction_within_radius_excursion_bin_total_exp",
         where=where,
         n_videos=n_videos,
         n_bins=n_bins,
     )
     total_ctrl = _validate_return_prob_count_array(
         bundle,
-        "return_prob_excursion_bin_total_ctrl",
+        "fraction_within_radius_excursion_bin_total_ctrl",
         where=where,
         n_videos=n_videos,
         n_bins=n_bins,
@@ -847,16 +912,16 @@ def validate_return_prob_excursion_bin_bundle(
         )
 
     for key, ratio in (
-        ("return_prob_excursion_bin_ratio_exp", ratio_exp),
-        ("return_prob_excursion_bin_ratio_ctrl", ratio_ctrl),
+        ("fraction_within_radius_excursion_bin_ratio_exp", ratio_exp),
+        ("fraction_within_radius_excursion_bin_ratio_ctrl", ratio_ctrl),
     ):
         finite = np.isfinite(ratio)
         if np.any((ratio[finite] < 0.0) | (ratio[finite] > 1.0)):
             raise ValueError(f"Bundle {where} has out-of-range probabilities in {key}")
 
     for key, values, total in (
-        ("return_prob_excursion_bin_return_exp", ret_exp, total_exp),
-        ("return_prob_excursion_bin_return_ctrl", ret_ctrl, total_ctrl),
+        ("fraction_within_radius_excursion_bin_return_exp", ret_exp, total_exp),
+        ("fraction_within_radius_excursion_bin_return_ctrl", ret_ctrl, total_ctrl),
     ):
         finite = np.isfinite(values)
         if np.any(~finite):
@@ -868,13 +933,13 @@ def validate_return_prob_excursion_bin_bundle(
 
     for key, ratio, values, total in (
         (
-            "return_prob_excursion_bin_ratio_exp",
+            "fraction_within_radius_excursion_bin_ratio_exp",
             ratio_exp,
             ret_exp,
             total_exp,
         ),
         (
-            "return_prob_excursion_bin_ratio_ctrl",
+            "fraction_within_radius_excursion_bin_ratio_ctrl",
             ratio_ctrl,
             ret_ctrl,
             total_ctrl,
@@ -898,6 +963,12 @@ def validate_return_prob_excursion_bin_bundle(
             )
         if np.any(np.abs(ratio[both_finite] - expected[both_finite]) > 1e-10):
             raise ValueError(f"Bundle {where} has inconsistent {key} values")
+
+
+def validate_return_prob_excursion_bin_bundle(
+    bundle: dict, *, path: str | None = None
+) -> None:
+    validate_fraction_within_radius_excursion_bin_bundle(bundle, path=path)
 
 
 def validate_turnback_excursion_bin_bundle(
@@ -1156,7 +1227,7 @@ def normalize_sli_bundle(bundle: dict, *, path: str | None = None) -> dict:
         where = path or bundle.get("path") or "<unknown>"
         raise ValueError(f"Bundle {where} is missing keys: {missing}")
 
-    out = dict(bundle)
+    out = add_fraction_within_radius_key_aliases(bundle)
     out["group_label"] = str(as_scalar(out["group_label"]))
     out["bucket_len_min"] = float(as_scalar(out["bucket_len_min"]))
     out["sli_training_idx"] = int(as_scalar(out["sli_training_idx"]))
@@ -1178,7 +1249,7 @@ def normalize_sli_bundle(bundle: dict, *, path: str | None = None) -> dict:
         out["path"] = str(out["path"])
     validate_sli_bundle(out, path=path)
     if any(k in out for k in RETURN_PROB_EXCURSION_BIN_KEYS):
-        validate_return_prob_excursion_bin_bundle(out, path=path)
+        validate_fraction_within_radius_excursion_bin_bundle(out, path=path)
     if any(k in out for k in BETWEEN_REWARD_MAXDIST_KEYS):
         validate_between_reward_maxdist_bundle(out, path=path)
     if any(k in out for k in BETWEEN_REWARD_RETURN_LEG_DIST_KEYS):

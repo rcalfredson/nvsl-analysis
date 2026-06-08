@@ -17,30 +17,44 @@ from src.utils.common import writeImage
 
 def _metric_arrays(bundle, metric: str) -> tuple[np.ndarray, np.ndarray]:
     if metric == "ratio":
-        exp = np.asarray(bundle["return_prob_excursion_bin_ratio_exp"], dtype=float)
-        ctrl = np.asarray(bundle["return_prob_excursion_bin_ratio_ctrl"], dtype=float)
+        exp = np.asarray(
+            bundle["fraction_within_radius_excursion_bin_ratio_exp"], dtype=float
+        )
+        ctrl = np.asarray(
+            bundle["fraction_within_radius_excursion_bin_ratio_ctrl"], dtype=float
+        )
         return exp, ctrl
 
     if metric == "success":
-        exp = np.asarray(bundle["return_prob_excursion_bin_return_exp"], dtype=float)
-        ctrl = np.asarray(bundle["return_prob_excursion_bin_return_ctrl"], dtype=float)
+        exp = np.asarray(
+            bundle["fraction_within_radius_excursion_bin_return_exp"], dtype=float
+        )
+        ctrl = np.asarray(
+            bundle["fraction_within_radius_excursion_bin_return_ctrl"], dtype=float
+        )
         return exp, ctrl
 
     if metric == "total":
-        exp = np.asarray(bundle["return_prob_excursion_bin_total_exp"], dtype=float)
-        ctrl = np.asarray(bundle["return_prob_excursion_bin_total_ctrl"], dtype=float)
+        exp = np.asarray(
+            bundle["fraction_within_radius_excursion_bin_total_exp"], dtype=float
+        )
+        ctrl = np.asarray(
+            bundle["fraction_within_radius_excursion_bin_total_ctrl"], dtype=float
+        )
         return exp, ctrl
 
     if metric == "failure":
-        exp_total = np.asarray(bundle["return_prob_excursion_bin_total_exp"], dtype=float)
+        exp_total = np.asarray(
+            bundle["fraction_within_radius_excursion_bin_total_exp"], dtype=float
+        )
         ctrl_total = np.asarray(
-            bundle["return_prob_excursion_bin_total_ctrl"], dtype=float
+            bundle["fraction_within_radius_excursion_bin_total_ctrl"], dtype=float
         )
         exp_succ = np.asarray(
-            bundle["return_prob_excursion_bin_return_exp"], dtype=float
+            bundle["fraction_within_radius_excursion_bin_return_exp"], dtype=float
         )
         ctrl_succ = np.asarray(
-            bundle["return_prob_excursion_bin_return_ctrl"], dtype=float
+            bundle["fraction_within_radius_excursion_bin_return_ctrl"], dtype=float
         )
         return exp_total - exp_succ, ctrl_total - ctrl_succ
 
@@ -59,10 +73,10 @@ def _mode_values(bundle, mode: str, metric: str) -> np.ndarray:
 
 
 def _panel_labels(bundle) -> list[str]:
-    edges = np.asarray(bundle["return_prob_excursion_bin_edges_mm"], dtype=float).reshape(
-        -1
-    )
-    open_ended_key = "return_prob_excursion_bin_open_ended_upper_bin"
+    edges = np.asarray(
+        bundle["fraction_within_radius_excursion_bin_edges_mm"], dtype=float
+    ).reshape(-1)
+    open_ended_key = "fraction_within_radius_excursion_bin_open_ended_upper_bin"
     open_ended = bool(
         np.asarray(bundle[open_ended_key]).reshape(()).item()
         if open_ended_key in bundle

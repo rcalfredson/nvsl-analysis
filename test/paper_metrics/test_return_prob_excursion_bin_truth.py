@@ -335,16 +335,21 @@ def test_return_prob_excursion_bin_export_applies_exp_pi_threshold_filter(
         )
         assert np.isnan(bundle["sli"]).all()
         assert np.isnan(bundle["sli_ts"]).all()
-        assert np.isnan(bundle["return_prob_excursion_bin_ratio_exp"]).all()
+        assert "return_prob_excursion_bin_ratio_exp" not in bundle.files
+        assert np.isnan(
+            bundle["fraction_within_radius_excursion_bin_ratio_exp"]
+        ).all()
         np.testing.assert_array_equal(
-            bundle["return_prob_excursion_bin_total_exp"], [[2]]
+            bundle["fraction_within_radius_excursion_bin_total_exp"], [[2]]
         )
         np.testing.assert_allclose(
-            bundle["return_prob_excursion_bin_return_exp"], [[1.5]]
+            bundle["fraction_within_radius_excursion_bin_return_exp"], [[1.5]]
         )
 
     loaded = load_sli_bundle(str(out))
-    assert np.isnan(loaded["return_prob_excursion_bin_ratio_exp"]).all()
+    assert np.isnan(
+        loaded["fraction_within_radius_excursion_bin_ratio_exp"]
+    ).all()
     np.testing.assert_array_equal(loaded["exp_pi_threshold_filter_eligible"], [False])
 
 
@@ -398,10 +403,11 @@ def test_return_prob_outer_radius_export_applies_exp_pi_threshold_filter(
         )
         assert np.isnan(bundle["sli"]).all()
         assert np.isnan(bundle["sli_ts"]).all()
-        assert np.isnan(bundle["return_prob_outer_radius_ratio_exp"]).all()
+        assert "return_prob_outer_radius_ratio_exp" not in bundle.files
+        assert np.isnan(bundle["fraction_within_radius_outer_radius_ratio_exp"]).all()
         np.testing.assert_array_equal(
-            bundle["return_prob_outer_radius_total_exp"], [[2]]
+            bundle["fraction_within_radius_outer_radius_total_exp"], [[2]]
         )
         np.testing.assert_array_equal(
-            bundle["return_prob_outer_radius_return_exp"], [[1]]
+            bundle["fraction_within_radius_outer_radius_return_exp"], [[1]]
         )

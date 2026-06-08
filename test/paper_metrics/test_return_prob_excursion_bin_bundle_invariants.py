@@ -46,7 +46,10 @@ def test_validate_return_prob_excursion_bin_bundle_accepts_valid_shapes_and_meta
     validate_return_prob_excursion_bin_bundle(_bundle())
 
     normalized = normalize_sli_bundle(_bundle())
-    assert normalized["return_prob_excursion_bin_ratio_exp"].shape == (1, 2)
+    assert normalized["fraction_within_radius_excursion_bin_ratio_exp"].shape == (
+        1,
+        2,
+    )
 
 
 def test_validate_return_prob_excursion_bin_bundle_allows_pi_filtered_exp_ratio():
@@ -62,13 +65,14 @@ def test_validate_return_prob_excursion_bin_bundle_rejects_missing_metric_key():
     bundle = _bundle()
     del bundle["return_prob_excursion_bin_ratio_exp"]
 
-    with pytest.raises(ValueError, match="missing return-probability"):
+    with pytest.raises(ValueError, match="missing fraction-within-radius"):
         validate_return_prob_excursion_bin_bundle(bundle)
 
 
 def test_validate_return_prob_excursion_bin_bundle_rejects_metric_shape_mismatch():
     with pytest.raises(
-        ValueError, match=r"return_prob_excursion_bin_ratio_exp\.shape=\(1, 1\)"
+        ValueError,
+        match=r"fraction_within_radius_excursion_bin_ratio_exp\.shape=\(1, 1\)",
     ):
         validate_return_prob_excursion_bin_bundle(
             _bundle(return_prob_excursion_bin_ratio_exp=np.asarray([[0.5]]))
@@ -129,7 +133,10 @@ def test_validate_return_prob_excursion_bin_bundle_rejects_bad_probabilities():
 def test_validate_return_prob_excursion_bin_bundle_rejects_finite_ratio_below_threshold():
     with pytest.raises(
         ValueError,
-        match="finite return_prob_excursion_bin_ratio_exp where total is below reporting threshold 5",
+        match=(
+            "finite fraction_within_radius_excursion_bin_ratio_exp where total "
+            "is below reporting threshold 5"
+        ),
     ):
         validate_return_prob_excursion_bin_bundle(
             _bundle(
@@ -173,7 +180,10 @@ def test_validate_return_prob_excursion_bin_bundle_rejects_success_mass_above_to
 def test_validate_return_prob_excursion_bin_bundle_rejects_window_summary_length_mismatch():
         with pytest.raises(
             ValueError,
-            match=r"len\(return_prob_excursion_bin_window_summary\)=2 but len\(sli\)=1",
+            match=(
+                r"len\(fraction_within_radius_excursion_bin_window_summary\)=2 "
+                r"but len\(sli\)=1"
+            ),
         ):
             validate_return_prob_excursion_bin_bundle(
                 _bundle(return_prob_excursion_bin_window_summary=np.asarray(["a", "b"]))

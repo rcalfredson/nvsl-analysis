@@ -391,12 +391,24 @@ def export_return_prob_outer_radius_sli_bundle(vas, opts, gls, out_fn):
         out_fn,
         sli=np.asarray(sli, dtype=float),
         sli_ts=np.asarray(sli_ts, dtype=float),
-        return_prob_outer_radius_ratio_exp=np.asarray(ratio_exp, dtype=float),
-        return_prob_outer_radius_ratio_ctrl=np.asarray(ratio_ctrl, dtype=float),
-        return_prob_outer_radius_return_exp=np.asarray(ret_exp, dtype=int),
-        return_prob_outer_radius_return_ctrl=np.asarray(ret_ctrl, dtype=int),
-        return_prob_outer_radius_total_exp=np.asarray(total_exp, dtype=int),
-        return_prob_outer_radius_total_ctrl=np.asarray(total_ctrl, dtype=int),
+        fraction_within_radius_outer_radius_ratio_exp=np.asarray(
+            ratio_exp, dtype=float
+        ),
+        fraction_within_radius_outer_radius_ratio_ctrl=np.asarray(
+            ratio_ctrl, dtype=float
+        ),
+        fraction_within_radius_outer_radius_return_exp=np.asarray(
+            ret_exp, dtype=int
+        ),
+        fraction_within_radius_outer_radius_return_ctrl=np.asarray(
+            ret_ctrl, dtype=int
+        ),
+        fraction_within_radius_outer_radius_total_exp=np.asarray(
+            total_exp, dtype=int
+        ),
+        fraction_within_radius_outer_radius_total_ctrl=np.asarray(
+            total_ctrl, dtype=int
+        ),
         btw_rwd_sync_bucket_min_trajectories=np.array(
             min_trajectories, dtype=int
         ),
@@ -405,34 +417,34 @@ def export_return_prob_outer_radius_sli_bundle(vas, opts, gls, out_fn):
             opts,
             prefix="exp_pi_threshold_filter",
         ),
-        return_prob_outer_radius_outer_radii_mm=np.asarray(
+        fraction_within_radius_outer_radius_outer_radii_mm=np.asarray(
             outer_radii_mm, dtype=float
         ),
-        return_prob_outer_radius_outer_deltas_mm=np.asarray(
+        fraction_within_radius_outer_radius_outer_deltas_mm=np.asarray(
             outer_radii_mm if legacy_outer_radii else [], dtype=float
         ),
-        return_prob_outer_radius_trainings=np.asarray(
+        fraction_within_radius_outer_radius_trainings=np.asarray(
             np.array(selected_trainings, dtype=int) + 1, dtype=int
         ),
-        return_prob_outer_radius_skip_first_sync_buckets=np.array(
+        fraction_within_radius_outer_radius_skip_first_sync_buckets=np.array(
             skip_first, dtype=int
         ),
-        return_prob_outer_radius_keep_first_sync_buckets=np.array(
+        fraction_within_radius_outer_radius_keep_first_sync_buckets=np.array(
             keep_first, dtype=int
         ),
-        return_prob_outer_radius_last_sync_buckets=np.array(
+        fraction_within_radius_outer_radius_last_sync_buckets=np.array(
             last_sync_buckets, dtype=int
         ),
-        return_prob_outer_radius_reward_radius_mm=np.array(
+        fraction_within_radius_outer_radius_reward_radius_mm=np.array(
             np.nan if reward_radius_mm is None else reward_radius_mm, dtype=float
         ),
-        return_prob_outer_radius_reward_delta_mm=np.array(
+        fraction_within_radius_outer_radius_reward_delta_mm=np.array(
             np.nan if reward_delta_mm is None else reward_delta_mm, dtype=float
         ),
-        return_prob_outer_radius_border_width_mm=np.array(
+        fraction_within_radius_outer_radius_border_width_mm=np.array(
             border_width_mm, dtype=float
         ),
-        return_prob_outer_radius_window_summary=np.asarray(
+        fraction_within_radius_outer_radius_window_summary=np.asarray(
             window_strings, dtype=object
         ),
         group_label=np.array(group_label, dtype=object),

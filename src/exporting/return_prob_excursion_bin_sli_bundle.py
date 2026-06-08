@@ -543,12 +543,24 @@ def export_return_prob_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
             ),
             dtype=int,
         ),
-        return_prob_excursion_bin_ratio_exp=np.asarray(ratio_exp, dtype=float),
-        return_prob_excursion_bin_ratio_ctrl=np.asarray(ratio_ctrl, dtype=float),
-        return_prob_excursion_bin_return_exp=np.asarray(ret_exp, dtype=float),
-        return_prob_excursion_bin_return_ctrl=np.asarray(ret_ctrl, dtype=float),
-        return_prob_excursion_bin_total_exp=np.asarray(total_exp, dtype=int),
-        return_prob_excursion_bin_total_ctrl=np.asarray(total_ctrl, dtype=int),
+        fraction_within_radius_excursion_bin_ratio_exp=np.asarray(
+            ratio_exp, dtype=float
+        ),
+        fraction_within_radius_excursion_bin_ratio_ctrl=np.asarray(
+            ratio_ctrl, dtype=float
+        ),
+        fraction_within_radius_excursion_bin_return_exp=np.asarray(
+            ret_exp, dtype=float
+        ),
+        fraction_within_radius_excursion_bin_return_ctrl=np.asarray(
+            ret_ctrl, dtype=float
+        ),
+        fraction_within_radius_excursion_bin_total_exp=np.asarray(
+            total_exp, dtype=int
+        ),
+        fraction_within_radius_excursion_bin_total_ctrl=np.asarray(
+            total_ctrl, dtype=int
+        ),
         btw_rwd_sync_bucket_min_trajectories=np.array(
             min_trajectories, dtype=int
         ),
@@ -557,39 +569,41 @@ def export_return_prob_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
             opts,
             prefix="exp_pi_threshold_filter",
         ),
-        return_prob_excursion_bin_edges_mm=np.asarray(bin_edges_mm, dtype=float),
-        return_prob_excursion_bin_radii_mm=np.asarray(
+        fraction_within_radius_excursion_bin_edges_mm=np.asarray(
+            bin_edges_mm, dtype=float
+        ),
+        fraction_within_radius_excursion_bin_radii_mm=np.asarray(
             [] if legacy_bin_edges else bin_edges_mm, dtype=float
         ),
-        return_prob_excursion_bin_requested_edges_mm=np.asarray(
+        fraction_within_radius_excursion_bin_requested_edges_mm=np.asarray(
             requested_bin_edges_mm, dtype=float
         ),
-        return_prob_excursion_bin_open_ended_upper_bin=np.array(
+        fraction_within_radius_excursion_bin_open_ended_upper_bin=np.array(
             open_ended_upper_bin, dtype=bool
         ),
-        return_prob_excursion_bin_trainings=np.asarray(
+        fraction_within_radius_excursion_bin_trainings=np.asarray(
             selected_trainings, dtype=int
         ),
-        return_prob_excursion_bin_skip_first_sync_buckets=np.array(
+        fraction_within_radius_excursion_bin_skip_first_sync_buckets=np.array(
             skip_first, dtype=int
         ),
-        return_prob_excursion_bin_keep_first_sync_buckets=np.array(
+        fraction_within_radius_excursion_bin_keep_first_sync_buckets=np.array(
             keep_first, dtype=int
         ),
-        return_prob_excursion_bin_last_sync_buckets=np.array(
+        fraction_within_radius_excursion_bin_last_sync_buckets=np.array(
             last_sync_buckets, dtype=int
         ),
-        return_prob_excursion_bin_reward_delta_mm=np.array(
+        fraction_within_radius_excursion_bin_reward_delta_mm=np.array(
             np.nan if reward_delta_mm is None else reward_delta_mm, dtype=float
         ),
-        return_prob_excursion_bin_reward_radius_mm=np.array(
+        fraction_within_radius_excursion_bin_reward_radius_mm=np.array(
             np.nan if reward_radius_mm is None else reward_radius_mm, dtype=float
         ),
-        return_prob_excursion_bin_border_width_mm=np.array(
+        fraction_within_radius_excursion_bin_border_width_mm=np.array(
             border_width_mm, dtype=float
         ),
-        return_prob_excursion_bin_window_summary=window_strings,
-        return_prob_excursion_bin_description=np.asarray(
+        fraction_within_radius_excursion_bin_window_summary=window_strings,
+        fraction_within_radius_excursion_bin_description=np.asarray(
             "Exact bin-averaged fraction of trajectories within radius over radial distance bins from reward center"
         ),
         bucket_len_min=np.array(np.nan, dtype=float),
