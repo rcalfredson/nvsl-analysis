@@ -1,3 +1,4 @@
+import sys
 from types import SimpleNamespace
 
 import numpy as np
@@ -20,6 +21,7 @@ from src.plotting.btw_rwd_return_leg_dist_totals import (
 )
 from src.exporting.between_reward_maxdist_sli_bundle import (
     _extract_between_reward_maxdist_arrays,
+    build_between_reward_maxdist_sli_bundle,
 )
 
 
@@ -79,6 +81,7 @@ class _MaxDistVideo:
     def __init__(self):
         self.fn = "fake-video"
         self.trns = [_Training()]
+        self.reward_exclusion_mask = [[[True, True]]]
         self.syncMeanBetweenRewardMaxDist = [
             {"exp": [1.0, 2.0], "ctrl": [3.0, 4.0]}
         ]
@@ -298,6 +301,49 @@ def test_between_reward_maxdist_export_masks_by_min_trajectory_count():
     np.testing.assert_allclose(mean_ctrl, [[[np.nan, 4.0]]])
     np.testing.assert_array_equal(n_exp, [[[2, 1]]])
     np.testing.assert_array_equal(n_ctrl, [[[1, 3]]])
+
+
+def test_between_reward_maxdist_bundle_applies_exp_pi_threshold_filter(monkeypatch):
+    va = _MaxDistVideo()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "analyze",
+        SimpleNamespace(bucketLenForType=lambda _bucket_type: (1.0, None)),
+    )
+    monkeypatch.setattr(
+        "src.exporting.bundle_utils._compute_sli_scalar_and_timeseries_from_rpid",
+        lambda _vas, _opts: (
+            np.asarray([0.1], dtype=float),
+            np.asarray([[[0.1, 0.2]]], dtype=float),
+        ),
+    )
+
+    bundle = build_between_reward_maxdist_sli_bundle(
+        [va],
+        SimpleNamespace(
+            min_between_reward_trajectories=1,
+            best_worst_trn=1,
+            sli_use_training_mean=True,
+            sli_select_skip_first_sync_buckets=0,
+            sli_select_keep_first_sync_buckets=0,
+            require_exp_pi_threshold_bucket=True,
+            exp_pi_threshold_filter_training=1,
+            exp_pi_threshold_filter_sync_bucket=1,
+            piTh=10,
+        ),
+        gls=None,
+    )
+
+    assert np.isnan(bundle["between_reward_maxdist_exp"]).all()
+    np.testing.assert_allclose(bundle["between_reward_maxdist_ctrl"], [[[3.0, 4.0]]])
+    np.testing.assert_array_equal(bundle["between_reward_maxdistN_exp"], [[[2, 1]]])
+    assert np.isnan(bundle["sli"]).all()
+    assert np.isnan(bundle["sli_ts"]).all()
+    np.testing.assert_array_equal(bundle["exp_pi_threshold_filter_eligible"], [False])
+    np.testing.assert_array_equal(
+        bundle["exp_pi_threshold_filter_reason"], ["pi_threshold_failed"]
+    )
 
 
 def test_return_leg_sync_bucket_filter_masks_low_count_buckets():

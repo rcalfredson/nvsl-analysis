@@ -6,6 +6,11 @@ from src.analysis.between_reward_filters import (
     mask_metric_by_min_between_reward_trajectories,
     min_between_reward_sync_bucket_trajectories,
 )
+from src.analysis.pi_threshold_filters import (
+    exp_pi_threshold_eligibility_mask,
+    exp_pi_threshold_filter_payload,
+    mask_by_exp_pi_threshold_filter,
+)
 from src.exporting.bundle_utils import (
     build_metric_plus_sli_bundle,
     save_sli_bundle,
@@ -125,6 +130,8 @@ def _extract_between_reward_maxdist_arrays(vas, opts=None):
 
 
 def build_between_reward_maxdist_sli_bundle(vas, opts, gls) -> dict:
+    vas_ok = [va for va in vas if not getattr(va, "_skipped", False)]
+
     def _extractor(vas_ok):
         mean_exp, mean_ctrl, n_exp, n_ctrl = _extract_between_reward_maxdist_arrays(
             vas_ok, opts
@@ -136,7 +143,7 @@ def build_between_reward_maxdist_sli_bundle(vas, opts, gls) -> dict:
             "between_reward_maxdistN_ctrl": n_ctrl,
         }
 
-    return build_metric_plus_sli_bundle(
+    bundle = build_metric_plus_sli_bundle(
         vas,
         opts,
         gls,
@@ -144,6 +151,20 @@ def build_between_reward_maxdist_sli_bundle(vas, opts, gls) -> dict:
         bucket_type="bysb2",
         print_label="between_reward_maxdist",
     )
+    pi_eligible = exp_pi_threshold_eligibility_mask(vas_ok, opts)
+    bundle["between_reward_maxdist_exp"] = mask_by_exp_pi_threshold_filter(
+        bundle["between_reward_maxdist_exp"], pi_eligible
+    )
+    bundle["sli"] = mask_by_exp_pi_threshold_filter(bundle["sli"], pi_eligible)
+    bundle["sli_ts"] = mask_by_exp_pi_threshold_filter(bundle["sli_ts"], pi_eligible)
+    bundle.update(
+        exp_pi_threshold_filter_payload(
+            vas_ok,
+            opts,
+            prefix="exp_pi_threshold_filter",
+        )
+    )
+    return bundle
 
 
 def export_between_reward_maxdist_sli_bundle(vas, opts, gls, out_fn):
