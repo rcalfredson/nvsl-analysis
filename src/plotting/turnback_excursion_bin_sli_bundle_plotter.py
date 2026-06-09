@@ -73,7 +73,7 @@ def _panel_labels(bundle) -> list[str]:
         outer = np.asarray(
             bundle["turnback_excursion_bin_pair_outer_deltas_mm"], dtype=float
         ).reshape(-1)
-        return [f"{float(i):g}-{float(o):g} mm" for i, o in zip(inner, outer)]
+        return [f"{float(i):g}/{float(o):g} mm" for i, o in zip(inner, outer)]
 
     edges = np.asarray(bundle["turnback_excursion_bin_edges_mm"], dtype=float).reshape(
         -1
