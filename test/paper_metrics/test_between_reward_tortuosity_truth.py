@@ -43,6 +43,7 @@ class _Video:
         self.noyc = True
         self._skipped = False
         self.xf = SimpleNamespace(fctr=1.0)
+        self.reward_exclusion_mask = [[[False, False, False, False]]]
         self.sync_bucket_ranges = [
             [(0, 3), (3, 6), (6, 9), (9, 12)],
             [(0, 3), (3, 6), (6, 9), (9, 12)],
@@ -89,3 +90,33 @@ def test_tortuosity_mean_swarm_filter_after_pooling_selected_segments():
     )
     assert data["meta"]["training_selection"]["trainings_effective"] == [1, 2]
     assert data["meta"]["min_segments_per_fly"] == 4
+
+
+def test_tortuosity_mean_swarm_applies_exp_pi_threshold_filter():
+    va = _Video()
+    va.reward_exclusion_mask = [[[True, False, False, False]]]
+    opts = SimpleNamespace(
+        min_between_reward_trajectories=1,
+        require_exp_pi_threshold_bucket=True,
+        exp_pi_threshold_filter_training=1,
+        exp_pi_threshold_filter_sync_bucket=1,
+        piTh=10,
+    )
+    cfg = BetweenRewardTortuosityMeanSwarmConfig(
+        out_file="unused.png",
+        pool_trainings=False,
+        trainings=[1],
+        skip_first_sync_buckets=0,
+        keep_first_sync_buckets=0,
+        metric_mode="path_over_displacement",
+        segment_scope="full",
+        min_segments_per_fly=1,
+    )
+    plotter = BetweenRewardTortuosityMeanSwarmPlotter(
+        vas=[va], opts=opts, gls=None, customizer=None, cfg=cfg
+    )
+
+    data = plotter.compute_scalar_panels()
+
+    assert data["panel_labels"] == []
+    assert data["per_unit_values_panel"].size == 0
