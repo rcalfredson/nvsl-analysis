@@ -8,6 +8,7 @@ import numpy as np
 from src.analysis.between_reward_filters import (
     min_between_reward_sync_bucket_trajectories,
 )
+from src.analysis.pi_threshold_filters import exp_pi_threshold_filter_result
 from src.plotting.between_reward_segment_binning import sync_bucket_window
 from src.plotting.training_metric_scalar_bars import (
     TrainingMetricScalarBarsConfig,
@@ -121,6 +122,8 @@ class WallContactsPerRewardIntervalPerFlyCollector:
 
         for va in self.vas:
             if getattr(va, "_skipped", False):
+                continue
+            if not exp_pi_threshold_filter_result(va, self.opts).eligible:
                 continue
             if getattr(va, "trx", None) is None or len(va.trx) == 0:
                 continue
