@@ -240,3 +240,66 @@ def test_agarose_bundle_export_records_min_total_metadata(tmp_path, monkeypatch)
         np.testing.assert_array_equal(
             bundle["episode_filter_agarose_sync_exp_excluded_episode_counts"], [1]
         )
+
+
+def test_agarose_bundle_export_masks_exp_pi_threshold_failures(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setitem(
+        sys.modules,
+        "analyze",
+        SimpleNamespace(bucketLenForType=lambda _metric: (10.0, None)),
+    )
+    monkeypatch.setattr(
+        "src.exporting.agarose_sli_bundle._compute_sli_scalar_and_timeseries_from_rpid",
+        lambda _vas, _opts: (
+            np.asarray([0.25], dtype=float),
+            np.asarray([[[0.25, 0.5]]], dtype=float),
+        ),
+    )
+    ratio = np.asarray([[[1.0, 0.5], [0.0, 1.0]]], dtype=float)
+    total = np.asarray([[[2, 2], [2, 2]]], dtype=int)
+    avoid = np.asarray([[[2, 1], [0, 2]]], dtype=int)
+    va = _video_analysis_stub(
+        fn="fake-video",
+        f=7,
+        _skipped=False,
+        noyc=False,
+        flies=[object(), object()],
+        reward_exclusion_mask=[[[True, False], [False, False]]],
+        trns=[_Training(start=0, stop=10, name="T1")],
+        agarose_dual_circle_counts={"ratio": ratio, "total": total, "avoid": avoid},
+        _numRewardsMsg=lambda *_args, **_kwargs: 5,
+        _syncBucket=lambda _trn, _df: (0, 2, None),
+    )
+    opts = SimpleNamespace(
+        export_group_label="Intact Control>Kir",
+        best_worst_trn=1,
+        sli_use_training_mean=True,
+        sli_select_skip_first_sync_buckets=0,
+        sli_select_keep_first_sync_buckets=0,
+        min_agarose_episodes=1,
+        agarose_dual_circle_min_total=1,
+        agarose_sli_include_pre=False,
+        require_exp_pi_threshold_bucket=True,
+        exp_pi_threshold_filter_training=1,
+        exp_pi_threshold_filter_sync_bucket=1,
+        piTh=10,
+    )
+    out = tmp_path / "agarose_bundle_pi_filtered.npz"
+
+    export_agarose_sli_bundle([va], opts, gls=None, out_fn=str(out))
+
+    with np.load(out, allow_pickle=True) as bundle:
+        np.testing.assert_array_equal(
+            bundle["exp_pi_threshold_filter_eligible"], [False]
+        )
+        np.testing.assert_array_equal(
+            bundle["exp_pi_threshold_filter_reason"], ["pi_threshold_failed"]
+        )
+        assert bool(bundle["exp_pi_threshold_filter_enabled"])
+        assert np.isnan(bundle["agarose_ratio_exp"]).all()
+        np.testing.assert_allclose(bundle["agarose_ratio_ctrl"], [[[0.0, 1.0]]])
+        np.testing.assert_array_equal(bundle["agarose_total_exp"], [[[2, 2]]])
+        assert np.isnan(bundle["sli"]).all()
+        assert np.isnan(bundle["sli_ts"]).all()

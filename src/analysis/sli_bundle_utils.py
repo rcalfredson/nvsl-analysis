@@ -642,6 +642,7 @@ def _validate_ratio_count_semantics(
     total_key: str,
     expected_shape: tuple[int, ...],
     min_total: int,
+    reportable_mask: np.ndarray | None = None,
 ) -> None:
     ratio = np.asarray(bundle[ratio_key], dtype=float)
     if ratio.shape != expected_shape:
@@ -671,6 +672,16 @@ def _validate_ratio_count_semantics(
         reportable = total > 0
     else:
         reportable &= total > 0
+    if reportable_mask is not None:
+        mask = np.asarray(reportable_mask, dtype=bool)
+        try:
+            mask = np.broadcast_to(mask, expected_shape)
+        except ValueError as exc:
+            raise ValueError(
+                f"Bundle {where} has {ratio_key} reportable_mask.shape="
+                f"{mask.shape} but expected broadcastable to {expected_shape}"
+            ) from exc
+        reportable &= mask
 
     if np.any(~np.isfinite(ratio[reportable])):
         raise ValueError(
@@ -708,6 +719,20 @@ def validate_agarose_sli_bundle(bundle: dict, *, path: str | None = None) -> Non
     if min_total < 0:
         raise ValueError(f"Bundle {where} has negative min_agarose_episodes")
 
+    n_videos = expected_shape[0]
+    exp_pi_eligible = np.asarray(
+        bundle.get(
+            "exp_pi_threshold_filter_eligible",
+            np.ones(n_videos, dtype=bool),
+        ),
+        dtype=bool,
+    ).reshape(-1)
+    if exp_pi_eligible.size != n_videos:
+        raise ValueError(
+            f"Bundle {where} has exp_pi_threshold_filter_eligible.shape="
+            f"{exp_pi_eligible.shape} but expected {(n_videos,)}"
+        )
+
     for suffix in ("exp", "ctrl"):
         _validate_ratio_count_semantics(
             bundle,
@@ -717,6 +742,9 @@ def validate_agarose_sli_bundle(bundle: dict, *, path: str | None = None) -> Non
             total_key=f"agarose_total_{suffix}",
             expected_shape=expected_shape,
             min_total=min_total,
+            reportable_mask=(
+                exp_pi_eligible[:, None, None] if suffix == "exp" else None
+            ),
         )
 
     present_pre = [k for k in AGAROSE_PRE_KEYS if k in bundle]
@@ -726,7 +754,6 @@ def validate_agarose_sli_bundle(bundle: dict, *, path: str | None = None) -> Non
             f"Bundle {where} has incomplete agarose pre keys: {missing_pre}"
         )
     if present_pre:
-        n_videos = expected_shape[0]
         for suffix in ("exp", "ctrl"):
             _validate_ratio_count_semantics(
                 bundle,
@@ -736,6 +763,7 @@ def validate_agarose_sli_bundle(bundle: dict, *, path: str | None = None) -> Non
                 total_key=f"agarose_pre_total_{suffix}",
                 expected_shape=(n_videos,),
                 min_total=min_total,
+                reportable_mask=(exp_pi_eligible if suffix == "exp" else None),
             )
         if "agarose_pre_window_min" in bundle:
             window_min = float(as_scalar(bundle["agarose_pre_window_min"]))
@@ -762,6 +790,9 @@ def validate_agarose_sli_bundle(bundle: dict, *, path: str | None = None) -> Non
                 total_key=f"agarose_training_pre_total_{suffix}",
                 expected_shape=(n_videos, n_trainings),
                 min_total=min_total,
+                reportable_mask=(
+                    exp_pi_eligible[:, None] if suffix == "exp" else None
+                ),
             )
         if "agarose_training_pre_window_min" in bundle:
             window_min = np.asarray(

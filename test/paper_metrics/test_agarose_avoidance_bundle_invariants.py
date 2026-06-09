@@ -85,6 +85,25 @@ def test_validate_agarose_bundle_accepts_legacy_min_total_metadata():
     validate_agarose_sli_bundle(bundle)
 
 
+def test_validate_agarose_bundle_allows_pi_filtered_exp_ratios():
+    validate_agarose_sli_bundle(
+        _bundle(
+            exp_pi_threshold_filter_eligible=np.asarray([False, True]),
+            agarose_ratio_exp=np.asarray(
+                [
+                    [[np.nan, np.nan, np.nan], [np.nan, np.nan, np.nan]],
+                    [[np.nan, 1.0, 0.25], [0.5, np.nan, 1.0]],
+                ],
+                dtype=float,
+            ),
+            agarose_pre_ratio_exp=np.asarray([np.nan, np.nan]),
+            agarose_training_pre_ratio_exp=np.asarray(
+                [[np.nan, np.nan], [1.0, 0.0]]
+            ),
+        )
+    )
+
+
 def test_validate_agarose_bundle_prefers_primary_min_episode_metadata():
     with pytest.raises(ValueError, match="where total is below reporting threshold"):
         validate_agarose_sli_bundle(
