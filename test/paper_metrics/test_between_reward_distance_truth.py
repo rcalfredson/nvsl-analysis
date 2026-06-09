@@ -19,6 +19,9 @@ from src.plotting.btw_rwd_return_leg_dist_totals import (
     ReturnLegDistTotalsConfig,
     ReturnLegDistTotalsPlotter,
 )
+from src.exporting.btw_rwd_return_leg_dist_sli_bundle import (
+    build_btw_rwd_return_leg_dist_sli_bundle,
+)
 from src.exporting.between_reward_maxdist_sli_bundle import (
     _extract_between_reward_maxdist_arrays,
     build_between_reward_maxdist_sli_bundle,
@@ -377,6 +380,69 @@ def test_return_leg_sync_bucket_filter_masks_low_count_buckets():
 
     np.testing.assert_allclose(mean_exp, [[[0.5, np.nan]]])
     np.testing.assert_array_equal(n_exp, [[[2, 1]]])
+
+
+def test_return_leg_bundle_applies_exp_pi_threshold_filter(monkeypatch):
+    exp = _Trajectory(x=np.arange(12, dtype=float), d=np.ones(11))
+    ctrl = _Trajectory(x=np.arange(12, dtype=float), d=np.full(11, 2.0), f=1)
+    va = _Video(
+        trx=[exp, ctrl],
+        segments_by_fly={
+            0: [
+                _segment(s=0, e=4, b_idx=0, max_i=2),
+                _segment(s=4, e=8, b_idx=0, max_i=5),
+                _segment(s=6, e=10, b_idx=1, max_i=8),
+            ],
+            1: [_segment(s=0, e=4, b_idx=0, max_i=1)],
+        },
+    )
+    va.reward_exclusion_mask = [[[True, True]]]
+
+    monkeypatch.setitem(
+        sys.modules,
+        "analyze",
+        SimpleNamespace(bucketLenForType=lambda _bucket_type: (1.0, None)),
+    )
+    monkeypatch.setattr(
+        "src.exporting.bundle_utils._compute_sli_scalar_and_timeseries_from_rpid",
+        lambda _vas, _opts: (
+            np.asarray([0.1], dtype=float),
+            np.asarray([[[0.1, 0.2]]], dtype=float),
+        ),
+    )
+
+    bundle = build_btw_rwd_return_leg_dist_sli_bundle(
+        [va],
+        SimpleNamespace(
+            com_exclude_wall_contact=False,
+            min_between_reward_trajectories=1,
+            btw_rwd_return_leg_dist_exclude_nonwalking_frames=False,
+            btw_rwd_return_leg_dist_min_walk_frames=2,
+            best_worst_trn=1,
+            sli_use_training_mean=True,
+            sli_select_skip_first_sync_buckets=0,
+            sli_select_keep_first_sync_buckets=0,
+            require_exp_pi_threshold_bucket=True,
+            exp_pi_threshold_filter_training=1,
+            exp_pi_threshold_filter_sync_bucket=1,
+            piTh=10,
+        ),
+        gls=None,
+    )
+
+    assert np.isnan(bundle["between_reward_return_leg_dist_exp"]).all()
+    np.testing.assert_allclose(
+        bundle["between_reward_return_leg_dist_ctrl"], [[[2.0, np.nan]]]
+    )
+    np.testing.assert_array_equal(
+        bundle["between_reward_return_leg_distN_exp"], [[[2, 1]]]
+    )
+    assert np.isnan(bundle["sli"]).all()
+    assert np.isnan(bundle["sli_ts"]).all()
+    np.testing.assert_array_equal(bundle["exp_pi_threshold_filter_eligible"], [False])
+    np.testing.assert_array_equal(
+        bundle["exp_pi_threshold_filter_reason"], ["pi_threshold_failed"]
+    )
 
 
 def test_return_leg_scalar_bars_filter_after_pooling_selected_episodes():
