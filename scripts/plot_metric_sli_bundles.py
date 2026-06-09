@@ -27,6 +27,7 @@ def main():
             "reward_lgturn_pathlen",
             "reward_lgturn_prevalence",
             "reward_lv",
+            "speed",
         ],
     )
     p.add_argument(

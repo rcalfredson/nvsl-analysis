@@ -83,6 +83,8 @@ def _bundle_metric_palette(metric):
         return get_palette("between_reward_maxdist")
     elif metric == "between_reward_return_leg_dist":
         return get_palette("between_reward_return_leg_dist")
+    elif metric == "speed":
+        return FLY_COLS
     else:
         return FLY_COLS
 
@@ -104,6 +106,8 @@ def _ctrl_overlay_key(metric):
         return "lgturn_startdist_ctrl"
     if metric == "reward_lgturn_pathlen":
         return "reward_lgturn_pathlen_ctrl"
+    if metric == "speed":
+        return "speed_ctrl"
     return None
 
 
@@ -606,6 +610,19 @@ def plot_com_sli_bundle_data(
             need_keys = ["reward_lv_exp", "reward_lv_ctrl"]
         else:
             raise ValueError(f"Unknown mode={turnback_mode!r} for metric=reward_lv")
+    elif metric == "speed":
+        if turnback_mode == "exp":
+            series_key = "speed_exp"
+            need_keys = ["speed_exp"]
+            include_ctrl = requested_include_ctrl
+        elif turnback_mode == "ctrl":
+            series_key = "speed_ctrl"
+            need_keys = ["speed_ctrl"]
+        elif turnback_mode == "exp_minus_ctrl":
+            series_key = "speed_exp"
+            need_keys = ["speed_exp", "speed_ctrl"]
+        else:
+            raise ValueError(f"Unknown mode={turnback_mode!r} for metric=speed")
     elif metric == "reward_lgturn_prevalence":
         # Prevalence = (# rewards with detect post-reward turn) / (# rewards)
         # The underlying arrays are per-video, per-training, per-bucket.
@@ -632,7 +649,7 @@ def plot_com_sli_bundle_data(
             "'between_reward_maxdist', 'between_reward_return_leg_dist', "
             "'turnback', 'agarose', 'wallpct', "
             "'lgturn_startdist', 'reward_lgturn_pathlen', 'reward_lv', "
-            "'reward_lgturn_prevalence', 'weaving'."
+            "'reward_lgturn_prevalence', 'speed', 'weaving'."
         )
 
     if include_pre and metric != "agarose":
@@ -692,6 +709,10 @@ def plot_com_sli_bundle_data(
         if metric == "reward_lv" and turnback_mode == "exp_minus_ctrl":
             exp_arr = np.asarray(b["reward_lv_exp"], dtype=float)
             ctrl_arr = np.asarray(b["reward_lv_ctrl"], dtype=float)
+            return exp_arr - ctrl_arr
+        if metric == "speed" and turnback_mode == "exp_minus_ctrl":
+            exp_arr = np.asarray(b["speed_exp"], dtype=float)
+            ctrl_arr = np.asarray(b["speed_ctrl"], dtype=float)
             return exp_arr - ctrl_arr
         if metric == "reward_lgturn_prevalence":
             rewards = np.asarray(b["reward_lgturn_rewards"], dtype=float)
@@ -891,6 +912,8 @@ def plot_com_sli_bundle_data(
         ylim = [-3.0, 4.0] if turnback_mode == "exp_minus_ctrl" else [0.0, 8.0]
     elif metric == "reward_lgturn_prevalence":
         ylim = [-0.5, 0.5] if turnback_mode == "exp_minus_ctrl" else [0.0, 1.0]
+    elif metric == "speed":
+        ylim = [-5.0, 5.0] if turnback_mode == "exp_minus_ctrl" else [0.0, 15.0]
     elif metric == "weaving":
         ylim = [-0.5, 0.5] if turnback_mode == "exp_minus_ctrl" else [0.0, 0.5]
 
@@ -1223,6 +1246,12 @@ def plot_com_sli_bundle_data(
                 y_label += "\n(yok)"
         elif metric == "reward_lgturn_prevalence":
             y_label = "Post-reward large-turn prevalence"
+            if turnback_mode == "exp_minus_ctrl":
+                y_label += "\n(exp - yok)"
+            elif turnback_mode == "ctrl":
+                y_label += "\n(yok)"
+        elif metric == "speed":
+            y_label = "Mean speed (mm/s)"
             if turnback_mode == "exp_minus_ctrl":
                 y_label += "\n(exp - yok)"
             elif turnback_mode == "ctrl":

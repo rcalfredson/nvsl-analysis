@@ -26,6 +26,7 @@ BUNDLE_ARRAY_PREFIXES = (
     "lgturn_",
     "reward_lgturn_",
     "reward_lv_",
+    "speed_",
     "fraction_within_radius_",
     "return_prob_",
     "sli_",

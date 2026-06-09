@@ -99,6 +99,7 @@ from src.exporting.reward_lgturn_pathlen_sli_bundle import (
     export_reward_lgturn_pathlen_sli_bundle,
 )
 from src.exporting.reward_lv_sli_bundle import export_reward_lv_sli_bundle
+from src.exporting.speed_sli_bundle import export_speed_sli_bundle
 from src.exporting.return_prob_outer_radius_sli_bundle import (
     export_return_prob_outer_radius_sli_bundle,
 )
@@ -5653,6 +5654,15 @@ g.add_argument(
     help="Write an .npz bundle with reward timing local variation + SLI for multi-group overlays.",
 )
 g.add_argument(
+    "--export-speed-sli-bundle",
+    type=str,
+    default=None,
+    help=(
+        "Write an .npz bundle with mean speed by sync bucket + SLI for "
+        "multi-group overlays."
+    ),
+)
+g.add_argument(
     "--reward-lgturn-pathlen-sli-debug",
     action="store_true",
     help="Debug export of reward-lgturn-pathlen+SLI bundle.",
@@ -6327,6 +6337,7 @@ def bucketLenForType(tp):
             "rpd",
             "rpd_exp_min_yok",
             "rlv",
+            "speed",
             "max_ctr_d_no_contact",
             "psc_conc",
             "psc_shift",
@@ -10663,6 +10674,9 @@ def postAnalyze(vas):
 
     if getattr(opts, "export_reward_lv_sli_bundle", None):
         export_reward_lv_sli_bundle(vas, opts, gls, opts.export_reward_lv_sli_bundle)
+
+    if getattr(opts, "export_speed_sli_bundle", None):
+        export_speed_sli_bundle(vas, opts, gls, opts.export_speed_sli_bundle)
 
     if getattr(opts, "export_agarose_sli_bundle", None):
         export_agarose_sli_bundle(vas, opts, gls, opts.export_agarose_sli_bundle)
