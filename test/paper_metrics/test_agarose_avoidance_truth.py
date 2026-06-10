@@ -242,7 +242,7 @@ def test_agarose_bundle_export_records_min_total_metadata(tmp_path, monkeypatch)
         )
 
 
-def test_agarose_bundle_export_masks_exp_pi_threshold_failures(
+def test_agarose_bundle_export_masks_exp_target_sync_bucket_failures(
     tmp_path, monkeypatch
 ):
     monkeypatch.setitem(
@@ -267,6 +267,7 @@ def test_agarose_bundle_export_masks_exp_pi_threshold_failures(
         noyc=False,
         flies=[object(), object()],
         reward_exclusion_mask=[[[True, False], [False, False]]],
+        sync_bucket_ranges=[[]],
         trns=[_Training(start=0, stop=10, name="T1")],
         agarose_dual_circle_counts={"ratio": ratio, "total": total, "avoid": avoid},
         _numRewardsMsg=lambda *_args, **_kwargs: 5,
@@ -295,7 +296,7 @@ def test_agarose_bundle_export_masks_exp_pi_threshold_failures(
             bundle["exp_pi_threshold_filter_eligible"], [False]
         )
         np.testing.assert_array_equal(
-            bundle["exp_pi_threshold_filter_reason"], ["pi_threshold_failed"]
+            bundle["exp_pi_threshold_filter_reason"], ["target_sync_bucket_missing"]
         )
         assert bool(bundle["exp_pi_threshold_filter_enabled"])
         assert np.isnan(bundle["agarose_ratio_exp"]).all()

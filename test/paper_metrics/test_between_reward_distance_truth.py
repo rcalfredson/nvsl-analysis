@@ -85,6 +85,7 @@ class _MaxDistVideo:
         self.fn = "fake-video"
         self.trns = [_Training()]
         self.reward_exclusion_mask = [[[True, True]]]
+        self.sync_bucket_ranges = [[]]
         self.syncMeanBetweenRewardMaxDist = [
             {"exp": [1.0, 2.0], "ctrl": [3.0, 4.0]}
         ]
@@ -261,6 +262,7 @@ def test_return_leg_collector_averages_by_sync_bucket_and_honors_nonwalk_option(
     ctrl = _Trajectory(x=np.arange(12, dtype=float), d=np.full(11, 2.0), f=1)
     va = _Video(
         trx=[exp, ctrl],
+        sync_bucket_ranges=[[]],
         segments_by_fly={
             0: [
                 _segment(s=0, e=4, b_idx=0, max_i=2),
@@ -306,7 +308,7 @@ def test_between_reward_maxdist_export_masks_by_min_trajectory_count():
     np.testing.assert_array_equal(n_ctrl, [[[1, 3]]])
 
 
-def test_between_reward_maxdist_bundle_applies_exp_pi_threshold_filter(monkeypatch):
+def test_between_reward_maxdist_bundle_applies_exp_target_sync_bucket_filter(monkeypatch):
     va = _MaxDistVideo()
 
     monkeypatch.setitem(
@@ -345,7 +347,7 @@ def test_between_reward_maxdist_bundle_applies_exp_pi_threshold_filter(monkeypat
     assert np.isnan(bundle["sli_ts"]).all()
     np.testing.assert_array_equal(bundle["exp_pi_threshold_filter_eligible"], [False])
     np.testing.assert_array_equal(
-        bundle["exp_pi_threshold_filter_reason"], ["pi_threshold_failed"]
+        bundle["exp_pi_threshold_filter_reason"], ["target_sync_bucket_missing"]
     )
 
 
@@ -382,11 +384,12 @@ def test_return_leg_sync_bucket_filter_masks_low_count_buckets():
     np.testing.assert_array_equal(n_exp, [[[2, 1]]])
 
 
-def test_return_leg_bundle_applies_exp_pi_threshold_filter(monkeypatch):
+def test_return_leg_bundle_applies_exp_target_sync_bucket_filter(monkeypatch):
     exp = _Trajectory(x=np.arange(12, dtype=float), d=np.ones(11))
     ctrl = _Trajectory(x=np.arange(12, dtype=float), d=np.full(11, 2.0), f=1)
     va = _Video(
         trx=[exp, ctrl],
+        sync_bucket_ranges=[[]],
         segments_by_fly={
             0: [
                 _segment(s=0, e=4, b_idx=0, max_i=2),
@@ -441,7 +444,7 @@ def test_return_leg_bundle_applies_exp_pi_threshold_filter(monkeypatch):
     assert np.isnan(bundle["sli_ts"]).all()
     np.testing.assert_array_equal(bundle["exp_pi_threshold_filter_eligible"], [False])
     np.testing.assert_array_equal(
-        bundle["exp_pi_threshold_filter_reason"], ["pi_threshold_failed"]
+        bundle["exp_pi_threshold_filter_reason"], ["target_sync_bucket_missing"]
     )
 
 

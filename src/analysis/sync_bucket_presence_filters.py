@@ -18,10 +18,9 @@ class ExpTargetSyncBucketFilterResult:
     training: int = DEFAULT_EXP_TARGET_SYNC_BUCKET_FILTER_TRAINING
     sync_bucket: int = DEFAULT_EXP_TARGET_SYNC_BUCKET_FILTER_SYNC_BUCKET
     fly_index: int = EXP_FLY_INDEX
-    pi_threshold: int = 0
-    target_exp_count: float = np.nan
-    target_ctrl_count: float = np.nan
-    target_count_sum: float = np.nan
+    available_sync_buckets: int = 0
+    target_bucket_start: float = np.nan
+    target_bucket_stop: float = np.nan
 
 
 def exp_target_sync_bucket_filter_enabled(opts) -> bool:
@@ -56,41 +55,87 @@ def exp_target_sync_bucket_filter_target(opts) -> tuple[int, int]:
     return max(1, int(training or 1)), max(1, int(sync_bucket or 1))
 
 
-def exp_target_sync_bucket_pi_threshold_value(opts) -> int:
-    return max(0, int(getattr(opts, "piTh", 0) or 0))
-
-
-def _target_bucket_counts(va, training_idx: int, bucket_idx: int, fly_index: int):
-    flies = getattr(va, "flies", None)
-    if flies is None:
-        return None
+def _finite_float(value) -> float:
     try:
-        n_flies = len(flies)
-    except TypeError:
-        n_flies = 1
-    n_flies = max(1, int(n_flies or 1))
-    row_idx = training_idx * n_flies + fly_index
-
-    try:
-        num_rewards_tot = getattr(va, "numRewardsTot")
-    except AttributeError:
-        return None
-    try:
-        exp_counts = num_rewards_tot[1][0][row_idx]
-        ctrl_counts = num_rewards_tot[1][1][row_idx]
-    except (IndexError, TypeError):
-        return np.nan, np.nan, np.nan, "target_training_or_fly_missing"
-
-    try:
-        exp_count = float(exp_counts[bucket_idx])
-        ctrl_count = float(ctrl_counts[bucket_idx])
-    except IndexError:
-        return np.nan, np.nan, np.nan, "target_sync_bucket_missing"
+        value = float(value)
     except (TypeError, ValueError):
-        return np.nan, np.nan, np.nan, "target_sync_bucket_nan"
+        return np.nan
+    return value if np.isfinite(value) else np.nan
 
-    count_sum = exp_count + ctrl_count
-    return exp_count, ctrl_count, count_sum, None
+
+def _bucket_presence_from_sync_ranges(va, training_idx: int, bucket_idx: int):
+    ranges = getattr(va, "sync_bucket_ranges", None)
+    if ranges is None:
+        return None
+
+    try:
+        training_ranges = ranges[training_idx]
+    except (IndexError, TypeError):
+        return 0, np.nan, np.nan, "target_training_missing"
+
+    if training_ranges is None:
+        return 0, np.nan, np.nan, "target_training_missing"
+
+    try:
+        available = len(training_ranges)
+    except TypeError:
+        return 0, np.nan, np.nan, "missing_sync_bucket_data"
+
+    if available <= bucket_idx:
+        return available, np.nan, np.nan, "target_sync_bucket_missing"
+
+    try:
+        start, stop = training_ranges[bucket_idx]
+    except (TypeError, ValueError):
+        return available, np.nan, np.nan, "target_sync_bucket_invalid"
+
+    start = _finite_float(start)
+    stop = _finite_float(stop)
+    if not np.isfinite(start) or not np.isfinite(stop) or stop <= start:
+        return available, start, stop, "target_sync_bucket_invalid"
+    return available, start, stop, None
+
+
+def _bucket_presence_from_buckets(va, training_idx: int, bucket_idx: int):
+    buckets = getattr(va, "buckets", None)
+    if buckets is None:
+        return None
+
+    try:
+        training_buckets = buckets[training_idx]
+    except (IndexError, TypeError):
+        return 0, np.nan, np.nan, "target_training_missing"
+
+    if training_buckets is None:
+        return 0, np.nan, np.nan, "target_training_missing"
+
+    try:
+        bucket_edges = list(training_buckets)
+    except TypeError:
+        return 0, np.nan, np.nan, "missing_sync_bucket_data"
+
+    if not bucket_edges:
+        return 0, np.nan, np.nan, "target_sync_bucket_missing"
+
+    start = _finite_float(bucket_edges[0])
+    if not np.isfinite(start):
+        return 0, np.nan, np.nan, "target_sync_bucket_missing"
+
+    ranges = []
+    for edge in bucket_edges[1:]:
+        stop = _finite_float(edge)
+        if not np.isfinite(stop):
+            break
+        if stop > start:
+            ranges.append((start, stop))
+        start = stop
+
+    available = len(ranges)
+    if available <= bucket_idx:
+        return available, np.nan, np.nan, "target_sync_bucket_missing"
+
+    start, stop = ranges[bucket_idx]
+    return available, start, stop, None
 
 
 def exp_target_sync_bucket_filter_result(va, opts) -> ExpTargetSyncBucketFilterResult:
@@ -100,7 +145,6 @@ def exp_target_sync_bucket_filter_result(va, opts) -> ExpTargetSyncBucketFilterR
         "training": training,
         "sync_bucket": sync_bucket,
         "fly_index": EXP_FLY_INDEX,
-        "pi_threshold": exp_target_sync_bucket_pi_threshold_value(opts),
     }
 
     if not result_kwargs["enabled"]:
@@ -112,66 +156,36 @@ def exp_target_sync_bucket_filter_result(va, opts) -> ExpTargetSyncBucketFilterR
 
     training_idx = training - 1
     bucket_idx = sync_bucket - 1
-    counts = _target_bucket_counts(va, training_idx, bucket_idx, EXP_FLY_INDEX)
-    if counts is not None:
-        exp_count, ctrl_count, count_sum, count_reason = counts
-        count_kwargs = {
-            "target_exp_count": exp_count,
-            "target_ctrl_count": ctrl_count,
-            "target_count_sum": count_sum,
-        }
-        if count_reason is not None:
-            return ExpTargetSyncBucketFilterResult(
-                eligible=False,
-                reason=count_reason,
-                **result_kwargs,
-                **count_kwargs,
-            )
-        if not np.isfinite(count_sum):
-            return ExpTargetSyncBucketFilterResult(
-                eligible=False,
-                reason="target_sync_bucket_nan",
-                **result_kwargs,
-                **count_kwargs,
-            )
-        excluded = count_sum < result_kwargs["pi_threshold"]
-        return ExpTargetSyncBucketFilterResult(
-            eligible=not excluded,
-            reason="passes" if not excluded else "pi_threshold_failed",
-            **result_kwargs,
-            **count_kwargs,
-        )
+    presence = _bucket_presence_from_sync_ranges(va, training_idx, bucket_idx)
+    if presence is None:
+        presence = _bucket_presence_from_buckets(va, training_idx, bucket_idx)
 
-    mask = getattr(va, "reward_exclusion_mask", None)
-    if mask is None:
+    if presence is None:
         return ExpTargetSyncBucketFilterResult(
             eligible=False,
-            reason="missing_reward_exclusion_mask",
+            reason="missing_sync_bucket_data",
             **result_kwargs,
         )
 
-    try:
-        fly_mask = mask[training_idx][EXP_FLY_INDEX]
-    except (IndexError, TypeError):
+    available, start, stop, reason = presence
+    presence_kwargs = {
+        "available_sync_buckets": int(available),
+        "target_bucket_start": start,
+        "target_bucket_stop": stop,
+    }
+    if reason is not None:
         return ExpTargetSyncBucketFilterResult(
             eligible=False,
-            reason="target_training_or_fly_missing",
             **result_kwargs,
-        )
-
-    try:
-        excluded = bool(fly_mask[bucket_idx])
-    except (IndexError, TypeError):
-        return ExpTargetSyncBucketFilterResult(
-            eligible=False,
-            reason="target_sync_bucket_missing",
-            **result_kwargs,
+            reason=reason,
+            **presence_kwargs,
         )
 
     return ExpTargetSyncBucketFilterResult(
-        eligible=not excluded,
-        reason="passes" if not excluded else "pi_threshold_failed",
+        eligible=True,
+        reason="passes",
         **result_kwargs,
+        **presence_kwargs,
     )
 
 
@@ -193,19 +207,16 @@ def exp_target_sync_bucket_filter_payload(vas, opts, *, prefix: str) -> dict:
         f"{prefix}_training": np.array(training, dtype=int),
         f"{prefix}_sync_bucket": np.array(sync_bucket, dtype=int),
         f"{prefix}_fly_index": np.array(EXP_FLY_INDEX, dtype=int),
-        f"{prefix}_pi_threshold": np.array(
-            exp_target_sync_bucket_pi_threshold_value(opts), dtype=int
-        ),
         f"{prefix}_eligible": eligible,
         f"{prefix}_reason": reasons,
-        f"{prefix}_target_exp_count": np.asarray(
-            [r.target_exp_count for r in results], dtype=float
+        f"{prefix}_available_sync_buckets": np.asarray(
+            [r.available_sync_buckets for r in results], dtype=int
         ),
-        f"{prefix}_target_ctrl_count": np.asarray(
-            [r.target_ctrl_count for r in results], dtype=float
+        f"{prefix}_target_bucket_start": np.asarray(
+            [r.target_bucket_start for r in results], dtype=float
         ),
-        f"{prefix}_target_count_sum": np.asarray(
-            [r.target_count_sum for r in results], dtype=float
+        f"{prefix}_target_bucket_stop": np.asarray(
+            [r.target_bucket_stop for r in results], dtype=float
         ),
     }
 
@@ -215,7 +226,7 @@ def mask_by_exp_target_sync_bucket_filter(values, eligible):
     keep = np.asarray(eligible, dtype=bool).reshape(-1)
     if arr.shape[:1] != keep.shape:
         raise ValueError(
-            "PI-threshold eligibility mask length must match first array dimension"
+            "target sync-bucket eligibility mask length must match first array dimension"
         )
     shape = (keep.size,) + (1,) * (arr.ndim - 1)
     return np.where(keep.reshape(shape), arr, np.nan)

@@ -258,7 +258,7 @@ def test_turnback_bundle_export_records_inner_and_outer_radius_metadata(
         )
 
 
-def test_turnback_bundle_export_applies_exp_pi_threshold_filter(tmp_path, monkeypatch):
+def test_turnback_bundle_export_applies_exp_target_sync_bucket_filter(tmp_path, monkeypatch):
     monkeypatch.setitem(
         sys.modules,
         "analyze",
@@ -281,6 +281,7 @@ def test_turnback_bundle_export_applies_exp_pi_threshold_filter(tmp_path, monkey
         trns=[_CircleTraining(start=0, stop=10)],
         reward_turnback_dual_circle_counts={"ratio": ratio, "total": total},
         reward_exclusion_mask=[[[True]]],
+        sync_bucket_ranges=[[]],
         _numRewardsMsg=lambda *_args, **_kwargs: 5,
         _syncBucket=lambda _trn, _df: (0, 1, None),
     )
@@ -308,7 +309,7 @@ def test_turnback_bundle_export_applies_exp_pi_threshold_filter(tmp_path, monkey
             bundle["exp_pi_threshold_filter_eligible"], [False]
         )
         np.testing.assert_array_equal(
-            bundle["exp_pi_threshold_filter_reason"], ["pi_threshold_failed"]
+            bundle["exp_pi_threshold_filter_reason"], ["target_sync_bucket_missing"]
         )
         assert np.isnan(bundle["sli"]).all()
         assert np.isnan(bundle["sli_ts"]).all()

@@ -386,9 +386,9 @@ def test_turnback_excursion_bin_export_records_min_episode_filter(tmp_path, monk
     assert np.isnan(loaded["turnback_excursion_bin_ratio_exp"]).all()
 
 
-def test_turnback_pair_export_applies_exp_pi_threshold_filter(tmp_path, monkeypatch):
+def test_turnback_pair_export_applies_exp_target_sync_bucket_filter(tmp_path, monkeypatch):
     exp = _Trajectory([_episode(10, 0.0, True), _episode(20, 0.0, False)])
-    va = _va(trx=[exp], noyc=True, sync_bucket_ranges=[[(0, 50)]])
+    va = _va(trx=[exp], noyc=True, sync_bucket_ranges=[[]])
     va.reward_exclusion_mask = [[[True]]]
     opts = SimpleNamespace(
         export_group_label="group",
@@ -433,7 +433,7 @@ def test_turnback_pair_export_applies_exp_pi_threshold_filter(tmp_path, monkeypa
             bundle["exp_pi_threshold_filter_eligible"], [False]
         )
         np.testing.assert_array_equal(
-            bundle["exp_pi_threshold_filter_reason"], ["pi_threshold_failed"]
+            bundle["exp_pi_threshold_filter_reason"], ["target_sync_bucket_missing"]
         )
         assert np.isnan(bundle["sli"]).all()
         assert np.isnan(bundle["sli_ts"]).all()

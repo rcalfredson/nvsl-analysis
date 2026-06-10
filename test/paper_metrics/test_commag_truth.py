@@ -202,7 +202,7 @@ def test_extract_commag_arrays_prefers_episode_threshold_option():
     np.testing.assert_array_equal(n_ctrl, [[[1, 3]]])
 
 
-def test_com_bundle_applies_exp_pi_threshold_filter(monkeypatch):
+def test_com_bundle_applies_exp_target_sync_bucket_filter(monkeypatch):
     monkeypatch.setitem(
         sys.modules,
         "analyze",
@@ -222,6 +222,7 @@ def test_com_bundle_applies_exp_pi_threshold_filter(monkeypatch):
         trns=[_Training()],
         fn="fake-video",
         reward_exclusion_mask=[[[True]]],
+        sync_bucket_ranges=[[]],
     )
     opts = SimpleNamespace(
         export_group_label="group",
@@ -246,5 +247,5 @@ def test_com_bundle_applies_exp_pi_threshold_filter(monkeypatch):
     np.testing.assert_array_equal(bundle["commagN_exp"], [[[2, 2]]])
     np.testing.assert_array_equal(bundle["exp_pi_threshold_filter_eligible"], [False])
     np.testing.assert_array_equal(
-        bundle["exp_pi_threshold_filter_reason"], ["pi_threshold_failed"]
+        bundle["exp_pi_threshold_filter_reason"], ["target_sync_bucket_missing"]
     )

@@ -92,9 +92,10 @@ def test_tortuosity_mean_swarm_filter_after_pooling_selected_segments():
     assert data["meta"]["min_segments_per_fly"] == 4
 
 
-def test_tortuosity_mean_swarm_applies_exp_pi_threshold_filter():
+def test_tortuosity_mean_swarm_applies_exp_target_sync_bucket_filter():
     va = _Video()
     va.reward_exclusion_mask = [[[True, False, False, False]]]
+    va.sync_bucket_ranges[0] = []
     opts = SimpleNamespace(
         min_between_reward_trajectories=1,
         require_exp_target_sync_bucket=True,

@@ -76,12 +76,13 @@ def test_turnback_outer_radius_masks_below_min_episode_count():
     np.testing.assert_array_equal(total_exp, [[3]])
 
 
-def test_turnback_outer_radius_export_applies_exp_pi_threshold_filter(
+def test_turnback_outer_radius_export_applies_exp_target_sync_bucket_filter(
     tmp_path, monkeypatch
 ):
     exp = _Trajectory([_episode(10, True), _episode(20, False)])
     va = _va(trx=[exp])
     va.reward_exclusion_mask = [[[True]]]
+    va.sync_bucket_ranges = [[]]
     opts = SimpleNamespace(
         export_group_label="group",
         turnback_outer_radius_outer_radii_mm="16",
@@ -121,7 +122,7 @@ def test_turnback_outer_radius_export_applies_exp_pi_threshold_filter(
             bundle["exp_pi_threshold_filter_eligible"], [False]
         )
         np.testing.assert_array_equal(
-            bundle["exp_pi_threshold_filter_reason"], ["pi_threshold_failed"]
+            bundle["exp_pi_threshold_filter_reason"], ["target_sync_bucket_missing"]
         )
         assert np.isnan(bundle["sli"]).all()
         assert np.isnan(bundle["sli_ts"]).all()

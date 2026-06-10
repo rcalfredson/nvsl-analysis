@@ -107,6 +107,7 @@ def test_wall_contact_scalar_bars_filter_after_pooling_selected_intervals():
 def test_wall_contact_scalar_bars_apply_exp_pi_threshold_filter():
     va = _Video()
     va.reward_exclusion_mask = [[[True, False, False, False]]]
+    va.sync_bucket_ranges[0] = []
     opts = SimpleNamespace(
         min_between_reward_trajectories=1,
         require_exp_target_sync_bucket=True,

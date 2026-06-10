@@ -287,11 +287,11 @@ def test_open_ended_bin_rejects_when_no_observed_excursion_exceeds_lower_edge():
         _curves([_va(trx=[exp], noyc=True)], edges=(2.0, 16.0, np.inf))
 
 
-def test_return_prob_excursion_bin_export_applies_exp_pi_threshold_filter(
+def test_return_prob_excursion_bin_export_applies_exp_target_sync_bucket_filter(
     tmp_path, monkeypatch
 ):
     exp = _Trajectory([_episode(10, 1.0, True), _episode(20, 5.0, True)])
-    va = _va(trx=[exp], noyc=True, sync_bucket_ranges=[[(0, 50)]])
+    va = _va(trx=[exp], noyc=True, sync_bucket_ranges=[[]])
     va.reward_exclusion_mask = [[[True]]]
     opts = SimpleNamespace(
         export_group_label="group",
@@ -331,7 +331,7 @@ def test_return_prob_excursion_bin_export_applies_exp_pi_threshold_filter(
             bundle["exp_pi_threshold_filter_eligible"], [False]
         )
         np.testing.assert_array_equal(
-            bundle["exp_pi_threshold_filter_reason"], ["pi_threshold_failed"]
+            bundle["exp_pi_threshold_filter_reason"], ["target_sync_bucket_missing"]
         )
         assert np.isnan(bundle["sli"]).all()
         assert np.isnan(bundle["sli_ts"]).all()
@@ -353,13 +353,13 @@ def test_return_prob_excursion_bin_export_applies_exp_pi_threshold_filter(
     np.testing.assert_array_equal(loaded["exp_pi_threshold_filter_eligible"], [False])
 
 
-def test_return_prob_outer_radius_export_applies_exp_pi_threshold_filter(
+def test_return_prob_outer_radius_export_applies_exp_target_sync_bucket_filter(
     tmp_path, monkeypatch
 ):
     exp = _OuterRadiusTrajectory(
         [{"stop": 10, "returns": True}, {"stop": 20, "returns": False}]
     )
-    va = _va(trx=[exp], noyc=True, sync_bucket_ranges=[[(0, 50)]])
+    va = _va(trx=[exp], noyc=True, sync_bucket_ranges=[[]])
     va.reward_exclusion_mask = [[[True]]]
     opts = SimpleNamespace(
         export_group_label="group",
@@ -399,7 +399,7 @@ def test_return_prob_outer_radius_export_applies_exp_pi_threshold_filter(
             bundle["exp_pi_threshold_filter_eligible"], [False]
         )
         np.testing.assert_array_equal(
-            bundle["exp_pi_threshold_filter_reason"], ["pi_threshold_failed"]
+            bundle["exp_pi_threshold_filter_reason"], ["target_sync_bucket_missing"]
         )
         assert np.isnan(bundle["sli"]).all()
         assert np.isnan(bundle["sli_ts"]).all()
