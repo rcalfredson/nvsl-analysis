@@ -983,7 +983,6 @@ class FirstNRewardDiagnosticsPlotter:
                 self._label_outliers(ax, plot_rows, x, y)
                 ax.set_xlabel(str(self.cfg.xlabel or self._metric_label(x_key)))
                 ax.set_ylabel(str(self.cfg.ylabel or self._metric_label(y_key)))
-                ax.grid(True, alpha=0.2)
                 ax.text(
                     0.02,
                     0.98,

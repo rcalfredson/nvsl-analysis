@@ -35,6 +35,7 @@ ACCENT_SKY = "#56B4E9"
 ACCENT_WINE = "#882255"
 ACCENT_PINK = "#CC79A7"
 ACCENT_INDIGO = "#332288"
+ACCENT_VIOLET = "#7E57C2"
 ACCENT_GREY = "#999999"
 
 WALL_CONTACTS_CATEGORICAL = (
@@ -239,7 +240,7 @@ CORRELATION_PLOT_COLORS = {
     "rewards_per_distance_vs_sli": ACCENT_BLUE,
     "rewards_per_distance_exp_minus_yoked_vs_sli": ACCENT_TEAL,
     "rewards_per_minute_vs_sli": ACCENT_ORANGE,
-    "first_n_reward_rate_vs_sli": ACCENT_TEAL,
+    "first_n_reward_rate_vs_sli": ACCENT_VIOLET,
     "median_distance_vs_sli": ACCENT_GREEN,
     "baseline_pi_vs_sli": ACCENT_GOLD,
     "pre_training_exploration_vs_sli": ACCENT_SKY,
