@@ -45,7 +45,7 @@ def _default_mask(*, excluded=False):
 def test_exp_pi_threshold_filter_is_noop_when_disabled():
     result = exp_pi_threshold_filter_result(
         _va_with_mask(_default_mask(excluded=True)),
-        SimpleNamespace(require_exp_pi_threshold_bucket=False, piTh=10),
+        SimpleNamespace(require_exp_target_sync_bucket=False, piTh=10),
     )
 
     assert result.eligible
@@ -56,7 +56,7 @@ def test_exp_pi_threshold_filter_is_noop_when_disabled():
 
 
 def test_exp_pi_threshold_filter_uses_target_experimental_bucket():
-    opts = SimpleNamespace(require_exp_pi_threshold_bucket=True, piTh=10)
+    opts = SimpleNamespace(require_exp_target_sync_bucket=True, piTh=10)
 
     passing = exp_pi_threshold_filter_result(
         _va_with_mask(_default_mask(excluded=False)), opts
@@ -72,7 +72,7 @@ def test_exp_pi_threshold_filter_uses_target_experimental_bucket():
 
 
 def test_exp_pi_threshold_filter_uses_target_count_sum_when_available():
-    opts = SimpleNamespace(require_exp_pi_threshold_bucket=True, piTh=10)
+    opts = SimpleNamespace(require_exp_target_sync_bucket=True, piTh=10)
 
     passing = exp_pi_threshold_filter_result(
         _va_with_counts([0, 0, 0, 0, 6], [0, 0, 0, 0, 4]),
@@ -92,7 +92,7 @@ def test_exp_pi_threshold_filter_uses_target_count_sum_when_available():
 
 
 def test_exp_pi_threshold_filter_reports_nan_target_bucket_separately():
-    opts = SimpleNamespace(require_exp_pi_threshold_bucket=True, piTh=10)
+    opts = SimpleNamespace(require_exp_target_sync_bucket=True, piTh=10)
 
     result = exp_pi_threshold_filter_result(
         _va_with_counts([0, 0, 0, 0, np.nan], [0, 0, 0, 0, np.nan]),
@@ -105,7 +105,7 @@ def test_exp_pi_threshold_filter_reports_nan_target_bucket_separately():
 
 
 def test_exp_pi_threshold_filter_reports_short_target_training_separately():
-    opts = SimpleNamespace(require_exp_pi_threshold_bucket=True, piTh=10)
+    opts = SimpleNamespace(require_exp_target_sync_bucket=True, piTh=10)
 
     result = exp_pi_threshold_filter_result(
         _va_with_counts([0], [2]),
@@ -118,6 +118,22 @@ def test_exp_pi_threshold_filter_reports_short_target_training_separately():
 
 
 def test_exp_pi_threshold_filter_can_use_custom_training_and_bucket():
+    mask = [[[False, True]]]
+    opts = SimpleNamespace(
+        require_exp_target_sync_bucket=True,
+        exp_target_sync_bucket_filter_training=1,
+        exp_target_sync_bucket_filter_sync_bucket=2,
+    )
+
+    result = exp_pi_threshold_filter_result(_va_with_mask(mask), opts)
+
+    assert not result.eligible
+    assert result.reason == "pi_threshold_failed"
+    assert result.training == 1
+    assert result.sync_bucket == 2
+
+
+def test_exp_pi_threshold_filter_accepts_legacy_option_names():
     mask = [[[False, True]]]
     opts = SimpleNamespace(
         require_exp_pi_threshold_bucket=True,
@@ -134,7 +150,7 @@ def test_exp_pi_threshold_filter_can_use_custom_training_and_bucket():
 
 
 def test_exp_pi_threshold_filter_fails_closed_when_required_data_is_missing():
-    opts = SimpleNamespace(require_exp_pi_threshold_bucket=True)
+    opts = SimpleNamespace(require_exp_target_sync_bucket=True)
 
     missing_mask = exp_pi_threshold_filter_result(SimpleNamespace(), opts)
     missing_bucket = exp_pi_threshold_filter_result(
@@ -148,7 +164,7 @@ def test_exp_pi_threshold_filter_fails_closed_when_required_data_is_missing():
 
 
 def test_exp_pi_threshold_eligibility_mask_and_payload_report_per_video_results():
-    opts = SimpleNamespace(require_exp_pi_threshold_bucket=True, piTh=7)
+    opts = SimpleNamespace(require_exp_target_sync_bucket=True, piTh=7)
     vas = [
         _va_with_mask(_default_mask(excluded=False)),
         _va_with_mask(_default_mask(excluded=True)),

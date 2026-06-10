@@ -97,9 +97,9 @@ def test_tortuosity_mean_swarm_applies_exp_pi_threshold_filter():
     va.reward_exclusion_mask = [[[True, False, False, False]]]
     opts = SimpleNamespace(
         min_between_reward_trajectories=1,
-        require_exp_pi_threshold_bucket=True,
-        exp_pi_threshold_filter_training=1,
-        exp_pi_threshold_filter_sync_bucket=1,
+        require_exp_target_sync_bucket=True,
+        exp_target_sync_bucket_filter_training=1,
+        exp_target_sync_bucket_filter_sync_bucket=1,
         piTh=10,
     )
     cfg = BetweenRewardTortuosityMeanSwarmConfig(

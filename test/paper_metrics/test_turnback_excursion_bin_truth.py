@@ -410,9 +410,9 @@ def test_turnback_pair_export_applies_exp_pi_threshold_filter(tmp_path, monkeypa
         sli_select_skip_first_sync_buckets=0,
         sli_select_keep_first_sync_buckets=0,
         min_turnback_episodes=1,
-        require_exp_pi_threshold_bucket=True,
-        exp_pi_threshold_filter_training=1,
-        exp_pi_threshold_filter_sync_bucket=1,
+        require_exp_target_sync_bucket=True,
+        exp_target_sync_bucket_filter_training=1,
+        exp_target_sync_bucket_filter_sync_bucket=1,
         piTh=10,
         turnback_excursion_bin_debug_episodes_csv=None,
     )

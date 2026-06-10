@@ -25,19 +25,33 @@ class ExpPIThresholdFilterResult:
 
 
 def exp_pi_threshold_filter_enabled(opts) -> bool:
-    return bool(getattr(opts, "require_exp_pi_threshold_bucket", False))
+    return bool(
+        getattr(
+            opts,
+            "require_exp_target_sync_bucket",
+            getattr(opts, "require_exp_pi_threshold_bucket", False),
+        )
+    )
 
 
 def exp_pi_threshold_filter_target(opts) -> tuple[int, int]:
     training = getattr(
         opts,
-        "exp_pi_threshold_filter_training",
-        DEFAULT_EXP_PI_FILTER_TRAINING,
+        "exp_target_sync_bucket_filter_training",
+        getattr(
+            opts,
+            "exp_pi_threshold_filter_training",
+            DEFAULT_EXP_PI_FILTER_TRAINING,
+        ),
     )
     sync_bucket = getattr(
         opts,
-        "exp_pi_threshold_filter_sync_bucket",
-        DEFAULT_EXP_PI_FILTER_SYNC_BUCKET,
+        "exp_target_sync_bucket_filter_sync_bucket",
+        getattr(
+            opts,
+            "exp_pi_threshold_filter_sync_bucket",
+            DEFAULT_EXP_PI_FILTER_SYNC_BUCKET,
+        ),
     )
     return max(1, int(training or 1)), max(1, int(sync_bucket or 1))
 
