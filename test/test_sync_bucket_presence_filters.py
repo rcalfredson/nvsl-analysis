@@ -192,24 +192,24 @@ def test_exp_target_sync_bucket_eligibility_mask_and_payload_report_per_video_re
 
     eligible = exp_target_sync_bucket_eligibility_mask(vas, opts)
     payload = exp_target_sync_bucket_filter_payload(
-        vas, opts, prefix="exp_pi_threshold_filter"
+        vas, opts, prefix="exp_target_sync_bucket_filter"
     )
 
     np.testing.assert_array_equal(eligible, [True, False])
-    assert bool(payload["exp_pi_threshold_filter_enabled"])
+    assert bool(payload["exp_target_sync_bucket_filter_enabled"])
     np.testing.assert_array_equal(
-        payload["exp_pi_threshold_filter_eligible"], [True, False]
+        payload["exp_target_sync_bucket_filter_eligible"], [True, False]
     )
     np.testing.assert_array_equal(
-        payload["exp_pi_threshold_filter_reason"],
+        payload["exp_target_sync_bucket_filter_reason"],
         ["passes", "target_sync_bucket_missing"],
     )
     np.testing.assert_array_equal(
-        payload["exp_pi_threshold_filter_available_sync_buckets"], [5, 4]
+        payload["exp_target_sync_bucket_filter_available_sync_buckets"], [5, 4]
     )
-    assert "exp_pi_threshold_filter_target_bucket_start" in payload
-    assert "exp_pi_threshold_filter_pi_threshold" not in payload
-    assert "exp_pi_threshold_filter_target_count_sum" not in payload
+    assert "exp_target_sync_bucket_filter_target_bucket_start" in payload
+    assert "exp_target_sync_bucket_filter_pi_threshold" not in payload
+    assert "exp_target_sync_bucket_filter_target_count_sum" not in payload
 
 
 def test_mask_by_exp_target_sync_bucket_filter_masks_first_dimension_rows():

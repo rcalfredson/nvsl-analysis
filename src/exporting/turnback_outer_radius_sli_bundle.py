@@ -412,7 +412,7 @@ def export_turnback_outer_radius_sli_bundle(vas, opts, gls, out_fn):
         **exp_target_sync_bucket_filter_payload(
             vas_ok,
             opts,
-            prefix="exp_pi_threshold_filter",
+            prefix="exp_target_sync_bucket_filter",
         ),
         turnback_outer_radius_outer_radii_mm=np.asarray(outer_radii_mm, dtype=float),
         turnback_outer_radius_outer_deltas_mm=np.asarray(

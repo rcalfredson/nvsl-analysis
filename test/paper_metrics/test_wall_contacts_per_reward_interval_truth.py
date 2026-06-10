@@ -104,7 +104,7 @@ def test_wall_contact_scalar_bars_filter_after_pooling_selected_intervals():
     assert data["meta"]["training_selection"]["trainings_effective"] == [1, 2]
 
 
-def test_wall_contact_scalar_bars_apply_exp_pi_threshold_filter():
+def test_wall_contact_scalar_bars_apply_exp_target_sync_bucket_filter():
     va = _Video()
     va.reward_exclusion_mask = [[[True, False, False, False]]]
     va.sync_bucket_ranges[0] = []

@@ -62,11 +62,11 @@ def test_validate_turnback_excursion_bin_bundle_accepts_pair_mode_metadata():
     )
 
 
-def test_validate_turnback_excursion_bin_bundle_allows_pi_filtered_exp_ratio():
+def test_validate_turnback_excursion_bin_bundle_allows_target_sync_bucket_filtered_exp_ratio():
     validate_turnback_excursion_bin_bundle(
         _bundle(
             turnback_excursion_bin_ratio_exp=np.asarray([[np.nan, np.nan]]),
-            exp_pi_threshold_filter_eligible=np.asarray([False]),
+            exp_target_sync_bucket_filter_eligible=np.asarray([False]),
         )
     )
 

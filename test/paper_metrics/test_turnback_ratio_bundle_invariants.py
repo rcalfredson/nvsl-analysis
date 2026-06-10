@@ -59,7 +59,22 @@ def test_validate_turnback_ratio_bundle_accepts_valid_shapes_and_metadata():
     assert normalized["turnback_ratio_exp"].shape == (2, 2, 3)
 
 
-def test_validate_turnback_ratio_bundle_allows_pi_filtered_exp_ratio():
+def test_validate_turnback_ratio_bundle_allows_target_sync_bucket_filtered_exp_ratio():
+    validate_turnback_ratio_bundle(
+        _bundle(
+            turnback_ratio_exp=np.asarray(
+                [
+                    [[np.nan, np.nan, np.nan], [np.nan, np.nan, np.nan]],
+                    [[np.nan, 1.0, 0.25], [0.5, np.nan, 1.0]],
+                ],
+                dtype=float,
+            ),
+            exp_target_sync_bucket_filter_eligible=np.asarray([False, True]),
+        )
+    )
+
+
+def test_validate_turnback_ratio_bundle_accepts_legacy_pi_filter_key():
     validate_turnback_ratio_bundle(
         _bundle(
             turnback_ratio_exp=np.asarray(

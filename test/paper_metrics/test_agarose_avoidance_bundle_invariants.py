@@ -85,10 +85,10 @@ def test_validate_agarose_bundle_accepts_legacy_min_total_metadata():
     validate_agarose_sli_bundle(bundle)
 
 
-def test_validate_agarose_bundle_allows_pi_filtered_exp_ratios():
+def test_validate_agarose_bundle_allows_target_sync_bucket_filtered_exp_ratios():
     validate_agarose_sli_bundle(
         _bundle(
-            exp_pi_threshold_filter_eligible=np.asarray([False, True]),
+            exp_target_sync_bucket_filter_eligible=np.asarray([False, True]),
             agarose_ratio_exp=np.asarray(
                 [
                     [[np.nan, np.nan, np.nan], [np.nan, np.nan, np.nan]],

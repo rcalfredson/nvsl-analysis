@@ -165,7 +165,7 @@ def build_between_reward_maxdist_sli_bundle(vas, opts, gls) -> dict:
         exp_target_sync_bucket_filter_payload(
             vas_ok,
             opts,
-            prefix="exp_pi_threshold_filter",
+            prefix="exp_target_sync_bucket_filter",
         )
     )
     return bundle

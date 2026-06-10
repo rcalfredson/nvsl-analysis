@@ -245,7 +245,7 @@ def test_com_bundle_applies_exp_target_sync_bucket_filter(monkeypatch):
     assert np.isnan(bundle["commag_exp"]).all()
     np.testing.assert_allclose(bundle["commag_ctrl"], [[[3.0, 4.0]]])
     np.testing.assert_array_equal(bundle["commagN_exp"], [[[2, 2]]])
-    np.testing.assert_array_equal(bundle["exp_pi_threshold_filter_eligible"], [False])
+    np.testing.assert_array_equal(bundle["exp_target_sync_bucket_filter_eligible"], [False])
     np.testing.assert_array_equal(
-        bundle["exp_pi_threshold_filter_reason"], ["target_sync_bucket_missing"]
+        bundle["exp_target_sync_bucket_filter_reason"], ["target_sync_bucket_missing"]
     )

@@ -52,11 +52,11 @@ def test_validate_return_prob_excursion_bin_bundle_accepts_valid_shapes_and_meta
     )
 
 
-def test_validate_return_prob_excursion_bin_bundle_allows_pi_filtered_exp_ratio():
+def test_validate_return_prob_excursion_bin_bundle_allows_target_sync_bucket_filtered_exp_ratio():
     validate_return_prob_excursion_bin_bundle(
         _bundle(
             return_prob_excursion_bin_ratio_exp=np.asarray([[np.nan, np.nan]]),
-            exp_pi_threshold_filter_eligible=np.asarray([False]),
+            exp_target_sync_bucket_filter_eligible=np.asarray([False]),
         )
     )
 

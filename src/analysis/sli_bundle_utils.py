@@ -18,6 +18,7 @@ BUNDLE_ARRAY_PREFIXES = (
     "between_reward_",
     "cum_reward_sli_",
     "episode_filter_",
+    "exp_target_sync_bucket_filter_",
     "exp_pi_threshold_filter_",
     "weaving_",
     "wallpct_",
@@ -198,6 +199,25 @@ def add_fraction_within_radius_key_aliases(bundle: dict) -> dict:
 
 def _bundle_label(bundle: dict, path: str | None = None) -> str:
     return path or bundle.get("path") or "<unknown>"
+
+
+def _exp_target_sync_bucket_eligible(bundle: dict, n_videos: int, where: str):
+    eligible = np.asarray(
+        bundle.get(
+            "exp_target_sync_bucket_filter_eligible",
+            bundle.get(
+                "exp_pi_threshold_filter_eligible",
+                np.ones(n_videos, dtype=bool),
+            ),
+        ),
+        dtype=bool,
+    ).reshape(-1)
+    if eligible.size != n_videos:
+        raise ValueError(
+            f"Bundle {where} has exp_target_sync_bucket_filter_eligible.shape="
+            f"{eligible.shape} but expected {(n_videos,)}"
+        )
+    return eligible
 
 
 def validate_sli_bundle(bundle: dict, *, path: str | None = None) -> None:
@@ -554,18 +574,9 @@ def validate_turnback_ratio_bundle(bundle: dict, *, path: str | None = None) -> 
     if min_total < 0:
         raise ValueError(f"Bundle {where} has negative min_turnback_episodes")
 
-    exp_pi_eligible = np.asarray(
-        bundle.get(
-            "exp_pi_threshold_filter_eligible",
-            np.ones(expected_shape[0], dtype=bool),
-        ),
-        dtype=bool,
-    ).reshape(-1)
-    if exp_pi_eligible.size != expected_shape[0]:
-        raise ValueError(
-            f"Bundle {where} has exp_pi_threshold_filter_eligible.shape="
-            f"{exp_pi_eligible.shape} but expected {(expected_shape[0],)}"
-        )
+    target_sync_bucket_eligible = _exp_target_sync_bucket_eligible(
+        bundle, expected_shape[0], where
+    )
 
     for key, ratio, total in (
         ("turnback_ratio_exp", ratio_exp, total_exp),
@@ -573,7 +584,7 @@ def validate_turnback_ratio_bundle(bundle: dict, *, path: str | None = None) -> 
     ):
         reportable = total >= max(1, min_total)
         if key.endswith("_exp"):
-            reportable = reportable & exp_pi_eligible[:, None, None]
+            reportable = reportable & target_sync_bucket_eligible[:, None, None]
         if np.any(~np.isfinite(ratio[reportable])):
             raise ValueError(
                 f"Bundle {where} has non-finite {key} where total passes "
@@ -721,18 +732,9 @@ def validate_agarose_sli_bundle(bundle: dict, *, path: str | None = None) -> Non
         raise ValueError(f"Bundle {where} has negative min_agarose_episodes")
 
     n_videos = expected_shape[0]
-    exp_pi_eligible = np.asarray(
-        bundle.get(
-            "exp_pi_threshold_filter_eligible",
-            np.ones(n_videos, dtype=bool),
-        ),
-        dtype=bool,
-    ).reshape(-1)
-    if exp_pi_eligible.size != n_videos:
-        raise ValueError(
-            f"Bundle {where} has exp_pi_threshold_filter_eligible.shape="
-            f"{exp_pi_eligible.shape} but expected {(n_videos,)}"
-        )
+    target_sync_bucket_eligible = _exp_target_sync_bucket_eligible(
+        bundle, n_videos, where
+    )
 
     for suffix in ("exp", "ctrl"):
         _validate_ratio_count_semantics(
@@ -744,7 +746,9 @@ def validate_agarose_sli_bundle(bundle: dict, *, path: str | None = None) -> Non
             expected_shape=expected_shape,
             min_total=min_total,
             reportable_mask=(
-                exp_pi_eligible[:, None, None] if suffix == "exp" else None
+                target_sync_bucket_eligible[:, None, None]
+                if suffix == "exp"
+                else None
             ),
         )
 
@@ -764,7 +768,9 @@ def validate_agarose_sli_bundle(bundle: dict, *, path: str | None = None) -> Non
                 total_key=f"agarose_pre_total_{suffix}",
                 expected_shape=(n_videos,),
                 min_total=min_total,
-                reportable_mask=(exp_pi_eligible if suffix == "exp" else None),
+                reportable_mask=(
+                    target_sync_bucket_eligible if suffix == "exp" else None
+                ),
             )
         if "agarose_pre_window_min" in bundle:
             window_min = float(as_scalar(bundle["agarose_pre_window_min"]))
@@ -792,7 +798,9 @@ def validate_agarose_sli_bundle(bundle: dict, *, path: str | None = None) -> Non
                 expected_shape=(n_videos, n_trainings),
                 min_total=min_total,
                 reportable_mask=(
-                    exp_pi_eligible[:, None] if suffix == "exp" else None
+                    target_sync_bucket_eligible[:, None]
+                    if suffix == "exp"
+                    else None
                 ),
             )
         if "agarose_training_pre_window_min" in bundle:
@@ -930,18 +938,9 @@ def validate_fraction_within_radius_excursion_bin_bundle(
         )
     sufficient_count = max(1, min_segments)
 
-    exp_pi_eligible = np.asarray(
-        bundle.get(
-            "exp_pi_threshold_filter_eligible",
-            np.ones(n_videos, dtype=bool),
-        ),
-        dtype=bool,
-    ).reshape(-1)
-    if exp_pi_eligible.size != n_videos:
-        raise ValueError(
-            f"Bundle {where} has exp_pi_threshold_filter_eligible.shape="
-            f"{exp_pi_eligible.shape} but expected {(n_videos,)}"
-        )
+    target_sync_bucket_eligible = _exp_target_sync_bucket_eligible(
+        bundle, n_videos, where
+    )
 
     for key, ratio in (
         ("fraction_within_radius_excursion_bin_ratio_exp", ratio_exp),
@@ -980,7 +979,7 @@ def validate_fraction_within_radius_excursion_bin_bundle(
         expected = np.full_like(values, np.nan, dtype=float)
         reportable = total >= sufficient_count
         if key.endswith("_exp"):
-            reportable = reportable & exp_pi_eligible[:, None]
+            reportable = reportable & target_sync_bucket_eligible[:, None]
         np.divide(values, total, out=expected, where=reportable)
         both_finite = np.isfinite(ratio) & np.isfinite(expected)
         if np.any(~np.isfinite(ratio[reportable])):
@@ -1216,18 +1215,9 @@ def validate_turnback_excursion_bin_bundle(
         if np.any(values[finite] > total[finite] + 1e-12):
             raise ValueError(f"Bundle {where} has {key} values greater than totals")
 
-    exp_pi_eligible = np.asarray(
-        bundle.get(
-            "exp_pi_threshold_filter_eligible",
-            np.ones(n_videos, dtype=bool),
-        ),
-        dtype=bool,
-    ).reshape(-1)
-    if exp_pi_eligible.size != n_videos:
-        raise ValueError(
-            f"Bundle {where} has exp_pi_threshold_filter_eligible.shape="
-            f"{exp_pi_eligible.shape} but expected {(n_videos,)}"
-        )
+    target_sync_bucket_eligible = _exp_target_sync_bucket_eligible(
+        bundle, n_videos, where
+    )
 
     for key, ratio, values, total in (
         ("turnback_excursion_bin_ratio_exp", ratio_exp, turn_exp, total_exp),
@@ -1236,7 +1226,7 @@ def validate_turnback_excursion_bin_bundle(
         expected = np.full_like(values, np.nan, dtype=float)
         reportable = total >= max(1, min_total)
         if key.endswith("_exp"):
-            reportable = reportable & exp_pi_eligible[:, None]
+            reportable = reportable & target_sync_bucket_eligible[:, None]
         np.divide(values, total, out=expected, where=reportable)
         both_finite = np.isfinite(ratio) & np.isfinite(expected)
         if np.any(~np.isfinite(ratio[reportable])):

@@ -287,18 +287,18 @@ def test_agarose_bundle_export_masks_exp_target_sync_bucket_failures(
         exp_target_sync_bucket_filter_sync_bucket=1,
         piTh=10,
     )
-    out = tmp_path / "agarose_bundle_pi_filtered.npz"
+    out = tmp_path / "agarose_bundle_target_sync_bucket_filtered.npz"
 
     export_agarose_sli_bundle([va], opts, gls=None, out_fn=str(out))
 
     with np.load(out, allow_pickle=True) as bundle:
         np.testing.assert_array_equal(
-            bundle["exp_pi_threshold_filter_eligible"], [False]
+            bundle["exp_target_sync_bucket_filter_eligible"], [False]
         )
         np.testing.assert_array_equal(
-            bundle["exp_pi_threshold_filter_reason"], ["target_sync_bucket_missing"]
+            bundle["exp_target_sync_bucket_filter_reason"], ["target_sync_bucket_missing"]
         )
-        assert bool(bundle["exp_pi_threshold_filter_enabled"])
+        assert bool(bundle["exp_target_sync_bucket_filter_enabled"])
         assert np.isnan(bundle["agarose_ratio_exp"]).all()
         np.testing.assert_allclose(bundle["agarose_ratio_ctrl"], [[[0.0, 1.0]]])
         np.testing.assert_array_equal(bundle["agarose_total_exp"], [[[2, 2]]])

@@ -488,7 +488,7 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
         **exp_target_sync_bucket_filter_payload(
             vas_ok,
             opts,
-            prefix="exp_pi_threshold_filter",
+            prefix="exp_target_sync_bucket_filter",
         ),
         **episode_filter_accounting_payload(
             "episode_filter_agarose_sync_exp",

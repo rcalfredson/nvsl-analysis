@@ -345,9 +345,9 @@ def test_between_reward_maxdist_bundle_applies_exp_target_sync_bucket_filter(mon
     np.testing.assert_array_equal(bundle["between_reward_maxdistN_exp"], [[[2, 1]]])
     assert np.isnan(bundle["sli"]).all()
     assert np.isnan(bundle["sli_ts"]).all()
-    np.testing.assert_array_equal(bundle["exp_pi_threshold_filter_eligible"], [False])
+    np.testing.assert_array_equal(bundle["exp_target_sync_bucket_filter_eligible"], [False])
     np.testing.assert_array_equal(
-        bundle["exp_pi_threshold_filter_reason"], ["target_sync_bucket_missing"]
+        bundle["exp_target_sync_bucket_filter_reason"], ["target_sync_bucket_missing"]
     )
 
 
@@ -442,9 +442,9 @@ def test_return_leg_bundle_applies_exp_target_sync_bucket_filter(monkeypatch):
     )
     assert np.isnan(bundle["sli"]).all()
     assert np.isnan(bundle["sli_ts"]).all()
-    np.testing.assert_array_equal(bundle["exp_pi_threshold_filter_eligible"], [False])
+    np.testing.assert_array_equal(bundle["exp_target_sync_bucket_filter_eligible"], [False])
     np.testing.assert_array_equal(
-        bundle["exp_pi_threshold_filter_reason"], ["target_sync_bucket_missing"]
+        bundle["exp_target_sync_bucket_filter_reason"], ["target_sync_bucket_missing"]
     )
 
 

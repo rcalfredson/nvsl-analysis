@@ -267,7 +267,7 @@ def export_turnback_sli_bundle(vas, opts, gls, out_fn):
         **exp_target_sync_bucket_filter_payload(
             vas_ok,
             opts,
-            prefix="exp_pi_threshold_filter",
+            prefix="exp_target_sync_bucket_filter",
         ),
         group_label=np.array(group_label, dtype=object),
         bucket_len_min=np.array(bucket_len_min, dtype=float),

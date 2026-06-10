@@ -306,10 +306,10 @@ def test_turnback_bundle_export_applies_exp_target_sync_bucket_filter(tmp_path, 
 
     with np.load(out, allow_pickle=True) as bundle:
         np.testing.assert_array_equal(
-            bundle["exp_pi_threshold_filter_eligible"], [False]
+            bundle["exp_target_sync_bucket_filter_eligible"], [False]
         )
         np.testing.assert_array_equal(
-            bundle["exp_pi_threshold_filter_reason"], ["target_sync_bucket_missing"]
+            bundle["exp_target_sync_bucket_filter_reason"], ["target_sync_bucket_missing"]
         )
         assert np.isnan(bundle["sli"]).all()
         assert np.isnan(bundle["sli_ts"]).all()
@@ -318,4 +318,4 @@ def test_turnback_bundle_export_applies_exp_target_sync_bucket_filter(tmp_path, 
 
     loaded = load_sli_bundle(str(out))
     assert np.isnan(loaded["turnback_ratio_exp"]).all()
-    np.testing.assert_array_equal(loaded["exp_pi_threshold_filter_eligible"], [False])
+    np.testing.assert_array_equal(loaded["exp_target_sync_bucket_filter_eligible"], [False])

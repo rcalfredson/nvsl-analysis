@@ -328,10 +328,10 @@ def test_return_prob_excursion_bin_export_applies_exp_target_sync_bucket_filter(
 
     with np.load(out, allow_pickle=True) as bundle:
         np.testing.assert_array_equal(
-            bundle["exp_pi_threshold_filter_eligible"], [False]
+            bundle["exp_target_sync_bucket_filter_eligible"], [False]
         )
         np.testing.assert_array_equal(
-            bundle["exp_pi_threshold_filter_reason"], ["target_sync_bucket_missing"]
+            bundle["exp_target_sync_bucket_filter_reason"], ["target_sync_bucket_missing"]
         )
         assert np.isnan(bundle["sli"]).all()
         assert np.isnan(bundle["sli_ts"]).all()
@@ -350,7 +350,7 @@ def test_return_prob_excursion_bin_export_applies_exp_target_sync_bucket_filter(
     assert np.isnan(
         loaded["fraction_within_radius_excursion_bin_ratio_exp"]
     ).all()
-    np.testing.assert_array_equal(loaded["exp_pi_threshold_filter_eligible"], [False])
+    np.testing.assert_array_equal(loaded["exp_target_sync_bucket_filter_eligible"], [False])
 
 
 def test_return_prob_outer_radius_export_applies_exp_target_sync_bucket_filter(
@@ -396,10 +396,10 @@ def test_return_prob_outer_radius_export_applies_exp_target_sync_bucket_filter(
 
     with np.load(out, allow_pickle=True) as bundle:
         np.testing.assert_array_equal(
-            bundle["exp_pi_threshold_filter_eligible"], [False]
+            bundle["exp_target_sync_bucket_filter_eligible"], [False]
         )
         np.testing.assert_array_equal(
-            bundle["exp_pi_threshold_filter_reason"], ["target_sync_bucket_missing"]
+            bundle["exp_target_sync_bucket_filter_reason"], ["target_sync_bucket_missing"]
         )
         assert np.isnan(bundle["sli"]).all()
         assert np.isnan(bundle["sli_ts"]).all()
