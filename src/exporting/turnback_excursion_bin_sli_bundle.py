@@ -903,11 +903,12 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
     except Exception:
         training_names = np.array([], dtype=object)
 
+    video_fns = np.array([getattr(va, "fn", "") for va in vas_ok], dtype=object)
+    fly_ids = np.array([int(getattr(va, "f", -1)) for va in vas_ok], dtype=int)
     video_ids = np.array(
-        [getattr(va, "fn", f"va_{i}") for i, va in enumerate(vas_ok)],
+        [f"{fn}::f{f}" for fn, f in zip(video_fns, fly_ids)],
         dtype=object,
     )
-    fly_ids = np.array([0 for _ in vas_ok], dtype=int)
     window_strings = np.asarray(
         [
             "; ".join(
@@ -926,7 +927,7 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         group_label=np.asarray(group_label),
         training_names=np.asarray(training_names, dtype=str),
         video_ids=np.asarray(video_ids, dtype=str),
-        video_fns=np.asarray(video_ids, dtype=str),
+        video_fns=np.asarray(video_fns, dtype=str),
         fly_ids=np.asarray(fly_ids, dtype=int),
         sli_training_idx=np.array(getattr(opts, "best_worst_trn", 1) - 1, dtype=int),
         sli_use_training_mean=np.array(
