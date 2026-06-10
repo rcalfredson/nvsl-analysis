@@ -5,18 +5,18 @@ from dataclasses import dataclass
 import numpy as np
 
 
-DEFAULT_EXP_PI_FILTER_TRAINING = 2
-DEFAULT_EXP_PI_FILTER_SYNC_BUCKET = 5
+DEFAULT_EXP_TARGET_SYNC_BUCKET_FILTER_TRAINING = 2
+DEFAULT_EXP_TARGET_SYNC_BUCKET_FILTER_SYNC_BUCKET = 5
 EXP_FLY_INDEX = 0
 
 
 @dataclass(frozen=True)
-class ExpPIThresholdFilterResult:
+class ExpTargetSyncBucketFilterResult:
     enabled: bool
     eligible: bool
     reason: str
-    training: int = DEFAULT_EXP_PI_FILTER_TRAINING
-    sync_bucket: int = DEFAULT_EXP_PI_FILTER_SYNC_BUCKET
+    training: int = DEFAULT_EXP_TARGET_SYNC_BUCKET_FILTER_TRAINING
+    sync_bucket: int = DEFAULT_EXP_TARGET_SYNC_BUCKET_FILTER_SYNC_BUCKET
     fly_index: int = EXP_FLY_INDEX
     pi_threshold: int = 0
     target_exp_count: float = np.nan
@@ -24,7 +24,7 @@ class ExpPIThresholdFilterResult:
     target_count_sum: float = np.nan
 
 
-def exp_pi_threshold_filter_enabled(opts) -> bool:
+def exp_target_sync_bucket_filter_enabled(opts) -> bool:
     return bool(
         getattr(
             opts,
@@ -34,14 +34,14 @@ def exp_pi_threshold_filter_enabled(opts) -> bool:
     )
 
 
-def exp_pi_threshold_filter_target(opts) -> tuple[int, int]:
+def exp_target_sync_bucket_filter_target(opts) -> tuple[int, int]:
     training = getattr(
         opts,
         "exp_target_sync_bucket_filter_training",
         getattr(
             opts,
             "exp_pi_threshold_filter_training",
-            DEFAULT_EXP_PI_FILTER_TRAINING,
+            DEFAULT_EXP_TARGET_SYNC_BUCKET_FILTER_TRAINING,
         ),
     )
     sync_bucket = getattr(
@@ -50,13 +50,13 @@ def exp_pi_threshold_filter_target(opts) -> tuple[int, int]:
         getattr(
             opts,
             "exp_pi_threshold_filter_sync_bucket",
-            DEFAULT_EXP_PI_FILTER_SYNC_BUCKET,
+            DEFAULT_EXP_TARGET_SYNC_BUCKET_FILTER_SYNC_BUCKET,
         ),
     )
     return max(1, int(training or 1)), max(1, int(sync_bucket or 1))
 
 
-def exp_pi_threshold_value(opts) -> int:
+def exp_target_sync_bucket_pi_threshold_value(opts) -> int:
     return max(0, int(getattr(opts, "piTh", 0) or 0))
 
 
@@ -93,18 +93,18 @@ def _target_bucket_counts(va, training_idx: int, bucket_idx: int, fly_index: int
     return exp_count, ctrl_count, count_sum, None
 
 
-def exp_pi_threshold_filter_result(va, opts) -> ExpPIThresholdFilterResult:
-    training, sync_bucket = exp_pi_threshold_filter_target(opts)
+def exp_target_sync_bucket_filter_result(va, opts) -> ExpTargetSyncBucketFilterResult:
+    training, sync_bucket = exp_target_sync_bucket_filter_target(opts)
     result_kwargs = {
-        "enabled": exp_pi_threshold_filter_enabled(opts),
+        "enabled": exp_target_sync_bucket_filter_enabled(opts),
         "training": training,
         "sync_bucket": sync_bucket,
         "fly_index": EXP_FLY_INDEX,
-        "pi_threshold": exp_pi_threshold_value(opts),
+        "pi_threshold": exp_target_sync_bucket_pi_threshold_value(opts),
     }
 
     if not result_kwargs["enabled"]:
-        return ExpPIThresholdFilterResult(
+        return ExpTargetSyncBucketFilterResult(
             eligible=True,
             reason="disabled",
             **result_kwargs,
@@ -121,21 +121,21 @@ def exp_pi_threshold_filter_result(va, opts) -> ExpPIThresholdFilterResult:
             "target_count_sum": count_sum,
         }
         if count_reason is not None:
-            return ExpPIThresholdFilterResult(
+            return ExpTargetSyncBucketFilterResult(
                 eligible=False,
                 reason=count_reason,
                 **result_kwargs,
                 **count_kwargs,
             )
         if not np.isfinite(count_sum):
-            return ExpPIThresholdFilterResult(
+            return ExpTargetSyncBucketFilterResult(
                 eligible=False,
                 reason="target_sync_bucket_nan",
                 **result_kwargs,
                 **count_kwargs,
             )
         excluded = count_sum < result_kwargs["pi_threshold"]
-        return ExpPIThresholdFilterResult(
+        return ExpTargetSyncBucketFilterResult(
             eligible=not excluded,
             reason="passes" if not excluded else "pi_threshold_failed",
             **result_kwargs,
@@ -144,7 +144,7 @@ def exp_pi_threshold_filter_result(va, opts) -> ExpPIThresholdFilterResult:
 
     mask = getattr(va, "reward_exclusion_mask", None)
     if mask is None:
-        return ExpPIThresholdFilterResult(
+        return ExpTargetSyncBucketFilterResult(
             eligible=False,
             reason="missing_reward_exclusion_mask",
             **result_kwargs,
@@ -153,7 +153,7 @@ def exp_pi_threshold_filter_result(va, opts) -> ExpPIThresholdFilterResult:
     try:
         fly_mask = mask[training_idx][EXP_FLY_INDEX]
     except (IndexError, TypeError):
-        return ExpPIThresholdFilterResult(
+        return ExpTargetSyncBucketFilterResult(
             eligible=False,
             reason="target_training_or_fly_missing",
             **result_kwargs,
@@ -162,38 +162,40 @@ def exp_pi_threshold_filter_result(va, opts) -> ExpPIThresholdFilterResult:
     try:
         excluded = bool(fly_mask[bucket_idx])
     except (IndexError, TypeError):
-        return ExpPIThresholdFilterResult(
+        return ExpTargetSyncBucketFilterResult(
             eligible=False,
             reason="target_sync_bucket_missing",
             **result_kwargs,
         )
 
-    return ExpPIThresholdFilterResult(
+    return ExpTargetSyncBucketFilterResult(
         eligible=not excluded,
         reason="passes" if not excluded else "pi_threshold_failed",
         **result_kwargs,
     )
 
 
-def exp_pi_threshold_eligibility_mask(vas, opts) -> np.ndarray:
+def exp_target_sync_bucket_eligibility_mask(vas, opts) -> np.ndarray:
     return np.asarray(
-        [exp_pi_threshold_filter_result(va, opts).eligible for va in vas],
+        [exp_target_sync_bucket_filter_result(va, opts).eligible for va in vas],
         dtype=bool,
     )
 
 
-def exp_pi_threshold_filter_payload(vas, opts, *, prefix: str) -> dict:
-    results = [exp_pi_threshold_filter_result(va, opts) for va in vas]
+def exp_target_sync_bucket_filter_payload(vas, opts, *, prefix: str) -> dict:
+    results = [exp_target_sync_bucket_filter_result(va, opts) for va in vas]
     eligible = np.asarray([r.eligible for r in results], dtype=bool)
     reasons = np.asarray([r.reason for r in results], dtype=object)
-    enabled = exp_pi_threshold_filter_enabled(opts)
-    training, sync_bucket = exp_pi_threshold_filter_target(opts)
+    enabled = exp_target_sync_bucket_filter_enabled(opts)
+    training, sync_bucket = exp_target_sync_bucket_filter_target(opts)
     return {
         f"{prefix}_enabled": np.array(enabled, dtype=bool),
         f"{prefix}_training": np.array(training, dtype=int),
         f"{prefix}_sync_bucket": np.array(sync_bucket, dtype=int),
         f"{prefix}_fly_index": np.array(EXP_FLY_INDEX, dtype=int),
-        f"{prefix}_pi_threshold": np.array(exp_pi_threshold_value(opts), dtype=int),
+        f"{prefix}_pi_threshold": np.array(
+            exp_target_sync_bucket_pi_threshold_value(opts), dtype=int
+        ),
         f"{prefix}_eligible": eligible,
         f"{prefix}_reason": reasons,
         f"{prefix}_target_exp_count": np.asarray(
@@ -208,7 +210,7 @@ def exp_pi_threshold_filter_payload(vas, opts, *, prefix: str) -> dict:
     }
 
 
-def mask_by_exp_pi_threshold_filter(values, eligible):
+def mask_by_exp_target_sync_bucket_filter(values, eligible):
     arr = np.asarray(values, dtype=float)
     keep = np.asarray(eligible, dtype=bool).reshape(-1)
     if arr.shape[:1] != keep.shape:

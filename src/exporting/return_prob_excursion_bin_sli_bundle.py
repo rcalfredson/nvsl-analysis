@@ -8,9 +8,9 @@ from src.analysis.between_reward_filters import (
     min_between_reward_sync_bucket_trajectories,
 )
 from src.analysis.sync_bucket_presence_filters import (
-    exp_pi_threshold_eligibility_mask,
-    exp_pi_threshold_filter_payload,
-    mask_by_exp_pi_threshold_filter,
+    exp_target_sync_bucket_eligibility_mask,
+    exp_target_sync_bucket_filter_payload,
+    mask_by_exp_target_sync_bucket_filter,
 )
 from src.analysis.sli_bundle_utils import (
     validate_return_prob_excursion_bin_bundle,
@@ -484,10 +484,10 @@ def export_return_prob_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         sli = np.full((n_videos,), np.nan, dtype=float)
         sli_ts = np.full((n_videos, len(getattr(vas_ok[0], "trns", []) or []), 0), np.nan)
 
-    pi_eligible = exp_pi_threshold_eligibility_mask(vas_ok, opts)
-    ratio_exp = mask_by_exp_pi_threshold_filter(ratio_exp, pi_eligible)
-    sli = mask_by_exp_pi_threshold_filter(sli, pi_eligible)
-    sli_ts = mask_by_exp_pi_threshold_filter(sli_ts, pi_eligible)
+    target_sync_bucket_eligible = exp_target_sync_bucket_eligibility_mask(vas_ok, opts)
+    ratio_exp = mask_by_exp_target_sync_bucket_filter(ratio_exp, target_sync_bucket_eligible)
+    sli = mask_by_exp_target_sync_bucket_filter(sli, target_sync_bucket_eligible)
+    sli_ts = mask_by_exp_target_sync_bucket_filter(sli_ts, target_sync_bucket_eligible)
 
     group_label = _safe_group_label(opts, gls)
     try:
@@ -564,7 +564,7 @@ def export_return_prob_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         btw_rwd_sync_bucket_min_trajectories=np.array(
             min_trajectories, dtype=int
         ),
-        **exp_pi_threshold_filter_payload(
+        **exp_target_sync_bucket_filter_payload(
             vas_ok,
             opts,
             prefix="exp_pi_threshold_filter",

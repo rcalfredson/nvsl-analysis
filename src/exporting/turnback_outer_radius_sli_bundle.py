@@ -10,9 +10,9 @@ from src.analysis.episode_filters import (
     min_episode_count_for_type,
 )
 from src.analysis.sync_bucket_presence_filters import (
-    exp_pi_threshold_eligibility_mask,
-    exp_pi_threshold_filter_payload,
-    mask_by_exp_pi_threshold_filter,
+    exp_target_sync_bucket_eligibility_mask,
+    exp_target_sync_bucket_filter_payload,
+    mask_by_exp_target_sync_bucket_filter,
 )
 from src.exporting.com_sli_bundle import (
     _compute_sli_scalar_and_timeseries_from_rpid,
@@ -344,10 +344,10 @@ def export_turnback_outer_radius_sli_bundle(vas, opts, gls, out_fn):
         sli = np.full((len(vas_ok),), np.nan, dtype=float)
         sli_ts = np.full((len(vas_ok), 0, 0), np.nan, dtype=float)
 
-    pi_eligible = exp_pi_threshold_eligibility_mask(vas_ok, opts)
-    ratio_exp = mask_by_exp_pi_threshold_filter(ratio_exp, pi_eligible)
-    sli = mask_by_exp_pi_threshold_filter(sli, pi_eligible)
-    sli_ts = mask_by_exp_pi_threshold_filter(sli_ts, pi_eligible)
+    target_sync_bucket_eligible = exp_target_sync_bucket_eligibility_mask(vas_ok, opts)
+    ratio_exp = mask_by_exp_target_sync_bucket_filter(ratio_exp, target_sync_bucket_eligible)
+    sli = mask_by_exp_target_sync_bucket_filter(sli, target_sync_bucket_eligible)
+    sli_ts = mask_by_exp_target_sync_bucket_filter(sli_ts, target_sync_bucket_eligible)
 
     try:
         training_names = np.array(
@@ -409,7 +409,7 @@ def export_turnback_outer_radius_sli_bundle(vas, opts, gls, out_fn):
             total_ctrl,
             min_episodes,
         ),
-        **exp_pi_threshold_filter_payload(
+        **exp_target_sync_bucket_filter_payload(
             vas_ok,
             opts,
             prefix="exp_pi_threshold_filter",

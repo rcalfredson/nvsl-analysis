@@ -5,9 +5,9 @@ from types import SimpleNamespace
 import numpy as np
 
 from src.analysis.sync_bucket_presence_filters import (
-    exp_pi_threshold_eligibility_mask,
-    exp_pi_threshold_filter_payload,
-    mask_by_exp_pi_threshold_filter,
+    exp_target_sync_bucket_eligibility_mask,
+    exp_target_sync_bucket_filter_payload,
+    mask_by_exp_target_sync_bucket_filter,
 )
 from src.exporting.bundle_utils import (
     build_metric_plus_sli_bundle,
@@ -176,14 +176,18 @@ def build_btw_rwd_return_leg_dist_sli_bundle(vas, opts, gls) -> dict:
         bucket_type="bysb2",
         print_label="between_reward_return_leg_dist",
     )
-    pi_eligible = exp_pi_threshold_eligibility_mask(vas_ok, opts)
-    bundle["between_reward_return_leg_dist_exp"] = mask_by_exp_pi_threshold_filter(
-        bundle["between_reward_return_leg_dist_exp"], pi_eligible
+    target_sync_bucket_eligible = exp_target_sync_bucket_eligibility_mask(vas_ok, opts)
+    bundle["between_reward_return_leg_dist_exp"] = mask_by_exp_target_sync_bucket_filter(
+        bundle["between_reward_return_leg_dist_exp"], target_sync_bucket_eligible
     )
-    bundle["sli"] = mask_by_exp_pi_threshold_filter(bundle["sli"], pi_eligible)
-    bundle["sli_ts"] = mask_by_exp_pi_threshold_filter(bundle["sli_ts"], pi_eligible)
+    bundle["sli"] = mask_by_exp_target_sync_bucket_filter(
+        bundle["sli"], target_sync_bucket_eligible
+    )
+    bundle["sli_ts"] = mask_by_exp_target_sync_bucket_filter(
+        bundle["sli_ts"], target_sync_bucket_eligible
+    )
     bundle.update(
-        exp_pi_threshold_filter_payload(
+        exp_target_sync_bucket_filter_payload(
             vas_ok,
             opts,
             prefix="exp_pi_threshold_filter",

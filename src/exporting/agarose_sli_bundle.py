@@ -9,9 +9,9 @@ from src.analysis.episode_filters import (
     min_episode_count_for_type,
 )
 from src.analysis.sync_bucket_presence_filters import (
-    exp_pi_threshold_eligibility_mask,
-    exp_pi_threshold_filter_payload,
-    mask_by_exp_pi_threshold_filter,
+    exp_target_sync_bucket_eligibility_mask,
+    exp_target_sync_bucket_filter_payload,
+    mask_by_exp_target_sync_bucket_filter,
 )
 from src.analysis.sli_bundle_utils import validate_agarose_sli_bundle
 from src.exporting.com_sli_bundle import (
@@ -398,10 +398,12 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
     min_agarose_episodes = min_episode_count_for_type(
         opts, EPISODE_TYPE_OUTER_ENTRY_REEXIT
     )
-    pi_eligible = exp_pi_threshold_eligibility_mask(vas_ok, opts)
-    ratio_exp = mask_by_exp_pi_threshold_filter(ratio_exp, pi_eligible)
-    sli = mask_by_exp_pi_threshold_filter(sli, pi_eligible)
-    sli_ts = mask_by_exp_pi_threshold_filter(sli_ts, pi_eligible)
+    target_sync_bucket_eligible = exp_target_sync_bucket_eligibility_mask(vas_ok, opts)
+    ratio_exp = mask_by_exp_target_sync_bucket_filter(
+        ratio_exp, target_sync_bucket_eligible
+    )
+    sli = mask_by_exp_target_sync_bucket_filter(sli, target_sync_bucket_eligible)
+    sli_ts = mask_by_exp_target_sync_bucket_filter(sli_ts, target_sync_bucket_eligible)
 
     pre_payload = {}
     if bool(getattr(opts, "agarose_sli_include_pre", False)):
@@ -423,9 +425,11 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
             trn_pre_avoid_ctrl,
             trn_pre_window_min,
         ) = _extract_agarose_training_pre_arrays(vas_ok, opts)
-        pre_ratio_exp = mask_by_exp_pi_threshold_filter(pre_ratio_exp, pi_eligible)
-        trn_pre_ratio_exp = mask_by_exp_pi_threshold_filter(
-            trn_pre_ratio_exp, pi_eligible
+        pre_ratio_exp = mask_by_exp_target_sync_bucket_filter(
+            pre_ratio_exp, target_sync_bucket_eligible
+        )
+        trn_pre_ratio_exp = mask_by_exp_target_sync_bucket_filter(
+            trn_pre_ratio_exp, target_sync_bucket_eligible
         )
         pre_payload = {
             "agarose_pre_ratio_exp": pre_ratio_exp,
@@ -481,7 +485,7 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
         "agarose_avoid_ctrl": avoid_ctrl,
         "min_agarose_episodes": np.array(min_agarose_episodes, dtype=int),
         "agarose_dual_circle_min_total": np.array(min_agarose_episodes, dtype=int),
-        **exp_pi_threshold_filter_payload(
+        **exp_target_sync_bucket_filter_payload(
             vas_ok,
             opts,
             prefix="exp_pi_threshold_filter",
