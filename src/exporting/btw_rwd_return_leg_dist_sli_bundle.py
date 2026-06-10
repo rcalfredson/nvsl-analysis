@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from src.analysis.pi_threshold_filters import (
+from src.analysis.sync_bucket_presence_filters import (
     exp_pi_threshold_eligibility_mask,
     exp_pi_threshold_filter_payload,
     mask_by_exp_pi_threshold_filter,

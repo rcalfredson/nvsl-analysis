@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from src.analysis.pi_threshold_filters import (
+from src.analysis.sync_bucket_presence_filters import (
     DEFAULT_EXP_PI_FILTER_SYNC_BUCKET,
     DEFAULT_EXP_PI_FILTER_TRAINING,
     exp_pi_threshold_eligibility_mask,
