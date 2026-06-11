@@ -74,6 +74,17 @@ def holm_adjust(pvals: list[float]) -> list[float]:
     return out.tolist()
 
 
+def _fmt_p(p_value: float) -> str:
+    p = float(p_value)
+    if not np.isfinite(p):
+        return "nan"
+    return f"{p:.6g}"
+
+
+def _stats_debug_prefix(debug_ctx: str) -> str:
+    return f"[stats] {debug_ctx}".rstrip()
+
+
 def anova_and_posthoc(
     group_samples: list[np.ndarray],
     *,
@@ -98,11 +109,17 @@ def anova_and_posthoc(
     # Pairwise Welch t-tests
     pairs: list[tuple[int, int]] = []
     p_raw: list[float] = []
+    test_names: list[str] = []
+    test_ns: list[tuple[int, int, int | None]] = []
     G = len(group_samples)
 
     for i in range(G):
         for j in range(i + 1, G):
             p = np.nan
+            test_name = "Welch"
+            n_i = int(np.isfinite(np.asarray(group_samples[i], float)).sum())
+            n_j = int(np.isfinite(np.asarray(group_samples[j], float)).sum())
+            n_overlap: int | None = None
             try:
                 if paired:
                     if (
@@ -111,6 +128,7 @@ def anova_and_posthoc(
                         or group_ids[j] is None
                     ):
                         p = np.nan
+                        test_name = "paired_unavailable"
                     else:
                         xi, xj = _match_by_id(
                             np.asarray(group_samples[i], float),
@@ -119,27 +137,17 @@ def anova_and_posthoc(
                             np.asarray(group_ids[j], dtype=object),
                         )
                         n_overlap = int(xi.size)
-                        n_i = int(
-                            np.isfinite(np.asarray(group_samples[i], float)).sum()
-                        )
-                        n_j = int(
-                            np.isfinite(np.asarray(group_samples[j], float)).sum()
-                        )
                         used = (
                             "paired"
                             if (n_overlap >= cfg.min_n_per_group)
                             else "welch_fallback"
                         )
 
-                        if debug and used != "paired":
-                            print(
-                                f"[stats] {debug_ctx} {group_names[i]} vs {group_names[j]}: "
-                                f"paired overlap n={n_overlap} (A n={n_i}, B n={n_j}) -> Welch"
-                            )
-
                         if used == "paired":
+                            test_name = "paired"
                             _, p = ttest_rel(xi, xj, nan_policy="omit")
                         else:
+                            test_name = "Welch (paired overlap too small)"
                             # fallback to Welch if insufficient pairs
                             _, p = ttest_ind(
                                 group_samples[i],
@@ -158,6 +166,8 @@ def anova_and_posthoc(
                 p = np.nan
             pairs.append((i, j))
             p_raw.append(float(p))
+            test_names.append(test_name)
+            test_ns.append((n_i, n_j, n_overlap))
 
     # Holm correction is per-bin across group pairs; no correction across bins
     p_adj = holm_adjust(p_raw)
@@ -165,6 +175,29 @@ def anova_and_posthoc(
     out: dict[tuple[str, str], float] = {}
     for (i, j), pa in zip(pairs, p_adj):
         out[(group_names[i], group_names[j])] = float(pa)
+    if debug:
+        prefix = _stats_debug_prefix(debug_ctx)
+        summary = []
+        for name, samples in zip(group_names, group_samples):
+            v = np.asarray(samples, float)
+            vf = v[np.isfinite(v)]
+            mean = float(np.nanmean(vf)) if vf.size else np.nan
+            summary.append(f"{name}: n={int(vf.size)}, mean={mean:.6g}")
+        print(f"{prefix} groups: " + "; ".join(summary))
+        print(f"{prefix} ANOVA p={_fmt_p(p_anova)}")
+        for (i, j), pr, pa, test_name, ns in zip(
+            pairs, p_raw, p_adj, test_names, test_ns
+        ):
+            n_i, n_j, n_overlap = ns
+            if n_overlap is None:
+                n_text = f"n={n_i}/{n_j}"
+            else:
+                n_text = f"n={n_i}/{n_j}, overlap={n_overlap}"
+            print(
+                f"{prefix} {group_names[i]} vs {group_names[j]} "
+                f"({test_name}, {n_text}): raw p={_fmt_p(pr)}, "
+                f"Holm p={_fmt_p(pa)}"
+            )
     return float(p_anova), out
 
 
@@ -284,16 +317,22 @@ def annotate_grouped_bars_per_bin(
         samples: list[np.ndarray] = []
         ids_for_samples: list[np.ndarray | None] = []
         ok = True
+        skip_reason = ""
 
         for gi, pu in enumerate(per_unit_by_group):
             if pu is None:
                 ok = False
+                skip_reason = f"{group_names[gi]} has no per-unit values"
                 break
             v = np.asarray(pu[:, j], float)
             mask = np.isfinite(v)
             v = v[mask]
             if v.size < cfg.min_n_per_group:
                 ok = False
+                skip_reason = (
+                    f"{group_names[gi]} n={int(v.size)} "
+                    f"< min_n_per_group={int(cfg.min_n_per_group)}"
+                )
                 break
             samples.append(v)
 
@@ -307,6 +346,13 @@ def annotate_grouped_bars_per_bin(
             else:
                 ids_for_samples.append(None)
         if not ok:
+            if debug:
+                debug_ctx = (
+                    f"panel={panel_label} bin={j}"
+                    if panel_label is not None
+                    else f"bin={j}"
+                )
+                print(f"{_stats_debug_prefix(debug_ctx)} skipped: {skip_reason}")
             continue
 
         debug_ctx = ""
