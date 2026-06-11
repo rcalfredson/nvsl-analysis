@@ -38,6 +38,7 @@ class _Trajectory:
         self._episodes = list(episodes)
         self._bad = bad
         self.calls = []
+        self.boundary_event_stats = {}
 
     def reward_return_excursion_episodes_for_training(self, **kwargs):
         self.calls.append(kwargs)
@@ -52,6 +53,10 @@ class _OuterRadiusTrajectory(_Trajectory):
 
 def _episode(stop, max_excursion_mm, returns):
     return {"stop": stop, "max_excursion_mm": max_excursion_mm, "returns": returns}
+
+
+def _wall_regions(*regions):
+    return {"wall": {"all": {"edge": {"boundary_contact_regions": list(regions)}}}}
 
 
 def _va(
@@ -202,6 +207,26 @@ def test_return_probability_bin_average_is_not_bin_membership():
     np.testing.assert_allclose(ret_exp, [[1.5, 3.0]])
     np.testing.assert_array_equal(total_exp, [[4, 4]])
     np.testing.assert_allclose(ratio_exp, [[0.375, 0.75]])
+
+
+def test_return_probability_can_exclude_wall_contact_episodes():
+    exp = _Trajectory(
+        [
+            {"start": 0, "stop": 10, "max_excursion_mm": 4.0, "returns": True},
+            {"start": 20, "stop": 30, "max_excursion_mm": 5.0, "returns": True},
+            {"start": 40, "stop": 50, "max_excursion_mm": 6.0, "returns": True},
+        ]
+    )
+    exp.boundary_event_stats = _wall_regions(slice(22, 24))
+
+    _, _, ret_exp, _, total_exp, _, _ = _curves(
+        [_va(trx=[exp], noyc=True)],
+        edges=(2.0, 8.0),
+        exclude_wall_contact=True,
+    )
+
+    np.testing.assert_allclose(ret_exp, [[(8.0 - 4.0) / 6.0 + (8.0 - 6.0) / 6.0]])
+    np.testing.assert_array_equal(total_exp, [[2]])
 
 
 def test_return_probability_leaves_bins_nan_when_no_valid_denominator_exists():

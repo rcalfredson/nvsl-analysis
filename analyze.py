@@ -5535,6 +5535,22 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--return-prob-excursion-bin-exclude-wall-contact",
+    action="store_true",
+    help=(
+        "For return-prob-excursion-bin exports, discard reward-exit episodes "
+        "whose frame span overlaps wall contact."
+    ),
+)
+g.add_argument(
+    "--turnback-excursion-bin-exclude-wall-contact",
+    action="store_true",
+    help=(
+        "For turnback-excursion-bin exports, discard episodes whose frame span "
+        "overlaps wall contact."
+    ),
+)
+g.add_argument(
     "--turnback-outer-radius-debug",
     action="store_true",
     help=(
@@ -14690,6 +14706,22 @@ if __name__ == "__main__":
             print(
                 f"[between_reward_maxdist] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
                 "because --between-reward-maxdist-exclude-wall-contact was set"
+            )
+            opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
+    if getattr(opts, "return_prob_excursion_bin_exclude_wall_contact", False):
+        if getattr(opts, "wall", None) is None:
+            print(
+                f"[return-prob-excursion-bin] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
+                "because --return-prob-excursion-bin-exclude-wall-contact was set"
+            )
+            opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
+    if getattr(opts, "turnback_excursion_bin_exclude_wall_contact", False):
+        if getattr(opts, "wall", None) is None:
+            print(
+                f"[turnback-excursion-bin] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
+                "because --turnback-excursion-bin-exclude-wall-contact was set"
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 

@@ -631,6 +631,25 @@ class VideoAnalysis:
             )
         )
 
+        keep_wall_regions_for_excursion_bin_exports = bool(
+            (
+                getattr(self.opts, "export_return_prob_excursion_bin_sli_bundle", None)
+                and getattr(
+                    self.opts,
+                    "return_prob_excursion_bin_exclude_wall_contact",
+                    False,
+                )
+            )
+            or (
+                getattr(self.opts, "export_turnback_excursion_bin_sli_bundle", None)
+                and getattr(
+                    self.opts,
+                    "turnback_excursion_bin_exclude_wall_contact",
+                    False,
+                )
+            )
+        )
+
         keep_wall_regions_for_wall_contacts_per_reward_interval_total = bool(
             getattr(
                 self.opts, "wall_contacts_per_reward_interval_total_bars", False
@@ -649,6 +668,7 @@ class VideoAnalysis:
             or keep_wall_regions_for_btw_rwd_conditioned_disttrav
             or keep_wall_regions_for_rrd
             or keep_wall_regions_for_between_reward_maxdist
+            or keep_wall_regions_for_excursion_bin_exports
             or keep_wall_regions_for_wall_contacts_per_reward_interval_total
         )
 

@@ -36,6 +36,7 @@ class _Trajectory:
         self._episodes = list(episodes)
         self._bad = bad
         self.calls = []
+        self.boundary_event_stats = {}
 
     def reward_turnback_excursion_episodes_for_training(self, **kwargs):
         self.calls.append(kwargs)
@@ -53,6 +54,10 @@ def _episode(stop, max_outer_delta_mm, turns_back, *, inner=2.0):
         "effective_inner_delta_mm": inner,
         "turns_back": turns_back,
     }
+
+
+def _wall_regions(*regions):
+    return {"wall": {"all": {"edge": {"boundary_contact_regions": list(regions)}}}}
 
 
 def _va(
@@ -218,6 +223,66 @@ def test_turnback_binned_counts_only_successful_observed_turnbacks():
     np.testing.assert_allclose(turn_ctrl, [[0.0, 0.75]])
     np.testing.assert_array_equal(total_ctrl, [[1, 1]])
     np.testing.assert_allclose(ratio_ctrl, [[0.0, 0.75]])
+
+
+def test_turnback_binned_curves_can_exclude_wall_contact_episodes():
+    exp = _Trajectory(
+        [
+            {
+                "start": 0,
+                "stop": 10,
+                "max_outer_delta_mm": 4.0,
+                "effective_inner_delta_mm": 2.0,
+                "turns_back": True,
+            },
+            {
+                "start": 20,
+                "stop": 30,
+                "max_outer_delta_mm": 5.0,
+                "effective_inner_delta_mm": 2.0,
+                "turns_back": True,
+            },
+            {
+                "start": 40,
+                "stop": 50,
+                "max_outer_delta_mm": 6.0,
+                "effective_inner_delta_mm": 2.0,
+                "turns_back": True,
+            },
+        ]
+    )
+    exp.boundary_event_stats = _wall_regions(slice(22, 24))
+
+    ratio_exp, _, turn_exp, _, total_exp, _, _ = _curves(
+        [_va(trx=[exp], noyc=True)],
+        edges=(2.0, 8.0),
+        exclude_wall_contact=True,
+    )
+
+    np.testing.assert_allclose(turn_exp, [[(8.0 - 4.0) / 6.0 + (8.0 - 6.0) / 6.0]])
+    np.testing.assert_array_equal(total_exp, [[2]])
+    np.testing.assert_allclose(ratio_exp, turn_exp / total_exp)
+
+
+def test_turnback_pair_curves_can_exclude_wall_contact_episodes():
+    exp = _Trajectory(
+        [
+            {"start": 0, "stop": 10, "turns_back": True},
+            {"start": 20, "stop": 30, "turns_back": True},
+            {"start": 40, "stop": 50, "turns_back": False},
+        ]
+    )
+    exp.boundary_event_stats = _wall_regions((22, 24))
+
+    ratio_exp, _, turn_exp, _, total_exp, _, _ = _pair_curves(
+        [_va(trx=[exp], noyc=True)],
+        pairs=((2.0, 4.0),),
+        exclude_wall_contact=True,
+    )
+
+    np.testing.assert_allclose(turn_exp, [[1.0]])
+    np.testing.assert_array_equal(total_exp, [[2]])
+    np.testing.assert_allclose(ratio_exp, [[0.5]])
 
 
 def test_turnback_binned_average_is_not_bin_membership():

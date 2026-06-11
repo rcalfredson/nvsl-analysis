@@ -23,6 +23,10 @@ from src.exporting.com_sli_bundle import (
     _compute_sli_scalar_and_timeseries_from_rpid,
     _safe_group_label,
 )
+from src.exporting.wall_contact_episode_filter import (
+    episode_overlaps_wall_contact,
+    wall_contact_regions_for_trj,
+)
 from src.utils.parsers import parse_distances, parse_training_selector
 
 
@@ -248,12 +252,14 @@ def _resolve_open_ended_upper_edge(
     keep_first: int,
     last_sync_buckets: int,
     debug: bool,
+    exclude_wall_contact: bool = False,
 ) -> tuple[np.ndarray, bool]:
     if not np.isposinf(float(bin_edges_mm[-1])):
         return np.asarray(bin_edges_mm, dtype=float), False
 
     lower = float(bin_edges_mm[-2])
     max_observed = -np.inf
+    warned_missing_wall_contact = [False]
 
     for va in vas:
         windows = _selected_windows_for_va(
@@ -273,6 +279,12 @@ def _resolve_open_ended_upper_edge(
                 continue
             if fly_idx == 1 and getattr(va, "noyc", False):
                 continue
+            wall_regions = wall_contact_regions_for_trj(
+                trj,
+                enabled=bool(exclude_wall_contact),
+                warned_missing=warned_missing_wall_contact,
+                log_tag="turnback-excursion-bin",
+            )
             for t_idx in selected_trainings:
                 if t_idx >= len(getattr(va, "trns", [])):
                     continue
@@ -290,6 +302,8 @@ def _resolve_open_ended_upper_edge(
                     radius_offset_px=float(radius_offset_px),
                 )
                 for ep in episodes or []:
+                    if episode_overlaps_wall_contact(ep, wall_regions):
+                        continue
                     event_t = int(ep["stop"]) - 1
                     if not _frame_in_windows(event_t, windows_by_training[t_idx]):
                         continue
@@ -330,6 +344,7 @@ def _compute_turnback_curves(
     last_sync_buckets: int,
     debug: bool,
     min_episodes: int = 0,
+    exclude_wall_contact: bool = False,
 ):
     bin_edges_mm, _open_ended_upper_bin = _resolve_open_ended_upper_edge(
         vas,
@@ -344,6 +359,7 @@ def _compute_turnback_curves(
         keep_first=keep_first,
         last_sync_buckets=last_sync_buckets,
         debug=debug,
+        exclude_wall_contact=exclude_wall_contact,
     )
 
     n_videos = len(vas)
@@ -356,6 +372,7 @@ def _compute_turnback_curves(
     total_ctrl = np.zeros((n_videos, n_bins), dtype=int)
     windows_meta = []
     invalid_bin_hits = 0
+    warned_missing_wall_contact = [False]
 
     for vi, va in enumerate(vas):
         vid = getattr(va, "fn", f"va_{vi}")
@@ -386,6 +403,12 @@ def _compute_turnback_curves(
 
             turns = np.zeros(n_bins, dtype=float)
             total = np.zeros(n_bins, dtype=int)
+            wall_regions = wall_contact_regions_for_trj(
+                trj,
+                enabled=bool(exclude_wall_contact),
+                warned_missing=warned_missing_wall_contact,
+                log_tag="turnback-excursion-bin",
+            )
 
             for t_idx in selected_trainings:
                 if t_idx >= len(getattr(va, "trns", [])):
@@ -408,6 +431,8 @@ def _compute_turnback_curves(
                     continue
 
                 for ep in episodes:
+                    if episode_overlaps_wall_contact(ep, wall_regions):
+                        continue
                     event_t = int(ep["stop"]) - 1
                     if not _frame_in_windows(event_t, windows_by_training[t_idx]):
                         continue
@@ -503,6 +528,7 @@ def _compute_pair_curves(
     last_sync_buckets: int,
     debug: bool,
     min_episodes: int = 0,
+    exclude_wall_contact: bool = False,
 ):
     n_videos = len(vas)
     n_pairs = int(inner_deltas_mm.size)
@@ -513,6 +539,7 @@ def _compute_pair_curves(
     total_exp = np.zeros((n_videos, n_pairs), dtype=int)
     total_ctrl = np.zeros((n_videos, n_pairs), dtype=int)
     windows_meta = []
+    warned_missing_wall_contact = [False]
 
     for vi, va in enumerate(vas):
         vid = getattr(va, "fn", f"va_{vi}")
@@ -545,6 +572,12 @@ def _compute_pair_curves(
 
                 turns = 0
                 total = 0
+                wall_regions = wall_contact_regions_for_trj(
+                    trj,
+                    enabled=bool(exclude_wall_contact),
+                    warned_missing=warned_missing_wall_contact,
+                    log_tag="turnback-excursion-bin",
+                )
                 for t_idx in selected_trainings:
                     if t_idx >= len(getattr(va, "trns", [])):
                         continue
@@ -576,6 +609,8 @@ def _compute_pair_curves(
                         continue
 
                     for ep in episodes:
+                        if episode_overlaps_wall_contact(ep, wall_regions):
+                            continue
                         event_t = int(ep["stop"]) - 1
                         if not _frame_in_windows(event_t, windows_by_training[t_idx]):
                             continue
@@ -680,6 +715,7 @@ def _write_turnback_pair_debug_episodes_csv(
     skip_first: int,
     keep_first: int,
     last_sync_buckets: int,
+    exclude_wall_contact: bool = False,
 ) -> int:
     os.makedirs(os.path.dirname(out_csv) or ".", exist_ok=True)
     n_rows = 0
@@ -712,6 +748,12 @@ def _write_turnback_pair_debug_episodes_csv(
                         continue
 
                     fly_role = "exp" if fly_idx == 0 else "ctrl"
+                    wall_regions = wall_contact_regions_for_trj(
+                        trj,
+                        enabled=bool(exclude_wall_contact),
+                        warned_missing=[False],
+                        log_tag="turnback-excursion-bin",
+                    )
                     for t_idx in selected_trainings:
                         if t_idx >= len(getattr(va, "trns", [])):
                             continue
@@ -743,6 +785,8 @@ def _write_turnback_pair_debug_episodes_csv(
                             continue
 
                         for ep_idx, ep in enumerate(episodes):
+                            if episode_overlaps_wall_contact(ep, wall_regions):
+                                continue
                             event_t = int(ep["stop"]) - 1
                             matched_windows = [
                                 win
@@ -808,6 +852,9 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         getattr(opts, "turnback_inner_radius_offset_px", 0.0) or 0.0
     )
     debug = bool(getattr(opts, "turnback_excursion_bin_debug", False))
+    exclude_wall_contact = bool(
+        getattr(opts, "turnback_excursion_bin_exclude_wall_contact", False)
+    )
     min_episodes = min_episode_count_for_type(opts, EPISODE_TYPE_INNER_EXIT_REENTRY)
 
     if pair_deltas_mm is None:
@@ -824,6 +871,7 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
             keep_first=keep_first,
             last_sync_buckets=last_sync_buckets,
             debug=debug,
+            exclude_wall_contact=exclude_wall_contact,
         )
         (
             ratio_exp,
@@ -847,6 +895,7 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
             last_sync_buckets=last_sync_buckets,
             debug=debug,
             min_episodes=min_episodes,
+            exclude_wall_contact=exclude_wall_contact,
         )
         pair_inner_deltas_mm = None
         pair_outer_deltas_mm = None
@@ -875,6 +924,7 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
             last_sync_buckets=last_sync_buckets,
             debug=debug,
             min_episodes=min_episodes,
+            exclude_wall_contact=exclude_wall_contact,
         )
 
     n_videos = len(vas_ok)
@@ -995,6 +1045,9 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
             radius_offset_px, dtype=float
         ),
         turnback_excursion_bin_border_width_mm=np.array(border_width_mm, dtype=float),
+        turnback_excursion_bin_exclude_wall_contact=np.array(
+            exclude_wall_contact, dtype=bool
+        ),
         min_turnback_episodes=np.array(min_episodes, dtype=int),
         turnback_excursion_bin_window_summary=window_strings,
         turnback_excursion_bin_description=np.asarray(
@@ -1043,6 +1096,7 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
                 skip_first=skip_first,
                 keep_first=keep_first,
                 last_sync_buckets=last_sync_buckets,
+                exclude_wall_contact=exclude_wall_contact,
             )
             print(
                 "[export] Wrote turnback-excursion-bin debug episodes CSV: "
