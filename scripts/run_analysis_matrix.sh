@@ -195,6 +195,8 @@ run_return_leg_tortuosity_bins() {
   local bins_arg="$2"
   local filter_tag="$3"
   local wall_tag="$4"
+  local summary_tag="$5"
+  local top_fraction="$6"
 
   local filter_flags=()
   case "$filter_tag" in
@@ -236,7 +238,7 @@ run_return_leg_tortuosity_bins() {
     local dataset="${!var_name}"
     local group_slug="${GROUP_SLUGS[$i]}"
     local group_label="${GROUP_LABELS[$i]}"
-    local bundle="exports/returnLegTortuosityBins_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_b${bins_label}_${DATE_TAG}.npz"
+    local bundle="exports/returnLegTortuosityBins_${summary_tag}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_b${bins_label}_${DATE_TAG}.npz"
 
     bundles+=("$bundle")
     run_cmd \
@@ -246,6 +248,7 @@ run_return_leg_tortuosity_bins() {
       --rCC 15 \
       --export-return-leg-tortuosity-excursion-bin-sli-bundle "$bundle" \
       --return-leg-tortuosity-excursion-bin-radius-pairs-mm "$bins_arg" \
+      --return-leg-tortuosity-excursion-bin-top-fraction "$top_fraction" \
       --return-leg-tortuosity-excursion-bin-trainings 2 \
       --return-leg-tortuosity-excursion-bin-skip-first-sync-buckets 1 \
       --best-worst-trn 2 \
@@ -261,7 +264,7 @@ run_return_leg_tortuosity_bins() {
   run_cmd \
     python -m scripts.plot_return_leg_tortuosity_excursion_bin_sli_bundles \
     --bundles "$bundle_csv" \
-    --out "exports/returnLegTortuosityBins_${filter_tag}_${wall_tag}_flatLgc_T2_b${bins_label}_${DATE_TAG}.png" \
+    --out "exports/returnLegTortuosityBins_${summary_tag}_${filter_tag}_${wall_tag}_flatLgc_T2_b${bins_label}_${DATE_TAG}.png" \
     --stats
 }
 
@@ -321,7 +324,7 @@ run_return_leg_tortuosity_bins() {
 # done
 
 # ---------------------------------------------------------------------
-# Return-leg tortuosity by max-distance bin
+# Top-25% mean return-leg tortuosity by max-distance bin
 # radial config: 3-5, 8-10, 13-15 mm from reward-circle center
 # only 5-episode minimum + T2 SB5 presence filter
 # ---------------------------------------------------------------------
@@ -331,5 +334,7 @@ for wall_tag in wall noWall; do
     "3-5_8-10_13-15" \
     "3:5,8:10,13:15" \
     minEpSb5Filt \
-    "$wall_tag"
+    "$wall_tag" \
+    top25 \
+    0.25
 done

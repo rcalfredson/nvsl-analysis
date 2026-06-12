@@ -359,7 +359,28 @@ def _resolved_bins(
     return resolved[:-1], resolved[1:], resolved, False, legacy
 
 
-def _aggregate_records(records, lower, upper, *, min_segments: int):
+def _top_fraction(opts) -> float:
+    raw = getattr(
+        opts,
+        "return_leg_tortuosity_excursion_bin_top_fraction",
+        1.0,
+    )
+    fraction = 1.0 if raw is None else float(raw)
+    if not (0.0 < fraction <= 1.0):
+        raise ValueError(
+            "--return-leg-tortuosity-excursion-bin-top-fraction must be in (0, 1]."
+        )
+    return fraction
+
+
+def _aggregate_records(
+    records,
+    lower,
+    upper,
+    *,
+    min_segments: int,
+    top_fraction: float = 1.0,
+):
     n_videos = len(records)
     n_bins = len(lower)
     means = [
@@ -367,6 +388,10 @@ def _aggregate_records(records, lower, upper, *, min_segments: int):
         np.full((n_videos, n_bins), np.nan, dtype=float),
     ]
     counts = [
+        np.zeros((n_videos, n_bins), dtype=int),
+        np.zeros((n_videos, n_bins), dtype=int),
+    ]
+    selected_counts = [
         np.zeros((n_videos, n_bins), dtype=int),
         np.zeros((n_videos, n_bins), dtype=int),
     ]
@@ -384,13 +409,25 @@ def _aggregate_records(records, lower, upper, *, min_segments: int):
                 )
                 counts[role_idx][vi, bin_idx] = int(values.size)
                 if values.size:
-                    means[role_idx][vi, bin_idx] = float(np.mean(values))
+                    n_selected = max(
+                        1, int(np.ceil(float(top_fraction) * values.size))
+                    )
+                    selected = np.sort(values)[-n_selected:]
+                    selected_counts[role_idx][vi, bin_idx] = int(selected.size)
+                    means[role_idx][vi, bin_idx] = float(np.mean(selected))
             means[role_idx][vi] = mask_metric_by_min_between_reward_trajectories(
                 means[role_idx][vi],
                 counts[role_idx][vi],
                 max(1, int(min_segments)),
             )
-    return means[0], means[1], counts[0], counts[1]
+    return (
+        means[0],
+        means[1],
+        counts[0],
+        counts[1],
+        selected_counts[0],
+        selected_counts[1],
+    )
 
 
 def export_return_leg_tortuosity_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
@@ -418,8 +455,15 @@ def export_return_leg_tortuosity_excursion_bin_sli_bundle(vas, opts, gls, out_fn
         opts, records
     )
     min_segments = min_between_reward_sync_bucket_trajectories(opts)
-    mean_exp, mean_ctrl, n_exp, n_ctrl = _aggregate_records(
-        records, lower, upper, min_segments=min_segments
+    top_fraction = _top_fraction(opts)
+    mean_exp, mean_ctrl, n_exp, n_ctrl, selected_n_exp, selected_n_ctrl = (
+        _aggregate_records(
+            records,
+            lower,
+            upper,
+            min_segments=min_segments,
+            top_fraction=top_fraction,
+        )
     )
 
     n_videos = len(vas_ok)
@@ -491,6 +535,14 @@ def export_return_leg_tortuosity_excursion_bin_sli_bundle(vas, opts, gls, out_fn
         return_leg_tortuosity_excursion_bin_ctrl=mean_ctrl,
         return_leg_tortuosity_excursion_binN_exp=n_exp,
         return_leg_tortuosity_excursion_binN_ctrl=n_ctrl,
+        return_leg_tortuosity_excursion_bin_selectedN_exp=selected_n_exp,
+        return_leg_tortuosity_excursion_bin_selectedN_ctrl=selected_n_ctrl,
+        return_leg_tortuosity_excursion_bin_top_fraction=np.array(
+            top_fraction, dtype=float
+        ),
+        return_leg_tortuosity_excursion_bin_aggregation=np.asarray(
+            "mean" if top_fraction == 1.0 else "top_fraction_mean"
+        ),
         return_leg_tortuosity_excursion_bin_edges_mm=np.asarray(
             resolved_edges, dtype=float
         ),
@@ -583,8 +635,13 @@ def export_return_leg_tortuosity_excursion_bin_sli_bundle(vas, opts, gls, out_fn
         ),
         return_leg_tortuosity_excursion_bin_window_summary=window_summary,
         return_leg_tortuosity_excursion_bin_description=np.asarray(
-            "Mean return-leg tortuosity of between-reward trajectories binned by "
-            "maximum radial distance"
+            (
+                "Mean return-leg tortuosity of all between-reward trajectories "
+                "binned by maximum radial distance"
+                if top_fraction == 1.0
+                else f"Mean of the top {100.0 * top_fraction:g}% return-leg "
+                "tortuosity values per fly and maximum-distance bin"
+            )
         ),
         btw_rwd_sync_bucket_min_trajectories=np.array(min_segments, dtype=int),
         **exp_target_sync_bucket_filter_payload(
