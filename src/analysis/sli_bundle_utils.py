@@ -1120,6 +1120,54 @@ def validate_return_leg_tortuosity_excursion_bin_bundle(
         n_videos=n_videos,
         n_bins=n_bins,
     )
+    top_fraction = float(
+        as_scalar(bundle.get("return_leg_tortuosity_excursion_bin_top_fraction", 1.0))
+    )
+    if not np.isfinite(top_fraction) or not (0.0 < top_fraction <= 1.0):
+        raise ValueError(
+            f"Bundle {where} has invalid return-leg tortuosity top fraction "
+            f"{top_fraction}"
+        )
+
+    selected_keys = (
+        "return_leg_tortuosity_excursion_bin_selectedN_exp",
+        "return_leg_tortuosity_excursion_bin_selectedN_ctrl",
+    )
+    if any(key in bundle for key in selected_keys):
+        missing_selected = [key for key in selected_keys if key not in bundle]
+        if missing_selected:
+            raise ValueError(
+                f"Bundle {where} has incomplete selected-count keys: "
+                f"{missing_selected}"
+            )
+        selected_exp = _validate_return_prob_count_array(
+            bundle,
+            selected_keys[0],
+            where=where,
+            n_videos=n_videos,
+            n_bins=n_bins,
+        )
+        selected_ctrl = _validate_return_prob_count_array(
+            bundle,
+            selected_keys[1],
+            where=where,
+            n_videos=n_videos,
+            n_bins=n_bins,
+        )
+        for key, selected, raw in (
+            (selected_keys[0], selected_exp, counts_exp),
+            (selected_keys[1], selected_ctrl, counts_ctrl),
+        ):
+            expected = np.zeros_like(raw)
+            has_values = raw > 0
+            expected[has_values] = np.ceil(
+                top_fraction * raw[has_values]
+            ).astype(int)
+            if np.any(selected != expected):
+                raise ValueError(
+                    f"Bundle {where} has {key} inconsistent with raw counts and "
+                    f"top fraction {top_fraction:g}"
+                )
 
     min_segments = int(
         as_scalar(bundle.get("btw_rwd_sync_bucket_min_trajectories", 1))

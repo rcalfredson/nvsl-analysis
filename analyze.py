@@ -5696,6 +5696,16 @@ g.add_argument(
     help="Return-leg tortuosity definition. Default: %(default)s.",
 )
 g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-top-fraction",
+    type=float,
+    default=1.0,
+    help=(
+        "Within each fly and distance bin, average only the highest-tortuosity "
+        "fraction of valid trajectories. Uses rank-based selection with "
+        "ceil(fraction * n); 1.0 preserves the ordinary mean. Default: %(default)s."
+    ),
+)
+g.add_argument(
     "--turnback-excursion-bin-exclude-wall-contact",
     action="store_true",
     help=(
