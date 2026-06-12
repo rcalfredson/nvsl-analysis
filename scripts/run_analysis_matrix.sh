@@ -190,16 +190,91 @@ run_turnback_pairs() {
     --stats
 }
 
+run_return_leg_tortuosity_bins() {
+  local bins_label="$1"
+  local bins_arg="$2"
+  local filter_tag="$3"
+  local wall_tag="$4"
+
+  local filter_flags=()
+  case "$filter_tag" in
+    noFilt)
+      filter_flags=(--min-between-reward-trajectories 0)
+      ;;
+    minEpFilt)
+      filter_flags=()
+      ;;
+    minEpSb5Filt)
+      filter_flags=(--require-exp-target-sync-bucket)
+      ;;
+    minEpPiFilt)
+      filter_flags=(--require-exp-pi-threshold-bucket)
+      ;;
+    *)
+      echo "Unknown return-leg tortuosity filter tag: $filter_tag" >&2
+      exit 1
+      ;;
+  esac
+
+  local wall_flags=()
+  case "$wall_tag" in
+    wall)
+      wall_flags=()
+      ;;
+    noWall)
+      wall_flags=(--return-leg-tortuosity-excursion-bin-exclude-wall-contact)
+      ;;
+    *)
+      echo "Unknown wall tag: $wall_tag" >&2
+      exit 1
+      ;;
+  esac
+
+  local bundles=()
+  for i in "${!GROUP_VARS[@]}"; do
+    local var_name="${GROUP_VARS[$i]}"
+    local dataset="${!var_name}"
+    local group_slug="${GROUP_SLUGS[$i]}"
+    local group_label="${GROUP_LABELS[$i]}"
+    local bundle="exports/returnLegTortuosityBins_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_b${bins_label}_${DATE_TAG}.npz"
+
+    bundles+=("$bundle")
+    run_cmd \
+      python analyze.py \
+      -v "$dataset" \
+      -f 0-1 \
+      --rCC 15 \
+      --export-return-leg-tortuosity-excursion-bin-sli-bundle "$bundle" \
+      --return-leg-tortuosity-excursion-bin-pairs-mm "$bins_arg" \
+      --return-leg-tortuosity-excursion-bin-trainings 2 \
+      --return-leg-tortuosity-excursion-bin-skip-first-sync-buckets 1 \
+      --best-worst-trn 2 \
+      --sli-use-training-mean \
+      --sli-select-skip-first-sync-buckets 1 \
+      --export-group-label "$group_label" \
+      "${filter_flags[@]}" \
+      "${wall_flags[@]}"
+  done
+
+  local bundle_csv
+  bundle_csv="$(join_by_comma "${bundles[@]}")"
+  run_cmd \
+    python -m scripts.plot_return_leg_tortuosity_excursion_bin_sli_bundles \
+    --bundles "$bundle_csv" \
+    --out "exports/returnLegTortuosityBins_${filter_tag}_${wall_tag}_flatLgc_T2_b${bins_label}_${DATE_TAG}.png" \
+    --stats
+}
+
 # ---------------------------------------------------------------------
 # Fraction of trajectories within radius, historical return-prob name
 # radial config: 6 / 11 / 16 mm
 # ---------------------------------------------------------------------
 
-for filter_tag in noFilt minEpFilt minEpSb5Filt minEpPiFilt; do
-  for wall_tag in wall noWall; do
-    run_return_prob "$filter_tag" "$wall_tag"
-  done
-done
+# for filter_tag in noFilt minEpFilt minEpSb5Filt minEpPiFilt; do
+#   for wall_tag in wall noWall; do
+#     run_return_prob "$filter_tag" "$wall_tag"
+#   done
+# done
 
 # ---------------------------------------------------------------------
 # Turnback ratio
@@ -207,15 +282,15 @@ done
 # full filter x wall-contact matrix
 # ---------------------------------------------------------------------
 
-for filter_tag in noFilt minEpFilt minEpSb5Filt minEpPiFilt; do
-  for wall_tag in wall noWall; do
-    run_turnback_pairs \
-      "3-5_8-10_13-15" \
-      "3:5,8:10,13:15" \
-      "$filter_tag" \
-      "$wall_tag"
-  done
-done
+# for filter_tag in noFilt minEpFilt minEpSb5Filt minEpPiFilt; do
+#   for wall_tag in wall noWall; do
+#     run_turnback_pairs \
+#       "3-5_8-10_13-15" \
+#       "3:5,8:10,13:15" \
+#       "$filter_tag" \
+#       "$wall_tag"
+#   done
+# done
 
 # ---------------------------------------------------------------------
 # Turnback ratio
@@ -223,13 +298,13 @@ done
 # only 5-episode minimum + T2 SB5 presence filter
 # ---------------------------------------------------------------------
 
-for wall_tag in wall noWall; do
-  run_turnback_pairs \
-    "4-6_9-11_14-16" \
-    "4:6,9:11,14:16" \
-    minEpSb5Filt \
-    "$wall_tag"
-done
+# for wall_tag in wall noWall; do
+#   run_turnback_pairs \
+#     "4-6_9-11_14-16" \
+#     "4:6,9:11,14:16" \
+#     minEpSb5Filt \
+#     "$wall_tag"
+# done
 
 # ---------------------------------------------------------------------
 # Turnback ratio
@@ -237,10 +312,24 @@ done
 # only 5-episode minimum + T2 SB5 presence filter
 # ---------------------------------------------------------------------
 
+# for wall_tag in wall noWall; do
+#   run_turnback_pairs \
+#     "2-5_8-11_14-17" \
+#     "2:5,8:11,14:17" \
+#     minEpSb5Filt \
+#     "$wall_tag"
+# done
+
+# ---------------------------------------------------------------------
+# Return-leg tortuosity by max-distance bin
+# radial config: 3-5, 8-10, 13-15 mm beyond reward-circle radius
+# only 5-episode minimum + T2 SB5 presence filter
+# ---------------------------------------------------------------------
+
 for wall_tag in wall noWall; do
-  run_turnback_pairs \
-    "2-5_8-11_14-17" \
-    "2:5,8:11,14:17" \
+  run_return_leg_tortuosity_bins \
+    "3-5_8-10_13-15" \
+    "3:5,8:10,13:15" \
     minEpSb5Filt \
     "$wall_tag"
 done

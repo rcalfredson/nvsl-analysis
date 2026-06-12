@@ -116,26 +116,31 @@ METRIC_TONED_GROUP_FAMILIES = (
         "turnback_ratio": "#E7CCD5",
         "return_probability": "#C67188",
         "between_reward_distance": "#8F4E66",
+        "between_reward_tortuosity": "#7C6A9F",
     },
     {
         "turnback_ratio": "#D9E1C9",
         "return_probability": "#90A76C",
         "between_reward_distance": "#5F7F3D",
+        "between_reward_tortuosity": "#4F7C68",
     },
     {
         "turnback_ratio": "#C9DCDD",
         "return_probability": "#67979B",
         "between_reward_distance": "#2F6E73",
+        "between_reward_tortuosity": "#3E6F9E",
     },
     {
         "turnback_ratio": "#E4D2B7",
         "return_probability": "#C66616",
         "between_reward_distance": "#8A5B2A",
+        "between_reward_tortuosity": "#9A6B47",
     },
     {
         "turnback_ratio": "#D9CDE8",
         "return_probability": "#874BB8",
         "between_reward_distance": "#6E5792",
+        "between_reward_tortuosity": "#9A607D",
     },
 )
 
@@ -148,6 +153,8 @@ METRIC_PALETTE_FAMILY_ALIASES = {
     "between_reward_dist": "between_reward_distance",
     "between_reward_return_leg_dist": "between_reward_distance",
     "return_leg_dist": "between_reward_distance",
+    "between_reward_tortuosity": "between_reward_tortuosity",
+    "return_leg_tortuosity_excursion_bin": "between_reward_tortuosity",
     "wall_contacts": "wall_contacts",
     "wall_contact": "wall_contacts",
 }
