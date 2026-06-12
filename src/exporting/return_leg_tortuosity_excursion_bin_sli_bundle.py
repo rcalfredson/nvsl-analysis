@@ -158,6 +158,79 @@ def _nonwalk_mask(opts, traj, *, fi: int, n_frames: int):
     return ~window
 
 
+def _return_leg_start_mode(opts) -> str:
+    mode = str(
+        getattr(
+            opts,
+            "return_leg_tortuosity_excursion_bin_return_start_mode",
+            "global_max",
+        )
+        or "global_max"
+    ).strip().lower()
+    if mode not in {"global_max", "post_last_wall_max"}:
+        raise ValueError(
+            "Unknown return-leg start mode "
+            f"{mode!r}; expected 'global_max' or 'post_last_wall_max'."
+        )
+    return mode
+
+
+def _post_last_wall_max_frame(
+    *,
+    traj,
+    s: int,
+    e: int,
+    fi: int,
+    wc,
+    nonwalk_mask,
+    exclude_nonwalk: bool,
+    fallback_max_i: int,
+    reward_center_xy: tuple[float, float],
+) -> int | None:
+    if wc is None:
+        return None
+
+    s = int(s)
+    e = int(e)
+    if e <= s:
+        return None
+
+    wc_start = max(0, min(s - int(fi), len(wc)))
+    wc_stop = max(0, min(e - int(fi), len(wc)))
+    wall_idx = np.flatnonzero(np.asarray(wc[wc_start:wc_stop], dtype=bool))
+    if wall_idx.size == 0:
+        return max(s, int(fallback_max_i))
+
+    search_start = int(fi) + wc_start + int(wall_idx[-1]) + 1
+    if search_start >= e:
+        return None
+
+    frames = np.arange(search_start, e, dtype=int)
+    max_frame = min(len(traj.x), len(traj.y))
+    frames = frames[(frames >= 0) & (frames < max_frame)]
+    if frames.size == 0:
+        return None
+
+    xs = np.asarray(traj.x[frames], dtype=float)
+    ys = np.asarray(traj.y[frames], dtype=float)
+    keep = np.isfinite(xs) & np.isfinite(ys)
+    if exclude_nonwalk and nonwalk_mask is not None:
+        offsets = frames - int(fi)
+        in_mask = (offsets >= 0) & (offsets < len(nonwalk_mask))
+        walking = np.zeros(frames.size, dtype=bool)
+        walking[in_mask] = ~np.asarray(nonwalk_mask, dtype=bool)[offsets[in_mask]]
+        keep &= walking
+    if not np.any(keep):
+        return None
+
+    kept_frames = frames[keep]
+    kept_x = xs[keep]
+    kept_y = ys[keep]
+    cx, cy = reward_center_xy
+    radial_sq = (kept_x - float(cx)) ** 2 + (kept_y - float(cy)) ** 2
+    return int(kept_frames[int(np.argmax(radial_sq))])
+
+
 def _collect_records(
     vas,
     opts,
@@ -170,6 +243,14 @@ def _collect_records(
     exclude_wall = bool(
         getattr(opts, "return_leg_tortuosity_excursion_bin_exclude_wall_contact", False)
     )
+    return_start_mode = _return_leg_start_mode(opts)
+    if exclude_wall and return_start_mode == "post_last_wall_max":
+        raise ValueError(
+            "--return-leg-tortuosity-excursion-bin-exclude-wall-contact cannot be "
+            "combined with --return-leg-tortuosity-excursion-bin-return-start-mode "
+            "post_last_wall_max. Use one wall treatment at a time."
+        )
+    needs_wall_mask = exclude_wall or return_start_mode == "post_last_wall_max"
     exclude_nonwalk = bool(
         getattr(
             opts,
@@ -255,7 +336,7 @@ def _collect_records(
                     n_frames=n_frames,
                     log_tag="return_leg_tortuosity_excursion_bin",
                     warned_missing_wc=warned_missing_wc,
-                    enabled=exclude_wall,
+                    enabled=needs_wall_mask,
                 )
                 nonwalk = _nonwalk_mask(opts, traj, fi=fi, n_frames=n_frames)
                 pxmm = _px_per_mm(va, traj)
@@ -295,7 +376,22 @@ def _collect_records(
                     if legacy_distances:
                         radial_mm = max(0.0, radial_mm - reward_radius_mm)
 
-                    metric_start = max(s, int(max_i))
+                    if return_start_mode == "post_last_wall_max":
+                        metric_start = _post_last_wall_max_frame(
+                            traj=traj,
+                            s=s,
+                            e=e,
+                            fi=fi,
+                            wc=wc,
+                            nonwalk_mask=nonwalk,
+                            exclude_nonwalk=exclude_nonwalk,
+                            fallback_max_i=int(max_i),
+                            reward_center_xy=reward_center_xy,
+                        )
+                        if metric_start is None:
+                            continue
+                    else:
+                        metric_start = max(s, int(max_i))
                     if e <= metric_start:
                         continue
                     tortuosity = tortuosity_metric_masked(
@@ -440,6 +536,7 @@ def export_return_leg_tortuosity_excursion_bin_sli_bundle(vas, opts, gls, out_fn
         return
 
     pair_spec = _parse_pairs(opts)
+    return_start_mode = _return_leg_start_mode(opts)
     legacy_distances = pair_spec[2] if pair_spec is not None else _parse_edges(opts)[1]
     selected_trainings = _selected_training_indices(vas_ok, opts)
     skip_first, keep_first = _effective_windowing(opts)
@@ -633,6 +730,9 @@ def export_return_leg_tortuosity_excursion_bin_sli_bundle(vas, opts, gls, out_fn
                 )
             )
         ),
+        return_leg_tortuosity_excursion_bin_return_start_mode=np.asarray(
+            return_start_mode
+        ),
         return_leg_tortuosity_excursion_bin_window_summary=window_summary,
         return_leg_tortuosity_excursion_bin_description=np.asarray(
             (
@@ -641,6 +741,12 @@ def export_return_leg_tortuosity_excursion_bin_sli_bundle(vas, opts, gls, out_fn
                 if top_fraction == 1.0
                 else f"Mean of the top {100.0 * top_fraction:g}% return-leg "
                 "tortuosity values per fly and maximum-distance bin"
+            )
+            + (
+                "; return leg starts at the full-episode maximum distance"
+                if return_start_mode == "global_max"
+                else "; return leg starts at the maximum distance after the "
+                "episode's final wall contact"
             )
         ),
         btw_rwd_sync_bucket_min_trajectories=np.array(min_segments, dtype=int),

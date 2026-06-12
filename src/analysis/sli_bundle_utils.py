@@ -1128,6 +1128,32 @@ def validate_return_leg_tortuosity_excursion_bin_bundle(
             f"Bundle {where} has invalid return-leg tortuosity top fraction "
             f"{top_fraction}"
         )
+    return_start_mode = str(
+        as_scalar(
+            bundle.get(
+                "return_leg_tortuosity_excursion_bin_return_start_mode",
+                "global_max",
+            )
+        )
+    )
+    if return_start_mode not in {"global_max", "post_last_wall_max"}:
+        raise ValueError(
+            f"Bundle {where} has invalid return-leg start mode "
+            f"{return_start_mode!r}"
+        )
+    exclude_wall = bool(
+        as_scalar(
+            bundle.get(
+                "return_leg_tortuosity_excursion_bin_exclude_wall_contact",
+                False,
+            )
+        )
+    )
+    if exclude_wall and return_start_mode == "post_last_wall_max":
+        raise ValueError(
+            f"Bundle {where} combines whole-episode wall exclusion with "
+            "post-last-wall return-leg starts"
+        )
 
     selected_keys = (
         "return_leg_tortuosity_excursion_bin_selectedN_exp",

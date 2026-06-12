@@ -5696,6 +5696,17 @@ g.add_argument(
     help="Return-leg tortuosity definition. Default: %(default)s.",
 )
 g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-return-start-mode",
+    choices=["global_max", "post_last_wall_max"],
+    default="global_max",
+    help=(
+        "How to define the return-leg start. 'global_max' uses the full-episode "
+        "maximum distance. 'post_last_wall_max' keeps the episode but starts at "
+        "the maximum distance after its final wall-contact frame. Default: "
+        "%(default)s."
+    ),
+)
+g.add_argument(
     "--return-leg-tortuosity-excursion-bin-top-fraction",
     type=float,
     default=1.0,
@@ -14937,6 +14948,29 @@ if __name__ == "__main__":
             print(
                 f"[return-leg-tortuosity-excursion-bin] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
                 "because --return-leg-tortuosity-excursion-bin-exclude-wall-contact was set"
+            )
+            opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
+    if (
+        getattr(
+            opts,
+            "return_leg_tortuosity_excursion_bin_return_start_mode",
+            "global_max",
+        )
+        == "post_last_wall_max"
+    ):
+        if getattr(
+            opts, "return_leg_tortuosity_excursion_bin_exclude_wall_contact", False
+        ):
+            raise ValueError(
+                "--return-leg-tortuosity-excursion-bin-return-start-mode "
+                "post_last_wall_max cannot be combined with "
+                "--return-leg-tortuosity-excursion-bin-exclude-wall-contact"
+            )
+        if getattr(opts, "wall", None) is None:
+            print(
+                f"[return-leg-tortuosity-excursion-bin] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
+                "because post_last_wall_max return-leg starts were requested"
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 

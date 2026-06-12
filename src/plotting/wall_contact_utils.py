@@ -60,7 +60,8 @@ def build_wall_contact_mask_for_window(
         if not warned_missing_wc[0]:
             print(
                 f"[{log_tag}] warning: can't load wall-contact data; "
-                "wall-contact exclusion will be ignored for some videos."
+                "wall-dependent filtering or metrics will be unavailable for "
+                "some videos."
             )
             warned_missing_wc[0] = True
 
