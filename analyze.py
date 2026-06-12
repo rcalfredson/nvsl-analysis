@@ -14922,6 +14922,14 @@ if __name__ == "__main__":
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 
+    if getattr(opts, "return_leg_tortuosity_excursion_bin_exclude_wall_contact", False):
+        if getattr(opts, "wall", None) is None:
+            print(
+                f"[return-leg-tortuosity-excursion-bin] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
+                "because --return-leg-tortuosity-excursion-bin-exclude-wall-contact was set"
+            )
+            opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
     if getattr(opts, "turnback_excursion_bin_exclude_wall_contact", False):
         if getattr(opts, "wall", None) is None:
             print(
