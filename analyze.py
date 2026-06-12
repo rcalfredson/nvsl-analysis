@@ -106,6 +106,9 @@ from src.exporting.return_prob_outer_radius_sli_bundle import (
 from src.exporting.return_prob_excursion_bin_sli_bundle import (
     export_return_prob_excursion_bin_sli_bundle,
 )
+from src.exporting.return_leg_tortuosity_excursion_bin_sli_bundle import (
+    export_return_leg_tortuosity_excursion_bin_sli_bundle,
+)
 from src.exporting.turnback_excursion_bin_sli_bundle import (
     export_turnback_excursion_bin_sli_bundle,
 )
@@ -5301,6 +5304,16 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--export-return-leg-tortuosity-excursion-bin-sli-bundle",
+    type=str,
+    default=None,
+    help=(
+        "Write an .npz bundle with mean return-leg tortuosity of between-reward "
+        "trajectories as a function of maximum-distance bins for multi-group "
+        "overlays/stats."
+    ),
+)
+g.add_argument(
     "--export-turnback-excursion-bin-sli-bundle",
     type=str,
     default=None,
@@ -5334,6 +5347,15 @@ g.add_argument(
     help=(
         "Trainings to include in return-prob-excursion-bin exports, e.g. '2' or "
         "'2-3'. Default: all trainings."
+    ),
+)
+g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-trainings",
+    type=str,
+    default=None,
+    help=(
+        "Trainings to include in return-leg-tortuosity excursion-bin exports, "
+        "e.g. '2' or '2-3'. Default: all trainings."
     ),
 )
 g.add_argument(
@@ -5401,6 +5423,42 @@ g.add_argument(
         "return-prob-excursion-bin export. Use 'inf' as the final edge for an "
         "open-ended upper bin resolved to the maximum observed excursion, "
         "e.g. '2,8,16,inf'."
+    ),
+)
+g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-radii-mm",
+    type=str,
+    default=None,
+    help=(
+        "Comma-separated radial distance bin edges from reward-circle center (mm) "
+        "for the return-leg-tortuosity excursion-bin export."
+    ),
+)
+g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-edges-mm",
+    type=str,
+    default=None,
+    help=(
+        "Deprecated: comma-separated bin edges in mm beyond reward-circle radius "
+        "for the return-leg-tortuosity excursion-bin export."
+    ),
+)
+g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-radius-pairs-mm",
+    type=str,
+    default=None,
+    help=(
+        "Optional independent radial distance ranges from reward-circle center, "
+        "e.g. '17:19,22:24,27:29'."
+    ),
+)
+g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-pairs-mm",
+    type=str,
+    default=None,
+    help=(
+        "Deprecated: independent ranges in mm beyond reward-circle radius, "
+        "e.g. '3:5,8:10,13:15'."
     ),
 )
 g.add_argument(
@@ -5477,6 +5535,15 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-skip-first-sync-buckets",
+    type=int,
+    default=None,
+    help=(
+        "Optional export-specific sync-bucket skip for return-leg-tortuosity "
+        "excursion-bin bundles. Defaults to --skip-first-sync-buckets."
+    ),
+)
+g.add_argument(
     "--turnback-excursion-bin-skip-first-sync-buckets",
     type=int,
     default=None,
@@ -5510,6 +5577,15 @@ g.add_argument(
     help=(
         "Optional export-specific sync-bucket cap for return-prob-excursion-bin "
         "bundles. Defaults to --keep-first-sync-buckets."
+    ),
+)
+g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-keep-first-sync-buckets",
+    type=int,
+    default=None,
+    help=(
+        "Optional export-specific sync-bucket cap for return-leg-tortuosity "
+        "excursion-bin bundles. Defaults to --keep-first-sync-buckets."
     ),
 )
 g.add_argument(
@@ -5578,6 +5654,48 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-exclude-wall-contact",
+    action="store_true",
+    help=(
+        "Discard between-reward trajectories whose frame span overlaps wall "
+        "contact."
+    ),
+)
+g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-exclude-nonwalking-frames",
+    action="store_true",
+    help="Compute return-leg tortuosity after dropping nonwalking frames.",
+)
+g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-min-walk-frames",
+    type=int,
+    default=2,
+    help="Minimum kept frames required for return-leg tortuosity.",
+)
+g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-min-radius-mm",
+    type=float,
+    default=0.0,
+    help="Minimum radius for path_over_max_radius return-leg tortuosity.",
+)
+g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-min-displacement-mm",
+    type=float,
+    default=0.0,
+    help="Minimum displacement for displacement-based tortuosity modes.",
+)
+g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-metric-mode",
+    choices=[
+        "path_over_max_radius",
+        "path_over_displacement",
+        "straightness",
+        "excess_path",
+    ],
+    default="path_over_max_radius",
+    help="Return-leg tortuosity definition. Default: %(default)s.",
+)
+g.add_argument(
     "--turnback-excursion-bin-exclude-wall-contact",
     action="store_true",
     help=(
@@ -5627,6 +5745,11 @@ g.add_argument(
         "Debug export of return-prob-excursion-bin+SLI bundle: print selected "
         "windows, bins, and per-video count summaries."
     ),
+)
+g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-debug",
+    action="store_true",
+    help="Print per-video segment counts for the new excursion-bin export.",
 )
 g.add_argument(
     "--return-prob-reward-radius-mm",
@@ -10693,6 +10816,15 @@ def _export_post_analyze_bundles(vas, gls) -> int:
     if getattr(opts, "export_return_prob_excursion_bin_sli_bundle", None):
         export_return_prob_excursion_bin_sli_bundle(
             vas, opts, gls, opts.export_return_prob_excursion_bin_sli_bundle
+        )
+        num_exports += 1
+
+    if getattr(opts, "export_return_leg_tortuosity_excursion_bin_sli_bundle", None):
+        export_return_leg_tortuosity_excursion_bin_sli_bundle(
+            vas,
+            opts,
+            gls,
+            opts.export_return_leg_tortuosity_excursion_bin_sli_bundle,
         )
         num_exports += 1
 

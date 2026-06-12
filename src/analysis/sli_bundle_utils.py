@@ -30,6 +30,7 @@ BUNDLE_ARRAY_PREFIXES = (
     "speed_",
     "fraction_within_radius_",
     "return_prob_",
+    "return_leg_",
     "sli_",
 )
 
@@ -121,6 +122,14 @@ BETWEEN_REWARD_RETURN_LEG_DIST_KEYS = (
     "between_reward_return_leg_dist_ctrl",
     "between_reward_return_leg_distN_exp",
     "between_reward_return_leg_distN_ctrl",
+)
+
+RETURN_LEG_TORTUOSITY_EXCURSION_BIN_KEYS = (
+    "return_leg_tortuosity_excursion_bin_exp",
+    "return_leg_tortuosity_excursion_bin_ctrl",
+    "return_leg_tortuosity_excursion_binN_exp",
+    "return_leg_tortuosity_excursion_binN_ctrl",
+    "return_leg_tortuosity_excursion_bin_edges_mm",
 )
 
 COMMAG_KEYS = (
@@ -1008,6 +1017,140 @@ def validate_return_prob_excursion_bin_bundle(
     validate_fraction_within_radius_excursion_bin_bundle(bundle, path=path)
 
 
+def validate_return_leg_tortuosity_excursion_bin_bundle(
+    bundle: dict, *, path: str | None = None
+) -> None:
+    where = _bundle_label(bundle, path)
+    missing = [k for k in RETURN_LEG_TORTUOSITY_EXCURSION_BIN_KEYS if k not in bundle]
+    if missing:
+        raise ValueError(
+            f"Bundle {where} is missing return-leg tortuosity excursion-bin keys: "
+            f"{missing}"
+        )
+
+    sli = np.asarray(bundle["sli"], dtype=float)
+    if sli.ndim != 1:
+        raise ValueError(f"Bundle {where} has non-1D sli shape {sli.shape}")
+    n_videos = int(sli.shape[0])
+
+    edges = np.asarray(
+        bundle["return_leg_tortuosity_excursion_bin_edges_mm"], dtype=float
+    )
+    if edges.ndim != 1 or edges.size < 2 or np.any(~np.isfinite(edges)):
+        raise ValueError(f"Bundle {where} has invalid resolved bin edges")
+
+    pair_mode = bool(
+        as_scalar(bundle.get("return_leg_tortuosity_excursion_bin_pair_mode", False))
+    )
+    pair_lo = np.asarray(
+        bundle.get("return_leg_tortuosity_excursion_bin_pair_lower_mm", []),
+        dtype=float,
+    ).reshape(-1)
+    pair_hi = np.asarray(
+        bundle.get("return_leg_tortuosity_excursion_bin_pair_upper_mm", []),
+        dtype=float,
+    ).reshape(-1)
+    if pair_mode:
+        if pair_lo.size == 0 or pair_lo.shape != pair_hi.shape:
+            raise ValueError(f"Bundle {where} has invalid pair-bin metadata")
+        if np.any(~np.isfinite(pair_lo)) or np.any(~np.isfinite(pair_hi)):
+            raise ValueError(f"Bundle {where} has non-finite pair-bin metadata")
+        if np.any(pair_lo < 0) or np.any(pair_hi <= pair_lo):
+            raise ValueError(f"Bundle {where} has invalid pair-bin bounds")
+        n_bins = int(pair_lo.size)
+    else:
+        if np.any(np.diff(edges) <= 0):
+            raise ValueError(f"Bundle {where} has non-increasing bin edges")
+        n_bins = int(edges.size - 1)
+
+    requested = np.asarray(
+        bundle.get(
+            "return_leg_tortuosity_excursion_bin_requested_edges_mm", edges
+        ),
+        dtype=float,
+    )
+    expected_requested = 2 * n_bins if pair_mode else edges.size
+    if requested.ndim != 1 or requested.size != expected_requested:
+        raise ValueError(
+            f"Bundle {where} has requested-edge shape {requested.shape}; "
+            f"expected {(expected_requested,)}"
+        )
+    if pair_mode:
+        if np.any(~np.isfinite(requested)):
+            raise ValueError(f"Bundle {where} has non-finite requested pair bounds")
+    else:
+        if np.any(~np.isfinite(requested[:-1])) or np.any(np.diff(requested) <= 0):
+            raise ValueError(f"Bundle {where} has invalid requested bin edges")
+
+    if "return_leg_tortuosity_excursion_bin_window_summary" in bundle:
+        summary = as_str_array(
+            bundle["return_leg_tortuosity_excursion_bin_window_summary"]
+        )
+        if summary.shape[0] != n_videos:
+            raise ValueError(
+                f"Bundle {where} has {summary.shape[0]} window summaries for "
+                f"{n_videos} videos"
+            )
+
+    values_exp = _validate_return_prob_metric_array(
+        bundle,
+        "return_leg_tortuosity_excursion_bin_exp",
+        where=where,
+        n_videos=n_videos,
+        n_bins=n_bins,
+    )
+    values_ctrl = _validate_return_prob_metric_array(
+        bundle,
+        "return_leg_tortuosity_excursion_bin_ctrl",
+        where=where,
+        n_videos=n_videos,
+        n_bins=n_bins,
+    )
+    counts_exp = _validate_return_prob_count_array(
+        bundle,
+        "return_leg_tortuosity_excursion_binN_exp",
+        where=where,
+        n_videos=n_videos,
+        n_bins=n_bins,
+    )
+    counts_ctrl = _validate_return_prob_count_array(
+        bundle,
+        "return_leg_tortuosity_excursion_binN_ctrl",
+        where=where,
+        n_videos=n_videos,
+        n_bins=n_bins,
+    )
+
+    min_segments = int(
+        as_scalar(bundle.get("btw_rwd_sync_bucket_min_trajectories", 1))
+    )
+    if min_segments < 0:
+        raise ValueError(
+            f"Bundle {where} has negative btw_rwd_sync_bucket_min_trajectories"
+        )
+    sufficient_count = max(1, min_segments)
+    for key, values, counts in (
+        ("return_leg_tortuosity_excursion_bin_exp", values_exp, counts_exp),
+        ("return_leg_tortuosity_excursion_bin_ctrl", values_ctrl, counts_ctrl),
+    ):
+        finite = np.isfinite(values)
+        if np.any(values[finite] < 0):
+            raise ValueError(f"Bundle {where} has negative values in {key}")
+        if np.any(finite & (counts < sufficient_count)):
+            raise ValueError(
+                f"Bundle {where} has finite {key} where count is below "
+                f"{sufficient_count}"
+            )
+
+    for key in (
+        "return_leg_tortuosity_excursion_bin_skip_first_sync_buckets",
+        "return_leg_tortuosity_excursion_bin_keep_first_sync_buckets",
+        "return_leg_tortuosity_excursion_bin_min_walk_frames",
+    ):
+        if key in bundle and int(as_scalar(bundle[key])) < 0:
+            raise ValueError(f"Bundle {where} has negative {key}")
+
+
 def validate_turnback_excursion_bin_bundle(
     bundle: dict, *, path: str | None = None
 ) -> None:
@@ -1282,6 +1425,8 @@ def normalize_sli_bundle(bundle: dict, *, path: str | None = None) -> dict:
         validate_between_reward_maxdist_bundle(out, path=path)
     if any(k in out for k in BETWEEN_REWARD_RETURN_LEG_DIST_KEYS):
         validate_between_reward_return_leg_dist_bundle(out, path=path)
+    if any(k in out for k in RETURN_LEG_TORTUOSITY_EXCURSION_BIN_KEYS):
+        validate_return_leg_tortuosity_excursion_bin_bundle(out, path=path)
     if any(k in out for k in COMMAG_KEYS):
         validate_commag_bundle(out, path=path)
     if any(k in out for k in TURNBACK_RATIO_PRIMARY_KEYS):
