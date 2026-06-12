@@ -650,6 +650,15 @@ class VideoAnalysis:
             )
         )
 
+        keep_wall_regions_for_return_prob_outer_radius = bool(
+            getattr(self.opts, "export_return_prob_outer_radius_sli_bundle", None)
+            and getattr(
+                self.opts,
+                "return_prob_outer_radius_exclude_wall_contact",
+                False,
+            )
+        )
+
         keep_wall_regions_for_wall_contacts_per_reward_interval_total = bool(
             getattr(
                 self.opts, "wall_contacts_per_reward_interval_total_bars", False
@@ -669,6 +678,7 @@ class VideoAnalysis:
             or keep_wall_regions_for_rrd
             or keep_wall_regions_for_between_reward_maxdist
             or keep_wall_regions_for_excursion_bin_exports
+            or keep_wall_regions_for_return_prob_outer_radius
             or keep_wall_regions_for_wall_contacts_per_reward_interval_total
         )
 

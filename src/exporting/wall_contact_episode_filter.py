@@ -29,13 +29,13 @@ def wall_contact_regions_for_trj(
         return None
 
 
-def _region_to_start_stop(region: Any) -> tuple[int, int] | None:
+def _region_to_start_stop(region: Any) -> tuple[int, int | None] | None:
     if region is None:
         return None
 
     if isinstance(region, slice):
         start = 0 if region.start is None else int(region.start)
-        stop = start if region.stop is None else int(region.stop)
+        stop = None if region.stop is None else int(region.stop)
         return start, stop
 
     if isinstance(region, (tuple, list, np.ndarray)):
@@ -43,7 +43,7 @@ def _region_to_start_stop(region: Any) -> tuple[int, int] | None:
             if len(region) != 2:
                 return None
             start = 0 if region[0] is None else int(region[0])
-            stop = start if region[1] is None else int(region[1])
+            stop = None if region[1] is None else int(region[1])
             return start, stop
         except Exception:
             return None
@@ -51,7 +51,7 @@ def _region_to_start_stop(region: Any) -> tuple[int, int] | None:
     if hasattr(region, "start") and hasattr(region, "stop"):
         try:
             start = 0 if getattr(region, "start") is None else int(region.start)
-            stop = start if getattr(region, "stop") is None else int(region.stop)
+            stop = None if getattr(region, "stop") is None else int(region.stop)
             return start, stop
         except Exception:
             return None
@@ -73,6 +73,7 @@ def episode_overlaps_wall_contact(ep, wall_regions) -> bool:
         if ab is None:
             continue
         wall_start, wall_stop = ab
+        wall_stop = stop if wall_stop is None else int(wall_stop)
         if min(wall_stop, stop) > max(wall_start, start):
             return True
     return False

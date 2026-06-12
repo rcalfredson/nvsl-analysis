@@ -17,6 +17,9 @@ from src.exporting.return_prob_outer_radius_sli_bundle import (
     _compute_return_prob_curves as _compute_return_prob_outer_radius_curves,
     export_return_prob_outer_radius_sli_bundle,
 )
+from src.plotting.return_prob_outer_radius_sli_bundle_plotter import (
+    _bundle_to_exported as _return_prob_outer_radius_bundle_to_exported,
+)
 
 
 class _Training:
@@ -292,6 +295,38 @@ def test_return_probability_outer_radius_masks_below_min_trajectory_count():
     assert np.isnan(ratio_exp).all()
 
 
+def test_return_probability_outer_radius_can_exclude_wall_contact_episodes():
+    exp = _OuterRadiusTrajectory(
+        [
+            {"start": 0, "stop": 10, "returns": True},
+            {"start": 20, "stop": 30, "returns": True},
+            {"start": 40, "stop": 50, "returns": False},
+        ]
+    )
+    exp.boundary_event_stats = _wall_regions(slice(22, 24))
+
+    ratio_exp, _, ret_exp, _, total_exp, _, _ = (
+        _compute_return_prob_outer_radius_curves(
+            [_va(trx=[exp], noyc=True)],
+            outer_radii_mm=np.asarray([16.0], dtype=float),
+            legacy_outer_radii=False,
+            reward_radius_mm=None,
+            reward_delta_mm=0.0,
+            border_width_mm=0.1,
+            selected_trainings=[0],
+            skip_first=0,
+            keep_first=0,
+            last_sync_buckets=0,
+            debug=False,
+            exclude_wall_contact=True,
+        )
+    )
+
+    np.testing.assert_array_equal(ret_exp, [[1]])
+    np.testing.assert_array_equal(total_exp, [[2]])
+    np.testing.assert_allclose(ratio_exp, [[0.5]])
+
+
 def test_open_ended_bin_resolves_from_nonreturning_censored_excursions_but_does_not_count_them():
     exp = _Trajectory([_episode(10, 20.0, False)])
 
@@ -436,3 +471,96 @@ def test_return_prob_outer_radius_export_applies_exp_target_sync_bucket_filter(
         np.testing.assert_array_equal(
             bundle["fraction_within_radius_outer_radius_return_exp"], [[1]]
         )
+
+
+def test_return_prob_outer_radius_export_records_wall_contact_exclusion(
+    tmp_path, monkeypatch
+):
+    exp = _OuterRadiusTrajectory(
+        [
+            {"start": 0, "stop": 10, "returns": True},
+            {"start": 20, "stop": 30, "returns": True},
+            {"start": 40, "stop": 50, "returns": False},
+        ]
+    )
+    exp.boundary_event_stats = _wall_regions((22, 24))
+    va = _va(trx=[exp], noyc=True)
+    opts = SimpleNamespace(
+        export_group_label="group",
+        return_prob_outer_radius_outer_radii_mm="16",
+        return_prob_outer_radius_outer_deltas_mm=None,
+        return_prob_outer_radius_trainings="1",
+        return_prob_outer_radius_skip_first_sync_buckets=0,
+        return_prob_outer_radius_keep_first_sync_buckets=0,
+        return_prob_outer_radius_last_sync_buckets=0,
+        return_prob_reward_radius_mm=None,
+        return_prob_reward_delta_mm=0.0,
+        return_prob_border_width_mm=0.1,
+        return_prob_outer_radius_debug=False,
+        return_prob_outer_radius_exclude_wall_contact=True,
+        best_worst_trn=1,
+        sli_use_training_mean=True,
+        sli_select_skip_first_sync_buckets=0,
+        sli_select_keep_first_sync_buckets=0,
+        min_between_reward_trajectories=0,
+        require_exp_target_sync_bucket=False,
+        piTh=10,
+    )
+    monkeypatch.setattr(
+        "src.exporting.return_prob_outer_radius_sli_bundle._compute_sli_scalar_and_timeseries_from_rpid",
+        lambda _vas, _opts: (
+            np.asarray([0.1], dtype=float),
+            np.asarray([[[0.1]]], dtype=float),
+        ),
+    )
+    out = tmp_path / "return_prob_outer_radius_wall_filtered.npz"
+
+    export_return_prob_outer_radius_sli_bundle([va], opts, gls=None, out_fn=str(out))
+
+    with np.load(out, allow_pickle=True) as bundle:
+        assert bool(
+            bundle[
+                "fraction_within_radius_outer_radius_exclude_wall_contact"
+            ].reshape(()).item()
+        )
+        np.testing.assert_array_equal(
+            bundle["fraction_within_radius_outer_radius_total_exp"], [[2]]
+        )
+        np.testing.assert_array_equal(
+            bundle["fraction_within_radius_outer_radius_return_exp"], [[1]]
+        )
+        np.testing.assert_allclose(
+            bundle["fraction_within_radius_outer_radius_ratio_exp"], [[0.5]]
+        )
+
+
+def test_return_prob_outer_radius_plotter_preserves_duplicate_filename_fly_ids():
+    bundle = {
+        "sli": np.asarray([0.1, 0.2], dtype=float),
+        "video_ids": np.asarray(["same.mp4::f0", "same.mp4::f1"], dtype=object),
+        "fraction_within_radius_outer_radius_outer_radii_mm": np.asarray(
+            [16.0], dtype=float
+        ),
+        "fraction_within_radius_outer_radius_ratio_exp": np.asarray(
+            [[0.25], [0.75]], dtype=float
+        ),
+        "fraction_within_radius_outer_radius_ratio_ctrl": np.asarray(
+            [[np.nan], [np.nan]], dtype=float
+        ),
+    }
+
+    exported = _return_prob_outer_radius_bundle_to_exported(
+        bundle,
+        label="group",
+        mode="exp",
+        metric="ratio",
+        sub_idx=np.asarray([0, 1], dtype=int),
+    )
+
+    np.testing.assert_allclose(
+        np.asarray(exported.per_unit_values_panel[0], dtype=float), [0.25, 0.75]
+    )
+    np.testing.assert_array_equal(
+        np.asarray(exported.per_unit_ids_panel[0], dtype=object),
+        ["same.mp4::f0", "same.mp4::f1"],
+    )

@@ -16,6 +16,10 @@ from src.exporting.com_sli_bundle import (
     _compute_sli_scalar_and_timeseries_from_rpid,
     _safe_group_label,
 )
+from src.exporting.wall_contact_episode_filter import (
+    episode_overlaps_wall_contact,
+    wall_contact_regions_for_trj,
+)
 from src.utils.parsers import parse_distances, parse_training_selector
 
 
@@ -164,6 +168,7 @@ def _compute_return_prob_curves(
     last_sync_buckets: int,
     debug: bool,
     min_trajectories: int = 0,
+    exclude_wall_contact: bool = False,
 ):
     n_videos = len(vas)
     n_radii = int(outer_radii_mm.size)
@@ -174,6 +179,7 @@ def _compute_return_prob_curves(
     total_exp = np.zeros((n_videos, n_radii), dtype=int)
     total_ctrl = np.zeros((n_videos, n_radii), dtype=int)
     windows_meta = []
+    warned_missing_wall_contact = [False]
 
     for vi, va in enumerate(vas):
         vid = getattr(va, "fn", f"va_{vi}")
@@ -204,6 +210,12 @@ def _compute_return_prob_curves(
                 returns = 0
                 total = 0
                 ctrl = bool(fly_idx == 1)
+                wall_regions = wall_contact_regions_for_trj(
+                    trj,
+                    enabled=bool(exclude_wall_contact),
+                    warned_missing=warned_missing_wall_contact,
+                    log_tag="return-prob-outer-radius",
+                )
 
                 for t_idx in selected_trainings:
                     if t_idx >= len(getattr(va, "trns", [])):
@@ -234,6 +246,8 @@ def _compute_return_prob_curves(
                         continue
 
                     for ep in episodes:
+                        if episode_overlaps_wall_contact(ep, wall_regions):
+                            continue
                         event_t = int(ep["stop"]) - 1
                         if not _frame_in_windows(event_t, windows_by_training[t_idx]):
                             continue
@@ -293,6 +307,9 @@ def export_return_prob_outer_radius_sli_bundle(vas, opts, gls, out_fn):
         getattr(opts, "return_prob_border_width_mm", 0.1) or 0.1
     )
     debug = bool(getattr(opts, "return_prob_outer_radius_debug", False))
+    exclude_wall_contact = bool(
+        getattr(opts, "return_prob_outer_radius_exclude_wall_contact", False)
+    )
     min_trajectories = min_between_reward_sync_bucket_trajectories(opts)
 
     group_label = _safe_group_label(opts, gls)
@@ -330,6 +347,7 @@ def export_return_prob_outer_radius_sli_bundle(vas, opts, gls, out_fn):
         last_sync_buckets=last_sync_buckets,
         min_trajectories=min_trajectories,
         debug=debug,
+        exclude_wall_contact=exclude_wall_contact,
     )
 
     try:
@@ -443,6 +461,9 @@ def export_return_prob_outer_radius_sli_bundle(vas, opts, gls, out_fn):
         ),
         fraction_within_radius_outer_radius_border_width_mm=np.array(
             border_width_mm, dtype=float
+        ),
+        fraction_within_radius_outer_radius_exclude_wall_contact=np.array(
+            exclude_wall_contact, dtype=bool
         ),
         fraction_within_radius_outer_radius_window_summary=np.asarray(
             window_strings, dtype=object

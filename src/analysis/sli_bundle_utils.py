@@ -69,6 +69,7 @@ FRACTION_WITHIN_RADIUS_LEGACY_KEY_ALIASES = {
     "return_prob_outer_radius_reward_radius_mm": "fraction_within_radius_outer_radius_reward_radius_mm",
     "return_prob_outer_radius_reward_delta_mm": "fraction_within_radius_outer_radius_reward_delta_mm",
     "return_prob_outer_radius_border_width_mm": "fraction_within_radius_outer_radius_border_width_mm",
+    "return_prob_outer_radius_exclude_wall_contact": "fraction_within_radius_outer_radius_exclude_wall_contact",
     "return_prob_outer_radius_window_summary": "fraction_within_radius_outer_radius_window_summary",
     "return_prob_excursion_bin_ratio_exp": "fraction_within_radius_excursion_bin_ratio_exp",
     "return_prob_excursion_bin_ratio_ctrl": "fraction_within_radius_excursion_bin_ratio_ctrl",
