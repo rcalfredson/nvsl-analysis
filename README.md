@@ -113,11 +113,12 @@ By default, the script will use OS-specific path conventions (e.g., `/home/you/y
 
 If you want a machine-local override for selected `analyze.py` defaults without checking those preferences into Git, create a file named `.analyze.local.env` in the repository root. This file is ignored by Git.
 
-At present, this local config supports toggling the default one-shot between-reward SLI-bracketed plots:
+At present, this local config supports toggling selected analyze-time display/export behavior:
 
 ```env
 # Local-only defaults for analyze.py
 ENABLE_DEFAULT_BETWEEN_REWARD_SLI_PLOTS=false
+EXPORT_BUNDLE_EXIT_EARLY=true
 SHOW_AUC_P_VALUES=false
 ```
 
@@ -126,6 +127,7 @@ Accepted boolean values are `1`, `true`, `yes`, `on`, `0`, `false`, `no`, and `o
 Behavior:
 - If `.analyze.local.env` is absent, the repository default behavior is used.
 - If `ENABLE_DEFAULT_BETWEEN_REWARD_SLI_PLOTS=false`, the default one-shot between-reward SLI-bracketed plots are skipped for your local runs only.
+- If `EXPORT_BUNDLE_EXIT_EARLY=true`, `postAnalyze` returns immediately after writing any requested top-level bundle export, before default plots, stats, and other post-analysis outputs.
 - If `SHOW_AUC_P_VALUES=false`, AUC labels show only significance stars / `ns`, without numeric p-values.
 
 ---

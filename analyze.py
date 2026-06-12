@@ -444,6 +444,14 @@ def _local_between_reward_sli_plots_enabled() -> bool:
     )
 
 
+def _local_export_bundle_exit_early_enabled() -> bool:
+    cfg = load_local_analyze_config()
+    raw_value = cfg.get("EXPORT_BUNDLE_EXIT_EARLY")
+    if raw_value is None:
+        return False
+    return parse_local_bool(raw_value, key_name="EXPORT_BUNDLE_EXIT_EARLY")
+
+
 def _resolve_heatmap_training_indices(trns, selector) -> list[int]:
     """
     Heatmaps use --num-trainings as a 1-based training selector.
@@ -5183,6 +5191,17 @@ g.add_argument(
     help=(
         "Write an .npz bundle with mean between-reward max distance by sync bucket "
         "+ SLI for multi-group overlays."
+    ),
+)
+g.add_argument(
+    "--export-bundle-exit-early",
+    action=argparse.BooleanOptionalAction,
+    default=_local_export_bundle_exit_early_enabled(),
+    help=(
+        "After postAnalyze writes any requested top-level SLI/data bundle export, "
+        "return before generating default plots, stats, and other post-analysis "
+        "outputs. Default can be set locally with EXPORT_BUNDLE_EXIT_EARLY in "
+        ".analyze.local.env."
     ),
 )
 g.add_argument(
@@ -10616,6 +10635,102 @@ def _emit_default_between_reward_sli_plots(vas, gis, gls):
             )
 
 
+def _export_post_analyze_bundles(vas, gls) -> int:
+    num_exports = 0
+    if getattr(opts, "export_commag_sli_bundle", None):
+        export_commag_sli_bundle(vas, opts, gls, opts.export_commag_sli_bundle)
+        num_exports += 1
+
+    if getattr(opts, "export_between_reward_maxdist_sli_bundle", None):
+        export_between_reward_maxdist_sli_bundle(
+            vas, opts, gls, opts.export_between_reward_maxdist_sli_bundle
+        )
+        num_exports += 1
+
+    if getattr(opts, "export_btw_rwd_return_leg_dist_sli_bundle", None):
+        export_btw_rwd_return_leg_dist_sli_bundle(
+            vas, opts, gls, opts.export_btw_rwd_return_leg_dist_sli_bundle
+        )
+        num_exports += 1
+
+    if getattr(opts, "export_cum_reward_sli_bundle", None):
+        if getattr(opts, "cum_reward_sli_group", None) is not None:
+            print(
+                "[cum_reward_sli] NOTE: --cum-reward-sli-group is ignored during export; "
+                "use --sli-extremes with scripts/plot_cum_reward_sli_bundles.py instead."
+            )
+        export_cum_reward_sli_bundle(vas, opts, gls, opts.export_cum_reward_sli_bundle)
+        num_exports += 1
+
+    if getattr(opts, "export_wallpct_sli_bundle", None):
+        export_wallpct_sli_bundle(vas, opts, gls, opts.export_wallpct_sli_bundle)
+        num_exports += 1
+
+    if getattr(opts, "export_turnback_sli_bundle", None):
+        export_turnback_sli_bundle(vas, opts, gls, opts.export_turnback_sli_bundle)
+        num_exports += 1
+
+    if getattr(opts, "export_turnback_outer_radius_sli_bundle", None):
+        export_turnback_outer_radius_sli_bundle(
+            vas, opts, gls, opts.export_turnback_outer_radius_sli_bundle
+        )
+        num_exports += 1
+
+    if getattr(opts, "export_return_prob_outer_radius_sli_bundle", None):
+        export_return_prob_outer_radius_sli_bundle(
+            vas, opts, gls, opts.export_return_prob_outer_radius_sli_bundle
+        )
+        num_exports += 1
+
+    if getattr(opts, "export_return_prob_excursion_bin_sli_bundle", None):
+        export_return_prob_excursion_bin_sli_bundle(
+            vas, opts, gls, opts.export_return_prob_excursion_bin_sli_bundle
+        )
+        num_exports += 1
+
+    if getattr(opts, "export_turnback_excursion_bin_sli_bundle", None):
+        export_turnback_excursion_bin_sli_bundle(
+            vas, opts, gls, opts.export_turnback_excursion_bin_sli_bundle
+        )
+        num_exports += 1
+
+    if getattr(opts, "export_weaving_sli_bundle", None):
+        export_weaving_sli_bundle(vas, opts, gls, opts.export_weaving_sli_bundle)
+        num_exports += 1
+
+    if getattr(opts, "export_lgturn_startdist_sli_bundle", None):
+        export_lgturn_startdist_sli_bundle(
+            vas, opts, gls, opts.export_lgturn_startdist_sli_bundle
+        )
+        num_exports += 1
+
+    if getattr(opts, "export_reward_lgturn_pathlen_sli_bundle", None):
+        export_reward_lgturn_pathlen_sli_bundle(
+            vas, opts, gls, opts.export_reward_lgturn_pathlen_sli_bundle
+        )
+        num_exports += 1
+
+    if getattr(opts, "export_reward_lv_sli_bundle", None):
+        export_reward_lv_sli_bundle(vas, opts, gls, opts.export_reward_lv_sli_bundle)
+        num_exports += 1
+
+    if getattr(opts, "export_speed_sli_bundle", None):
+        export_speed_sli_bundle(vas, opts, gls, opts.export_speed_sli_bundle)
+        num_exports += 1
+
+    if getattr(opts, "export_agarose_sli_bundle", None):
+        export_agarose_sli_bundle(vas, opts, gls, opts.export_agarose_sli_bundle)
+        num_exports += 1
+
+    if getattr(opts, "btw_rwd_shortest_tail_export_npz", None):
+        export_btw_rwd_shortest_tail_bundle(
+            vas, opts, gls, opts.btw_rwd_shortest_tail_export_npz
+        )
+        num_exports += 1
+
+    return num_exports
+
+
 def postAnalyze(vas):
     if len(vas) <= 1:
         _generate_behavior_state_plots(vas)
@@ -10636,81 +10751,15 @@ def postAnalyze(vas):
     if gls and len(gls) != ng:
         error("numbers of groups and group labels differ")
 
-    if getattr(opts, "export_commag_sli_bundle", None):
-        export_commag_sli_bundle(vas, opts, gls, opts.export_commag_sli_bundle)
-
-    if getattr(opts, "export_between_reward_maxdist_sli_bundle", None):
-        export_between_reward_maxdist_sli_bundle(
-            vas, opts, gls, opts.export_between_reward_maxdist_sli_bundle
+    num_bundle_exports = _export_post_analyze_bundles(vas, gls)
+    if num_bundle_exports and getattr(opts, "export_bundle_exit_early", False):
+        print(
+            f"[postAnalyze] exiting early after {num_bundle_exports} bundle export"
+            f"{'' if num_bundle_exports == 1 else 's'}."
         )
-
-    if getattr(opts, "export_btw_rwd_return_leg_dist_sli_bundle", None):
-        export_btw_rwd_return_leg_dist_sli_bundle(
-            vas, opts, gls, opts.export_btw_rwd_return_leg_dist_sli_bundle
-        )
+        return
 
     _emit_default_between_reward_sli_plots(vas, gis, gls)
-
-    if getattr(opts, "export_cum_reward_sli_bundle", None):
-        if getattr(opts, "cum_reward_sli_group", None) is not None:
-            print(
-                "[cum_reward_sli] NOTE: --cum-reward-sli-group is ignored during export; "
-                "use --sli-extremes with scripts/plot_cum_reward_sli_bundles.py instead."
-            )
-        export_cum_reward_sli_bundle(vas, opts, gls, opts.export_cum_reward_sli_bundle)
-
-    if getattr(opts, "export_wallpct_sli_bundle", None):
-        export_wallpct_sli_bundle(vas, opts, gls, opts.export_wallpct_sli_bundle)
-
-    if getattr(opts, "export_turnback_sli_bundle", None):
-        export_turnback_sli_bundle(vas, opts, gls, opts.export_turnback_sli_bundle)
-
-    if getattr(opts, "export_turnback_outer_radius_sli_bundle", None):
-        export_turnback_outer_radius_sli_bundle(
-            vas, opts, gls, opts.export_turnback_outer_radius_sli_bundle
-        )
-
-    if getattr(opts, "export_return_prob_outer_radius_sli_bundle", None):
-        export_return_prob_outer_radius_sli_bundle(
-            vas, opts, gls, opts.export_return_prob_outer_radius_sli_bundle
-        )
-
-    if getattr(opts, "export_return_prob_excursion_bin_sli_bundle", None):
-        export_return_prob_excursion_bin_sli_bundle(
-            vas, opts, gls, opts.export_return_prob_excursion_bin_sli_bundle
-        )
-
-    if getattr(opts, "export_turnback_excursion_bin_sli_bundle", None):
-        export_turnback_excursion_bin_sli_bundle(
-            vas, opts, gls, opts.export_turnback_excursion_bin_sli_bundle
-        )
-
-    if getattr(opts, "export_weaving_sli_bundle", None):
-        export_weaving_sli_bundle(vas, opts, gls, opts.export_weaving_sli_bundle)
-
-    if getattr(opts, "export_lgturn_startdist_sli_bundle", None):
-        export_lgturn_startdist_sli_bundle(
-            vas, opts, gls, opts.export_lgturn_startdist_sli_bundle
-        )
-
-    if getattr(opts, "export_reward_lgturn_pathlen_sli_bundle", None):
-        export_reward_lgturn_pathlen_sli_bundle(
-            vas, opts, gls, opts.export_reward_lgturn_pathlen_sli_bundle
-        )
-
-    if getattr(opts, "export_reward_lv_sli_bundle", None):
-        export_reward_lv_sli_bundle(vas, opts, gls, opts.export_reward_lv_sli_bundle)
-
-    if getattr(opts, "export_speed_sli_bundle", None):
-        export_speed_sli_bundle(vas, opts, gls, opts.export_speed_sli_bundle)
-
-    if getattr(opts, "export_agarose_sli_bundle", None):
-        export_agarose_sli_bundle(vas, opts, gls, opts.export_agarose_sli_bundle)
-
-    if getattr(opts, "btw_rwd_shortest_tail_export_npz", None):
-        export_btw_rwd_shortest_tail_bundle(
-            vas, opts, gls, opts.btw_rwd_shortest_tail_export_npz
-        )
 
     using_sli_set_op = bool(getattr(opts, "sli_set_op", None))
     if opts.wall:
