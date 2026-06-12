@@ -245,7 +245,7 @@ run_return_leg_tortuosity_bins() {
       -f 0-1 \
       --rCC 15 \
       --export-return-leg-tortuosity-excursion-bin-sli-bundle "$bundle" \
-      --return-leg-tortuosity-excursion-bin-pairs-mm "$bins_arg" \
+      --return-leg-tortuosity-excursion-bin-radius-pairs-mm "$bins_arg" \
       --return-leg-tortuosity-excursion-bin-trainings 2 \
       --return-leg-tortuosity-excursion-bin-skip-first-sync-buckets 1 \
       --best-worst-trn 2 \
@@ -322,7 +322,7 @@ run_return_leg_tortuosity_bins() {
 
 # ---------------------------------------------------------------------
 # Return-leg tortuosity by max-distance bin
-# radial config: 3-5, 8-10, 13-15 mm beyond reward-circle radius
+# radial config: 3-5, 8-10, 13-15 mm from reward-circle center
 # only 5-episode minimum + T2 SB5 presence filter
 # ---------------------------------------------------------------------
 
