@@ -226,6 +226,12 @@ run_return_leg_tortuosity_bins() {
     noWall)
       wall_flags=(--return-leg-tortuosity-excursion-bin-exclude-wall-contact)
       ;;
+    postWall)
+      wall_flags=(
+        --return-leg-tortuosity-excursion-bin-return-start-mode
+        post_last_wall_max
+      )
+      ;;
     *)
       echo "Unknown wall tag: $wall_tag" >&2
       exit 1
@@ -326,10 +332,13 @@ run_return_leg_tortuosity_bins() {
 # ---------------------------------------------------------------------
 # Top-25% mean return-leg tortuosity by max-distance bin
 # radial config: 3-5, 8-10, 13-15 mm from reward-circle center
+# wall: standard full-episode maximum return-leg start
+# noWall: discard episodes containing wall contact
+# postWall: keep episodes and use the maximum after final wall contact
 # only 5-episode minimum + T2 SB5 presence filter
 # ---------------------------------------------------------------------
 
-for wall_tag in wall noWall; do
+for wall_tag in wall noWall postWall; do
   run_return_leg_tortuosity_bins \
     "3-5_8-10_13-15" \
     "3:5,8:10,13:15" \

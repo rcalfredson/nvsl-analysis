@@ -101,17 +101,33 @@ def _bundle_to_exported(
         .reshape(())
         .item()
     )
+    return_start_mode = str(
+        np.asarray(
+            bundle.get(
+                "return_leg_tortuosity_excursion_bin_return_start_mode",
+                "global_max",
+            )
+        )
+        .reshape(())
+        .item()
+    )
     tail_prefix = (
         ""
         if top_fraction == 1.0
         else f"Top {100.0 * top_fraction:g}% mean "
     )
+    start_prefix = (
+        ""
+        if return_start_mode == "global_max"
+        else "Post-wall "
+    )
+    metric_label = f"{tail_prefix}{start_prefix}return-leg tortuosity"
     ylabel = (
-        f"{tail_prefix}return-leg tortuosity (exp - yok)"
+        f"{metric_label} (exp - yok)"
         if mode == "exp_minus_ctrl"
-        else f"{tail_prefix}return-leg tortuosity (yoked)"
+        else f"{metric_label} (yoked)"
         if mode == "ctrl"
-        else f"{tail_prefix}return-leg tortuosity"
+        else metric_label
     )
     return ExportedTrainingScalarBars(
         group=label,
@@ -126,9 +142,8 @@ def _bundle_to_exported(
             "y_label": ylabel,
             "base_title": (
                 "Return-leg tortuosity by maximum distance bin"
-                if top_fraction == 1.0
-                else f"Top {100.0 * top_fraction:g}% mean return-leg tortuosity "
-                "by maximum distance bin"
+                if top_fraction == 1.0 and return_start_mode == "global_max"
+                else f"{metric_label} by maximum distance bin"
             ),
             "pool_trainings": False,
             "ci_conf": 0.95,
@@ -136,6 +151,7 @@ def _bundle_to_exported(
             "metric": "return_leg_tortuosity_excursion_bin",
             "metric_palette_family": "between_reward_tortuosity",
             "top_fraction": top_fraction,
+            "return_start_mode": return_start_mode,
         },
     )
 

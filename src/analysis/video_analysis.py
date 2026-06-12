@@ -646,10 +646,18 @@ class VideoAnalysis:
                     "export_return_leg_tortuosity_excursion_bin_sli_bundle",
                     None,
                 )
-                and getattr(
-                    self.opts,
-                    "return_leg_tortuosity_excursion_bin_exclude_wall_contact",
-                    False,
+                and (
+                    getattr(
+                        self.opts,
+                        "return_leg_tortuosity_excursion_bin_exclude_wall_contact",
+                        False,
+                    )
+                    or getattr(
+                        self.opts,
+                        "return_leg_tortuosity_excursion_bin_return_start_mode",
+                        "global_max",
+                    )
+                    == "post_last_wall_max"
                 )
             )
             or (
