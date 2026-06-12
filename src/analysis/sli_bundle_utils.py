@@ -204,16 +204,20 @@ def _bundle_label(bundle: dict, path: str | None = None) -> str:
 
 
 def _exp_target_sync_bucket_eligible(bundle: dict, n_videos: int, where: str):
-    eligible = np.asarray(
-        bundle.get(
-            "exp_target_sync_bucket_filter_eligible",
-            bundle.get(
-                "exp_pi_threshold_filter_eligible",
-                np.ones(n_videos, dtype=bool),
-            ),
-        ),
-        dtype=bool,
-    ).reshape(-1)
+    eligible = np.ones(n_videos, dtype=bool)
+    for key in (
+        "exp_target_sync_bucket_filter_eligible",
+        "exp_pi_threshold_filter_eligible",
+    ):
+        if key not in bundle:
+            continue
+        key_eligible = np.asarray(bundle[key], dtype=bool).reshape(-1)
+        if key_eligible.size != n_videos:
+            raise ValueError(
+                f"Bundle {where} has {key}.shape={key_eligible.shape} "
+                f"but expected {(n_videos,)}"
+            )
+        eligible = eligible & key_eligible
     if eligible.size != n_videos:
         raise ValueError(
             f"Bundle {where} has exp_target_sync_bucket_filter_eligible.shape="

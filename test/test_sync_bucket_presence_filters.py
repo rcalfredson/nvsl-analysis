@@ -106,19 +106,19 @@ def test_exp_target_sync_bucket_filter_can_use_custom_training_and_bucket():
     assert result.available_sync_buckets == 2
 
 
-def test_exp_target_sync_bucket_filter_accepts_legacy_option_names():
+def test_exp_target_sync_bucket_filter_ignores_pi_threshold_option_names():
     opts = SimpleNamespace(
         require_exp_pi_threshold_bucket=True,
         exp_pi_threshold_filter_training=1,
         exp_pi_threshold_filter_sync_bucket=2,
     )
 
-    result = exp_target_sync_bucket_filter_result(_va_with_sync_ranges(2, 0), opts)
+    result = exp_target_sync_bucket_filter_result(_va_with_sync_ranges(1, 0), opts)
 
     assert result.eligible
-    assert result.reason == "passes"
-    assert result.training == 1
-    assert result.sync_bucket == 2
+    assert result.reason == "disabled"
+    assert result.training == 2
+    assert result.sync_bucket == 5
 
 
 def test_exp_target_sync_bucket_filter_falls_back_to_finite_bucket_edges():
@@ -208,8 +208,8 @@ def test_exp_target_sync_bucket_eligibility_mask_and_payload_report_per_video_re
         payload["exp_target_sync_bucket_filter_available_sync_buckets"], [5, 4]
     )
     assert "exp_target_sync_bucket_filter_target_bucket_start" in payload
-    assert "exp_target_sync_bucket_filter_pi_threshold" not in payload
-    assert "exp_target_sync_bucket_filter_target_count_sum" not in payload
+    assert "exp_pi_threshold_filter_pi_threshold" in payload
+    assert "exp_pi_threshold_filter_target_count_sum" in payload
 
 
 def test_mask_by_exp_target_sync_bucket_filter_masks_first_dimension_rows():

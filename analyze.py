@@ -4739,12 +4739,20 @@ g.add_argument(
 )
 g.add_argument(
     "--require-exp-target-sync-bucket",
-    "--require-exp-pi-threshold-bucket",
-    dest="require_exp_target_sync_bucket",
     action="store_true",
     help=(
         "Withhold experimental-fly metric outputs for videos that do not pass "
-        "the target sync-bucket filter in training 2, sync bucket 5. "
+        "the target sync-bucket presence filter in training 2, sync bucket 5. "
+        "Default: disabled."
+    ),
+)
+g.add_argument(
+    "--require-exp-pi-threshold-bucket",
+    action="store_true",
+    help=(
+        "Withhold experimental-fly metric outputs for videos whose experimental "
+        "fly does not pass the reward PI count threshold (--piTh) in training 2, "
+        "sync bucket 5. "
         "Default: disabled."
     ),
 )
