@@ -3985,6 +3985,10 @@ class EventChainPlotter:
         annotation_location: str = "axes",
         annotation_wrap_width: int | None = None,
         minimal: bool = False,
+        highlight_start_frame: int | None = None,
+        highlight_stop_frame: int | None = None,
+        highlight_exclude_nonwalking: bool = False,
+        highlight_label: str = "Highlighted segment",
     ):
         """
         Plot exactly one between-reward trajectory segment for this fly, defined by
@@ -4034,6 +4038,12 @@ class EventChainPlotter:
         minimal : bool
             If True, render only the chamber boundary, sidewall contact shading,
             reward circle, trajectory path, and path endpoints.
+        highlight_start_frame, highlight_stop_frame : int | None
+            Optional absolute-frame half-open interval to draw over the full path.
+        highlight_exclude_nonwalking : bool
+            If True, highlight only steps whose endpoint frames are both walking.
+        highlight_label : str
+            Legend label for the highlighted interval.
         """
 
         image_format = image_format or self.image_format
@@ -4324,6 +4334,60 @@ class EventChainPlotter:
                 except Exception:
                     # if arrow helper isn't available / fails, just skip arrows
                     pass
+
+        if highlight_start_frame is not None:
+            hs = max(start_frame, sr, int(highlight_start_frame))
+            hstop = min(
+                end_frame + 1,
+                er + 1,
+                int(
+                    er + 1
+                    if highlight_stop_frame is None
+                    else highlight_stop_frame
+                ),
+            )
+            label_pending = True
+            walking = getattr(self.trj, "walking", None)
+            for i in range(hs, max(hs, hstop - 1)):
+                if (
+                    not np.all(
+                        np.isfinite(
+                            [self.x[i], self.y[i], self.x[i + 1], self.y[i + 1]]
+                        )
+                    )
+                    or (
+                        highlight_exclude_nonwalking
+                        and walking is not None
+                        and (not walking[i] or not walking[i + 1])
+                    )
+                ):
+                    continue
+                x_start = max(min(self.x[i], bottom_right[0]), top_left[0])
+                x_end = max(min(self.x[i + 1], bottom_right[0]), top_left[0])
+                ax.plot(
+                    [x_start, x_end],
+                    [self.y[i], self.y[i + 1]],
+                    color="#d65f0e",
+                    linewidth=2.8,
+                    alpha=0.98,
+                    zorder=5,
+                    solid_capstyle="round",
+                    label=highlight_label if label_pending else None,
+                )
+                label_pending = False
+            if 0 <= hs < n_frames and np.all(
+                np.isfinite([self.x[hs], self.y[hs]])
+            ):
+                ax.scatter(
+                    [self.x[hs]],
+                    [self.y[hs]],
+                    s=48,
+                    color="#d65f0e",
+                    edgecolors="white",
+                    linewidths=0.8,
+                    zorder=6,
+                    label=None if not label_pending else highlight_label,
+                )
 
         # Mark the two reward frames
         ax.plot(

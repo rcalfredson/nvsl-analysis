@@ -239,6 +239,7 @@ def _collect_records(
     skip_first: int,
     keep_first: int,
     legacy_distances: bool,
+    episode_callback=None,
 ):
     exclude_wall = bool(
         getattr(opts, "return_leg_tortuosity_excursion_bin_exclude_wall_contact", False)
@@ -412,6 +413,34 @@ def _collect_records(
                         records[vi][role_idx].append(
                             (float(radial_mm), float(tortuosity))
                         )
+                        if episode_callback is not None:
+                            episode_callback(
+                                {
+                                    "va": va,
+                                    "video_index": int(vi),
+                                    "role_idx": int(role_idx),
+                                    "trajectory_index": int(f),
+                                    "traj": traj,
+                                    "training_idx": int(t_idx),
+                                    "segment_start": int(s),
+                                    "segment_stop": int(e),
+                                    "global_max_frame": int(max_i),
+                                    "metric_start": int(metric_start),
+                                    "radial_mm": float(radial_mm),
+                                    "tortuosity": float(tortuosity),
+                                    "window_start": int(fi),
+                                    "wall_mask": wc,
+                                    "nonwalk_mask": nonwalk,
+                                    "px_per_mm": float(pxmm),
+                                    "reward_center_xy": reward_center_xy,
+                                    "reward_radius_mm": float(reward_radius_mm),
+                                    "exclude_nonwalk": bool(exclude_nonwalk),
+                                    "min_walk_frames": int(min_walk_frames),
+                                    "metric_mode": metric_mode,
+                                    "return_start_mode": return_start_mode,
+                                    "legacy_distances": bool(legacy_distances),
+                                }
+                            )
 
         if debug:
             print(
