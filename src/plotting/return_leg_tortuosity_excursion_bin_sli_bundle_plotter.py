@@ -29,6 +29,19 @@ def _mode_values(bundle, mode: str) -> np.ndarray:
 
 
 def _panel_labels(bundle) -> list[str]:
+    binning_mode = str(
+        np.asarray(
+            bundle.get(
+                "return_leg_tortuosity_excursion_bin_binning_mode",
+                "absolute_distance",
+            )
+        )
+        .reshape(())
+        .item()
+    )
+    if binning_mode == "per_fly_quartile":
+        return ["Q1 (0-25%)", "Q2 (25-50%)", "Q3 (50-75%)", "Q4 (75-100%)"]
+
     pair_mode = bool(
         np.asarray(
             bundle.get("return_leg_tortuosity_excursion_bin_pair_mode", False)
@@ -111,6 +124,16 @@ def _bundle_to_exported(
         .reshape(())
         .item()
     )
+    binning_mode = str(
+        np.asarray(
+            bundle.get(
+                "return_leg_tortuosity_excursion_bin_binning_mode",
+                "absolute_distance",
+            )
+        )
+        .reshape(())
+        .item()
+    )
     tail_prefix = (
         ""
         if top_fraction == 1.0
@@ -141,7 +164,9 @@ def _bundle_to_exported(
         meta={
             "y_label": ylabel,
             "base_title": (
-                "Return-leg tortuosity by maximum distance bin"
+                "Return-leg tortuosity by per-fly maximum-distance quartile"
+                if binning_mode == "per_fly_quartile"
+                else "Return-leg tortuosity by maximum distance bin"
                 if top_fraction == 1.0 and return_start_mode == "global_max"
                 else f"{metric_label} by maximum distance bin"
             ),
@@ -152,6 +177,7 @@ def _bundle_to_exported(
             "metric_palette_family": "between_reward_tortuosity",
             "top_fraction": top_fraction,
             "return_start_mode": return_start_mode,
+            "binning_mode": binning_mode,
         },
     )
 
@@ -181,6 +207,25 @@ def plot_return_leg_tortuosity_excursion_bin_sli_bundles(
     if opts is None:
         opts = SimpleNamespace(imageFormat="png", fontSize=None, fontFamily=None)
     loaded = [load_sli_bundle(path) for path in bundles]
+    binning_modes = {
+        str(
+            np.asarray(
+                bundle.get(
+                    "return_leg_tortuosity_excursion_bin_binning_mode",
+                    "absolute_distance",
+                )
+            )
+            .reshape(())
+            .item()
+        )
+        for bundle in loaded
+    }
+    if len(binning_modes) != 1:
+        raise ValueError(
+            "Cannot overlay absolute-distance and per-fly-quartile bundles "
+            "in one plot."
+        )
+    binning_mode = next(iter(binning_modes))
     if sli_top_fraction is None:
         sli_top_fraction = sli_fraction
     if sli_bottom_fraction is None:
@@ -215,7 +260,12 @@ def plot_return_leg_tortuosity_excursion_bin_sli_bundles(
     fig = plot_overlays(
         exported,
         title=title,
-        xlabel=xlabel or "Maximum distance bin from reward circle (mm)",
+        xlabel=xlabel
+        or (
+            "Per-fly maximum-distance quartile"
+            if binning_mode == "per_fly_quartile"
+            else "Maximum distance bin from reward circle (mm)"
+        ),
         ylabel=ylabel or exported[0].meta["y_label"],
         ymax=ymax,
         stats=bool(stats),

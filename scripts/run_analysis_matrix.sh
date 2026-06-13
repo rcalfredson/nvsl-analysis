@@ -200,6 +200,7 @@ run_return_leg_tortuosity_bins() {
   local wall_tag="$4"
   local summary_tag="$5"
   local top_fraction="$6"
+  local binning_mode="${7:-absolute_distance}"
 
   local filter_flags=()
   case "$filter_tag" in
@@ -248,8 +249,27 @@ run_return_leg_tortuosity_bins() {
     local group_slug="${GROUP_SLUGS[$i]}"
     local group_label="${GROUP_LABELS[$i]}"
     local bundle="exports/returnLegTortuosityBins_${summary_tag}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_b${bins_label}_${DATE_TAG}.npz"
+    local binning_flags=()
+    case "$binning_mode" in
+      absolute_distance)
+        binning_flags=(
+          --return-leg-tortuosity-excursion-bin-radius-pairs-mm "$bins_arg"
+          --return-leg-tortuosity-excursion-bin-top-fraction "$top_fraction"
+        )
+        ;;
+      per_fly_quartile)
+        binning_flags=(
+          --return-leg-tortuosity-excursion-bin-binning-mode per_fly_quartile
+          --return-leg-tortuosity-excursion-bin-top-fraction 1.0
+        )
+        ;;
+      *)
+        echo "Unknown return-leg tortuosity binning mode: $binning_mode" >&2
+        exit 1
+        ;;
+    esac
     local example_flags=()
-    if [[ "$RETURN_LEG_TORTUOSITY_EXAMPLES" == "1" ]]; then
+    if [[ "$RETURN_LEG_TORTUOSITY_EXAMPLES" == "1" && "$binning_mode" == "absolute_distance" ]]; then
       local example_dir="exports/returnLegTortuosityExamples_${summary_tag}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_b${bins_label}_${DATE_TAG}"
       example_flags=(
         --export-return-leg-tortuosity-excursion-bin-examples "$example_dir"
@@ -265,14 +285,13 @@ run_return_leg_tortuosity_bins() {
       -f 0-1 \
       --rCC 15 \
       --export-return-leg-tortuosity-excursion-bin-sli-bundle "$bundle" \
-      --return-leg-tortuosity-excursion-bin-radius-pairs-mm "$bins_arg" \
-      --return-leg-tortuosity-excursion-bin-top-fraction "$top_fraction" \
       --return-leg-tortuosity-excursion-bin-trainings 2 \
       --return-leg-tortuosity-excursion-bin-skip-first-sync-buckets 1 \
       --best-worst-trn 2 \
       --sli-use-training-mean \
       --sli-select-skip-first-sync-buckets 1 \
       --export-group-label "$group_label" \
+      "${binning_flags[@]}" \
       "${filter_flags[@]}" \
       "${wall_flags[@]}" \
       "${example_flags[@]}"
@@ -360,4 +379,21 @@ for wall_tag in wall noWall postWall; do
     "$wall_tag" \
     top25 \
     0.25
+done
+
+# ---------------------------------------------------------------------
+# Mean return-leg tortuosity by per-fly maximum-distance quartile
+# Q1-Q4 are four equal-count bins formed independently for each fly.
+# Top-fraction tortuosity aggregation is intentionally disabled.
+# ---------------------------------------------------------------------
+
+for wall_tag in wall noWall postWall; do
+  run_return_leg_tortuosity_bins \
+    "quartiles" \
+    "" \
+    minEpSb5Filt \
+    "$wall_tag" \
+    mean \
+    1.0 \
+    per_fly_quartile
 done
