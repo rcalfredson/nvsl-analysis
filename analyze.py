@@ -109,6 +109,9 @@ from src.exporting.return_prob_excursion_bin_sli_bundle import (
 from src.exporting.return_leg_tortuosity_excursion_bin_sli_bundle import (
     export_return_leg_tortuosity_excursion_bin_sli_bundle,
 )
+from src.exporting.return_leg_tortuosity_excursion_bin_examples import (
+    export_return_leg_tortuosity_excursion_bin_examples,
+)
 from src.exporting.turnback_excursion_bin_sli_bundle import (
     export_turnback_excursion_bin_sli_bundle,
 )
@@ -5314,6 +5317,16 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--export-return-leg-tortuosity-excursion-bin-examples",
+    type=str,
+    default=None,
+    metavar="DIR",
+    help=(
+        "Export the highest-tortuosity contributing return-leg trajectories in "
+        "each maximum-distance bin, plus a CSV manifest, under DIR."
+    ),
+)
+g.add_argument(
     "--export-turnback-excursion-bin-sli-bundle",
     type=str,
     default=None,
@@ -5714,6 +5727,36 @@ g.add_argument(
         "Within each fly and distance bin, average only the highest-tortuosity "
         "fraction of valid trajectories. Uses rank-based selection with "
         "ceil(fraction * n); 1.0 preserves the ordinary mean. Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-examples-per-bin",
+    type=int,
+    default=6,
+    help="Number of ranked trajectory images to export per group and bin.",
+)
+g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-examples-max-per-fly",
+    type=int,
+    default=0,
+    help=(
+        "Optional maximum examples from one fly in each group/bin; 0 disables "
+        "the cap. Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-examples-role",
+    choices=["exp", "ctrl", "both"],
+    default="exp",
+    help="Trajectory role to include in the diagnostic gallery. Default: %(default)s.",
+)
+g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-examples-zoom-radius-mm",
+    type=float,
+    default=None,
+    help=(
+        "Reward-centered zoom radius for diagnostic images. By default each bin "
+        "uses its upper edge plus 1 mm; use 0 for the full arena."
     ),
 )
 g.add_argument(
@@ -10846,6 +10889,15 @@ def _export_post_analyze_bundles(vas, gls) -> int:
             opts,
             gls,
             opts.export_return_leg_tortuosity_excursion_bin_sli_bundle,
+        )
+        num_exports += 1
+
+    if getattr(opts, "export_return_leg_tortuosity_excursion_bin_examples", None):
+        export_return_leg_tortuosity_excursion_bin_examples(
+            vas,
+            opts,
+            gls,
+            opts.export_return_leg_tortuosity_excursion_bin_examples,
         )
         num_exports += 1
 

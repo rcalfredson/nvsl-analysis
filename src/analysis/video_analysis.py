@@ -641,10 +641,17 @@ class VideoAnalysis:
                 )
             )
             or (
-                getattr(
-                    self.opts,
-                    "export_return_leg_tortuosity_excursion_bin_sli_bundle",
-                    None,
+                (
+                    getattr(
+                        self.opts,
+                        "export_return_leg_tortuosity_excursion_bin_sli_bundle",
+                        None,
+                    )
+                    or getattr(
+                        self.opts,
+                        "export_return_leg_tortuosity_excursion_bin_examples",
+                        None,
+                    )
                 )
                 and (
                     getattr(

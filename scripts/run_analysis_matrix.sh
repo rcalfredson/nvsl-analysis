@@ -3,6 +3,9 @@ set -euo pipefail
 
 DATE_TAG="2026-06-12"
 PRINT_ONLY="${PRINT_ONLY:-0}"
+RETURN_LEG_TORTUOSITY_EXAMPLES="${RETURN_LEG_TORTUOSITY_EXAMPLES:-0}"
+RETURN_LEG_TORTUOSITY_EXAMPLES_PER_BIN="${RETURN_LEG_TORTUOSITY_EXAMPLES_PER_BIN:-6}"
+RETURN_LEG_TORTUOSITY_EXAMPLES_MAX_PER_FLY="${RETURN_LEG_TORTUOSITY_EXAMPLES_MAX_PER_FLY:-0}"
 
 GROUP_VARS=(INTACT_CTRL INTACT_PFND AR_CTRL)
 GROUP_SLUGS=(intact_ctrlKir intact_pfnKir ar_ctrlKir)
@@ -245,6 +248,15 @@ run_return_leg_tortuosity_bins() {
     local group_slug="${GROUP_SLUGS[$i]}"
     local group_label="${GROUP_LABELS[$i]}"
     local bundle="exports/returnLegTortuosityBins_${summary_tag}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_b${bins_label}_${DATE_TAG}.npz"
+    local example_flags=()
+    if [[ "$RETURN_LEG_TORTUOSITY_EXAMPLES" == "1" ]]; then
+      local example_dir="exports/returnLegTortuosityExamples_${summary_tag}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_b${bins_label}_${DATE_TAG}"
+      example_flags=(
+        --export-return-leg-tortuosity-excursion-bin-examples "$example_dir"
+        --return-leg-tortuosity-excursion-bin-examples-per-bin "$RETURN_LEG_TORTUOSITY_EXAMPLES_PER_BIN"
+        --return-leg-tortuosity-excursion-bin-examples-max-per-fly "$RETURN_LEG_TORTUOSITY_EXAMPLES_MAX_PER_FLY"
+      )
+    fi
 
     bundles+=("$bundle")
     run_cmd \
@@ -262,7 +274,8 @@ run_return_leg_tortuosity_bins() {
       --sli-select-skip-first-sync-buckets 1 \
       --export-group-label "$group_label" \
       "${filter_flags[@]}" \
-      "${wall_flags[@]}"
+      "${wall_flags[@]}" \
+      "${example_flags[@]}"
   done
 
   local bundle_csv
@@ -336,6 +349,7 @@ run_return_leg_tortuosity_bins() {
 # noWall: discard episodes containing wall contact
 # postWall: keep episodes and use the maximum after final wall contact
 # only 5-episode minimum + T2 SB5 presence filter
+# Set RETURN_LEG_TORTUOSITY_EXAMPLES=1 to export ranked trajectory galleries.
 # ---------------------------------------------------------------------
 
 for wall_tag in wall noWall postWall; do
