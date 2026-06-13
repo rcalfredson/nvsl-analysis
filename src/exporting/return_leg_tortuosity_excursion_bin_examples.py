@@ -14,6 +14,7 @@ from src.analysis.sync_bucket_presence_filters import (
 from src.exporting.com_sli_bundle import _safe_group_label
 from src.exporting.return_leg_tortuosity_excursion_bin_sli_bundle import (
     _collect_records,
+    _binning_mode,
     _effective_windowing,
     _parse_edges,
     _parse_pairs,
@@ -125,6 +126,12 @@ def export_return_leg_tortuosity_excursion_bin_examples(
     if not vas_ok:
         print("[return-leg-tortuosity-examples] no non-skipped videos")
         return
+
+    if _binning_mode(opts) != "absolute_distance":
+        raise ValueError(
+            "Ranked return-leg tortuosity trajectory examples currently require "
+            "absolute-distance binning."
+        )
 
     pair_spec = _parse_pairs(opts)
     legacy_distances = pair_spec[2] if pair_spec is not None else _parse_edges(opts)[1]

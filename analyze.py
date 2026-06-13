@@ -5466,6 +5466,18 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-binning-mode",
+    choices=["absolute_distance", "per_fly_quartile"],
+    default="absolute_distance",
+    help=(
+        "Bin trajectories by fixed absolute maximum-distance ranges or by four "
+        "equal-count maximum-distance quartiles calculated independently for "
+        "each fly. Quartile mode does not use radius-edge options and requires "
+        "--return-leg-tortuosity-excursion-bin-top-fraction 1.0. Default: "
+        "%(default)s."
+    ),
+)
+g.add_argument(
     "--return-leg-tortuosity-excursion-bin-pairs-mm",
     type=str,
     default=None,
@@ -15025,6 +15037,28 @@ if __name__ == "__main__":
                 "because post_last_wall_max return-leg starts were requested"
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
+    if (
+        getattr(
+            opts,
+            "return_leg_tortuosity_excursion_bin_binning_mode",
+            "absolute_distance",
+        )
+        == "per_fly_quartile"
+        and float(
+            getattr(
+                opts,
+                "return_leg_tortuosity_excursion_bin_top_fraction",
+                1.0,
+            )
+            or 1.0
+        )
+        != 1.0
+    ):
+        raise ValueError(
+            "--return-leg-tortuosity-excursion-bin-top-fraction must be 1.0 "
+            "with per_fly_quartile binning"
+        )
 
     if getattr(opts, "turnback_excursion_bin_exclude_wall_contact", False):
         if getattr(opts, "wall", None) is None:

@@ -175,6 +175,46 @@ def _return_leg_start_mode(opts) -> str:
     return mode
 
 
+def _binning_mode(opts) -> str:
+    mode = str(
+        getattr(
+            opts,
+            "return_leg_tortuosity_excursion_bin_binning_mode",
+            "absolute_distance",
+        )
+        or "absolute_distance"
+    ).strip().lower()
+    if mode not in {"absolute_distance", "per_fly_quartile"}:
+        raise ValueError(
+            "Unknown return-leg tortuosity binning mode "
+            f"{mode!r}; expected 'absolute_distance' or 'per_fly_quartile'."
+        )
+    return mode
+
+
+def _validate_binning_options(opts, binning_mode: str) -> None:
+    if binning_mode != "per_fly_quartile":
+        return
+    absolute_options = (
+        "return_leg_tortuosity_excursion_bin_radii_mm",
+        "return_leg_tortuosity_excursion_bin_edges_mm",
+        "return_leg_tortuosity_excursion_bin_radius_pairs_mm",
+        "return_leg_tortuosity_excursion_bin_pairs_mm",
+    )
+    provided = [
+        name
+        for name in absolute_options
+        if getattr(opts, name, None) is not None
+        and str(getattr(opts, name)).strip()
+    ]
+    if provided:
+        flags = ", ".join("--" + name.replace("_", "-") for name in provided)
+        raise ValueError(
+            "Per-fly quartile binning cannot be combined with absolute-distance "
+            f"bin options: {flags}"
+        )
+
+
 def _post_last_wall_max_frame(
     *,
     traj,
@@ -495,7 +535,25 @@ def _top_fraction(opts) -> float:
         raise ValueError(
             "--return-leg-tortuosity-excursion-bin-top-fraction must be in (0, 1]."
         )
+    if _binning_mode(opts) == "per_fly_quartile" and fraction != 1.0:
+        raise ValueError(
+            "--return-leg-tortuosity-excursion-bin-top-fraction must be 1.0 "
+            "when --return-leg-tortuosity-excursion-bin-binning-mode is "
+            "per_fly_quartile."
+        )
     return fraction
+
+
+def _equal_count_bin_indices(distances, *, n_bins: int = 4) -> np.ndarray:
+    distances = np.asarray(distances, dtype=float).reshape(-1)
+    assignment = np.full(distances.shape, -1, dtype=int)
+    finite_idx = np.flatnonzero(np.isfinite(distances))
+    if finite_idx.size == 0:
+        return assignment
+    order = finite_idx[np.argsort(distances[finite_idx], kind="stable")]
+    for bin_idx, indices in enumerate(np.array_split(order, int(n_bins))):
+        assignment[indices] = int(bin_idx)
+    return assignment
 
 
 def _aggregate_records(
@@ -555,6 +613,76 @@ def _aggregate_records(
     )
 
 
+def _aggregate_quartile_records(
+    records,
+    *,
+    min_segments: int,
+    n_bins: int = 4,
+):
+    n_videos = len(records)
+    means = [
+        np.full((n_videos, n_bins), np.nan, dtype=float),
+        np.full((n_videos, n_bins), np.nan, dtype=float),
+    ]
+    counts = [
+        np.zeros((n_videos, n_bins), dtype=int),
+        np.zeros((n_videos, n_bins), dtype=int),
+    ]
+    distance_stats = {
+        stat: [
+            np.full((n_videos, n_bins), np.nan, dtype=float),
+            np.full((n_videos, n_bins), np.nan, dtype=float),
+        ]
+        for stat in ("min", "max", "mean", "median")
+    }
+
+    for vi, video_roles in enumerate(records):
+        for role_idx, role_records in enumerate(video_roles):
+            if not role_records:
+                continue
+            distances = np.asarray(
+                [radial for radial, _tortuosity in role_records], dtype=float
+            )
+            tortuosities = np.asarray(
+                [tortuosity for _radial, tortuosity in role_records], dtype=float
+            )
+            assignment = _equal_count_bin_indices(distances, n_bins=n_bins)
+            for bin_idx in range(n_bins):
+                in_bin = assignment == bin_idx
+                bin_distances = distances[in_bin]
+                bin_values = tortuosities[in_bin]
+                counts[role_idx][vi, bin_idx] = int(bin_values.size)
+                if bin_values.size:
+                    means[role_idx][vi, bin_idx] = float(np.mean(bin_values))
+                    distance_stats["min"][role_idx][vi, bin_idx] = float(
+                        np.min(bin_distances)
+                    )
+                    distance_stats["max"][role_idx][vi, bin_idx] = float(
+                        np.max(bin_distances)
+                    )
+                    distance_stats["mean"][role_idx][vi, bin_idx] = float(
+                        np.mean(bin_distances)
+                    )
+                    distance_stats["median"][role_idx][vi, bin_idx] = float(
+                        np.median(bin_distances)
+                    )
+            means[role_idx][vi] = mask_metric_by_min_between_reward_trajectories(
+                means[role_idx][vi],
+                counts[role_idx][vi],
+                max(1, int(min_segments)),
+            )
+
+    return (
+        means[0],
+        means[1],
+        counts[0],
+        counts[1],
+        counts[0].copy(),
+        counts[1].copy(),
+        distance_stats,
+    )
+
+
 def export_return_leg_tortuosity_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
     if not out_fn.lower().endswith(".npz"):
         out_fn += ".npz"
@@ -564,9 +692,16 @@ def export_return_leg_tortuosity_excursion_bin_sli_bundle(vas, opts, gls, out_fn
         print(f"[export] No non-skipped VideoAnalysis instances; not writing {out_fn}")
         return
 
-    pair_spec = _parse_pairs(opts)
+    binning_mode = _binning_mode(opts)
+    _validate_binning_options(opts, binning_mode)
+    pair_spec = _parse_pairs(opts) if binning_mode == "absolute_distance" else None
     return_start_mode = _return_leg_start_mode(opts)
-    legacy_distances = pair_spec[2] if pair_spec is not None else _parse_edges(opts)[1]
+    if pair_spec is not None:
+        legacy_distances = pair_spec[2]
+    elif binning_mode == "absolute_distance":
+        legacy_distances = _parse_edges(opts)[1]
+    else:
+        legacy_distances = False
     selected_trainings = _selected_training_indices(vas_ok, opts)
     skip_first, keep_first = _effective_windowing(opts)
     records, windows_meta = _collect_records(
@@ -577,20 +712,47 @@ def export_return_leg_tortuosity_excursion_bin_sli_bundle(vas, opts, gls, out_fn
         keep_first=keep_first,
         legacy_distances=legacy_distances,
     )
-    lower, upper, resolved_edges, pair_mode, legacy_distances = _resolved_bins(
-        opts, records
-    )
     min_segments = min_between_reward_sync_bucket_trajectories(opts)
     top_fraction = _top_fraction(opts)
-    mean_exp, mean_ctrl, n_exp, n_ctrl, selected_n_exp, selected_n_ctrl = (
-        _aggregate_records(
+    distance_stats = None
+    if binning_mode == "per_fly_quartile":
+        percentile_edges = np.asarray([0.0, 25.0, 50.0, 75.0, 100.0])
+        lower = percentile_edges[:-1]
+        upper = percentile_edges[1:]
+        resolved_edges = percentile_edges
+        pair_mode = False
+        (
+            mean_exp,
+            mean_ctrl,
+            n_exp,
+            n_ctrl,
+            selected_n_exp,
+            selected_n_ctrl,
+            distance_stats,
+        ) = _aggregate_quartile_records(
             records,
-            lower,
-            upper,
             min_segments=min_segments,
-            top_fraction=top_fraction,
+            n_bins=4,
         )
-    )
+        requested = percentile_edges
+    else:
+        lower, upper, resolved_edges, pair_mode, legacy_distances = _resolved_bins(
+            opts, records
+        )
+        mean_exp, mean_ctrl, n_exp, n_ctrl, selected_n_exp, selected_n_ctrl = (
+            _aggregate_records(
+                records,
+                lower,
+                upper,
+                min_segments=min_segments,
+                top_fraction=top_fraction,
+            )
+        )
+        requested = (
+            np.asarray(resolved_edges, dtype=float)
+            if pair_mode
+            else _parse_edges(opts)[0]
+        )
 
     n_videos = len(vas_ok)
     try:
@@ -633,9 +795,6 @@ def export_return_leg_tortuosity_excursion_bin_sli_bundle(vas, opts, gls, out_fn
         dtype=str,
     )
 
-    requested = (
-        np.asarray(resolved_edges, dtype=float) if pair_mode else _parse_edges(opts)[0]
-    )
     payload = dict(
         sli=np.asarray(sli, dtype=float),
         sli_ts=np.asarray(sli_ts, dtype=float),
@@ -669,8 +828,13 @@ def export_return_leg_tortuosity_excursion_bin_sli_bundle(vas, opts, gls, out_fn
         return_leg_tortuosity_excursion_bin_aggregation=np.asarray(
             "mean" if top_fraction == 1.0 else "top_fraction_mean"
         ),
+        return_leg_tortuosity_excursion_bin_binning_mode=np.asarray(binning_mode),
         return_leg_tortuosity_excursion_bin_edges_mm=np.asarray(
             resolved_edges, dtype=float
+        ),
+        return_leg_tortuosity_excursion_bin_percentile_edges=np.asarray(
+            requested if binning_mode == "per_fly_quartile" else [],
+            dtype=float,
         ),
         return_leg_tortuosity_excursion_bin_requested_edges_mm=requested,
         return_leg_tortuosity_excursion_bin_pair_lower_mm=np.asarray(
@@ -765,8 +929,11 @@ def export_return_leg_tortuosity_excursion_bin_sli_bundle(vas, opts, gls, out_fn
         return_leg_tortuosity_excursion_bin_window_summary=window_summary,
         return_leg_tortuosity_excursion_bin_description=np.asarray(
             (
-                "Mean return-leg tortuosity of all between-reward trajectories "
-                "binned by maximum radial distance"
+                "Mean return-leg tortuosity in four per-fly equal-count maximum-"
+                "distance quartiles"
+                if binning_mode == "per_fly_quartile"
+                else "Mean return-leg tortuosity of all between-reward "
+                "trajectories binned by maximum radial distance"
                 if top_fraction == 1.0
                 else f"Mean of the top {100.0 * top_fraction:g}% return-leg "
                 "tortuosity values per fly and maximum-distance bin"
@@ -783,6 +950,14 @@ def export_return_leg_tortuosity_excursion_bin_sli_bundle(vas, opts, gls, out_fn
             vas_ok, opts, prefix="exp_target_sync_bucket_filter"
         ),
     )
+    if distance_stats is not None:
+        for stat, role_arrays in distance_stats.items():
+            payload[
+                f"return_leg_tortuosity_excursion_bin_distance_{stat}_mm_exp"
+            ] = role_arrays[0]
+            payload[
+                f"return_leg_tortuosity_excursion_bin_distance_{stat}_mm_ctrl"
+            ] = role_arrays[1]
 
     os.makedirs(os.path.dirname(out_fn) or ".", exist_ok=True)
     validate_sli_bundle(payload, path=out_fn)

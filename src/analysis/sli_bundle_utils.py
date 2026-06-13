@@ -1039,6 +1039,20 @@ def validate_return_leg_tortuosity_excursion_bin_bundle(
     if edges.ndim != 1 or edges.size < 2 or np.any(~np.isfinite(edges)):
         raise ValueError(f"Bundle {where} has invalid resolved bin edges")
 
+    binning_mode = str(
+        as_scalar(
+            bundle.get(
+                "return_leg_tortuosity_excursion_bin_binning_mode",
+                "absolute_distance",
+            )
+        )
+    )
+    if binning_mode not in {"absolute_distance", "per_fly_quartile"}:
+        raise ValueError(
+            f"Bundle {where} has invalid return-leg tortuosity binning mode "
+            f"{binning_mode!r}"
+        )
+
     pair_mode = bool(
         as_scalar(bundle.get("return_leg_tortuosity_excursion_bin_pair_mode", False))
     )
@@ -1050,7 +1064,29 @@ def validate_return_leg_tortuosity_excursion_bin_bundle(
         bundle.get("return_leg_tortuosity_excursion_bin_pair_upper_mm", []),
         dtype=float,
     ).reshape(-1)
-    if pair_mode:
+    if binning_mode == "per_fly_quartile":
+        if pair_mode:
+            raise ValueError(
+                f"Bundle {where} combines per-fly quartiles with pair bins"
+            )
+        percentile_edges = np.asarray(
+            bundle.get(
+                "return_leg_tortuosity_excursion_bin_percentile_edges", []
+            ),
+            dtype=float,
+        ).reshape(-1)
+        expected_percentiles = np.asarray([0.0, 25.0, 50.0, 75.0, 100.0])
+        if (
+            percentile_edges.shape != expected_percentiles.shape
+            or not np.allclose(percentile_edges, expected_percentiles)
+            or edges.shape != expected_percentiles.shape
+            or not np.allclose(edges, expected_percentiles)
+        ):
+            raise ValueError(
+                f"Bundle {where} has invalid per-fly quartile percentile edges"
+            )
+        n_bins = 4
+    elif pair_mode:
         if pair_lo.size == 0 or pair_lo.shape != pair_hi.shape:
             raise ValueError(f"Bundle {where} has invalid pair-bin metadata")
         if np.any(~np.isfinite(pair_lo)) or np.any(~np.isfinite(pair_hi)):
@@ -1128,6 +1164,10 @@ def validate_return_leg_tortuosity_excursion_bin_bundle(
             f"Bundle {where} has invalid return-leg tortuosity top fraction "
             f"{top_fraction}"
         )
+    if binning_mode == "per_fly_quartile" and top_fraction != 1.0:
+        raise ValueError(
+            f"Bundle {where} applies top-fraction aggregation to per-fly quartiles"
+        )
     return_start_mode = str(
         as_scalar(
             bundle.get(
@@ -1193,6 +1233,75 @@ def validate_return_leg_tortuosity_excursion_bin_bundle(
                 raise ValueError(
                     f"Bundle {where} has {key} inconsistent with raw counts and "
                     f"top fraction {top_fraction:g}"
+                )
+
+    if binning_mode == "per_fly_quartile":
+        for stat in ("min", "max", "mean", "median"):
+            for role, counts in (("exp", counts_exp), ("ctrl", counts_ctrl)):
+                key = (
+                    "return_leg_tortuosity_excursion_bin_distance_"
+                    f"{stat}_mm_{role}"
+                )
+                if key not in bundle:
+                    raise ValueError(
+                        f"Bundle {where} is missing quartile distance metadata {key}"
+                    )
+                values = np.asarray(bundle[key], dtype=float)
+                if values.shape != (n_videos, n_bins):
+                    raise ValueError(
+                        f"Bundle {where} has {key} shape {values.shape}; "
+                        f"expected {(n_videos, n_bins)}"
+                    )
+                if np.any((counts > 0) & ~np.isfinite(values)):
+                    raise ValueError(
+                        f"Bundle {where} has non-finite {key} for non-empty quartiles"
+                    )
+                if np.any((counts == 0) & np.isfinite(values)):
+                    raise ValueError(
+                        f"Bundle {where} has finite {key} for empty quartiles"
+                    )
+        for role in ("exp", "ctrl"):
+            minimum = np.asarray(
+                bundle[
+                    "return_leg_tortuosity_excursion_bin_distance_min_mm_"
+                    f"{role}"
+                ],
+                dtype=float,
+            )
+            maximum = np.asarray(
+                bundle[
+                    "return_leg_tortuosity_excursion_bin_distance_max_mm_"
+                    f"{role}"
+                ],
+                dtype=float,
+            )
+            mean = np.asarray(
+                bundle[
+                    "return_leg_tortuosity_excursion_bin_distance_mean_mm_"
+                    f"{role}"
+                ],
+                dtype=float,
+            )
+            median = np.asarray(
+                bundle[
+                    "return_leg_tortuosity_excursion_bin_distance_median_mm_"
+                    f"{role}"
+                ],
+                dtype=float,
+            )
+            finite = np.isfinite(minimum)
+            if np.any(
+                finite
+                & (
+                    (minimum > mean)
+                    | (mean > maximum)
+                    | (minimum > median)
+                    | (median > maximum)
+                )
+            ):
+                raise ValueError(
+                    f"Bundle {where} has inconsistent quartile distance "
+                    f"summaries for {role}"
                 )
 
     min_segments = int(
