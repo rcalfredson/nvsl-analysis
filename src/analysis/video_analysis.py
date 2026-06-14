@@ -661,6 +661,11 @@ class VideoAnalysis:
                     )
                     or getattr(
                         self.opts,
+                        "return_leg_tortuosity_excursion_bin_exclude_wall_contact_frames",
+                        False,
+                    )
+                    or getattr(
+                        self.opts,
                         "return_leg_tortuosity_excursion_bin_return_start_mode",
                         "global_max",
                     )

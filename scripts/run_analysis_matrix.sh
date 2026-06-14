@@ -239,6 +239,11 @@ run_return_leg_tortuosity_bins() {
         post_last_wall_max
       )
       ;;
+    offWallFrames)
+      wall_flags=(
+        --return-leg-tortuosity-excursion-bin-exclude-wall-contact-frames
+      )
+      ;;
     *)
       echo "Unknown wall tag: $wall_tag" >&2
       exit 1
@@ -435,19 +440,18 @@ run_post_wall_departure_tortuosity() {
 # wall: standard full-episode maximum return-leg start
 # noWall: discard episodes containing wall contact
 # postWall: keep episodes and use the maximum after final wall contact
+# offWallFrames: keep episodes but omit wall-contact steps from path distance
 # only 5-episode minimum + T2 SB5 presence filter
 # Set RETURN_LEG_TORTUOSITY_EXAMPLES=1 to export ranked trajectory galleries.
 # ---------------------------------------------------------------------
 
-# for wall_tag in wall noWall postWall; do
-#   run_return_leg_tortuosity_bins \
-#     "3-5_8-10_13-15" \
-#     "3:5,8:10,13:15" \
-#     minEpSb5Filt \
-#     "$wall_tag" \
-#     top25 \
-#     0.25
-# done
+run_return_leg_tortuosity_bins \
+  "3-5_8-10_13-15_15-20_20-25_25-30" \
+  "3:5,8:10,13:15,15:20,20:25,25:30" \
+  noFilt \
+  offWallFrames \
+  all \
+  1.0
 
 # ---------------------------------------------------------------------
 # Mean tortuosity after the final wall departure.

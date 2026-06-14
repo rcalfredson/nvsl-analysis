@@ -3988,6 +3988,8 @@ class EventChainPlotter:
         highlight_start_frame: int | None = None,
         highlight_stop_frame: int | None = None,
         highlight_exclude_nonwalking: bool = False,
+        highlight_excluded_frame_mask=None,
+        highlight_excluded_frame_mask_start: int = 0,
         highlight_label: str = "Highlighted segment",
         comparison_line_start_xy: tuple[float, float] | None = None,
         comparison_line_stop_xy: tuple[float, float] | None = None,
@@ -4045,6 +4047,10 @@ class EventChainPlotter:
             Optional absolute-frame half-open interval to draw over the full path.
         highlight_exclude_nonwalking : bool
             If True, highlight only steps whose endpoint frames are both walking.
+        highlight_excluded_frame_mask : array-like | None
+            Optional frame mask; highlighted steps touching a masked frame are omitted.
+        highlight_excluded_frame_mask_start : int
+            Absolute frame corresponding to mask index zero.
         highlight_label : str
             Legend label for the highlighted interval.
         comparison_line_start_xy, comparison_line_stop_xy : tuple | None
@@ -4355,7 +4361,15 @@ class EventChainPlotter:
             )
             label_pending = True
             walking = getattr(self.trj, "walking", None)
+            excluded = (
+                None
+                if highlight_excluded_frame_mask is None
+                else np.asarray(highlight_excluded_frame_mask, dtype=bool)
+            )
+            excluded_start = int(highlight_excluded_frame_mask_start)
             for i in range(hs, max(hs, hstop - 1)):
+                mask_i = i - excluded_start
+                mask_j = i + 1 - excluded_start
                 if (
                     not np.all(
                         np.isfinite(
@@ -4366,6 +4380,15 @@ class EventChainPlotter:
                         highlight_exclude_nonwalking
                         and walking is not None
                         and (not walking[i] or not walking[i + 1])
+                    )
+                    or (
+                        excluded is not None
+                        and (
+                            mask_i < 0
+                            or mask_j >= len(excluded)
+                            or excluded[mask_i]
+                            or excluded[mask_j]
+                        )
                     )
                 ):
                     continue

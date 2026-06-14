@@ -5740,6 +5740,15 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--return-leg-tortuosity-excursion-bin-exclude-wall-contact-frames",
+    action="store_true",
+    help=(
+        "Keep trajectories containing wall contact, but omit traveled-distance "
+        "steps whose endpoint frames include wall contact. The original global "
+        "maximum-distance denominator is retained."
+    ),
+)
+g.add_argument(
     "--return-leg-tortuosity-excursion-bin-exclude-nonwalking-frames",
     action="store_true",
     help="Compute return-leg tortuosity after dropping nonwalking frames.",
@@ -15136,6 +15145,19 @@ if __name__ == "__main__":
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 
+    if getattr(
+        opts,
+        "return_leg_tortuosity_excursion_bin_exclude_wall_contact_frames",
+        False,
+    ):
+        if getattr(opts, "wall", None) is None:
+            print(
+                f"[return-leg-tortuosity-excursion-bin] enabling "
+                f"--wall={WALL_CONTACT_DEFAULT_THRESH_STR} because frame-level "
+                "wall-contact exclusion was requested"
+            )
+            opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
     if (
         getattr(opts, "export_post_wall_departure_tortuosity_sli_bundle", None)
         or getattr(opts, "export_post_wall_departure_tortuosity_examples", None)
@@ -15169,6 +15191,53 @@ if __name__ == "__main__":
                 "because post_last_wall_max return-leg starts were requested"
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
+    wall_treatment_count = sum(
+        (
+            bool(
+                getattr(
+                    opts,
+                    "return_leg_tortuosity_excursion_bin_exclude_wall_contact",
+                    False,
+                )
+            ),
+            bool(
+                getattr(
+                    opts,
+                    "return_leg_tortuosity_excursion_bin_exclude_wall_contact_frames",
+                    False,
+                )
+            ),
+            getattr(
+                opts,
+                "return_leg_tortuosity_excursion_bin_return_start_mode",
+                "global_max",
+            )
+            == "post_last_wall_max",
+        )
+    )
+    if wall_treatment_count > 1:
+        raise ValueError(
+            "Return-leg tortuosity whole-episode wall exclusion, frame-level "
+            "wall exclusion, and post-last-wall starts are mutually exclusive."
+        )
+    if (
+        getattr(
+            opts,
+            "return_leg_tortuosity_excursion_bin_exclude_wall_contact_frames",
+            False,
+        )
+        and getattr(
+            opts,
+            "return_leg_tortuosity_excursion_bin_metric_mode",
+            "path_over_max_radius",
+        )
+        != "path_over_max_radius"
+    ):
+        raise ValueError(
+            "--return-leg-tortuosity-excursion-bin-exclude-wall-contact-frames "
+            "requires metric mode path_over_max_radius."
+        )
 
     if (
         getattr(

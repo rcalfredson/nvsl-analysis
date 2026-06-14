@@ -1197,10 +1197,37 @@ def validate_return_leg_tortuosity_excursion_bin_bundle(
             )
         )
     )
-    if exclude_wall and return_start_mode == "post_last_wall_max":
+    exclude_wall_frames = bool(
+        as_scalar(
+            bundle.get(
+                "return_leg_tortuosity_excursion_bin_exclude_wall_contact_frames",
+                False,
+            )
+        )
+    )
+    if sum(
+        (
+            exclude_wall,
+            exclude_wall_frames,
+            return_start_mode == "post_last_wall_max",
+        )
+    ) > 1:
         raise ValueError(
-            f"Bundle {where} combines whole-episode wall exclusion with "
-            "post-last-wall return-leg starts"
+            f"Bundle {where} combines mutually exclusive return-leg wall "
+            "treatments"
+        )
+    metric_mode = str(
+        as_scalar(
+            bundle.get(
+                "return_leg_tortuosity_excursion_bin_metric_mode",
+                "path_over_max_radius",
+            )
+        )
+    )
+    if exclude_wall_frames and metric_mode != "path_over_max_radius":
+        raise ValueError(
+            f"Bundle {where} combines frame-level wall exclusion with "
+            f"unsupported metric mode {metric_mode!r}"
         )
 
     selected_keys = (

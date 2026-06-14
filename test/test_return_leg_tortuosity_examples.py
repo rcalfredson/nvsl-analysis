@@ -26,6 +26,7 @@ def _record(va, video_index, score, frame):
         "reward_center_xy": (0.0, 0.0),
         "reward_radius_mm": 2.5,
         "exclude_nonwalk": False,
+        "exclude_wall_frames": False,
         "min_walk_frames": 2,
         "metric_mode": "path_over_max_radius",
         "return_start_mode": "global_max",
@@ -48,6 +49,8 @@ def test_example_export_matches_per_fly_tail_and_minimum(monkeypatch, tmp_path):
             for i, score in enumerate((8, 7, 6, 5))
         ],
     ]
+    details[0]["exclude_wall_frames"] = True
+    details[0]["wall_mask"][12] = True
 
     def fake_collect(_vas, _opts, *, episode_callback, **_kwargs):
         for record in details:
@@ -101,6 +104,9 @@ def test_example_export_matches_per_fly_tail_and_minimum(monkeypatch, tmp_path):
 
     assert len(plotted) == 2
     assert [call["highlight_start_frame"] for call in plotted] == [12, 102]
+    assert plotted[0]["highlight_excluded_frame_mask"] is details[0]["wall_mask"]
+    assert plotted[0]["highlight_excluded_frame_mask_start"] == 0
+    assert plotted[1]["highlight_excluded_frame_mask"] is None
     manifest = (tmp_path / "manifest.csv").read_text()
     assert ",10.0,path_over_max_radius," in manifest
     assert ",8.0,path_over_max_radius," in manifest
