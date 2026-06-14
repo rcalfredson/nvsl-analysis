@@ -31,6 +31,7 @@ BUNDLE_ARRAY_PREFIXES = (
     "fraction_within_radius_",
     "return_prob_",
     "return_leg_",
+    "post_wall_",
     "sli_",
 )
 
@@ -130,6 +131,13 @@ RETURN_LEG_TORTUOSITY_EXCURSION_BIN_KEYS = (
     "return_leg_tortuosity_excursion_binN_exp",
     "return_leg_tortuosity_excursion_binN_ctrl",
     "return_leg_tortuosity_excursion_bin_edges_mm",
+)
+
+POST_WALL_DEPARTURE_TORTUOSITY_KEYS = (
+    "post_wall_departure_tortuosity_exp",
+    "post_wall_departure_tortuosity_ctrl",
+    "post_wall_departure_tortuosityN_exp",
+    "post_wall_departure_tortuosityN_ctrl",
 )
 
 COMMAG_KEYS = (
@@ -1334,6 +1342,92 @@ def validate_return_leg_tortuosity_excursion_bin_bundle(
             raise ValueError(f"Bundle {where} has negative {key}")
 
 
+def validate_post_wall_departure_tortuosity_bundle(
+    bundle: dict, *, path: str | None = None
+) -> None:
+    where = _bundle_label(bundle, path)
+    missing = [k for k in POST_WALL_DEPARTURE_TORTUOSITY_KEYS if k not in bundle]
+    if missing:
+        raise ValueError(
+            f"Bundle {where} is missing post-wall departure tortuosity keys: "
+            f"{missing}"
+        )
+
+    sli = np.asarray(bundle["sli"], dtype=float)
+    if sli.ndim != 1:
+        raise ValueError(f"Bundle {where} has non-1D sli shape {sli.shape}")
+    n_videos = int(sli.shape[0])
+    values_exp = _validate_return_prob_metric_array(
+        bundle,
+        "post_wall_departure_tortuosity_exp",
+        where=where,
+        n_videos=n_videos,
+        n_bins=1,
+    )
+    values_ctrl = _validate_return_prob_metric_array(
+        bundle,
+        "post_wall_departure_tortuosity_ctrl",
+        where=where,
+        n_videos=n_videos,
+        n_bins=1,
+    )
+    counts_exp = _validate_return_prob_count_array(
+        bundle,
+        "post_wall_departure_tortuosityN_exp",
+        where=where,
+        n_videos=n_videos,
+        n_bins=1,
+    )
+    counts_ctrl = _validate_return_prob_count_array(
+        bundle,
+        "post_wall_departure_tortuosityN_ctrl",
+        where=where,
+        n_videos=n_videos,
+        n_bins=1,
+    )
+    min_segments = int(
+        as_scalar(bundle.get("btw_rwd_sync_bucket_min_trajectories", 1))
+    )
+    if min_segments < 0:
+        raise ValueError(
+            f"Bundle {where} has negative btw_rwd_sync_bucket_min_trajectories"
+        )
+    threshold = max(1, min_segments)
+    for key, values, counts in (
+        ("post_wall_departure_tortuosity_exp", values_exp, counts_exp),
+        ("post_wall_departure_tortuosity_ctrl", values_ctrl, counts_ctrl),
+    ):
+        finite = np.isfinite(values)
+        if np.any(values[finite] < 0):
+            raise ValueError(f"Bundle {where} has negative values in {key}")
+        if np.any(finite & (counts < threshold)):
+            raise ValueError(
+                f"Bundle {where} has finite {key} where count is below "
+                f"{threshold}"
+            )
+
+    for key in (
+        "post_wall_departure_tortuosity_skip_first_sync_buckets",
+        "post_wall_departure_tortuosity_keep_first_sync_buckets",
+        "post_wall_departure_tortuosity_min_walk_frames",
+    ):
+        if key in bundle and int(as_scalar(bundle[key])) < 0:
+            raise ValueError(f"Bundle {where} has negative {key}")
+    min_direct_key = "post_wall_departure_tortuosity_min_direct_distance_mm"
+    if min_direct_key in bundle:
+        min_direct = float(as_scalar(bundle[min_direct_key]))
+        if not np.isfinite(min_direct) or min_direct < 0:
+            raise ValueError(f"Bundle {where} has invalid {min_direct_key}")
+    summary_key = "post_wall_departure_tortuosity_window_summary"
+    if summary_key in bundle:
+        summary = as_str_array(bundle[summary_key])
+        if summary.shape[0] != n_videos:
+            raise ValueError(
+                f"Bundle {where} has {summary.shape[0]} window summaries for "
+                f"{n_videos} videos"
+            )
+
+
 def validate_turnback_excursion_bin_bundle(
     bundle: dict, *, path: str | None = None
 ) -> None:
@@ -1610,6 +1704,8 @@ def normalize_sli_bundle(bundle: dict, *, path: str | None = None) -> dict:
         validate_between_reward_return_leg_dist_bundle(out, path=path)
     if any(k in out for k in RETURN_LEG_TORTUOSITY_EXCURSION_BIN_KEYS):
         validate_return_leg_tortuosity_excursion_bin_bundle(out, path=path)
+    if any(k in out for k in POST_WALL_DEPARTURE_TORTUOSITY_KEYS):
+        validate_post_wall_departure_tortuosity_bundle(out, path=path)
     if any(k in out for k in COMMAG_KEYS):
         validate_commag_bundle(out, path=path)
     if any(k in out for k in TURNBACK_RATIO_PRIMARY_KEYS):

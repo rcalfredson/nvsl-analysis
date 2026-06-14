@@ -3989,6 +3989,9 @@ class EventChainPlotter:
         highlight_stop_frame: int | None = None,
         highlight_exclude_nonwalking: bool = False,
         highlight_label: str = "Highlighted segment",
+        comparison_line_start_xy: tuple[float, float] | None = None,
+        comparison_line_stop_xy: tuple[float, float] | None = None,
+        comparison_line_label: str = "Direct distance",
     ):
         """
         Plot exactly one between-reward trajectory segment for this fly, defined by
@@ -4044,6 +4047,10 @@ class EventChainPlotter:
             If True, highlight only steps whose endpoint frames are both walking.
         highlight_label : str
             Legend label for the highlighted interval.
+        comparison_line_start_xy, comparison_line_stop_xy : tuple | None
+            Optional endpoints for a dashed geometric reference segment.
+        comparison_line_label : str
+            Legend label for the geometric reference segment.
         """
 
         image_format = image_format or self.image_format
@@ -4387,6 +4394,24 @@ class EventChainPlotter:
                     linewidths=0.8,
                     zorder=6,
                     label=None if not label_pending else highlight_label,
+                )
+
+        if (
+            comparison_line_start_xy is not None
+            and comparison_line_stop_xy is not None
+        ):
+            x_start, y_start = (float(v) for v in comparison_line_start_xy)
+            x_stop, y_stop = (float(v) for v in comparison_line_stop_xy)
+            if np.all(np.isfinite([x_start, y_start, x_stop, y_stop])):
+                ax.plot(
+                    [x_start, x_stop],
+                    [y_start, y_stop],
+                    color="#2474a6",
+                    linewidth=2.0,
+                    linestyle="--",
+                    alpha=0.95,
+                    zorder=5,
+                    label=comparison_line_label,
                 )
 
         # Mark the two reward frames
