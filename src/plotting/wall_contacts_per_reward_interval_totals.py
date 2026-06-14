@@ -18,7 +18,7 @@ from src.plotting.training_metric_scalar_bars import (
 
 @dataclass
 class WallContactsPerRewardIntervalTotalsConfig(TrainingMetricScalarBarsConfig):
-    pass
+    metric: str = "mean_contacts"
 
 
 class WallContactsPerRewardIntervalPerFlyCollector:
@@ -110,15 +110,16 @@ class WallContactsPerRewardIntervalPerFlyCollector:
 
     def _collect_wall_contact_interval_aggregates_by_training_per_fly(
         self,
-    ) -> list[list[tuple[str, float, int]]]:
+    ) -> list[list[tuple[str, float, int, int]]]:
         """
-        Return wall-contact sums and interval counts per fly/training.
+        Return wall-contact sums, contactless counts, and interval counts per
+        fly/training.
 
         The count is the number of valid between-reward intervals in the selected
         sync-bucket window, so it is also the denominator for the episode filter.
         """
         n_trn = self._n_trainings()
-        out: list[list[tuple[str, float, int]]] = [[] for _ in range(n_trn)]
+        out: list[list[tuple[str, float, int, int]]] = [[] for _ in range(n_trn)]
 
         for va in self.vas:
             if getattr(va, "_skipped", False):
@@ -169,6 +170,7 @@ class WallContactsPerRewardIntervalPerFlyCollector:
                         (
                             uid,
                             float(np.sum(counts.astype(float))),
+                            int(np.count_nonzero(counts == 0)),
                             int(counts.size),
                         )
                     )
@@ -179,16 +181,21 @@ class WallContactsPerRewardIntervalPerFlyCollector:
         self,
     ) -> list[list[tuple[str, float]]]:
         """
-        Return per-training means after applying the between-reward episode filter.
+        Return per-training metrics after applying the between-reward episode filter.
         """
         min_intervals = min_between_reward_sync_bucket_trajectories(self.opts)
         out: list[list[tuple[str, float]]] = []
 
         for panel in self._collect_wall_contact_interval_aggregates_by_training_per_fly():
             vals: list[tuple[str, float]] = []
-            for uid, total, count in panel:
+            for uid, total, contactless_count, count in panel:
                 if count >= min_intervals and count > 0:
-                    vals.append((uid, float(total) / float(count)))
+                    numerator = (
+                        contactless_count
+                        if self.cfg.metric == "contactless_fraction"
+                        else total
+                    )
+                    vals.append((uid, float(numerator) / float(count)))
                 elif count > 0:
                     vals.append((uid, np.nan))
             out.append(vals)
@@ -204,20 +211,29 @@ class WallContactsPerRewardIntervalPerFlyCollector:
         min_intervals = min_between_reward_sync_bucket_trajectories(self.opts)
         by_training = self._collect_wall_contact_interval_aggregates_by_training_per_fly()
         sums: dict[str, float] = {}
+        contactless_counts: dict[str, int] = {}
         counts: dict[str, int] = {}
 
         for t_idx in training_indices:
             if t_idx < 0 or t_idx >= len(by_training):
                 continue
-            for uid, total, count in by_training[t_idx]:
+            for uid, total, contactless_count, count in by_training[t_idx]:
                 sums[uid] = sums.get(uid, 0.0) + float(total)
+                contactless_counts[uid] = (
+                    contactless_counts.get(uid, 0) + int(contactless_count)
+                )
                 counts[uid] = counts.get(uid, 0) + int(count)
 
         out: list[tuple[str, float]] = []
         for uid in sorted(sums):
             count = counts.get(uid, 0)
             if count >= min_intervals and count > 0:
-                out.append((uid, float(sums[uid]) / float(count)))
+                numerator = (
+                    contactless_counts.get(uid, 0)
+                    if self.cfg.metric == "contactless_fraction"
+                    else sums[uid]
+                )
+                out.append((uid, float(numerator) / float(count)))
         return out
 
 
@@ -232,6 +248,12 @@ class WallContactsPerRewardIntervalTotalsPlotter(
         customizer,
         cfg: WallContactsPerRewardIntervalTotalsConfig,
     ):
+        if cfg.metric == "contactless_fraction":
+            y_label = "Fraction of trajectories without wall contact"
+            base_title = "Contactless between-reward trajectories (per fly)"
+        else:
+            y_label = "Mean wall contacts per reward interval"
+            base_title = "Wall contacts per reward interval (per fly)"
         super().__init__(
             vas=vas,
             opts=opts,
@@ -239,8 +261,8 @@ class WallContactsPerRewardIntervalTotalsPlotter(
             customizer=customizer,
             cfg=cfg,
             log_tag="wall_contacts_per_reward_interval_total",
-            y_label="Mean wall contacts per reward interval",
-            base_title="Wall contacts per reward interval (per fly)",
+            y_label=y_label,
+            base_title=base_title,
         )
 
     def _collect_values_by_training_per_fly_scalar(self):

@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FormatStrFormatter, MultipleLocator
 
 from src.plotting.palettes import (
     NEUTRAL_DARK,
@@ -142,10 +143,14 @@ def _wrapped_ylabel_text(text: str) -> str:
     text = str(text)
     if "\n" in text:
         return text
-    for phrase in (" between-reward ", " return-leg "):
+    for phrase in (
+        " without wall contact",
+        " between-reward ",
+        " return-leg ",
+    ):
         if phrase in text:
             before, after = text.split(phrase, 1)
-            return f"{before}{phrase.rstrip()}\n{after}"
+            return f"{before}\n{phrase.strip()} {after}".rstrip()
     if ", " in text:
         return text.replace(", ", ",\n", 1)
     if " per " in text:
@@ -673,6 +678,7 @@ def plot_overlays(
     xlabel: str | None = None,
     ylabel: str | None = None,
     ymax: float | None = None,
+    ytick_step: float | None = None,
     stats: bool = False,
     stats_alpha: float = 0.05,
     stats_paired: bool = False,
@@ -1021,6 +1027,18 @@ def plot_overlays(
             )
     else:
         fig.tight_layout()
+    if ytick_step is not None and float(ytick_step) > 0:
+        step = float(ytick_step)
+        ax.yaxis.set_major_locator(MultipleLocator(step))
+        decimals = next(
+            (
+                precision
+                for precision in range(7)
+                if np.isclose(step, round(step, precision), rtol=0.0, atol=1e-10)
+            ),
+            6,
+        )
+        ax.yaxis.set_major_formatter(FormatStrFormatter(f"%.{decimals}f"))
     if legend is not None:
         # Reserve canvas width for the outside-right legend instead of letting it
         # compete with bars, error bars, or significance annotations inside axes.

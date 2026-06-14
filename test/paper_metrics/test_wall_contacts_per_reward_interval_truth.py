@@ -130,3 +130,34 @@ def test_wall_contact_scalar_bars_apply_exp_target_sync_bucket_filter():
 
     assert data["panel_labels"] == []
     assert data["per_unit_values_panel"].size == 0
+
+
+def test_contactless_fraction_pools_intervals_before_dividing():
+    va = _Video()
+    va.trx = [_Trajectory([3])]
+    opts = SimpleNamespace(min_between_reward_trajectories=5)
+    cfg = WallContactsPerRewardIntervalTotalsConfig(
+        out_file="unused.png",
+        pool_trainings=False,
+        trainings=[2],
+        skip_first_sync_buckets=1,
+        keep_first_sync_buckets=3,
+        metric="contactless_fraction",
+    )
+    plotter = WallContactsPerRewardIntervalTotalsPlotter(
+        vas=[va], opts=opts, gls=None, customizer=None, cfg=cfg
+    )
+
+    data = plotter.compute_scalar_panels()
+
+    assert data["panel_labels"] == ["T2"]
+    assert int(data["n_units_panel"][0]) == 0
+
+    plotter.opts.min_between_reward_trajectories = 2
+    data = plotter.compute_scalar_panels()
+    np.testing.assert_allclose(
+        np.asarray(data["per_unit_values_panel"][0], dtype=float), [0.5]
+    )
+    assert data["meta"]["y_label"] == (
+        "Fraction of trajectories without wall contact"
+    )
