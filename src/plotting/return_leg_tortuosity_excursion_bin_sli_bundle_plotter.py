@@ -124,6 +124,16 @@ def _bundle_to_exported(
         .reshape(())
         .item()
     )
+    exclude_wall_frames = bool(
+        np.asarray(
+            bundle.get(
+                "return_leg_tortuosity_excursion_bin_exclude_wall_contact_frames",
+                False,
+            )
+        )
+        .reshape(())
+        .item()
+    )
     binning_mode = str(
         np.asarray(
             bundle.get(
@@ -144,7 +154,10 @@ def _bundle_to_exported(
         if return_start_mode == "global_max"
         else "Post-wall "
     )
-    metric_label = f"{tail_prefix}{start_prefix}return-leg tortuosity"
+    wall_prefix = "Off-wall " if exclude_wall_frames else ""
+    metric_label = (
+        f"{tail_prefix}{start_prefix}{wall_prefix}return-leg tortuosity"
+    )
     ylabel = (
         f"{metric_label} (exp - yok)"
         if mode == "exp_minus_ctrl"
@@ -177,6 +190,7 @@ def _bundle_to_exported(
             "metric_palette_family": "between_reward_tortuosity",
             "top_fraction": top_fraction,
             "return_start_mode": return_start_mode,
+            "exclude_wall_contact_frames": exclude_wall_frames,
             "binning_mode": binning_mode,
         },
     )

@@ -15,6 +15,7 @@ from src.exporting.com_sli_bundle import _safe_group_label
 from src.exporting.return_leg_tortuosity_excursion_bin_sli_bundle import (
     _collect_records,
     _binning_mode,
+    _combined_exclusion_mask,
     _effective_windowing,
     _parse_edges,
     _parse_pairs,
@@ -65,20 +66,35 @@ def _last_wall_frame(record) -> int | None:
 
 
 def _metric_components(record) -> tuple[float, float, float]:
+    exclude_wall_frames = bool(record.get("exclude_wall_frames", False))
+    path_mask = _combined_exclusion_mask(
+        record["nonwalk_mask"],
+        record["wall_mask"],
+        exclude_nonwalk=bool(record["exclude_nonwalk"]),
+        exclude_wall_frames=exclude_wall_frames,
+    )
     common = dict(
         traj=record["traj"],
         s=int(record["metric_start"]),
         e=int(record["segment_stop"]),
         fi=int(record["window_start"]),
-        nonwalk_mask=record["nonwalk_mask"],
-        exclude_nonwalk=bool(record["exclude_nonwalk"]),
         px_per_mm=float(record["px_per_mm"]),
         min_keep_frames=int(record["min_walk_frames"]),
     )
-    path_mm = dist_traveled_mm_masked(**common)
-    displacement_mm = net_displacement_mm_masked(**common)
+    path_mm = dist_traveled_mm_masked(
+        **common,
+        nonwalk_mask=path_mask,
+        exclude_nonwalk=path_mask is not None,
+    )
+    displacement_mm = net_displacement_mm_masked(
+        **common,
+        nonwalk_mask=path_mask,
+        exclude_nonwalk=path_mask is not None,
+    )
     max_radius_mm = max_radial_distance_mm_masked(
         **common,
+        nonwalk_mask=record["nonwalk_mask"],
+        exclude_nonwalk=bool(record["exclude_nonwalk"]),
         center_xy=record["reward_center_xy"],
     )
     return float(path_mm), float(displacement_mm), float(max_radius_mm)
@@ -112,6 +128,7 @@ MANIFEST_FIELDS = [
     "tortuosity",
     "metric_mode",
     "return_start_mode",
+    "exclude_wall_contact_frames",
     "image",
 ]
 
@@ -283,6 +300,8 @@ def export_return_leg_tortuosity_excursion_bin_examples(
                 f"return max radius: {max_radius_mm:.3f} mm\n"
                 f"metric denominator: {denominator:.3f} mm\n"
                 f"return start: {int(record['metric_start'])}\n"
+                f"wall-contact path frames excluded: "
+                f"{bool(record.get('exclude_wall_frames', False))}\n"
                 f"last wall frame: "
                 f"{'none' if last_wall_frame is None else last_wall_frame}"
             )
@@ -326,6 +345,12 @@ def export_return_leg_tortuosity_excursion_bin_examples(
                 highlight_start_frame=int(record["metric_start"]),
                 highlight_stop_frame=int(record["segment_stop"]),
                 highlight_exclude_nonwalking=bool(record["exclude_nonwalk"]),
+                highlight_excluded_frame_mask=(
+                    record["wall_mask"]
+                    if record.get("exclude_wall_frames", False)
+                    else None
+                ),
+                highlight_excluded_frame_mask_start=int(record["window_start"]),
                 highlight_label="Measured return leg",
             )
 
@@ -356,6 +381,9 @@ def export_return_leg_tortuosity_excursion_bin_examples(
                     "tortuosity": float(record["tortuosity"]),
                     "metric_mode": mode,
                     "return_start_mode": str(record["return_start_mode"]),
+                    "exclude_wall_contact_frames": bool(
+                        record.get("exclude_wall_frames", False)
+                    ),
                     "image": out_path,
                 }
             )

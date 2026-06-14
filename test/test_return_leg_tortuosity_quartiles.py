@@ -10,6 +10,7 @@ from src.exporting.return_leg_tortuosity_excursion_bin_sli_bundle import (
     _aggregate_quartile_records,
     _binning_mode,
     _equal_count_bin_indices,
+    _off_wall_path_over_max_radius,
     _top_fraction,
     _validate_binning_options,
 )
@@ -104,6 +105,32 @@ def test_quartile_panel_labels_are_percentile_ranges():
     ]
 
 
+def test_off_wall_tortuosity_excludes_wall_steps_but_keeps_global_radius():
+    traj = SimpleNamespace(
+        x=np.asarray([10.0, 9.0, 8.0, 7.0, 6.0]),
+        y=np.zeros(5),
+        d=np.asarray([1.0, 1.0, 1.0, 1.0]),
+    )
+    wall_mask = np.asarray([False, True, True, False, False])
+
+    value = _off_wall_path_over_max_radius(
+        traj=traj,
+        s=0,
+        e=5,
+        fi=0,
+        wall_mask=wall_mask,
+        nonwalk_mask=None,
+        exclude_nonwalk=False,
+        px_per_mm=1.0,
+        reward_center_xy=(0.0, 0.0),
+        min_keep_frames=2,
+        min_radius_mm=0.0,
+    )
+
+    # Only the final 7 -> 6 step is wholly off-wall; denominator remains 10.
+    assert value == pytest.approx(0.1)
+
+
 def test_quartile_bundle_validation_accepts_distance_metadata():
     counts = np.asarray([[2, 2, 2, 2], [3, 3, 3, 3]], dtype=int)
     values = np.asarray([[1.0, 1.1, 1.2, 1.3], [1.4, 1.5, 1.6, 1.7]])
@@ -162,3 +189,49 @@ def test_quartile_bundle_validation_accepts_distance_metadata():
     ]
     assert exported.meta["binning_mode"] == "per_fly_quartile"
     assert "quartile" in exported.meta["base_title"].lower()
+
+
+def test_bundle_and_plotter_report_frame_level_wall_exclusion():
+    bundle = {
+        "sli": np.asarray([0.1]),
+        "video_ids": np.asarray(["fly-a"]),
+        "return_leg_tortuosity_excursion_bin_exp": np.asarray([[1.2]]),
+        "return_leg_tortuosity_excursion_bin_ctrl": np.asarray([[np.nan]]),
+        "return_leg_tortuosity_excursion_binN_exp": np.asarray([[5]]),
+        "return_leg_tortuosity_excursion_binN_ctrl": np.asarray([[0]]),
+        "return_leg_tortuosity_excursion_bin_selectedN_exp": np.asarray([[5]]),
+        "return_leg_tortuosity_excursion_bin_selectedN_ctrl": np.asarray([[0]]),
+        "return_leg_tortuosity_excursion_bin_edges_mm": np.asarray([3.0, 5.0]),
+        "return_leg_tortuosity_excursion_bin_requested_edges_mm": np.asarray(
+            [3.0, 5.0]
+        ),
+        "return_leg_tortuosity_excursion_bin_pair_mode": np.asarray(False),
+        "return_leg_tortuosity_excursion_bin_binning_mode": np.asarray(
+            "absolute_distance"
+        ),
+        "return_leg_tortuosity_excursion_bin_top_fraction": np.asarray(1.0),
+        "return_leg_tortuosity_excursion_bin_return_start_mode": np.asarray(
+            "global_max"
+        ),
+        "return_leg_tortuosity_excursion_bin_exclude_wall_contact": np.asarray(
+            False
+        ),
+        "return_leg_tortuosity_excursion_bin_exclude_wall_contact_frames": (
+            np.asarray(True)
+        ),
+        "return_leg_tortuosity_excursion_bin_metric_mode": np.asarray(
+            "path_over_max_radius"
+        ),
+        "btw_rwd_sync_bucket_min_trajectories": np.asarray(1),
+    }
+
+    validate_return_leg_tortuosity_excursion_bin_bundle(bundle)
+    exported = _bundle_to_exported(
+        bundle,
+        label="control",
+        mode="exp",
+        sub_idx=np.asarray([0]),
+    )
+
+    assert exported.meta["exclude_wall_contact_frames"] is True
+    assert "Off-wall" in exported.meta["y_label"]
