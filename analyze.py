@@ -112,6 +112,12 @@ from src.exporting.return_leg_tortuosity_excursion_bin_sli_bundle import (
 from src.exporting.return_leg_tortuosity_excursion_bin_examples import (
     export_return_leg_tortuosity_excursion_bin_examples,
 )
+from src.exporting.post_wall_departure_tortuosity_sli_bundle import (
+    export_post_wall_departure_tortuosity_sli_bundle,
+)
+from src.exporting.post_wall_departure_tortuosity_examples import (
+    export_post_wall_departure_tortuosity_examples,
+)
 from src.exporting.turnback_excursion_bin_sli_bundle import (
     export_turnback_excursion_bin_sli_bundle,
 )
@@ -5327,6 +5333,26 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--export-post-wall-departure-tortuosity-sli-bundle",
+    type=str,
+    default=None,
+    help=(
+        "Write a .npz bundle containing, for wall-contact between-reward "
+        "trajectories, the per-fly mean path distance after final wall "
+        "departure divided by direct distance to the reward-circle perimeter."
+    ),
+)
+g.add_argument(
+    "--export-post-wall-departure-tortuosity-examples",
+    type=str,
+    default=None,
+    metavar="DIR",
+    help=(
+        "Export ranked trajectory images for the post-wall departure "
+        "tortuosity metric, plus a CSV manifest, under DIR."
+    ),
+)
+g.add_argument(
     "--export-turnback-excursion-bin-sli-bundle",
     type=str,
     default=None,
@@ -5369,6 +5395,15 @@ g.add_argument(
     help=(
         "Trainings to include in return-leg-tortuosity excursion-bin exports, "
         "e.g. '2' or '2-3'. Default: all trainings."
+    ),
+)
+g.add_argument(
+    "--post-wall-departure-tortuosity-trainings",
+    type=str,
+    default=None,
+    help=(
+        "Trainings to include in post-wall departure tortuosity exports, e.g. "
+        "'2' or '2-3'. Default: all trainings."
     ),
 )
 g.add_argument(
@@ -5569,6 +5604,15 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--post-wall-departure-tortuosity-skip-first-sync-buckets",
+    type=int,
+    default=None,
+    help=(
+        "Optional export-specific sync-bucket skip for post-wall departure "
+        "tortuosity. Defaults to --skip-first-sync-buckets."
+    ),
+)
+g.add_argument(
     "--turnback-excursion-bin-skip-first-sync-buckets",
     type=int,
     default=None,
@@ -5611,6 +5655,15 @@ g.add_argument(
     help=(
         "Optional export-specific sync-bucket cap for return-leg-tortuosity "
         "excursion-bin bundles. Defaults to --keep-first-sync-buckets."
+    ),
+)
+g.add_argument(
+    "--post-wall-departure-tortuosity-keep-first-sync-buckets",
+    type=int,
+    default=None,
+    help=(
+        "Optional export-specific sync-bucket cap for post-wall departure "
+        "tortuosity. Defaults to --keep-first-sync-buckets."
     ),
 )
 g.add_argument(
@@ -5698,6 +5751,26 @@ g.add_argument(
     help="Minimum kept frames required for return-leg tortuosity.",
 )
 g.add_argument(
+    "--post-wall-departure-tortuosity-exclude-nonwalking-frames",
+    action="store_true",
+    help="Drop nonwalking frames from post-wall departure path distance.",
+)
+g.add_argument(
+    "--post-wall-departure-tortuosity-min-walk-frames",
+    type=int,
+    default=2,
+    help="Minimum kept frames required after final wall departure.",
+)
+g.add_argument(
+    "--post-wall-departure-tortuosity-min-direct-distance-mm",
+    type=float,
+    default=0.0,
+    help=(
+        "Exclude departures whose direct distance to the reward-circle "
+        "perimeter is at or below this value. Default: %(default)s."
+    ),
+)
+g.add_argument(
     "--return-leg-tortuosity-excursion-bin-min-radius-mm",
     type=float,
     default=0.0,
@@ -5769,6 +5842,36 @@ g.add_argument(
     help=(
         "Reward-centered zoom radius for diagnostic images. By default each bin "
         "uses its upper edge plus 1 mm; use 0 for the full arena."
+    ),
+)
+g.add_argument(
+    "--post-wall-departure-tortuosity-examples-num",
+    type=int,
+    default=12,
+    help="Total ranked trajectory images to export. Default: %(default)s.",
+)
+g.add_argument(
+    "--post-wall-departure-tortuosity-examples-max-per-fly",
+    type=int,
+    default=1,
+    help=(
+        "Maximum ranked images from one fly; 0 disables the cap. "
+        "Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--post-wall-departure-tortuosity-examples-role",
+    choices=["exp", "ctrl", "both"],
+    default="exp",
+    help="Trajectory role to include in the diagnostic gallery. Default: %(default)s.",
+)
+g.add_argument(
+    "--post-wall-departure-tortuosity-examples-zoom-radius-mm",
+    type=float,
+    default=None,
+    help=(
+        "Reward-centered zoom radius for diagnostic images; unset or 0 uses "
+        "the full arena."
     ),
 )
 g.add_argument(
@@ -10913,6 +11016,24 @@ def _export_post_analyze_bundles(vas, gls) -> int:
         )
         num_exports += 1
 
+    if getattr(opts, "export_post_wall_departure_tortuosity_sli_bundle", None):
+        export_post_wall_departure_tortuosity_sli_bundle(
+            vas,
+            opts,
+            gls,
+            opts.export_post_wall_departure_tortuosity_sli_bundle,
+        )
+        num_exports += 1
+
+    if getattr(opts, "export_post_wall_departure_tortuosity_examples", None):
+        export_post_wall_departure_tortuosity_examples(
+            vas,
+            opts,
+            gls,
+            opts.export_post_wall_departure_tortuosity_examples,
+        )
+        num_exports += 1
+
     if getattr(opts, "export_turnback_excursion_bin_sli_bundle", None):
         export_turnback_excursion_bin_sli_bundle(
             vas, opts, gls, opts.export_turnback_excursion_bin_sli_bundle
@@ -15014,6 +15135,17 @@ if __name__ == "__main__":
                 "because --return-leg-tortuosity-excursion-bin-exclude-wall-contact was set"
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
+    if (
+        getattr(opts, "export_post_wall_departure_tortuosity_sli_bundle", None)
+        or getattr(opts, "export_post_wall_departure_tortuosity_examples", None)
+    ) and getattr(opts, "wall", None) is None:
+        print(
+            f"[post-wall-departure-tortuosity] enabling "
+            f"--wall={WALL_CONTACT_DEFAULT_THRESH_STR} because wall-contact "
+            "trajectory analysis was requested"
+        )
+        opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 
     if (
         getattr(

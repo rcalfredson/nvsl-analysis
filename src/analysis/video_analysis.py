@@ -677,6 +677,19 @@ class VideoAnalysis:
             )
         )
 
+        keep_wall_regions_for_post_wall_departure_tortuosity = bool(
+            getattr(
+                self.opts,
+                "export_post_wall_departure_tortuosity_sli_bundle",
+                None,
+            )
+            or getattr(
+                self.opts,
+                "export_post_wall_departure_tortuosity_examples",
+                None,
+            )
+        )
+
         keep_wall_regions_for_return_prob_outer_radius = bool(
             getattr(self.opts, "export_return_prob_outer_radius_sli_bundle", None)
             and getattr(
@@ -705,6 +718,7 @@ class VideoAnalysis:
             or keep_wall_regions_for_rrd
             or keep_wall_regions_for_between_reward_maxdist
             or keep_wall_regions_for_excursion_bin_exports
+            or keep_wall_regions_for_post_wall_departure_tortuosity
             or keep_wall_regions_for_return_prob_outer_radius
             or keep_wall_regions_for_wall_contacts_per_reward_interval_total
         )
