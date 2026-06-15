@@ -207,6 +207,11 @@ from src.plotting.between_reward_distance_hist import (
     BetweenRewardDistanceHistogramPlotter,
     BetweenRewardDistanceHistogramConfig,
 )
+from src.plotting.between_reward_max_distance_hist import (
+    DEFAULT_MAX_DISTANCE_BIN_EDGES_MM,
+    BetweenRewardMaxDistanceHistogramConfig,
+    BetweenRewardMaxDistanceHistogramPlotter,
+)
 from src.plotting.between_reward_normalized_distance_hist import (
     BetweenRewardNormalizedDistanceHistogramConfig,
     BetweenRewardNormalizedDistanceHistogramPlotter,
@@ -303,6 +308,7 @@ REWARD_PI_POST_IMG_FILE = "imgs/reward_pi_post__%s_min_buckets.png"
 REWARD_PI_POST_DIFF_IMG_FILE = "imgs/reward_pi_post_diff__%s_min_buckets.png"
 DIST_BTWN_REWARDS_LABEL = "mean dist. between calc. rewards%s"
 DIST_BTWN_REWARDS_IMG_FILE = "imgs/btw_rwd_dists.png"
+BTW_RWD_MAXDIST_HIST_IMG_FILE = "imgs/btw_rwd_maxdist_hist.png"
 BTW_RWD_NORM_DIST_HIST_IMG_FILE = "imgs/btw_rwd_norm_dists.png"
 BTW_RWD_TORTUOSITY_HIST_IMG_FILE = "imgs/btw_rwd_tortuosity_hist.png"
 BTW_RWD_TORTUOSITY_BOX_IMG_FILE = "imgs/btw_rwd_tortuosity_by_max_radius_box.png"
@@ -1843,6 +1849,54 @@ g.add_argument(
         "Confidence level for --btw-rwd-dist-ci (default: %(default)s). "
         "Only used with --btw-rwd-dist-per-fly."
     ),
+)
+g.add_argument(
+    "--btw-rwd-maxdist-hist",
+    action="store_true",
+    help=(
+        "Plot per-fly histograms of the maximum distance from the reward-circle "
+        "center reached by between-reward trajectories."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-maxdist-export-hist",
+    type=str,
+    default=None,
+    help=(
+        "Export the per-fly between-reward maximum-distance histogram bundle "
+        "as a compressed .npz file."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-maxdist-bin-edges",
+    type=str,
+    default=None,
+    help=(
+        "Comma-separated maximum-distance bin edges in mm. "
+        "Default: 0,5,10,15,20,25,30."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-maxdist-trainings",
+    type=parse_training_selector,
+    default=None,
+    help=(
+        "Subset of trainings to plot (1-based), for example '2' or '1,3'."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-maxdist-pool-trainings",
+    action="store_true",
+    help=(
+        "Pool all trainings into one per-fly histogram. "
+        "--btw-rwd-maxdist-trainings is ignored in this mode."
+    ),
+)
+g.add_argument(
+    "--btw-rwd-maxdist-ymax",
+    type=float,
+    default=None,
+    help="Optional fixed y-axis maximum for the maximum-distance histogram.",
 )
 g.add_argument(
     "--btw-rwd-norm-dist-hist",
@@ -12863,6 +12917,36 @@ def postAnalyze(vas):
             vas=vas, opts=opts, gls=gls, customizer=customizer, cfg=cfg
         )
         out_npz = getattr(opts, "btw_rwd_norm_dist_export_hist", None)
+        if out_npz:
+            plotter.export_histograms_npz(out_npz)
+        plotter.plot_histograms()
+
+    if va.circle and getattr(opts, "btw_rwd_maxdist_hist", False):
+        edges = _parse_float_csv_or_edge_groups_or_none(
+            getattr(opts, "btw_rwd_maxdist_bin_edges", None)
+        )
+        if edges is None:
+            edges = DEFAULT_MAX_DISTANCE_BIN_EDGES_MM
+        cfg = BetweenRewardMaxDistanceHistogramConfig(
+            out_file=BTW_RWD_MAXDIST_HIST_IMG_FILE,
+            bin_edges=edges,
+            normalize=True,
+            pool_trainings=getattr(
+                opts, "btw_rwd_maxdist_pool_trainings", False
+            ),
+            skip_first_sync_buckets=skip_eff,
+            keep_first_sync_buckets=keep_eff,
+            ymax=getattr(opts, "btw_rwd_maxdist_ymax", None),
+            per_fly=True,
+            min_segs_per_fly=0,
+            ci=True,
+            trainings=getattr(opts, "btw_rwd_maxdist_trainings", None),
+            show_suptitle=getattr(opts, "btw_rwd_hist_suptitle", False),
+        )
+        plotter = BetweenRewardMaxDistanceHistogramPlotter(
+            vas=vas, opts=opts, gls=gls, customizer=customizer, cfg=cfg
+        )
+        out_npz = getattr(opts, "btw_rwd_maxdist_export_hist", None)
         if out_npz:
             plotter.export_histograms_npz(out_npz)
         plotter.plot_histograms()
