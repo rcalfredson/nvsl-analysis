@@ -181,9 +181,20 @@ run_turnback_pairs() {
       --best-worst-trn 2 \
       --sli-use-training-mean \
       --sli-select-skip-first-sync-buckets 1 \
+      --sli-select-keep-first-sync-buckets 4 \
       --export-group-label "$group_label" \
       "${filter_flags[@]}" \
       "${wall_flags[@]}"
+
+    run_cmd \
+      python -m scripts.plot_turnback_excursion_bin_sli_bundles \
+      --bundles "$bundle" \
+      --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pairs_label}_top20Bottom50_sliT2Sb2-5_${DATE_TAG}.png" \
+      --sli-extremes both \
+      --top-sli-fraction 0.2 \
+      --bottom-sli-fraction 0.5 \
+      --standalone-extreme-labels \
+      --stats
   done
 
   local bundle_csv
@@ -394,17 +405,19 @@ run_post_wall_departure_tortuosity() {
 # Turnback ratio
 # radial config: 3/5, 8/10, 13/15 mm
 # full filter x wall-contact matrix
+# Each run writes the all-learner comparison plus one top-20% vs bottom-50%
+# plot per cohort, ranked by mean T2 SLI over sync buckets 2-5.
 # ---------------------------------------------------------------------
 
-# for filter_tag in noFilt minEpFilt minEpSb5Filt minEpPiFilt; do
-#   for wall_tag in wall noWall; do
-#     run_turnback_pairs \
-#       "3-5_8-10_13-15" \
-#       "3:5,8:10,13:15" \
-#       "$filter_tag" \
-#       "$wall_tag"
-#   done
-# done
+for filter_tag in noFilt minEpFilt minEpSb5Filt minEpPiFilt; do
+  for wall_tag in wall noWall; do
+    run_turnback_pairs \
+      "3-5_8-10_13-15" \
+      "3:5,8:10,13:15" \
+      "$filter_tag" \
+      "$wall_tag"
+  done
+done
 
 # ---------------------------------------------------------------------
 # Turnback ratio
