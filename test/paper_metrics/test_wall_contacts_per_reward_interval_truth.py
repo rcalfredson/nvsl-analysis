@@ -1,3 +1,4 @@
+import csv
 from types import SimpleNamespace
 
 import numpy as np
@@ -17,6 +18,8 @@ class _Trajectory:
     def __init__(self, starts, *, f=0, bad=False):
         self.f = f
         self._bad = bad
+        self.x = np.asarray([0, 1, 2, 3, 4, 5, 6, 7], dtype=float)
+        self.y = np.zeros(8, dtype=float)
         self.boundary_event_stats = {
             "wall": {
                 "all": {
@@ -41,6 +44,19 @@ class _Training:
     def name(self):
         return self._label
 
+    def circles(self, _f):
+        return [(0.0, 0.0, 1.0)]
+
+
+class _Transform:
+    fctr = 1.0
+
+
+class _Chamber:
+    @staticmethod
+    def pxPerMmFloor():
+        return 1.0
+
 
 class _Video:
     def __init__(self):
@@ -51,6 +67,9 @@ class _Video:
         self.flies = [0]
         self.noyc = True
         self._skipped = False
+        self.fps = 2.0
+        self.xf = _Transform()
+        self.ct = _Chamber()
         self.reward_exclusion_mask = [[[False, False, False, False]]]
         self.sync_bucket_ranges = [
             [(0, 2), (2, 4), (4, 6), (6, 8)],
@@ -161,3 +180,47 @@ def test_contactless_fraction_pools_intervals_before_dividing():
     assert data["meta"]["y_label"] == (
         "Fraction of trajectories without wall contact"
     )
+
+
+def test_contactless_episode_csv_reconstructs_per_fly_fraction(tmp_path):
+    va = _Video()
+    va.trx = [_Trajectory([3])]
+    opts = SimpleNamespace(
+        min_between_reward_trajectories=2,
+        export_group_label="Test group",
+    )
+    cfg = WallContactsPerRewardIntervalTotalsConfig(
+        out_file="unused.png",
+        pool_trainings=False,
+        trainings=[2],
+        skip_first_sync_buckets=1,
+        keep_first_sync_buckets=3,
+        metric="contactless_fraction",
+    )
+    plotter = WallContactsPerRewardIntervalTotalsPlotter(
+        vas=[va], opts=opts, gls=None, customizer=None, cfg=cfg
+    )
+    out_csv = tmp_path / "episodes.csv"
+    scalar_data = plotter.compute_scalar_panels()
+
+    plotter.export_episode_csv(str(out_csv))
+
+    with out_csv.open(newline="") as fh:
+        rows = list(csv.DictReader(fh))
+    assert len(rows) == 2
+    assert {row["group"] for row in rows} == {"Test group"}
+    assert [int(row["wall_contact_event_count"]) for row in rows] == [1, 0]
+    assert [row["contactless"] for row in rows] == ["False", "True"]
+    assert {int(row["pooled_episode_count"]) for row in rows} == {2}
+    assert {int(row["pooled_contactless_episode_count"]) for row in rows} == {1}
+    assert {float(row["pooled_contactless_fraction"]) for row in rows} == {0.5}
+    np.testing.assert_allclose(
+        np.asarray(scalar_data["per_unit_values_panel"][0], dtype=float),
+        [float(rows[0]["pooled_contactless_fraction"])],
+    )
+    assert {row["passes_minimum_episode_filter"] for row in rows} == {"True"}
+    assert {row["included_in_metric"] for row in rows} == {"True"}
+    assert [float(row["max_distance_from_reward_center_mm"]) for row in rows] == [
+        3.0,
+        5.0,
+    ]

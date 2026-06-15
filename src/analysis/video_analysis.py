@@ -711,6 +711,11 @@ class VideoAnalysis:
             or getattr(
                 self.opts, "wall_contacts_per_reward_interval_total_export", None
             )
+            or getattr(
+                self.opts,
+                "wall_contacts_per_reward_interval_total_episodes_csv",
+                None,
+            )
         )
 
         keep_wall_regions = (

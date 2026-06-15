@@ -2700,6 +2700,16 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--wall-contacts-per-reward-interval-total-episodes-csv",
+    type=str,
+    default=None,
+    help=(
+        "Write one provenance row per between-reward interval in the selected "
+        "training/sync-bucket window, including wall-contact status and the "
+        "per-fly pooled contactless fraction."
+    ),
+)
+g.add_argument(
     "--wall-contacts-per-reward-interval-total-pool-trainings",
     action="store_true",
     help="Pool wall-contact interval means across trainings into a single bar instead of one bar per training.",
@@ -12521,8 +12531,17 @@ def postAnalyze(vas):
     do_wc_total_export = bool(
         getattr(opts, "wall_contacts_per_reward_interval_total_export", None)
     )
+    do_wc_episode_export = bool(
+        getattr(
+            opts,
+            "wall_contacts_per_reward_interval_total_episodes_csv",
+            None,
+        )
+    )
 
-    if va.circle and (do_wc_total_plot or do_wc_total_export):
+    if va.circle and (
+        do_wc_total_plot or do_wc_total_export or do_wc_episode_export
+    ):
         vas_for_totals = vas
 
         sli_group = getattr(
@@ -12614,6 +12633,13 @@ def postAnalyze(vas):
         out_npz = getattr(opts, "wall_contacts_per_reward_interval_total_export", None)
         if do_wc_total_export:
             plotter.export_npz(str(out_npz))
+        out_episode_csv = getattr(
+            opts,
+            "wall_contacts_per_reward_interval_total_episodes_csv",
+            None,
+        )
+        if do_wc_episode_export:
+            plotter.export_episode_csv(str(out_episode_csv))
         if do_wc_total_plot:
             plotter.plot_bars()
 
@@ -15368,11 +15394,16 @@ if __name__ == "__main__":
     if (
         getattr(opts, "wall_contacts_per_reward_interval_total_bars", False)
         or getattr(opts, "wall_contacts_per_reward_interval_total_export", None)
+        or getattr(
+            opts,
+            "wall_contacts_per_reward_interval_total_episodes_csv",
+            None,
+        )
     ):
         if getattr(opts, "wall", None) is None:
             print(
                 f"[wall-contact] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
-                "because --wall-contacts-per-reward-interval-total-bars/--wall-contacts-per-reward-interval-total-export was set"
+                "because a wall-contact interval total or provenance export was requested"
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 
