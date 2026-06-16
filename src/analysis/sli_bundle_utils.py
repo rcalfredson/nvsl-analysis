@@ -16,6 +16,8 @@ BUNDLE_ARRAY_PREFIXES = (
     "commag_",
     "commagN_",
     "between_reward_",
+    "cum_rewards_",
+    "running_pi_sli_",
     "cum_reward_sli_",
     "episode_filter_",
     "exp_target_sync_bucket_filter_",

@@ -17,6 +17,7 @@ def main():
         choices=[
             "commag",
             "sli",
+            "cum_rewards",
             "weaving",
             "between_reward_maxdist",
             "between_reward_return_leg_dist",

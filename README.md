@@ -277,7 +277,7 @@ These workflows are useful when you want cohort overlays, top/bottom SLI splits 
 | COM magnitude + SLI | `--export-com-sli-bundle exports/group_a_com_sli.npz` | `scripts/plot_com_sli_bundles.py` | `--metric commag` or `--metric sli`; supports `--sli-extremes`. |
 | Between-reward max distance + SLI | `--export-between-reward-maxdist-sli-bundle exports/group_a_maxdist_sli.npz` | `scripts/plot_com_sli_bundles.py` | `--metric between_reward_maxdist`. |
 | Between-reward return-leg distance + SLI | `--export-btw-rwd-return-leg-dist-sli-bundle exports/group_a_return_leg_sli.npz` | `scripts/plot_com_sli_bundles.py` | `--metric between_reward_return_leg_dist`. |
-| Cumulative-reward-aligned SLI | `--export-cum-reward-sli-bundle exports/group_a_cum_reward_sli.npz` | `scripts/plot_cum_reward_sli_bundles.py` | `--metric sli`, `reward_pi`, `reward_pi_exp`, or `reward_pi_yoked`. |
+| Running PI/SLI by reward count | `--export-running-pi-sli-bundle exports/group_a_running_pi_sli.npz` | `scripts/plot_running_pi_sli_bundles.py` | `--metric sli`, `reward_pi`, `reward_pi_exp`, or `reward_pi_yoked`. |
 | Turnback dual-circle ratio + SLI | `--export-turnback-sli-bundle exports/group_a_turnback_sli.npz` | `scripts/plot_com_sli_bundles.py` | `--metric turnback`; choose `--turnback-mode exp`, `ctrl`, or `exp_minus_ctrl`. |
 | Turnback by outer radius | `--export-turnback-outer-radius-sli-bundle exports/group_a_turnback_radius.npz` | `scripts/plot_turnback_outer_radius_sli_bundles.py` | Radius-response bars/curves with optional stats. |
 | Turnback by excursion bin | `--export-turnback-excursion-bin-sli-bundle exports/group_a_turnback_excursion.npz` | `scripts/plot_turnback_excursion_bin_sli_bundles.py` | Realized excursion-bin ratio/success/failure/total plots. |

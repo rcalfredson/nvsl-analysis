@@ -93,7 +93,11 @@ from src.exporting.commag_sli_bundle import (
     build_commag_sli_bundle,
     export_commag_sli_bundle,
 )
-from src.exporting.cum_reward_sli_bundle import export_cum_reward_sli_bundle
+from src.exporting.running_pi_sli_bundle import export_running_pi_sli_bundle
+from src.exporting.cum_rewards_sli_bundle import (
+    build_cum_rewards_sli_bundle,
+    export_cum_rewards_sli_bundle,
+)
 from src.exporting.lgturn_startdist_sli_bundle import export_lgturn_startdist_sli_bundle
 from src.exporting.reward_lgturn_pathlen_sli_bundle import (
     export_reward_lgturn_pathlen_sli_bundle,
@@ -5216,57 +5220,79 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--export-running-pi-sli-bundle",
     "--export-cum-reward-sli-bundle",
-    type=str,
-    default=None,
-    help="Write an .npz bundle with cumulative-reward-aligned SLI curves for multi-group overlays.",
-)
-g.add_argument(
-    "--cum-reward-sli-debug-tsv",
+    dest="export_running_pi_sli_bundle",
     type=str,
     default=None,
     help=(
-        "Optional TSV debug export for cumulative-reward SLI bundles: one row per "
-        "fly per cumulative-reward tick, including counts and PI/SLI values."
+        "Write an .npz bundle with running PI/SLI curves for multi-group overlays. "
+        "--export-cum-reward-sli-bundle is a deprecated alias."
     ),
 )
 g.add_argument(
-    "--cum-reward-sli-tick-spacing",
-    type=int,
-    default=5,
-    help="Reward-count spacing for the cumulative-reward x-axis used in cum-reward SLI bundle exports.",
-)
-g.add_argument(
-    "--cum-reward-sli-trainings",
+    "--running-pi-sli-debug-tsv",
+    "--cum-reward-sli-debug-tsv",
+    dest="running_pi_sli_debug_tsv",
     type=str,
     default=None,
-    help="Trainings to include in cumulative-reward SLI bundle exports, e.g. '1-3' or '1,3,5'. Default: all.",
+    help=(
+        "Optional TSV debug export for running PI/SLI bundles: one row per "
+        "fly per reward-count tick, including counts and PI/SLI values."
+    ),
 )
 g.add_argument(
+    "--running-pi-sli-tick-spacing",
+    "--cum-reward-sli-tick-spacing",
+    dest="running_pi_sli_tick_spacing",
+    type=int,
+    default=5,
+    help=(
+        "Reward-count spacing for the x-axis used in running PI/SLI bundle exports. "
+        "--cum-reward-sli-tick-spacing is a deprecated alias."
+    ),
+)
+g.add_argument(
+    "--running-pi-sli-trainings",
+    "--cum-reward-sli-trainings",
+    dest="running_pi_sli_trainings",
+    type=str,
+    default=None,
+    help=(
+        "Trainings to include in running PI/SLI bundle exports, e.g. '1-3' "
+        "or '1,3,5'. Default: all. --cum-reward-sli-trainings is a "
+        "deprecated alias."
+    ),
+)
+g.add_argument(
+    "--running-pi-sli-min-fly-pct",
     "--cum-reward-sli-min-fly-pct",
+    dest="running_pi_sli_min_fly_pct",
     type=float,
     default=95.0,
     help=(
-        "Recommended minimum percent of flies that must reach a cumulative-reward "
-        "tick for it to remain in cumulative-reward SLI overlays. "
+        "Recommended minimum percent of flies that must reach a reward-count "
+        "tick for it to remain in running PI/SLI overlays. "
         "Use 0 to keep the full tail."
     ),
 )
 g.add_argument(
+    "--running-pi-sli-max-rewards",
     "--cum-reward-sli-max-rewards",
+    dest="running_pi_sli_max_rewards",
     type=int,
     default=None,
     help=(
-        "Optional explicit cap on the cumulative rewards exported into cum-reward "
-        "SLI bundles. If unset, export up to each fly's available tail and let "
-        "--cum-reward-sli-min-fly-pct control plot-time truncation."
+        "Optional explicit cap on the reward-count ticks exported into running "
+        "PI/SLI bundles. If unset, export up to each fly's available tail and let "
+        "--running-pi-sli-min-fly-pct control plot-time truncation."
     ),
 )
 g.add_argument(
     "--cum-reward-sli-group",
     choices=["top", "bottom"],
     default=None,
-    help="Deprecated for cumulative-reward SLI bundles; top/bottom selection should be applied at plot time.",
+    help="Deprecated for running PI/SLI bundles; top/bottom selection should be applied at plot time.",
 )
 g.add_argument(
     "--export-commag-sli-bundle",
@@ -5277,6 +5303,24 @@ g.add_argument(
     help=(
         "Write an .npz bundle with per-video SLI and COM-magnitude time series "
         "for this run's vas. --export-com-sli-bundle is a deprecated alias."
+    ),
+)
+g.add_argument(
+    "--export-cum-rewards-sli-bundle",
+    type=str,
+    default=None,
+    help=(
+        "Write an .npz bundle with cumulative calc reward counts by sync bucket "
+        "+ SLI for multi-group overlays."
+    ),
+)
+
+g.add_argument(
+    "--cum-rewards-sli-debug",
+    action="store_true",
+    help=(
+        "Debug export of cumulative-rewards+SLI bundle: print inferred shape, "
+        "finite bucket counts, last cumulative count per training, and SLI."
     ),
 )
 g.add_argument(
@@ -11035,6 +11079,12 @@ def _export_post_analyze_bundles(vas, gls) -> int:
         export_commag_sli_bundle(vas, opts, gls, opts.export_commag_sli_bundle)
         num_exports += 1
 
+    if getattr(opts, "export_cum_rewards_sli_bundle", None):
+        export_cum_rewards_sli_bundle(
+            vas, opts, gls, opts.export_cum_rewards_sli_bundle
+        )
+        num_exports += 1
+
     if getattr(opts, "export_between_reward_maxdist_sli_bundle", None):
         export_between_reward_maxdist_sli_bundle(
             vas, opts, gls, opts.export_between_reward_maxdist_sli_bundle
@@ -11047,13 +11097,13 @@ def _export_post_analyze_bundles(vas, gls) -> int:
         )
         num_exports += 1
 
-    if getattr(opts, "export_cum_reward_sli_bundle", None):
+    if getattr(opts, "export_running_pi_sli_bundle", None):
         if getattr(opts, "cum_reward_sli_group", None) is not None:
             print(
-                "[cum_reward_sli] NOTE: --cum-reward-sli-group is ignored during export; "
-                "use --sli-extremes with scripts/plot_cum_reward_sli_bundles.py instead."
+                "[running_pi_sli] NOTE: --cum-reward-sli-group is ignored during export; "
+                "use --sli-extremes with scripts/plot_running_pi_sli_bundles.py instead."
             )
-        export_cum_reward_sli_bundle(vas, opts, gls, opts.export_cum_reward_sli_bundle)
+        export_running_pi_sli_bundle(vas, opts, gls, opts.export_running_pi_sli_bundle)
         num_exports += 1
 
     if getattr(opts, "export_wallpct_sli_bundle", None):

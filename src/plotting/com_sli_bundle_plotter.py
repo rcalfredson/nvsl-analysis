@@ -73,6 +73,8 @@ def _single_line_label(label):
 def _bundle_metric_palette(metric):
     if metric == "commag":
         return get_palette("commag")
+    elif metric == "cum_rewards":
+        return FLY_COLS
     elif metric == "agarose":
         return get_palette("agarose")
     elif metric == "sli":
@@ -92,6 +94,8 @@ def _bundle_metric_palette(metric):
 def _ctrl_overlay_key(metric):
     if metric == "commag":
         return "commag_ctrl"
+    if metric == "cum_rewards":
+        return "cum_rewards_ctrl"
     if metric == "wallpct":
         return "wallpct_ctrl"
     if metric == "between_reward_maxdist":
@@ -484,6 +488,19 @@ def plot_com_sli_bundle_data(
             need_keys = ["commag_exp", "commag_ctrl"]
         else:
             raise ValueError(f"Unknown mode={turnback_mode!r} for metric=commag")
+    elif metric == "cum_rewards":
+        if turnback_mode == "exp":
+            series_key = "cum_rewards_exp"
+            need_keys = ["cum_rewards_exp"]
+            include_ctrl = requested_include_ctrl
+        elif turnback_mode == "ctrl":
+            series_key = "cum_rewards_ctrl"
+            need_keys = ["cum_rewards_ctrl"]
+        elif turnback_mode == "exp_minus_ctrl":
+            series_key = "cum_rewards_exp"
+            need_keys = ["cum_rewards_exp", "cum_rewards_ctrl"]
+        else:
+            raise ValueError(f"Unknown mode={turnback_mode!r} for metric=cum_rewards")
     elif metric == "sli":
         if any("sli_ts" not in b for b in bundles):
             raise ValueError("One or more bundles are missing sli_ts; re-export them.")
@@ -645,7 +662,7 @@ def plot_com_sli_bundle_data(
             )
     else:
         raise ValueError(
-            "Invalid metric specified; supported: 'commag', 'sli', "
+            "Invalid metric specified; supported: 'commag', 'sli', 'cum_rewards', "
             "'between_reward_maxdist', 'between_reward_return_leg_dist', "
             "'turnback', 'agarose', 'wallpct', "
             "'lgturn_startdist', 'reward_lgturn_pathlen', 'reward_lv', "
@@ -678,6 +695,10 @@ def plot_com_sli_bundle_data(
         if metric == "commag" and turnback_mode == "exp_minus_ctrl":
             exp_arr = np.asarray(b["commag_exp"], dtype=float)
             ctrl_arr = np.asarray(b["commag_ctrl"], dtype=float)
+            return exp_arr - ctrl_arr
+        if metric == "cum_rewards" and turnback_mode == "exp_minus_ctrl":
+            exp_arr = np.asarray(b["cum_rewards_exp"], dtype=float)
+            ctrl_arr = np.asarray(b["cum_rewards_ctrl"], dtype=float)
             return exp_arr - ctrl_arr
         if metric == "turnback" and turnback_mode == "exp_minus_ctrl":
             exp_arr = np.asarray(b["turnback_ratio_exp"], dtype=float)
@@ -908,6 +929,11 @@ def plot_com_sli_bundle_data(
         ylim = [0.0, 6.0]
     elif metric == "reward_lv":
         ylim = [-1.0, 3.0] if turnback_mode == "exp_minus_ctrl" else [0.0, 3.0]
+    elif metric == "cum_rewards":
+        if turnback_mode == "exp_minus_ctrl":
+            ylim = None
+        else:
+            ylim = [0.0, ymax if ymax is not None else 100.0]
     elif metric == "reward_lgturn_pathlen":
         ylim = [-3.0, 4.0] if turnback_mode == "exp_minus_ctrl" else [0.0, 8.0]
     elif metric == "reward_lgturn_prevalence":

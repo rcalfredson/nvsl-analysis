@@ -20,7 +20,7 @@ def _selected_training_indices(vas, opts) -> list[int]:
         return []
 
     n_trn = len(getattr(vas_ok[0], "trns", []) or [])
-    raw = getattr(opts, "cum_reward_sli_trainings", None)
+    raw = getattr(opts, "running_pi_sli_trainings", None)
     if not raw:
         return list(range(n_trn))
 
@@ -33,7 +33,7 @@ def _selected_training_indices(vas, opts) -> list[int]:
     selected = sorted(set(selected))
     if not selected:
         print(
-            "[export] WARNING: --cum-reward-sli-trainings selected no valid trainings; "
+            "[export] WARNING: --running-pi-sli-trainings selected no valid trainings; "
             "falling back to all trainings."
         )
         return list(range(n_trn))
@@ -258,7 +258,7 @@ def _build_running_pi_curves(
     return common_ticks, sli_arr, pi_exp_arr, pi_yok_arr, total_actual_rewards, debug
 
 
-def _write_cum_reward_sli_debug_tsv(
+def _write_running_pi_sli_debug_tsv(
     path,
     *,
     vas,
@@ -268,7 +268,7 @@ def _write_cum_reward_sli_debug_tsv(
     total_actual_rewards,
     reward_pi_exp,
     reward_pi_yoked,
-    sli_vs_cum_rewards,
+    running_sli,
     debug,
 ):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
@@ -302,14 +302,14 @@ def _write_cum_reward_sli_debug_tsv(
         n_ctrl1 = np.asarray(debug["n_ctrl1"], dtype=float)
         reward_pi_exp = np.asarray(reward_pi_exp, dtype=float)
         reward_pi_yoked = np.asarray(reward_pi_yoked, dtype=float)
-        sli_vs_cum_rewards = np.asarray(sli_vs_cum_rewards, dtype=float)
+        running_sli = np.asarray(running_sli, dtype=float)
         sli_scalar = np.asarray(sli_scalar, dtype=float).reshape(-1)
         for vi, va in enumerate(vas):
             video_id = str(getattr(va, "fn", f"va_{vi}"))
             for tj, tick in enumerate(ticks):
                 pi_exp = reward_pi_exp[vi, tj]
                 pi_yok = reward_pi_yoked[vi, tj]
-                sli = sli_vs_cum_rewards[vi, tj]
+                sli = running_sli[vi, tj]
                 writer.writerow(
                     {
                         "video_index": vi,
@@ -332,7 +332,7 @@ def _write_cum_reward_sli_debug_tsv(
                 )
 
 
-def export_cum_reward_sli_bundle(vas, opts, gls, out_fn):
+def export_running_pi_sli_bundle(vas, opts, gls, out_fn):
     from analyze import bucketLenForType
 
     if not out_fn.lower().endswith(".npz"):
@@ -346,24 +346,24 @@ def export_cum_reward_sli_bundle(vas, opts, gls, out_fn):
 
     group_label = _safe_group_label(opts, gls)
     selected_trainings = _selected_training_indices(vas_ok, opts)
-    tick_spacing = max(1, int(getattr(opts, "cum_reward_sli_tick_spacing", 5) or 5))
+    tick_spacing = max(1, int(getattr(opts, "running_pi_sli_tick_spacing", 5) or 5))
     skip_first = max(0, int(getattr(opts, "skip_first_sync_buckets", 0) or 0))
     keep_first = max(0, int(getattr(opts, "keep_first_sync_buckets", 0) or 0))
     pi_threshold = max(0, int(getattr(opts, "piTh", 10) or 0))
-    min_fly_pct = float(getattr(opts, "cum_reward_sli_min_fly_pct", 95.0) or 0.0)
-    raw_max_rewards = getattr(opts, "cum_reward_sli_max_rewards", None)
+    min_fly_pct = float(getattr(opts, "running_pi_sli_min_fly_pct", 95.0) or 0.0)
+    raw_max_rewards = getattr(opts, "running_pi_sli_max_rewards", None)
     max_rewards = None if raw_max_rewards is None else max(0, int(raw_max_rewards))
 
     try:
         sli, sli_ts_full = _compute_sli_scalar_and_timeseries_from_rpid(vas_ok, opts)
     except Exception as e:
-        print(f"[export] WARNING: failed to compute SLI for cum_reward_sli bundle: {e}")
+        print(f"[export] WARNING: failed to compute SLI for running_pi_sli bundle: {e}")
         sli = np.full((len(vas_ok),), np.nan, dtype=float)
         sli_ts_full = np.full((len(vas_ok), 0, 0), np.nan, dtype=float)
 
     (
-        cum_reward_ticks,
-        sli_vs_cum_rewards,
+        running_pi_ticks,
+        running_sli,
         reward_pi_exp,
         reward_pi_yoked,
         total_actual_rewards,
@@ -413,22 +413,22 @@ def export_cum_reward_sli_bundle(vas, opts, gls, out_fn):
         out_fn,
         sli=np.asarray(sli, dtype=float),
         sli_ts=np.asarray(sli_ts_full, dtype=float),
-        cum_reward_sli_curve=np.asarray(sli_vs_cum_rewards, dtype=float),
-        cum_reward_sli_ticks=np.asarray(cum_reward_ticks, dtype=float),
-        cum_reward_sli_tick_spacing=np.array(tick_spacing, dtype=int),
-        cum_reward_sli_pi_threshold=np.array(pi_threshold, dtype=int),
-        cum_reward_sli_min_fly_pct=np.array(min_fly_pct, dtype=float),
-        cum_reward_sli_max_rewards=(
+        running_pi_sli_curve=np.asarray(running_sli, dtype=float),
+        running_pi_sli_ticks=np.asarray(running_pi_ticks, dtype=float),
+        running_pi_sli_tick_spacing=np.array(tick_spacing, dtype=int),
+        running_pi_sli_pi_threshold=np.array(pi_threshold, dtype=int),
+        running_pi_sli_min_fly_pct=np.array(min_fly_pct, dtype=float),
+        running_pi_sli_max_rewards=(
             np.array(-1 if max_rewards is None else max_rewards, dtype=int)
         ),
-        cum_reward_sli_reward_pi_exp=np.asarray(reward_pi_exp, dtype=float),
-        cum_reward_sli_reward_pi_yoked=np.asarray(reward_pi_yoked, dtype=float),
-        cum_reward_sli_total_actual_rewards=np.asarray(total_actual_rewards, dtype=int),
-        cum_reward_sli_trainings=np.asarray(
+        running_pi_sli_reward_pi_exp=np.asarray(reward_pi_exp, dtype=float),
+        running_pi_sli_reward_pi_yoked=np.asarray(reward_pi_yoked, dtype=float),
+        running_pi_sli_total_actual_rewards=np.asarray(total_actual_rewards, dtype=int),
+        running_pi_sli_trainings=np.asarray(
             np.array(selected_trainings, dtype=int) + 1, dtype=int
         ),
-        cum_reward_sli_skip_first_sync_buckets=np.array(skip_first, dtype=int),
-        cum_reward_sli_keep_first_sync_buckets=np.array(keep_first, dtype=int),
+        running_pi_sli_skip_first_sync_buckets=np.array(skip_first, dtype=int),
+        running_pi_sli_keep_first_sync_buckets=np.array(keep_first, dtype=int),
         group_label=np.array(group_label, dtype=object),
         bucket_len_min=np.array(bucket_len_min, dtype=float),
         training_names=training_names,
@@ -439,19 +439,19 @@ def export_cum_reward_sli_bundle(vas, opts, gls, out_fn):
             bool(getattr(opts, "sli_use_training_mean", False))
         ),
     )
-    print(f"[export] Wrote cum_reward_sli+SLI bundle: {out_fn} (n={n_videos})")
-    debug_tsv = getattr(opts, "cum_reward_sli_debug_tsv", None)
+    print(f"[export] Wrote running_pi_sli bundle: {out_fn} (n={n_videos})")
+    debug_tsv = getattr(opts, "running_pi_sli_debug_tsv", None)
     if debug_tsv:
-        _write_cum_reward_sli_debug_tsv(
+        _write_running_pi_sli_debug_tsv(
             debug_tsv,
             vas=vas_ok,
             group_label=group_label,
             sli_scalar=sli,
-            ticks=cum_reward_ticks,
+            ticks=running_pi_ticks,
             total_actual_rewards=total_actual_rewards,
             reward_pi_exp=reward_pi_exp,
             reward_pi_yoked=reward_pi_yoked,
-            sli_vs_cum_rewards=sli_vs_cum_rewards,
+            running_sli=running_sli,
             debug=debug,
         )
-        print(f"[export] Wrote cum_reward_sli debug TSV: {debug_tsv}")
+        print(f"[export] Wrote running_pi_sli debug TSV: {debug_tsv}")
