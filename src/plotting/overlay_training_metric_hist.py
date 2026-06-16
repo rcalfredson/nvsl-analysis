@@ -330,6 +330,27 @@ def _wrapped_xlabel_text(text: str) -> str:
     return text
 
 
+def _wrapped_ylabel_text(text: str) -> str:
+    text = str(text)
+    if "\n" in text:
+        return text
+    for phrase in (
+        " between-rewards ",
+        " between-reward ",
+        " of all ",
+        " without wall contact",
+        " per ",
+    ):
+        if phrase in text:
+            before, after = text.split(phrase, 1)
+            return f"{before}\n{phrase.strip()} {after}".rstrip()
+    if ", " in text:
+        return text.replace(", ", ",\n", 1)
+    if " (" in text:
+        return text.replace(" (", "\n(", 1)
+    return text
+
+
 def _ensure_xlabel_visible(fig: plt.Figure, axes: list[plt.Axes]) -> None:
     if not axes:
         return
@@ -404,6 +425,77 @@ def _ensure_xlabel_visible(fig: plt.Figure, axes: list[plt.Axes]) -> None:
         new_right = fig.subplotpars.right
 
     fig.subplots_adjust(bottom=new_bottom, left=new_left, right=new_right)
+    fig.canvas.draw()
+
+
+def _ensure_ylabel_visible(fig: plt.Figure, axes: list[plt.Axes]) -> None:
+    if not axes:
+        return
+
+    labels = [ax.yaxis.get_label() for ax in axes if ax.yaxis.get_label().get_text()]
+    if not labels:
+        return
+
+    for label in labels:
+        wrapped = _wrapped_ylabel_text(label.get_text())
+        if wrapped != label.get_text():
+            label.set_text(wrapped)
+
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    fig_bbox = fig.bbox
+    pad_x_px = max(
+        8.0, max(0.55 * float(label.get_fontsize()) + 4.0 for label in labels)
+    )
+    pad_y_px = max(
+        10.0, max(0.45 * float(label.get_fontsize()) + 4.0 for label in labels)
+    )
+
+    def _labels_within_bounds() -> bool:
+        for label in labels:
+            bbox = label.get_window_extent(renderer=renderer)
+            x_ok = bbox.x0 >= fig_bbox.x0 + pad_x_px
+            y_ok = (
+                bbox.y0 >= fig_bbox.y0 + pad_y_px
+                and bbox.y1 <= fig_bbox.y1 - pad_y_px
+            )
+            if not (x_ok and y_ok):
+                return False
+        return True
+
+    if _labels_within_bounds():
+        return
+
+    overflow_left_px = 0.0
+    overflow_bottom_px = 0.0
+    overflow_top_px = 0.0
+    for label in labels:
+        bbox = label.get_window_extent(renderer=renderer)
+        overflow_left_px = max(
+            overflow_left_px, max((fig_bbox.x0 + pad_x_px) - bbox.x0, 0.0)
+        )
+        overflow_bottom_px = max(
+            overflow_bottom_px, max((fig_bbox.y0 + pad_y_px) - bbox.y0, 0.0)
+        )
+        overflow_top_px = max(
+            overflow_top_px, max(bbox.y1 - (fig_bbox.y1 - pad_y_px), 0.0)
+        )
+
+    fig_h_px = max(fig.get_size_inches()[1] * fig.dpi, 1.0)
+    fig_w_px = max(fig.get_size_inches()[0] * fig.dpi, 1.0)
+
+    extra_left = float(overflow_left_px / fig_w_px) + 0.01
+    extra_bottom = float(overflow_bottom_px / fig_h_px) + 0.005
+    extra_top = float(overflow_top_px / fig_h_px) + 0.005
+
+    new_left = min(fig.subplotpars.left + extra_left, 0.28)
+    new_bottom = min(fig.subplotpars.bottom + extra_bottom, 0.22)
+    new_top = max(fig.subplotpars.top - extra_top, 0.82)
+    if new_top <= new_bottom:
+        new_bottom = fig.subplotpars.bottom
+        new_top = fig.subplotpars.top
+
+    fig.subplots_adjust(left=new_left, bottom=new_bottom, top=new_top)
     fig.canvas.draw()
 
 
@@ -1277,5 +1369,6 @@ def plot_overlays(
     else:
         fig.tight_layout()
     fig.subplots_adjust(right=min(fig.subplotpars.right, 0.74))
+    _ensure_ylabel_visible(fig, list(axes))
     _ensure_xlabel_visible(fig, list(axes))
     return fig

@@ -19,12 +19,14 @@ from src.plotting.training_metric_histogram import (
 )
 
 
-DEFAULT_MAX_DISTANCE_BIN_EDGES_MM = tuple(float(x) for x in range(0, 31, 5))
+DEFAULT_MAX_DISTANCE_BIN_EDGES_MM = tuple(float(x) for x in range(0, 17, 2))
 
 
 @dataclass
 class BetweenRewardMaxDistanceHistogramConfig(TrainingMetricHistogramConfig):
     metric_palette_family: str | None = "between_reward_distance"
+    y_label: str | None = "Fraction of all between-rewards trajectories"
+    normalize_denominator: str = "raw"
 
 
 class BetweenRewardMaxDistanceHistogramPlotter(TrainingMetricHistogramPlotter):
@@ -45,8 +47,8 @@ class BetweenRewardMaxDistanceHistogramPlotter(TrainingMetricHistogramPlotter):
             customizer=customizer,
             cfg=cfg,
             log_tag="btw_rwd_maxdist",
-            x_label="Maximum distance from reward circle center (mm)",
-            base_title="Between-reward trajectory maximum distance",
+            x_label="Max distance from reward center (mm)",
+            base_title="Max-distance distribution",
         )
 
     def _collect_fly_training_values(self, va, *, t_idx: int, trn, f: int):
@@ -148,6 +150,9 @@ class BetweenRewardMaxDistanceHistogramPlotter(TrainingMetricHistogramPlotter):
             {
                 "metric": "between_reward_max_distance_hist",
                 "distance_reference": "reward_circle_center",
+                "normalization_denominator_scope": (
+                    "all_finite_trajectories_before_histogram_range_clipping"
+                ),
                 "min_trajectories_per_fly_window": (
                     min_between_reward_sync_bucket_trajectories(self.opts)
                 ),

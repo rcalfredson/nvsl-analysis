@@ -1877,7 +1877,7 @@ g.add_argument(
     default=None,
     help=(
         "Comma-separated maximum-distance bin edges in mm. "
-        "Default: 0,5,10,15,20,25,30."
+        "Default: 0,2,4,6,8,10,12,14,16."
     ),
 )
 g.add_argument(

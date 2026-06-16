@@ -67,10 +67,10 @@ def _plotter(va, *, require_bucket=True):
     )
 
 
-def test_max_distance_histogram_defaults_to_five_mm_edges():
+def test_max_distance_histogram_defaults_to_two_mm_edges():
     np.testing.assert_allclose(
         DEFAULT_MAX_DISTANCE_BIN_EDGES_MM,
-        [0, 5, 10, 15, 20, 25, 30],
+        [0, 2, 4, 6, 8, 10, 12, 14, 16],
     )
 
 
@@ -80,8 +80,15 @@ def test_five_trajectory_gate_is_applied_before_histogram_range_clipping():
     assert data["panel_labels"] == ["T2"]
     assert data["n_units_panel"].tolist() == [1]
     assert data["n_raw"].tolist() == [5]
-    assert data["n_used"].tolist() == [4]
-    np.testing.assert_allclose(data["mean"][0], [0.25, 0.25, 0.25, 0.25, 0, 0])
+    assert data["n_used"].tolist() == [3]
+    np.testing.assert_allclose(data["mean"][0], [0.2, 0, 0, 0.2, 0, 0, 0.2, 0])
+    assert data["meta"]["base_title"] == "Max-distance distribution"
+    assert data["meta"]["x_label"] == "Max distance from reward center (mm)"
+    assert (
+        data["meta"]["y_label"]
+        == "Fraction of all between-rewards trajectories"
+    )
+    assert data["meta"]["normalize_denominator"] == "raw"
     assert data["meta"]["min_trajectories_per_fly_window"] == 5
     assert data["meta"]["min_trajectories_applied_before_range_clipping"] is True
 

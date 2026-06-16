@@ -111,7 +111,13 @@ def main() -> None:
     if args.xlabel is None:
         args.xlabel = hists[0].meta.get("x_label", None)
     if args.ylabel is None:
-        args.ylabel = "proportion" if args.mode == "pdf" else "cumulative proportion"
+        args.ylabel = (
+            hists[0].meta.get("y_label", None) if args.mode == "pdf" else None
+        )
+        if args.ylabel is None:
+            args.ylabel = (
+                "proportion" if args.mode == "pdf" else "cumulative proportion"
+            )
     # Title behavior:
     # - default: no suptitle
     # - is user provides --title: use it

@@ -46,6 +46,11 @@ class TrainingMetricHistogramConfig:
     # Omit figure suptitle by default
     show_suptitle: bool = False
     metric_palette_family: str | None = None
+    y_label: str | None = None
+    # Denominator used when normalize=True. "used" matches the historical behavior
+    # of dividing by values inside the displayed histogram range. "raw" divides by
+    # all finite values before range clipping.
+    normalize_denominator: str = "used"
 
 
 class TrainingMetricHistogramPlotter:
@@ -200,6 +205,16 @@ class TrainingMetricHistogramPlotter:
             self._effective_keep_first_sync_buckets(),
         )
 
+    def _normalize_denominator_mode(self) -> str:
+        mode = str(getattr(self.cfg, "normalize_denominator", "used") or "used")
+        mode = mode.lower().strip()
+        if mode not in {"used", "raw"}:
+            raise ValueError(
+                "normalize_denominator must be either 'used' or 'raw'; "
+                f"got {mode!r}"
+            )
+        return mode
+
     def _effective_xmax(self, vals_by_panel: list[np.ndarray]) -> float | None:
         """
         Determine a deterministic xmax to use for bin edges.
@@ -353,6 +368,7 @@ class TrainingMetricHistogramPlotter:
           - mean, ci_lo, ci_hi, n_units (per-fly mode): np.ndarray shapes (n_panels, bins, )
         """
         sel_info = {}
+        normalize_denominator = self._normalize_denominator_mode()
         user_edges = self._validated_bin_edges()
         user_edge_groups = isinstance(user_edges, list)
 
@@ -401,12 +417,14 @@ class TrainingMetricHistogramPlotter:
                     "meta": {
                         "log_tag": self.log_tag,
                         "x_label": self.x_label,
+                        "y_label": self.cfg.y_label,
                         "base_title": self.base_title,
                         "binning": binning_mode,
                         "bins_user": int(self.cfg.bins),
                         "bins": int(bins_eff),
                         "bin_edges_user": bin_edges_user,
                         "normalize": bool(self.cfg.normalize),
+                        "normalize_denominator": normalize_denominator,
                         "xmin_effective": xmin_effective,
                         "xmax_user": self.cfg.xmax,
                         "xmax_effective": None,
@@ -444,12 +462,14 @@ class TrainingMetricHistogramPlotter:
                 "meta": {
                     "log_tag": self.log_tag,
                     "x_label": self.x_label,
+                    "y_label": self.cfg.y_label,
                     "base_title": self.base_title,
                     "binning": binning_mode,
                     "bins_user": int(self.cfg.bins),
                     "bins": int(bins_eff),
                     "bin_edges_user": bin_edges_user,
                     "normalize": bool(self.cfg.normalize),
+                    "normalize_denominator": normalize_denominator,
                     "xmin_effective": xmin_effective,
                     "xmax_user": self.cfg.xmax,
                     "xmax_effective": None,
@@ -509,11 +529,13 @@ class TrainingMetricHistogramPlotter:
                             "meta": {
                                 "log_tag": self.log_tag,
                                 "x_label": self.x_label,
+                                "y_label": self.cfg.y_label,
                                 "base_title": self.base_title,
                                 "binning": binning_mode,
                                 "bins_user": int(self.cfg.bins),
                                 "bins": int(bins_eff),
                                 "normalize": bool(self.cfg.normalize),
+                                "normalize_denominator": normalize_denominator,
                                 "bin_edges_user": bin_edges_user,
                                 "xmin_effective": xmin_effective,
                                 "xmax_user": self.cfg.xmax,
@@ -593,11 +615,13 @@ class TrainingMetricHistogramPlotter:
                             "meta": {
                                 "log_tag": self.log_tag,
                                 "x_label": self.x_label,
+                                "y_label": self.cfg.y_label,
                                 "base_title": self.base_title,
                                 "binning": binning_mode,
                                 "bins_user": int(self.cfg.bins),
                                 "bins": int(bins_eff),
                                 "normalize": bool(self.cfg.normalize),
+                                "normalize_denominator": normalize_denominator,
                                 "bin_edges_user": bin_edges_user,
                                 "xmin_effective": xmin_effective,
                                 "xmax_user": self.cfg.xmax,
@@ -727,7 +751,7 @@ class TrainingMetricHistogramPlotter:
                         continue
 
                     vv_used = _clip(vv)
-                    if vv_used.size == 0:
+                    if vv_used.size == 0 and normalize_denominator != "raw":
                         continue
 
                     # Enforce min_n consistently for diagnostics too
@@ -802,7 +826,7 @@ class TrainingMetricHistogramPlotter:
                 # Per-fly histograms
                 fly_hists: list[np.ndarray] = []
 
-                for vv_used in used_all:
+                for vv_raw, vv_used in zip(raw_all, used_all):
                     # vv_used is already finite, clipped, and min_n-filtered
                     if user_edge_groups:
                         parts = []
@@ -815,7 +839,10 @@ class TrainingMetricHistogramPlotter:
 
                     c = c.astype(float, copy=False)
                     if self.cfg.normalize:
-                        tot = float(np.sum(c))
+                        if normalize_denominator == "raw":
+                            tot = float(vv_raw.size)
+                        else:
+                            tot = float(np.sum(c))
                         if tot > 0:
                             c = c / tot
                         else:
@@ -970,6 +997,7 @@ class TrainingMetricHistogramPlotter:
         meta = {
             "log_tag": self.log_tag,
             "x_label": self.x_label,
+            "y_label": self.cfg.y_label,
             "base_title": self.base_title,
             "metric_palette_family": normalize_metric_palette_family(
                 getattr(self.cfg, "metric_palette_family", None)
@@ -982,6 +1010,7 @@ class TrainingMetricHistogramPlotter:
             "bins": int(bins_eff),  # effective payload bins
             "bin_edges_user": bin_edges_user,  # explicit edges (if provided)
             "normalize": bool(self.cfg.normalize),
+            "normalize_denominator": normalize_denominator,
             "xmax_user": self.cfg.xmax,
             "xmax_effective": eff_xmax,
             "xmin_effective": float(lo_edge),
@@ -1195,7 +1224,9 @@ class TrainingMetricHistogramPlotter:
             ax.set_title(label)
             ax.set_xlabel(self.x_label)
             if idx == 0:
-                if self.cfg.per_fly:
+                if self.cfg.y_label:
+                    ax.set_ylabel(self.cfg.y_label)
+                elif self.cfg.per_fly:
                     ax.set_ylabel(
                         "Proportion"
                         if self.cfg.normalize
