@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FormatStrFormatter, MaxNLocator, ScalarFormatter
 
 from src.plotting.bin_edges import (
     is_grouped_edges,
@@ -42,6 +43,13 @@ class ExportedTrainingHistogram:
         np.ndarray | None
     )  # object array length n_panels; each entry (N_panel, bins)
     per_unit_ids_panel: (
+        np.ndarray | None
+    )  # object array length n_panels; each entry (N_panel,)
+    overflow_mean: np.ndarray | None  # (n_panels,)
+    overflow_ci_lo: np.ndarray | None  # (n_panels,)
+    overflow_ci_hi: np.ndarray | None  # (n_panels,)
+    overflow_n_units: np.ndarray | None  # (n_panels,)
+    overflow_per_unit_panel: (
         np.ndarray | None
     )  # object array length n_panels; each entry (N_panel,)
     # bin_edges:
@@ -543,6 +551,21 @@ def load_export_npz(group: str, path: str) -> ExportedTrainingHistogram:
     per_unit_ids_panel = _maybe_none_array(
         d["per_unit_ids_panel"] if "per_unit_ids_panel" in d.files else None
     )
+    overflow_mean = _maybe_none_array(
+        d["overflow_mean"] if "overflow_mean" in d.files else None
+    )
+    overflow_ci_lo = _maybe_none_array(
+        d["overflow_ci_lo"] if "overflow_ci_lo" in d.files else None
+    )
+    overflow_ci_hi = _maybe_none_array(
+        d["overflow_ci_hi"] if "overflow_ci_hi" in d.files else None
+    )
+    overflow_n_units = _maybe_none_array(
+        d["overflow_n_units"] if "overflow_n_units" in d.files else None
+    )
+    overflow_per_unit_panel = _maybe_none_array(
+        d["overflow_per_unit_panel"] if "overflow_per_unit_panel" in d.files else None
+    )
     bin_edges = np.asarray(d["bin_edges"])
     n_used = np.asarray(d["n_used"])
     meta_json = d["meta_json"].item() if "meta_json" in d.files else "{}"
@@ -560,6 +583,11 @@ def load_export_npz(group: str, path: str) -> ExportedTrainingHistogram:
         n_units_panel=n_units_panel,
         per_unit_panel=per_unit_panel,
         per_unit_ids_panel=per_unit_ids_panel,
+        overflow_mean=overflow_mean,
+        overflow_ci_lo=overflow_ci_lo,
+        overflow_ci_hi=overflow_ci_hi,
+        overflow_n_units=overflow_n_units,
+        overflow_per_unit_panel=overflow_per_unit_panel,
         bin_edges=bin_edges,
         n_raw=np.asarray(d["n_raw"]) if "n_raw" in d.files else None,
         n_used=n_used,
@@ -667,6 +695,76 @@ def _panel_y(h: ExportedTrainingHistogram, p_idx: int) -> np.ndarray:
         return np.asarray(h.counts[p_idx], dtype=float)
 
 
+def _panel_overflow_y(h: ExportedTrainingHistogram, p_idx: int) -> float:
+    if h.overflow_mean is not None and np.asarray(h.overflow_mean).shape[0] > p_idx:
+        value = float(np.asarray(h.overflow_mean, dtype=float)[p_idx])
+        if np.isfinite(value):
+            return value
+
+    if h.n_raw is None or h.n_dropped is None:
+        return np.nan
+    n_raw = np.asarray(h.n_raw, dtype=float)
+    n_dropped = np.asarray(h.n_dropped, dtype=float)
+    if n_raw.shape[0] <= p_idx or n_dropped.shape[0] <= p_idx:
+        return np.nan
+    if n_raw[p_idx] <= 0:
+        return np.nan
+    return float(n_dropped[p_idx] / n_raw[p_idx])
+
+
+def _panel_overflow_per_unit(
+    h: ExportedTrainingHistogram,
+    p_idx: int,
+) -> np.ndarray | None:
+    pu_obj = getattr(h, "overflow_per_unit_panel", None)
+    if pu_obj is None or np.asarray(pu_obj, dtype=object).shape[0] <= p_idx:
+        return None
+    values = pu_obj[p_idx]
+    if values is None:
+        return None
+    arr = np.asarray(values, dtype=float).reshape(-1, 1)
+    return arr
+
+
+def _panel_overflow_ci(
+    h: ExportedTrainingHistogram,
+    p_idx: int,
+) -> tuple[float, float] | None:
+    if h.overflow_ci_lo is None or h.overflow_ci_hi is None:
+        return None
+    lo_arr = np.asarray(h.overflow_ci_lo, dtype=float)
+    hi_arr = np.asarray(h.overflow_ci_hi, dtype=float)
+    if lo_arr.shape[0] <= p_idx or hi_arr.shape[0] <= p_idx:
+        return None
+    lo = float(lo_arr[p_idx])
+    hi = float(hi_arr[p_idx])
+    if not (np.isfinite(lo) and np.isfinite(hi)):
+        return None
+    return lo, hi
+
+
+def _restore_overflow_y_ticks(ax: plt.Axes) -> None:
+    ax.yaxis.set_major_formatter(ScalarFormatter())
+    ax.yaxis.set_major_locator(MaxNLocator(nbins=4))
+    ax.yaxis.tick_right()
+    ax.yaxis.set_label_position("right")
+    ax.tick_params(
+        axis="y",
+        which="both",
+        right=True,
+        labelright=True,
+        left=False,
+        labelleft=False,
+    )
+
+
+def _restore_fraction_y_tick_precision(axes: list[plt.Axes]) -> None:
+    for ax in axes:
+        ylim0, ylim1 = ax.get_ylim()
+        if np.isfinite(ylim0) and np.isfinite(ylim1) and ylim1 <= 1.0:
+            ax.yaxis.set_major_formatter(FormatStrFormatter("%.2f"))
+
+
 def plot_overlays(
     hists: list[ExportedTrainingHistogram],
     *,
@@ -680,6 +778,9 @@ def plot_overlays(
     stats_alpha: float = 0.05,
     stats_paired: bool = False,
     xmax_plot: float | None = None,
+    overflow: bool = False,
+    overflow_threshold: float | None = None,
+    overflow_ymax: float | None = None,
     categorical_bin_ratio_max: float = 4.0,
     debug: bool = False,
     opts=None,
@@ -693,6 +794,8 @@ def plot_overlays(
         raise ValueError("layout must be 'overlay' or 'grouped'")
     if layout == "grouped" and mode != "pdf":
         raise ValueError("layout='grouped' is implemented for mode='pdf' only")
+    if overflow and (mode != "pdf" or layout != "grouped"):
+        raise ValueError("overflow subplot is implemented for grouped PDF plots only")
 
     validate_alignment(hists)
     metric_palette_family = _metric_palette_family_from_hist_exports(hists)
@@ -712,6 +815,9 @@ def plot_overlays(
     )
     panel_labels = hists[0].panel_labels
     n_panels = len(panel_labels)
+    show_overflow = bool(overflow)
+    if show_overflow and n_panels != 1:
+        raise ValueError("overflow subplot currently requires a single panel")
 
     # ---- figure sizing ----
     G = len(hists)
@@ -731,17 +837,36 @@ def plot_overlays(
     else:
         width_scale = min(1.0 + 0.10 * (font_scale - 1.0), 1.18)
     fig_width = panel_width * n_panels * width_scale
+    if show_overflow:
+        fig_width *= 1.20
     fig_height = 4.5 * min(1.0 + 0.10 * (font_scale - 1.0), 1.20)
     capsize = 1.25 if layout == "grouped" else 2.0
 
-    fig, axes = plt.subplots(
-        1,
-        n_panels,
-        figsize=(fig_width, fig_height),
-        squeeze=False,
-        sharey=True,
-    )
-    axes = axes[0]
+    if show_overflow:
+        fig = plt.figure(figsize=(fig_width, fig_height))
+        grid = fig.add_gridspec(
+            2,
+            2,
+            width_ratios=[1.0, 0.52],
+            height_ratios=[0.42, 0.58],
+            wspace=0.08,
+            hspace=0.34,
+        )
+        axes = np.asarray([fig.add_subplot(grid[:, 0])], dtype=object)
+        legend_ax = fig.add_subplot(grid[0, 1])
+        legend_ax.set_axis_off()
+        overflow_ax = fig.add_subplot(grid[1, 1])
+    else:
+        fig, axes = plt.subplots(
+            1,
+            n_panels,
+            figsize=(fig_width, fig_height),
+            squeeze=False,
+            sharey=True,
+        )
+        axes = axes[0]
+        legend_ax = None
+        overflow_ax = None
 
     edges = hists[0].bin_edges
     # For a step plot, we’ll use edges and a y of length bins+1
@@ -816,13 +941,13 @@ def plot_overlays(
                 # Categorical x positions: 0,1,2... so bins have equal spacing
                 centers_x = np.arange(B, dtype=float)
 
-                group_band = 0.80
+                group_band = 0.86
                 bar_w = np.full((B,), group_band / G, dtype=float)
             else:
                 # Proportional x positions: respect bin widths
                 centers_x = centers
 
-                group_band = 0.95 * widths
+                group_band = 0.86 * widths
                 bar_w = group_band / G
 
             gpos = (np.arange(G) - (G - 1) / 2.0)[:, None]  # (G,1)
@@ -1199,7 +1324,7 @@ def plot_overlays(
             ax.set_xlabel(xlabel)
         if p_idx == 0:
             if ylabel:
-                ax.set_ylabel(ylabel)
+                ax.set_ylabel(_wrapped_ylabel_text(ylabel))
 
         if ymax is not None:
             ax.set_ylim(bottom=0, top=float(ymax))
@@ -1335,17 +1460,153 @@ def plot_overlays(
                     zorder=9,
                 )
 
-        ax.legend(
-            loc="upper left",
-            bbox_to_anchor=(1.02, 1.0),
-            borderaxespad=0.0,
-            prop={"style": "italic", "size": legend_font_size},
+        if not show_overflow:
+            ax.legend(
+                loc="upper left",
+                bbox_to_anchor=(1.02, 1.0),
+                borderaxespad=0.0,
+                prop={"style": "italic", "size": legend_font_size},
+            )
+
+    if show_overflow and overflow_ax is not None:
+        p_idx = 0
+        threshold = overflow_threshold
+        if threshold is None or not np.isfinite(float(threshold)):
+            panel_edges = normalize_panel_edges(hists[0].bin_edges[p_idx])
+            if is_grouped_edges(panel_edges):
+                threshold = float(panel_edges[-1][-1])
+            else:
+                threshold = float(panel_edges[-1])
+        threshold = float(threshold)
+        overflow_values = np.asarray(
+            [_panel_overflow_y(h, p_idx) for h in hists],
+            dtype=float,
         )
+        G_over = max(1, len(hists))
+        center = np.asarray([0.0], dtype=float)
+        bar_w_over = 0.70 / G_over
+        offsets_over = (np.arange(G_over, dtype=float) - (G_over - 1) / 2.0) * bar_w_over
+        xpos_by_group_over: list[np.ndarray] = []
+        per_unit_by_group_over: list[np.ndarray | None] = []
+        per_unit_ids_by_group_over: list[np.ndarray | None] = []
+        hi_by_group_over: list[np.ndarray] = []
+
+        for g_idx, h in enumerate(hists):
+            y = float(overflow_values[g_idx])
+            x = center + offsets_over[g_idx]
+            xpos_by_group_over.append(np.asarray(x, dtype=float))
+            pu_over = _panel_overflow_per_unit(h, p_idx)
+            per_unit_by_group_over.append(pu_over)
+
+            ids = None
+            ids_obj = getattr(h, "per_unit_ids_panel", None)
+            if ids_obj is not None and np.asarray(ids_obj).shape[0] > p_idx:
+                ids = np.asarray(ids_obj[p_idx], dtype=object).ravel()
+            per_unit_ids_by_group_over.append(ids)
+
+            ci = _panel_overflow_ci(h, p_idx)
+            hi_val = y
+            if ci is not None:
+                _lo, hi_val = ci
+            hi_by_group_over.append(np.asarray([hi_val], dtype=float))
+
+            bar_color = group_metric_fill_color(g_idx, metric_palette_family)
+            edge_color = group_metric_edge_color(g_idx, metric_palette_family)
+            overflow_ax.bar(
+                x,
+                0.0 if not np.isfinite(y) else y,
+                width=bar_w_over,
+                align="center",
+                label=f"{h.group} (n={_panel_n_label(h, p_idx)})",
+                color=bar_color,
+                edgecolor=edge_color,
+                alpha=0.90,
+                linewidth=0.9,
+            )
+            if ci is not None and np.isfinite(y):
+                lo, hi = ci
+                if np.isfinite(lo) and np.isfinite(hi):
+                    overflow_ax.errorbar(
+                        x,
+                        [y],
+                        yerr=np.asarray([[y - lo], [hi - y]], dtype=float),
+                        fmt="none",
+                        ecolor=NEUTRAL_DARK,
+                        capsize=capsize,
+                        capthick=1.0,
+                        elinewidth=1.0,
+                        alpha=0.9,
+                        zorder=3,
+                    )
+
+        overflow_ax.set_xticks(center)
+        overflow_ax.set_xticklabels([f"{threshold:g}+"])
+        overflow_ax.set_xlim(-0.5, 0.5)
+        overflow_ax.set_ylim(bottom=0)
+        if overflow_ymax is not None:
+            overflow_ax.set_ylim(top=float(overflow_ymax))
+        overflow_ax.yaxis.tick_right()
+        overflow_ax.yaxis.set_label_position("right")
+        _restore_overflow_y_ticks(overflow_ax)
+        overflow_ax.set_ylabel("")
+
+        if stats:
+            if any(pu is None for pu in per_unit_by_group_over):
+                print(
+                    "[overlay_training_metric_hist] NOTE: overflow stats skipped; "
+                    "re-export bundles to include overflow_per_unit_panel."
+                )
+            else:
+                cfg_stats = StatAnnotConfig(
+                    alpha=float(stats_alpha),
+                    min_n_per_group=3,
+                    nlabel_off_frac=0.0,
+                )
+                bracket_tops = annotate_grouped_bars_per_bin(
+                    overflow_ax,
+                    x_centers=center,
+                    xpos_by_group=xpos_by_group_over,
+                    per_unit_by_group=per_unit_by_group_over,
+                    per_unit_ids_by_group=per_unit_ids_by_group_over,
+                    hi_by_group=hi_by_group_over,
+                    group_names=group_names,
+                    cfg=cfg_stats,
+                    paired=bool(stats_paired),
+                    panel_label=f"{panel_labels[p_idx]} overflow",
+                    debug=debug,
+                )
+                if overflow_ymax is None:
+                    finite_tops = np.asarray(bracket_tops, dtype=float)
+                    finite_tops = finite_tops[np.isfinite(finite_tops)]
+                    if finite_tops.size:
+                        ylim0, ylim1 = overflow_ax.get_ylim()
+                        y_rng = (
+                            float(ylim1 - ylim0)
+                            if np.isfinite(ylim1 - ylim0) and ylim1 > ylim0
+                            else 1.0
+                        )
+                        target_top = float(np.nanmax(finite_tops) + 0.04 * y_rng)
+                        if target_top > ylim1:
+                            overflow_ax.set_ylim(top=target_top)
+
+        handles, labels = overflow_ax.get_legend_handles_labels()
+        if legend_ax is not None and handles:
+            legend_ax.legend(
+                handles,
+                labels,
+                loc="upper left",
+                bbox_to_anchor=(0.0, 1.0),
+                borderaxespad=0.0,
+                frameon=True,
+                prop={"style": "italic", "size": legend_font_size},
+            )
 
     if title:
         fig.suptitle(title)
     if customizer.customized:
-        customizer.adjust_padding_proportionally()
+        customizer.adjust_padding_proportionally(
+            wrap_legend_labels=not show_overflow,
+        )
         xlabel_text = next(
             (
                 ax.xaxis.get_label().get_text()
@@ -1358,17 +1619,24 @@ def plot_overlays(
         long_xlabel = len(str(xlabel_text).replace("\n", " ")) >= 36
         dense_grouped_layout = mode == "pdf" and layout == "grouped" and bins >= 6
         if dense_grouped_layout or (long_xlabel and font_scale >= 1.15):
-            bottom = 0.13 + 0.05 * max(font_scale - 1.0, 0.0)
+            bottom = 0.105 + 0.040 * max(font_scale - 1.0, 0.0)
             if dense_grouped_layout:
-                bottom += 0.02
+                bottom += 0.014
             if xlabel_lines == 1 and long_xlabel and font_scale >= 1.15:
-                bottom += 0.03
+                bottom += 0.018
             if xlabel_lines >= 2:
-                bottom += 0.05
+                bottom += 0.034
             fig.subplots_adjust(bottom=min(bottom, 0.30), right=0.97, top=0.96)
     else:
         fig.tight_layout()
-    fig.subplots_adjust(right=min(fig.subplotpars.right, 0.74))
+    if show_overflow:
+        fig.subplots_adjust(right=min(max(fig.subplotpars.right, 0.92), 0.97))
+    else:
+        fig.subplots_adjust(right=min(fig.subplotpars.right, 0.74))
     _ensure_ylabel_visible(fig, list(axes))
     _ensure_xlabel_visible(fig, list(axes))
+    if mode == "pdf":
+        _restore_fraction_y_tick_precision(list(axes))
+    if show_overflow and overflow_ax is not None:
+        _restore_overflow_y_ticks(overflow_ax)
     return fig

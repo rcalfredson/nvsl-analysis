@@ -70,6 +70,26 @@ def parse_args() -> argparse.Namespace:
         "Bins beyond xmax are omitted (PDF grouped bars).",
     )
     p.add_argument(
+        "--overflow",
+        action="store_true",
+        help=(
+            "Add a small grouped-bar subplot for values beyond the histogram range. "
+            "For per-fly raw-normalized exports this uses per-fly overflow fractions."
+        ),
+    )
+    p.add_argument(
+        "--overflow-threshold",
+        type=float,
+        default=None,
+        help="Label threshold for the overflow subplot, for example 16 for '16+'.",
+    )
+    p.add_argument(
+        "--overflow-ymax",
+        type=float,
+        default=None,
+        help="Optional fixed y max for the overflow subplot.",
+    )
+    p.add_argument(
         "--stats",
         action="store_true",
         help="Add per-bin one-way ANOVA + Holm posthoc stars (Welch or paired t-tests depending on --stats-paired).",
@@ -145,6 +165,9 @@ def main() -> None:
         stats_alpha=args.stats_alpha,
         stats_paired=args.stats_paired,
         xmax_plot=args.xmax_plot,
+        overflow=args.overflow,
+        overflow_threshold=args.overflow_threshold,
+        overflow_ymax=args.overflow_ymax,
         debug=args.stats_debug,
         opts=opts,
     )

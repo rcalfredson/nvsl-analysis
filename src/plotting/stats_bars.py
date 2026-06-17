@@ -309,7 +309,7 @@ def annotate_grouped_bars_per_bin(
     star_text_pad = max(2.0, 0.15 * fontsize_px) * data_per_px
     label_lines = 2 if cfg.show_p_value else 1
     star_text_height = label_lines * 1.05 * fontsize_px * data_per_px
-    step = bracket_h + cfg.stack_gap_frac * y_rng + (label_lines - 1) * star_text_height
+    step = bracket_h + star_text_height + star_text_pad + cfg.stack_gap_frac * y_rng
 
     gidx = {name: i for i, name in enumerate(group_names)}
     for j in range(B):

@@ -726,6 +726,11 @@ class TrainingMetricHistogramPlotter:
         n_units_panel_list: list[int] = []
         per_unit_panel_list: list[np.ndarray | None] = []
         per_unit_ids_panel_list: list[np.ndarray | None] = []
+        overflow_mean_list: list[float] = []
+        overflow_lo_list: list[float] = []
+        overflow_hi_list: list[float] = []
+        overflow_n_units_list: list[int] = []
+        overflow_per_unit_panel_list: list[np.ndarray | None] = []
 
         # for vals, label in zip(vals_by_panel, panel_labels):
         if self.cfg.per_fly:
@@ -825,6 +830,7 @@ class TrainingMetricHistogramPlotter:
 
                 # Per-fly histograms
                 fly_hists: list[np.ndarray] = []
+                fly_overflows: list[float] = []
 
                 for vv_raw, vv_used in zip(raw_all, used_all):
                     # vv_used is already finite, clipped, and min_n-filtered
@@ -849,6 +855,12 @@ class TrainingMetricHistogramPlotter:
                             c[:] = np.nan
 
                     fly_hists.append(c)
+                    overflow_value = np.nan
+                    if self.cfg.normalize and normalize_denominator == "raw":
+                        tot = float(vv_raw.size)
+                        if tot > 0:
+                            overflow_value = float((vv_raw.size - vv_used.size) / tot)
+                    fly_overflows.append(overflow_value)
 
                 n_units_panel_list.append(len(fly_hists))
                 if not fly_hists:
@@ -858,6 +870,11 @@ class TrainingMetricHistogramPlotter:
                     n_units = np.zeros((bins_eff,), dtype=int)
                     per_unit_panel_list.append(None)
                     per_unit_ids_panel_list.append(None)
+                    overflow_mean_list.append(np.nan)
+                    overflow_lo_list.append(np.nan)
+                    overflow_hi_list.append(np.nan)
+                    overflow_n_units_list.append(0)
+                    overflow_per_unit_panel_list.append(None)
                 else:
                     M = np.stack(fly_hists, axis=0)  # (n_units, bins)
                     mean = np.full((bins_eff,), np.nan, dtype=float)
@@ -866,6 +883,21 @@ class TrainingMetricHistogramPlotter:
                     n_units = np.zeros((bins_eff,), dtype=int)
                     per_unit_panel_list.append(M)
                     per_unit_ids_panel_list.append(np.asarray(used_ids, dtype=object))
+                    overflow_values = np.asarray(fly_overflows, dtype=float)
+                    overflow_per_unit_panel_list.append(overflow_values)
+                    (
+                        overflow_mean,
+                        overflow_lo,
+                        overflow_hi,
+                        overflow_n,
+                    ) = meanConfInt(
+                        overflow_values,
+                        conf=float(self.cfg.ci_conf),
+                    )
+                    overflow_mean_list.append(float(overflow_mean))
+                    overflow_lo_list.append(float(overflow_lo))
+                    overflow_hi_list.append(float(overflow_hi))
+                    overflow_n_units_list.append(int(overflow_n))
                     for j in range(bins_eff):
                         m, lo_j, hi_j, n_j = meanConfInt(
                             M[:, j], conf=float(self.cfg.ci_conf)
@@ -1054,6 +1086,17 @@ class TrainingMetricHistogramPlotter:
                     "per_unit_ids_panel": np.asarray(
                         per_unit_ids_panel_list, dtype=object
                     ),
+                    "overflow_mean": np.asarray(overflow_mean_list, dtype=float),
+                    "overflow_ci_lo": np.asarray(overflow_lo_list, dtype=float),
+                    "overflow_ci_hi": np.asarray(overflow_hi_list, dtype=float),
+                    "overflow_n_units": np.asarray(
+                        overflow_n_units_list,
+                        dtype=int,
+                    ),
+                    "overflow_per_unit_panel": np.asarray(
+                        overflow_per_unit_panel_list,
+                        dtype=object,
+                    ),
                 }
             )
         else:
@@ -1089,6 +1132,11 @@ class TrainingMetricHistogramPlotter:
             n_units_panel=data.get("n_units_panel", None),
             per_unit_panel=data.get("per_unit_panel", None),
             per_unit_ids_panel=data.get("per_unit_ids_panel", None),
+            overflow_mean=data.get("overflow_mean", None),
+            overflow_ci_lo=data.get("overflow_ci_lo", None),
+            overflow_ci_hi=data.get("overflow_ci_hi", None),
+            overflow_n_units=data.get("overflow_n_units", None),
+            overflow_per_unit_panel=data.get("overflow_per_unit_panel", None),
             meta_json=json.dumps(data["meta"], sort_keys=True),
         )
         print(f"[{self.log_tag}] wrote histogram export {out_npz}")
