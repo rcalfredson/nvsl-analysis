@@ -139,6 +139,33 @@ class WallContactsPerRewardIntervalPerFlyCollector:
         )
         return max_center_mm, max_past_perimeter_mm
 
+    @staticmethod
+    def _trajectory_length_mm(va, *, f: int, start: int, stop: int) -> float:
+        try:
+            traj = va.trx[f]
+            px_per_mm = float(va.xf.fctr) * float(va.ct.pxPerMmFloor())
+        except Exception:
+            return np.nan
+        if not np.isfinite(px_per_mm) or px_per_mm <= 0:
+            return np.nan
+
+        start = int(start)
+        stop = int(stop)
+        if stop <= start:
+            return np.nan
+
+        try:
+            dist_px = float(traj.distTrav(start, stop))
+        except Exception:
+            try:
+                steps = np.asarray(traj.d[start:stop], dtype=float)
+                dist_px = float(np.nansum(steps))
+            except Exception:
+                return np.nan
+        if not np.isfinite(dist_px):
+            return np.nan
+        return float(dist_px / px_per_mm)
+
     def _collect_wall_contact_interval_episode_rows(
         self,
         *,
@@ -225,6 +252,12 @@ class WallContactsPerRewardIntervalPerFlyCollector:
                             )
                         else:
                             max_center_mm, max_past_perimeter_mm = np.nan, np.nan
+                        trajectory_length_mm = self._trajectory_length_mm(
+                            va,
+                            f=f,
+                            start=start_frame,
+                            stop=end_frame,
+                        )
                         rows.append(
                             {
                                 "video_path": video_fn,
@@ -268,6 +301,7 @@ class WallContactsPerRewardIntervalPerFlyCollector:
                                     "contact_region_start_in_"
                                     "[start_reward_frame,end_reward_frame)"
                                 ),
+                                "trajectory_length_mm": trajectory_length_mm,
                                 "max_distance_from_reward_center_mm": max_center_mm,
                                 "max_distance_past_reward_perimeter_mm": (
                                     max_past_perimeter_mm
@@ -279,16 +313,21 @@ class WallContactsPerRewardIntervalPerFlyCollector:
 
     def _collect_wall_contact_interval_aggregates_by_training_per_fly(
         self,
-    ) -> list[list[tuple[str, float, int, int]]]:
+    ) -> list[list[tuple[str, float, int, int, float, int]]]:
         """
-        Return wall-contact sums, contactless counts, and interval counts per
+        Return wall-contact event sums, contactless counts, all interval counts,
+        wall-contact trajectory-length sums, and wall-contact interval counts per
         fly/training.
 
         The count is the number of valid between-reward intervals in the selected
-        sync-bucket window, so it is also the denominator for the episode filter.
+        sync-bucket window, so it is also the denominator for the event-count and
+        contactless-fraction episode filters. The wall-contact interval count is
+        the denominator for wall-contact-only trajectory-length means.
         """
         n_trn = self._n_trainings()
-        out: list[list[tuple[str, float, int, int]]] = [[] for _ in range(n_trn)]
+        out: list[list[tuple[str, float, int, int, float, int]]] = [
+            [] for _ in range(n_trn)
+        ]
         grouped: dict[tuple[int, str], list[dict]] = {}
         for row in self._collect_wall_contact_interval_episode_rows(
             include_target_ineligible=False
@@ -303,16 +342,47 @@ class WallContactsPerRewardIntervalPerFlyCollector:
                 [row["wall_contact_event_count"] for row in rows],
                 dtype=int,
             )
+            wall_lengths = [
+                float(row["trajectory_length_mm"])
+                for row in rows
+                if int(row["wall_contact_event_count"]) > 0
+                and np.isfinite(float(row["trajectory_length_mm"]))
+            ]
             out[t_idx].append(
                 (
                     uid,
                     float(np.sum(wall_counts)),
                     int(np.count_nonzero(wall_counts == 0)),
                     int(wall_counts.size),
+                    float(np.sum(wall_lengths)) if wall_lengths else 0.0,
+                    int(len(wall_lengths)),
                 )
             )
 
         return out
+
+    def _metric_value_from_aggregates(
+        self,
+        *,
+        total: float,
+        contactless_count: int,
+        count: int,
+        wall_length_sum: float,
+        wall_length_count: int,
+        min_intervals: int,
+    ) -> float:
+        metric = str(getattr(self.cfg, "metric", "mean_contacts") or "mean_contacts")
+        if metric == "wall_contact_trajectory_length":
+            if wall_length_count >= min_intervals and wall_length_count > 0:
+                return float(wall_length_sum) / float(wall_length_count)
+            return np.nan
+
+        if count >= min_intervals and count > 0:
+            numerator = (
+                contactless_count if metric == "contactless_fraction" else total
+            )
+            return float(numerator) / float(count)
+        return np.nan
 
     def _collect_wall_contact_interval_means_by_training_per_fly(
         self,
@@ -325,14 +395,24 @@ class WallContactsPerRewardIntervalPerFlyCollector:
 
         for panel in self._collect_wall_contact_interval_aggregates_by_training_per_fly():
             vals: list[tuple[str, float]] = []
-            for uid, total, contactless_count, count in panel:
-                if count >= min_intervals and count > 0:
-                    numerator = (
-                        contactless_count
-                        if self.cfg.metric == "contactless_fraction"
-                        else total
-                    )
-                    vals.append((uid, float(numerator) / float(count)))
+            for (
+                uid,
+                total,
+                contactless_count,
+                count,
+                wall_length_sum,
+                wall_length_count,
+            ) in panel:
+                value = self._metric_value_from_aggregates(
+                    total=total,
+                    contactless_count=contactless_count,
+                    count=count,
+                    wall_length_sum=wall_length_sum,
+                    wall_length_count=wall_length_count,
+                    min_intervals=min_intervals,
+                )
+                if np.isfinite(value):
+                    vals.append((uid, float(value)))
                 elif count > 0:
                     vals.append((uid, np.nan))
             out.append(vals)
@@ -350,27 +430,45 @@ class WallContactsPerRewardIntervalPerFlyCollector:
         sums: dict[str, float] = {}
         contactless_counts: dict[str, int] = {}
         counts: dict[str, int] = {}
+        wall_length_sums: dict[str, float] = {}
+        wall_length_counts: dict[str, int] = {}
 
         for t_idx in training_indices:
             if t_idx < 0 or t_idx >= len(by_training):
                 continue
-            for uid, total, contactless_count, count in by_training[t_idx]:
+            for (
+                uid,
+                total,
+                contactless_count,
+                count,
+                wall_length_sum,
+                wall_length_count,
+            ) in by_training[t_idx]:
                 sums[uid] = sums.get(uid, 0.0) + float(total)
                 contactless_counts[uid] = (
                     contactless_counts.get(uid, 0) + int(contactless_count)
                 )
                 counts[uid] = counts.get(uid, 0) + int(count)
+                wall_length_sums[uid] = wall_length_sums.get(uid, 0.0) + float(
+                    wall_length_sum
+                )
+                wall_length_counts[uid] = wall_length_counts.get(uid, 0) + int(
+                    wall_length_count
+                )
 
         out: list[tuple[str, float]] = []
-        for uid in sorted(sums):
+        for uid in sorted(set(sums) | set(wall_length_sums)):
             count = counts.get(uid, 0)
-            if count >= min_intervals and count > 0:
-                numerator = (
-                    contactless_counts.get(uid, 0)
-                    if self.cfg.metric == "contactless_fraction"
-                    else sums[uid]
-                )
-                out.append((uid, float(numerator) / float(count)))
+            value = self._metric_value_from_aggregates(
+                total=sums.get(uid, 0.0),
+                contactless_count=contactless_counts.get(uid, 0),
+                count=count,
+                wall_length_sum=wall_length_sums.get(uid, 0.0),
+                wall_length_count=wall_length_counts.get(uid, 0),
+                min_intervals=min_intervals,
+            )
+            if np.isfinite(value):
+                out.append((uid, float(value)))
         return out
 
 
@@ -388,6 +486,9 @@ class WallContactsPerRewardIntervalTotalsPlotter(
         if cfg.metric == "contactless_fraction":
             y_label = "Fraction of trajectories without wall contact"
             base_title = "Contactless between-reward trajectories (per fly)"
+        elif cfg.metric == "wall_contact_trajectory_length":
+            y_label = "Length of wall-contact trajectories (mm)"
+            base_title = "Wall-contact between-reward trajectory length (per fly)"
         else:
             y_label = "Mean wall contacts per reward interval"
             base_title = "Wall contacts per reward interval (per fly)"
@@ -443,7 +544,21 @@ class WallContactsPerRewardIntervalTotalsPlotter(
             unit_rows = grouped[key]
             n_episodes = len(unit_rows)
             n_contactless = sum(bool(row["contactless"]) for row in unit_rows)
-            passes_minimum = n_episodes >= min_intervals
+            wall_lengths = [
+                float(row["trajectory_length_mm"])
+                for row in unit_rows
+                if int(row["wall_contact_event_count"]) > 0
+                and np.isfinite(float(row["trajectory_length_mm"]))
+            ]
+            metric = str(
+                getattr(self.cfg, "metric", "mean_contacts") or "mean_contacts"
+            )
+            n_contributing = (
+                len(wall_lengths)
+                if metric == "wall_contact_trajectory_length"
+                else n_episodes
+            )
+            passes_minimum = n_contributing >= min_intervals
             passes_target = all(
                 bool(row["passes_target_sync_bucket_filter"]) for row in unit_rows
             )
@@ -453,6 +568,9 @@ class WallContactsPerRewardIntervalTotalsPlotter(
                 if n_episodes > 0
                 else np.nan
             )
+            mean_wall_contact_length = (
+                float(np.mean(wall_lengths)) if wall_lengths else np.nan
+            )
             for row in unit_rows:
                 output_rows.append(
                     {
@@ -461,7 +579,14 @@ class WallContactsPerRewardIntervalTotalsPlotter(
                         "pooled_episode_count": int(n_episodes),
                         "pooled_contactless_episode_count": int(n_contactless),
                         "pooled_contactless_fraction": fraction,
+                        "pooled_wall_contact_episode_count": int(len(wall_lengths)),
+                        "pooled_wall_contact_trajectory_length_mean_mm": (
+                            mean_wall_contact_length
+                        ),
                         "minimum_episode_count": int(min_intervals),
+                        "pooled_metric_contributing_episode_count": int(
+                            n_contributing
+                        ),
                         "passes_minimum_episode_filter": bool(passes_minimum),
                         "included_in_metric": bool(included),
                         "exclusion_reason": (
@@ -502,13 +627,17 @@ class WallContactsPerRewardIntervalTotalsPlotter(
             "contains_wall_contact",
             "contactless",
             "wall_contact_assignment_rule",
+            "trajectory_length_mm",
             "max_distance_from_reward_center_mm",
             "max_distance_past_reward_perimeter_mm",
             "passes_target_sync_bucket_filter",
             "pooled_episode_count",
             "pooled_contactless_episode_count",
             "pooled_contactless_fraction",
+            "pooled_wall_contact_episode_count",
+            "pooled_wall_contact_trajectory_length_mean_mm",
             "minimum_episode_count",
+            "pooled_metric_contributing_episode_count",
             "passes_minimum_episode_filter",
             "included_in_metric",
             "exclusion_reason",

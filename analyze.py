@@ -2780,13 +2780,19 @@ g.add_argument(
 )
 g.add_argument(
     "--wall-contacts-per-reward-interval-total-metric",
-    choices=("mean_contacts", "contactless_fraction"),
+    choices=(
+        "mean_contacts",
+        "contactless_fraction",
+        "wall_contact_trajectory_length",
+    ),
     default="mean_contacts",
     help=(
         "Per-fly metric to compute across pooled between-reward intervals in the "
         "selected training/sync-bucket window. 'mean_contacts' reports the mean "
         "wall-contact event count; 'contactless_fraction' reports the fraction "
-        "of intervals containing no wall-contact event. Default: %(default)s."
+        "of intervals containing no wall-contact event; "
+        "'wall_contact_trajectory_length' reports mean full trajectory length in "
+        "mm for intervals containing wall contact. Default: %(default)s."
     ),
 )
 g.add_argument(
@@ -12578,11 +12584,15 @@ def postAnalyze(vas):
                 "wall_contacts_per_reward_interval_total_metric",
                 "mean_contacts",
             )
-            ylabel = (
-                "Fraction of trajectories without wall contact"
-                if wall_interval_metric == "contactless_fraction"
-                else "Mean wall contacts per reward interval"
-            )
+            if wall_interval_metric == "contactless_fraction":
+                ylabel = "Fraction of trajectories without wall contact"
+                title = None
+            elif wall_interval_metric == "wall_contact_trajectory_length":
+                ylabel = "Length of wall-contact trajectories (mm)"
+                title = "Wall-contact trajectory length"
+            else:
+                ylabel = "Mean wall contacts per reward interval"
+                title = None
             out_file = getattr(
                 opts, "wall_contacts_per_reward_interval_total_import_out", None
             )
@@ -12591,6 +12601,7 @@ def postAnalyze(vas):
 
             fig = plot_scalar_bar_overlays(
                 loaded_exports,
+                title=title,
                 xlabel="Training",
                 ylabel=ylabel,
                 ymax=getattr(
