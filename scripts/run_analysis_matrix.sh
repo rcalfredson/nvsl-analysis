@@ -203,6 +203,14 @@ run_turnback_pairs() {
   run_cmd \
     python -m scripts.plot_turnback_excursion_bin_sli_bundles \
     --bundles "$bundle_csv" \
+    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatLgc_T2_p${pairs_label}_top20_sliT2Sb2-5_${DATE_TAG}.png" \
+    --sli-extremes top \
+    --top-sli-fraction 0.2 \
+    --stats
+
+  run_cmd \
+    python -m scripts.plot_turnback_excursion_bin_sli_bundles \
+    --bundles "$bundle_csv" \
     --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatLgc_T2_p${pairs_label}_${DATE_TAG}.png" \
     --stats
 }
