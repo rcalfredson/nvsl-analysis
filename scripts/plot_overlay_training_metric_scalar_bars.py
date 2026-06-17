@@ -10,7 +10,9 @@ from types import SimpleNamespace
 import matplotlib.pyplot as plt
 
 from src.plotting.overlay_training_metric_scalar_bars import (
+    OmnibusLearnerEntry,
     load_export_npz,
+    plot_omnibus_learner_overlays,
     plot_overlays,
 )
 
@@ -35,7 +37,10 @@ def parse_args() -> argparse.Namespace:
         "--input",
         action="append",
         required=True,
-        help="Repeatable: 'GroupLabel=/path/to/export.npz'",
+        help=(
+            "Repeatable: 'GroupLabel=/path/to/export.npz'. With "
+            "--omnibus-learner-layout, use 'LearnerLabel|GenotypeLabel=/path/to/export.npz'."
+        ),
     )
     p.add_argument("--out", required=True, help="Output image path (png/pdf/etc).")
     p.add_argument(
@@ -92,6 +97,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Additional debug output when stats are enabled.",
     )
+    p.add_argument(
+        "--omnibus-learner-layout",
+        action="store_true",
+        help=(
+            "Plot one panel with learner clusters (for example top learners, then "
+            "bottom learners) and genotype bars within each cluster. Stats are "
+            "limited to genotype comparisons within each learner cluster and "
+            "learner comparisons within each genotype."
+        ),
+    )
     return p.parse_args()
 
 
@@ -99,6 +114,7 @@ def main() -> None:
     args = parse_args()
 
     xs = []
+    omnibus_entries = []
     for spec in args.input:
         if "=" not in spec:
             raise SystemExit(
@@ -107,17 +123,41 @@ def main() -> None:
         label, path = spec.split("=", 1)
         label = label.strip()
         path = path.strip()
-        xs.append(load_export_npz(label, path))
+        if args.omnibus_learner_layout:
+            if "|" not in label:
+                raise SystemExit(
+                    "--omnibus-learner-layout input labels must be of the form "
+                    f"'LearnerLabel|GenotypeLabel=path.npz' (got: {spec})"
+                )
+            learner, genotype = label.split("|", 1)
+            learner = learner.strip()
+            genotype = genotype.strip()
+            if not learner or not genotype:
+                raise SystemExit(
+                    "--omnibus-learner-layout input labels must include both "
+                    f"learner and genotype labels (got: {spec})"
+                )
+            omnibus_entries.append(
+                OmnibusLearnerEntry(
+                    learner=learner,
+                    genotype=genotype,
+                    export=load_export_npz(f"{learner}, {genotype}", path),
+                )
+            )
+        else:
+            xs.append(load_export_npz(label, path))
 
     # Reasonable defaults if not provided
     if args.xlabel is None:
-        args.xlabel = "training"
+        args.xlabel = None if args.omnibus_learner_layout else "training"
     if args.ylabel is None:
-        args.ylabel = xs[0].meta.get("y_label", "value")
+        first_export = omnibus_entries[0].export if args.omnibus_learner_layout else xs[0]
+        args.ylabel = first_export.meta.get("y_label", "value")
 
     title = args.title
     if title is None and args.suptitle:
-        title = xs[0].meta.get("base_title", "Overlay bars")
+        first_export = omnibus_entries[0].export if args.omnibus_learner_layout else xs[0]
+        title = first_export.meta.get("base_title", "Overlay bars")
 
     opts = SimpleNamespace(
         imageFormat=args.image_format,
@@ -125,18 +165,32 @@ def main() -> None:
         fontFamily=args.font_family,
     )
 
-    fig = plot_overlays(
-        xs,
-        title=title,
-        xlabel=args.xlabel,
-        ylabel=args.ylabel,
-        ymax=args.ymax,
-        stats=args.stats,
-        stats_alpha=args.stats_alpha,
-        stats_paired=args.stats_paired,
-        debug=args.stats_debug,
-        opts=opts,
-    )
+    if args.omnibus_learner_layout:
+        fig = plot_omnibus_learner_overlays(
+            omnibus_entries,
+            title=title,
+            xlabel=args.xlabel,
+            ylabel=args.ylabel,
+            ymax=args.ymax,
+            ytick_step=0.2 if args.ymax == 1 else None,
+            stats=args.stats,
+            stats_alpha=args.stats_alpha,
+            debug=args.stats_debug,
+            opts=opts,
+        )
+    else:
+        fig = plot_overlays(
+            xs,
+            title=title,
+            xlabel=args.xlabel,
+            ylabel=args.ylabel,
+            ymax=args.ymax,
+            stats=args.stats,
+            stats_alpha=args.stats_alpha,
+            stats_paired=args.stats_paired,
+            debug=args.stats_debug,
+            opts=opts,
+        )
     _savefig(args.out, args.image_format)
     plt.close(fig)
 

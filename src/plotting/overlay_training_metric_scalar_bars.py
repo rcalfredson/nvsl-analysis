@@ -9,15 +9,23 @@ from types import SimpleNamespace
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter, MultipleLocator
+from scipy.stats import ttest_ind
 
 from src.plotting.palettes import (
     NEUTRAL_DARK,
+    NEUTRAL_MID,
     group_metric_edge_color,
     group_metric_fill_color,
     normalize_metric_palette_family,
 )
 from src.plotting.plot_customizer import PlotCustomizer
-from src.plotting.stats_bars import StatAnnotConfig, annotate_grouped_bars_per_bin
+from src.plotting.stats_bars import (
+    StatAnnotConfig,
+    annotate_grouped_bars_per_bin,
+    draw_sig_bracket,
+    format_sig_label,
+    holm_adjust,
+)
 from src.utils.util import meanConfInt
 
 
@@ -47,6 +55,13 @@ class ExportedTrainingScalarBars:
     @property
     def ci_conf(self) -> float:
         return float(self.meta.get("ci_conf", 0.95))
+
+
+@dataclass(frozen=True)
+class OmnibusLearnerEntry:
+    learner: str
+    genotype: str
+    export: ExportedTrainingScalarBars
 
 
 def _maybe_none_array(x) -> np.ndarray | None:
@@ -95,9 +110,7 @@ def _ensure_xlabel_visible(fig: plt.Figure, ax: plt.Axes) -> None:
     renderer = fig.canvas.get_renderer()
     bbox = label.get_window_extent(renderer=renderer)
     fig_bbox = fig.bbox
-    x_ok = (
-        bbox.x0 >= fig_bbox.x0 + pad_x_px and bbox.x1 <= fig_bbox.x1 - pad_x_px
-    )
+    x_ok = bbox.x0 >= fig_bbox.x0 + pad_x_px and bbox.x1 <= fig_bbox.x1 - pad_x_px
     y_ok = bbox.y0 >= fig_bbox.y0 + pad_y_px
 
     if x_ok and y_ok:
@@ -109,9 +122,7 @@ def _ensure_xlabel_visible(fig: plt.Figure, ax: plt.Axes) -> None:
         fig.canvas.draw()
         renderer = fig.canvas.get_renderer()
         bbox = label.get_window_extent(renderer=renderer)
-        x_ok = (
-            bbox.x0 >= fig_bbox.x0 + pad_x_px and bbox.x1 <= fig_bbox.x1 - pad_x_px
-        )
+        x_ok = bbox.x0 >= fig_bbox.x0 + pad_x_px and bbox.x1 <= fig_bbox.x1 - pad_x_px
         y_ok = bbox.y0 >= fig_bbox.y0 + pad_y_px
 
     if x_ok and y_ok:
@@ -177,10 +188,7 @@ def _ensure_ylabel_visible(fig: plt.Figure, ax: plt.Axes) -> None:
     def _within_bounds() -> bool:
         bbox = label.get_window_extent(renderer=renderer)
         x_ok = bbox.x0 >= fig_bbox.x0 + pad_x_px
-        y_ok = (
-            bbox.y0 >= fig_bbox.y0 + pad_y_px
-            and bbox.y1 <= fig_bbox.y1 - pad_y_px
-        )
+        y_ok = bbox.y0 >= fig_bbox.y0 + pad_y_px and bbox.y1 <= fig_bbox.y1 - pad_y_px
         return x_ok and y_ok
 
     if _within_bounds():
@@ -507,9 +515,7 @@ def _draw_panel_n_labels(
     data_per_px = y_rng / ax_h_px
     font_px = float(annotation_font_size) * float(fig.dpi) / 72.0
     text_clearance = (0.45 * font_px + 2.0) * data_per_px
-    y_pad = (
-        (0.024 + 0.016 * max(font_scale - 1.0, 0.0)) * y_rng + text_clearance
-    )
+    y_pad = (0.024 + 0.016 * max(font_scale - 1.0, 0.0)) * y_rng + text_clearance
 
     for p, n_text in enumerate(panel_n_texts):
         if not n_text:
@@ -518,8 +524,16 @@ def _draw_panel_n_labels(
         y_top = np.nan
         for hi in hi_by_group:
             if p < hi.shape[0] and np.isfinite(hi[p]):
-                y_top = float(hi[p]) if not np.isfinite(y_top) else max(float(y_top), float(hi[p]))
-        if bracket_tops is not None and p < bracket_tops.shape[0] and np.isfinite(bracket_tops[p]):
+                y_top = (
+                    float(hi[p])
+                    if not np.isfinite(y_top)
+                    else max(float(y_top), float(hi[p]))
+                )
+        if (
+            bracket_tops is not None
+            and p < bracket_tops.shape[0]
+            and np.isfinite(bracket_tops[p])
+        ):
             y_top = (
                 float(bracket_tops[p])
                 if not np.isfinite(y_top)
@@ -671,6 +685,395 @@ def _group_union_matrix(
     return M, np.asarray(union_ids, dtype=object)
 
 
+def _first_panel_samples(x: ExportedTrainingScalarBars) -> np.ndarray:
+    if len(x.per_unit_values_panel) == 0:
+        return np.asarray([], dtype=float)
+    vals = np.asarray(x.per_unit_values_panel[0], dtype=float).ravel()
+    return vals[np.isfinite(vals)]
+
+
+def _first_panel_mean_ci(
+    x: ExportedTrainingScalarBars,
+) -> tuple[float, float, float, int]:
+    y = float(np.asarray(x.mean, dtype=float).ravel()[0])
+    lo = float(np.asarray(x.ci_lo, dtype=float).ravel()[0])
+    hi = float(np.asarray(x.ci_hi, dtype=float).ravel()[0])
+    n = _panel_n(x, 0)
+    return y, lo, hi, int(n) if n is not None else 0
+
+
+def _default_learner_order(entries: list[OmnibusLearnerEntry]) -> list[str]:
+    labels = []
+    for entry in entries:
+        if entry.learner not in labels:
+            labels.append(entry.learner)
+
+    def key(label: str) -> tuple[int, str]:
+        lower = label.lower()
+        if lower.startswith("top"):
+            return (0, lower)
+        if lower.startswith("bottom"):
+            return (1, lower)
+        return (2, lower)
+
+    return sorted(labels, key=key)
+
+
+def _default_genotype_order(entries: list[OmnibusLearnerEntry]) -> list[str]:
+    labels = []
+    for entry in entries:
+        if entry.genotype not in labels:
+            labels.append(entry.genotype)
+    return labels
+
+
+def _draw_omnibus_stats(
+    ax: plt.Axes,
+    *,
+    samples_by_key: dict[tuple[str, str], np.ndarray],
+    x_by_key: dict[tuple[str, str], float],
+    hi_by_key: dict[tuple[str, str], float],
+    learner_order: list[str],
+    genotype_order: list[str],
+    alpha: float,
+    fontsize: float,
+    debug: bool,
+) -> np.ndarray:
+    comparisons: list[tuple[tuple[str, str], tuple[str, str], str]] = []
+    for learner in learner_order:
+        for i, genotype_a in enumerate(genotype_order):
+            for genotype_b in genotype_order[i + 1 :]:
+                comparisons.append(
+                    ((learner, genotype_a), (learner, genotype_b), "across genotype")
+                )
+    for genotype in genotype_order:
+        for i, learner_a in enumerate(learner_order):
+            for learner_b in learner_order[i + 1 :]:
+                comparisons.append(
+                    ((learner_a, genotype), (learner_b, genotype), "within genotype")
+                )
+
+    valid: list[tuple[tuple[str, str], tuple[str, str], str, float]] = []
+    for key_a, key_b, family in comparisons:
+        xa = samples_by_key.get(key_a, np.asarray([], dtype=float))
+        xb = samples_by_key.get(key_b, np.asarray([], dtype=float))
+        xa = np.asarray(xa, dtype=float)
+        xb = np.asarray(xb, dtype=float)
+        xa = xa[np.isfinite(xa)]
+        xb = xb[np.isfinite(xb)]
+        p = np.nan
+        if xa.size >= 3 and xb.size >= 3:
+            try:
+                _, p = ttest_ind(xa, xb, equal_var=False, nan_policy="omit")
+            except Exception:
+                p = np.nan
+        valid.append((key_a, key_b, family, float(p)))
+
+    p_adj = holm_adjust([item[3] for item in valid])
+    if debug:
+        for (key_a, key_b, family, p_raw), p_holm in zip(valid, p_adj):
+            xa = samples_by_key.get(key_a, np.asarray([], dtype=float))
+            xb = samples_by_key.get(key_b, np.asarray([], dtype=float))
+            print(
+                "[omnibus_stats] "
+                f"{key_a[0]} {key_a[1]} vs {key_b[0]} {key_b[1]} "
+                f"({family}, Welch, n={np.isfinite(xa).sum()}/{np.isfinite(xb).sum()}): "
+                f"raw p={p_raw:.6g}, Holm p={float(p_holm):.6g}"
+            )
+
+    ylim0, ylim1 = ax.get_ylim()
+    y_rng0 = float(ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 1.0
+    ax.set_ylim(ylim0, ylim1 + 0.46 * y_rng0)
+    ylim0, ylim1 = ax.get_ylim()
+    y_rng = float(ylim1 - ylim0) if np.isfinite(ylim1 - ylim0) else 1.0
+    bracket_h = 0.012 * y_rng
+    step = 0.075 * y_rng
+    gap = 0.050 * y_rng
+    tops: list[tuple[float, float, float]] = []
+    top_by_bar = np.full((len(x_by_key),), np.nan, dtype=float)
+    bar_keys = list(x_by_key)
+
+    sig_items = [
+        (key_a, key_b, p_holm)
+        for (key_a, key_b, _family, _p_raw), p_holm in zip(valid, p_adj)
+        if np.isfinite(p_holm) and float(p_holm) < float(alpha)
+    ]
+    sig_items = sorted(
+        sig_items,
+        key=lambda item: abs(float(x_by_key[item[0]]) - float(x_by_key[item[1]])),
+    )
+
+    for key_a, key_b, p_holm in sig_items:
+        if key_a not in x_by_key or key_b not in x_by_key:
+            continue
+        x1 = float(x_by_key[key_a])
+        x2 = float(x_by_key[key_b])
+        if x2 < x1:
+            x1, x2 = x2, x1
+        y_base = max(
+            float(hi_by_key.get(key_a, np.nan)),
+            float(hi_by_key.get(key_b, np.nan)),
+        )
+        if not np.isfinite(y_base):
+            continue
+        y = y_base + gap
+        for existing_y, existing_x1, existing_x2 in tops:
+            overlaps = not (x2 < existing_x1 or x1 > existing_x2)
+            if overlaps and y <= existing_y + step:
+                y = existing_y + step
+        label = format_sig_label(float(p_holm))
+        if not label:
+            continue
+        draw_sig_bracket(
+            ax,
+            x1=x1,
+            x2=x2,
+            y=y,
+            h=bracket_h,
+            text=label,
+            fontsize=fontsize,
+        )
+        tops.append((y, x1, x2))
+        y_top = y + bracket_h + 0.035 * y_rng
+        for key in (key_a, key_b):
+            try:
+                idx = bar_keys.index(key)
+            except ValueError:
+                continue
+            top_by_bar[idx] = (
+                y_top
+                if not np.isfinite(top_by_bar[idx])
+                else max(top_by_bar[idx], y_top)
+            )
+
+    return top_by_bar
+
+
+def plot_omnibus_learner_overlays(
+    entries: list[OmnibusLearnerEntry],
+    *,
+    title: str | None = None,
+    xlabel: str | None = None,
+    ylabel: str | None = None,
+    ymax: float | None = None,
+    ytick_step: float | None = None,
+    stats: bool = False,
+    stats_alpha: float = 0.05,
+    debug: bool = False,
+    bar_alpha: float = 0.90,
+    opts=None,
+) -> plt.Figure:
+    if opts is None:
+        opts = SimpleNamespace(imageFormat="png", fontSize=None, fontFamily=None)
+    if not entries:
+        raise ValueError("At least one omnibus learner entry is required.")
+
+    panel_labels = {tuple(entry.export.panel_labels) for entry in entries}
+    if len(panel_labels) != 1:
+        raise ValueError(
+            _fmt_mismatch(
+                "panel_labels", [entry.export.panel_labels for entry in entries]
+            )
+        )
+
+    customizer = PlotCustomizer()
+    font_size = getattr(opts, "fontSize", None)
+    if font_size is not None:
+        customizer.update_font_size(font_size)
+    customizer.update_font_family(getattr(opts, "fontFamily", None))
+    font_scale = max(float(customizer.increase_factor), 1.0)
+    annotation_font_size = max(
+        7,
+        min(float(customizer.in_plot_font_size) - 5.0, 10.0),
+    )
+    legend_font_size = max(
+        8,
+        min(float(customizer.in_plot_font_size), 14.0),
+    )
+    xtick_font_size = max(
+        8,
+        min(float(customizer.in_plot_font_size) - 2.0, 12.0),
+    )
+    cluster_label_font_size = max(
+        8,
+        min(float(customizer.in_plot_font_size) - 3.0, 11.0),
+    )
+
+    learner_order = _default_learner_order(entries)
+    genotype_order = _default_genotype_order(entries)
+    by_key = {(entry.learner, entry.genotype): entry.export for entry in entries}
+    missing = [
+        (learner, genotype)
+        for learner in learner_order
+        for genotype in genotype_order
+        if (learner, genotype) not in by_key
+    ]
+    if missing:
+        raise ValueError(f"Missing omnibus learner/genotype entries: {missing}")
+
+    cluster_gap = 1.35
+    within_gap = 0.88
+    x_by_key: dict[tuple[str, str], float] = {}
+    keys_in_plot_order: list[tuple[str, str]] = []
+    for li, learner in enumerate(learner_order):
+        base = li * ((len(genotype_order) - 1) * within_gap + cluster_gap)
+        for gi, genotype in enumerate(genotype_order):
+            key = (learner, genotype)
+            x_by_key[key] = float(base + gi * within_gap)
+            keys_in_plot_order.append(key)
+
+    fig_w = max(
+        7.2,
+        1.05 * len(keys_in_plot_order) * min(1.0 + 0.12 * (font_scale - 1.0), 1.25),
+    )
+    fig_h = 4.8 * min(1.0 + 0.12 * (font_scale - 1.0), 1.24)
+    fig, ax = plt.subplots(1, 1, figsize=(fig_w, fig_h))
+
+    xs_plot = []
+    means = []
+    lows = []
+    highs = []
+    tick_labels = []
+    samples_by_key: dict[tuple[str, str], np.ndarray] = {}
+    hi_by_key: dict[tuple[str, str], float] = {}
+    for key in keys_in_plot_order:
+        x = by_key[key]
+        y, lo, hi, n = _first_panel_mean_ci(x)
+        xs_plot.append(x_by_key[key])
+        means.append(y)
+        lows.append(lo)
+        highs.append(hi)
+        hi_by_key[key] = hi if np.isfinite(hi) else y
+        samples_by_key[key] = _first_panel_samples(x)
+        tick_labels.append(f"{key[1]}\n(n={n})" if n > 0 else key[1])
+
+    genotype_color = {genotype: gi for gi, genotype in enumerate(genotype_order)}
+    for key, xpos, y, lo, hi in zip(keys_in_plot_order, xs_plot, means, lows, highs):
+        gi = genotype_color[key[1]]
+        learner_alpha = (
+            bar_alpha if key[0] == learner_order[0] else min(bar_alpha, 0.68)
+        )
+        ax.bar(
+            xpos,
+            0.0 if not np.isfinite(y) else y,
+            width=0.58,
+            color=group_metric_fill_color(gi, "wall_contacts"),
+            edgecolor=group_metric_edge_color(gi, "wall_contacts"),
+            linewidth=0.9,
+            alpha=learner_alpha,
+            label=key[1] if key[0] == learner_order[0] else None,
+        )
+        if np.isfinite(y) and np.isfinite(lo) and np.isfinite(hi):
+            ax.errorbar(
+                [xpos],
+                [y],
+                yerr=np.asarray([[y - lo], [hi - y]], dtype=float),
+                fmt="none",
+                ecolor=NEUTRAL_DARK,
+                capsize=3,
+                capthick=1.0,
+                elinewidth=1.0,
+                alpha=0.9,
+                zorder=3,
+            )
+
+    ax.set_xticks(np.asarray(xs_plot, dtype=float))
+    ax.set_xticklabels(
+        tick_labels,
+        rotation=34,
+        ha="right",
+        rotation_mode="anchor",
+        fontsize=xtick_font_size,
+    )
+    _italicize_xtick_labels(ax)
+
+    ylim_top = float(ymax) if ymax is not None else max(1.0, np.nanmax(highs) * 1.18)
+    ax.set_ylim(0, ylim_top)
+    bracket_tops = None
+    base_text_count = len(ax.texts)
+    if stats:
+        bracket_tops = _draw_omnibus_stats(
+            ax,
+            samples_by_key=samples_by_key,
+            x_by_key=x_by_key,
+            hi_by_key=hi_by_key,
+            learner_order=learner_order,
+            genotype_order=genotype_order,
+            alpha=float(stats_alpha),
+            fontsize=annotation_font_size,
+            debug=debug,
+        )
+
+    cluster_centers = []
+    for learner in learner_order:
+        cluster_xs = [x_by_key[(learner, genotype)] for genotype in genotype_order]
+        cluster_centers.append(float(np.mean(cluster_xs)))
+    for center, learner in zip(cluster_centers, learner_order):
+        ax.text(
+            center,
+            -0.30,
+            learner,
+            ha="center",
+            va="top",
+            transform=ax.get_xaxis_transform(),
+            fontsize=cluster_label_font_size,
+            color=NEUTRAL_DARK,
+            clip_on=False,
+        )
+    if len(cluster_centers) > 1:
+        for left, right in zip(cluster_centers[:-1], cluster_centers[1:]):
+            ax.axvline(
+                (left + right) / 2.0,
+                color=NEUTRAL_MID,
+                linewidth=0.8,
+                alpha=0.35,
+            )
+
+    if xlabel:
+        ax.set_xlabel(xlabel)
+    if ylabel:
+        ax.set_ylabel(ylabel)
+    if title:
+        fig.suptitle(title)
+    if ytick_step is not None and float(ytick_step) > 0:
+        step = float(ytick_step)
+        decimals = next(
+            (
+                precision
+                for precision in range(7)
+                if np.isclose(step, round(step, precision), rtol=0.0, atol=1e-10)
+            ),
+            6,
+        )
+        if ymax is not None:
+            ticks = np.arange(0.0, float(ymax) + 0.5 * step, step)
+            ticks = ticks[ticks <= float(ymax) + 1e-10]
+            ax.set_yticks(ticks)
+        else:
+            ax.yaxis.set_major_locator(MultipleLocator(step))
+        ax.yaxis.set_major_formatter(FormatStrFormatter(f"%.{decimals}f"))
+
+    legend = ax.legend(
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1.0),
+        borderaxespad=0.0,
+        prop={"style": "italic", "size": legend_font_size},
+    )
+    fig.tight_layout()
+    fig.subplots_adjust(bottom=max(fig.subplotpars.bottom, 0.34), right=0.78)
+    _ensure_xlabel_visible(fig, ax)
+    _ensure_ylabel_visible(fig, ax)
+    _ensure_legend_clear_of_annotations(
+        fig,
+        ax,
+        legend=legend,
+        texts=ax.texts[base_text_count:],
+        lines=[],
+    )
+    _ensure_top_text_visible(fig, ax, texts=ax.texts[base_text_count:])
+    return fig
+
+
 def plot_overlays(
     xs: list[ExportedTrainingScalarBars],
     *,
@@ -815,12 +1218,8 @@ def plot_overlays(
         if per_group_legend_ns is not None and gi < len(per_group_legend_ns):
             n_leg = per_group_legend_ns[gi]
         label = f"{x.group} (n={n_leg})" if n_leg is not None else f"{x.group}"
-        bar_color = group_metric_fill_color(
-            gi, metric_palette_family, palette=palette
-        )
-        edge_color = group_metric_edge_color(
-            gi, metric_palette_family, palette=palette
-        )
+        bar_color = group_metric_fill_color(gi, metric_palette_family, palette=palette)
+        edge_color = group_metric_edge_color(gi, metric_palette_family, palette=palette)
         ax.bar(
             xg,
             y_plot,
