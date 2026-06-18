@@ -680,6 +680,18 @@ class VideoAnalysis:
                     False,
                 )
             )
+            or (
+                getattr(
+                    self.opts,
+                    "export_turnback_home_vector_alignment_sli_bundle",
+                    None
+                )
+                and getattr(
+                    self.opts,
+                    "turnback_home_vector_alignment_exclude_wall_contact",
+                    False
+                )
+            )
         )
 
         keep_wall_regions_for_post_wall_departure_tortuosity = bool(
