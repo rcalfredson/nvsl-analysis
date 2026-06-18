@@ -129,6 +129,9 @@ from src.exporting.turnback_outer_radius_sli_bundle import (
     export_turnback_outer_radius_sli_bundle,
 )
 from src.exporting.turnback_sli_bundle import export_turnback_sli_bundle
+from src.exporting.turnback_home_vector_alignment_sli_bundle import (
+    export_turnback_home_vector_alignment_sli_bundle,
+)
 from src.exporting.wallpct_sli_bundle import export_wallpct_sli_bundle
 from src.exporting.wall_contacts_per_reward_interval import (
     save_wall_contacts_per_reward_interval_npz,
@@ -5487,6 +5490,15 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    '--export-turnback-home-vector-alignment-sli-bundle',
+    type=str,
+    default=None,
+    help=(
+        "Write an .npz scalar-bar bundle with mean home-vector heading alignment "
+        "at successful turnback re-entry episodes for multi-group overlays/stats."
+    )
+)
+g.add_argument(
     "--turnback-outer-radius-trainings",
     type=str,
     default=None,
@@ -5539,6 +5551,25 @@ g.add_argument(
         "Trainings to include in turnback-excursion-bin exports, e.g. '2' or "
         "'2-3'. Default: all trainings."
     ),
+)
+g.add_argument(
+    "--turnback-home-vector-alignment-trainings",
+    type=str,
+    default=None,
+    help=(
+        "Trainings to include in turnback-home-vector-alignment exports, "
+        "e.g. '2' or '2-3'. Default: 2."
+    )
+)
+g.add_argument(
+    '--turnback-home-vector-alignment-sli-group',
+    choices=["all", "top", "bottom"],
+    default="all",
+    help=(
+        "Restrict turnback home-vector alignment export to all flies, top-SLI "
+        "flies, or bottom-SLI flies. Top/bottom groups are defined by the "
+        "standard best/worst SLI selection options."
+    )
 )
 g.add_argument(
     "--turnback-outer-radius-outer-radii-mm",
@@ -5693,6 +5724,65 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--turnback-home-vector-alignment-inner-radius-mm",
+    type=float,
+    default=None,
+    help=(
+        "Optional absolute inner radius in mm for turnback-home-vector-alignment "
+        "episode geometry. Defaults to the shared turnback inner-radius setting, "
+        "or reward radius plus inner delta."
+    ),
+)
+g.add_argument(
+    "--turnback-home-vector-alignment-inner-delta-mm",
+    type=float,
+    default=None,
+    help=(
+        "Optional inner radius delta in mm relative to the reward circle for "
+        "turnback-home-vector-alignment episode geometry. Defaults to the shared "
+        "turnback inner delta, or 0."
+    ),
+)
+g.add_argument(
+    "--turnback-home-vector-alignment-outer-radius-mm",
+    type=float,
+    default=None,
+    help=(
+        "Optional absolute outer radius in mm for turnback-home-vector-alignment "
+        "episode geometry. Defaults to the shared turnback outer-radius setting, "
+        "if provided."
+    ),
+)
+g.add_argument(
+    "--turnback-home-vector-alignment-outer-delta-mm",
+    type=float,
+    default=None,
+    help=(
+        "Optional outer radius delta in mm relative to the reward circle for "
+        "turnback-home-vector-alignment episode geometry. Defaults to the shared "
+        "turnback outer delta, or 2."
+    ),
+)
+g.add_argument(
+    "--turnback-home-vector-alignment-border-width-mm",
+    type=float,
+    default=None,
+    help=(
+        "Border width in mm passed to the turnback episode detector for "
+        "turnback-home-vector-alignment. Defaults to the shared turnback border "
+        "width, or 0.1."
+    ),
+)
+g.add_argument(
+    "--turnback-home-vector-alignment-inner-radius-offset-px",
+    type=float,
+    default=None,
+    help=(
+        "Pixel offset applied to the inner radius for turnback-home-vector-alignment "
+        "episode geometry. Defaults to the shared turnback inner-radius offset, or 0."
+    ),
+)
+g.add_argument(
     "--turnback-outer-radius-skip-first-sync-buckets",
     type=int,
     default=None,
@@ -5744,6 +5834,15 @@ g.add_argument(
     help=(
         "Optional export-specific sync-bucket skip for turnback-excursion-bin "
         "bundles. Defaults to --skip-first-sync-buckets."
+    ),
+)
+g.add_argument(
+    "--turnback-home-vector-alignment-skip-first-sync-buckets",
+    type=int,
+    default=None,
+    help=(
+        "Optional export-specific sync-bucket skip for turnback-home-vector-alignment "
+        "bundles. Default: 1."
     ),
 )
 g.add_argument(
@@ -5801,6 +5900,15 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--turnback-home-vector-alignment-keep-first-sync-buckets",
+    type=int,
+    default=None,
+    help=(
+        "Optional export-specific sync-bucket cap for turnback-home-vector-alignment "
+        "bundles. Default: 4."
+    ),
+)
+g.add_argument(
     "--turnback-outer-radius-last-sync-buckets",
     type=int,
     default=0,
@@ -5838,6 +5946,16 @@ g.add_argument(
         "After training selection and optional skip/keep trimming, keep only the "
         "last K sync buckets per training for turnback-excursion-bin bundles. "
         "Use 0 for no tail restriction."
+    ),
+)
+g.add_argument(
+    "--turnback-home-vector-alignment-last-sync-buckets",
+    type=int,
+    default=None,
+    help=(
+        "After training selection and optional skip/keep trimming, keep only the "
+        "last K sync buckets per training for turnback-home-vector-alignment bundles. "
+        "Default: 0, meaning no tail restriction."
     ),
 )
 g.add_argument(
@@ -6014,6 +6132,24 @@ g.add_argument(
     help=(
         "For turnback-excursion-bin exports, discard episodes whose frame span "
         "overlaps wall contact."
+    ),
+)
+g.add_argument(
+    "--turnback-home-vector-alignment-exclude-wall-contact",
+    action="store_true",
+    help=(
+        "For turnback-home-vector-alignment exports, discard successful re-entry "
+        "episodes whose frame span overlaps wall contact."
+    ),
+)
+g.add_argument(
+    "--turnback-home-vector-alignment-window-radius-frames",
+    type=int,
+    default=2,
+    help=(
+        "Symmetric frame radius used to estimate re-entry heading from x/y "
+        "displacement. Default 2 means position at/near event-2 to position "
+        "at/near event+2."
     ),
 )
 g.add_argument(
@@ -11078,6 +11214,119 @@ def _emit_default_between_reward_sli_plots(vas, gis, gls):
                 f"[postAnalyze] WARNING: failed to generate default {metric} bundle plot: {exc}"
             )
 
+def _turnback_home_vector_alignment_sli_fraction(opts, sli_group: str) -> float:
+    if sli_group == "top":
+        frac = getattr(opts, "top_sli_fraction", None)
+    elif sli_group == "bottom":
+        frac = getattr(opts, "bottom_sli_fraction", None)
+    else:
+        return 1.0
+
+    # For this metric, top/bottom-only exports default to 25% unless the caller
+    # explicitly provides --top-sli-fraction or --bottom-sli-fraction.
+    if frac is None:
+        return 0.25
+    return float(frac)
+
+def _select_turnback_home_vector_alignment_vas(vas):
+    sli_group = getattr(opts, "turnback_home_vector_alignment_sli_group", "all")
+    if sli_group == "all":
+        return vas
+
+    if not vas:
+        return vas
+
+    va0 = vas[0]
+    if getattr(va0, "noyc", False) or getattr(va0, "choice", False):
+        raise RuntimeError(
+            "--turnback-home-vector-alignment-sli-group requires ordinary "
+            "experimental/yoked SLI data; this run appears to be no-yoked-control "
+            "or choice-mode."
+        )
+    
+    sli_training_idx = int(getattr(opts, "best_worst_trn", 2)) - 1
+    use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
+
+    skip_k = _effective_skip_first_sync_buckets_opts_only(opts)
+    keep_k = _effective_keep_first_sync_buckets_opts_only(opts)
+
+    raw_sel_skip = getattr(opts, "sli_select_skip_first_sync_buckets", None)
+    raw_sel_keep = getattr(opts, "sli_select_keep_first_sync_buckets", None)
+    sel_skip_k = skip_k if raw_sel_skip is None else max(0, int(raw_sel_skip))
+    sel_keep_k = keep_k if raw_sel_keep is None else max(0, int(raw_sel_keep))
+
+    tp_sli, calc_sli = typeCalc("rpid")
+    trns_sli = trnsForType(va0, tp_sli)
+    if not trns_sli:
+        raise RuntimeError(
+            "Could not compute SLI subset for turnback home-vector alignment: "
+            "no SLI trainings were available."
+        )
+
+    a_sli = np.array([vaVarForType(va_, tp_sli, calc_sli) for va_ in vas])
+    a_sli = a_sli.reshape((len(vas), len(trns_sli), -1))
+
+    n_videos = len(vas)
+    n_trains = len(trns_sli)
+    n_flies = len(va0.flies)
+    nb_sli = a_sli.shape[2] // n_flies
+    raw_4 = a_sli.reshape((n_videos, n_trains, n_flies, nb_sli))
+
+    sel_bucket_idx = _resolve_sli_select_bucket_idx(
+        opts,
+        nb=nb_sli,
+        skip_first_sync_buckets=sel_skip_k,
+        keep_first_sync_buckets=sel_keep_k,
+        average_over_buckets=use_training_mean
+    )
+
+    sli_ser = compute_sli_per_fly(
+        raw_4,
+        sli_training_idx,
+        bucket_idx=sel_bucket_idx,
+        average_over_buckets=use_training_mean,
+        skip_first_sync_buckets=sel_skip_k,
+        keep_first_sync_buckets=sel_keep_k,
+    )
+
+    top_fraction = None
+    bottom_fraction = None
+    if sli_group == "top":
+        top_fraction = _turnback_home_vector_alignment_sli_fraction(opts, sli_group)
+    elif sli_group == "bottom":
+        bottom_fraction = _turnback_home_vector_alignment_sli_fraction(opts, sli_group)
+    else:
+        raise ValueError(
+            f"Unknown turnback_home_vector_alignment_sli_group: {sli_group!r}"
+        )
+    
+    saved_bottom, saved_top = select_fractional_groups(
+        sli_ser,
+        top_fraction=top_fraction,
+        bottom_fraction=bottom_fraction,
+    )
+
+    if sli_group == "top":
+        selected = [] if saved_top is None else list(saved_top)
+    else:
+        selected = [] if saved_bottom is None else list(saved_bottom)
+
+    if not selected:
+        raise RuntimeError(
+            "SLI subset selection for turnback home-vector alignment selected no flies "
+            f"(sli_group={sli_group!r}, top_fraction={top_fraction}, "
+            f"bottom_fraction={bottom_fraction})."
+        )
+
+    print(
+        "[turnback-home-vector-alignment] restricting export to "
+        f"{len(selected)} {sli_group}-SLI flies "
+        f"(top_fraction={top_fraction}, bottom_fraction={bottom_fraction}, "
+        f"T{int(sli_training_idx) + 1}, skip={sel_skip_k}, keep={sel_keep_k}, "
+        f"use_training_mean={use_training_mean})"
+    )
+
+    return [vas[i] for i in selected]
 
 def _export_post_analyze_bundles(vas, gls) -> int:
     num_exports = 0
@@ -11177,6 +11426,17 @@ def _export_post_analyze_bundles(vas, gls) -> int:
     if getattr(opts, "export_turnback_excursion_bin_sli_bundle", None):
         export_turnback_excursion_bin_sli_bundle(
             vas, opts, gls, opts.export_turnback_excursion_bin_sli_bundle
+        )
+        num_exports += 1
+
+    if getattr(opts, "export_turnback_home_vector_alignment_sli_bundle", None):
+        vas_for_home_vector = _select_turnback_home_vector_alignment_vas(vas)
+
+        export_turnback_home_vector_alignment_sli_bundle(
+            vas_for_home_vector,
+            opts,
+            gls,
+            opts.export_turnback_home_vector_alignment_sli_bundle,
         )
         num_exports += 1
 
