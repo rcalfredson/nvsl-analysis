@@ -297,28 +297,18 @@ def home_vector_from_reentry_to_center(
     *,
     cx: float,
     cy: float,
-    radius_px: float,
     x: float,
     y: float,
 ) -> tuple[float, float] | None:
     """
-    Return perimeter_point -> reward_center for the re-entry radial line.
+    Return the vector from the fly's re-entry position to the reward center.
 
-    If re-entry is already on the perimeter, the perimeter point is effectively
-    the observed re-entry position. If the point is slightly inside/outside due
-    to thresholding, projecting to the perimeter keeps the home vector radial.
+    For the concentric turnback regions used here, this has the same direction
+    as projecting the re-entry point to the inner-circle perimeter first. Since
+    cosine alignment depends only on direction, the direct vector is sufficient.
     """
-    rx = float(x) - float(cx)
-    ry = float(y) - float(cy)
-    d = float(np.hypot(rx, ry))
-    if not np.isfinite(d) or d <= 0.0:
-        return None
-
-    perimeter_x = float(cx) + float(radius_px) * rx / d
-    perimeter_y = float(cy) + float(radius_px) * ry / d
-
-    hx = float(cx) - perimeter_x
-    hy = float(cy) - perimeter_y
+    hx = float(cx) - float(x)
+    hy = float(cy) - float(y)
     if not (np.isfinite(hx) and np.isfinite(hy)):
         return None
     if np.hypot(hx, hy) <= 0.0:
@@ -354,19 +344,9 @@ def episode_home_vector_alignment(
     x, y = event_xy
 
     try:
-        cx, cy, reward_radius_px = trn.circles(getattr(trj, "f", 0))[0]
+        cx, cy, _reward_radius_px = trn.circles(getattr(trj, "f", 0))[0]
     except Exception:
         return float("nan")
-
-    inner_radius_px = ep.get("inner_radius_px", np.nan)
-    if not np.isfinite(inner_radius_px):
-        inner_radius_px = ep.get("effective_inner_radius_mm", np.nan)
-        px_per_mm = ep.get("px_per_mm", np.nan)
-        if np.isfinite(inner_radius_px) and np.isfinite(px_per_mm):
-            inner_radius_px = float(inner_radius_px) * float(px_per_mm)
-
-    if not np.isfinite(inner_radius_px):
-        inner_radius_px = float(reward_radius_px)
 
     heading_vec = heading_vector_at_reentry(
         trj,
@@ -381,7 +361,6 @@ def episode_home_vector_alignment(
     home_vec = home_vector_from_reentry_to_center(
         cx=float(cx),
         cy=float(cy),
-        radius_px=float(inner_radius_px),
         x=float(x),
         y=float(y),
     )

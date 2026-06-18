@@ -138,14 +138,14 @@ def _make_export_va(*, episodes, coords, sync_bucket_ranges=None, n_frames=140):
     )
 
 
-def test_home_vector_projects_reentry_point_to_perimeter_before_pointing_to_center():
-    # Re-entry point (3, 4) is inside a radius-10 circle but lies on the same
-    # radial line as perimeter point (6, 8). The home vector is therefore
-    # (6, 8) -> (0, 0) = (-6, -8).
-    home_vec = home_vector_from_reentry_to_center(
-        cx=0.0, cy=0.0, radius_px=10.0, x=3.0, y=4.0
+def test_home_vector_points_from_reentry_position_to_reward_center():
+    vec = home_vector_from_reentry_to_center(
+        cx=0.0,
+        cy=0.0,
+        x=12.0,
+        y=0.0,
     )
-    np.testing.assert_allclose(home_vec, (-6.0, -8.0))
+    assert vec == (-12.0, 0.0)
 
 
 def test_cosine_alignment_reports_homeward_tangent_and_away_cases():
