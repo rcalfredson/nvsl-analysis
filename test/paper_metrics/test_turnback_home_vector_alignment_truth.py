@@ -88,6 +88,7 @@ def _default_opts(**overrides):
         turnback_home_vector_alignment_keep_first_sync_buckets=None,
         turnback_home_vector_alignment_last_sync_buckets=None,
         turnback_home_vector_alignment_window_radius_frames=1,
+        turnback_home_vector_alignment_heading_estimator="mean",
         turnback_home_vector_alignment_exclude_wall_contact=False,
         turnback_home_vector_alignment_inner_radius_mm=None,
         turnback_home_vector_alignment_inner_delta_mm=None,
@@ -154,17 +155,52 @@ def test_cosine_alignment_reports_homeward_tangent_and_away_cases():
     np.testing.assert_allclose(cosine_alignment((2.0, 0.0), (-10.0, 0.0)), -1.0)
 
 
-def test_heading_vector_uses_windowed_displacement_and_skips_nans():
+def test_heading_vector_default_uses_mean_pre_and_post_positions():
+    x, y = _blank_xy(9)
+    _set_xy(
+        x,
+        y,
+        {
+            1: (10.0, 0.0),
+            2: (6.0, 0.0),
+            3: (1.0, 0.0),
+            4: (0.0, 0.0),
+            5: (-1.0, 0.0),
+            6: (-6.0, 0.0),
+            7: (-10.0, 0.0),
+        },
+    )
+    trj = SimpleNamespace(x=x, y=y)
+
+    heading = heading_vector_at_reentry(
+        trj, event_frame=4, window_radius_frames=2, training_start=0, training_stop=9
+    )
+
+    # Mean before = mean(frames 2, 3) = 3.5; mean after =
+    # mean(frames 5, 6) = -3.5.
+    np.testing.assert_allclose(heading, (-7.0, 0.0))
+
+
+def test_heading_vector_endpoint_mode_preserves_original_window_endpoint_behavior():
     x, y = _blank_xy(8)
 
     # event_frame = 3, radius = 2
     # preferred before target is frame 1 and after target is frame 5.
     # The frame near the event is NaN, but the selected window endpoints are finite.
-    _set_xy(x, y, {1: (2.0, 0.0), 3: (0.0, 0.0), 4: (np.nan, np.nan), 5: (-2.0, 0.0)})
+    _set_xy(
+        x,
+        y,
+        {1: (2.0, 0.0), 3: (0.0, 0.0), 4: (np.nan, np.nan), 5: (-2.0, 0.0)},
+    )
     trj = SimpleNamespace(x=x, y=y)
 
     heading = heading_vector_at_reentry(
-        trj, event_frame=3, window_radius_frames=2, training_start=0, training_stop=8
+        trj,
+        event_frame=3,
+        window_radius_frames=2,
+        estimator="endpoint",
+        training_start=0,
+        training_stop=8,
     )
 
     np.testing.assert_allclose(heading, (-4.0, 0.0))
@@ -284,7 +320,12 @@ def test_export_schema_uses_selected_successful_reentry_episodes_only(tmp_path):
         assert meta["skip_first_sync_buckets"] == 1
         assert meta["keep_first_sync_buckets"] == 4
         assert meta["window_radius_frames"] == 1
+        assert meta["heading_estimator"] == "mean"
         assert "does not use Trajectory.theta" in meta["heading_convention"]
+        assert (
+            bundle["turnback_home_vector_alignment_heading_estimator"].item()
+            == "mean"
+        )
 
         # The actual episode iterator should receive the same default turnback
         # geometry used by the exporter.

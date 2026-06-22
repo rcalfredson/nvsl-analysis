@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DATE_TAG="2026-06-12"
+DATE_TAG="2026-06-22"
 PRINT_ONLY="${PRINT_ONLY:-0}"
 RETURN_LEG_TORTUOSITY_EXAMPLES="${RETURN_LEG_TORTUOSITY_EXAMPLES:-0}"
 RETURN_LEG_TORTUOSITY_EXAMPLES_PER_BIN="${RETURN_LEG_TORTUOSITY_EXAMPLES_PER_BIN:-6}"
@@ -636,13 +636,13 @@ run_post_wall_departure_tortuosity() {
 # noWall: discard successful re-entry episodes overlapping wall contact
 # ---------------------------------------------------------------------
 
-# for filter_tag in minEpSb5Filt noFilt minEpFilt minEpPiFilt; do
-#   for wall_tag in wall noWall; do
-#     run_turnback_home_vector_alignment "3-5" 3 5 "$filter_tag" "$wall_tag"
-#     run_turnback_home_vector_alignment "8-10" 8 10 "$filter_tag" "$wall_tag"
-#     run_turnback_home_vector_alignment "13-15" 13 15 "$filter_tag" "$wall_tag"
-#   done
-# done
+for filter_tag in minEpSb5Filt noFilt minEpFilt minEpPiFilt; do
+  for wall_tag in wall noWall; do
+    run_turnback_home_vector_alignment "3-5" 3 5 "$filter_tag" "$wall_tag"
+    run_turnback_home_vector_alignment "8-10" 8 10 "$filter_tag" "$wall_tag"
+    run_turnback_home_vector_alignment "13-15" 13 15 "$filter_tag" "$wall_tag"
+  done
+done
 
 # ---------------------------------------------------------------------
 # Top-25% learner subset: turnback home-vector heading alignment

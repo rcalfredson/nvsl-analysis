@@ -25,6 +25,9 @@ from src.utils.util import meanConfInt
 
 Y_LABEL = "Home-vector heading alignment at re-entry"
 BASE_TITLE = "Turnback home-vector heading alignment"
+HEADING_ESTIMATOR_MEAN = "mean"
+HEADING_ESTIMATOR_ENDPOINT = "endpoint"
+HEADING_ESTIMATOR_CHOICES = (HEADING_ESTIMATOR_MEAN, HEADING_ESTIMATOR_ENDPOINT)
 
 
 def _selected_training_indices(vas, opts) -> list[int]:
@@ -173,6 +176,27 @@ def _safe_finite_xy_at(trj, frame_idx: int) -> tuple[float, float] | None:
     return x, y
 
 
+def _finite_xy_samples(trj, *, lo: int, hi: int) -> np.ndarray:
+    """
+    Return finite x/y samples from inclusive frame range [lo, hi].
+    """
+    n = min(len(getattr(trj, "x", [])), len(getattr(trj, "y", [])))
+    if n <= 0:
+        return np.zeros((0, 2), dtype=float)
+
+    lo = max(0, int(lo))
+    hi = min(int(hi), n - 1)
+    if hi < lo:
+        return np.zeros((0, 2), dtype=float)
+
+    xs = np.asarray(trj.x[lo : hi + 1], dtype=float)
+    ys = np.asarray(trj.y[lo : hi + 1], dtype=float)
+    mask = np.isfinite(xs) & np.isfinite(ys)
+    if not np.any(mask):
+        return np.zeros((0, 2), dtype=float)
+    return np.column_stack([xs[mask], ys[mask]]).astype(float, copy=False)
+
+
 def _nearest_finite_xy(
     trj,
     target_idx: int,
@@ -222,7 +246,7 @@ def _nearest_finite_xy(
     return None
 
 
-def heading_vector_at_reentry(
+def _endpoint_heading_vector_at_reentry(
     trj,
     event_frame: int,
     *,
@@ -293,6 +317,102 @@ def heading_vector_at_reentry(
     return hx, hy
 
 
+def _mean_heading_vector_at_reentry(
+    trj,
+    event_frame: int,
+    *,
+    window_radius_frames: int = 2,
+    training_start: int | None = None,
+    training_stop: int | None = None,
+) -> tuple[float, float] | None:
+    """
+    Estimate heading from the displacement between mean pre/post positions.
+
+    The event frame itself is excluded so the vector is based on points on either
+    side of the re-entry event. If a short or sparse window cannot provide
+    samples on both sides, fall back to the endpoint estimator.
+    """
+    radius = max(0, int(window_radius_frames or 0))
+    if radius <= 0:
+        return _endpoint_heading_vector_at_reentry(
+            trj,
+            event_frame,
+            window_radius_frames=radius,
+            training_start=training_start,
+            training_stop=training_stop,
+        )
+
+    event_frame = int(event_frame)
+    lo_bound = 0 if training_start is None else int(training_start)
+    hi_bound = len(getattr(trj, "x", [])) - 1
+    hi_bound = min(hi_bound, len(getattr(trj, "y", [])) - 1)
+    if training_stop is not None:
+        hi_bound = min(hi_bound, int(training_stop) - 1)
+
+    before = _finite_xy_samples(
+        trj, lo=max(lo_bound, event_frame - radius), hi=min(hi_bound, event_frame - 1)
+    )
+    after = _finite_xy_samples(
+        trj, lo=max(lo_bound, event_frame + 1), hi=min(hi_bound, event_frame + radius)
+    )
+
+    if before.size == 0 or after.size == 0:
+        return _endpoint_heading_vector_at_reentry(
+            trj,
+            event_frame,
+            window_radius_frames=radius,
+            training_start=training_start,
+            training_stop=training_stop,
+        )
+
+    before_xy = np.mean(before, axis=0)
+    after_xy = np.mean(after, axis=0)
+    hx = float(after_xy[0] - before_xy[0])
+    hy = float(after_xy[1] - before_xy[1])
+    if not (np.isfinite(hx) and np.isfinite(hy)):
+        return None
+    if np.hypot(hx, hy) <= 0.0:
+        return None
+    return hx, hy
+
+
+def heading_vector_at_reentry(
+    trj,
+    event_frame: int,
+    *,
+    window_radius_frames: int = 2,
+    estimator: str = HEADING_ESTIMATOR_MEAN,
+    training_start: int | None = None,
+    training_stop: int | None = None,
+) -> tuple[float, float] | None:
+    """
+    Estimate heading from local displacement around the re-entry event.
+
+    We intentionally use x/y displacement rather than Trajectory.theta here.
+    The default estimator uses the displacement from the mean pre-event position
+    to the mean post-event position. Use estimator="endpoint" to preserve the
+    original single-sample endpoint displacement across the requested window.
+    """
+    estimator = str(estimator or HEADING_ESTIMATOR_MEAN)
+    if estimator == HEADING_ESTIMATOR_MEAN:
+        return _mean_heading_vector_at_reentry(
+            trj,
+            event_frame,
+            window_radius_frames=window_radius_frames,
+            training_start=training_start,
+            training_stop=training_stop,
+        )
+    if estimator == HEADING_ESTIMATOR_ENDPOINT:
+        return _endpoint_heading_vector_at_reentry(
+            trj,
+            event_frame,
+            window_radius_frames=window_radius_frames,
+            training_start=training_start,
+            training_stop=training_stop,
+        )
+    raise ValueError(f"unknown heading estimator: {estimator!r}")
+
+
 def home_vector_from_reentry_to_center(
     *,
     cx: float,
@@ -334,7 +454,12 @@ def cosine_alignment(heading_vec, home_vec) -> float:
 
 
 def episode_home_vector_alignment(
-    trj, trn, ep: dict, *, window_radius_frames: int = 2
+    trj,
+    trn,
+    ep: dict,
+    *,
+    window_radius_frames: int = 2,
+    heading_estimator: str = HEADING_ESTIMATOR_MEAN,
 ) -> float:
     event_frame = int(ep["stop"]) - 1
 
@@ -352,6 +477,7 @@ def episode_home_vector_alignment(
         trj,
         event_frame,
         window_radius_frames=window_radius_frames,
+        estimator=heading_estimator,
         training_start=int(getattr(trn, "start", 0)),
         training_stop=int(getattr(trn, "stop", len(getattr(trj, "x", [])))),
     )
@@ -393,6 +519,7 @@ def _iter_successful_selected_episode_values_for_fly(
     last_sync_buckets: int,
     exclude_wall_contact: bool,
     window_radius_frames: int,
+    heading_estimator: str,
     inner_radius_mm: float | None,
     inner_delta_mm: float | None,
     outer_radius_mm: float | None,
@@ -456,7 +583,11 @@ def _iter_successful_selected_episode_values_for_fly(
                 continue
 
             val = episode_home_vector_alignment(
-                trj, trn, ep, window_radius_frames=window_radius_frames
+                trj,
+                trn,
+                ep,
+                window_radius_frames=window_radius_frames,
+                heading_estimator=heading_estimator,
             )
             if np.isfinite(val):
                 yield float(val)
@@ -527,6 +658,19 @@ def _collect_per_fly_values(
             getattr(opts, "turnback_home_vector_alignment_window_radius_frames", 2) or 0
         ),
     )
+    heading_estimator = str(
+        getattr(
+            opts,
+            "turnback_home_vector_alignment_heading_estimator",
+            HEADING_ESTIMATOR_MEAN,
+        )
+        or HEADING_ESTIMATOR_MEAN
+    )
+    if heading_estimator not in HEADING_ESTIMATOR_CHOICES:
+        raise ValueError(
+            "turnback_home_vector_alignment_heading_estimator must be one of "
+            f"{HEADING_ESTIMATOR_CHOICES!r}; got {heading_estimator!r}"
+        )
 
     per_unit_ids = []
     per_unit_values = []
@@ -560,6 +704,7 @@ def _collect_per_fly_values(
                         last_sync_buckets=last_sync_buckets,
                         exclude_wall_contact=exclude_wall_contact,
                         window_radius_frames=window_radius_frames,
+                        heading_estimator=heading_estimator,
                         inner_radius_mm=inner_radius_mm,
                         inner_delta_mm=inner_delta_mm,
                         outer_radius_mm=outer_radius_mm,
@@ -600,6 +745,7 @@ def _collect_per_fly_values(
             "radius_offset_px": float(radius_offset_px),
             "exclude_wall_contact": bool(exclude_wall_contact),
             "window_radius_frames": int(window_radius_frames),
+            "heading_estimator": heading_estimator,
             "min_turnback_episodes": int(min_episodes),
         },
     )
@@ -656,7 +802,7 @@ def export_turnback_home_vector_alignment_sli_bundle(vas, opts, gls, out_fn):
         "group_label": _safe_group_label(opts, gls),
         "metric": "turnback_home_vector_alignment",
         "heading_convention": (
-            "displacement-derived heading from local x/y trajectory window around "
+            "displacement-derived heading from local x/y trajectory samples around "
             "the re-entry event; does not use Trajectory.theta"
         ),
         **_sli_selection_meta(opts),
@@ -664,8 +810,7 @@ def export_turnback_home_vector_alignment_sli_bundle(vas, opts, gls, out_fn):
     }
 
     panel_label = _panel_label(
-        selected_trainings,
-        skip_first, keep_first, last_sync_buckets
+        selected_trainings, skip_first, keep_first, last_sync_buckets
     )
     subset_label = _sli_subset_label(opts)
     if subset_label:
@@ -696,6 +841,9 @@ def export_turnback_home_vector_alignment_sli_bundle(vas, opts, gls, out_fn):
         ),
         "turnback_home_vector_alignment_window_radius_frames": np.array(
             int(metric_meta["window_radius_frames"]), dtype=int
+        ),
+        "turnback_home_vector_alignment_heading_estimator": np.array(
+            str(metric_meta["heading_estimator"]), dtype=object
         ),
         "min_turnback_episodes": np.array(
             int(metric_meta["min_turnback_episodes"]), dtype=int

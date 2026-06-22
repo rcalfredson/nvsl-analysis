@@ -6148,8 +6148,20 @@ g.add_argument(
     default=2,
     help=(
         "Symmetric frame radius used to estimate re-entry heading from x/y "
-        "displacement. Default 2 means position at/near event-2 to position "
-        "at/near event+2."
+        "displacement. With the default mean estimator, frames event-radius "
+        "through event-1 are averaged and compared with frames event+1 through "
+        "event+radius. Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--turnback-home-vector-alignment-heading-estimator",
+    choices=["mean", "endpoint"],
+    default="mean",
+    help=(
+        "Heading estimator for turnback-home-vector-alignment. 'mean' uses "
+        "the displacement between average pre- and post-re-entry positions. "
+        "'endpoint' preserves the original single pre/post endpoint "
+        "displacement. Default: %(default)s."
     ),
 )
 g.add_argument(
