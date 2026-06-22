@@ -299,12 +299,44 @@ run_turnback_home_vector_alignment() {
     --stats
 }
 
-run_turnback_home_vector_alignment_top25() {
-  local pair_label="$1"
-  local inner_radius_mm="$2"
-  local outer_radius_mm="$3"
-  local filter_tag="$4"
-  local wall_tag="$5"
+run_turnback_home_vector_alignment_sli_subset() {
+  local subset_slug="$1"
+  local subset_title="$2"
+  local sli_group="$3"
+  local sli_fraction_flag="$4"
+  local sli_fraction="$5"
+  local pair_label="$6"
+  local inner_radius_mm="$7"
+  local outer_radius_mm="$8"
+  local filter_tag="$9"
+  local wall_tag="${10}"
+
+  local subset_flags=(
+    --turnback-home-vector-alignment-sli-group "$sli_group"
+    "$sli_fraction_flag" "$sli_fraction"
+  )
+
+  run_turnback_home_vector_alignment_subset_impl \
+    "$subset_slug" \
+    "$subset_title" \
+    "$pair_label" \
+    "$inner_radius_mm" \
+    "$outer_radius_mm" \
+    "$filter_tag" \
+    "$wall_tag" \
+    "${subset_flags[@]}"
+}
+
+run_turnback_home_vector_alignment_subset_impl() {
+  local subset_slug="$1"
+  local subset_title="$2"
+  local pair_label="$3"
+  local inner_radius_mm="$4"
+  local outer_radius_mm="$5"
+  local filter_tag="$6"
+  local wall_tag="$7"
+  shift 7
+  local subset_flags=("$@")
 
   local filter_flags=()
   case "$filter_tag" in
@@ -347,7 +379,7 @@ run_turnback_home_vector_alignment_top25() {
     local dataset="${!var_name}"
     local group_slug="${GROUP_SLUGS[$i]}"
     local group_label="${GROUP_LABELS[$i]}"
-    local bundle="exports/turnbackHomeVectorAlignment_top25_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sliT2Sb2-5_${DATE_TAG}.npz"
+    local bundle="exports/turnbackHomeVectorAlignment_${subset_slug}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sliT2Sb2-5_${DATE_TAG}.npz"
 
     bundles+=("$bundle")
 
@@ -357,8 +389,7 @@ run_turnback_home_vector_alignment_top25() {
       -f 0-1 \
       --rCC 15 \
       --export-turnback-home-vector-alignment-sli-bundle "$bundle" \
-      --turnback-home-vector-alignment-sli-group top \
-      --top-sli-fraction 0.25 \
+      "${subset_flags[@]}" \
       --turnback-home-vector-alignment-inner-radius-mm "$inner_radius_mm" \
       --turnback-home-vector-alignment-outer-radius-mm "$outer_radius_mm" \
       --turnback-home-vector-alignment-trainings 2 \
@@ -379,10 +410,30 @@ run_turnback_home_vector_alignment_top25() {
     --input "Ctrl>Kir FLC=${bundles[0]}" \
     --input "PFNd>Kir FLC=${bundles[1]}" \
     --input "AR Ctrl>Kir FLC=${bundles[2]}" \
-    --out "exports/turnbackHomeVectorAlignment_top25_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sliT2Sb2-5_${DATE_TAG}.png" \
-    --title "Top 25% SLI: home-vector heading alignment at re-entry, ${inner_radius_mm}/${outer_radius_mm} mm" \
+    --out "exports/turnbackHomeVectorAlignment_${subset_slug}_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sliT2Sb2-5_${DATE_TAG}.png" \
+    --title "${subset_title}: home-vector heading alignment at re-entry, ${inner_radius_mm}/${outer_radius_mm} mm" \
     --ylabel "Home-vector heading alignment at re-entry" \
     --stats
+}
+
+run_turnback_home_vector_alignment_top20() {
+  run_turnback_home_vector_alignment_sli_subset \
+    top20 \
+    "Top 20% SLI" \
+    top \
+    --top-sli-fraction \
+    0.20 \
+    "$@"
+}
+
+run_turnback_home_vector_alignment_bottom50() {
+  run_turnback_home_vector_alignment_sli_subset \
+    bottom50 \
+    "Bottom 50% SLI" \
+    bottom \
+    --bottom-sli-fraction \
+    0.50 \
+    "$@"
 }
 
 run_return_leg_tortuosity_bins() {
@@ -636,16 +687,33 @@ run_post_wall_departure_tortuosity() {
 # noWall: discard successful re-entry episodes overlapping wall contact
 # ---------------------------------------------------------------------
 
-for filter_tag in minEpSb5Filt noFilt minEpFilt minEpPiFilt; do
-  for wall_tag in wall noWall; do
-    run_turnback_home_vector_alignment "3-5" 3 5 "$filter_tag" "$wall_tag"
-    run_turnback_home_vector_alignment "8-10" 8 10 "$filter_tag" "$wall_tag"
-    run_turnback_home_vector_alignment "13-15" 13 15 "$filter_tag" "$wall_tag"
-  done
-done
+# for filter_tag in minEpSb5Filt noFilt minEpFilt minEpPiFilt; do
+#   for wall_tag in wall noWall; do
+#     run_turnback_home_vector_alignment "3-5" 3 5 "$filter_tag" "$wall_tag"
+#     run_turnback_home_vector_alignment "8-10" 8 10 "$filter_tag" "$wall_tag"
+#     run_turnback_home_vector_alignment "13-15" 13 15 "$filter_tag" "$wall_tag"
+#   done
+# done
 
 # ---------------------------------------------------------------------
-# Top-25% learner subset: turnback home-vector heading alignment
+# Top-20% learner subset: turnback home-vector heading alignment
+# SLI ranking: Training 2, sync buckets 2 through 5.
+# Episode geometry: absolute inner/outer radii from reward-circle center,
+# matching turnback-ratio default pairs: 3/5, 8/10, 13/15 mm.
+# wall: include all successful re-entry episodes
+# noWall: discard successful re-entry episodes overlapping wall contact
+# ---------------------------------------------------------------------
+
+# for filter_tag in minEpSb5Filt; do
+#   for wall_tag in wall noWall; do
+#     run_turnback_home_vector_alignment_top20 "3-5" 3 5 "$filter_tag" "$wall_tag"
+#     run_turnback_home_vector_alignment_top20 "8-10" 8 10 "$filter_tag" "$wall_tag"
+#     run_turnback_home_vector_alignment_top20 "13-15" 13 15 "$filter_tag" "$wall_tag"
+#   done
+# done
+
+# ---------------------------------------------------------------------
+# Bottom-50% learner subset: turnback home-vector heading alignment
 # SLI ranking: Training 2, sync buckets 2 through 5.
 # Episode geometry: absolute inner/outer radii from reward-circle center,
 # matching turnback-ratio default pairs: 3/5, 8/10, 13/15 mm.
@@ -655,9 +723,9 @@ done
 
 for filter_tag in minEpSb5Filt; do
   for wall_tag in wall noWall; do
-    run_turnback_home_vector_alignment_top25 "3-5" 3 5 "$filter_tag" "$wall_tag"
-    run_turnback_home_vector_alignment_top25 "8-10" 8 10 "$filter_tag" "$wall_tag"
-    run_turnback_home_vector_alignment_top25 "13-15" 13 15 "$filter_tag" "$wall_tag"
+    run_turnback_home_vector_alignment_bottom50 "3-5" 3 5 "$filter_tag" "$wall_tag"
+    run_turnback_home_vector_alignment_bottom50 "8-10" 8 10 "$filter_tag" "$wall_tag"
+    run_turnback_home_vector_alignment_bottom50 "13-15" 13 15 "$filter_tag" "$wall_tag"
   done
 done
 
