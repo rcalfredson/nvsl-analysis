@@ -26,8 +26,13 @@ from src.utils.util import meanConfInt
 Y_LABEL = "Home-vector heading alignment at re-entry"
 BASE_TITLE = "Turnback home-vector heading alignment"
 HEADING_ESTIMATOR_MEAN = "mean"
+HEADING_ESTIMATOR_REENTRY_MEAN = "reentry_mean"
 HEADING_ESTIMATOR_ENDPOINT = "endpoint"
-HEADING_ESTIMATOR_CHOICES = (HEADING_ESTIMATOR_MEAN, HEADING_ESTIMATOR_ENDPOINT)
+HEADING_ESTIMATOR_CHOICES = (
+    HEADING_ESTIMATOR_MEAN,
+    HEADING_ESTIMATOR_REENTRY_MEAN,
+    HEADING_ESTIMATOR_ENDPOINT,
+)
 
 
 def _selected_training_indices(vas, opts) -> list[int]:
@@ -176,25 +181,60 @@ def _safe_finite_xy_at(trj, frame_idx: int) -> tuple[float, float] | None:
     return x, y
 
 
-def _finite_xy_samples(trj, *, lo: int, hi: int) -> np.ndarray:
+def _finite_xy_frame_samples(trj, *, lo: int, hi: int) -> tuple[np.ndarray, np.ndarray]:
     """
-    Return finite x/y samples from inclusive frame range [lo, hi].
+    Return frame indices and finite x/y samples from inclusive range [lo, hi].
     """
     n = min(len(getattr(trj, "x", [])), len(getattr(trj, "y", [])))
     if n <= 0:
-        return np.zeros((0, 2), dtype=float)
+        return np.zeros((0,), dtype=int), np.zeros((0, 2), dtype=float)
 
     lo = max(0, int(lo))
     hi = min(int(hi), n - 1)
     if hi < lo:
-        return np.zeros((0, 2), dtype=float)
+        return np.zeros((0,), dtype=int), np.zeros((0, 2), dtype=float)
 
+    frames = np.arange(lo, hi + 1, dtype=int)
     xs = np.asarray(trj.x[lo : hi + 1], dtype=float)
     ys = np.asarray(trj.y[lo : hi + 1], dtype=float)
     mask = np.isfinite(xs) & np.isfinite(ys)
     if not np.any(mask):
-        return np.zeros((0, 2), dtype=float)
-    return np.column_stack([xs[mask], ys[mask]]).astype(float, copy=False)
+        return np.zeros((0,), dtype=int), np.zeros((0, 2), dtype=float)
+    return frames[mask], np.column_stack([xs[mask], ys[mask]]).astype(
+        float, copy=False
+    )
+
+
+def _count_interpolated_heading_frames(trj, frames: np.ndarray) -> int:
+    nan_mask = getattr(trj, "nan", None)
+    if nan_mask is None:
+        return 0
+
+    try:
+        arr = np.asarray(nan_mask, dtype=bool)
+    except Exception:
+        return 0
+
+    if arr.ndim != 1 or arr.size == 0:
+        return 0
+
+    idx = np.asarray(frames, dtype=int).reshape(-1)
+    idx = idx[(idx >= 0) & (idx < arr.size)]
+    if idx.size == 0:
+        return 0
+    return int(np.count_nonzero(arr[idx]))
+
+
+def _within_interpolated_heading_budget(
+    trj,
+    frames: np.ndarray,
+    max_interpolated_frames: int | None,
+) -> bool:
+    if max_interpolated_frames is None:
+        return True
+    return _count_interpolated_heading_frames(trj, frames) <= int(
+        max_interpolated_frames
+    )
 
 
 def _nearest_finite_xy(
@@ -251,6 +291,7 @@ def _endpoint_heading_vector_at_reentry(
     event_frame: int,
     *,
     window_radius_frames: int = 2,
+    max_interpolated_frames: int | None = None,
     training_start: int | None = None,
     training_stop: int | None = None,
 ) -> tuple[float, float] | None:
@@ -308,6 +349,11 @@ def _endpoint_heading_vector_at_reentry(
 
     _bi, bx, by = before
     _ai, ax, ay = after
+    if not _within_interpolated_heading_budget(
+        trj, np.asarray([_bi, _ai], dtype=int), max_interpolated_frames
+    ):
+        return None
+
     hx = float(ax - bx)
     hy = float(ay - by)
     if not (np.isfinite(hx) and np.isfinite(hy)):
@@ -322,15 +368,18 @@ def _mean_heading_vector_at_reentry(
     event_frame: int,
     *,
     window_radius_frames: int = 2,
+    anchor: str = "border",
+    max_interpolated_frames: int | None = None,
     training_start: int | None = None,
     training_stop: int | None = None,
 ) -> tuple[float, float] | None:
     """
     Estimate heading from the displacement between mean pre/post positions.
 
-    The event frame itself is excluded so the vector is based on points on either
-    side of the re-entry event. If a short or sparse window cannot provide
-    samples on both sides, fall back to the endpoint estimator.
+    anchor="border" uses frames symmetrically around the crossing boundary: for
+    radius 2, before=(event-2,event-1) and after=(event,event+1). The legacy
+    anchor="reentry" excludes the event frame and uses frames on either side of
+    it: before=(event-2,event-1), after=(event+1,event+2).
     """
     radius = max(0, int(window_radius_frames or 0))
     if radius <= 0:
@@ -338,6 +387,7 @@ def _mean_heading_vector_at_reentry(
             trj,
             event_frame,
             window_radius_frames=radius,
+            max_interpolated_frames=max_interpolated_frames,
             training_start=training_start,
             training_stop=training_stop,
         )
@@ -349,11 +399,23 @@ def _mean_heading_vector_at_reentry(
     if training_stop is not None:
         hi_bound = min(hi_bound, int(training_stop) - 1)
 
-    before = _finite_xy_samples(
-        trj, lo=max(lo_bound, event_frame - radius), hi=min(hi_bound, event_frame - 1)
+    before_frames, before = _finite_xy_frame_samples(
+        trj,
+        lo=max(lo_bound, event_frame - radius),
+        hi=min(hi_bound, event_frame - 1),
     )
-    after = _finite_xy_samples(
-        trj, lo=max(lo_bound, event_frame + 1), hi=min(hi_bound, event_frame + radius)
+    if anchor == "border":
+        after_lo = event_frame
+        after_hi = event_frame + radius - 1
+    elif anchor == "reentry":
+        after_lo = event_frame + 1
+        after_hi = event_frame + radius
+    else:
+        raise ValueError(f"unknown heading anchor: {anchor!r}")
+    after_frames, after = _finite_xy_frame_samples(
+        trj,
+        lo=max(lo_bound, after_lo),
+        hi=min(hi_bound, after_hi),
     )
 
     if before.size == 0 or after.size == 0:
@@ -361,9 +423,16 @@ def _mean_heading_vector_at_reentry(
             trj,
             event_frame,
             window_radius_frames=radius,
+            max_interpolated_frames=max_interpolated_frames,
             training_start=training_start,
             training_stop=training_stop,
         )
+
+    sampled_frames = np.concatenate([before_frames, after_frames])
+    if not _within_interpolated_heading_budget(
+        trj, sampled_frames, max_interpolated_frames
+    ):
+        return None
 
     before_xy = np.mean(before, axis=0)
     after_xy = np.mean(after, axis=0)
@@ -382,6 +451,7 @@ def heading_vector_at_reentry(
     *,
     window_radius_frames: int = 2,
     estimator: str = HEADING_ESTIMATOR_MEAN,
+    max_interpolated_frames: int | None = None,
     training_start: int | None = None,
     training_stop: int | None = None,
 ) -> tuple[float, float] | None:
@@ -389,9 +459,10 @@ def heading_vector_at_reentry(
     Estimate heading from local displacement around the re-entry event.
 
     We intentionally use x/y displacement rather than Trajectory.theta here.
-    The default estimator uses the displacement from the mean pre-event position
-    to the mean post-event position. Use estimator="endpoint" to preserve the
-    original single-sample endpoint displacement across the requested window.
+    The default estimator uses mean pre/post positions anchored symmetrically
+    around the border crossing. Use estimator="reentry_mean" for the earlier
+    event-centered mean, or estimator="endpoint" for the original single-sample
+    endpoint displacement across the requested window.
     """
     estimator = str(estimator or HEADING_ESTIMATOR_MEAN)
     if estimator == HEADING_ESTIMATOR_MEAN:
@@ -399,6 +470,18 @@ def heading_vector_at_reentry(
             trj,
             event_frame,
             window_radius_frames=window_radius_frames,
+            anchor="border",
+            max_interpolated_frames=max_interpolated_frames,
+            training_start=training_start,
+            training_stop=training_stop,
+        )
+    if estimator == HEADING_ESTIMATOR_REENTRY_MEAN:
+        return _mean_heading_vector_at_reentry(
+            trj,
+            event_frame,
+            window_radius_frames=window_radius_frames,
+            anchor="reentry",
+            max_interpolated_frames=max_interpolated_frames,
             training_start=training_start,
             training_stop=training_stop,
         )
@@ -407,6 +490,7 @@ def heading_vector_at_reentry(
             trj,
             event_frame,
             window_radius_frames=window_radius_frames,
+            max_interpolated_frames=max_interpolated_frames,
             training_start=training_start,
             training_stop=training_stop,
         )
@@ -460,6 +544,7 @@ def episode_home_vector_alignment(
     *,
     window_radius_frames: int = 2,
     heading_estimator: str = HEADING_ESTIMATOR_MEAN,
+    max_interpolated_heading_frames: int | None = None,
 ) -> float:
     event_frame = int(ep["stop"]) - 1
 
@@ -478,6 +563,7 @@ def episode_home_vector_alignment(
         event_frame,
         window_radius_frames=window_radius_frames,
         estimator=heading_estimator,
+        max_interpolated_frames=max_interpolated_heading_frames,
         training_start=int(getattr(trn, "start", 0)),
         training_stop=int(getattr(trn, "stop", len(getattr(trj, "x", [])))),
     )
@@ -495,6 +581,21 @@ def episode_home_vector_alignment(
         return float("nan")
 
     return cosine_alignment(heading_vec, home_vec)
+
+
+def _episode_within_windows(ep: dict, windows) -> bool:
+    """
+    Return True if the entire episode lies inside a selected analysis window.
+
+    This intentionally checks the full selected window span, not individual sync
+    buckets, so episodes may cross from one included bucket to another.
+    """
+    start = int(ep["start"])
+    stop = int(ep["stop"])
+    for win in windows:
+        if int(win["start"]) <= start and stop <= int(win["stop"]):
+            return True
+    return False
 
 
 def _mean_ci(
@@ -520,6 +621,7 @@ def _iter_successful_selected_episode_values_for_fly(
     exclude_wall_contact: bool,
     window_radius_frames: int,
     heading_estimator: str,
+    max_interpolated_heading_frames: int | None,
     inner_radius_mm: float | None,
     inner_delta_mm: float | None,
     outer_radius_mm: float | None,
@@ -578,6 +680,9 @@ def _iter_successful_selected_episode_values_for_fly(
             if episode_overlaps_wall_contact(ep, wall_regions):
                 continue
 
+            if not _episode_within_windows(ep, windows_by_training[t_idx]):
+                continue
+
             event_t = int(ep["stop"]) - 1
             if not _frame_in_windows(event_t, windows_by_training[t_idx]):
                 continue
@@ -588,6 +693,7 @@ def _iter_successful_selected_episode_values_for_fly(
                 ep,
                 window_radius_frames=window_radius_frames,
                 heading_estimator=heading_estimator,
+                max_interpolated_heading_frames=max_interpolated_heading_frames,
             )
             if np.isfinite(val):
                 yield float(val)
@@ -671,6 +777,16 @@ def _collect_per_fly_values(
             "turnback_home_vector_alignment_heading_estimator must be one of "
             f"{HEADING_ESTIMATOR_CHOICES!r}; got {heading_estimator!r}"
         )
+    raw_max_interp = getattr(
+        opts,
+        "turnback_home_vector_alignment_max_interpolated_heading_frames",
+        0,
+    )
+    if raw_max_interp is None:
+        raw_max_interp = 0
+    max_interpolated_heading_frames = (
+        None if int(raw_max_interp) < 0 else max(0, int(raw_max_interp))
+    )
 
     per_unit_ids = []
     per_unit_values = []
@@ -705,6 +821,7 @@ def _collect_per_fly_values(
                         exclude_wall_contact=exclude_wall_contact,
                         window_radius_frames=window_radius_frames,
                         heading_estimator=heading_estimator,
+                        max_interpolated_heading_frames=max_interpolated_heading_frames,
                         inner_radius_mm=inner_radius_mm,
                         inner_delta_mm=inner_delta_mm,
                         outer_radius_mm=outer_radius_mm,
@@ -746,6 +863,11 @@ def _collect_per_fly_values(
             "exclude_wall_contact": bool(exclude_wall_contact),
             "window_radius_frames": int(window_radius_frames),
             "heading_estimator": heading_estimator,
+            "max_interpolated_heading_frames": (
+                -1
+                if max_interpolated_heading_frames is None
+                else int(max_interpolated_heading_frames)
+            ),
             "min_turnback_episodes": int(min_episodes),
         },
     )
@@ -844,6 +966,9 @@ def export_turnback_home_vector_alignment_sli_bundle(vas, opts, gls, out_fn):
         ),
         "turnback_home_vector_alignment_heading_estimator": np.array(
             str(metric_meta["heading_estimator"]), dtype=object
+        ),
+        "turnback_home_vector_alignment_max_interpolated_heading_frames": np.array(
+            int(metric_meta["max_interpolated_heading_frames"]), dtype=int
         ),
         "min_turnback_episodes": np.array(
             int(metric_meta["min_turnback_episodes"]), dtype=int

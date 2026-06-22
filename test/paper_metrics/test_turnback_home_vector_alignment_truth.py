@@ -89,6 +89,7 @@ def _default_opts(**overrides):
         turnback_home_vector_alignment_last_sync_buckets=None,
         turnback_home_vector_alignment_window_radius_frames=1,
         turnback_home_vector_alignment_heading_estimator="mean",
+        turnback_home_vector_alignment_max_interpolated_heading_frames=0,
         turnback_home_vector_alignment_exclude_wall_contact=False,
         turnback_home_vector_alignment_inner_radius_mm=None,
         turnback_home_vector_alignment_inner_delta_mm=None,
@@ -155,7 +156,7 @@ def test_cosine_alignment_reports_homeward_tangent_and_away_cases():
     np.testing.assert_allclose(cosine_alignment((2.0, 0.0), (-10.0, 0.0)), -1.0)
 
 
-def test_heading_vector_default_uses_mean_pre_and_post_positions():
+def test_heading_vector_default_uses_border_symmetric_mean_positions():
     x, y = _blank_xy(9)
     _set_xy(
         x,
@@ -176,7 +177,38 @@ def test_heading_vector_default_uses_mean_pre_and_post_positions():
         trj, event_frame=4, window_radius_frames=2, training_start=0, training_stop=9
     )
 
-    # Mean before = mean(frames 2, 3) = 3.5; mean after =
+    # Mean before crossing = mean(frames 2, 3) = 3.5; mean after crossing =
+    # mean(frames 4, 5) = -0.5.
+    np.testing.assert_allclose(heading, (-4.0, 0.0))
+
+
+def test_heading_vector_reentry_mean_preserves_event_centered_mean_positions():
+    x, y = _blank_xy(9)
+    _set_xy(
+        x,
+        y,
+        {
+            1: (10.0, 0.0),
+            2: (6.0, 0.0),
+            3: (1.0, 0.0),
+            4: (0.0, 0.0),
+            5: (-1.0, 0.0),
+            6: (-6.0, 0.0),
+            7: (-10.0, 0.0),
+        },
+    )
+    trj = SimpleNamespace(x=x, y=y)
+
+    heading = heading_vector_at_reentry(
+        trj,
+        event_frame=4,
+        window_radius_frames=2,
+        estimator="reentry_mean",
+        training_start=0,
+        training_stop=9,
+    )
+
+    # Mean before event = mean(frames 2, 3) = 3.5; mean after event =
     # mean(frames 5, 6) = -3.5.
     np.testing.assert_allclose(heading, (-7.0, 0.0))
 
@@ -216,6 +248,72 @@ def test_heading_vector_radius_zero_falls_back_to_distinct_pre_and_post_samples(
     )
 
     np.testing.assert_allclose(heading, (-3.0, 0.0))
+
+
+def test_heading_vector_applies_interpolated_frame_budget():
+    x, y = _blank_xy(7)
+    _set_xy(
+        x,
+        y,
+        {
+            1: (4.0, 0.0),
+            2: (2.0, 0.0),
+            3: (0.0, 0.0),
+            4: (-2.0, 0.0),
+        },
+    )
+    nan = np.zeros(7, dtype=bool)
+    nan[2] = True
+    trj = SimpleNamespace(x=x, y=y, nan=nan)
+
+    heading = heading_vector_at_reentry(
+        trj,
+        event_frame=3,
+        window_radius_frames=2,
+        max_interpolated_frames=1,
+        training_start=0,
+        training_stop=7,
+    )
+    np.testing.assert_allclose(heading, (-4.0, 0.0))
+
+    assert (
+        heading_vector_at_reentry(
+            trj,
+            event_frame=3,
+            window_radius_frames=2,
+            max_interpolated_frames=0,
+            training_start=0,
+            training_stop=7,
+        )
+        is None
+    )
+
+
+def test_export_negative_interpolation_budget_records_uncapped_metadata(tmp_path):
+    episodes = [_episode(115)]
+    coords = {
+        114: (12.0, 0.0),
+        115: (10.0, 0.0),
+        116: (8.0, 0.0),
+    }
+
+    va = _make_export_va(episodes=episodes, coords=coords)
+    opts = _default_opts(
+        turnback_home_vector_alignment_max_interpolated_heading_frames=-1
+    )
+    out = tmp_path / "home_vector_alignment_uncapped.npz"
+
+    export_turnback_home_vector_alignment_sli_bundle(
+        [va], opts, gls=None, out_fn=str(out)
+    )
+
+    with np.load(out, allow_pickle=True) as bundle:
+        meta = json.loads(bundle["meta_json"].item())
+        assert meta["max_interpolated_heading_frames"] == -1
+        np.testing.assert_array_equal(
+            bundle["turnback_home_vector_alignment_max_interpolated_heading_frames"],
+            [-1],
+        )
 
 
 def test_episode_home_vector_alignment_for_radial_and_tangent_reentry():
@@ -259,6 +357,9 @@ def test_export_schema_uses_selected_successful_reentry_episodes_only(tmp_path):
         _episode(118, turns_back=False, end_reason="exit_outer"),
         # Included: tangent at re-entry, value 0.
         _episode(125),
+        # Ignored: event lies in the selected window, but the episode starts
+        # before the absolute selected-window boundary.
+        _episode(111, start=109),
     ]
 
     coords = {
@@ -278,6 +379,10 @@ def test_export_schema_uses_selected_successful_reentry_episodes_only(tmp_path):
         124: (10.0, -1.0),
         125: (10.0, 0.0),
         126: (10.0, 1.0),
+        # Endpoint-crossing episode, should not contribute.
+        110: (12.0, 0.0),
+        111: (10.0, 0.0),
+        112: (8.0, 0.0),
     }
 
     va = _make_export_va(episodes=episodes, coords=coords)
@@ -321,10 +426,15 @@ def test_export_schema_uses_selected_successful_reentry_episodes_only(tmp_path):
         assert meta["keep_first_sync_buckets"] == 4
         assert meta["window_radius_frames"] == 1
         assert meta["heading_estimator"] == "mean"
+        assert meta["max_interpolated_heading_frames"] == 0
         assert "does not use Trajectory.theta" in meta["heading_convention"]
         assert (
             bundle["turnback_home_vector_alignment_heading_estimator"].item()
             == "mean"
+        )
+        np.testing.assert_array_equal(
+            bundle["turnback_home_vector_alignment_max_interpolated_heading_frames"],
+            [0],
         )
 
         # The actual episode iterator should receive the same default turnback

@@ -279,6 +279,7 @@ run_turnback_home_vector_alignment() {
       --turnback-home-vector-alignment-skip-first-sync-buckets 1 \
       --turnback-home-vector-alignment-keep-first-sync-buckets 4 \
       --turnback-home-vector-alignment-window-radius-frames 2 \
+      --turnback-home-vector-alignment-max-interpolated-heading-frames 1 \
       --best-worst-trn 2 \
       --sli-use-training-mean \
       --sli-select-skip-first-sync-buckets 1 \
@@ -396,6 +397,7 @@ run_turnback_home_vector_alignment_subset_impl() {
       --turnback-home-vector-alignment-skip-first-sync-buckets 1 \
       --turnback-home-vector-alignment-keep-first-sync-buckets 4 \
       --turnback-home-vector-alignment-window-radius-frames 2 \
+      --turnback-home-vector-alignment-max-interpolated-heading-frames 1 \
       --best-worst-trn 2 \
       --sli-use-training-mean \
       --sli-select-skip-first-sync-buckets 1 \

@@ -6149,19 +6149,32 @@ g.add_argument(
     help=(
         "Symmetric frame radius used to estimate re-entry heading from x/y "
         "displacement. With the default mean estimator, frames event-radius "
-        "through event-1 are averaged and compared with frames event+1 through "
-        "event+radius. Default: %(default)s."
+        "through event-1 are averaged and compared with frames event through "
+        "event+radius-1, symmetrically around the circle-border crossing. "
+        "Default: %(default)s."
     ),
 )
 g.add_argument(
     "--turnback-home-vector-alignment-heading-estimator",
-    choices=["mean", "endpoint"],
+    choices=["mean", "reentry_mean", "endpoint"],
     default="mean",
     help=(
         "Heading estimator for turnback-home-vector-alignment. 'mean' uses "
-        "the displacement between average pre- and post-re-entry positions. "
-        "'endpoint' preserves the original single pre/post endpoint "
-        "displacement. Default: %(default)s."
+        "the displacement between average pre- and post-border-crossing "
+        "positions. 'reentry_mean' preserves the earlier event-centered mean "
+        "that excludes the event frame. 'endpoint' preserves the original "
+        "single pre/post endpoint displacement. Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--turnback-home-vector-alignment-max-interpolated-heading-frames",
+    type=int,
+    default=0,
+    help=(
+        "Optional maximum number of sampled heading frames that may have been "
+        "interpolated from lost tracking. Use a negative value to allow any "
+        "number. For the default two-frame-per-side sampler, 1 allows at most "
+        "one interpolated sample among the heading frames. Default: %(default)s."
     ),
 )
 g.add_argument(
