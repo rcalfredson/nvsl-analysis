@@ -9,6 +9,7 @@ imgs/**/*.jpg*
 imgs/**/*.pdf*
 imgs/**/*.svg*
 imgs/**/*.tsv*
+imgs/turnback_home_vector_alignment_debug/**/manifest.csv
 plots*/*
 
 /exports/

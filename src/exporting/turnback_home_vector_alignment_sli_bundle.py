@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import csv
 import json
 import os
 from datetime import datetime, timezone
 
+import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+from matplotlib.patches import Circle
 import numpy as np
 
 from src.analysis.episode_filters import (
@@ -95,6 +99,18 @@ def _effective_windowing(opts) -> tuple[int, int, int]:
     )
 
 
+def _resolve_max_interpolated_heading_frames(opts) -> int | None:
+    raw = getattr(
+        opts,
+        "turnback_home_vector_alignment_max_interpolated_heading_frames",
+        0,
+    )
+    if raw is None:
+        raw = 0
+    raw = int(raw)
+    return None if raw < 0 else max(0, raw)
+
+
 def _sli_subset_label(opts) -> str | None:
     sli_group = getattr(opts, "turnback_home_vector_alignment_sli_group", "all")
     if sli_group == "all":
@@ -164,6 +180,15 @@ def _unit_id_for_va_fly(va, vi: int, fly_idx: int) -> str:
     if getattr(va, "f", None) is not None:
         return f"{video_id}:fly{int(getattr(va, 'f')) + int(getattr(va, 'nef', 0)) * int(fly_idx)}"
     return f"{video_id}:fly{int(fly_idx)}"
+
+
+def _display_fly_id_for_va_fly(va, fly_idx: int) -> int:
+    if getattr(va, "f", None) is not None:
+        try:
+            return int(getattr(va, "f"))
+        except (TypeError, ValueError):
+            pass
+    return int(fly_idx)
 
 
 def _safe_finite_xy_at(trj, frame_idx: int) -> tuple[float, float] | None:
@@ -445,6 +470,122 @@ def _mean_heading_vector_at_reentry(
     return hx, hy
 
 
+def _heading_components_at_reentry(
+    trj,
+    event_frame: int,
+    *,
+    window_radius_frames: int = 2,
+    estimator: str = HEADING_ESTIMATOR_MEAN,
+    max_interpolated_frames: int | None = None,
+    training_start: int | None = None,
+    training_stop: int | None = None,
+) -> dict | None:
+    radius = max(0, int(window_radius_frames or 0))
+    event_frame = int(event_frame)
+    estimator = str(estimator or HEADING_ESTIMATOR_MEAN)
+
+    if estimator == HEADING_ESTIMATOR_ENDPOINT or radius <= 0:
+        lo_bound = 0 if training_start is None else int(training_start)
+        hi_bound = len(getattr(trj, "x", [])) - 1
+        hi_bound = min(hi_bound, len(getattr(trj, "y", [])) - 1)
+        if training_stop is not None:
+            hi_bound = min(hi_bound, int(training_stop) - 1)
+
+        before = _nearest_finite_xy(
+            trj,
+            event_frame - radius,
+            lo=lo_bound,
+            hi=event_frame,
+            prefer="before",
+        )
+        after = _nearest_finite_xy(
+            trj,
+            event_frame + radius,
+            lo=event_frame,
+            hi=hi_bound,
+            prefer="after",
+        )
+        if before is None or after is None or before[0] == after[0]:
+            before = _nearest_finite_xy(
+                trj,
+                event_frame - 1,
+                lo=lo_bound,
+                hi=max(lo_bound, event_frame - 1),
+                prefer="before",
+            )
+            after = _nearest_finite_xy(
+                trj,
+                event_frame + 1,
+                lo=min(hi_bound, event_frame + 1),
+                hi=hi_bound,
+                prefer="after",
+            )
+        if before is None or after is None or before[0] == after[0]:
+            return None
+        before_frames = np.asarray([before[0]], dtype=int)
+        after_frames = np.asarray([after[0]], dtype=int)
+        before_xy = np.asarray([before[1], before[2]], dtype=float)
+        after_xy = np.asarray([after[1], after[2]], dtype=float)
+    else:
+        lo_bound = 0 if training_start is None else int(training_start)
+        hi_bound = len(getattr(trj, "x", [])) - 1
+        hi_bound = min(hi_bound, len(getattr(trj, "y", [])) - 1)
+        if training_stop is not None:
+            hi_bound = min(hi_bound, int(training_stop) - 1)
+
+        before_frames, before = _finite_xy_frame_samples(
+            trj,
+            lo=max(lo_bound, event_frame - radius),
+            hi=min(hi_bound, event_frame - 1),
+        )
+        if estimator == HEADING_ESTIMATOR_MEAN:
+            after_lo = event_frame
+            after_hi = event_frame + radius - 1
+        elif estimator == HEADING_ESTIMATOR_REENTRY_MEAN:
+            after_lo = event_frame + 1
+            after_hi = event_frame + radius
+        else:
+            raise ValueError(f"unknown heading estimator: {estimator!r}")
+        after_frames, after = _finite_xy_frame_samples(
+            trj,
+            lo=max(lo_bound, after_lo),
+            hi=min(hi_bound, after_hi),
+        )
+        if before.size == 0 or after.size == 0:
+            return _heading_components_at_reentry(
+                trj,
+                event_frame,
+                window_radius_frames=radius,
+                estimator=HEADING_ESTIMATOR_ENDPOINT,
+                max_interpolated_frames=max_interpolated_frames,
+                training_start=training_start,
+                training_stop=training_stop,
+            )
+        before_xy = np.mean(before, axis=0)
+        after_xy = np.mean(after, axis=0)
+
+    sampled_frames = np.concatenate([before_frames, after_frames])
+    if not _within_interpolated_heading_budget(
+        trj, sampled_frames, max_interpolated_frames
+    ):
+        return None
+    vector = np.asarray(after_xy - before_xy, dtype=float)
+    if not np.all(np.isfinite(vector)) or np.hypot(vector[0], vector[1]) <= 0.0:
+        return None
+    return {
+        "estimator": estimator,
+        "before_frames": before_frames,
+        "after_frames": after_frames,
+        "sampled_frames": sampled_frames,
+        "before_xy": before_xy,
+        "after_xy": after_xy,
+        "vector": vector,
+        "interpolated_heading_frames": _count_interpolated_heading_frames(
+            trj, sampled_frames
+        ),
+    }
+
+
 def heading_vector_at_reentry(
     trj,
     event_frame: int,
@@ -537,6 +678,20 @@ def cosine_alignment(heading_vec, home_vec) -> float:
     return float(np.clip(val, -1.0, 1.0))
 
 
+def _turnback_event_frame(ep: dict) -> int:
+    """
+    Resolve the outcome frame for turnback-home-vector alignment.
+
+    The dual-circle episode generator currently records successful re-entry
+    episodes with stop equal to the first frame inside the inner circle. The
+    generic event_frame field and stop - 1 therefore point to the final outside
+    frame for this outcome.
+    """
+    if ep.get("end_reason", "reenter_inner") == "reenter_inner":
+        return int(ep["stop"])
+    return int(ep.get("event_frame", int(ep["stop"]) - 1))
+
+
 def episode_home_vector_alignment(
     trj,
     trn,
@@ -546,7 +701,7 @@ def episode_home_vector_alignment(
     heading_estimator: str = HEADING_ESTIMATOR_MEAN,
     max_interpolated_heading_frames: int | None = None,
 ) -> float:
-    event_frame = int(ep["stop"]) - 1
+    event_frame = _turnback_event_frame(ep)
 
     event_xy = _safe_finite_xy_at(trj, event_frame)
     if event_xy is None:
@@ -581,6 +736,55 @@ def episode_home_vector_alignment(
         return float("nan")
 
     return cosine_alignment(heading_vec, home_vec)
+
+
+def episode_home_vector_alignment_components(
+    trj,
+    trn,
+    ep: dict,
+    *,
+    window_radius_frames: int = 2,
+    max_interpolated_heading_frames: int | None = None,
+) -> dict:
+    event_frame = _turnback_event_frame(ep)
+    event_xy = _safe_finite_xy_at(trj, event_frame)
+    if event_xy is None:
+        return {}
+    x, y = event_xy
+
+    try:
+        cx, cy, _reward_radius_px = trn.circles(getattr(trj, "f", 0))[0]
+    except Exception:
+        return {}
+    home_vec = home_vector_from_reentry_to_center(
+        cx=float(cx),
+        cy=float(cy),
+        x=float(x),
+        y=float(y),
+    )
+    if home_vec is None:
+        return {}
+
+    out = {}
+    for estimator in HEADING_ESTIMATOR_CHOICES:
+        comp = _heading_components_at_reentry(
+            trj,
+            event_frame,
+            window_radius_frames=window_radius_frames,
+            estimator=estimator,
+            max_interpolated_frames=max_interpolated_heading_frames,
+            training_start=int(getattr(trn, "start", 0)),
+            training_stop=int(getattr(trn, "stop", len(getattr(trj, "x", [])))),
+        )
+        if comp is None:
+            continue
+        val = cosine_alignment(comp["vector"], home_vec)
+        if not np.isfinite(val):
+            continue
+        comp = dict(comp)
+        comp["alignment"] = float(val)
+        out[estimator] = comp
+    return out
 
 
 def _episode_within_windows(ep: dict, windows) -> bool:
@@ -683,7 +887,7 @@ def _iter_successful_selected_episode_values_for_fly(
             if not _episode_within_windows(ep, windows_by_training[t_idx]):
                 continue
 
-            event_t = int(ep["stop"]) - 1
+            event_t = _turnback_event_frame(ep)
             if not _frame_in_windows(event_t, windows_by_training[t_idx]):
                 continue
 
@@ -777,16 +981,7 @@ def _collect_per_fly_values(
             "turnback_home_vector_alignment_heading_estimator must be one of "
             f"{HEADING_ESTIMATOR_CHOICES!r}; got {heading_estimator!r}"
         )
-    raw_max_interp = getattr(
-        opts,
-        "turnback_home_vector_alignment_max_interpolated_heading_frames",
-        0,
-    )
-    if raw_max_interp is None:
-        raw_max_interp = 0
-    max_interpolated_heading_frames = (
-        None if int(raw_max_interp) < 0 else max(0, int(raw_max_interp))
-    )
+    max_interpolated_heading_frames = _resolve_max_interpolated_heading_frames(opts)
 
     per_unit_ids = []
     per_unit_values = []
@@ -870,6 +1065,844 @@ def _collect_per_fly_values(
             ),
             "min_turnback_episodes": int(min_episodes),
         },
+    )
+
+
+_EXAMPLE_FIELDS = [
+    "rank",
+    "group",
+    "video",
+    "fly",
+    "training",
+    "episode_start",
+    "event_frame",
+    "episode_stop",
+    "inner_boundary_px",
+    "pre_reentry_frame",
+    "pre_reentry_distance_px",
+    "pre_reentry_margin_px",
+    "event_distance_px",
+    "event_margin_px",
+    "alignment_endpoint",
+    "alignment_reentry_mean",
+    "alignment_border_mean",
+    "delta_border_minus_endpoint",
+    "delta_border_minus_reentry_mean",
+    "rank_mode",
+    "rank_score",
+    "endpoint_frames",
+    "reentry_mean_frames",
+    "border_mean_frames",
+    "endpoint_before_xy",
+    "endpoint_after_xy",
+    "endpoint_vector",
+    "reentry_mean_before_xy",
+    "reentry_mean_after_xy",
+    "reentry_mean_vector",
+    "border_mean_before_xy",
+    "border_mean_after_xy",
+    "border_mean_vector",
+    "image",
+]
+
+
+def _frame_list_str(frames) -> str:
+    return ";".join(str(int(f)) for f in np.asarray(frames, dtype=int).reshape(-1))
+
+
+def _xy_list_str(vals) -> str:
+    arr = np.asarray(vals, dtype=float).reshape(-1)
+    return ";".join(f"{float(v):.6g}" for v in arr)
+
+
+def _example_inner_boundary_diagnostics(trj, trn, ep: dict, event_frame: int) -> dict:
+    try:
+        cx = float(ep.get("reward_cx_px", np.nan))
+        cy = float(ep.get("reward_cy_px", np.nan))
+        if not (np.isfinite(cx) and np.isfinite(cy)):
+            cx, cy, _reward_r_px = trn.circles(getattr(trj, "f", 0))[0]
+            cx = float(cx)
+            cy = float(cy)
+    except Exception:
+        cx = cy = np.nan
+
+    inner_radius_px = float(ep.get("inner_radius_px", np.nan))
+    inner_border_px = float(ep.get("inner_border_px", 0.0) or 0.0)
+    inner_boundary_px = inner_radius_px + max(0.0, inner_border_px)
+
+    def _distance_at(frame: int) -> float:
+        xy = _safe_finite_xy_at(trj, int(frame))
+        if xy is None or not (np.isfinite(cx) and np.isfinite(cy)):
+            return float("nan")
+        x, y = xy
+        return float(np.hypot(float(x) - cx, float(y) - cy))
+
+    prev_frame = int(event_frame) - 1
+    prev_dist = _distance_at(prev_frame)
+    event_dist = _distance_at(int(event_frame))
+    return {
+        "inner_boundary_px": float(inner_boundary_px),
+        "pre_reentry_frame": int(prev_frame),
+        "pre_reentry_distance_px": float(prev_dist),
+        "pre_reentry_margin_px": (
+            float(prev_dist - inner_boundary_px)
+            if np.isfinite(prev_dist) and np.isfinite(inner_boundary_px)
+            else float("nan")
+        ),
+        "event_distance_px": float(event_dist),
+        "event_margin_px": (
+            float(event_dist - inner_boundary_px)
+            if np.isfinite(event_dist) and np.isfinite(inner_boundary_px)
+            else float("nan")
+        ),
+    }
+
+
+def _example_rank_mode(opts) -> str:
+    mode = str(
+        getattr(
+            opts,
+            "turnback_home_vector_alignment_examples_rank_mode",
+            "border_minus_endpoint",
+        )
+        or "border_minus_endpoint"
+    )
+    valid = {
+        "border_minus_endpoint",
+        "abs_border_minus_endpoint",
+        "border_minus_reentry_mean",
+        "abs_border_minus_reentry_mean",
+    }
+    if mode not in valid:
+        raise ValueError(
+            "turnback_home_vector_alignment_examples_rank_mode must be one of "
+            f"{sorted(valid)!r}; got {mode!r}"
+        )
+    return mode
+
+
+def _example_rank_score(record: dict, rank_mode: str) -> float:
+    if rank_mode == "border_minus_endpoint":
+        return float(record["delta_border_minus_endpoint"])
+    if rank_mode == "abs_border_minus_endpoint":
+        return abs(float(record["delta_border_minus_endpoint"]))
+    if rank_mode == "border_minus_reentry_mean":
+        return float(record["delta_border_minus_reentry_mean"])
+    if rank_mode == "abs_border_minus_reentry_mean":
+        return abs(float(record["delta_border_minus_reentry_mean"]))
+    raise ValueError(f"unknown ranking mode: {rank_mode!r}")
+
+
+def _draw_vector(ax, origin, vec, *, color: str, label: str, scale: float) -> None:
+    vx, vy = np.asarray(vec, dtype=float)
+    norm = float(np.hypot(vx, vy))
+    if norm <= 0.0 or not np.isfinite(norm):
+        return
+    dx = float(vx / norm * scale)
+    dy = float(vy / norm * scale)
+    ax.annotate(
+        "",
+        xy=(float(origin[0]) + dx, float(origin[1]) + dy),
+        xytext=(float(origin[0]), float(origin[1])),
+        arrowprops=dict(
+            arrowstyle="-|>",
+            color=color,
+            lw=2.3,
+            mutation_scale=15,
+            shrinkA=0,
+            shrinkB=0,
+        ),
+        zorder=6,
+    )
+
+
+def _draw_path_time_arrow(ax, xs, ys, finite_mask) -> None:
+    finite_mask = np.asarray(finite_mask, dtype=bool)
+    adjacent_starts = np.flatnonzero(finite_mask[:-1] & finite_mask[1:])
+    if adjacent_starts.size == 0:
+        return
+
+    best = None
+    best_dist = -np.inf
+    preferred = len(xs) * 0.45
+    for i0 in adjacent_starts:
+        i0 = int(i0)
+        i1 = i0 + 1
+        dx = float(xs[i1] - xs[i0])
+        dy = float(ys[i1] - ys[i0])
+        dist = float(np.hypot(dx, dy))
+        if not np.isfinite(dist) or dist <= 0.0:
+            continue
+        # Prefer a clearly visible adjacent-frame step near the middle of the
+        # plotted episode, while never connecting across a missing-frame gap.
+        center_penalty = abs((i0 + i1) * 0.5 - preferred) * 0.01
+        score = dist - center_penalty
+        if score > best_dist:
+            best = (i0, i1)
+            best_dist = score
+
+    if best is None:
+        return
+
+    i0, i1 = best
+    ax.annotate(
+        "",
+        xy=(float(xs[i1]), float(ys[i1])),
+        xytext=(float(xs[i0]), float(ys[i0])),
+        arrowprops=dict(
+            arrowstyle="-|>",
+            color="black",
+            lw=2.0,
+            mutation_scale=13,
+            shrinkA=1,
+            shrinkB=1,
+        ),
+        zorder=4,
+    )
+
+
+def _choose_text_box_location(ax, points: list[tuple[float, float]]):
+    finite_points = np.asarray(
+        [
+            (float(x), float(y))
+            for x, y in points
+            if np.isfinite(float(x)) and np.isfinite(float(y))
+        ],
+        dtype=float,
+    )
+    candidates = [
+        {
+            "x": 0.02,
+            "y": 0.98,
+            "ha": "left",
+            "va": "top",
+            "box": (0.00, 0.52, 0.68, 1.00),
+        },
+        {
+            "x": 0.98,
+            "y": 0.98,
+            "ha": "right",
+            "va": "top",
+            "box": (0.48, 1.00, 0.68, 1.00),
+        },
+        {
+            "x": 0.02,
+            "y": 0.02,
+            "ha": "left",
+            "va": "bottom",
+            "box": (0.00, 0.52, 0.00, 0.32),
+        },
+        {
+            "x": 0.98,
+            "y": 0.02,
+            "ha": "right",
+            "va": "bottom",
+            "box": (0.48, 1.00, 0.00, 0.32),
+        },
+    ]
+
+    if finite_points.size == 0:
+        return candidates[0]
+
+    axes_points = ax.transAxes.inverted().transform(
+        ax.transData.transform(finite_points)
+    )
+    axes_points = axes_points[
+        (axes_points[:, 0] >= 0.0)
+        & (axes_points[:, 0] <= 1.0)
+        & (axes_points[:, 1] >= 0.0)
+        & (axes_points[:, 1] <= 1.0)
+    ]
+    if axes_points.size == 0:
+        return candidates[0]
+
+    best = None
+    best_score = None
+    for cand in candidates:
+        x0, x1, y0, y1 = cand["box"]
+        in_box = (
+            (axes_points[:, 0] >= x0)
+            & (axes_points[:, 0] <= x1)
+            & (axes_points[:, 1] >= y0)
+            & (axes_points[:, 1] <= y1)
+        )
+        center = np.asarray([(x0 + x1) * 0.5, (y0 + y1) * 0.5], dtype=float)
+        min_dist = float(np.min(np.hypot(*(axes_points - center).T)))
+        score = (int(np.count_nonzero(in_box)), -min_dist)
+        if best_score is None or score < best_score:
+            best = cand
+            best_score = score
+    return best or candidates[0]
+
+
+def _plot_home_vector_alignment_example(
+    record: dict,
+    *,
+    out_path: str,
+    image_format: str,
+) -> None:
+    trj = record["trj"]
+    trn = record["trn"]
+    ep = record["episode"]
+    components = record["components"]
+    event_frame = int(record["event_frame"])
+    start = max(0, int(ep["start"]) - 5)
+    stop = min(len(getattr(trj, "x", [])), int(ep["stop"]) + 6)
+
+    xs = np.asarray(trj.x[start:stop], dtype=float)
+    ys = np.asarray(trj.y[start:stop], dtype=float)
+    finite = np.isfinite(xs) & np.isfinite(ys)
+    if not np.any(finite):
+        return
+
+    fig, ax = plt.subplots(figsize=(7.0, 7.0))
+    ax.plot(xs[finite], ys[finite], color="0.35", lw=1.2, zorder=2)
+    ax.scatter(xs[finite], ys[finite], c="0.20", s=12, zorder=3)
+    _draw_path_time_arrow(ax, xs, ys, finite)
+
+    try:
+        cx, cy, reward_r_px = trn.circles(getattr(trj, "f", 0))[0]
+        cx = float(cx)
+        cy = float(cy)
+        reward_r_px = float(reward_r_px)
+    except Exception:
+        cx = cy = reward_r_px = np.nan
+    inner_radius_px = float(ep.get("inner_radius_px", np.nan))
+    outer_radius_px = float(ep.get("outer_radius_px", np.nan))
+    inner_border_px = float(ep.get("inner_border_px", 0.0) or 0.0)
+    outer_border_px = float(ep.get("outer_border_px", 0.0) or 0.0)
+    inner_boundary_px = inner_radius_px + max(0.0, inner_border_px)
+    outer_boundary_px = outer_radius_px + max(0.0, outer_border_px)
+
+    if np.isfinite(cx) and np.isfinite(cy):
+        for radius, color, label, linestyle in (
+            (reward_r_px, "#888888", "reward circle", "--"),
+            (
+                inner_boundary_px,
+                "#4c78a8",
+                "inner crossing boundary",
+                "-",
+            ),
+            (outer_boundary_px, "#c7a252", "outer circle", ":"),
+        ):
+            if np.isfinite(radius) and radius > 0.0:
+                ax.add_patch(
+                    Circle(
+                        (cx, cy),
+                        radius,
+                        fill=False,
+                        color=color,
+                        lw=1.2,
+                        linestyle=linestyle,
+                        zorder=1,
+                    )
+                )
+        if (
+            np.isfinite(inner_radius_px)
+            and inner_radius_px > 0.0
+            and np.isfinite(inner_boundary_px)
+            and inner_boundary_px > inner_radius_px
+        ):
+            ax.add_patch(
+                Circle(
+                    (cx, cy),
+                    inner_radius_px,
+                    fill=False,
+                    color="#4c78a8",
+                    lw=0.9,
+                    linestyle="--",
+                    alpha=0.35,
+                    zorder=1,
+                )
+            )
+
+    event_xy = _safe_finite_xy_at(trj, event_frame)
+    if event_xy is not None:
+        ax.scatter(
+            [event_xy[0]],
+            [event_xy[1]],
+            c="#d62728",
+            s=45,
+            marker="x",
+            zorder=7,
+            label="re-entry frame",
+        )
+
+    colors = {
+        HEADING_ESTIMATOR_ENDPOINT: "#7f7f7f",
+        HEADING_ESTIMATOR_REENTRY_MEAN: "#9467bd",
+        HEADING_ESTIMATOR_MEAN: "#2ca02c",
+    }
+    labels = {
+        HEADING_ESTIMATOR_ENDPOINT: "endpoint",
+        HEADING_ESTIMATOR_REENTRY_MEAN: "re-entry mean",
+        HEADING_ESTIMATOR_MEAN: "border mean",
+    }
+    if event_xy is not None:
+        scale = max(
+            float(np.nanmax(xs[finite]) - np.nanmin(xs[finite])),
+            float(np.nanmax(ys[finite]) - np.nanmin(ys[finite])),
+            1.0,
+        ) * 0.18
+        _draw_vector(
+            ax,
+            event_xy,
+            np.asarray([cx - event_xy[0], cy - event_xy[1]], dtype=float),
+            color="#d62728",
+            label="home vector",
+            scale=scale,
+        )
+        for estimator in (
+            HEADING_ESTIMATOR_ENDPOINT,
+            HEADING_ESTIMATOR_REENTRY_MEAN,
+            HEADING_ESTIMATOR_MEAN,
+        ):
+            comp = components.get(estimator)
+            if comp is None:
+                continue
+            _draw_vector(
+                ax,
+                event_xy,
+                comp["vector"],
+                color=colors[estimator],
+                label=labels[estimator],
+                scale=scale,
+            )
+            for frame_kind, marker, alpha in (
+                ("before_frames", "o", 0.75),
+                ("after_frames", "s", 0.75),
+            ):
+                frames = np.asarray(comp[frame_kind], dtype=int)
+                pts = []
+                for frame in frames:
+                    xy = _safe_finite_xy_at(trj, int(frame))
+                    if xy is not None:
+                        pts.append(xy)
+                if pts:
+                    arr = np.asarray(pts, dtype=float)
+                    ax.scatter(
+                        arr[:, 0],
+                        arr[:, 1],
+                        s=26,
+                        marker=marker,
+                        facecolors="none",
+                        edgecolors=colors[estimator],
+                        alpha=alpha,
+                        zorder=5,
+                    )
+
+    for estimator in (
+        HEADING_ESTIMATOR_ENDPOINT,
+        HEADING_ESTIMATOR_REENTRY_MEAN,
+        HEADING_ESTIMATOR_MEAN,
+    ):
+        comp = components.get(estimator)
+        if comp is None:
+            continue
+        before_xy = np.asarray(comp["before_xy"], dtype=float)
+        after_xy = np.asarray(comp["after_xy"], dtype=float)
+        if np.all(np.isfinite(before_xy)):
+            ax.scatter(
+                [before_xy[0]],
+                [before_xy[1]],
+                s=75,
+                marker="o",
+                facecolors=colors[estimator],
+                edgecolors="white",
+                linewidths=0.8,
+                alpha=0.35,
+                zorder=4,
+            )
+        if np.all(np.isfinite(after_xy)):
+            ax.scatter(
+                [after_xy[0]],
+                [after_xy[1]],
+                s=75,
+                marker="s",
+                facecolors=colors[estimator],
+                edgecolors="white",
+                linewidths=0.8,
+                alpha=0.35,
+                zorder=4,
+            )
+
+    text_lines = [
+        f"rank {int(record['rank'])}",
+        f"video: {os.path.basename(str(record['va'].fn))}",
+        f"T{int(record['training_idx']) + 1}, frames {int(ep['start'])}-{int(ep['stop'])}",
+        f"endpoint: {record['alignment_endpoint']:.3f}",
+        f"re-entry mean: {record['alignment_reentry_mean']:.3f}",
+        f"border mean: {record['alignment_border_mean']:.3f}",
+        f"border - endpoint: {record['delta_border_minus_endpoint']:.3f}",
+        f"border - re-entry: {record['delta_border_minus_reentry_mean']:.3f}",
+    ]
+
+    ax.set_aspect("equal", adjustable="box")
+    x_min = float(np.nanmin(xs[finite]))
+    x_max = float(np.nanmax(xs[finite]))
+    y_min = float(np.nanmin(ys[finite]))
+    y_max = float(np.nanmax(ys[finite]))
+    if event_xy is not None:
+        x_min = min(x_min, float(event_xy[0]))
+        x_max = max(x_max, float(event_xy[0]))
+        y_min = min(y_min, float(event_xy[1]))
+        y_max = max(y_max, float(event_xy[1]))
+    for comp in components.values():
+        for key in ("before_xy", "after_xy"):
+            pt = np.asarray(comp[key], dtype=float)
+            if np.all(np.isfinite(pt)):
+                x_min = min(x_min, float(pt[0]))
+                x_max = max(x_max, float(pt[0]))
+                y_min = min(y_min, float(pt[1]))
+                y_max = max(y_max, float(pt[1]))
+    span = max(x_max - x_min, y_max - y_min, 1.0)
+    if np.isfinite(inner_radius_px) and inner_radius_px > 0.0:
+        span = max(span, inner_radius_px * 0.35)
+    span = max(span, 8.0)
+    pad = span * 0.25
+    center_x = (x_min + x_max) * 0.5
+    center_y = (y_min + y_max) * 0.5
+    half = span * 0.5 + pad
+    ax.set_xlim(center_x - half, center_x + half)
+    ax.set_ylim(center_y + half, center_y - half)
+
+    text_avoid_points = [(float(x), float(y)) for x, y in zip(xs[finite], ys[finite])]
+    if event_xy is not None:
+        text_avoid_points.append((float(event_xy[0]), float(event_xy[1])))
+    for comp in components.values():
+        for key in ("before_xy", "after_xy"):
+            pt = np.asarray(comp[key], dtype=float)
+            if np.all(np.isfinite(pt)):
+                text_avoid_points.append((float(pt[0]), float(pt[1])))
+        for key in ("before_frames", "after_frames"):
+            for frame in np.asarray(comp[key], dtype=int).reshape(-1):
+                xy = _safe_finite_xy_at(trj, int(frame))
+                if xy is not None:
+                    text_avoid_points.append((float(xy[0]), float(xy[1])))
+    text_loc = _choose_text_box_location(ax, text_avoid_points)
+    ax.text(
+        text_loc["x"],
+        text_loc["y"],
+        "\n".join(text_lines),
+        transform=ax.transAxes,
+        va=text_loc["va"],
+        ha=text_loc["ha"],
+        fontsize=9,
+        bbox=dict(boxstyle="round,pad=0.35", facecolor="white", alpha=0.82),
+        zorder=8,
+    )
+
+    ax.set_title("Turnback home-vector alignment estimator comparison")
+    uniq = {
+        "re-entry frame": Line2D(
+            [], [], color="#d62728", marker="x", linestyle="None", markersize=8
+        ),
+        "path time": Line2D([], [], color="black", lw=2),
+        "home vector": Line2D([], [], color="#d62728", lw=3),
+        "endpoint": Line2D([], [], color=colors[HEADING_ESTIMATOR_ENDPOINT], lw=3),
+        "re-entry mean": Line2D(
+            [], [], color=colors[HEADING_ESTIMATOR_REENTRY_MEAN], lw=3
+        ),
+        "border mean": Line2D([], [], color=colors[HEADING_ESTIMATOR_MEAN], lw=3),
+    }
+    ax.legend(
+        [uniq[k] for k in uniq],
+        list(uniq.keys()),
+        loc="lower center",
+        bbox_to_anchor=(0.5, -0.16),
+        ncol=3,
+        fontsize=8,
+    )
+    fig.tight_layout()
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    fig.savefig(out_path, format=image_format, bbox_inches="tight", dpi=160)
+    plt.close(fig)
+
+
+def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
+    vas_ok = [va for va in vas if not getattr(va, "_skipped", False)]
+    if not vas_ok:
+        print("[turnback-home-vector-examples] no non-skipped videos")
+        return
+
+    selected_trainings = _selected_training_indices(vas_ok, opts)
+    skip_first, keep_first, last_sync_buckets = _effective_windowing(opts)
+    min_episodes = min_episode_count_for_type(opts, EPISODE_TYPE_INNER_EXIT_REENTRY)
+    max_interpolated_heading_frames = _resolve_max_interpolated_heading_frames(opts)
+    window_radius_frames = max(
+        0,
+        int(
+            getattr(opts, "turnback_home_vector_alignment_window_radius_frames", 2) or 0
+        ),
+    )
+
+    inner_radius_mm = getattr(
+        opts, "turnback_home_vector_alignment_inner_radius_mm", None
+    )
+    outer_radius_mm = getattr(
+        opts, "turnback_home_vector_alignment_outer_radius_mm", None
+    )
+    inner_delta_mm = getattr(
+        opts, "turnback_home_vector_alignment_inner_delta_mm", None
+    )
+    outer_delta_mm = getattr(
+        opts, "turnback_home_vector_alignment_outer_delta_mm", None
+    )
+    inner_radius_mm = None if inner_radius_mm is None else float(inner_radius_mm)
+    outer_radius_mm = None if outer_radius_mm is None else float(outer_radius_mm)
+    inner_delta_mm = (
+        getattr(opts, "turnback_inner_delta_mm", 0.0)
+        if inner_delta_mm is None
+        else float(inner_delta_mm)
+    )
+    outer_delta_mm = (
+        getattr(opts, "turnback_outer_delta_mm", 2.0)
+        if outer_delta_mm is None
+        else float(outer_delta_mm)
+    )
+    border_width_mm = float(
+        getattr(
+            opts,
+            "turnback_home_vector_alignment_border_width_mm",
+            getattr(opts, "turnback_border_width_mm", 0.1),
+        )
+        or 0.1
+    )
+    radius_offset_px = float(
+        getattr(
+            opts,
+            "turnback_home_vector_alignment_inner_radius_offset_px",
+            getattr(opts, "turnback_inner_radius_offset_px", 0.0),
+        )
+        or 0.0
+    )
+    exclude_wall_contact = bool(
+        getattr(opts, "turnback_home_vector_alignment_exclude_wall_contact", False)
+    )
+    rank_mode = _example_rank_mode(opts)
+
+    candidates = []
+    for vi, va in enumerate(vas_ok):
+        windows = _selected_windows_for_va(
+            va,
+            selected_trainings,
+            skip_first=skip_first,
+            keep_first=keep_first,
+            last_sync_buckets=last_sync_buckets,
+        )
+        windows_by_training = {}
+        for win in windows:
+            windows_by_training.setdefault(int(win["training_idx"]), []).append(win)
+        for fly_idx, trj in enumerate(getattr(va, "trx", [])):
+            if fly_idx != 0 or getattr(trj, "_bad", False):
+                continue
+            wall_regions = wall_contact_regions_for_trj(
+                trj,
+                enabled=exclude_wall_contact,
+                warned_missing=[False],
+                log_tag="turnback-home-vector-examples",
+            )
+            per_fly = []
+            for t_idx in selected_trainings:
+                if t_idx >= len(getattr(va, "trns", [])):
+                    continue
+                trn = va.trns[t_idx]
+                if trn is None or not trn.isCircle() or t_idx not in windows_by_training:
+                    continue
+                episodes = trj.reward_turnback_dual_circle_episodes_for_training(
+                    trn=trn,
+                    inner_radius_mm=inner_radius_mm,
+                    inner_delta_mm=inner_delta_mm,
+                    outer_radius_mm=outer_radius_mm,
+                    outer_delta_mm=outer_delta_mm,
+                    border_width_mm=border_width_mm,
+                    debug=False,
+                    radius_offset_px=radius_offset_px,
+                )
+                for ep in episodes or []:
+                    if not bool(ep.get("turns_back", False)):
+                        continue
+                    if ep.get("end_reason", "reenter_inner") != "reenter_inner":
+                        continue
+                    if episode_overlaps_wall_contact(ep, wall_regions):
+                        continue
+                    if not _episode_within_windows(ep, windows_by_training[t_idx]):
+                        continue
+                    event_frame = _turnback_event_frame(ep)
+                    if not _frame_in_windows(event_frame, windows_by_training[t_idx]):
+                        continue
+                    comps = episode_home_vector_alignment_components(
+                        trj,
+                        trn,
+                        ep,
+                        window_radius_frames=window_radius_frames,
+                        max_interpolated_heading_frames=max_interpolated_heading_frames,
+                    )
+                    if not all(k in comps for k in HEADING_ESTIMATOR_CHOICES):
+                        continue
+                    rec = {
+                        "va": va,
+                        "trj": trj,
+                        "trn": trn,
+                        "video_index": vi,
+                        "fly_idx": fly_idx,
+                        "training_idx": t_idx,
+                        "episode": ep,
+                        "event_frame": event_frame,
+                        "components": comps,
+                        "alignment_endpoint": comps[HEADING_ESTIMATOR_ENDPOINT][
+                            "alignment"
+                        ],
+                        "alignment_reentry_mean": comps[
+                            HEADING_ESTIMATOR_REENTRY_MEAN
+                        ]["alignment"],
+                        "alignment_border_mean": comps[HEADING_ESTIMATOR_MEAN][
+                            "alignment"
+                        ],
+                        **_example_inner_boundary_diagnostics(
+                            trj, trn, ep, event_frame
+                        ),
+                    }
+                    rec["delta_border_minus_endpoint"] = (
+                        rec["alignment_border_mean"] - rec["alignment_endpoint"]
+                    )
+                    rec["delta_border_minus_reentry_mean"] = (
+                        rec["alignment_border_mean"] - rec["alignment_reentry_mean"]
+                    )
+                    per_fly.append(rec)
+            if len(per_fly) >= int(min_episodes):
+                candidates.extend(per_fly)
+
+    for rec in candidates:
+        rec["rank_mode"] = rank_mode
+        rec["rank_score"] = _example_rank_score(rec, rank_mode)
+
+    candidates.sort(
+        key=lambda row: (
+            float(row["rank_score"]),
+            float(row["delta_border_minus_endpoint"]),
+            float(row["delta_border_minus_reentry_mean"]),
+        ),
+        reverse=True,
+    )
+    limit = max(
+        1,
+        int(getattr(opts, "turnback_home_vector_alignment_examples_num", 24) or 24),
+    )
+    max_per_fly = max(
+        0,
+        int(
+            getattr(opts, "turnback_home_vector_alignment_examples_max_per_fly", 4)
+            or 0
+        ),
+    )
+    selected = []
+    fly_counts = {}
+    for rec in candidates:
+        unit = (int(rec["video_index"]), int(rec["fly_idx"]))
+        if max_per_fly and fly_counts.get(unit, 0) >= max_per_fly:
+            continue
+        selected.append(rec)
+        fly_counts[unit] = fly_counts.get(unit, 0) + 1
+        if len(selected) >= limit:
+            break
+
+    os.makedirs(out_dir, exist_ok=True)
+    image_format = str(getattr(opts, "imageFormat", "png") or "png").lower()
+    group_label = _safe_group_label(opts, gls)
+    rows = []
+    for rank, rec in enumerate(selected, start=1):
+        rec["rank"] = rank
+        video_base = os.path.splitext(os.path.basename(str(rec["va"].fn)))[0]
+        display_fly = _display_fly_id_for_va_fly(rec["va"], int(rec["fly_idx"]))
+        filename = (
+            f"rank{rank:02d}__{video_base}__fly{display_fly}"
+            f"__T{int(rec['training_idx']) + 1}"
+            f"__event{int(rec['event_frame'])}.{image_format}"
+        )
+        out_path = os.path.join(out_dir, filename)
+        _plot_home_vector_alignment_example(
+            rec,
+            out_path=out_path,
+            image_format=image_format,
+        )
+        ep = rec["episode"]
+        comps = rec["components"]
+        rows.append(
+            {
+                "rank": rank,
+                "group": group_label,
+                "video": str(rec["va"].fn),
+                "fly": int(display_fly),
+                "training": int(rec["training_idx"]) + 1,
+                "episode_start": int(ep["start"]),
+                "event_frame": int(rec["event_frame"]),
+                "episode_stop": int(ep["stop"]),
+                "inner_boundary_px": float(rec["inner_boundary_px"]),
+                "pre_reentry_frame": int(rec["pre_reentry_frame"]),
+                "pre_reentry_distance_px": float(rec["pre_reentry_distance_px"]),
+                "pre_reentry_margin_px": float(rec["pre_reentry_margin_px"]),
+                "event_distance_px": float(rec["event_distance_px"]),
+                "event_margin_px": float(rec["event_margin_px"]),
+                "alignment_endpoint": float(rec["alignment_endpoint"]),
+                "alignment_reentry_mean": float(rec["alignment_reentry_mean"]),
+                "alignment_border_mean": float(rec["alignment_border_mean"]),
+                "delta_border_minus_endpoint": float(
+                    rec["delta_border_minus_endpoint"]
+                ),
+                "delta_border_minus_reentry_mean": float(
+                    rec["delta_border_minus_reentry_mean"]
+                ),
+                "rank_mode": str(rec["rank_mode"]),
+                "rank_score": float(rec["rank_score"]),
+                "endpoint_frames": _frame_list_str(
+                    comps[HEADING_ESTIMATOR_ENDPOINT]["sampled_frames"]
+                ),
+                "reentry_mean_frames": _frame_list_str(
+                    comps[HEADING_ESTIMATOR_REENTRY_MEAN]["sampled_frames"]
+                ),
+                "border_mean_frames": _frame_list_str(
+                    comps[HEADING_ESTIMATOR_MEAN]["sampled_frames"]
+                ),
+                "endpoint_before_xy": _xy_list_str(
+                    comps[HEADING_ESTIMATOR_ENDPOINT]["before_xy"]
+                ),
+                "endpoint_after_xy": _xy_list_str(
+                    comps[HEADING_ESTIMATOR_ENDPOINT]["after_xy"]
+                ),
+                "endpoint_vector": _xy_list_str(
+                    comps[HEADING_ESTIMATOR_ENDPOINT]["vector"]
+                ),
+                "reentry_mean_before_xy": _xy_list_str(
+                    comps[HEADING_ESTIMATOR_REENTRY_MEAN]["before_xy"]
+                ),
+                "reentry_mean_after_xy": _xy_list_str(
+                    comps[HEADING_ESTIMATOR_REENTRY_MEAN]["after_xy"]
+                ),
+                "reentry_mean_vector": _xy_list_str(
+                    comps[HEADING_ESTIMATOR_REENTRY_MEAN]["vector"]
+                ),
+                "border_mean_before_xy": _xy_list_str(
+                    comps[HEADING_ESTIMATOR_MEAN]["before_xy"]
+                ),
+                "border_mean_after_xy": _xy_list_str(
+                    comps[HEADING_ESTIMATOR_MEAN]["after_xy"]
+                ),
+                "border_mean_vector": _xy_list_str(
+                    comps[HEADING_ESTIMATOR_MEAN]["vector"]
+                ),
+                "image": out_path,
+            }
+        )
+
+    manifest_path = os.path.join(out_dir, "manifest.csv")
+    with open(manifest_path, "w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=_EXAMPLE_FIELDS)
+        writer.writeheader()
+        writer.writerows(rows)
+    print(
+        "[turnback-home-vector-examples] wrote "
+        f"{len(rows)} images and {manifest_path}"
     )
 
 

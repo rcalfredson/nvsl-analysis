@@ -1,4 +1,6 @@
+import csv
 import json
+import os
 from types import SimpleNamespace
 
 import numpy as np
@@ -6,6 +8,8 @@ import numpy as np
 from src.exporting.turnback_home_vector_alignment_sli_bundle import (
     cosine_alignment,
     episode_home_vector_alignment,
+    episode_home_vector_alignment_components,
+    export_turnback_home_vector_alignment_examples,
     export_turnback_home_vector_alignment_sli_bundle,
     heading_vector_at_reentry,
     home_vector_from_reentry_to_center,
@@ -68,11 +72,13 @@ def _episode(
     inner_radius_px=10.0,
 ):
     event_frame = int(event_frame)
+    is_reentry = str(end_reason) == "reenter_inner"
     return {
         "start": int(event_frame - 3 if start is None else start),
-        # Existing turnback episode convention: stop is one past outcome frame,
-        # so the re-entry frame is stop - 1.
-        "stop": int(event_frame + 1),
+        # Current dual-circle convention for successful turnbacks: stop is the
+        # first frame inside the inner circle. Failed episodes use stop as one
+        # past the outer-violation frame.
+        "stop": int(event_frame if is_reentry else event_frame + 1),
         "turns_back": bool(turns_back),
         "end_reason": str(end_reason),
         "inner_radius_px": float(inner_radius_px),
@@ -236,6 +242,51 @@ def test_heading_vector_endpoint_mode_preserves_original_window_endpoint_behavio
     )
 
     np.testing.assert_allclose(heading, (-4.0, 0.0))
+
+
+def test_episode_components_report_estimator_sampled_frames():
+    trn = _CircleTraining(start=0, stop=10, radius_px=10.0)
+    x, y = _blank_xy(10)
+    _set_xy(
+        x,
+        y,
+        {
+            2: (16.0, 0.0),
+            3: (11.0, 0.0),
+            4: (10.0, 0.0),
+            5: (9.0, 0.0),
+            6: (4.0, 0.0),
+        },
+    )
+    trj = SimpleNamespace(x=x, y=y, f=0)
+    ep = _episode(4)
+    ep["event_frame"] = 3
+
+    comps = episode_home_vector_alignment_components(
+        trj,
+        trn,
+        ep,
+        window_radius_frames=2,
+    )
+
+    # Successful dual-circle episodes currently store stop as the first frame
+    # inside the inner circle; older/stale event_frame values point one frame
+    # earlier and should not anchor this metric.
+    np.testing.assert_array_equal(comps["endpoint"]["sampled_frames"], [2, 6])
+    np.testing.assert_array_equal(comps["reentry_mean"]["sampled_frames"], [2, 3, 5, 6])
+    np.testing.assert_array_equal(comps["mean"]["sampled_frames"], [2, 3, 4, 5])
+    for estimator in ("endpoint", "reentry_mean", "mean"):
+        np.testing.assert_allclose(
+            comps[estimator]["vector"],
+            heading_vector_at_reentry(
+                trj,
+                event_frame=4,
+                window_radius_frames=2,
+                estimator=estimator,
+                training_start=0,
+                training_stop=10,
+            ),
+        )
 
 
 def test_heading_vector_radius_zero_falls_back_to_distinct_pre_and_post_samples():
@@ -507,3 +558,56 @@ def test_export_records_top_sli_subset_metadata(tmp_path):
         assert meta["sli_selection"]["use_training_mean"] is True
         assert meta["sli_selection"]["skip_first_sync_buckets"] == 1
         assert meta["sli_selection"]["keep_first_sync_buckets"] == 4
+
+
+def test_export_turnback_home_vector_alignment_examples_writes_manifest_and_image(
+    tmp_path,
+):
+    episodes = [
+        _episode(115),
+        _episode(125),
+    ]
+    coords = {
+        113: (14.0, 0.0),
+        114: (12.0, 0.0),
+        115: (10.0, 0.0),
+        116: (8.0, 0.0),
+        117: (6.0, 0.0),
+        123: (10.0, -2.0),
+        124: (10.0, -1.0),
+        125: (10.0, 0.0),
+        126: (10.0, 1.0),
+        127: (10.0, 2.0),
+    }
+    va = _make_export_va(episodes=episodes, coords=coords)
+    va.f = 7
+    opts = _default_opts(
+        turnback_home_vector_alignment_window_radius_frames=2,
+        turnback_home_vector_alignment_examples_num=1,
+        turnback_home_vector_alignment_examples_max_per_fly=1,
+        turnback_home_vector_alignment_examples_rank_mode="border_minus_reentry_mean",
+        imageFormat="png",
+    )
+    out_dir = tmp_path / "examples"
+
+    export_turnback_home_vector_alignment_examples(
+        [va], opts, gls=None, out_dir=str(out_dir)
+    )
+
+    manifest = out_dir / "manifest.csv"
+    assert manifest.exists()
+    rows = manifest.read_text(encoding="utf-8").strip().splitlines()
+    assert len(rows) == 2
+    assert "rank_mode" in rows[0]
+    assert "rank_score" in rows[0]
+    assert "pre_reentry_margin_px" in rows[0]
+    assert "event_margin_px" in rows[0]
+    assert "border_minus_reentry_mean" in rows[1]
+    row = next(csv.DictReader(rows))
+    assert row["fly"] == "7"
+    assert row["pre_reentry_margin_px"]
+    assert row["event_margin_px"]
+    image_path = row["image"]
+    assert "__fly7__" in image_path
+    assert image_path.endswith(".png")
+    assert os.path.exists(image_path)

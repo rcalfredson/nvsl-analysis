@@ -9,6 +9,11 @@ RETURN_LEG_TORTUOSITY_EXAMPLES_MAX_PER_FLY="${RETURN_LEG_TORTUOSITY_EXAMPLES_MAX
 POST_WALL_DEPARTURE_TORTUOSITY_EXAMPLES="${POST_WALL_DEPARTURE_TORTUOSITY_EXAMPLES:-0}"
 POST_WALL_DEPARTURE_TORTUOSITY_EXAMPLES_NUM="${POST_WALL_DEPARTURE_TORTUOSITY_EXAMPLES_NUM:-12}"
 POST_WALL_DEPARTURE_TORTUOSITY_EXAMPLES_MAX_PER_FLY="${POST_WALL_DEPARTURE_TORTUOSITY_EXAMPLES_MAX_PER_FLY:-1}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES:-0}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_NUM="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_NUM:-24}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_MAX_PER_FLY="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_MAX_PER_FLY:-4}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANK_MODE="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANK_MODE:-abs_border_minus_reentry_mean}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_DIR="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_DIR:-imgs/turnback_home_vector_alignment_debug}"
 
 GROUP_VARS=(INTACT_CTRL INTACT_PFND AR_CTRL)
 GROUP_SLUGS=(intact_ctrlKir intact_pfnKir ar_ctrlKir)
@@ -35,6 +40,33 @@ run_cmd() {
 join_by_comma() {
   local IFS=,
   echo "$*"
+}
+
+turnback_home_vector_alignment_example_flags() {
+  local -n out_flags="$1"
+  local subset_slug="$2"
+  local filter_tag="$3"
+  local wall_tag="$4"
+  local group_slug="$5"
+  local pair_label="$6"
+
+  out_flags=()
+  if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES" != "1" ]]; then
+    return
+  fi
+
+  local subset_part=""
+  if [[ -n "$subset_slug" ]]; then
+    subset_part="_${subset_slug}"
+  fi
+  local example_dir="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_DIR}/turnbackHomeVectorAlignment${subset_part}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sb2-5_${DATE_TAG}"
+  out_flags=(
+    --export-turnback-home-vector-alignment-examples "$example_dir"
+    --turnback-home-vector-alignment-examples-num "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_NUM"
+    --turnback-home-vector-alignment-examples-max-per-fly "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_MAX_PER_FLY"
+    --turnback-home-vector-alignment-examples-rank-mode "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANK_MODE"
+    --imgFormat pdf
+  )
 }
 
 run_return_prob() {
@@ -264,6 +296,14 @@ run_turnback_home_vector_alignment() {
     local group_slug="${GROUP_SLUGS[$i]}"
     local group_label="${GROUP_LABELS[$i]}"
     local bundle="exports/turnbackHomeVectorAlignment_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sb2-5_${DATE_TAG}.npz"
+    local example_flags=()
+    turnback_home_vector_alignment_example_flags \
+      example_flags \
+      "" \
+      "$filter_tag" \
+      "$wall_tag" \
+      "$group_slug" \
+      "$pair_label"
 
     bundles+=("$bundle")
 
@@ -285,8 +325,10 @@ run_turnback_home_vector_alignment() {
       --sli-select-skip-first-sync-buckets 1 \
       --sli-select-keep-first-sync-buckets 4 \
       --export-group-label "$group_label" \
+      --turnback-home-vector-alignment-heading-estimator mean \
       "${filter_flags[@]}" \
-      "${wall_flags[@]}"
+      "${wall_flags[@]}" \
+      "${example_flags[@]}"
   done
 
   run_cmd \
@@ -381,6 +423,14 @@ run_turnback_home_vector_alignment_subset_impl() {
     local group_slug="${GROUP_SLUGS[$i]}"
     local group_label="${GROUP_LABELS[$i]}"
     local bundle="exports/turnbackHomeVectorAlignment_${subset_slug}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sliT2Sb2-5_${DATE_TAG}.npz"
+    local example_flags=()
+    turnback_home_vector_alignment_example_flags \
+      example_flags \
+      "$subset_slug" \
+      "$filter_tag" \
+      "$wall_tag" \
+      "$group_slug" \
+      "$pair_label"
 
     bundles+=("$bundle")
 
@@ -404,7 +454,8 @@ run_turnback_home_vector_alignment_subset_impl() {
       --sli-select-keep-first-sync-buckets 4 \
       --export-group-label "$group_label" \
       "${filter_flags[@]}" \
-      "${wall_flags[@]}"
+      "${wall_flags[@]}" \
+      "${example_flags[@]}"
   done
 
   run_cmd \
@@ -689,13 +740,13 @@ run_post_wall_departure_tortuosity() {
 # noWall: discard successful re-entry episodes overlapping wall contact
 # ---------------------------------------------------------------------
 
-# for filter_tag in minEpSb5Filt noFilt minEpFilt minEpPiFilt; do
-#   for wall_tag in wall noWall; do
-#     run_turnback_home_vector_alignment "3-5" 3 5 "$filter_tag" "$wall_tag"
-#     run_turnback_home_vector_alignment "8-10" 8 10 "$filter_tag" "$wall_tag"
-#     run_turnback_home_vector_alignment "13-15" 13 15 "$filter_tag" "$wall_tag"
-#   done
-# done
+for filter_tag in minEpSb5Filt noFilt minEpFilt minEpPiFilt; do
+  for wall_tag in wall noWall; do
+    run_turnback_home_vector_alignment "3-5" 3 5 "$filter_tag" "$wall_tag"
+    run_turnback_home_vector_alignment "8-10" 8 10 "$filter_tag" "$wall_tag"
+    run_turnback_home_vector_alignment "13-15" 13 15 "$filter_tag" "$wall_tag"
+  done
+done
 
 # ---------------------------------------------------------------------
 # Top-20% learner subset: turnback home-vector heading alignment
@@ -706,13 +757,13 @@ run_post_wall_departure_tortuosity() {
 # noWall: discard successful re-entry episodes overlapping wall contact
 # ---------------------------------------------------------------------
 
-# for filter_tag in minEpSb5Filt; do
-#   for wall_tag in wall noWall; do
-#     run_turnback_home_vector_alignment_top20 "3-5" 3 5 "$filter_tag" "$wall_tag"
-#     run_turnback_home_vector_alignment_top20 "8-10" 8 10 "$filter_tag" "$wall_tag"
-#     run_turnback_home_vector_alignment_top20 "13-15" 13 15 "$filter_tag" "$wall_tag"
-#   done
-# done
+for filter_tag in minEpSb5Filt; do
+  for wall_tag in wall noWall; do
+    run_turnback_home_vector_alignment_top20 "3-5" 3 5 "$filter_tag" "$wall_tag"
+    run_turnback_home_vector_alignment_top20 "8-10" 8 10 "$filter_tag" "$wall_tag"
+    run_turnback_home_vector_alignment_top20 "13-15" 13 15 "$filter_tag" "$wall_tag"
+  done
+done
 
 # ---------------------------------------------------------------------
 # Bottom-50% learner subset: turnback home-vector heading alignment

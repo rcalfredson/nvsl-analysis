@@ -130,6 +130,7 @@ from src.exporting.turnback_outer_radius_sli_bundle import (
 )
 from src.exporting.turnback_sli_bundle import export_turnback_sli_bundle
 from src.exporting.turnback_home_vector_alignment_sli_bundle import (
+    export_turnback_home_vector_alignment_examples,
     export_turnback_home_vector_alignment_sli_bundle,
 )
 from src.exporting.wallpct_sli_bundle import export_wallpct_sli_bundle
@@ -5499,6 +5500,17 @@ g.add_argument(
     )
 )
 g.add_argument(
+    "--export-turnback-home-vector-alignment-examples",
+    type=str,
+    default=None,
+    metavar="DIR",
+    help=(
+        "Export ranked diagnostic images comparing endpoint, re-entry-mean, "
+        "and border-mean heading estimates for successful turnback re-entry "
+        "episodes, plus a CSV manifest, under DIR."
+    ),
+)
+g.add_argument(
     "--turnback-outer-radius-trainings",
     type=str,
     default=None,
@@ -6175,6 +6187,41 @@ g.add_argument(
         "interpolated from lost tracking. Use a negative value to allow any "
         "number. For the default two-frame-per-side sampler, 1 allows at most "
         "one interpolated sample among the heading frames. Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--turnback-home-vector-alignment-examples-num",
+    type=int,
+    default=24,
+    help=(
+        "Total ranked turnback home-vector alignment diagnostic images to "
+        "export. Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--turnback-home-vector-alignment-examples-max-per-fly",
+    type=int,
+    default=4,
+    help=(
+        "Maximum diagnostic images from one fly; 0 disables the cap. "
+        "Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--turnback-home-vector-alignment-examples-rank-mode",
+    choices=[
+        "border_minus_endpoint",
+        "abs_border_minus_endpoint",
+        "border_minus_reentry_mean",
+        "abs_border_minus_reentry_mean",
+    ],
+    default="border_minus_endpoint",
+    help=(
+        "How to rank turnback home-vector alignment diagnostic images. "
+        "'border_minus_endpoint' preserves the original ranking; "
+        "'border_minus_reentry_mean' prioritizes cases where the border-anchored "
+        "mean exceeds the re-entry-anchored mean. The abs_* modes rank by "
+        "absolute disagreement. Default: %(default)s."
     ),
 )
 g.add_argument(
@@ -11454,16 +11501,28 @@ def _export_post_analyze_bundles(vas, gls) -> int:
         )
         num_exports += 1
 
-    if getattr(opts, "export_turnback_home_vector_alignment_sli_bundle", None):
+    if getattr(opts, "export_turnback_home_vector_alignment_sli_bundle", None) or getattr(
+        opts, "export_turnback_home_vector_alignment_examples", None
+    ):
         vas_for_home_vector = _select_turnback_home_vector_alignment_vas(vas)
 
-        export_turnback_home_vector_alignment_sli_bundle(
-            vas_for_home_vector,
-            opts,
-            gls,
-            opts.export_turnback_home_vector_alignment_sli_bundle,
-        )
-        num_exports += 1
+        if getattr(opts, "export_turnback_home_vector_alignment_sli_bundle", None):
+            export_turnback_home_vector_alignment_sli_bundle(
+                vas_for_home_vector,
+                opts,
+                gls,
+                opts.export_turnback_home_vector_alignment_sli_bundle,
+            )
+            num_exports += 1
+
+        if getattr(opts, "export_turnback_home_vector_alignment_examples", None):
+            export_turnback_home_vector_alignment_examples(
+                vas_for_home_vector,
+                opts,
+                gls,
+                opts.export_turnback_home_vector_alignment_examples,
+            )
+            num_exports += 1
 
     if getattr(opts, "export_weaving_sli_bundle", None):
         export_weaving_sli_bundle(vas, opts, gls, opts.export_weaving_sli_bundle)
