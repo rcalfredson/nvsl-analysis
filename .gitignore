@@ -10,6 +10,7 @@ imgs/**/*.pdf*
 imgs/**/*.svg*
 imgs/**/*.tsv*
 imgs/turnback_home_vector_alignment_debug/**/manifest.csv
+imgs/turnback_home_vector_alignment_debug/**/boundary_crossing_summary.csv
 plots*/*
 
 /exports/

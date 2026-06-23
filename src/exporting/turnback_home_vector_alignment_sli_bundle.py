@@ -1119,10 +1119,30 @@ _EXAMPLE_FIELDS = [
     "reentry_mean_before_xy",
     "reentry_mean_after_xy",
     "reentry_mean_vector",
+    "reentry_mean_before_crosses_inner_boundary",
+    "reentry_mean_after_crosses_inner_boundary",
+    "reentry_mean_any_side_crosses_inner_boundary",
     "border_mean_before_xy",
     "border_mean_after_xy",
     "border_mean_vector",
+    "border_mean_before_crosses_inner_boundary",
+    "border_mean_after_crosses_inner_boundary",
+    "border_mean_any_side_crosses_inner_boundary",
     "image",
+]
+
+_BOUNDARY_CROSSING_ESTIMATORS = (
+    HEADING_ESTIMATOR_REENTRY_MEAN,
+    HEADING_ESTIMATOR_MEAN,
+)
+
+_BOUNDARY_CROSSING_SUMMARY_FIELDS = [
+    "group",
+    "estimator",
+    "side",
+    "n_episodes",
+    "n_crossing",
+    "fraction_crossing",
 ]
 
 
@@ -1133,6 +1153,10 @@ def _frame_list_str(frames) -> str:
 def _xy_list_str(vals) -> str:
     arr = np.asarray(vals, dtype=float).reshape(-1)
     return ";".join(f"{float(v):.6g}" for v in arr)
+
+
+def _bool_csv(val: bool) -> str:
+    return "1" if bool(val) else "0"
 
 
 def _example_inner_boundary_diagnostics(trj, trn, ep: dict, event_frame: int) -> dict:
@@ -1176,6 +1200,126 @@ def _example_inner_boundary_diagnostics(trj, trn, ep: dict, event_frame: int) ->
             else float("nan")
         ),
     }
+
+
+def _frame_boundary_margins(
+    trj,
+    frames,
+    *,
+    cx: float,
+    cy: float,
+    inner_boundary_px: float,
+) -> np.ndarray:
+    margins = []
+    if not (
+        np.isfinite(cx) and np.isfinite(cy) and np.isfinite(inner_boundary_px)
+    ):
+        return np.asarray([], dtype=float)
+
+    for frame in np.asarray(frames, dtype=int).reshape(-1):
+        xy = _safe_finite_xy_at(trj, int(frame))
+        if xy is None:
+            continue
+        x, y = xy
+        dist = float(np.hypot(float(x) - float(cx), float(y) - float(cy)))
+        if np.isfinite(dist):
+            margins.append(dist - float(inner_boundary_px))
+    return np.asarray(margins, dtype=float)
+
+
+def _sample_set_crosses_inner_boundary(
+    trj,
+    frames,
+    *,
+    cx: float,
+    cy: float,
+    inner_boundary_px: float,
+) -> bool:
+    margins = _frame_boundary_margins(
+        trj, frames, cx=cx, cy=cy, inner_boundary_px=inner_boundary_px
+    )
+    margins = margins[np.isfinite(margins)]
+    if margins.size < 2:
+        return False
+    return bool(np.nanmin(margins) <= 0.0 and np.nanmax(margins) > 0.0)
+
+
+def _component_boundary_crossing_diagnostics(
+    trj,
+    trn,
+    ep: dict,
+    comps: dict,
+) -> dict:
+    try:
+        cx = float(ep.get("reward_cx_px", np.nan))
+        cy = float(ep.get("reward_cy_px", np.nan))
+        if not (np.isfinite(cx) and np.isfinite(cy)):
+            cx, cy, _reward_r_px = trn.circles(getattr(trj, "f", 0))[0]
+            cx = float(cx)
+            cy = float(cy)
+    except Exception:
+        cx = cy = np.nan
+
+    inner_radius_px = float(ep.get("inner_radius_px", np.nan))
+    inner_border_px = float(ep.get("inner_border_px", 0.0) or 0.0)
+    inner_boundary_px = inner_radius_px + max(0.0, inner_border_px)
+
+    out = {}
+    name_by_estimator = {
+        HEADING_ESTIMATOR_REENTRY_MEAN: "reentry_mean",
+        HEADING_ESTIMATOR_MEAN: "border_mean",
+    }
+    for estimator in _BOUNDARY_CROSSING_ESTIMATORS:
+        comp = comps.get(estimator)
+        if comp is None:
+            continue
+        name = name_by_estimator[estimator]
+        before = _sample_set_crosses_inner_boundary(
+            trj,
+            comp["before_frames"],
+            cx=cx,
+            cy=cy,
+            inner_boundary_px=inner_boundary_px,
+        )
+        after = _sample_set_crosses_inner_boundary(
+            trj,
+            comp["after_frames"],
+            cx=cx,
+            cy=cy,
+            inner_boundary_px=inner_boundary_px,
+        )
+        out[f"{name}_before_crosses_inner_boundary"] = before
+        out[f"{name}_after_crosses_inner_boundary"] = after
+        out[f"{name}_any_side_crosses_inner_boundary"] = bool(before or after)
+    return out
+
+
+def _boundary_crossing_summary_rows(records, *, group_label: str) -> list[dict]:
+    name_by_estimator = {
+        HEADING_ESTIMATOR_REENTRY_MEAN: "reentry_mean",
+        HEADING_ESTIMATOR_MEAN: "border_mean",
+    }
+    rows = []
+    for estimator in _BOUNDARY_CROSSING_ESTIMATORS:
+        name = name_by_estimator[estimator]
+        for side in ("before", "after", "any_side"):
+            key = f"{name}_{side}_crosses_inner_boundary"
+            vals = [bool(rec.get(key, False)) for rec in records]
+            n = len(vals)
+            n_crossing = int(sum(vals))
+            rows.append(
+                {
+                    "group": group_label,
+                    "estimator": name,
+                    "side": side,
+                    "n_episodes": n,
+                    "n_crossing": n_crossing,
+                    "fraction_crossing": (
+                        f"{(n_crossing / n):.6g}" if n else "nan"
+                    ),
+                }
+            )
+    return rows
 
 
 def _example_rank_mode(opts) -> str:
@@ -1801,6 +1945,11 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
                             trj, trn, ep, event_frame
                         ),
                     }
+                    rec.update(
+                        _component_boundary_crossing_diagnostics(
+                            trj, trn, ep, comps
+                        )
+                    )
                     rec["delta_border_minus_endpoint"] = (
                         rec["alignment_border_mean"] - rec["alignment_endpoint"]
                     )
@@ -1940,6 +2089,15 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
                 "reentry_mean_vector": _xy_list_str(
                     comps[HEADING_ESTIMATOR_REENTRY_MEAN]["vector"]
                 ),
+                "reentry_mean_before_crosses_inner_boundary": _bool_csv(
+                    rec["reentry_mean_before_crosses_inner_boundary"]
+                ),
+                "reentry_mean_after_crosses_inner_boundary": _bool_csv(
+                    rec["reentry_mean_after_crosses_inner_boundary"]
+                ),
+                "reentry_mean_any_side_crosses_inner_boundary": _bool_csv(
+                    rec["reentry_mean_any_side_crosses_inner_boundary"]
+                ),
                 "border_mean_before_xy": _xy_list_str(
                     comps[HEADING_ESTIMATOR_MEAN]["before_xy"]
                 ),
@@ -1948,6 +2106,15 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
                 ),
                 "border_mean_vector": _xy_list_str(
                     comps[HEADING_ESTIMATOR_MEAN]["vector"]
+                ),
+                "border_mean_before_crosses_inner_boundary": _bool_csv(
+                    rec["border_mean_before_crosses_inner_boundary"]
+                ),
+                "border_mean_after_crosses_inner_boundary": _bool_csv(
+                    rec["border_mean_after_crosses_inner_boundary"]
+                ),
+                "border_mean_any_side_crosses_inner_boundary": _bool_csv(
+                    rec["border_mean_any_side_crosses_inner_boundary"]
                 ),
                 "image": out_path,
             }
@@ -1958,9 +2125,18 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
         writer = csv.DictWriter(fh, fieldnames=_EXAMPLE_FIELDS)
         writer.writeheader()
         writer.writerows(rows)
+    summary_path = os.path.join(out_dir, "boundary_crossing_summary.csv")
+    with open(summary_path, "w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(
+            fh, fieldnames=_BOUNDARY_CROSSING_SUMMARY_FIELDS
+        )
+        writer.writeheader()
+        writer.writerows(
+            _boundary_crossing_summary_rows(candidates, group_label=group_label)
+        )
     print(
         "[turnback-home-vector-examples] wrote "
-        f"{len(rows)} images and {manifest_path}"
+        f"{len(rows)} images, {manifest_path}, and {summary_path}"
     )
 
 

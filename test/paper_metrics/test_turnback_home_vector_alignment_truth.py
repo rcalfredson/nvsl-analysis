@@ -608,6 +608,8 @@ def test_export_turnback_home_vector_alignment_examples_writes_manifest_and_imag
     assert "one_point_frames" in rows[0]
     assert "pre_reentry_margin_px" in rows[0]
     assert "event_margin_px" in rows[0]
+    assert "border_mean_after_crosses_inner_boundary" in rows[0]
+    assert "reentry_mean_any_side_crosses_inner_boundary" in rows[0]
     assert "border_minus_reentry_mean" in rows[1]
     row = next(csv.DictReader(rows))
     assert row["fly"] == "7"
@@ -617,3 +619,25 @@ def test_export_turnback_home_vector_alignment_examples_writes_manifest_and_imag
     assert "__fly7__" in image_path
     assert image_path.endswith(".png")
     assert os.path.exists(image_path)
+
+    summary = out_dir / "boundary_crossing_summary.csv"
+    assert summary.exists()
+    summary_rows = list(
+        csv.DictReader(summary.read_text(encoding="utf-8").splitlines())
+    )
+    assert {
+        "group",
+        "estimator",
+        "side",
+        "n_episodes",
+        "n_crossing",
+        "fraction_crossing",
+    } <= set(summary_rows[0])
+    border_after = next(
+        row
+        for row in summary_rows
+        if row["estimator"] == "border_mean" and row["side"] == "after"
+    )
+    assert border_after["n_episodes"] == "2"
+    assert border_after["n_crossing"] == "1"
+    assert border_after["fraction_crossing"] == "0.5"
