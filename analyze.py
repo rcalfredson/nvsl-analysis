@@ -6168,14 +6168,16 @@ g.add_argument(
 )
 g.add_argument(
     "--turnback-home-vector-alignment-heading-estimator",
-    choices=["mean", "reentry_mean", "endpoint"],
+    choices=["mean", "one_point", "reentry_mean", "endpoint"],
     default="mean",
     help=(
         "Heading estimator for turnback-home-vector-alignment. 'mean' uses "
         "the displacement between average pre- and post-border-crossing "
-        "positions. 'reentry_mean' preserves the earlier event-centered mean "
-        "that excludes the event frame. 'endpoint' preserves the original "
-        "single pre/post endpoint displacement. Default: %(default)s."
+        "positions. 'one_point' uses the one-frame symmetric crossing vector "
+        "from event-1 to event. 'reentry_mean' preserves the earlier "
+        "event-centered mean that excludes the event frame. 'endpoint' "
+        "preserves the original single pre/post endpoint displacement. "
+        "Default: %(default)s."
     ),
 )
 g.add_argument(
@@ -6212,6 +6214,8 @@ g.add_argument(
     choices=[
         "border_minus_endpoint",
         "abs_border_minus_endpoint",
+        "border_minus_one_point",
+        "abs_border_minus_one_point",
         "border_minus_reentry_mean",
         "abs_border_minus_reentry_mean",
     ],
@@ -6219,6 +6223,8 @@ g.add_argument(
     help=(
         "How to rank turnback home-vector alignment diagnostic images. "
         "'border_minus_endpoint' preserves the original ranking; "
+        "'border_minus_one_point' prioritizes cases where the border-anchored "
+        "mean exceeds the one-point symmetric estimate; "
         "'border_minus_reentry_mean' prioritizes cases where the border-anchored "
         "mean exceeds the re-entry-anchored mean. The abs_* modes rank by "
         "absolute disagreement. Default: %(default)s."

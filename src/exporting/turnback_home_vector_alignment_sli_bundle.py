@@ -30,10 +30,12 @@ from src.utils.util import meanConfInt
 Y_LABEL = "Home-vector heading alignment at re-entry"
 BASE_TITLE = "Turnback home-vector heading alignment"
 HEADING_ESTIMATOR_MEAN = "mean"
+HEADING_ESTIMATOR_ONE_POINT = "one_point"
 HEADING_ESTIMATOR_REENTRY_MEAN = "reentry_mean"
 HEADING_ESTIMATOR_ENDPOINT = "endpoint"
 HEADING_ESTIMATOR_CHOICES = (
     HEADING_ESTIMATOR_MEAN,
+    HEADING_ESTIMATOR_ONE_POINT,
     HEADING_ESTIMATOR_REENTRY_MEAN,
     HEADING_ESTIMATOR_ENDPOINT,
 )
@@ -483,6 +485,8 @@ def _heading_components_at_reentry(
     radius = max(0, int(window_radius_frames or 0))
     event_frame = int(event_frame)
     estimator = str(estimator or HEADING_ESTIMATOR_MEAN)
+    if estimator == HEADING_ESTIMATOR_ONE_POINT:
+        radius = 1
 
     if estimator == HEADING_ESTIMATOR_ENDPOINT or radius <= 0:
         lo_bound = 0 if training_start is None else int(training_start)
@@ -538,7 +542,7 @@ def _heading_components_at_reentry(
             lo=max(lo_bound, event_frame - radius),
             hi=min(hi_bound, event_frame - 1),
         )
-        if estimator == HEADING_ESTIMATOR_MEAN:
+        if estimator in (HEADING_ESTIMATOR_MEAN, HEADING_ESTIMATOR_ONE_POINT):
             after_lo = event_frame
             after_hi = event_frame + radius - 1
         elif estimator == HEADING_ESTIMATOR_REENTRY_MEAN:
@@ -611,6 +615,16 @@ def heading_vector_at_reentry(
             trj,
             event_frame,
             window_radius_frames=window_radius_frames,
+            anchor="border",
+            max_interpolated_frames=max_interpolated_frames,
+            training_start=training_start,
+            training_stop=training_stop,
+        )
+    if estimator == HEADING_ESTIMATOR_ONE_POINT:
+        return _mean_heading_vector_at_reentry(
+            trj,
+            event_frame,
+            window_radius_frames=1,
             anchor="border",
             max_interpolated_frames=max_interpolated_frames,
             training_start=training_start,
@@ -1084,18 +1098,24 @@ _EXAMPLE_FIELDS = [
     "event_distance_px",
     "event_margin_px",
     "alignment_endpoint",
+    "alignment_one_point",
     "alignment_reentry_mean",
     "alignment_border_mean",
     "delta_border_minus_endpoint",
+    "delta_border_minus_one_point",
     "delta_border_minus_reentry_mean",
     "rank_mode",
     "rank_score",
     "endpoint_frames",
+    "one_point_frames",
     "reentry_mean_frames",
     "border_mean_frames",
     "endpoint_before_xy",
     "endpoint_after_xy",
     "endpoint_vector",
+    "one_point_before_xy",
+    "one_point_after_xy",
+    "one_point_vector",
     "reentry_mean_before_xy",
     "reentry_mean_after_xy",
     "reentry_mean_vector",
@@ -1170,6 +1190,8 @@ def _example_rank_mode(opts) -> str:
     valid = {
         "border_minus_endpoint",
         "abs_border_minus_endpoint",
+        "border_minus_one_point",
+        "abs_border_minus_one_point",
         "border_minus_reentry_mean",
         "abs_border_minus_reentry_mean",
     }
@@ -1186,6 +1208,10 @@ def _example_rank_score(record: dict, rank_mode: str) -> float:
         return float(record["delta_border_minus_endpoint"])
     if rank_mode == "abs_border_minus_endpoint":
         return abs(float(record["delta_border_minus_endpoint"]))
+    if rank_mode == "border_minus_one_point":
+        return float(record["delta_border_minus_one_point"])
+    if rank_mode == "abs_border_minus_one_point":
+        return abs(float(record["delta_border_minus_one_point"]))
     if rank_mode == "border_minus_reentry_mean":
         return float(record["delta_border_minus_reentry_mean"])
     if rank_mode == "abs_border_minus_reentry_mean":
@@ -1430,11 +1456,13 @@ def _plot_home_vector_alignment_example(
 
     colors = {
         HEADING_ESTIMATOR_ENDPOINT: "#7f7f7f",
+        HEADING_ESTIMATOR_ONE_POINT: "#17becf",
         HEADING_ESTIMATOR_REENTRY_MEAN: "#9467bd",
         HEADING_ESTIMATOR_MEAN: "#2ca02c",
     }
     labels = {
         HEADING_ESTIMATOR_ENDPOINT: "endpoint",
+        HEADING_ESTIMATOR_ONE_POINT: "one-point",
         HEADING_ESTIMATOR_REENTRY_MEAN: "re-entry mean",
         HEADING_ESTIMATOR_MEAN: "border mean",
     }
@@ -1454,6 +1482,7 @@ def _plot_home_vector_alignment_example(
         )
         for estimator in (
             HEADING_ESTIMATOR_ENDPOINT,
+            HEADING_ESTIMATOR_ONE_POINT,
             HEADING_ESTIMATOR_REENTRY_MEAN,
             HEADING_ESTIMATOR_MEAN,
         ):
@@ -1493,6 +1522,7 @@ def _plot_home_vector_alignment_example(
 
     for estimator in (
         HEADING_ESTIMATOR_ENDPOINT,
+        HEADING_ESTIMATOR_ONE_POINT,
         HEADING_ESTIMATOR_REENTRY_MEAN,
         HEADING_ESTIMATOR_MEAN,
     ):
@@ -1531,9 +1561,11 @@ def _plot_home_vector_alignment_example(
         f"video: {os.path.basename(str(record['va'].fn))}",
         f"T{int(record['training_idx']) + 1}, frames {int(ep['start'])}-{int(ep['stop'])}",
         f"endpoint: {record['alignment_endpoint']:.3f}",
+        f"one-point: {record['alignment_one_point']:.3f}",
         f"re-entry mean: {record['alignment_reentry_mean']:.3f}",
         f"border mean: {record['alignment_border_mean']:.3f}",
         f"border - endpoint: {record['delta_border_minus_endpoint']:.3f}",
+        f"border - one-point: {record['delta_border_minus_one_point']:.3f}",
         f"border - re-entry: {record['delta_border_minus_reentry_mean']:.3f}",
     ]
 
@@ -1600,6 +1632,9 @@ def _plot_home_vector_alignment_example(
         "path time": Line2D([], [], color="black", lw=2),
         "home vector": Line2D([], [], color="#d62728", lw=3),
         "endpoint": Line2D([], [], color=colors[HEADING_ESTIMATOR_ENDPOINT], lw=3),
+        "one-point": Line2D(
+            [], [], color=colors[HEADING_ESTIMATOR_ONE_POINT], lw=3
+        ),
         "re-entry mean": Line2D(
             [], [], color=colors[HEADING_ESTIMATOR_REENTRY_MEAN], lw=3
         ),
@@ -1753,6 +1788,9 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
                         "alignment_endpoint": comps[HEADING_ESTIMATOR_ENDPOINT][
                             "alignment"
                         ],
+                        "alignment_one_point": comps[HEADING_ESTIMATOR_ONE_POINT][
+                            "alignment"
+                        ],
                         "alignment_reentry_mean": comps[
                             HEADING_ESTIMATOR_REENTRY_MEAN
                         ]["alignment"],
@@ -1765,6 +1803,9 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
                     }
                     rec["delta_border_minus_endpoint"] = (
                         rec["alignment_border_mean"] - rec["alignment_endpoint"]
+                    )
+                    rec["delta_border_minus_one_point"] = (
+                        rec["alignment_border_mean"] - rec["alignment_one_point"]
                     )
                     rec["delta_border_minus_reentry_mean"] = (
                         rec["alignment_border_mean"] - rec["alignment_reentry_mean"]
@@ -1781,6 +1822,7 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
         key=lambda row: (
             float(row["rank_score"]),
             float(row["delta_border_minus_endpoint"]),
+            float(row["delta_border_minus_one_point"]),
             float(row["delta_border_minus_reentry_mean"]),
         ),
         reverse=True,
@@ -1845,10 +1887,14 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
                 "event_distance_px": float(rec["event_distance_px"]),
                 "event_margin_px": float(rec["event_margin_px"]),
                 "alignment_endpoint": float(rec["alignment_endpoint"]),
+                "alignment_one_point": float(rec["alignment_one_point"]),
                 "alignment_reentry_mean": float(rec["alignment_reentry_mean"]),
                 "alignment_border_mean": float(rec["alignment_border_mean"]),
                 "delta_border_minus_endpoint": float(
                     rec["delta_border_minus_endpoint"]
+                ),
+                "delta_border_minus_one_point": float(
+                    rec["delta_border_minus_one_point"]
                 ),
                 "delta_border_minus_reentry_mean": float(
                     rec["delta_border_minus_reentry_mean"]
@@ -1857,6 +1903,9 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
                 "rank_score": float(rec["rank_score"]),
                 "endpoint_frames": _frame_list_str(
                     comps[HEADING_ESTIMATOR_ENDPOINT]["sampled_frames"]
+                ),
+                "one_point_frames": _frame_list_str(
+                    comps[HEADING_ESTIMATOR_ONE_POINT]["sampled_frames"]
                 ),
                 "reentry_mean_frames": _frame_list_str(
                     comps[HEADING_ESTIMATOR_REENTRY_MEAN]["sampled_frames"]
@@ -1872,6 +1921,15 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
                 ),
                 "endpoint_vector": _xy_list_str(
                     comps[HEADING_ESTIMATOR_ENDPOINT]["vector"]
+                ),
+                "one_point_before_xy": _xy_list_str(
+                    comps[HEADING_ESTIMATOR_ONE_POINT]["before_xy"]
+                ),
+                "one_point_after_xy": _xy_list_str(
+                    comps[HEADING_ESTIMATOR_ONE_POINT]["after_xy"]
+                ),
+                "one_point_vector": _xy_list_str(
+                    comps[HEADING_ESTIMATOR_ONE_POINT]["vector"]
                 ),
                 "reentry_mean_before_xy": _xy_list_str(
                     comps[HEADING_ESTIMATOR_REENTRY_MEAN]["before_xy"]

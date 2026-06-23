@@ -273,9 +273,12 @@ def test_episode_components_report_estimator_sampled_frames():
     # inside the inner circle; older/stale event_frame values point one frame
     # earlier and should not anchor this metric.
     np.testing.assert_array_equal(comps["endpoint"]["sampled_frames"], [2, 6])
-    np.testing.assert_array_equal(comps["reentry_mean"]["sampled_frames"], [2, 3, 5, 6])
+    np.testing.assert_array_equal(comps["one_point"]["sampled_frames"], [3, 4])
+    np.testing.assert_array_equal(
+        comps["reentry_mean"]["sampled_frames"], [2, 3, 5, 6]
+    )
     np.testing.assert_array_equal(comps["mean"]["sampled_frames"], [2, 3, 4, 5])
-    for estimator in ("endpoint", "reentry_mean", "mean"):
+    for estimator in ("endpoint", "one_point", "reentry_mean", "mean"):
         np.testing.assert_allclose(
             comps[estimator]["vector"],
             heading_vector_at_reentry(
@@ -600,6 +603,9 @@ def test_export_turnback_home_vector_alignment_examples_writes_manifest_and_imag
     assert len(rows) == 2
     assert "rank_mode" in rows[0]
     assert "rank_score" in rows[0]
+    assert "alignment_one_point" in rows[0]
+    assert "delta_border_minus_one_point" in rows[0]
+    assert "one_point_frames" in rows[0]
     assert "pre_reentry_margin_px" in rows[0]
     assert "event_margin_px" in rows[0]
     assert "border_minus_reentry_mean" in rows[1]
