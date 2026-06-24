@@ -163,6 +163,76 @@ def test_cosine_alignment_reports_homeward_tangent_and_away_cases():
     np.testing.assert_allclose(cosine_alignment((2.0, 0.0), (-10.0, 0.0)), -1.0)
 
 
+def test_adaptive_estimator_falls_back_to_one_point_only_on_boundary_crossing():
+    trn = _CircleTraining(start=0, stop=10)
+
+    x, y = _blank_xy(10)
+    _set_xy(
+        x,
+        y,
+        {
+            3: (12.0, -4.0),
+            4: (12.0, 0.0),
+            5: (10.0, 0.0),
+            6: (12.0, 0.0),
+        },
+    )
+    crossing_trj = SimpleNamespace(x=x, y=y, f=0)
+    ep = _episode(5)
+
+    adaptive = episode_home_vector_alignment(
+        crossing_trj,
+        trn,
+        ep,
+        window_radius_frames=2,
+        heading_estimator="adaptive_mean_one_point",
+    )
+    one_point = episode_home_vector_alignment(
+        crossing_trj,
+        trn,
+        ep,
+        window_radius_frames=2,
+        heading_estimator="one_point",
+    )
+    mean = episode_home_vector_alignment(
+        crossing_trj,
+        trn,
+        ep,
+        window_radius_frames=2,
+        heading_estimator="mean",
+    )
+    np.testing.assert_allclose(adaptive, one_point)
+    assert not np.isclose(adaptive, mean)
+
+    x, y = _blank_xy(10)
+    _set_xy(
+        x,
+        y,
+        {
+            3: (12.0, -4.0),
+            4: (12.0, 0.0),
+            5: (10.0, 0.0),
+            6: (8.0, 0.0),
+        },
+    )
+    noncrossing_trj = SimpleNamespace(x=x, y=y, f=0)
+    adaptive = episode_home_vector_alignment(
+        noncrossing_trj,
+        trn,
+        ep,
+        window_radius_frames=2,
+        heading_estimator="adaptive_mean_one_point",
+    )
+    mean = episode_home_vector_alignment(
+        noncrossing_trj,
+        trn,
+        ep,
+        window_radius_frames=2,
+        heading_estimator="mean",
+    )
+    np.testing.assert_allclose(adaptive, mean)
+
+
 def test_heading_vector_default_uses_border_symmetric_mean_positions():
     x, y = _blank_xy(9)
     _set_xy(

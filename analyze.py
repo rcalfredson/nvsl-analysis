@@ -6177,15 +6177,24 @@ g.add_argument(
 )
 g.add_argument(
     "--turnback-home-vector-alignment-heading-estimator",
-    choices=["mean", "one_point", "reentry_mean", "endpoint"],
+    choices=[
+        "mean",
+        "adaptive_mean_one_point",
+        "one_point",
+        "reentry_mean",
+        "endpoint",
+    ],
     default="mean",
     help=(
         "Heading estimator for turnback-home-vector-alignment. 'mean' uses "
         "the displacement between average pre- and post-border-crossing "
-        "positions. 'one_point' uses the one-frame symmetric crossing vector "
-        "from event-1 to event. 'reentry_mean' preserves the earlier "
-        "event-centered mean that excludes the event frame. 'endpoint' "
-        "preserves the original single pre/post endpoint displacement. "
+        "positions. 'adaptive_mean_one_point' uses 'mean' unless the mean "
+        "sampler crosses the inner boundary within its before/after sample "
+        "sets, then falls back to 'one_point'. 'one_point' uses the one-frame "
+        "symmetric crossing vector from event-1 to event. 'reentry_mean' "
+        "preserves the earlier event-centered mean that excludes the event "
+        "frame. 'endpoint' preserves the original single pre/post endpoint "
+        "displacement. "
         "Default: %(default)s."
     ),
 )

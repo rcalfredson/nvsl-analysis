@@ -17,6 +17,7 @@ TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANDOM_SEED="${TURNBACK_HOME_VECTOR_ALIG
 TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_SAMPLE_CROSSING_FILTER="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_SAMPLE_CROSSING_FILTER:-all}"
 TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_DIR="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_DIR:-imgs/turnback_home_vector_alignment_debug}"
 TURNBACK_HOME_VECTOR_ALIGNMENT_EXCLUDE_SAMPLE_CROSSINGS="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXCLUDE_SAMPLE_CROSSINGS:-0}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_HEADING_ESTIMATOR="${TURNBACK_HOME_VECTOR_ALIGNMENT_HEADING_ESTIMATOR:-mean}"
 
 GROUP_VARS=(INTACT_CTRL INTACT_PFND AR_CTRL)
 GROUP_SLUGS=(intact_ctrlKir intact_pfnKir ar_ctrlKir)
@@ -70,7 +71,9 @@ turnback_home_vector_alignment_example_flags() {
   if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_SAMPLE_CROSSING_FILTER" != "all" ]]; then
     example_crossing_part="_${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_SAMPLE_CROSSING_FILTER}"
   fi
-  local example_dir="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_DIR}/turnbackHomeVectorAlignment${subset_part}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sb2-5${sample_cross_part}${example_crossing_part}_${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANK_MODE}_${DATE_TAG}"
+  local estimator_part
+  estimator_part="$(turnback_home_vector_alignment_heading_estimator_suffix)"
+  local example_dir="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_DIR}/turnbackHomeVectorAlignment${subset_part}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sb2-5${estimator_part}${sample_cross_part}${example_crossing_part}_${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANK_MODE}_${DATE_TAG}"
   out_flags=(
     --export-turnback-home-vector-alignment-examples "$example_dir"
     --turnback-home-vector-alignment-examples-num "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_NUM"
@@ -94,6 +97,29 @@ turnback_home_vector_alignment_sample_crossing_suffix() {
   if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXCLUDE_SAMPLE_CROSSINGS" == "1" ]]; then
     echo "_noSampleCross"
   fi
+}
+
+turnback_home_vector_alignment_heading_estimator_suffix() {
+  case "$TURNBACK_HOME_VECTOR_ALIGNMENT_HEADING_ESTIMATOR" in
+    mean)
+      ;;
+    adaptive_mean_one_point)
+      echo "_adaptiveMeanOnePoint"
+      ;;
+    one_point)
+      echo "_onePoint"
+      ;;
+    reentry_mean)
+      echo "_reentryMean"
+      ;;
+    endpoint)
+      echo "_endpoint"
+      ;;
+    *)
+      echo "Unknown turnback home-vector heading estimator: $TURNBACK_HOME_VECTOR_ALIGNMENT_HEADING_ESTIMATOR" >&2
+      exit 1
+      ;;
+  esac
 }
 
 run_return_prob() {
@@ -316,6 +342,8 @@ run_turnback_home_vector_alignment() {
   esac
 
   local bundles=()
+  local estimator_suffix
+  estimator_suffix="$(turnback_home_vector_alignment_heading_estimator_suffix)"
   local sample_cross_suffix
   sample_cross_suffix="$(turnback_home_vector_alignment_sample_crossing_suffix)"
   local sample_cross_flags=()
@@ -326,7 +354,7 @@ run_turnback_home_vector_alignment() {
     local dataset="${!var_name}"
     local group_slug="${GROUP_SLUGS[$i]}"
     local group_label="${GROUP_LABELS[$i]}"
-    local bundle="exports/turnbackHomeVectorAlignment_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sb2-5${sample_cross_suffix}_${DATE_TAG}.npz"
+    local bundle="exports/turnbackHomeVectorAlignment_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sb2-5${estimator_suffix}${sample_cross_suffix}_${DATE_TAG}.npz"
     local example_flags=()
     turnback_home_vector_alignment_example_flags \
       example_flags \
@@ -356,7 +384,7 @@ run_turnback_home_vector_alignment() {
       --sli-select-skip-first-sync-buckets 1 \
       --sli-select-keep-first-sync-buckets 4 \
       --export-group-label "$group_label" \
-      --turnback-home-vector-alignment-heading-estimator mean \
+      --turnback-home-vector-alignment-heading-estimator "$TURNBACK_HOME_VECTOR_ALIGNMENT_HEADING_ESTIMATOR" \
       "${sample_cross_flags[@]}" \
       "${filter_flags[@]}" \
       "${wall_flags[@]}" \
@@ -368,7 +396,7 @@ run_turnback_home_vector_alignment() {
     --input "Ctrl>Kir FLC=${bundles[0]}" \
     --input "PFNd>Kir FLC=${bundles[1]}" \
     --input "AR Ctrl>Kir FLC=${bundles[2]}" \
-    --out "exports/turnbackHomeVectorAlignment_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sb2-5${sample_cross_suffix}_${DATE_TAG}.png" \
+    --out "exports/turnbackHomeVectorAlignment_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sb2-5${estimator_suffix}${sample_cross_suffix}_${DATE_TAG}.png" \
     --title "Home-vector heading alignment at re-entry, ${inner_radius_mm}/${outer_radius_mm} mm" \
     --ylabel "Home-vector heading alignment at re-entry" \
     --stats
@@ -448,6 +476,8 @@ run_turnback_home_vector_alignment_subset_impl() {
   esac
 
   local bundles=()
+  local estimator_suffix
+  estimator_suffix="$(turnback_home_vector_alignment_heading_estimator_suffix)"
   local sample_cross_suffix
   sample_cross_suffix="$(turnback_home_vector_alignment_sample_crossing_suffix)"
   local sample_cross_flags=()
@@ -458,7 +488,7 @@ run_turnback_home_vector_alignment_subset_impl() {
     local dataset="${!var_name}"
     local group_slug="${GROUP_SLUGS[$i]}"
     local group_label="${GROUP_LABELS[$i]}"
-    local bundle="exports/turnbackHomeVectorAlignment_${subset_slug}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sliT2Sb2-5${sample_cross_suffix}_${DATE_TAG}.npz"
+    local bundle="exports/turnbackHomeVectorAlignment_${subset_slug}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sliT2Sb2-5${estimator_suffix}${sample_cross_suffix}_${DATE_TAG}.npz"
     local example_flags=()
     turnback_home_vector_alignment_example_flags \
       example_flags \
@@ -489,7 +519,7 @@ run_turnback_home_vector_alignment_subset_impl() {
       --sli-select-skip-first-sync-buckets 1 \
       --sli-select-keep-first-sync-buckets 4 \
       --export-group-label "$group_label" \
-      --turnback-home-vector-alignment-heading-estimator mean \
+      --turnback-home-vector-alignment-heading-estimator "$TURNBACK_HOME_VECTOR_ALIGNMENT_HEADING_ESTIMATOR" \
       "${sample_cross_flags[@]}" \
       "${filter_flags[@]}" \
       "${wall_flags[@]}" \
@@ -501,7 +531,7 @@ run_turnback_home_vector_alignment_subset_impl() {
     --input "Ctrl>Kir FLC=${bundles[0]}" \
     --input "PFNd>Kir FLC=${bundles[1]}" \
     --input "AR Ctrl>Kir FLC=${bundles[2]}" \
-    --out "exports/turnbackHomeVectorAlignment_${subset_slug}_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sliT2Sb2-5${sample_cross_suffix}_${DATE_TAG}.png" \
+    --out "exports/turnbackHomeVectorAlignment_${subset_slug}_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sliT2Sb2-5${estimator_suffix}${sample_cross_suffix}_${DATE_TAG}.png" \
     --title "${subset_title}: home-vector heading alignment at re-entry, ${inner_radius_mm}/${outer_radius_mm} mm" \
     --ylabel "Home-vector heading alignment at re-entry" \
     --stats

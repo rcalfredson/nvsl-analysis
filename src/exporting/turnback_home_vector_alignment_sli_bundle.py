@@ -30,11 +30,19 @@ from src.utils.util import meanConfInt
 Y_LABEL = "Home-vector heading alignment at re-entry"
 BASE_TITLE = "Turnback home-vector heading alignment"
 HEADING_ESTIMATOR_MEAN = "mean"
+HEADING_ESTIMATOR_ADAPTIVE_MEAN_ONE_POINT = "adaptive_mean_one_point"
 HEADING_ESTIMATOR_ONE_POINT = "one_point"
 HEADING_ESTIMATOR_REENTRY_MEAN = "reentry_mean"
 HEADING_ESTIMATOR_ENDPOINT = "endpoint"
 HEADING_ESTIMATOR_CHOICES = (
     HEADING_ESTIMATOR_MEAN,
+    HEADING_ESTIMATOR_ONE_POINT,
+    HEADING_ESTIMATOR_REENTRY_MEAN,
+    HEADING_ESTIMATOR_ENDPOINT,
+)
+HEADING_ESTIMATOR_ANALYSIS_CHOICES = (
+    HEADING_ESTIMATOR_MEAN,
+    HEADING_ESTIMATOR_ADAPTIVE_MEAN_ONE_POINT,
     HEADING_ESTIMATOR_ONE_POINT,
     HEADING_ESTIMATOR_REENTRY_MEAN,
     HEADING_ESTIMATOR_ENDPOINT,
@@ -727,6 +735,28 @@ def episode_home_vector_alignment(
     except Exception:
         return float("nan")
 
+    if heading_estimator == HEADING_ESTIMATOR_ADAPTIVE_MEAN_ONE_POINT:
+        comps = episode_home_vector_alignment_components(
+            trj,
+            trn,
+            ep,
+            window_radius_frames=window_radius_frames,
+            max_interpolated_heading_frames=max_interpolated_heading_frames,
+        )
+        mean_comp = comps.get(HEADING_ESTIMATOR_MEAN)
+        one_point_comp = comps.get(HEADING_ESTIMATOR_ONE_POINT)
+        if mean_comp is None or one_point_comp is None:
+            return float("nan")
+        selected = (
+            HEADING_ESTIMATOR_ONE_POINT
+            if _heading_component_crosses_inner_boundary(
+                trj, trn, ep, HEADING_ESTIMATOR_MEAN, mean_comp
+            )
+            else HEADING_ESTIMATOR_MEAN
+        )
+        val = comps[selected].get("alignment", float("nan"))
+        return float(val) if np.isfinite(val) else float("nan")
+
     heading_vec = heading_vector_at_reentry(
         trj,
         event_frame,
@@ -1021,10 +1051,10 @@ def _collect_per_fly_values(
         )
         or HEADING_ESTIMATOR_MEAN
     )
-    if heading_estimator not in HEADING_ESTIMATOR_CHOICES:
+    if heading_estimator not in HEADING_ESTIMATOR_ANALYSIS_CHOICES:
         raise ValueError(
             "turnback_home_vector_alignment_heading_estimator must be one of "
-            f"{HEADING_ESTIMATOR_CHOICES!r}; got {heading_estimator!r}"
+            f"{HEADING_ESTIMATOR_ANALYSIS_CHOICES!r}; got {heading_estimator!r}"
         )
     max_interpolated_heading_frames = _resolve_max_interpolated_heading_frames(opts)
 
@@ -1352,6 +1382,15 @@ def _heading_component_crosses_inner_boundary(
         trj, trn, ep, {str(estimator): comp}
     )
     return bool(diagnostics.get(f"{name}_any_side_crosses_inner_boundary", False))
+
+
+def _boundary_crossing_reference_estimator(estimator: str) -> str | None:
+    estimator = str(estimator)
+    if estimator == HEADING_ESTIMATOR_ADAPTIVE_MEAN_ONE_POINT:
+        return HEADING_ESTIMATOR_MEAN
+    if estimator in _BOUNDARY_CROSSING_ESTIMATORS:
+        return estimator
+    return None
 
 
 def _boundary_crossing_summary_rows(records, *, group_label: str) -> list[dict]:
@@ -1960,15 +1999,18 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
         )
         or HEADING_ESTIMATOR_MEAN
     )
-    if heading_estimator not in HEADING_ESTIMATOR_CHOICES:
+    if heading_estimator not in HEADING_ESTIMATOR_ANALYSIS_CHOICES:
         raise ValueError(
             "turnback_home_vector_alignment_heading_estimator must be one of "
-            f"{HEADING_ESTIMATOR_CHOICES!r}; got {heading_estimator!r}"
-    )
+            f"{HEADING_ESTIMATOR_ANALYSIS_CHOICES!r}; got {heading_estimator!r}"
+        )
     rank_mode = _example_rank_mode(opts)
     random_seed = _example_random_seed(opts)
     crossing_filter = _example_sampling_boundary_crossing_filter(opts)
-    if crossing_filter != "all" and heading_estimator not in _BOUNDARY_CROSSING_ESTIMATORS:
+    crossing_reference_estimator = _boundary_crossing_reference_estimator(
+        heading_estimator
+    )
+    if crossing_filter != "all" and crossing_reference_estimator is None:
         raise ValueError(
             "turnback_home_vector_alignment_examples_sampling_boundary_crossing_filter "
             "requires an averaged heading estimator with boundary-crossing "
@@ -2035,14 +2077,14 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
                     if not all(k in comps for k in HEADING_ESTIMATOR_CHOICES):
                         continue
                     active_estimator_crosses_inner_boundary = False
-                    if heading_estimator in _BOUNDARY_CROSSING_ESTIMATORS:
+                    if crossing_reference_estimator is not None:
                         active_estimator_crosses_inner_boundary = (
                             _heading_component_crosses_inner_boundary(
                                 trj,
                                 trn,
                                 ep,
-                                heading_estimator,
-                                comps[heading_estimator],
+                                crossing_reference_estimator,
+                                comps[crossing_reference_estimator],
                             )
                         )
                     if crossing_filter == "crossing":
