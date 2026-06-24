@@ -1144,6 +1144,8 @@ _EXAMPLE_FIELDS = [
     "rank_mode",
     "rank_score",
     "random_seed",
+    "sampling_boundary_crossing_filter",
+    "active_estimator_crosses_inner_boundary",
     "endpoint_frames",
     "one_point_frames",
     "reentry_mean_frames",
@@ -1410,6 +1412,24 @@ def _example_random_seed(opts) -> int:
     return int(
         getattr(opts, "turnback_home_vector_alignment_examples_random_seed", 1) or 1
     )
+
+
+def _example_sampling_boundary_crossing_filter(opts) -> str:
+    mode = str(
+        getattr(
+            opts,
+            "turnback_home_vector_alignment_examples_sampling_boundary_crossing_filter",
+            "all",
+        )
+        or "all"
+    )
+    valid = {"all", "crossing", "noncrossing"}
+    if mode not in valid:
+        raise ValueError(
+            "turnback_home_vector_alignment_examples_sampling_boundary_crossing_filter "
+            f"must be one of {sorted(valid)!r}; got {mode!r}"
+        )
+    return mode
 
 
 def _example_rank_score(record: dict, rank_mode: str) -> float:
@@ -1944,9 +1964,16 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
         raise ValueError(
             "turnback_home_vector_alignment_heading_estimator must be one of "
             f"{HEADING_ESTIMATOR_CHOICES!r}; got {heading_estimator!r}"
-        )
+    )
     rank_mode = _example_rank_mode(opts)
     random_seed = _example_random_seed(opts)
+    crossing_filter = _example_sampling_boundary_crossing_filter(opts)
+    if crossing_filter != "all" and heading_estimator not in _BOUNDARY_CROSSING_ESTIMATORS:
+        raise ValueError(
+            "turnback_home_vector_alignment_examples_sampling_boundary_crossing_filter "
+            "requires an averaged heading estimator with boundary-crossing "
+            f"diagnostics; got {heading_estimator!r}"
+        )
 
     candidates = []
     for vi, va in enumerate(vas_ok):
@@ -2007,16 +2034,29 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
                     )
                     if not all(k in comps for k in HEADING_ESTIMATOR_CHOICES):
                         continue
+                    active_estimator_crosses_inner_boundary = False
+                    if heading_estimator in _BOUNDARY_CROSSING_ESTIMATORS:
+                        active_estimator_crosses_inner_boundary = (
+                            _heading_component_crosses_inner_boundary(
+                                trj,
+                                trn,
+                                ep,
+                                heading_estimator,
+                                comps[heading_estimator],
+                            )
+                        )
+                    if crossing_filter == "crossing":
+                        if not active_estimator_crosses_inner_boundary:
+                            continue
+                    elif crossing_filter == "noncrossing":
+                        if active_estimator_crosses_inner_boundary:
+                            continue
                     if (
+                        crossing_filter == "all"
+                        and
                         exclude_sampling_boundary_crossings
                         and heading_estimator in _BOUNDARY_CROSSING_ESTIMATORS
-                        and _heading_component_crosses_inner_boundary(
-                            trj,
-                            trn,
-                            ep,
-                            heading_estimator,
-                            comps[heading_estimator],
-                        )
+                        and active_estimator_crosses_inner_boundary
                     ):
                         continue
                     rec = {
@@ -2029,6 +2069,9 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
                         "episode": ep,
                         "event_frame": event_frame,
                         "components": comps,
+                        "active_estimator_crosses_inner_boundary": (
+                            active_estimator_crosses_inner_boundary
+                        ),
                         "alignment_endpoint": comps[HEADING_ESTIMATOR_ENDPOINT][
                             "alignment"
                         ],
@@ -2156,6 +2199,10 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
                 "rank_mode": str(rec["rank_mode"]),
                 "rank_score": float(rec["rank_score"]),
                 "random_seed": int(random_seed) if rank_mode == "random" else "",
+                "sampling_boundary_crossing_filter": str(crossing_filter),
+                "active_estimator_crosses_inner_boundary": _bool_csv(
+                    rec["active_estimator_crosses_inner_boundary"]
+                ),
                 "endpoint_frames": _frame_list_str(
                     comps[HEADING_ESTIMATOR_ENDPOINT]["sampled_frames"]
                 ),

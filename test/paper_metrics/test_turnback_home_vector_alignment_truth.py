@@ -645,6 +645,7 @@ def test_export_turnback_home_vector_alignment_examples_writes_manifest_and_imag
         turnback_home_vector_alignment_examples_max_per_fly=1,
         turnback_home_vector_alignment_examples_rank_mode="border_minus_reentry_mean",
         turnback_home_vector_alignment_examples_random_seed=1,
+        turnback_home_vector_alignment_examples_sampling_boundary_crossing_filter="all",
         imageFormat="png",
     )
     out_dir = tmp_path / "examples"
@@ -660,6 +661,8 @@ def test_export_turnback_home_vector_alignment_examples_writes_manifest_and_imag
     assert "rank_mode" in rows[0]
     assert "rank_score" in rows[0]
     assert "random_seed" in rows[0]
+    assert "sampling_boundary_crossing_filter" in rows[0]
+    assert "active_estimator_crosses_inner_boundary" in rows[0]
     assert "alignment_one_point" in rows[0]
     assert "delta_border_minus_one_point" in rows[0]
     assert "one_point_frames" in rows[0]
@@ -706,6 +709,7 @@ def test_export_turnback_home_vector_alignment_examples_writes_manifest_and_imag
         turnback_home_vector_alignment_examples_max_per_fly=0,
         turnback_home_vector_alignment_examples_rank_mode="random",
         turnback_home_vector_alignment_examples_random_seed=17,
+        turnback_home_vector_alignment_examples_sampling_boundary_crossing_filter="all",
         imageFormat="png",
     )
     export_turnback_home_vector_alignment_examples(
@@ -721,3 +725,29 @@ def test_export_turnback_home_vector_alignment_examples_writes_manifest_and_imag
     assert random_rows[0]["rank_mode"] == "random"
     assert random_rows[0]["random_seed"] == "17"
     assert 0.0 <= float(random_rows[0]["rank_score"]) <= 1.0
+
+    crossing_out_dir = tmp_path / "crossing_examples"
+    crossing_opts = _default_opts(
+        turnback_home_vector_alignment_window_radius_frames=2,
+        turnback_home_vector_alignment_examples_num=1,
+        turnback_home_vector_alignment_examples_max_per_fly=0,
+        turnback_home_vector_alignment_examples_rank_mode="random",
+        turnback_home_vector_alignment_examples_random_seed=17,
+        turnback_home_vector_alignment_examples_sampling_boundary_crossing_filter=(
+            "crossing"
+        ),
+        imageFormat="png",
+    )
+    export_turnback_home_vector_alignment_examples(
+        [va], crossing_opts, gls=None, out_dir=str(crossing_out_dir)
+    )
+    crossing_rows = list(
+        csv.DictReader(
+            (crossing_out_dir / "manifest.csv")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        )
+    )
+    assert crossing_rows[0]["sampling_boundary_crossing_filter"] == "crossing"
+    assert crossing_rows[0]["active_estimator_crosses_inner_boundary"] == "1"
+    assert crossing_rows[0]["event_frame"] == "125"

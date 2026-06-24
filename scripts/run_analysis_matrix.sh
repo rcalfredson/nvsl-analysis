@@ -14,6 +14,7 @@ TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_NUM="${TURNBACK_HOME_VECTOR_ALIGNMENT_EX
 TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_MAX_PER_FLY="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_MAX_PER_FLY:-4}"
 TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANK_MODE="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANK_MODE:-abs_border_minus_reentry_mean}"
 TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANDOM_SEED="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANDOM_SEED:-1}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_SAMPLE_CROSSING_FILTER="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_SAMPLE_CROSSING_FILTER:-all}"
 TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_DIR="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_DIR:-imgs/turnback_home_vector_alignment_debug}"
 TURNBACK_HOME_VECTOR_ALIGNMENT_EXCLUDE_SAMPLE_CROSSINGS="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXCLUDE_SAMPLE_CROSSINGS:-0}"
 
@@ -65,13 +66,18 @@ turnback_home_vector_alignment_example_flags() {
   if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXCLUDE_SAMPLE_CROSSINGS" == "1" ]]; then
     sample_cross_part="_noSampleCross"
   fi
-  local example_dir="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_DIR}/turnbackHomeVectorAlignment${subset_part}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sb2-5${sample_cross_part}_${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANK_MODE}_${DATE_TAG}"
+  local example_crossing_part=""
+  if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_SAMPLE_CROSSING_FILTER" != "all" ]]; then
+    example_crossing_part="_${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_SAMPLE_CROSSING_FILTER}"
+  fi
+  local example_dir="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_DIR}/turnbackHomeVectorAlignment${subset_part}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sb2-5${sample_cross_part}${example_crossing_part}_${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANK_MODE}_${DATE_TAG}"
   out_flags=(
     --export-turnback-home-vector-alignment-examples "$example_dir"
     --turnback-home-vector-alignment-examples-num "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_NUM"
     --turnback-home-vector-alignment-examples-max-per-fly "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_MAX_PER_FLY"
     --turnback-home-vector-alignment-examples-rank-mode "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANK_MODE"
     --turnback-home-vector-alignment-examples-random-seed "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANDOM_SEED"
+    --turnback-home-vector-alignment-examples-sampling-boundary-crossing-filter "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_SAMPLE_CROSSING_FILTER"
     --imgFormat pdf
   )
 }

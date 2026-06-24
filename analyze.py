@@ -6252,6 +6252,18 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--turnback-home-vector-alignment-examples-sampling-boundary-crossing-filter",
+    choices=["all", "crossing", "noncrossing"],
+    default="all",
+    help=(
+        "Restrict turnback home-vector diagnostic examples by whether the active "
+        "averaged heading estimator's before/after sampled frame set crosses "
+        "the effective inner-circle turnback boundary. Use 'crossing' to inspect "
+        "episodes removed by --turnback-home-vector-alignment-exclude-sampling-"
+        "boundary-crossings. Default: %(default)s."
+    ),
+)
+g.add_argument(
     "--turnback-outer-radius-debug",
     action="store_true",
     help=(
