@@ -15,6 +15,7 @@ TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_MAX_PER_FLY="${TURNBACK_HOME_VECTOR_ALIG
 TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANK_MODE="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANK_MODE:-abs_border_minus_reentry_mean}"
 TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANDOM_SEED="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANDOM_SEED:-1}"
 TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_DIR="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_DIR:-imgs/turnback_home_vector_alignment_debug}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_EXCLUDE_SAMPLE_CROSSINGS="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXCLUDE_SAMPLE_CROSSINGS:-0}"
 
 GROUP_VARS=(INTACT_CTRL INTACT_PFND AR_CTRL)
 GROUP_SLUGS=(intact_ctrlKir intact_pfnKir ar_ctrlKir)
@@ -60,7 +61,11 @@ turnback_home_vector_alignment_example_flags() {
   if [[ -n "$subset_slug" ]]; then
     subset_part="_${subset_slug}"
   fi
-  local example_dir="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_DIR}/turnbackHomeVectorAlignment${subset_part}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sb2-5_${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANK_MODE}_${DATE_TAG}"
+  local sample_cross_part=""
+  if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXCLUDE_SAMPLE_CROSSINGS" == "1" ]]; then
+    sample_cross_part="_noSampleCross"
+  fi
+  local example_dir="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_DIR}/turnbackHomeVectorAlignment${subset_part}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sb2-5${sample_cross_part}_${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANK_MODE}_${DATE_TAG}"
   out_flags=(
     --export-turnback-home-vector-alignment-examples "$example_dir"
     --turnback-home-vector-alignment-examples-num "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_NUM"
@@ -69,6 +74,20 @@ turnback_home_vector_alignment_example_flags() {
     --turnback-home-vector-alignment-examples-random-seed "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANDOM_SEED"
     --imgFormat pdf
   )
+}
+
+turnback_home_vector_alignment_sample_crossing_flags() {
+  local -n out_flags="$1"
+  out_flags=()
+  if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXCLUDE_SAMPLE_CROSSINGS" == "1" ]]; then
+    out_flags=(--turnback-home-vector-alignment-exclude-sampling-boundary-crossings)
+  fi
+}
+
+turnback_home_vector_alignment_sample_crossing_suffix() {
+  if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXCLUDE_SAMPLE_CROSSINGS" == "1" ]]; then
+    echo "_noSampleCross"
+  fi
 }
 
 run_return_prob() {
@@ -291,13 +310,17 @@ run_turnback_home_vector_alignment() {
   esac
 
   local bundles=()
+  local sample_cross_suffix
+  sample_cross_suffix="$(turnback_home_vector_alignment_sample_crossing_suffix)"
+  local sample_cross_flags=()
+  turnback_home_vector_alignment_sample_crossing_flags sample_cross_flags
 
   for i in "${!GROUP_VARS[@]}"; do
     local var_name="${GROUP_VARS[$i]}"
     local dataset="${!var_name}"
     local group_slug="${GROUP_SLUGS[$i]}"
     local group_label="${GROUP_LABELS[$i]}"
-    local bundle="exports/turnbackHomeVectorAlignment_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sb2-5_${DATE_TAG}.npz"
+    local bundle="exports/turnbackHomeVectorAlignment_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sb2-5${sample_cross_suffix}_${DATE_TAG}.npz"
     local example_flags=()
     turnback_home_vector_alignment_example_flags \
       example_flags \
@@ -328,6 +351,7 @@ run_turnback_home_vector_alignment() {
       --sli-select-keep-first-sync-buckets 4 \
       --export-group-label "$group_label" \
       --turnback-home-vector-alignment-heading-estimator mean \
+      "${sample_cross_flags[@]}" \
       "${filter_flags[@]}" \
       "${wall_flags[@]}" \
       "${example_flags[@]}"
@@ -338,7 +362,7 @@ run_turnback_home_vector_alignment() {
     --input "Ctrl>Kir FLC=${bundles[0]}" \
     --input "PFNd>Kir FLC=${bundles[1]}" \
     --input "AR Ctrl>Kir FLC=${bundles[2]}" \
-    --out "exports/turnbackHomeVectorAlignment_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sb2-5_${DATE_TAG}.png" \
+    --out "exports/turnbackHomeVectorAlignment_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sb2-5${sample_cross_suffix}_${DATE_TAG}.png" \
     --title "Home-vector heading alignment at re-entry, ${inner_radius_mm}/${outer_radius_mm} mm" \
     --ylabel "Home-vector heading alignment at re-entry" \
     --stats
@@ -418,13 +442,17 @@ run_turnback_home_vector_alignment_subset_impl() {
   esac
 
   local bundles=()
+  local sample_cross_suffix
+  sample_cross_suffix="$(turnback_home_vector_alignment_sample_crossing_suffix)"
+  local sample_cross_flags=()
+  turnback_home_vector_alignment_sample_crossing_flags sample_cross_flags
 
   for i in "${!GROUP_VARS[@]}"; do
     local var_name="${GROUP_VARS[$i]}"
     local dataset="${!var_name}"
     local group_slug="${GROUP_SLUGS[$i]}"
     local group_label="${GROUP_LABELS[$i]}"
-    local bundle="exports/turnbackHomeVectorAlignment_${subset_slug}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sliT2Sb2-5_${DATE_TAG}.npz"
+    local bundle="exports/turnbackHomeVectorAlignment_${subset_slug}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sliT2Sb2-5${sample_cross_suffix}_${DATE_TAG}.npz"
     local example_flags=()
     turnback_home_vector_alignment_example_flags \
       example_flags \
@@ -455,6 +483,8 @@ run_turnback_home_vector_alignment_subset_impl() {
       --sli-select-skip-first-sync-buckets 1 \
       --sli-select-keep-first-sync-buckets 4 \
       --export-group-label "$group_label" \
+      --turnback-home-vector-alignment-heading-estimator mean \
+      "${sample_cross_flags[@]}" \
       "${filter_flags[@]}" \
       "${wall_flags[@]}" \
       "${example_flags[@]}"
@@ -465,7 +495,7 @@ run_turnback_home_vector_alignment_subset_impl() {
     --input "Ctrl>Kir FLC=${bundles[0]}" \
     --input "PFNd>Kir FLC=${bundles[1]}" \
     --input "AR Ctrl>Kir FLC=${bundles[2]}" \
-    --out "exports/turnbackHomeVectorAlignment_${subset_slug}_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sliT2Sb2-5_${DATE_TAG}.png" \
+    --out "exports/turnbackHomeVectorAlignment_${subset_slug}_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sliT2Sb2-5${sample_cross_suffix}_${DATE_TAG}.png" \
     --title "${subset_title}: home-vector heading alignment at re-entry, ${inner_radius_mm}/${outer_radius_mm} mm" \
     --ylabel "Home-vector heading alignment at re-entry" \
     --stats
@@ -733,8 +763,9 @@ run_post_wall_departure_tortuosity() {
 
 # ---------------------------------------------------------------------
 # Turnback home-vector heading alignment at successful re-entry
-# Metric: cos(heading - home vector), using displacement-derived heading
-# around the re-entry event.
+# Metric: cos(heading - home vector), using displacement-derived heading.
+# Heading estimator: mean with radius 2, i.e. two-point symmetric sampling
+# around the inner-circle border crossing.
 # Default analysis window: Training 2, sync buckets 2 through 5.
 # Episode geometry: absolute inner/outer radii from reward-circle center,
 # matching turnback-ratio default pairs: 3/5, 8/10, 13/15 mm.
@@ -742,8 +773,8 @@ run_post_wall_departure_tortuosity() {
 # noWall: discard successful re-entry episodes overlapping wall contact
 # ---------------------------------------------------------------------
 
-for filter_tag in minEpSb5Filt noFilt minEpFilt minEpPiFilt; do
-  for wall_tag in wall noWall; do
+for filter_tag in minEpSb5Filt; do
+  for wall_tag in wall; do
     run_turnback_home_vector_alignment "3-5" 3 5 "$filter_tag" "$wall_tag"
     run_turnback_home_vector_alignment "8-10" 8 10 "$filter_tag" "$wall_tag"
     run_turnback_home_vector_alignment "13-15" 13 15 "$filter_tag" "$wall_tag"
@@ -760,7 +791,7 @@ done
 # ---------------------------------------------------------------------
 
 for filter_tag in minEpSb5Filt; do
-  for wall_tag in wall noWall; do
+  for wall_tag in wall; do
     run_turnback_home_vector_alignment_top20 "3-5" 3 5 "$filter_tag" "$wall_tag"
     run_turnback_home_vector_alignment_top20 "8-10" 8 10 "$filter_tag" "$wall_tag"
     run_turnback_home_vector_alignment_top20 "13-15" 13 15 "$filter_tag" "$wall_tag"
@@ -777,7 +808,7 @@ done
 # ---------------------------------------------------------------------
 
 for filter_tag in minEpSb5Filt; do
-  for wall_tag in wall noWall; do
+  for wall_tag in wall; do
     run_turnback_home_vector_alignment_bottom50 "3-5" 3 5 "$filter_tag" "$wall_tag"
     run_turnback_home_vector_alignment_bottom50 "8-10" 8 10 "$filter_tag" "$wall_tag"
     run_turnback_home_vector_alignment_bottom50 "13-15" 13 15 "$filter_tag" "$wall_tag"

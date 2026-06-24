@@ -97,6 +97,7 @@ def _default_opts(**overrides):
         turnback_home_vector_alignment_heading_estimator="mean",
         turnback_home_vector_alignment_max_interpolated_heading_frames=0,
         turnback_home_vector_alignment_exclude_wall_contact=False,
+        turnback_home_vector_alignment_exclude_sampling_boundary_crossings=False,
         turnback_home_vector_alignment_inner_radius_mm=None,
         turnback_home_vector_alignment_inner_delta_mm=None,
         turnback_home_vector_alignment_outer_radius_mm=None,
@@ -481,6 +482,7 @@ def test_export_schema_uses_selected_successful_reentry_episodes_only(tmp_path):
         assert meta["window_radius_frames"] == 1
         assert meta["heading_estimator"] == "mean"
         assert meta["max_interpolated_heading_frames"] == 0
+        assert meta["exclude_sampling_boundary_crossings"] is False
         assert "does not use Trajectory.theta" in meta["heading_convention"]
         assert (
             bundle["turnback_home_vector_alignment_heading_estimator"].item()
@@ -490,12 +492,65 @@ def test_export_schema_uses_selected_successful_reentry_episodes_only(tmp_path):
             bundle["turnback_home_vector_alignment_max_interpolated_heading_frames"],
             [0],
         )
+        np.testing.assert_array_equal(
+            bundle[
+                "turnback_home_vector_alignment_exclude_sampling_boundary_crossings"
+            ],
+            [False],
+        )
 
         # The actual episode iterator should receive the same default turnback
         # geometry used by the exporter.
         trj = va.trx[0]
         assert trj.calls[0]["inner_delta_mm"] == 0.0
         assert trj.calls[0]["outer_delta_mm"] == 2.0
+
+
+def test_export_can_exclude_sampling_boundary_crossing_episodes(tmp_path):
+    episodes = [
+        _episode(115),
+        _episode(125),
+    ]
+    coords = {
+        # Kept: before samples outside boundary; after samples on/inside.
+        113: (14.0, 0.0),
+        114: (12.0, 0.0),
+        115: (10.0, 0.0),
+        116: (8.0, 0.0),
+        # Excluded: after samples straddle the effective inner boundary.
+        123: (14.0, 0.0),
+        124: (12.0, 0.0),
+        125: (10.0, 0.0),
+        126: (12.0, 0.0),
+    }
+
+    va = _make_export_va(episodes=episodes, coords=coords)
+    opts = _default_opts(
+        min_turnback_episodes=1,
+        turnback_home_vector_alignment_window_radius_frames=2,
+        turnback_home_vector_alignment_exclude_sampling_boundary_crossings=True,
+    )
+    out = tmp_path / "home_vector_alignment_no_sample_cross.npz"
+
+    export_turnback_home_vector_alignment_sli_bundle(
+        [va], opts, gls=None, out_fn=str(out)
+    )
+
+    with np.load(out, allow_pickle=True) as bundle:
+        values = np.asarray(bundle["per_unit_values_panel"][0], dtype=float)
+        np.testing.assert_allclose(values, [1.0])
+        np.testing.assert_array_equal(
+            bundle["turnback_home_vector_alignment_episode_counts"],
+            [1],
+        )
+        meta = json.loads(bundle["meta_json"].item())
+        assert meta["exclude_sampling_boundary_crossings"] is True
+        np.testing.assert_array_equal(
+            bundle[
+                "turnback_home_vector_alignment_exclude_sampling_boundary_crossings"
+            ],
+            [True],
+        )
 
 
 def test_export_min_episode_filter_excludes_low_count_fly(tmp_path):

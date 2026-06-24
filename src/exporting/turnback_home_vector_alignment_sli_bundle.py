@@ -837,6 +837,7 @@ def _iter_successful_selected_episode_values_for_fly(
     keep_first: int,
     last_sync_buckets: int,
     exclude_wall_contact: bool,
+    exclude_sampling_boundary_crossings: bool,
     window_radius_frames: int,
     heading_estimator: str,
     max_interpolated_heading_frames: int | None,
@@ -903,6 +904,29 @@ def _iter_successful_selected_episode_values_for_fly(
 
             event_t = _turnback_event_frame(ep)
             if not _frame_in_windows(event_t, windows_by_training[t_idx]):
+                continue
+
+            if (
+                exclude_sampling_boundary_crossings
+                and heading_estimator in _BOUNDARY_CROSSING_ESTIMATORS
+            ):
+                comps = episode_home_vector_alignment_components(
+                    trj,
+                    trn,
+                    ep,
+                    window_radius_frames=window_radius_frames,
+                    max_interpolated_heading_frames=max_interpolated_heading_frames,
+                )
+                comp = comps.get(heading_estimator)
+                if comp is None:
+                    continue
+                if _heading_component_crosses_inner_boundary(
+                    trj, trn, ep, heading_estimator, comp
+                ):
+                    continue
+                val = comp["alignment"]
+                if np.isfinite(val):
+                    yield float(val)
                 continue
 
             val = episode_home_vector_alignment(
@@ -976,6 +1000,13 @@ def _collect_per_fly_values(
     exclude_wall_contact = bool(
         getattr(opts, "turnback_home_vector_alignment_exclude_wall_contact", False)
     )
+    exclude_sampling_boundary_crossings = bool(
+        getattr(
+            opts,
+            "turnback_home_vector_alignment_exclude_sampling_boundary_crossings",
+            False,
+        )
+    )
     window_radius_frames = max(
         0,
         int(
@@ -1028,6 +1059,9 @@ def _collect_per_fly_values(
                         keep_first=keep_first,
                         last_sync_buckets=last_sync_buckets,
                         exclude_wall_contact=exclude_wall_contact,
+                        exclude_sampling_boundary_crossings=(
+                            exclude_sampling_boundary_crossings
+                        ),
                         window_radius_frames=window_radius_frames,
                         heading_estimator=heading_estimator,
                         max_interpolated_heading_frames=max_interpolated_heading_frames,
@@ -1070,6 +1104,9 @@ def _collect_per_fly_values(
             "border_width_mm": float(border_width_mm),
             "radius_offset_px": float(radius_offset_px),
             "exclude_wall_contact": bool(exclude_wall_contact),
+            "exclude_sampling_boundary_crossings": bool(
+                exclude_sampling_boundary_crossings
+            ),
             "window_radius_frames": int(window_radius_frames),
             "heading_estimator": heading_estimator,
             "max_interpolated_heading_frames": (
@@ -1293,6 +1330,26 @@ def _component_boundary_crossing_diagnostics(
         out[f"{name}_after_crosses_inner_boundary"] = after
         out[f"{name}_any_side_crosses_inner_boundary"] = bool(before or after)
     return out
+
+
+def _heading_component_crosses_inner_boundary(
+    trj,
+    trn,
+    ep: dict,
+    estimator: str,
+    comp: dict,
+) -> bool:
+    name_by_estimator = {
+        HEADING_ESTIMATOR_REENTRY_MEAN: "reentry_mean",
+        HEADING_ESTIMATOR_MEAN: "border_mean",
+    }
+    name = name_by_estimator.get(str(estimator))
+    if name is None:
+        return False
+    diagnostics = _component_boundary_crossing_diagnostics(
+        trj, trn, ep, {str(estimator): comp}
+    )
+    return bool(diagnostics.get(f"{name}_any_side_crosses_inner_boundary", False))
 
 
 def _boundary_crossing_summary_rows(records, *, group_label: str) -> list[dict]:
@@ -1868,6 +1925,26 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
     exclude_wall_contact = bool(
         getattr(opts, "turnback_home_vector_alignment_exclude_wall_contact", False)
     )
+    exclude_sampling_boundary_crossings = bool(
+        getattr(
+            opts,
+            "turnback_home_vector_alignment_exclude_sampling_boundary_crossings",
+            False,
+        )
+    )
+    heading_estimator = str(
+        getattr(
+            opts,
+            "turnback_home_vector_alignment_heading_estimator",
+            HEADING_ESTIMATOR_MEAN,
+        )
+        or HEADING_ESTIMATOR_MEAN
+    )
+    if heading_estimator not in HEADING_ESTIMATOR_CHOICES:
+        raise ValueError(
+            "turnback_home_vector_alignment_heading_estimator must be one of "
+            f"{HEADING_ESTIMATOR_CHOICES!r}; got {heading_estimator!r}"
+        )
     rank_mode = _example_rank_mode(opts)
     random_seed = _example_random_seed(opts)
 
@@ -1929,6 +2006,18 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
                         max_interpolated_heading_frames=max_interpolated_heading_frames,
                     )
                     if not all(k in comps for k in HEADING_ESTIMATOR_CHOICES):
+                        continue
+                    if (
+                        exclude_sampling_boundary_crossings
+                        and heading_estimator in _BOUNDARY_CROSSING_ESTIMATORS
+                        and _heading_component_crosses_inner_boundary(
+                            trj,
+                            trn,
+                            ep,
+                            heading_estimator,
+                            comps[heading_estimator],
+                        )
+                    ):
                         continue
                     rec = {
                         "va": va,
@@ -2253,6 +2342,9 @@ def export_turnback_home_vector_alignment_sli_bundle(vas, opts, gls, out_fn):
         ),
         "turnback_home_vector_alignment_max_interpolated_heading_frames": np.array(
             int(metric_meta["max_interpolated_heading_frames"]), dtype=int
+        ),
+        "turnback_home_vector_alignment_exclude_sampling_boundary_crossings": np.array(
+            bool(metric_meta["exclude_sampling_boundary_crossings"]), dtype=bool
         ),
         "min_turnback_episodes": np.array(
             int(metric_meta["min_turnback_episodes"]), dtype=int

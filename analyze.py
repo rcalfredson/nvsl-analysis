@@ -6155,6 +6155,15 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--turnback-home-vector-alignment-exclude-sampling-boundary-crossings",
+    action="store_true",
+    help=(
+        "For averaged turnback-home-vector-alignment heading estimators, discard "
+        "episodes where the before or after sampled frame set straddles the "
+        "effective inner-circle turnback boundary."
+    ),
+)
+g.add_argument(
     "--turnback-home-vector-alignment-window-radius-frames",
     type=int,
     default=2,
