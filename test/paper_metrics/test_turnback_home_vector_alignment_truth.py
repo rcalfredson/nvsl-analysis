@@ -589,6 +589,7 @@ def test_export_turnback_home_vector_alignment_examples_writes_manifest_and_imag
         turnback_home_vector_alignment_examples_num=1,
         turnback_home_vector_alignment_examples_max_per_fly=1,
         turnback_home_vector_alignment_examples_rank_mode="border_minus_reentry_mean",
+        turnback_home_vector_alignment_examples_random_seed=1,
         imageFormat="png",
     )
     out_dir = tmp_path / "examples"
@@ -603,6 +604,7 @@ def test_export_turnback_home_vector_alignment_examples_writes_manifest_and_imag
     assert len(rows) == 2
     assert "rank_mode" in rows[0]
     assert "rank_score" in rows[0]
+    assert "random_seed" in rows[0]
     assert "alignment_one_point" in rows[0]
     assert "delta_border_minus_one_point" in rows[0]
     assert "one_point_frames" in rows[0]
@@ -641,3 +643,26 @@ def test_export_turnback_home_vector_alignment_examples_writes_manifest_and_imag
     assert border_after["n_episodes"] == "2"
     assert border_after["n_crossing"] == "1"
     assert border_after["fraction_crossing"] == "0.5"
+
+    random_out_dir = tmp_path / "random_examples"
+    random_opts = _default_opts(
+        turnback_home_vector_alignment_window_radius_frames=2,
+        turnback_home_vector_alignment_examples_num=1,
+        turnback_home_vector_alignment_examples_max_per_fly=0,
+        turnback_home_vector_alignment_examples_rank_mode="random",
+        turnback_home_vector_alignment_examples_random_seed=17,
+        imageFormat="png",
+    )
+    export_turnback_home_vector_alignment_examples(
+        [va], random_opts, gls=None, out_dir=str(random_out_dir)
+    )
+    random_rows = list(
+        csv.DictReader(
+            (random_out_dir / "manifest.csv")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        )
+    )
+    assert random_rows[0]["rank_mode"] == "random"
+    assert random_rows[0]["random_seed"] == "17"
+    assert 0.0 <= float(random_rows[0]["rank_score"]) <= 1.0

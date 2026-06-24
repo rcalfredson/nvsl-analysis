@@ -6218,6 +6218,7 @@ g.add_argument(
         "abs_border_minus_one_point",
         "border_minus_reentry_mean",
         "abs_border_minus_reentry_mean",
+        "random",
     ],
     default="border_minus_endpoint",
     help=(
@@ -6227,7 +6228,18 @@ g.add_argument(
         "mean exceeds the one-point symmetric estimate; "
         "'border_minus_reentry_mean' prioritizes cases where the border-anchored "
         "mean exceeds the re-entry-anchored mean. The abs_* modes rank by "
-        "absolute disagreement. Default: %(default)s."
+        "absolute disagreement. 'random' uniformly samples from eligible "
+        "episodes using --turnback-home-vector-alignment-examples-random-seed. "
+        "Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--turnback-home-vector-alignment-examples-random-seed",
+    type=int,
+    default=1,
+    help=(
+        "Random seed used when --turnback-home-vector-alignment-examples-rank-mode "
+        "is random. Default: %(default)s."
     ),
 )
 g.add_argument(

@@ -1106,6 +1106,7 @@ _EXAMPLE_FIELDS = [
     "delta_border_minus_reentry_mean",
     "rank_mode",
     "rank_score",
+    "random_seed",
     "endpoint_frames",
     "one_point_frames",
     "reentry_mean_frames",
@@ -1338,6 +1339,7 @@ def _example_rank_mode(opts) -> str:
         "abs_border_minus_one_point",
         "border_minus_reentry_mean",
         "abs_border_minus_reentry_mean",
+        "random",
     }
     if mode not in valid:
         raise ValueError(
@@ -1345,6 +1347,12 @@ def _example_rank_mode(opts) -> str:
             f"{sorted(valid)!r}; got {mode!r}"
         )
     return mode
+
+
+def _example_random_seed(opts) -> int:
+    return int(
+        getattr(opts, "turnback_home_vector_alignment_examples_random_seed", 1) or 1
+    )
 
 
 def _example_rank_score(record: dict, rank_mode: str) -> float:
@@ -1360,6 +1368,8 @@ def _example_rank_score(record: dict, rank_mode: str) -> float:
         return float(record["delta_border_minus_reentry_mean"])
     if rank_mode == "abs_border_minus_reentry_mean":
         return abs(float(record["delta_border_minus_reentry_mean"]))
+    if rank_mode == "random":
+        return float(record["random_score"])
     raise ValueError(f"unknown ranking mode: {rank_mode!r}")
 
 
@@ -1859,6 +1869,7 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
         getattr(opts, "turnback_home_vector_alignment_exclude_wall_contact", False)
     )
     rank_mode = _example_rank_mode(opts)
+    random_seed = _example_random_seed(opts)
 
     candidates = []
     for vi, va in enumerate(vas_ok):
@@ -1963,6 +1974,11 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
             if len(per_fly) >= int(min_episodes):
                 candidates.extend(per_fly)
 
+    if rank_mode == "random":
+        rng = np.random.default_rng(random_seed)
+        for rec, score in zip(candidates, rng.random(len(candidates))):
+            rec["random_score"] = float(score)
+
     for rec in candidates:
         rec["rank_mode"] = rank_mode
         rec["rank_score"] = _example_rank_score(rec, rank_mode)
@@ -2050,6 +2066,7 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
                 ),
                 "rank_mode": str(rec["rank_mode"]),
                 "rank_score": float(rec["rank_score"]),
+                "random_seed": int(random_seed) if rank_mode == "random" else "",
                 "endpoint_frames": _frame_list_str(
                     comps[HEADING_ESTIMATOR_ENDPOINT]["sampled_frames"]
                 ),

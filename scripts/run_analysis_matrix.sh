@@ -13,6 +13,7 @@ TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPL
 TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_NUM="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_NUM:-24}"
 TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_MAX_PER_FLY="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_MAX_PER_FLY:-4}"
 TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANK_MODE="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANK_MODE:-abs_border_minus_reentry_mean}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANDOM_SEED="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANDOM_SEED:-1}"
 TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_DIR="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_DIR:-imgs/turnback_home_vector_alignment_debug}"
 
 GROUP_VARS=(INTACT_CTRL INTACT_PFND AR_CTRL)
@@ -59,12 +60,13 @@ turnback_home_vector_alignment_example_flags() {
   if [[ -n "$subset_slug" ]]; then
     subset_part="_${subset_slug}"
   fi
-  local example_dir="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_DIR}/turnbackHomeVectorAlignment${subset_part}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sb2-5_${DATE_TAG}"
+  local example_dir="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_DIR}/turnbackHomeVectorAlignment${subset_part}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sb2-5_${TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANK_MODE}_${DATE_TAG}"
   out_flags=(
     --export-turnback-home-vector-alignment-examples "$example_dir"
     --turnback-home-vector-alignment-examples-num "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_NUM"
     --turnback-home-vector-alignment-examples-max-per-fly "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_MAX_PER_FLY"
     --turnback-home-vector-alignment-examples-rank-mode "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANK_MODE"
+    --turnback-home-vector-alignment-examples-random-seed "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_RANDOM_SEED"
     --imgFormat pdf
   )
 }
