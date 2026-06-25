@@ -12,6 +12,7 @@ from src.exporting.turnback_home_vector_alignment_sli_bundle import (
     export_turnback_home_vector_alignment_examples,
     export_turnback_home_vector_alignment_sli_bundle,
     heading_vector_at_reentry,
+    home_vector_from_reentry_path_intersection_to_center,
     home_vector_from_reentry_to_center,
 )
 
@@ -95,6 +96,7 @@ def _default_opts(**overrides):
         turnback_home_vector_alignment_last_sync_buckets=None,
         turnback_home_vector_alignment_window_radius_frames=1,
         turnback_home_vector_alignment_heading_estimator="mean",
+        turnback_home_vector_alignment_home_vector_anchor="intersection",
         turnback_home_vector_alignment_max_interpolated_heading_frames=0,
         turnback_home_vector_alignment_exclude_wall_contact=False,
         turnback_home_vector_alignment_exclude_sampling_boundary_crossings=False,
@@ -155,6 +157,57 @@ def test_home_vector_points_from_reentry_position_to_reward_center():
         y=0.0,
     )
     assert vec == (-12.0, 0.0)
+
+
+def test_home_vector_defaults_to_reentry_path_circle_intersection():
+    x, y = _blank_xy(6)
+    _set_xy(x, y, {4: (12.0, 9.0), 5: (4.0, 9.0)})
+    trj = SimpleNamespace(x=x, y=y)
+
+    vec = home_vector_from_reentry_path_intersection_to_center(
+        trj,
+        5,
+        cx=0.0,
+        cy=0.0,
+        inner_boundary_px=10.0,
+    )
+
+    np.testing.assert_allclose(vec, (-np.sqrt(19.0), -9.0))
+
+    reentry_vec = home_vector_from_reentry_to_center(
+        cx=0.0,
+        cy=0.0,
+        x=4.0,
+        y=9.0,
+    )
+    assert not np.allclose(vec, reentry_vec)
+
+
+def test_alignment_home_vector_anchor_can_preserve_reentry_position_method():
+    trn = _CircleTraining(start=0, stop=8, radius_px=10.0)
+    x, y = _blank_xy(8)
+    _set_xy(x, y, {4: (12.0, 9.0), 5: (4.0, 9.0)})
+    trj = SimpleNamespace(x=x, y=y, f=0)
+    ep = _episode(5)
+
+    intersection = episode_home_vector_alignment(
+        trj,
+        trn,
+        ep,
+        window_radius_frames=1,
+        home_vector_anchor="intersection",
+    )
+    reentry = episode_home_vector_alignment(
+        trj,
+        trn,
+        ep,
+        window_radius_frames=1,
+        home_vector_anchor="reentry",
+    )
+
+    np.testing.assert_allclose(intersection, np.sqrt(19.0) / 10.0)
+    np.testing.assert_allclose(reentry, 4.0 / np.sqrt(97.0))
+    assert not np.isclose(intersection, reentry)
 
 
 def test_cosine_alignment_reports_homeward_tangent_and_away_cases():
@@ -551,12 +604,17 @@ def test_export_schema_uses_selected_successful_reentry_episodes_only(tmp_path):
         assert meta["keep_first_sync_buckets"] == 4
         assert meta["window_radius_frames"] == 1
         assert meta["heading_estimator"] == "mean"
+        assert meta["home_vector_anchor"] == "intersection"
         assert meta["max_interpolated_heading_frames"] == 0
         assert meta["exclude_sampling_boundary_crossings"] is False
         assert "does not use Trajectory.theta" in meta["heading_convention"]
         assert (
             bundle["turnback_home_vector_alignment_heading_estimator"].item()
             == "mean"
+        )
+        assert (
+            bundle["turnback_home_vector_alignment_home_vector_anchor"].item()
+            == "intersection"
         )
         np.testing.assert_array_equal(
             bundle["turnback_home_vector_alignment_max_interpolated_heading_frames"],

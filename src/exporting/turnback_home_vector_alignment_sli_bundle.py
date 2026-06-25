@@ -47,6 +47,12 @@ HEADING_ESTIMATOR_ANALYSIS_CHOICES = (
     HEADING_ESTIMATOR_REENTRY_MEAN,
     HEADING_ESTIMATOR_ENDPOINT,
 )
+HOME_VECTOR_ANCHOR_INTERSECTION = "intersection"
+HOME_VECTOR_ANCHOR_REENTRY = "reentry"
+HOME_VECTOR_ANCHOR_CHOICES = (
+    HOME_VECTOR_ANCHOR_INTERSECTION,
+    HOME_VECTOR_ANCHOR_REENTRY,
+)
 
 
 def _selected_training_indices(vas, opts) -> list[int]:
@@ -668,11 +674,7 @@ def home_vector_from_reentry_to_center(
     y: float,
 ) -> tuple[float, float] | None:
     """
-    Return the vector from the fly's re-entry position to the reward center.
-
-    For the concentric turnback regions used here, this has the same direction
-    as projecting the re-entry point to the inner-circle perimeter first. Since
-    cosine alignment depends only on direction, the direct vector is sufficient.
+    Return the legacy vector from the re-entry-frame position to reward center.
     """
     hx = float(cx) - float(x)
     hy = float(cy) - float(y)
@@ -681,6 +683,150 @@ def home_vector_from_reentry_to_center(
     if np.hypot(hx, hy) <= 0.0:
         return None
     return hx, hy
+
+
+def _inner_boundary_px_for_episode(ep: dict) -> float:
+    inner_radius_px = float(ep.get("inner_radius_px", np.nan))
+    inner_border_px = float(ep.get("inner_border_px", 0.0) or 0.0)
+    return float(inner_radius_px + max(0.0, inner_border_px))
+
+
+def _segment_circle_intersection_point(
+    *,
+    x0: float,
+    y0: float,
+    x1: float,
+    y1: float,
+    cx: float,
+    cy: float,
+    radius: float,
+) -> tuple[float, float] | None:
+    vals = (x0, y0, x1, y1, cx, cy, radius)
+    if not all(np.isfinite(float(v)) for v in vals):
+        return None
+    if float(radius) <= 0.0:
+        return None
+
+    px = float(x0) - float(cx)
+    py = float(y0) - float(cy)
+    dx = float(x1) - float(x0)
+    dy = float(y1) - float(y0)
+
+    a = dx * dx + dy * dy
+    if a <= 0.0:
+        return None
+
+    b = 2.0 * (px * dx + py * dy)
+    c = px * px + py * py - float(radius) * float(radius)
+    disc = b * b - 4.0 * a * c
+    if disc < -1e-9:
+        return None
+
+    disc = max(0.0, float(disc))
+    sqrt_disc = float(np.sqrt(disc))
+    roots = [(-b - sqrt_disc) / (2.0 * a), (-b + sqrt_disc) / (2.0 * a)]
+    valid_roots = [float(t) for t in roots if -1e-9 <= t <= 1.0 + 1e-9]
+    if not valid_roots:
+        return None
+
+    # Successful re-entry episodes move from outside to inside the boundary, so
+    # the physically relevant crossing is the one closest to the re-entry frame.
+    t = min(max(max(valid_roots), 0.0), 1.0)
+    return float(x0 + t * dx), float(y0 + t * dy)
+
+
+def home_vector_from_reentry_path_intersection_to_center(
+    trj,
+    event_frame: int,
+    *,
+    cx: float,
+    cy: float,
+    inner_boundary_px: float,
+) -> tuple[float, float] | None:
+    prev_xy = _safe_finite_xy_at(trj, int(event_frame) - 1)
+    event_xy = _safe_finite_xy_at(trj, int(event_frame))
+    if prev_xy is None or event_xy is None:
+        return None
+
+    x0, y0 = prev_xy
+    x1, y1 = event_xy
+    crossing = _segment_circle_intersection_point(
+        x0=x0,
+        y0=y0,
+        x1=x1,
+        y1=y1,
+        cx=float(cx),
+        cy=float(cy),
+        radius=float(inner_boundary_px),
+    )
+    if crossing is None:
+        return None
+
+    x, y = crossing
+    return home_vector_from_reentry_to_center(cx=float(cx), cy=float(cy), x=x, y=y)
+
+
+def home_vector_anchor_point_for_episode(
+    trj,
+    trn,
+    ep: dict,
+    event_frame: int,
+    *,
+    anchor: str = HOME_VECTOR_ANCHOR_INTERSECTION,
+) -> tuple[float, float] | None:
+    try:
+        cx, cy, _reward_radius_px = trn.circles(getattr(trj, "f", 0))[0]
+    except Exception:
+        return None
+
+    anchor = str(anchor or HOME_VECTOR_ANCHOR_INTERSECTION)
+    if anchor == HOME_VECTOR_ANCHOR_INTERSECTION:
+        prev_xy = _safe_finite_xy_at(trj, int(event_frame) - 1)
+        event_xy = _safe_finite_xy_at(trj, int(event_frame))
+        if prev_xy is None or event_xy is None:
+            return None
+        return _segment_circle_intersection_point(
+            x0=prev_xy[0],
+            y0=prev_xy[1],
+            x1=event_xy[0],
+            y1=event_xy[1],
+            cx=float(cx),
+            cy=float(cy),
+            radius=_inner_boundary_px_for_episode(ep),
+        )
+    if anchor == HOME_VECTOR_ANCHOR_REENTRY:
+        event_xy = _safe_finite_xy_at(trj, event_frame)
+        if event_xy is None:
+            return None
+        return float(event_xy[0]), float(event_xy[1])
+    raise ValueError(
+        f"home_vector_anchor must be one of {HOME_VECTOR_ANCHOR_CHOICES!r}; "
+        f"got {anchor!r}"
+    )
+
+
+def home_vector_for_episode(
+    trj,
+    trn,
+    ep: dict,
+    event_frame: int,
+    *,
+    anchor: str = HOME_VECTOR_ANCHOR_INTERSECTION,
+) -> tuple[float, float] | None:
+    try:
+        cx, cy, _reward_radius_px = trn.circles(getattr(trj, "f", 0))[0]
+    except Exception:
+        return None
+
+    anchor_xy = home_vector_anchor_point_for_episode(
+        trj, trn, ep, event_frame, anchor=anchor
+    )
+    if anchor_xy is None:
+        return None
+    x, y = anchor_xy
+    return home_vector_from_reentry_to_center(
+        cx=float(cx), cy=float(cy), x=float(x), y=float(y)
+    )
 
 
 def cosine_alignment(heading_vec, home_vec) -> float:
@@ -721,19 +867,10 @@ def episode_home_vector_alignment(
     *,
     window_radius_frames: int = 2,
     heading_estimator: str = HEADING_ESTIMATOR_MEAN,
+    home_vector_anchor: str = HOME_VECTOR_ANCHOR_INTERSECTION,
     max_interpolated_heading_frames: int | None = None,
 ) -> float:
     event_frame = _turnback_event_frame(ep)
-
-    event_xy = _safe_finite_xy_at(trj, event_frame)
-    if event_xy is None:
-        return float("nan")
-    x, y = event_xy
-
-    try:
-        cx, cy, _reward_radius_px = trn.circles(getattr(trj, "f", 0))[0]
-    except Exception:
-        return float("nan")
 
     if heading_estimator == HEADING_ESTIMATOR_ADAPTIVE_MEAN_ONE_POINT:
         comps = episode_home_vector_alignment_components(
@@ -741,6 +878,7 @@ def episode_home_vector_alignment(
             trn,
             ep,
             window_radius_frames=window_radius_frames,
+            home_vector_anchor=home_vector_anchor,
             max_interpolated_heading_frames=max_interpolated_heading_frames,
         )
         mean_comp = comps.get(HEADING_ESTIMATOR_MEAN)
@@ -769,11 +907,12 @@ def episode_home_vector_alignment(
     if heading_vec is None:
         return float("nan")
 
-    home_vec = home_vector_from_reentry_to_center(
-        cx=float(cx),
-        cy=float(cy),
-        x=float(x),
-        y=float(y),
+    home_vec = home_vector_for_episode(
+        trj,
+        trn,
+        ep,
+        event_frame,
+        anchor=home_vector_anchor,
     )
 
     if home_vec is None:
@@ -788,23 +927,16 @@ def episode_home_vector_alignment_components(
     ep: dict,
     *,
     window_radius_frames: int = 2,
+    home_vector_anchor: str = HOME_VECTOR_ANCHOR_INTERSECTION,
     max_interpolated_heading_frames: int | None = None,
 ) -> dict:
     event_frame = _turnback_event_frame(ep)
-    event_xy = _safe_finite_xy_at(trj, event_frame)
-    if event_xy is None:
-        return {}
-    x, y = event_xy
-
-    try:
-        cx, cy, _reward_radius_px = trn.circles(getattr(trj, "f", 0))[0]
-    except Exception:
-        return {}
-    home_vec = home_vector_from_reentry_to_center(
-        cx=float(cx),
-        cy=float(cy),
-        x=float(x),
-        y=float(y),
+    home_vec = home_vector_for_episode(
+        trj,
+        trn,
+        ep,
+        event_frame,
+        anchor=home_vector_anchor,
     )
     if home_vec is None:
         return {}
@@ -870,6 +1002,7 @@ def _iter_successful_selected_episode_values_for_fly(
     exclude_sampling_boundary_crossings: bool,
     window_radius_frames: int,
     heading_estimator: str,
+    home_vector_anchor: str,
     max_interpolated_heading_frames: int | None,
     inner_radius_mm: float | None,
     inner_delta_mm: float | None,
@@ -945,6 +1078,7 @@ def _iter_successful_selected_episode_values_for_fly(
                     trn,
                     ep,
                     window_radius_frames=window_radius_frames,
+                    home_vector_anchor=home_vector_anchor,
                     max_interpolated_heading_frames=max_interpolated_heading_frames,
                 )
                 comp = comps.get(heading_estimator)
@@ -965,6 +1099,7 @@ def _iter_successful_selected_episode_values_for_fly(
                 ep,
                 window_radius_frames=window_radius_frames,
                 heading_estimator=heading_estimator,
+                home_vector_anchor=home_vector_anchor,
                 max_interpolated_heading_frames=max_interpolated_heading_frames,
             )
             if np.isfinite(val):
@@ -1056,6 +1191,19 @@ def _collect_per_fly_values(
             "turnback_home_vector_alignment_heading_estimator must be one of "
             f"{HEADING_ESTIMATOR_ANALYSIS_CHOICES!r}; got {heading_estimator!r}"
         )
+    home_vector_anchor = str(
+        getattr(
+            opts,
+            "turnback_home_vector_alignment_home_vector_anchor",
+            HOME_VECTOR_ANCHOR_INTERSECTION,
+        )
+        or HOME_VECTOR_ANCHOR_INTERSECTION
+    )
+    if home_vector_anchor not in HOME_VECTOR_ANCHOR_CHOICES:
+        raise ValueError(
+            "turnback_home_vector_alignment_home_vector_anchor must be one of "
+            f"{HOME_VECTOR_ANCHOR_CHOICES!r}; got {home_vector_anchor!r}"
+        )
     max_interpolated_heading_frames = _resolve_max_interpolated_heading_frames(opts)
 
     per_unit_ids = []
@@ -1094,6 +1242,7 @@ def _collect_per_fly_values(
                         ),
                         window_radius_frames=window_radius_frames,
                         heading_estimator=heading_estimator,
+                        home_vector_anchor=home_vector_anchor,
                         max_interpolated_heading_frames=max_interpolated_heading_frames,
                         inner_radius_mm=inner_radius_mm,
                         inner_delta_mm=inner_delta_mm,
@@ -1139,6 +1288,7 @@ def _collect_per_fly_values(
             ),
             "window_radius_frames": int(window_radius_frames),
             "heading_estimator": heading_estimator,
+            "home_vector_anchor": home_vector_anchor,
             "max_interpolated_heading_frames": (
                 -1
                 if max_interpolated_heading_frames is None
@@ -1176,6 +1326,7 @@ _EXAMPLE_FIELDS = [
     "random_seed",
     "sampling_boundary_crossing_filter",
     "active_estimator_crosses_inner_boundary",
+    "home_vector_anchor",
     "endpoint_frames",
     "one_point_frames",
     "reentry_mean_frames",
@@ -1241,8 +1392,7 @@ def _example_inner_boundary_diagnostics(trj, trn, ep: dict, event_frame: int) ->
         cx = cy = np.nan
 
     inner_radius_px = float(ep.get("inner_radius_px", np.nan))
-    inner_border_px = float(ep.get("inner_border_px", 0.0) or 0.0)
-    inner_boundary_px = inner_radius_px + max(0.0, inner_border_px)
+    inner_boundary_px = _inner_boundary_px_for_episode(ep)
 
     def _distance_at(frame: int) -> float:
         xy = _safe_finite_xy_at(trj, int(frame))
@@ -1330,9 +1480,7 @@ def _component_boundary_crossing_diagnostics(
     except Exception:
         cx = cy = np.nan
 
-    inner_radius_px = float(ep.get("inner_radius_px", np.nan))
-    inner_border_px = float(ep.get("inner_border_px", 0.0) or 0.0)
-    inner_boundary_px = inner_radius_px + max(0.0, inner_border_px)
+    inner_boundary_px = _inner_boundary_px_for_episode(ep)
 
     out = {}
     name_by_estimator = {
@@ -1665,9 +1813,8 @@ def _plot_home_vector_alignment_example(
         cx = cy = reward_r_px = np.nan
     inner_radius_px = float(ep.get("inner_radius_px", np.nan))
     outer_radius_px = float(ep.get("outer_radius_px", np.nan))
-    inner_border_px = float(ep.get("inner_border_px", 0.0) or 0.0)
     outer_border_px = float(ep.get("outer_border_px", 0.0) or 0.0)
-    inner_boundary_px = inner_radius_px + max(0.0, inner_border_px)
+    inner_boundary_px = _inner_boundary_px_for_episode(ep)
     outer_boundary_px = outer_radius_px + max(0.0, outer_border_px)
 
     if np.isfinite(cx) and np.isfinite(cy):
@@ -1724,6 +1871,32 @@ def _plot_home_vector_alignment_example(
             label="re-entry frame",
         )
 
+    home_anchor_xy = None
+    if np.isfinite(cx) and np.isfinite(cy):
+        home_anchor_xy = home_vector_anchor_point_for_episode(
+            trj,
+            trn,
+            ep,
+            event_frame,
+            anchor=str(
+                record.get("home_vector_anchor", HOME_VECTOR_ANCHOR_INTERSECTION)
+            ),
+        )
+        if (
+            home_anchor_xy is not None
+            and event_xy is not None
+            and not np.allclose(home_anchor_xy, event_xy)
+        ):
+            ax.scatter(
+                [home_anchor_xy[0]],
+                [home_anchor_xy[1]],
+                c="#d62728",
+                s=34,
+                marker="+",
+                zorder=7,
+                label="home-vector anchor",
+            )
+
     colors = {
         HEADING_ESTIMATOR_ENDPOINT: "#7f7f7f",
         HEADING_ESTIMATOR_ONE_POINT: "#17becf",
@@ -1742,14 +1915,17 @@ def _plot_home_vector_alignment_example(
             float(np.nanmax(ys[finite]) - np.nanmin(ys[finite])),
             1.0,
         ) * 0.18
-        _draw_vector(
-            ax,
-            event_xy,
-            np.asarray([cx - event_xy[0], cy - event_xy[1]], dtype=float),
-            color="#d62728",
-            label="home vector",
-            scale=scale,
-        )
+        if home_anchor_xy is not None:
+            _draw_vector(
+                ax,
+                home_anchor_xy,
+                np.asarray(
+                    [cx - home_anchor_xy[0], cy - home_anchor_xy[1]], dtype=float
+                ),
+                color="#d62728",
+                label="home vector",
+                scale=scale,
+            )
         for estimator in (
             HEADING_ESTIMATOR_ENDPOINT,
             HEADING_ESTIMATOR_ONE_POINT,
@@ -1830,6 +2006,7 @@ def _plot_home_vector_alignment_example(
         f"rank {int(record['rank'])}",
         f"video: {os.path.basename(str(record['va'].fn))}",
         f"T{int(record['training_idx']) + 1}, frames {int(ep['start'])}-{int(ep['stop'])}",
+        f"home vector: {record.get('home_vector_anchor', HOME_VECTOR_ANCHOR_INTERSECTION)}",
         f"endpoint: {record['alignment_endpoint']:.3f}",
         f"one-point: {record['alignment_one_point']:.3f}",
         f"re-entry mean: {record['alignment_reentry_mean']:.3f}",
@@ -1849,6 +2026,11 @@ def _plot_home_vector_alignment_example(
         x_max = max(x_max, float(event_xy[0]))
         y_min = min(y_min, float(event_xy[1]))
         y_max = max(y_max, float(event_xy[1]))
+    if home_anchor_xy is not None:
+        x_min = min(x_min, float(home_anchor_xy[0]))
+        x_max = max(x_max, float(home_anchor_xy[0]))
+        y_min = min(y_min, float(home_anchor_xy[1]))
+        y_max = max(y_max, float(home_anchor_xy[1]))
     for comp in components.values():
         for key in ("before_xy", "after_xy"):
             pt = np.asarray(comp[key], dtype=float)
@@ -2004,6 +2186,19 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
             "turnback_home_vector_alignment_heading_estimator must be one of "
             f"{HEADING_ESTIMATOR_ANALYSIS_CHOICES!r}; got {heading_estimator!r}"
         )
+    home_vector_anchor = str(
+        getattr(
+            opts,
+            "turnback_home_vector_alignment_home_vector_anchor",
+            HOME_VECTOR_ANCHOR_INTERSECTION,
+        )
+        or HOME_VECTOR_ANCHOR_INTERSECTION
+    )
+    if home_vector_anchor not in HOME_VECTOR_ANCHOR_CHOICES:
+        raise ValueError(
+            "turnback_home_vector_alignment_home_vector_anchor must be one of "
+            f"{HOME_VECTOR_ANCHOR_CHOICES!r}; got {home_vector_anchor!r}"
+        )
     rank_mode = _example_rank_mode(opts)
     random_seed = _example_random_seed(opts)
     crossing_filter = _example_sampling_boundary_crossing_filter(opts)
@@ -2072,6 +2267,7 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
                         trn,
                         ep,
                         window_radius_frames=window_radius_frames,
+                        home_vector_anchor=home_vector_anchor,
                         max_interpolated_heading_frames=max_interpolated_heading_frames,
                     )
                     if not all(k in comps for k in HEADING_ESTIMATOR_CHOICES):
@@ -2111,6 +2307,7 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
                         "episode": ep,
                         "event_frame": event_frame,
                         "components": comps,
+                        "home_vector_anchor": home_vector_anchor,
                         "active_estimator_crosses_inner_boundary": (
                             active_estimator_crosses_inner_boundary
                         ),
@@ -2245,6 +2442,7 @@ def export_turnback_home_vector_alignment_examples(vas, opts, gls, out_dir):
                 "active_estimator_crosses_inner_boundary": _bool_csv(
                     rec["active_estimator_crosses_inner_boundary"]
                 ),
+                "home_vector_anchor": str(rec["home_vector_anchor"]),
                 "endpoint_frames": _frame_list_str(
                     comps[HEADING_ESTIMATOR_ENDPOINT]["sampled_frames"]
                 ),
@@ -2428,6 +2626,9 @@ def export_turnback_home_vector_alignment_sli_bundle(vas, opts, gls, out_fn):
         ),
         "turnback_home_vector_alignment_heading_estimator": np.array(
             str(metric_meta["heading_estimator"]), dtype=object
+        ),
+        "turnback_home_vector_alignment_home_vector_anchor": np.array(
+            str(metric_meta["home_vector_anchor"]), dtype=object
         ),
         "turnback_home_vector_alignment_max_interpolated_heading_frames": np.array(
             int(metric_meta["max_interpolated_heading_frames"]), dtype=int

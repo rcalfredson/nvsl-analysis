@@ -6199,6 +6199,18 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--turnback-home-vector-alignment-home-vector-anchor",
+    choices=["intersection", "reentry"],
+    default="intersection",
+    help=(
+        "Home-vector anchor for turnback-home-vector-alignment. 'intersection' "
+        "uses the intersection of the re-entry path segment with the effective "
+        "inner turnback-circle boundary. 'reentry' preserves the earlier "
+        "behavior using the fly position at the re-entry frame. "
+        "Default: %(default)s."
+    ),
+)
+g.add_argument(
     "--turnback-home-vector-alignment-max-interpolated-heading-frames",
     type=int,
     default=0,
