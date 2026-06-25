@@ -15,6 +15,7 @@ from scipy.stats import pearsonr
 
 from src.analysis.correlation_stats import pearson_correlation_summary
 from src.analysis.sli_tools import default_single_bucket_idx
+from src.exporting.speed_sli_bundle import _extract_speed_arrays
 from src.plotting.palettes import (
     MUTED_CATEGORICAL,
     NEUTRAL_LIGHT,
@@ -1429,6 +1430,48 @@ def _ensure_reward_pi_pre(va) -> bool:
     return True
 
 
+def _extract_exp_speed_for_context(
+    vas: Sequence,
+    opts,
+    ctx: SLIContext,
+) -> np.ndarray:
+    """
+    Return one experimental-fly speed scalar per VideoAnalysis for ctx's
+    training/window, in mm/s.
+    """
+    try:
+        speed_arrays = _extract_speed_arrays(vas, opts)
+    except Exception as e:
+        print(f"[correlations] WARNING: failed to compute speed arrays: {e}")
+        return np.full(len(vas), np.nan, dtype=float)
+
+    speed_exp = np.asarray(speed_arrays.get("speed_exp", []), dtype=float)
+    if speed_exp.ndim != 3 or speed_exp.shape[0] != len(vas):
+        print(
+            "[correlations] WARNING: speed_exp array has unexpected shape; "
+            "skipping speed vs SLI correlation"
+        )
+        return np.full(len(vas), np.nan, dtype=float)
+
+    training_idx = int(getattr(ctx, "training_idx", 0) or 0)
+    if training_idx < 0 or training_idx >= speed_exp.shape[1]:
+        return np.full(len(vas), np.nan, dtype=float)
+
+    return np.asarray(
+        [
+            _reduce_sync_bucket_series(
+                speed_exp[vi, training_idx, :],
+                bucket_idx=getattr(ctx, "explicit_bucket_idx", None),
+                average_over_buckets=bool(ctx.average_over_buckets),
+                skip_first_sync_buckets=int(ctx.skip_first_sync_buckets or 0),
+                keep_first_sync_buckets=int(ctx.keep_first_sync_buckets or 0),
+            )
+            for vi in range(speed_exp.shape[0])
+        ],
+        dtype=float,
+    )
+
+
 def _rewards_per_minute_for_first_n_calc_rewards(
     va,
     *,
@@ -2331,6 +2374,7 @@ def plot_cross_fly_correlations(
     rpd_vals = np.asarray(rpd_vals, float)
     rpd_exp_minus_yoked_vals = np.asarray(rpd_exp_minus_yoked_vals, float)
     rpt_vals = np.asarray(rpt_vals, float)
+    speed_vals = _extract_exp_speed_for_context(vas, opts, sli_ctx)
     med_train_vals = np.asarray(med_train_vals, float)
     pre_pi_diff_vals = np.asarray(pre_pi_diff_vals, float)
     total_reward_vals = np.asarray(total_reward_vals, float)
@@ -2355,6 +2399,7 @@ def plot_cross_fly_correlations(
             print(f"[correlations] WARNING: failed fast/strong summary: {e}")
 
     rpd_suffix = _window_context_suffix(sli_ctx, prefix="sli")
+    speed_suffix = _window_context_suffix(sli_ctx, prefix="speed")
     rpt_suffix = (
         f"{_window_context_suffix(sli_ctx, prefix='sli')}__"
         f"{_window_context_suffix(reward_rate_ctx, prefix='rpt')}"
@@ -2394,6 +2439,10 @@ def plot_cross_fly_correlations(
             "Reward rate",
             unit="$min^{-1}$",
         )
+    speed_x_label = sli_ctx.metric_axis_label(
+        "Mean speed",
+        unit="mm/s",
+    )
     pre_period_exploration_title = "Pre-period exploration and SLI"
     pre_period_exploration_xlabel = (
         "Fraction of floor explored during pre period (exp fly)"
@@ -2538,6 +2587,48 @@ def plot_cross_fly_correlations(
             top_label=top_sel_label,
             bottom_label=bottom_sel_label,
             figsize=(6.8, 5.6),
+            xlim=cfg.xlim,
+            ylim=cfg.ylim,
+            include_all_corr=True,
+            image_format=cfg.image_format,
+        )
+
+    # --- Plot 1d: speed vs SLI ---
+    _scatter_with_corr(
+        x=speed_vals,
+        y=sli_vals,
+        title="Speed and SLI",
+        x_label=speed_x_label,
+        y_label=y_label_sli,
+        cfg=_cfg_with_plot_color(cfg, "speed_vs_sli"),
+        filename=f"corr_speed_vs_sli_{speed_suffix}",
+        customizer=customizer,
+    )
+    if selected_mode is not None:
+        if selected_mode == "top":
+            title_1d_sel = "Speed and SLI (top SLI-selected learners)"
+            filename_1d_sel = f"corr_speed_vs_sli_{speed_suffix}_top_selected"
+        elif selected_mode == "bottom":
+            title_1d_sel = "Speed and SLI (bottom SLI-selected learners)"
+            filename_1d_sel = f"corr_speed_vs_sli_{speed_suffix}_bottom_selected"
+        else:
+            title_1d_sel = "Speed and SLI (top vs bottom SLI-selected learners)"
+            filename_1d_sel = f"corr_speed_vs_sli_{speed_suffix}_selected_extremes"
+
+        plot_selected_group_scatter(
+            x=speed_vals,
+            y=sli_vals,
+            bottom_idx=selected_bottom_idx,
+            top_idx=selected_top_idx,
+            mode=selected_mode,
+            title=title_1d_sel,
+            x_label=speed_x_label,
+            y_label=y_label_sli,
+            filename=filename_1d_sel,
+            out_dir=out_dir,
+            customizer=customizer,
+            top_label=top_sel_label,
+            bottom_label=bottom_sel_label,
             xlim=cfg.xlim,
             ylim=cfg.ylim,
             include_all_corr=True,
