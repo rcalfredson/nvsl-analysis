@@ -8188,6 +8188,9 @@ def drawLegend(tp, ng, nf, nrp, gls, customizer):
     elif gls and (not P or LEG):
         if customizer.font_size_customized:
             kwargs["loc"] = "best"
+        elif tp in ("rpd", "rpd_exp_min_yok"):
+            kwargs["loc"] = 1
+            prop_dict["size"] = "medium"
         else:
             kwargs["loc"] = 1 if nrp else 4
             prop_dict["size"] = "medium"
@@ -8555,7 +8558,7 @@ def plotRewards(
     elif tp == "rpd":
         ylim = [0, 80]
     elif tp == "rpd_exp_min_yok":
-        ylim = [-0.5, 0.5]
+        ylim = [0, 80]
     elif tp == "meddist":
         ylim = [0, 10]
     elif tp == "meddist_exp_min_yok":
@@ -11828,7 +11831,7 @@ def postAnalyze(vas):
         tcs += ("psc_conc", "psc_shift")
     if opts.rpd:
         tcs += ("rpd-c",)
-        if ng > 1:
+        if ng > 1 or getattr(opts, "best_worst_sli", False):
             tcs += ("rpd_exp_min_yok-c",)
     if getattr(opts, "agarose_dual_circle", False):
         tcs += ("agarose_dual_circle",)
