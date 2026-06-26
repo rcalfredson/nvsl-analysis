@@ -656,6 +656,86 @@ def _ensure_legend_clear_of_annotations(
         ax.set_ylim(ylim0, ylim1 + extra_data)
 
 
+def _artist_bbox(artist, renderer):
+    if hasattr(artist, "get_visible") and not artist.get_visible():
+        return None
+    try:
+        return artist.get_window_extent(renderer=renderer)
+    except Exception:
+        return None
+
+
+def _requested_ymax_is_clear(
+    fig: plt.Figure,
+    ax: plt.Axes,
+    *,
+    requested_ymax: float,
+    texts: list,
+    lines: list,
+    legend,
+    top_pad_px: float = 4.0,
+    legend_pad_px: float = 6.0,
+) -> bool:
+    ylim0, ylim1 = ax.get_ylim()
+    if not np.isfinite(requested_ymax) or requested_ymax <= ylim0:
+        return False
+
+    try:
+        ax.set_ylim(ylim0, requested_ymax)
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        ax_bbox = ax.get_window_extent(renderer=renderer)
+
+        for txt in texts:
+            bbox = _artist_bbox(txt, renderer)
+            if bbox is None:
+                continue
+            if float(bbox.y1) > float(ax_bbox.y1) - float(top_pad_px):
+                return False
+
+        if legend is not None:
+            legend_bbox = legend.get_window_extent(renderer=renderer)
+            legend_bbox = _expand_bbox(legend_bbox, pad_px=float(legend_pad_px))
+            for artist in [*texts, *lines]:
+                bbox = _artist_bbox(artist, renderer)
+                if bbox is None:
+                    continue
+                if legend_bbox.overlaps(bbox):
+                    return False
+
+        return True
+    finally:
+        ax.set_ylim(ylim0, ylim1)
+
+
+def _restore_requested_ymax_if_clear(
+    fig: plt.Figure,
+    ax: plt.Axes,
+    *,
+    ymax: float | None,
+    texts: list,
+    lines: list,
+    legend,
+) -> None:
+    if ymax is None:
+        return
+
+    requested_ymax = float(ymax)
+    ylim0, ylim1 = ax.get_ylim()
+    if not np.isfinite(ylim1) or ylim1 <= requested_ymax + 1e-10:
+        return
+
+    if _requested_ymax_is_clear(
+        fig,
+        ax,
+        requested_ymax=requested_ymax,
+        texts=texts,
+        lines=lines,
+        legend=legend,
+    ):
+        ax.set_ylim(ylim0, requested_ymax)
+
+
 def _group_union_matrix(
     x: ExportedTrainingScalarBars,
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -1079,6 +1159,14 @@ def plot_omnibus_learner_overlays(
         lines=[],
     )
     _ensure_top_text_visible(fig, ax, texts=ax.texts[base_text_count:])
+    _restore_requested_ymax_if_clear(
+        fig,
+        ax,
+        ymax=ymax,
+        texts=ax.texts[base_text_count:],
+        lines=[],
+        legend=legend,
+    )
     return fig
 
 
@@ -1497,4 +1585,12 @@ def plot_overlays(
         lines=ax.lines[base_line_count:],
     )
     _ensure_top_text_visible(fig, ax, texts=ax.texts[base_text_count:])
+    _restore_requested_ymax_if_clear(
+        fig,
+        ax,
+        ymax=ymax,
+        texts=ax.texts[base_text_count:],
+        lines=ax.lines[base_line_count:],
+        legend=legend,
+    )
     return fig

@@ -75,7 +75,14 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument("--xlabel", default=None, help="X-axis label override.")
     p.add_argument("--ylabel", default=None, help="Y-axis label override.")
-    p.add_argument("--ymax", type=float, default=None, help="Optional fixed y max.")
+    p.add_argument(
+        "--ymax",
+        "--max",
+        dest="ymax",
+        type=float,
+        default=None,
+        help="Optional fixed y max.",
+    )
     p.add_argument(
         "--points",
         "--show-points",
