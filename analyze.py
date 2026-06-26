@@ -589,7 +589,14 @@ def _resolve_sli_select_bucket_idx(
 
 
 def _tp_supports_sli_defined_subsets(tp: str) -> bool:
-    return tp in ("rpid", "rpipd", "commag", "commag_exp_min_yok")
+    return tp in (
+        "rpid",
+        "rpipd",
+        "rpd",
+        "rpd_exp_min_yok",
+        "commag",
+        "commag_exp_min_yok",
+    )
 
 
 # - - -
@@ -637,6 +644,14 @@ p.add_argument(
 g = p.add_argument_group("specialized analysis")
 g.add_argument(
     "--rpd", action="store_true", help="analyze rewards by distance traveled"
+)
+g.add_argument(
+    "--rpd-exp-only-plot",
+    action="store_true",
+    help=(
+        "When plotting rewards per distance traveled, also write a companion "
+        "plot showing only the experimental fly trace(s)."
+    ),
 )
 g.add_argument(
     "--move",
@@ -8117,6 +8132,8 @@ def plotRewards(
     num_trainings=None,  # optional training control; legacy first-N limit or heatmap selector
     sli_custom_selection=None,  # Optional[List[int]], indices into vas
     sli_custom_label=None,  # Optional[str]
+    plot_fly_roles=None,  # Optional iterable of fly role indices to draw
+    output_suffix=None,  # Optional filename suffix appended before extension
 ):
     """
     Plots reward data from Drosophila behavior analysis.
@@ -8182,6 +8199,10 @@ def plotRewards(
     post = nrp or rpip
     nnpb = va.rpiNumNonPostBuckets if rpip else va.numNonPostBuckets
     fs, ng = fliesForType(va, tp), gis.max() + 1
+    plot_fs = tuple(fs if plot_fly_roles is None else plot_fly_roles)
+    plot_fs = tuple(f for f in plot_fs if f in fs)
+    if not plot_fs:
+        plot_fs = tuple(fs)
     row_to_video_idx = np.arange(a.shape[0])
 
     # Normalize SLI fraction metadata for labeling / filenames.
@@ -8292,7 +8313,7 @@ def plotRewards(
         return gvs(0) - gvs(1) if delta else gvs(f1 if f1 is not None else f)
 
     def _panel_bucket_top_geom_for_current_axis(i_idx, f):
-        fly_roles = fs if joinF else [f]
+        fly_roles = plot_fs if joinF else [f]
 
         tops = []
         for j in range(nb):
@@ -8309,7 +8330,7 @@ def plotRewards(
         return tops
 
     def _panel_bucket_geom_bounds_for_current_axis(i_idx, f):
-        fly_roles = fs if joinF else [f]
+        fly_roles = plot_fs if joinF else [f]
 
         panel_top = -np.inf
         panel_bottom = np.inf
@@ -8439,7 +8460,7 @@ def plotRewards(
             np.array([getattr(va, k) for va in vas]) for k in ("speed", "stopFrac")
         )
         speed, stpFr = (np.nanmean(a, axis=0) for a in (speed, stpFr))
-    nr = 1 if joinF else nf
+    nr = 1 if joinF else len(plot_fs)
     bl, blf = bucketLenForType(tp)
     xs = (np.arange(nb) + (-(nnpb - 1) if post else 1)) * bl
     if nrp:
@@ -8529,7 +8550,7 @@ def plotRewards(
     global_geom_top = -np.inf
     global_geom_bottom = np.inf
 
-    for f_scan in fs:
+    for f_scan in plot_fs:
         for i_scan in range(len(trns)):
             panel_bottom, panel_top = _panel_bucket_geom_bounds_for_current_axis(
                 i_scan, f_scan
@@ -8546,7 +8567,7 @@ def plotRewards(
 
     global_ann_span = max(ylim[1], global_geom_top) - min(ylim[0], global_geom_bottom)
 
-    for f in fs:
+    for f in plot_fs:
         if tp in (
             "rpid",
             "rpipd",
@@ -8834,6 +8855,8 @@ def plotRewards(
                     show_exp_yoked_auc = (
                         ng == 1
                         and nf >= 2
+                        and 0 in plot_fs
+                        and 1 in plot_fs
                         and comparable
                         and not diff_tp
                         and not tp == "rpip"
@@ -9298,7 +9321,7 @@ def plotRewards(
                     plt.xlim(0, xs[-1])
                     plt.ylim(*ylim)
             if i == 0 and f == 0 and not psc:
-                legend = drawLegend(tp, ng, nf, nrp, gls, customizer)
+                legend = drawLegend(tp, ng, len(plot_fs), nrp, gls, customizer)
 
     fig = plt.gcf()
     all_axes = fig.get_axes()
@@ -9543,6 +9566,8 @@ def plotRewards(
         suffix_parts.append("_sli_" + "_".join(bits))
 
     suffix = "".join(suffix_parts)
+    if output_suffix:
+        suffix += str(output_suffix)
     outfile = f"{base}{suffix}{ext}"
     writeImage(outfile, format=opts.imageFormat)
     plt.close()
@@ -12110,6 +12135,30 @@ def postAnalyze(vas):
                 ),
                 sli_custom_label=(custom_label if using_sli_set_op else None),
             )
+            if tp == "rpd" and getattr(opts, "rpd_exp_only_plot", False):
+                plotRewards(
+                    va,
+                    tp,
+                    a,
+                    trns,
+                    gis,
+                    gls,
+                    vas,
+                    save_auc_types=None,
+                    sli_extremes=sli_extremes,
+                    sli_fraction=getattr(opts, "best_worst_fraction", None),
+                    sli_top_fraction=getattr(opts, "top_sli_fraction", None),
+                    sli_bottom_fraction=getattr(opts, "bottom_sli_fraction", None),
+                    sli_training_idx=sli_training_idx,
+                    sli_selected=sli_selected_arg,
+                    num_trainings=opts.num_trainings,
+                    sli_custom_selection=(
+                        saved_custom_selection if using_sli_set_op else None
+                    ),
+                    sli_custom_label=(custom_label if using_sli_set_op else None),
+                    plot_fly_roles=(0,),
+                    output_suffix="_exp_only",
+                )
             if (
                 tp == "rpid"
                 and opts.best_worst_sli
@@ -12342,6 +12391,20 @@ def postAnalyze(vas):
                 save_auc_types=SAVE_AUC_TYPES,
                 num_trainings=opts.num_trainings,
             )
+            if tp == "rpd" and getattr(opts, "rpd_exp_only_plot", False):
+                plotRewards(
+                    va,
+                    tp,
+                    a,
+                    trns,
+                    gis,
+                    gls,
+                    vas,
+                    save_auc_types=None,
+                    num_trainings=opts.num_trainings,
+                    plot_fly_roles=(0,),
+                    output_suffix="_exp_only",
+                )
         elif (
             tp
             in (
