@@ -94,6 +94,24 @@ class RewardsPerDistancePerFlyCollector:
             return np.nan
         return float(dist_px / px_per_mm / 1000.0)
 
+    @staticmethod
+    def _all_selected_buckets_valid(
+        va,
+        *,
+        f: int,
+        t_idx: int,
+        skip_first: int,
+        n_buckets: int,
+    ) -> bool:
+        for j in range(int(n_buckets)):
+            b_idx = int(skip_first) + j
+            try:
+                if va.is_excluded_pair(f, t_idx, b_idx):
+                    return False
+            except Exception:
+                return False
+        return True
+
     def _collect_reward_distance_totals_by_training_per_fly(self):
         n_trn = self._n_trainings()
         out: list[list[tuple[str, float]]] = [[] for _ in range(n_trn)]
@@ -120,6 +138,14 @@ class RewardsPerDistancePerFlyCollector:
                     use_exclusion_mask=False,
                 )
                 if n_buckets <= 0:
+                    continue
+                if not self._all_selected_buckets_valid(
+                    va,
+                    f=f,
+                    t_idx=t_idx,
+                    skip_first=skip_first,
+                    n_buckets=n_buckets,
+                ):
                     continue
 
                 start = int(fi)
