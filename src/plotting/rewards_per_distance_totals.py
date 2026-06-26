@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import os
 
 import numpy as np
@@ -115,6 +116,7 @@ class RewardsPerDistancePerFlyCollector:
     def _collect_reward_distance_totals_by_training_per_fly(self):
         n_trn = self._n_trainings()
         out: list[list[tuple[str, float]]] = [[] for _ in range(n_trn)]
+        self._rpd_total_diagnostics_by_training = [dict() for _ in range(n_trn)]
         skip_first, keep_first = self._effective_sync_bucket_window()
 
         for va in self.vas:
@@ -162,7 +164,16 @@ class RewardsPerDistancePerFlyCollector:
                     continue
 
                 unit_id = self._unit_id(va, f=f)
-                out[t_idx].append((unit_id, float(n_rewards / dist_m)))
+                value = float(n_rewards / dist_m)
+                out[t_idx].append((unit_id, value))
+                self._rpd_total_diagnostics_by_training[t_idx][unit_id] = {
+                    "rewards": float(n_rewards),
+                    "distance_m": float(dist_m),
+                    "start_frame": int(start),
+                    "stop_frame": int(stop),
+                    "n_buckets": int(n_buckets),
+                    "value": value,
+                }
 
         return out
 
@@ -184,3 +195,95 @@ class RewardsPerDistanceTotalsPlotter(
 
     def _collect_values_by_training_per_fly_scalar(self):
         return self._collect_reward_distance_totals_by_training_per_fly()
+
+    def compute_scalar_panels(self) -> dict:
+        data = super().compute_scalar_panels()
+        diagnostics_by_training = getattr(
+            self,
+            "_rpd_total_diagnostics_by_training",
+            None,
+        )
+        if not diagnostics_by_training or not data.get("panel_labels"):
+            return data
+
+        training_info = data.get("meta", {}).get("training_selection", {})
+        effective = training_info.get("trainings_effective")
+        if effective:
+            training_indices = [int(x) - 1 for x in effective]
+        else:
+            training_indices = list(range(len(data["panel_labels"])))
+
+        fields = {
+            "rpd_total_rewards_panel": [],
+            "rpd_total_distance_m_panel": [],
+            "rpd_total_start_frame_panel": [],
+            "rpd_total_stop_frame_panel": [],
+            "rpd_total_n_buckets_panel": [],
+        }
+        source_keys = {
+            "rpd_total_rewards_panel": "rewards",
+            "rpd_total_distance_m_panel": "distance_m",
+            "rpd_total_start_frame_panel": "start_frame",
+            "rpd_total_stop_frame_panel": "stop_frame",
+            "rpd_total_n_buckets_panel": "n_buckets",
+        }
+
+        for panel_idx, ids in enumerate(data["per_unit_ids_panel"]):
+            t_idx = (
+                training_indices[panel_idx]
+                if panel_idx < len(training_indices)
+                else panel_idx
+            )
+            diag_by_id = (
+                diagnostics_by_training[t_idx]
+                if 0 <= t_idx < len(diagnostics_by_training)
+                else {}
+            )
+            for field, source_key in source_keys.items():
+                values = []
+                for uid in ids:
+                    diag = diag_by_id.get(str(uid), {})
+                    values.append(float(diag.get(source_key, np.nan)))
+                fields[field].append(np.asarray(values, dtype=float))
+
+        for field, values in fields.items():
+            data[field] = np.asarray(values, dtype=object)
+        return data
+
+    def export_npz(self, out_npz: str) -> None:
+        data = self.compute_scalar_panels()
+        if not data["panel_labels"]:
+            print(f"[{self.log_tag}] no data found; skipping export.")
+            return
+        np.savez_compressed(
+            out_npz,
+            panel_labels=np.asarray(data["panel_labels"], dtype=object),
+            per_unit_values_panel=data["per_unit_values_panel"],
+            per_unit_ids_panel=data["per_unit_ids_panel"],
+            mean=data["mean"],
+            ci_lo=data["ci_lo"],
+            ci_hi=data["ci_hi"],
+            n_units_panel=data["n_units_panel"],
+            meta_json=json.dumps(data["meta"], sort_keys=True),
+            rpd_total_rewards_panel=data.get(
+                "rpd_total_rewards_panel",
+                np.asarray([], dtype=object),
+            ),
+            rpd_total_distance_m_panel=data.get(
+                "rpd_total_distance_m_panel",
+                np.asarray([], dtype=object),
+            ),
+            rpd_total_start_frame_panel=data.get(
+                "rpd_total_start_frame_panel",
+                np.asarray([], dtype=object),
+            ),
+            rpd_total_stop_frame_panel=data.get(
+                "rpd_total_stop_frame_panel",
+                np.asarray([], dtype=object),
+            ),
+            rpd_total_n_buckets_panel=data.get(
+                "rpd_total_n_buckets_panel",
+                np.asarray([], dtype=object),
+            ),
+        )
+        print(f"[{self.log_tag}] wrote scalar export {out_npz}")
