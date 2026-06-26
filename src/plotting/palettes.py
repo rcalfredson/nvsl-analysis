@@ -153,6 +153,8 @@ METRIC_PALETTE_FAMILY_ALIASES = {
     "between_reward_dist": "between_reward_distance",
     "between_reward_return_leg_dist": "between_reward_distance",
     "return_leg_dist": "between_reward_distance",
+    "rpd": "between_reward_distance",
+    "rewards_per_distance": "between_reward_distance",
     "between_reward_tortuosity": "between_reward_tortuosity",
     "return_leg_tortuosity_excursion_bin": "between_reward_tortuosity",
     "wall_contacts": "wall_contacts",

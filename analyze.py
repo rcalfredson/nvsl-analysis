@@ -166,6 +166,10 @@ from src.plotting.reward_count_totals import (
     RewardCountTotalsConfig,
     RewardCountTotalsPlotter,
 )
+from src.plotting.rewards_per_distance_totals import (
+    RewardsPerDistanceTotalsConfig,
+    RewardsPerDistanceTotalsPlotter,
+)
 from src.plotting.wall_contacts_per_reward_interval_totals import (
     WallContactsPerRewardIntervalTotalsConfig,
     WallContactsPerRewardIntervalTotalsPlotter,
@@ -327,6 +331,7 @@ FIRST_N_REWARD_DIAGNOSTICS_PLOT_FILE = "imgs/first_n_reward_diagnostics.png"
 FIRST_N_REWARD_SLI_COMPARISON_CSV_FILE = "exports/first_n_reward_sli_comparison.csv"
 FIRST_N_REWARD_SLI_COMPARISON_PLOT_FILE = "imgs/first_n_reward_sli_comparison.png"
 REWARD_COUNT_TOTAL_BARS_IMG_FILE = "imgs/rwd_totals.png"
+RPD_TOTAL_BARS_IMG_FILE = "imgs/rpd_totals.png"
 WALL_CONTACTS_PER_REWARD_INTERVAL_TOTAL_BARS_IMG_FILE = (
     "imgs/wall_contacts_per_reward_interval_totals.png"
 )
@@ -2756,6 +2761,84 @@ g.add_argument(
 )
 g.add_argument(
     "--reward-count-total-show-points",
+    action="store_true",
+    help="Overlay per-fly points on the bars (useful sanity check; not required for export).",
+)
+g.add_argument(
+    "--rpd-total-bars",
+    action="store_true",
+    help=(
+        "Plot rewards per distance traveled as one pooled-window scalar per "
+        "experimental fly/training."
+    ),
+)
+g.add_argument(
+    "--rpd-total-export",
+    type=str,
+    default=None,
+    help=(
+        "Export pooled-window rewards per distance traveled "
+        "(one scalar per experimental fly per training) as a compressed .npz "
+        "for overlay plotting + stats."
+    ),
+)
+g.add_argument(
+    "--rpd-total-trainings",
+    type=parse_training_selector,
+    default=(2,),
+    help=(
+        'Subset of trainings to include (1-based). Examples: "1", "1,3", '
+        '"2-4". Default: 2.'
+    ),
+)
+g.add_argument(
+    "--rpd-total-skip-first-sync-buckets",
+    type=int,
+    default=1,
+    help=(
+        "Skip the first N sync buckets within each training before pooling "
+        "rewards and distance (default: 1, yielding sync bucket 2 as the start)."
+    ),
+)
+g.add_argument(
+    "--rpd-total-keep-first-sync-buckets",
+    type=int,
+    default=4,
+    help=(
+        "Keep only the first N sync buckets after skipping. Default: 4, so with "
+        "the default skip this pools sync buckets 2-5."
+    ),
+)
+g.add_argument(
+    "--rpd-total-sli-group",
+    type=str,
+    choices=("top", "bottom"),
+    default=None,
+    help=(
+        "Restrict pooled-window rewards-per-distance export/plot to a selected "
+        "SLI subset: 'top' or 'bottom'. Uses the SLI selection configured by "
+        "--best-worst-sli with --top-sli-fraction/--bottom-sli-fraction."
+    ),
+)
+g.add_argument(
+    "--rpd-total-ci",
+    action="store_true",
+    help="If set, compute a mean CI across flies (stored in export; optionally shown on plot).",
+)
+g.add_argument(
+    "--rpd-total-ci-conf",
+    type=float,
+    default=0.95,
+    help="Confidence level for mean CI across flies (default: 0.95).",
+)
+g.add_argument(
+    "--rpd-total-ymax",
+    type=float,
+    default=None,
+    help="Set a fixed maximum for the y-axis in pooled-window RPD bar charts.",
+)
+g.add_argument(
+    "--rpd-total-show-points",
     action="store_true",
     help="Overlay per-fly points on the bars (useful sanity check; not required for export).",
 )
@@ -12983,6 +13066,76 @@ def postAnalyze(vas):
         if do_total_export:
             plotter.export_npz(out_npz)
         if do_total_plot:
+            plotter.plot_bars()
+
+    # ---------------- Rewards per distance traveled (pooled-window scalar bars) ----------------
+    do_rpd_total_plot = bool(getattr(opts, "rpd_total_bars", False))
+    do_rpd_total_export = bool(getattr(opts, "rpd_total_export", None))
+
+    if va.circle and (do_rpd_total_plot or do_rpd_total_export):
+        vas_for_totals = vas
+
+        sli_group = getattr(opts, "rpd_total_sli_group", None)
+        if sli_group == "top":
+            if saved_top is None:
+                print(
+                    "[rpd_total] WARNING: top-SLI restriction requested "
+                    "but no top-SLI group is available; falling back to all flies."
+                )
+            else:
+                vas_for_totals = [vas[i] for i in saved_top]
+                print(
+                    f"[rpd_total] restricting to {len(vas_for_totals)} top-SLI flies"
+                )
+        elif sli_group == "bottom":
+            if saved_bottom is None:
+                print(
+                    "[rpd_total] WARNING: bottom-SLI restriction requested "
+                    "but no bottom-SLI group is available; falling back to all flies."
+                )
+            else:
+                vas_for_totals = [vas[i] for i in saved_bottom]
+                print(
+                    f"[rpd_total] restricting to {len(vas_for_totals)} bottom-SLI flies"
+                )
+
+        subset_label = None
+        if sli_group == "top" and saved_top is not None:
+            frac = getattr(opts, "top_sli_fraction", None)
+            if frac is None:
+                frac = getattr(opts, "best_worst_fraction", 0.1)
+            subset_label = f"Restricted to top {100*float(frac):.1f}% SLI flies"
+        elif sli_group == "bottom" and saved_bottom is not None:
+            frac = getattr(opts, "bottom_sli_fraction", None)
+            if frac is None:
+                frac = getattr(opts, "best_worst_fraction", 0.1)
+            subset_label = f"Restricted to bottom {100*float(frac):.1f}% SLI flies"
+
+        cfg = RewardsPerDistanceTotalsConfig(
+            out_file=RPD_TOTAL_BARS_IMG_FILE,
+            trainings=getattr(opts, "rpd_total_trainings", None),
+            skip_first_sync_buckets=_effective_skip_first_sync_buckets_opts_only(
+                opts, "rpd_total_skip_first_sync_buckets"
+            ),
+            keep_first_sync_buckets=_effective_keep_first_sync_buckets_opts_only(
+                opts, "rpd_total_keep_first_sync_buckets"
+            ),
+            subset_label=subset_label,
+            ymax=getattr(opts, "rpd_total_ymax", None),
+            ci=bool(getattr(opts, "rpd_total_ci", False)),
+            ci_conf=float(getattr(opts, "rpd_total_ci_conf", 0.95)),
+            show_points=bool(getattr(opts, "rpd_total_show_points", False)),
+            metric_palette_family="rpd",
+        )
+
+        plotter = RewardsPerDistanceTotalsPlotter(
+            vas=vas_for_totals, opts=opts, gls=gls, customizer=customizer, cfg=cfg
+        )
+
+        out_npz = getattr(opts, "rpd_total_export", None)
+        if do_rpd_total_export:
+            plotter.export_npz(str(out_npz))
+        if do_rpd_total_plot:
             plotter.plot_bars()
 
     # ---------------- Wall contacts per reward interval (scalar bars) ----------------

@@ -77,6 +77,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--ylabel", default=None, help="Y-axis label override.")
     p.add_argument("--ymax", type=float, default=None, help="Optional fixed y max.")
     p.add_argument(
+        "--points",
+        "--show-points",
+        dest="show_points",
+        action="store_true",
+        help="Overlay individual per-fly values on top of each bar.",
+    )
+    p.add_argument(
         "--stats",
         action="store_true",
         help="Add per-panel one-way ANOVA + Holm posthoc stars (Welch or paired t-tests depending on --stats-paired).",
@@ -189,6 +196,7 @@ def main() -> None:
             stats_alpha=args.stats_alpha,
             stats_paired=args.stats_paired,
             debug=args.stats_debug,
+            show_points=args.show_points,
             opts=opts,
         )
     _savefig(args.out, args.image_format)

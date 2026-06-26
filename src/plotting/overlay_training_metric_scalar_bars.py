@@ -156,6 +156,12 @@ def _wrapped_ylabel_text(text: str) -> str:
     text = str(text)
     if "\n" in text:
         return text
+    if "Rewards per distance traveled" in text:
+        return text.replace(
+            "Rewards per distance traveled",
+            "Rewards per\ndistance traveled",
+            1,
+        )
     for phrase in (
         " without wall contact",
         " between-reward ",
@@ -1091,6 +1097,9 @@ def plot_overlays(
     bar_alpha: float = 0.90,
     palette: str | list[str] | tuple[str, ...] | None = None,
     single_panel_group_ticks: bool = True,
+    show_points: bool = False,
+    point_alpha: float = 0.68,
+    point_size: float = 16.0,
     opts=None,
 ) -> plt.Figure:
     if opts is None:
@@ -1237,6 +1246,36 @@ def plot_overlays(
             alpha=bar_alpha,
             linewidth=0.9,
         )
+
+        if show_points:
+            panel_values = x.per_unit_values_panel
+            jitter_span = min(float(bar_w) * 0.56, 0.22)
+            for p in range(P):
+                if p >= len(panel_values):
+                    continue
+                vals = np.asarray(panel_values[p], dtype=float)
+                vals = vals[np.isfinite(vals)]
+                if vals.size == 0:
+                    continue
+                if vals.size == 1:
+                    jitter = np.asarray([0.0], dtype=float)
+                else:
+                    jitter = np.linspace(
+                        -0.5 * jitter_span,
+                        0.5 * jitter_span,
+                        vals.size,
+                        dtype=float,
+                    )
+                ax.scatter(
+                    np.full(vals.size, float(xg[p])) + jitter,
+                    vals,
+                    s=float(point_size),
+                    facecolors="white",
+                    edgecolors=edge_color,
+                    linewidths=0.8,
+                    alpha=float(point_alpha),
+                    zorder=4,
+                )
 
         # CI whiskers (only if export had CI; in paired-mode we recomputed them anyway)
         lo = np.asarray(lo_plot[gi], float)
