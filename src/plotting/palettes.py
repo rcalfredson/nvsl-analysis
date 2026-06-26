@@ -204,6 +204,41 @@ def group_metric_edge_color(
     )
 
 
+def _semantic_learner_palette_index(label: str | None) -> int | None:
+    text = str(label or "").strip().lower()
+    if "learner" not in text:
+        return None
+    if "top" in text:
+        return 1
+    if "bottom" in text:
+        return 0
+    return None
+
+
+def group_metric_fill_color_for_label(
+    label: str | None,
+    index: int,
+    metric_family: str | None = None,
+    *,
+    palette: str | list[str] | tuple[str, ...] | None = None,
+) -> str:
+    semantic_index = _semantic_learner_palette_index(label)
+    color_index = index if semantic_index is None else semantic_index
+    return group_metric_fill_color(color_index, metric_family, palette=palette)
+
+
+def group_metric_edge_color_for_label(
+    label: str | None,
+    index: int,
+    metric_family: str | None = None,
+    *,
+    palette: str | list[str] | tuple[str, ...] | None = None,
+) -> str:
+    semantic_index = _semantic_learner_palette_index(label)
+    color_index = index if semantic_index is None else semantic_index
+    return group_metric_edge_color(color_index, metric_family, palette=palette)
+
+
 def stacked_group_colors(
     index: int,
     *,

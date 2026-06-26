@@ -15,7 +15,9 @@ from src.plotting.palettes import (
     NEUTRAL_DARK,
     NEUTRAL_MID,
     group_metric_edge_color,
+    group_metric_edge_color_for_label,
     group_metric_fill_color,
+    group_metric_fill_color_for_label,
     normalize_metric_palette_family,
 )
 from src.plotting.plot_customizer import PlotCustomizer
@@ -1218,8 +1220,12 @@ def plot_overlays(
         if per_group_legend_ns is not None and gi < len(per_group_legend_ns):
             n_leg = per_group_legend_ns[gi]
         label = f"{x.group} (n={n_leg})" if n_leg is not None else f"{x.group}"
-        bar_color = group_metric_fill_color(gi, metric_palette_family, palette=palette)
-        edge_color = group_metric_edge_color(gi, metric_palette_family, palette=palette)
+        bar_color = group_metric_fill_color_for_label(
+            x.group, gi, metric_palette_family, palette=palette
+        )
+        edge_color = group_metric_edge_color_for_label(
+            x.group, gi, metric_palette_family, palette=palette
+        )
         ax.bar(
             xg,
             y_plot,

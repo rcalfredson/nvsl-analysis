@@ -15,8 +15,8 @@ from src.plotting.overlay_training_metric_scalar_bars import (
 )
 from src.plotting.palettes import (
     NEUTRAL_DARK,
-    group_metric_edge_color,
-    group_metric_fill_color,
+    group_metric_edge_color_for_label,
+    group_metric_fill_color_for_label,
     normalize_metric_palette_family,
 )
 from src.plotting.plot_customizer import PlotCustomizer
@@ -234,8 +234,8 @@ def plot_swarm_overlays(
     per_unit_ids_by_group = []
 
     for gi, x in enumerate(xs):
-        fill = group_metric_fill_color(gi, palette_family)
-        edge = group_metric_edge_color(gi, palette_family)
+        fill = group_metric_fill_color_for_label(x.group, gi, palette_family)
+        edge = group_metric_edge_color_for_label(x.group, gi, palette_family)
         x_positions = np.full((P,), np.nan, dtype=float)
         y_tops = np.full((P,), np.nan, dtype=float)
         for p in range(P):

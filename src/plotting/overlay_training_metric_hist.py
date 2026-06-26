@@ -18,8 +18,8 @@ from src.plotting.bin_edges import (
 )
 from src.plotting.palettes import (
     NEUTRAL_DARK,
-    group_metric_edge_color,
-    group_metric_fill_color,
+    group_metric_edge_color_for_label,
+    group_metric_fill_color_for_label,
     normalize_metric_palette_family,
 )
 from src.plotting.plot_customizer import PlotCustomizer
@@ -1204,8 +1204,12 @@ def plot_overlays(
 
                     # bar() ignores NaNs poorly; replace NaNs with 0-height bars
                     y_plot = np.where(np.isfinite(y_bins), y_bins, 0.0)
-                    bar_color = group_metric_fill_color(g_idx, metric_palette_family)
-                    edge_color = group_metric_edge_color(g_idx, metric_palette_family)
+                    bar_color = group_metric_fill_color_for_label(
+                        h.group, g_idx, metric_palette_family
+                    )
+                    edge_color = group_metric_edge_color_for_label(
+                        h.group, g_idx, metric_palette_family
+                    )
                     ax.bar(
                         x,
                         y_plot,
@@ -1297,8 +1301,8 @@ def plot_overlays(
                             y_step,
                             where="post",
                             label=(_legend_label(h) if gi == 0 else None),
-                            color=group_metric_edge_color(
-                                g_idx, metric_palette_family
+                            color=group_metric_edge_color_for_label(
+                                h.group, g_idx, metric_palette_family
                             ),
                         )
                         cprev = float(cdf_seg[-1]) if cdf_seg.size else cprev
@@ -1311,7 +1315,9 @@ def plot_overlays(
                         y_step,
                         where="post",
                         label=_legend_label(h),
-                        color=group_metric_edge_color(g_idx, metric_palette_family),
+                        color=group_metric_edge_color_for_label(
+                            h.group, g_idx, metric_palette_family
+                        ),
                     )
 
         if not any_data:
@@ -1510,8 +1516,12 @@ def plot_overlays(
                 _lo, hi_val = ci
             hi_by_group_over.append(np.asarray([hi_val], dtype=float))
 
-            bar_color = group_metric_fill_color(g_idx, metric_palette_family)
-            edge_color = group_metric_edge_color(g_idx, metric_palette_family)
+            bar_color = group_metric_fill_color_for_label(
+                h.group, g_idx, metric_palette_family
+            )
+            edge_color = group_metric_edge_color_for_label(
+                h.group, g_idx, metric_palette_family
+            )
             overflow_ax.bar(
                 x,
                 0.0 if not np.isfinite(y) else y,
