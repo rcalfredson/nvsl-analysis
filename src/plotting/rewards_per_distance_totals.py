@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import os
+from typing import Sequence
 
 import numpy as np
 
@@ -17,7 +18,9 @@ from src.utils.constants import RI_START
 
 @dataclass
 class RewardsPerDistanceTotalsConfig(TrainingMetricScalarBarsConfig):
-    pass
+    sli_values: Sequence[float] | None = None
+    sli_exp_values: Sequence[float] | None = None
+    sli_ctrl_values: Sequence[float] | None = None
 
 
 class RewardsPerDistancePerFlyCollector:
@@ -52,7 +55,7 @@ class RewardsPerDistancePerFlyCollector:
 
     @staticmethod
     def _count_calc_rewards_in_window(
-        va, trn, *, f: int, start: int, stop: int
+        va, trn, *, f: int, ctrl: bool, start: int, stop: int
     ) -> float:
         try:
             fi_count = util.none2val(va._idxSync(RI_START, trn, start, stop), stop)
@@ -61,14 +64,14 @@ class RewardsPerDistancePerFlyCollector:
                     max(start, int(fi_count)),
                     stop,
                     calc=True,
-                    ctrl=False,
+                    ctrl=bool(ctrl),
                     f=f,
                 )
             )
         except Exception:
             try:
                 on = np.asarray(
-                    va._getOn(trn, calc=True, ctrl=False, f=f),
+                    va._getOn(trn, calc=True, ctrl=bool(ctrl), f=f),
                     dtype=float,
                 )
             except Exception:
@@ -119,7 +122,11 @@ class RewardsPerDistancePerFlyCollector:
         self._rpd_total_diagnostics_by_training = [dict() for _ in range(n_trn)]
         skip_first, keep_first = self._effective_sync_bucket_window()
 
-        for va in self.vas:
+        sli_values = getattr(self.cfg, "sli_values", None)
+        sli_exp_values = getattr(self.cfg, "sli_exp_values", None)
+        sli_ctrl_values = getattr(self.cfg, "sli_ctrl_values", None)
+
+        for va_idx, va in enumerate(self.vas):
             if getattr(va, "_skipped", False):
                 continue
             if getattr(va, "trx", None) is None or len(va.trx) == 0:
@@ -153,7 +160,16 @@ class RewardsPerDistancePerFlyCollector:
                 start = int(fi)
                 stop = int(fi + n_buckets * df)
                 n_rewards = self._count_calc_rewards_in_window(
-                    va, trn, f=f, start=start, stop=stop
+                    va, trn, f=f, ctrl=False, start=start, stop=stop
+                )
+                exp_control_rewards = self._count_calc_rewards_in_window(
+                    va, trn, f=0, ctrl=True, start=start, stop=stop
+                )
+                yok_calc_rewards = self._count_calc_rewards_in_window(
+                    va, trn, f=1, ctrl=False, start=start, stop=stop
+                )
+                yok_control_rewards = self._count_calc_rewards_in_window(
+                    va, trn, f=1, ctrl=True, start=start, stop=stop
                 )
                 dist_m = self._distance_traveled_m(va, f=f, start=start, stop=stop)
                 if (
@@ -168,11 +184,36 @@ class RewardsPerDistancePerFlyCollector:
                 out[t_idx].append((unit_id, value))
                 self._rpd_total_diagnostics_by_training[t_idx][unit_id] = {
                     "rewards": float(n_rewards),
+                    "exp_calc_rewards": float(n_rewards),
+                    "exp_control_rewards": float(exp_control_rewards),
+                    "yok_calc_rewards": float(yok_calc_rewards),
+                    "yok_control_rewards": float(yok_control_rewards),
                     "distance_m": float(dist_m),
                     "start_frame": int(start),
                     "stop_frame": int(stop),
                     "n_buckets": int(n_buckets),
                     "value": value,
+                    "sli": (
+                        float(sli_values[va_idx])
+                        if sli_values is not None and va_idx < len(sli_values)
+                        else np.nan
+                    ),
+                    "sli_exp": (
+                        float(sli_exp_values[va_idx])
+                        if (
+                            sli_exp_values is not None
+                            and va_idx < len(sli_exp_values)
+                        )
+                        else np.nan
+                    ),
+                    "sli_ctrl": (
+                        float(sli_ctrl_values[va_idx])
+                        if (
+                            sli_ctrl_values is not None
+                            and va_idx < len(sli_ctrl_values)
+                        )
+                        else np.nan
+                    ),
                 }
 
         return out
@@ -219,6 +260,13 @@ class RewardsPerDistanceTotalsPlotter(
             "rpd_total_start_frame_panel": [],
             "rpd_total_stop_frame_panel": [],
             "rpd_total_n_buckets_panel": [],
+            "rpd_total_exp_calc_rewards_panel": [],
+            "rpd_total_exp_control_rewards_panel": [],
+            "rpd_total_yok_calc_rewards_panel": [],
+            "rpd_total_yok_control_rewards_panel": [],
+            "rpd_total_sli_panel": [],
+            "rpd_total_sli_exp_panel": [],
+            "rpd_total_sli_ctrl_panel": [],
         }
         source_keys = {
             "rpd_total_rewards_panel": "rewards",
@@ -226,6 +274,13 @@ class RewardsPerDistanceTotalsPlotter(
             "rpd_total_start_frame_panel": "start_frame",
             "rpd_total_stop_frame_panel": "stop_frame",
             "rpd_total_n_buckets_panel": "n_buckets",
+            "rpd_total_exp_calc_rewards_panel": "exp_calc_rewards",
+            "rpd_total_exp_control_rewards_panel": "exp_control_rewards",
+            "rpd_total_yok_calc_rewards_panel": "yok_calc_rewards",
+            "rpd_total_yok_control_rewards_panel": "yok_control_rewards",
+            "rpd_total_sli_panel": "sli",
+            "rpd_total_sli_exp_panel": "sli_exp",
+            "rpd_total_sli_ctrl_panel": "sli_ctrl",
         }
 
         for panel_idx, ids in enumerate(data["per_unit_ids_panel"]):
@@ -283,6 +338,34 @@ class RewardsPerDistanceTotalsPlotter(
             ),
             rpd_total_n_buckets_panel=data.get(
                 "rpd_total_n_buckets_panel",
+                np.asarray([], dtype=object),
+            ),
+            rpd_total_exp_calc_rewards_panel=data.get(
+                "rpd_total_exp_calc_rewards_panel",
+                np.asarray([], dtype=object),
+            ),
+            rpd_total_exp_control_rewards_panel=data.get(
+                "rpd_total_exp_control_rewards_panel",
+                np.asarray([], dtype=object),
+            ),
+            rpd_total_yok_calc_rewards_panel=data.get(
+                "rpd_total_yok_calc_rewards_panel",
+                np.asarray([], dtype=object),
+            ),
+            rpd_total_yok_control_rewards_panel=data.get(
+                "rpd_total_yok_control_rewards_panel",
+                np.asarray([], dtype=object),
+            ),
+            rpd_total_sli_panel=data.get(
+                "rpd_total_sli_panel",
+                np.asarray([], dtype=object),
+            ),
+            rpd_total_sli_exp_panel=data.get(
+                "rpd_total_sli_exp_panel",
+                np.asarray([], dtype=object),
+            ),
+            rpd_total_sli_ctrl_panel=data.get(
+                "rpd_total_sli_ctrl_panel",
                 np.asarray([], dtype=object),
             ),
         )

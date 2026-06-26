@@ -11884,6 +11884,8 @@ def postAnalyze(vas):
     saved_custom_selection = None
     custom_label = None
     sli_ser = None
+    sli_exp_component_ser = None
+    sli_ctrl_component_ser = None
     sli_total_sync_buckets = None
     reward_pi_first_bucket = None
     sli_training_idx = getattr(opts, "best_worst_trn", 1) - 1
@@ -11895,6 +11897,31 @@ def postAnalyze(vas):
     raw_sel_keep = getattr(opts, "sli_select_keep_first_sync_buckets", None)
     sel_skip_k = skip_k if raw_sel_skip is None else max(0, int(raw_sel_skip))
     sel_keep_k = keep_k if raw_sel_keep is None else max(0, int(raw_sel_keep))
+
+    def _sli_component_series(raw_4, training_idx, bucket_idx):
+        if training_idx < 0 or training_idx >= raw_4.shape[1]:
+            return None, None
+        nb = raw_4.shape[3]
+        start = max(0, min(int(sel_skip_k or 0), nb))
+        keep = max(0, int(sel_keep_k or 0))
+        end = nb if keep == 0 else min(nb, start + keep)
+        if end <= start:
+            return None, None
+        if use_training_mean:
+            exp_vals = np.nanmean(raw_4[:, training_idx, 0, start:end], axis=1)
+            ctrl_vals = np.nanmean(raw_4[:, training_idx, 1, start:end], axis=1)
+        else:
+            b_idx = bucket_idx
+            if b_idx is None:
+                b_idx = max(start, end - 2)
+            if b_idx < start or b_idx >= end:
+                return None, None
+            exp_vals = raw_4[:, training_idx, 0, b_idx]
+            ctrl_vals = raw_4[:, training_idx, 1, b_idx]
+        return (
+            pd.Series(exp_vals, name="SLI_exp_component").astype(float),
+            pd.Series(ctrl_vals, name="SLI_ctrl_component").astype(float),
+        )
 
     need_reward_raster_sli_group = getattr(opts, "reward_raster_sli_group", None) in (
         "top",
@@ -11946,6 +11973,11 @@ def postAnalyze(vas):
                 average_over_buckets=use_training_mean,
                 skip_first_sync_buckets=sel_skip_k,
                 keep_first_sync_buckets=sel_keep_k,
+            )
+            sli_exp_component_ser, sli_ctrl_component_ser = _sli_component_series(
+                raw_4,
+                sli_training_idx,
+                sel_bucket_idx,
             )
 
             if (
@@ -13074,6 +13106,10 @@ def postAnalyze(vas):
 
     if va.circle and (do_rpd_total_plot or do_rpd_total_export):
         vas_for_totals = vas
+        rpd_total_sli_values = None
+        rpd_total_sli_exp_values = None
+        rpd_total_sli_ctrl_values = None
+        rpd_total_selected_indices = list(range(len(vas)))
 
         sli_group = getattr(opts, "rpd_total_sli_group", None)
         if sli_group == "top":
@@ -13084,6 +13120,7 @@ def postAnalyze(vas):
                 )
             else:
                 vas_for_totals = [vas[i] for i in saved_top]
+                rpd_total_selected_indices = list(saved_top)
                 print(
                     f"[rpd_total] restricting to {len(vas_for_totals)} top-SLI flies"
                 )
@@ -13095,6 +13132,7 @@ def postAnalyze(vas):
                 )
             else:
                 vas_for_totals = [vas[i] for i in saved_bottom]
+                rpd_total_selected_indices = list(saved_bottom)
                 print(
                     f"[rpd_total] restricting to {len(vas_for_totals)} bottom-SLI flies"
                 )
@@ -13111,6 +13149,21 @@ def postAnalyze(vas):
                 frac = getattr(opts, "best_worst_fraction", 0.1)
             subset_label = f"Restricted to bottom {100*float(frac):.1f}% SLI flies"
 
+        if sli_ser is not None:
+            rpd_total_sli_values = [
+                float(sli_ser.iloc[i]) for i in rpd_total_selected_indices
+            ]
+        if sli_exp_component_ser is not None:
+            rpd_total_sli_exp_values = [
+                float(sli_exp_component_ser.iloc[i])
+                for i in rpd_total_selected_indices
+            ]
+        if sli_ctrl_component_ser is not None:
+            rpd_total_sli_ctrl_values = [
+                float(sli_ctrl_component_ser.iloc[i])
+                for i in rpd_total_selected_indices
+            ]
+
         cfg = RewardsPerDistanceTotalsConfig(
             out_file=RPD_TOTAL_BARS_IMG_FILE,
             trainings=getattr(opts, "rpd_total_trainings", None),
@@ -13126,6 +13179,9 @@ def postAnalyze(vas):
             ci_conf=float(getattr(opts, "rpd_total_ci_conf", 0.95)),
             show_points=bool(getattr(opts, "rpd_total_show_points", False)),
             metric_palette_family="rpd",
+            sli_values=rpd_total_sli_values,
+            sli_exp_values=rpd_total_sli_exp_values,
+            sli_ctrl_values=rpd_total_sli_ctrl_values,
         )
 
         plotter = RewardsPerDistanceTotalsPlotter(
