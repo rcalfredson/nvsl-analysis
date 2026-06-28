@@ -18,6 +18,7 @@ from src.utils.constants import RI_START
 
 @dataclass
 class RewardsPerDistanceTotalsConfig(TrainingMetricScalarBarsConfig):
+    value_mode: str = "exp"
     sli_values: Sequence[float] | None = None
     sli_exp_values: Sequence[float] | None = None
     sli_ctrl_values: Sequence[float] | None = None
@@ -125,6 +126,9 @@ class RewardsPerDistancePerFlyCollector:
         sli_values = getattr(self.cfg, "sli_values", None)
         sli_exp_values = getattr(self.cfg, "sli_exp_values", None)
         sli_ctrl_values = getattr(self.cfg, "sli_ctrl_values", None)
+        value_mode = str(getattr(self.cfg, "value_mode", "exp") or "exp")
+        if value_mode not in ("exp", "exp_minus_yok"):
+            raise ValueError(f"Unsupported RPD total value_mode: {value_mode!r}")
 
         for va_idx, va in enumerate(self.vas):
             if getattr(va, "_skipped", False):
@@ -148,6 +152,18 @@ class RewardsPerDistancePerFlyCollector:
                 )
                 if n_buckets <= 0:
                     continue
+                has_yok = getattr(va, "trx", None) is not None and len(va.trx) > 1
+                if value_mode == "exp_minus_yok":
+                    if not has_yok or va.trx[1].bad():
+                        continue
+                    if not self._all_selected_buckets_valid(
+                        va,
+                        f=1,
+                        t_idx=t_idx,
+                        skip_first=skip_first,
+                        n_buckets=n_buckets,
+                    ):
+                        continue
                 if not self._all_selected_buckets_valid(
                     va,
                     f=f,
@@ -172,6 +188,11 @@ class RewardsPerDistancePerFlyCollector:
                     va, trn, f=1, ctrl=True, start=start, stop=stop
                 )
                 dist_m = self._distance_traveled_m(va, f=f, start=start, stop=stop)
+                yok_dist_m = (
+                    self._distance_traveled_m(va, f=1, start=start, stop=stop)
+                    if has_yok
+                    else np.nan
+                )
                 if (
                     not np.isfinite(n_rewards)
                     or not np.isfinite(dist_m)
@@ -180,7 +201,20 @@ class RewardsPerDistancePerFlyCollector:
                     continue
 
                 unit_id = self._unit_id(va, f=f)
-                value = float(n_rewards / dist_m)
+                exp_value = float(n_rewards / dist_m)
+                yok_value = (
+                    float(yok_calc_rewards / yok_dist_m)
+                    if np.isfinite(yok_calc_rewards)
+                    and np.isfinite(yok_dist_m)
+                    and yok_dist_m > 0
+                    else np.nan
+                )
+                if value_mode == "exp_minus_yok":
+                    if not np.isfinite(yok_value):
+                        continue
+                    value = float(exp_value - yok_value)
+                else:
+                    value = exp_value
                 out[t_idx].append((unit_id, value))
                 self._rpd_total_diagnostics_by_training[t_idx][unit_id] = {
                     "rewards": float(n_rewards),
@@ -189,10 +223,14 @@ class RewardsPerDistancePerFlyCollector:
                     "yok_calc_rewards": float(yok_calc_rewards),
                     "yok_control_rewards": float(yok_control_rewards),
                     "distance_m": float(dist_m),
+                    "yok_distance_m": float(yok_dist_m),
                     "start_frame": int(start),
                     "stop_frame": int(stop),
                     "n_buckets": int(n_buckets),
                     "value": value,
+                    "exp_value": exp_value,
+                    "yok_value": yok_value,
+                    "value_mode": value_mode,
                     "sli": (
                         float(sli_values[va_idx])
                         if sli_values is not None and va_idx < len(sli_values)
@@ -223,6 +261,16 @@ class RewardsPerDistanceTotalsPlotter(
     TrainingMetricScalarBarsPlotter, RewardsPerDistancePerFlyCollector
 ):
     def __init__(self, vas, opts, gls, customizer, cfg: RewardsPerDistanceTotalsConfig):
+        value_mode = str(getattr(cfg, "value_mode", "exp") or "exp")
+        if value_mode == "exp_minus_yok":
+            y_label = (
+                "Rewards per\ndistance traveled (m$^{-1}$)\n"
+                "$(\\mathrm{exp} - \\mathrm{yok})$"
+            )
+            base_title = "Rewards per distance traveled (exp - yok)"
+        else:
+            y_label = "Rewards per\ndistance traveled (m$^{-1}$)"
+            base_title = "Rewards per distance traveled"
         super().__init__(
             vas=vas,
             opts=opts,
@@ -230,8 +278,8 @@ class RewardsPerDistanceTotalsPlotter(
             customizer=customizer,
             cfg=cfg,
             log_tag="rpd_total",
-            y_label="Rewards per\ndistance traveled (m$^{-1}$)",
-            base_title="Rewards per distance traveled",
+            y_label=y_label,
+            base_title=base_title,
         )
 
     def _collect_values_by_training_per_fly_scalar(self):
@@ -246,6 +294,9 @@ class RewardsPerDistanceTotalsPlotter(
         )
         if not diagnostics_by_training or not data.get("panel_labels"):
             return data
+        data.setdefault("meta", {})["rpd_total_value_mode"] = str(
+            getattr(self.cfg, "value_mode", "exp") or "exp"
+        )
 
         training_info = data.get("meta", {}).get("training_selection", {})
         effective = training_info.get("trainings_effective")
@@ -264,6 +315,7 @@ class RewardsPerDistanceTotalsPlotter(
             "rpd_total_exp_control_rewards_panel": [],
             "rpd_total_yok_calc_rewards_panel": [],
             "rpd_total_yok_control_rewards_panel": [],
+            "rpd_total_yok_distance_m_panel": [],
             "rpd_total_sli_panel": [],
             "rpd_total_sli_exp_panel": [],
             "rpd_total_sli_ctrl_panel": [],
@@ -278,6 +330,7 @@ class RewardsPerDistanceTotalsPlotter(
             "rpd_total_exp_control_rewards_panel": "exp_control_rewards",
             "rpd_total_yok_calc_rewards_panel": "yok_calc_rewards",
             "rpd_total_yok_control_rewards_panel": "yok_control_rewards",
+            "rpd_total_yok_distance_m_panel": "yok_distance_m",
             "rpd_total_sli_panel": "sli",
             "rpd_total_sli_exp_panel": "sli_exp",
             "rpd_total_sli_ctrl_panel": "sli_ctrl",
@@ -354,6 +407,10 @@ class RewardsPerDistanceTotalsPlotter(
             ),
             rpd_total_yok_control_rewards_panel=data.get(
                 "rpd_total_yok_control_rewards_panel",
+                np.asarray([], dtype=object),
+            ),
+            rpd_total_yok_distance_m_panel=data.get(
+                "rpd_total_yok_distance_m_panel",
                 np.asarray([], dtype=object),
             ),
             rpd_total_sli_panel=data.get(

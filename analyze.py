@@ -2821,6 +2821,16 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--rpd-total-value-mode",
+    type=str,
+    choices=("exp", "exp_minus_yok"),
+    default="exp",
+    help=(
+        "Choose the pooled-window RPD scalar to export/plot: experimental fly "
+        "only ('exp') or experimental minus yoked-control fly ('exp_minus_yok')."
+    ),
+)
+g.add_argument(
     "--rpd-total-ci",
     action="store_true",
     help="If set, compute a mean CI across flies (stored in export; optionally shown on plot).",
@@ -13182,6 +13192,7 @@ def postAnalyze(vas):
             ci_conf=float(getattr(opts, "rpd_total_ci_conf", 0.95)),
             show_points=bool(getattr(opts, "rpd_total_show_points", False)),
             metric_palette_family="rpd",
+            value_mode=getattr(opts, "rpd_total_value_mode", "exp"),
             sli_values=rpd_total_sli_values,
             sli_exp_values=rpd_total_sli_exp_values,
             sli_ctrl_values=rpd_total_sli_ctrl_values,
