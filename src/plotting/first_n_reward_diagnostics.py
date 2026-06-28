@@ -96,10 +96,18 @@ class FirstNRewardDiagnosticRow:
     time_to_nth_selected_reward_s: float
     first_n_selected_reward_span_s: float
     selected_reward_rate_to_nth_per_min: float
+    first_n_selected_reward_distance_traveled_mm: float
+    selected_reward_rate_to_nth_per_m: float
 
 
 FIRST_N_REWARD_DIAGNOSTIC_FIELDS = tuple(
     FirstNRewardDiagnosticRow.__dataclass_fields__.keys()
+)
+OPTIONAL_FIRST_N_REWARD_DIAGNOSTIC_FIELDS = frozenset(
+    (
+        "first_n_selected_reward_distance_traveled_mm",
+        "selected_reward_rate_to_nth_per_m",
+    )
 )
 
 
@@ -142,10 +150,31 @@ def reward_rate_between_first_and_nth_per_min(n_target: int, span_s: float) -> f
     return float(n_intervals * 60.0 / span_s)
 
 
+def reward_rate_between_first_and_nth_per_meter(
+    n_target: int,
+    distance_mm: float,
+) -> float:
+    try:
+        n_intervals = int(n_target) - 1
+    except Exception:
+        return np.nan
+    if n_intervals <= 0:
+        return np.nan
+    distance_mm = _as_float(distance_mm)
+    if not np.isfinite(distance_mm) or distance_mm <= 0:
+        return np.nan
+    return float(n_intervals / (distance_mm / 1000.0))
+
+
 def validate_first_n_reward_diagnostic_rows(rows: Sequence, *, path: str | None = None) -> None:
     where = path or "<rows>"
     for idx, row in enumerate(rows):
-        missing = [key for key in FIRST_N_REWARD_DIAGNOSTIC_FIELDS if _row_value(row, key) is None]
+        missing = [
+            key
+            for key in FIRST_N_REWARD_DIAGNOSTIC_FIELDS
+            if key not in OPTIONAL_FIRST_N_REWARD_DIAGNOSTIC_FIELDS
+            and _row_value(row, key) is None
+        ]
         if missing:
             raise ValueError(
                 f"First-N reward diagnostics {where} row {idx} is missing columns: {missing}"
@@ -184,9 +213,19 @@ def validate_first_n_reward_diagnostic_rows(rows: Sequence, *, path: str | None 
         rate = _as_float(_row_value(row, "selected_reward_rate_to_nth_per_min"))
         span_s = _as_float(_row_value(row, "first_n_selected_reward_span_s"))
         expected_rate = reward_rate_between_first_and_nth_per_min(n_target, span_s)
+        distance_rate = _as_float(
+            _row_value(row, "selected_reward_rate_to_nth_per_m")
+        )
+        distance_mm = _as_float(
+            _row_value(row, "first_n_selected_reward_distance_traveled_mm")
+        )
+        expected_distance_rate = reward_rate_between_first_and_nth_per_meter(
+            n_target,
+            distance_mm,
+        )
 
         if not eligible:
-            if np.isfinite(rate):
+            if np.isfinite(rate) or np.isfinite(distance_rate):
                 raise ValueError(
                     f"First-N reward diagnostics {where} row {idx} has finite rate while ineligible"
                 )
@@ -220,13 +259,34 @@ def validate_first_n_reward_diagnostic_rows(rows: Sequence, *, path: str | None 
                 "reward rate without a positive first-to-nth interval"
             )
 
+        if np.isfinite(expected_distance_rate):
+            if not np.isfinite(distance_rate):
+                raise ValueError(
+                    f"First-N reward diagnostics {where} row {idx} has non-finite "
+                    "selected reward distance rate"
+                )
+            if abs(distance_rate - expected_distance_rate) > 1e-9:
+                raise ValueError(
+                    f"First-N reward diagnostics {where} row {idx} has inconsistent "
+                    f"selected reward distance rate {distance_rate}; "
+                    f"expected {expected_distance_rate}"
+                )
+        elif np.isfinite(distance_rate):
+            raise ValueError(
+                f"First-N reward diagnostics {where} row {idx} has finite selected "
+                "reward distance rate without a positive first-to-nth distance"
+            )
+
 
 def validate_first_n_reward_diagnostics_csv(path: str) -> None:
     with open(path, newline="", encoding="utf-8") as fh:
         reader = csv.DictReader(fh)
         fieldnames = tuple(reader.fieldnames or ())
         missing = [
-            key for key in FIRST_N_REWARD_DIAGNOSTIC_FIELDS if key not in fieldnames
+            key
+            for key in FIRST_N_REWARD_DIAGNOSTIC_FIELDS
+            if key not in OPTIONAL_FIRST_N_REWARD_DIAGNOSTIC_FIELDS
+            and key not in fieldnames
         ]
         if missing:
             raise ValueError(
@@ -246,7 +306,12 @@ def validate_first_n_reward_diagnostics_bundle(
     bundle: dict, *, path: str | None = None
 ) -> None:
     where = path or "<bundle>"
-    missing = [key for key in FIRST_N_REWARD_DIAGNOSTIC_FIELDS if key not in bundle]
+    missing = [
+        key
+        for key in FIRST_N_REWARD_DIAGNOSTIC_FIELDS
+        if key not in OPTIONAL_FIRST_N_REWARD_DIAGNOSTIC_FIELDS
+        and key not in bundle
+    ]
     if missing:
         raise ValueError(
             f"First-N reward diagnostics {where} is missing keys: {missing}"
@@ -254,6 +319,7 @@ def validate_first_n_reward_diagnostics_bundle(
     lengths = {
         key: int(np.asarray(bundle[key]).reshape(-1).shape[0])
         for key in FIRST_N_REWARD_DIAGNOSTIC_FIELDS
+        if key in bundle
     }
     unique_lengths = set(lengths.values())
     if len(unique_lengths) != 1:
@@ -265,6 +331,7 @@ def validate_first_n_reward_diagnostics_bundle(
         {
             key: np.asarray(bundle[key], dtype=object).reshape(-1)[idx]
             for key in FIRST_N_REWARD_DIAGNOSTIC_FIELDS
+            if key in bundle
         }
         for idx in range(n_rows)
     ]
@@ -305,6 +372,36 @@ class FirstNRewardDiagnosticsPlotter:
         span_s: float,
     ) -> float:
         return reward_rate_between_first_and_nth_per_min(n_target, span_s)
+
+    @staticmethod
+    def _reward_rate_between_first_and_nth_per_meter(
+        n_target: int,
+        distance_mm: float,
+    ) -> float:
+        return reward_rate_between_first_and_nth_per_meter(n_target, distance_mm)
+
+    @staticmethod
+    def _distance_traveled_mm(va, *, f: int, start_frame: int, end_frame: int) -> float:
+        if int(end_frame) <= int(start_frame):
+            return np.nan
+        try:
+            traj = va.trx[f]
+            px_per_mm = float(va.xf.fctr) * float(va.ct.pxPerMmFloor())
+        except Exception:
+            try:
+                traj = va.trx[f]
+                px_per_mm = float(traj.pxPerMmFloor) * float(va.xf.fctr)
+            except Exception:
+                return np.nan
+        if not np.isfinite(px_per_mm) or px_per_mm <= 0:
+            return np.nan
+        try:
+            dist_px = float(traj.distTrav(int(start_frame), int(end_frame)))
+        except Exception:
+            return np.nan
+        if not np.isfinite(dist_px):
+            return np.nan
+        return float(dist_px / px_per_mm)
 
     def _selected_trainings(self) -> list[int]:
         if not self.vas:
@@ -429,6 +526,14 @@ class FirstNRewardDiagnosticsPlotter:
             "selected_reward_rate_to_nth_per_min": (
                 f"Reward rate during first {n_target} {reward_phrase} "
                 r"($min^{-1}$)"
+            ),
+            "first_n_selected_reward_distance_traveled_mm": (
+                f"Distance traveled from 1st to {n_target}th "
+                f"{reward_phrase_singular} (mm)"
+            ),
+            "selected_reward_rate_to_nth_per_m": (
+                f"Rewards per distance during first {n_target} {reward_phrase} "
+                r"($m^{-1}$)"
             ),
         }
         return labels.get(str(name), str(name).replace("_", " "))
@@ -564,6 +669,8 @@ class FirstNRewardDiagnosticsPlotter:
             time_to_nth_selected_s = np.nan
             selected_span_s = np.nan
             selected_reward_rate_to_nth_per_min = np.nan
+            selected_distance_mm = np.nan
+            selected_reward_rate_to_nth_per_m = np.nan
 
             if n_actual > 0:
                 time_to_first_s = cumulative_window_seconds_for_frame(
@@ -594,6 +701,18 @@ class FirstNRewardDiagnosticsPlotter:
                     self._reward_rate_between_first_and_nth_per_min(
                         n_target,
                         selected_span_s,
+                    )
+                )
+                selected_distance_mm = self._distance_traveled_mm(
+                    va,
+                    f=0,
+                    start_frame=int(selected_rewards[0]),
+                    end_frame=int(selected_rewards[n_target - 1]),
+                )
+                selected_reward_rate_to_nth_per_m = (
+                    self._reward_rate_between_first_and_nth_per_meter(
+                        n_target,
+                        selected_distance_mm,
                     )
                 )
 
@@ -692,6 +811,8 @@ class FirstNRewardDiagnosticsPlotter:
                     time_to_nth_selected_reward_s=time_to_nth_selected_s,
                     first_n_selected_reward_span_s=selected_span_s,
                     selected_reward_rate_to_nth_per_min=selected_reward_rate_to_nth_per_min,
+                    first_n_selected_reward_distance_traveled_mm=selected_distance_mm,
+                    selected_reward_rate_to_nth_per_m=selected_reward_rate_to_nth_per_m,
                 )
             )
 
@@ -911,6 +1032,8 @@ class FirstNRewardDiagnosticsPlotter:
     def _title_for_metrics(x_key: str, y_key: str) -> str:
         if x_key == "selected_reward_rate_to_nth_per_min" and y_key == "sli":
             return "Initial reward rate and SLI"
+        if x_key == "selected_reward_rate_to_nth_per_m" and y_key == "sli":
+            return "Initial rewards per distance and SLI"
         return ""
 
     def _write_plot(self, rows: list[FirstNRewardDiagnosticRow]) -> None:

@@ -312,6 +312,7 @@ _CORRELATION_METRIC_FAMILIES = {
     "cutoff_time_since_selected_window_start_s": "first_n_reward_timing",
     "cutoff_time_since_cutoff_training_start_s": "first_n_reward_timing",
     "selected_reward_rate_to_nth_per_min": "first_n_reward_rate",
+    "selected_reward_rate_to_nth_per_m": "first_n_reward_rate",
     "actual_reward_count_by_cutoff": "total_rewards",
     "control_reward_count_by_cutoff": "total_rewards",
 }

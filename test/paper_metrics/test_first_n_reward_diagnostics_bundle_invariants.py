@@ -48,6 +48,8 @@ def _row(**overrides):
         "time_to_nth_selected_reward_s": 95.0,
         "first_n_selected_reward_span_s": 90.0,
         "selected_reward_rate_to_nth_per_min": 6.0,
+        "first_n_selected_reward_distance_traveled_mm": 900.0,
+        "selected_reward_rate_to_nth_per_m": 10.0,
     }
     row.update(overrides)
     return row
@@ -66,6 +68,7 @@ def test_validate_first_n_reward_diagnostics_bundle_accepts_valid_rows(tmp_path)
     np.savez(path, **bundle)
     loaded = load_first_n_reward_diagnostics_npz(str(path))
     assert loaded['selected_reward_rate_to_nth_per_min'][0] == 6.0
+    assert loaded['selected_reward_rate_to_nth_per_m'][0] == 10.0
 
 def test_validate_first_n_reward_diagnostics_bundle_rejects_bad_rate():
     bundle = _bundle_from_rows(
@@ -73,6 +76,14 @@ def test_validate_first_n_reward_diagnostics_bundle_rejects_bad_rate():
     )
 
     with pytest.raises(ValueError, match="inconsistent selected reward rate"):
+        validate_first_n_reward_diagnostics_bundle(bundle)
+
+def test_validate_first_n_reward_diagnostics_bundle_rejects_bad_distance_rate():
+    bundle = _bundle_from_rows(
+        [_row(selected_reward_rate_to_nth_per_m=10.0 / 0.9)]
+    )
+
+    with pytest.raises(ValueError, match="inconsistent selected reward distance rate"):
         validate_first_n_reward_diagnostics_bundle(bundle)
 
 def test_validate_first_n_reward_diagnostics_bundle_rejects_shape_mismatch():
