@@ -257,6 +257,8 @@ FIRST_N_REWARD_DIAGNOSTICS_REGRESSION_KEYS = (
     "time_to_nth_selected_reward_s",
     "first_n_selected_reward_span_s",
     "selected_reward_rate_to_nth_per_min",
+    "first_n_selected_reward_distance_traveled_mm",
+    "selected_reward_rate_to_nth_per_m",
 )
 
 REGRESSION_KEY_PRESETS = {
