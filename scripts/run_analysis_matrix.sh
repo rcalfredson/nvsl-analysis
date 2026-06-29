@@ -3,6 +3,7 @@ set -euo pipefail
 
 DATE_TAG="2026-06-22"
 PRINT_ONLY="${PRINT_ONLY:-0}"
+RUN_FLAT_HTL_TURNBACK_PAIRS="${RUN_FLAT_HTL_TURNBACK_PAIRS:-0}"
 RETURN_LEG_TORTUOSITY_EXAMPLES="${RETURN_LEG_TORTUOSITY_EXAMPLES:-0}"
 RETURN_LEG_TORTUOSITY_EXAMPLES_PER_BIN="${RETURN_LEG_TORTUOSITY_EXAMPLES_PER_BIN:-6}"
 RETURN_LEG_TORTUOSITY_EXAMPLES_MAX_PER_FLY="${RETURN_LEG_TORTUOSITY_EXAMPLES_MAX_PER_FLY:-0}"
@@ -24,13 +25,40 @@ GROUP_VARS=(INTACT_CTRL INTACT_PFND AR_CTRL)
 GROUP_SLUGS=(intact_ctrlKir intact_pfnKir ar_ctrlKir)
 GROUP_LABELS=("Ctrl>Kir FLC" "PFNd>Kir FLC" "AR Ctrl>Kir FLC")
 
-for var_name in "${GROUP_VARS[@]}"; do
-  if [[ -z "${!var_name:-}" ]]; then
-    echo "Missing required dataset variable: $var_name" >&2
-    echo "Define it with the corresponding video list before running this script." >&2
-    exit 1
-  fi
-done
+FLAT_HTL_GROUP_VARS=(
+  FLAT_HTL_CTRL
+  FLAT_HTL_HIND_TARSI_GENITALIA_GLUED
+  FLAT_HTL_ANTENNAE_REMOVED
+)
+FLAT_HTL_GROUP_SLUGS=(
+  ctrl
+  hindTarsiRemoved_genitaliaGlued
+  antennaeRemoved
+)
+FLAT_HTL_GROUP_LABELS=(
+  "Control flat HTL"
+  "Hind tarsi removed + genitalia-glued flat HTL"
+  "Antennae-removed flat HTL"
+)
+
+require_dataset_vars() {
+  for var_name in "$@"; do
+    if [[ -z "${!var_name:-}" ]]; then
+      echo "Missing required dataset variable: $var_name" >&2
+      echo "Define it with the corresponding video list before running this script." >&2
+      exit 1
+    fi
+  done
+}
+
+if [[ "$RUN_FLAT_HTL_TURNBACK_PAIRS" == "1" ]]; then
+  require_dataset_vars "${FLAT_HTL_GROUP_VARS[@]}"
+elif [[ "$RUN_FLAT_HTL_TURNBACK_PAIRS" != "0" ]]; then
+  echo "RUN_FLAT_HTL_TURNBACK_PAIRS must be 0 or 1." >&2
+  exit 1
+else
+  require_dataset_vars "${GROUP_VARS[@]}"
+fi
 
 run_cmd() {
   printf '\n'
@@ -46,6 +74,114 @@ join_by_comma() {
   local IFS=,
   echo "$*"
 }
+
+run_flat_htl_turnback_pairs() {
+  local pairs_label="$1"
+  local pairs_arg="$2"
+  local filter_tag="$3"
+  local wall_tag="$4"
+
+  local filter_flags=()
+  case "$filter_tag" in
+    noFilt)
+      filter_flags=(--min-turnback-episodes 0)
+      ;;
+    minEpFilt)
+      filter_flags=()
+      ;;
+    minEpSb5Filt)
+      filter_flags=(--require-exp-target-sync-bucket)
+      ;;
+    minEpPiFilt)
+      filter_flags=(--require-exp-pi-threshold-bucket)
+      ;;
+    *)
+      echo "Unknown flat-HTL turnback filter tag: $filter_tag" >&2
+      exit 1
+      ;;
+  esac
+
+  local wall_flags=()
+  case "$wall_tag" in
+    wall)
+      wall_flags=()
+      ;;
+    noWall)
+      wall_flags=(--turnback-excursion-bin-exclude-wall-contact)
+      ;;
+    *)
+      echo "Unknown wall tag: $wall_tag" >&2
+      exit 1
+      ;;
+  esac
+
+  local bundles=()
+
+  for i in "${!FLAT_HTL_GROUP_VARS[@]}"; do
+    local var_name="${FLAT_HTL_GROUP_VARS[$i]}"
+    local dataset="${!var_name}"
+    local group_slug="${FLAT_HTL_GROUP_SLUGS[$i]}"
+    local group_label="${FLAT_HTL_GROUP_LABELS[$i]}"
+    local bundle="exports/turnbackPairs_${filter_tag}_${wall_tag}_${group_slug}_flatHtl_T2_p${pairs_label}_${DATE_TAG}.npz"
+
+    bundles+=("$bundle")
+
+    run_cmd \
+      python analyze.py \
+      -v "$dataset" \
+      -f 0-9 \
+      --rmCC 5 \
+      --export-turnback-excursion-bin-sli-bundle "$bundle" \
+      --turnback-excursion-bin-radius-pairs-mm "$pairs_arg" \
+      --turnback-excursion-bin-trainings 2 \
+      --turnback-excursion-bin-skip-first-sync-buckets 1 \
+      --best-worst-trn 2 \
+      --sli-use-training-mean \
+      --sli-select-skip-first-sync-buckets 1 \
+      --sli-select-keep-first-sync-buckets 4 \
+      --export-group-label "$group_label" \
+      "${filter_flags[@]}" \
+      "${wall_flags[@]}"
+
+    run_cmd \
+      python -m scripts.plot_turnback_excursion_bin_sli_bundles \
+      --bundles "$bundle" \
+      --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_${group_slug}_flatHtl_T2_p${pairs_label}_top20Bottom50_sliT2Sb2-5_${DATE_TAG}.png" \
+      --sli-extremes both \
+      --top-sli-fraction 0.2 \
+      --bottom-sli-fraction 0.5 \
+      --standalone-extreme-labels \
+      --stats
+  done
+
+  local bundle_csv
+  bundle_csv="$(join_by_comma "${bundles[@]}")"
+
+  run_cmd \
+    python -m scripts.plot_turnback_excursion_bin_sli_bundles \
+    --bundles "$bundle_csv" \
+    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatHtl_T2_p${pairs_label}_top20_sliT2Sb2-5_${DATE_TAG}.png" \
+    --sli-extremes top \
+    --top-sli-fraction 0.2 \
+    --stats
+
+  run_cmd \
+    python -m scripts.plot_turnback_excursion_bin_sli_bundles \
+    --bundles "$bundle_csv" \
+    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatHtl_T2_p${pairs_label}_${DATE_TAG}.png" \
+    --stats
+}
+
+if [[ "$RUN_FLAT_HTL_TURNBACK_PAIRS" == "1" ]]; then
+  for wall_tag in wall noWall; do
+    run_flat_htl_turnback_pairs \
+      "2-3_3-4_4-5" \
+      "2:3,3:4,4:5" \
+      minEpSb5Filt \
+      "$wall_tag"
+  done
+  exit 0
+fi
 
 turnback_home_vector_alignment_example_flags() {
   local -n out_flags="$1"
