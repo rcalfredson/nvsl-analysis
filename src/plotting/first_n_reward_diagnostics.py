@@ -462,6 +462,8 @@ class FirstNRewardDiagnosticsPlotter:
             window_txt = f"{training_txt} SB{start_sb}"
         else:
             window_txt = f"{training_txt} SB{start_sb}–{end_sb}"
+        if end_sb == start_sb:
+            return f"SLI for {window_txt}"
         if bool(getattr(self.cfg, "sli_average_over_buckets", False)):
             return f"Mean SLI over {window_txt}"
         if end_sb is None and start_sb == 1:
@@ -524,16 +526,14 @@ class FirstNRewardDiagnosticsPlotter:
                 f"Time from 1st to {n_target}th {reward_phrase_singular} (s)"
             ),
             "selected_reward_rate_to_nth_per_min": (
-                f"Reward rate during first {n_target} {reward_phrase} "
-                r"($min^{-1}$)"
+                f"reward rate during first {n_target} {reward_phrase}"
             ),
             "first_n_selected_reward_distance_traveled_mm": (
                 f"Distance traveled from 1st to {n_target}th "
                 f"{reward_phrase_singular} (mm)"
             ),
             "selected_reward_rate_to_nth_per_m": (
-                f"Rewards per distance during first {n_target} {reward_phrase} "
-                r"($m^{-1}$)"
+                f"reward per distance traveled first {n_target} {reward_phrase}"
             ),
         }
         return labels.get(str(name), str(name).replace("_", " "))

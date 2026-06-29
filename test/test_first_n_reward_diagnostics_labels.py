@@ -24,7 +24,7 @@ def test_sli_axis_label_uses_sli_selection_window_for_mean_over_first_bucket():
         sli_keep_first_sync_buckets=1,
     )
 
-    assert _plotter(cfg)._sli_axis_label() == "Mean SLI over T1 SB1"
+    assert _plotter(cfg)._sli_axis_label() == "SLI for T1 SB1"
 
 
 def test_sli_axis_label_uses_sli_training_context_not_reward_window():
@@ -79,6 +79,28 @@ def test_cross_fly_sli_context_axis_label_uses_total_bucket_count_without_keep()
 
     assert ctx.axis_label() == "Mean SLI over T2 SB2–5"
     assert ctx.label_short() == "SLI (T2, mean, SB2-SB5)"
+
+
+def test_first_n_reward_diagnostics_uses_manuscript_metric_axis_labels():
+    cfg = FirstNRewardDiagnosticsConfig(
+        csv_out="",
+        first_n_rewards=10,
+        sli_training_idx=0,
+        sli_average_over_buckets=True,
+        sli_skip_first_sync_buckets=0,
+        sli_keep_first_sync_buckets=1,
+    )
+    plotter = _plotter(cfg)
+
+    assert plotter._metric_label("sli") == "SLI for T1 SB1"
+    assert (
+        plotter._metric_label("selected_reward_rate_to_nth_per_min")
+        == "reward rate during first 10 rewards"
+    )
+    assert (
+        plotter._metric_label("selected_reward_rate_to_nth_per_m")
+        == "reward per distance traveled first 10 rewards"
+    )
 
 
 def test_fast_strong_correlation_annotation_places_n_in_label():
