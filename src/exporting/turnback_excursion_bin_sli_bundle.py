@@ -40,6 +40,13 @@ def _dbg_if(debug: bool, msg: str):
         print(msg)
 
 
+def _video_analysis_fly_id(va, default: int = -1) -> int:
+    fly_id = getattr(va, "f", None)
+    if fly_id is None:
+        return int(default)
+    return int(fly_id)
+
+
 def _selected_training_indices(vas, opts) -> list[int]:
     vas_ok = [va for va in vas if not getattr(va, "_skipped", False)]
     if not vas_ok:
@@ -725,6 +732,7 @@ def _write_turnback_pair_debug_episodes_csv(
 
         for vi, va in enumerate(vas):
             vid = getattr(va, "fn", f"va_{vi}")
+            va_fly_idx = getattr(va, "f", None)
             windows = _selected_windows_for_va(
                 va,
                 selected_trainings,
@@ -796,10 +804,15 @@ def _write_turnback_pair_debug_episodes_csv(
                             if not matched_windows:
                                 continue
                             for win in matched_windows:
+                                display_fly_idx = (
+                                    fly_idx
+                                    if va_fly_idx is None
+                                    else _video_analysis_fly_id(va)
+                                )
                                 row = {
                                     "video_index": int(vi),
                                     "video_id": vid,
-                                    "fly_idx": int(fly_idx),
+                                    "fly_idx": int(display_fly_idx),
                                     "fly_role": fly_role,
                                     "training_idx": int(t_idx),
                                     "training_name": trn.name(),
@@ -954,7 +967,7 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         training_names = np.array([], dtype=object)
 
     video_fns = np.array([getattr(va, "fn", "") for va in vas_ok], dtype=object)
-    fly_ids = np.array([int(getattr(va, "f", -1)) for va in vas_ok], dtype=int)
+    fly_ids = np.array([_video_analysis_fly_id(va) for va in vas_ok], dtype=int)
     video_ids = np.array(
         [f"{fn}::f{f}" for fn, f in zip(video_fns, fly_ids)],
         dtype=object,

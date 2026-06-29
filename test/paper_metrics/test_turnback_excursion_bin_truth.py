@@ -1,3 +1,4 @@
+import csv
 from types import SimpleNamespace
 
 import numpy as np
@@ -14,6 +15,7 @@ from src.exporting.turnback_excursion_bin_sli_bundle import (
     _pair_deltas_mm,
     _selected_training_indices,
     _selected_windows_for_va,
+    _write_turnback_pair_debug_episodes_csv,
 )
 
 
@@ -67,10 +69,12 @@ def _va(
     sync_bucket_ranges=None,
     noyc=False,
     skipped=False,
-    fn="fake-video"
+    fn="fake-video",
+    f=None,
 ):
     return SimpleNamespace(
         fn=fn,
+        f=f,
         trns=list(trns if trns is not None else [_Training()]),
         trx=list(trx if trx is not None else []),
         sync_bucket_ranges=sync_bucket_ranges,
@@ -509,3 +513,36 @@ def test_turnback_pair_export_applies_exp_target_sync_bucket_filter(tmp_path, mo
     loaded = load_sli_bundle(str(out))
     assert np.isnan(loaded["turnback_excursion_bin_ratio_exp"]).all()
     np.testing.assert_array_equal(loaded["exp_target_sync_bucket_filter_eligible"], [False])
+
+
+def test_turnback_pair_debug_csv_uses_video_analysis_fly_index(tmp_path):
+    exp = _Trajectory([_episode(10, 0.0, True)])
+    ctrl = _Trajectory([_episode(20, 0.0, False)])
+    va = _va(
+        trx=[exp, ctrl],
+        sync_bucket_ranges=[[(0, 50)]],
+        noyc=False,
+        f=7,
+    )
+    out_csv = tmp_path / "turnback_pair_debug.csv"
+
+    n_rows = _write_turnback_pair_debug_episodes_csv(
+        [va],
+        out_csv=str(out_csv),
+        inner_deltas_mm=np.asarray([2.0], dtype=float),
+        outer_deltas_mm=np.asarray([3.0], dtype=float),
+        legacy_pair_deltas=False,
+        border_width_mm=0.1,
+        radius_offset_px=0.0,
+        selected_trainings=[0],
+        skip_first=0,
+        keep_first=0,
+        last_sync_buckets=0,
+        exclude_wall_contact=False,
+    )
+
+    assert n_rows == 2
+    with open(out_csv, newline="") as fh:
+        rows = list(csv.DictReader(fh))
+    assert [row["fly_role"] for row in rows] == ["exp", "ctrl"]
+    assert [row["fly_idx"] for row in rows] == ["7", "7"]
