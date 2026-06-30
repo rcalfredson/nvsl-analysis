@@ -164,6 +164,42 @@ def _episode_passes_home_vector_alignment_filter(
     return passes, float(alignment)
 
 
+def _episode_walking_fraction(trj, ep: dict) -> float:
+    walking = getattr(trj, "walking", None)
+    if walking is None:
+        return float("nan")
+
+    start = int(ep.get("start", 0))
+    stop = int(ep.get("stop", start))
+    n = len(walking)
+    start = max(0, min(start, n))
+    stop = max(0, min(stop, n))
+    if stop <= start:
+        return float("nan")
+
+    segment = np.asarray(walking[start:stop], dtype=float)
+    finite = np.isfinite(segment)
+    if not np.any(finite):
+        return float("nan")
+    return float(np.mean(segment[finite] > 0))
+
+
+def _episode_passes_min_walking_fraction(
+    trj,
+    ep: dict,
+    *,
+    min_walking_fraction: float,
+) -> tuple[bool, float]:
+    threshold = float(min_walking_fraction)
+    if threshold <= 0.0:
+        return True, float("nan")
+
+    walking_fraction = _episode_walking_fraction(trj, ep)
+    if not np.isfinite(walking_fraction):
+        return True, float("nan")
+    return bool(walking_fraction >= threshold), float(walking_fraction)
+
+
 def _selected_training_indices(vas, opts) -> list[int]:
     vas_ok = [va for va in vas if not getattr(va, "_skipped", False)]
     if not vas_ok:
@@ -336,6 +372,17 @@ def _resolve_home_vector_alignment_filter(opts) -> dict:
             None if raw_max_interp < 0 else max(0, raw_max_interp)
         ),
     }
+
+
+def _resolve_min_walking_fraction(opts) -> float:
+    threshold = float(
+        getattr(opts, "turnback_excursion_bin_min_walking_fraction", 0.75) or 0.0
+    )
+    if threshold < 0.0 or threshold > 1.0:
+        raise ValueError(
+            "--turnback-excursion-bin-min-walking-fraction must be between 0 and 1."
+        )
+    return threshold
 
 
 def _selected_windows_for_va(
@@ -524,6 +571,7 @@ def _compute_turnback_curves(
     debug: bool,
     min_episodes: int = 0,
     exclude_wall_contact: bool = False,
+    min_walking_fraction: float = 0.75,
 ):
     bin_edges_mm, _open_ended_upper_bin = _resolve_open_ended_upper_edge(
         vas,
@@ -614,6 +662,15 @@ def _compute_turnback_curves(
                         continue
                     event_t = int(ep["stop"]) - 1
                     if not _frame_in_windows(event_t, windows_by_training[t_idx]):
+                        continue
+                    passes_walking, _walking_fraction = (
+                        _episode_passes_min_walking_fraction(
+                            trj,
+                            ep,
+                            min_walking_fraction=min_walking_fraction,
+                        )
+                    )
+                    if not passes_walking:
                         continue
                     radial_mm = float(
                         ep.get("max_outer_delta_mm" if legacy_bin_edges else "max_outer_radius_mm", np.nan)
@@ -714,6 +771,7 @@ def _compute_pair_curves(
     home_vector_alignment_heading_estimator: str = "mean",
     home_vector_alignment_home_vector_anchor: str = "intersection",
     home_vector_alignment_max_interpolated_heading_frames: int | None = 1,
+    min_walking_fraction: float = 0.75,
 ):
     n_videos = len(vas)
     n_pairs = int(inner_deltas_mm.size)
@@ -798,6 +856,15 @@ def _compute_pair_curves(
                             continue
                         event_t = int(ep["stop"]) - 1
                         if not _frame_in_windows(event_t, windows_by_training[t_idx]):
+                            continue
+                        passes_walking, _walking_fraction = (
+                            _episode_passes_min_walking_fraction(
+                                trj,
+                                ep,
+                                min_walking_fraction=min_walking_fraction,
+                            )
+                        )
+                        if not passes_walking:
                             continue
                         total += 1
                         if require_home_vector_alignment:
@@ -887,6 +954,9 @@ _DEBUG_EPISODE_FIELDS = [
     "event_frame",
     "turns_back",
     "end_reason",
+    "walking_fraction",
+    "walking_fraction_pass",
+    "min_walking_fraction",
     "home_vector_alignment_frame",
     "theta_deg",
     "orientation_x",
@@ -942,6 +1012,7 @@ def _write_turnback_pair_debug_episodes_csv(
     home_vector_alignment_heading_estimator: str = "mean",
     home_vector_alignment_home_vector_anchor: str = "intersection",
     home_vector_alignment_max_interpolated_heading_frames: int | None = 1,
+    min_walking_fraction: float = 0.75,
 ) -> int:
     os.makedirs(os.path.dirname(out_csv) or ".", exist_ok=True)
     n_rows = 0
@@ -1023,6 +1094,13 @@ def _write_turnback_pair_debug_episodes_csv(
                             if not matched_windows:
                                 continue
                             for win in matched_windows:
+                                walking_pass, walking_fraction = (
+                                    _episode_passes_min_walking_fraction(
+                                        trj,
+                                        ep,
+                                        min_walking_fraction=min_walking_fraction,
+                                    )
+                                )
                                 alignment_diag = (
                                     _theta_home_vector_alignment_diagnostics(
                                         trj, trn, ep
@@ -1060,6 +1138,11 @@ def _write_turnback_pair_debug_episodes_csv(
                                     "window_start": int(win["start"]),
                                     "window_stop": int(win["stop"]),
                                     "episode_idx": int(ep_idx),
+                                    "walking_fraction": walking_fraction,
+                                    "walking_fraction_pass": bool(walking_pass),
+                                    "min_walking_fraction": float(
+                                        min_walking_fraction
+                                    ),
                                     "home_vector_alignment_pass": alignment_pass,
                                 }
                                 row.update(alignment_diag)
@@ -1111,6 +1194,7 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
             "--turnback-excursion-bin-require-home-vector-alignment is currently "
             "supported only with --turnback-excursion-bin-radius-pairs-mm."
         )
+    min_walking_fraction = _resolve_min_walking_fraction(opts)
     min_episodes = min_episode_count_for_type(opts, EPISODE_TYPE_INNER_EXIT_REENTRY)
 
     if pair_deltas_mm is None:
@@ -1152,6 +1236,7 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
             debug=debug,
             min_episodes=min_episodes,
             exclude_wall_contact=exclude_wall_contact,
+            min_walking_fraction=min_walking_fraction,
         )
         pair_inner_deltas_mm = None
         pair_outer_deltas_mm = None
@@ -1195,6 +1280,7 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
             home_vector_alignment_max_interpolated_heading_frames=(
                 home_vector_filter["max_interpolated_heading_frames"]
             ),
+            min_walking_fraction=min_walking_fraction,
         )
 
     n_videos = len(vas_ok)
@@ -1335,6 +1421,9 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         turnback_excursion_bin_exclude_wall_contact=np.array(
             exclude_wall_contact, dtype=bool
         ),
+        turnback_excursion_bin_min_walking_fraction=np.array(
+            float(min_walking_fraction), dtype=float
+        ),
         turnback_excursion_bin_require_home_vector_alignment=np.array(
             bool(home_vector_filter["enabled"]), dtype=bool
         ),
@@ -1417,6 +1506,7 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
                 home_vector_alignment_max_interpolated_heading_frames=(
                     home_vector_filter["max_interpolated_heading_frames"]
                 ),
+                min_walking_fraction=min_walking_fraction,
             )
             print(
                 "[export] Wrote turnback-excursion-bin debug episodes CSV: "

@@ -6434,6 +6434,16 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--turnback-excursion-bin-min-walking-fraction",
+    type=float,
+    default=0.75,
+    help=(
+        "Minimum fraction of episode frames where Trajectory.walking is true "
+        "for a turnback-excursion-bin episode to be included. Use 0 to disable "
+        "this filter. Default: %(default)s."
+    ),
+)
+g.add_argument(
     "--turnback-excursion-bin-require-home-vector-alignment",
     action="store_true",
     help=(

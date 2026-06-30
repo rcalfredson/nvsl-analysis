@@ -34,7 +34,17 @@ class _Training:
 
 
 class _Trajectory:
-    def __init__(self, episodes, *, bad=False, x=None, y=None, theta=None, f=0):
+    def __init__(
+        self,
+        episodes,
+        *,
+        bad=False,
+        x=None,
+        y=None,
+        theta=None,
+        walking=None,
+        f=0,
+    ):
         self._episodes = list(episodes)
         self._bad = bad
         self.calls = []
@@ -42,6 +52,7 @@ class _Trajectory:
         self.x = np.asarray([] if x is None else x, dtype=float)
         self.y = np.asarray([] if y is None else y, dtype=float)
         self.theta = None if theta is None else np.asarray(theta, dtype=float)
+        self.walking = None if walking is None else np.asarray(walking, dtype=bool)
         self.f = int(f)
 
     def reward_turnback_excursion_episodes_for_training(self, **kwargs):
@@ -293,6 +304,31 @@ def test_turnback_pair_curves_can_exclude_wall_contact_episodes():
     np.testing.assert_allclose(ratio_exp, [[0.5]])
 
 
+def test_turnback_pair_curves_can_require_min_walking_fraction():
+    walking = np.zeros(40, dtype=bool)
+    walking[0:10] = True
+    walking[20:25] = [True, True, False, False, False]
+    walking[30:35] = True
+    exp = _Trajectory(
+        [
+            {"start": 0, "stop": 10, "turns_back": True},
+            {"start": 20, "stop": 25, "turns_back": True},
+            {"start": 30, "stop": 35, "turns_back": False},
+        ],
+        walking=walking,
+    )
+
+    ratio_exp, _, turn_exp, _, total_exp, _, _ = _pair_curves(
+        [_va(trx=[exp], noyc=True)],
+        pairs=((2.0, 4.0),),
+        min_walking_fraction=0.75,
+    )
+
+    np.testing.assert_allclose(turn_exp, [[1.0]])
+    np.testing.assert_array_equal(total_exp, [[2]])
+    np.testing.assert_allclose(ratio_exp, [[0.5]])
+
+
 def test_turnback_binned_average_is_not_bin_membership():
     exp = _Trajectory(
         [
@@ -533,12 +569,14 @@ def test_turnback_pair_home_vector_alignment_filter_uses_theta_orientation():
         [
             {
                 **_episode(11, 0.0, True),
+                "start": 10,
                 "event_frame": 10,
                 "reward_cx_px": 0.0,
                 "reward_cy_px": 0.0,
             },
             {
                 **_episode(21, 0.0, True),
+                "start": 20,
                 "event_frame": 20,
                 "reward_cx_px": 0.0,
                 "reward_cy_px": 0.0,
@@ -586,12 +624,14 @@ def test_turnback_pair_export_applies_home_vector_alignment_filter(
         [
             {
                 **_episode(11, 0.0, True),
+                "start": 10,
                 "event_frame": 10,
                 "reward_cx_px": 0.0,
                 "reward_cy_px": 0.0,
             },
             {
                 **_episode(21, 0.0, True),
+                "start": 20,
                 "event_frame": 20,
                 "reward_cx_px": 0.0,
                 "reward_cy_px": 0.0,
@@ -697,6 +737,8 @@ def test_turnback_pair_debug_csv_includes_theta_alignment_diagnostics(tmp_path):
     x = np.zeros(25, dtype=float)
     y = np.zeros(25, dtype=float)
     theta = np.zeros(25, dtype=float)
+    walking = np.ones(25, dtype=bool)
+    walking[20:21] = False
     x[10] = 1.0
     theta[10] = 270.0
     x[20] = 1.0
@@ -705,12 +747,14 @@ def test_turnback_pair_debug_csv_includes_theta_alignment_diagnostics(tmp_path):
         [
             {
                 **_episode(11, 0.0, True),
+                "start": 10,
                 "event_frame": 10,
                 "reward_cx_px": 0.0,
                 "reward_cy_px": 0.0,
             },
             {
                 **_episode(21, 0.0, True),
+                "start": 20,
                 "event_frame": 20,
                 "reward_cx_px": 0.0,
                 "reward_cy_px": 0.0,
@@ -719,6 +763,7 @@ def test_turnback_pair_debug_csv_includes_theta_alignment_diagnostics(tmp_path):
         x=x,
         y=y,
         theta=theta,
+        walking=walking,
     )
     va = _va(trx=[exp], sync_bucket_ranges=[[(0, 25)]], noyc=True)
     out_csv = tmp_path / "turnback_pair_debug_theta.csv"
@@ -738,6 +783,7 @@ def test_turnback_pair_debug_csv_includes_theta_alignment_diagnostics(tmp_path):
         exclude_wall_contact=False,
         require_home_vector_alignment=True,
         home_vector_alignment_threshold=0.0,
+        min_walking_fraction=0.75,
     )
 
     assert n_rows == 2
@@ -746,6 +792,11 @@ def test_turnback_pair_debug_csv_includes_theta_alignment_diagnostics(tmp_path):
 
     assert rows[0]["home_vector_alignment_pass"] == "True"
     assert rows[1]["home_vector_alignment_pass"] == "False"
+    assert rows[0]["walking_fraction_pass"] == "True"
+    assert rows[1]["walking_fraction_pass"] == "False"
+    assert float(rows[0]["walking_fraction"]) == pytest.approx(1.0)
+    assert float(rows[1]["walking_fraction"]) == pytest.approx(0.0)
+    assert float(rows[0]["min_walking_fraction"]) == pytest.approx(0.75)
     assert float(rows[0]["theta_deg"]) == pytest.approx(270.0)
     assert float(rows[1]["theta_deg"]) == pytest.approx(90.0)
     assert float(rows[0]["home_vector_alignment"]) == pytest.approx(1.0)
