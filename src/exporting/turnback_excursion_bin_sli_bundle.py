@@ -47,6 +47,123 @@ def _video_analysis_fly_id(va, default: int = -1) -> int:
     return int(fly_id)
 
 
+def _episode_home_vector_alignment_frame(ep: dict) -> int:
+    return int(ep.get("event_frame", int(ep["stop"]) - 1))
+
+
+def _theta_home_vector_alignment_diagnostics(trj, trn, ep: dict) -> dict:
+    """
+    Cosine between the fly's resolved theta orientation and the home vector.
+
+    Trajectory.theta is a 360-degree-resolved head-pointing direction in screen
+    coordinates. The corresponding unit vector convention used elsewhere in the
+    project is (sin(theta), -cos(theta)).
+    """
+    nan_diag = {
+        "home_vector_alignment_frame": _episode_home_vector_alignment_frame(ep),
+        "theta_deg": float("nan"),
+        "orientation_x": float("nan"),
+        "orientation_y": float("nan"),
+        "home_vector_x": float("nan"),
+        "home_vector_y": float("nan"),
+        "home_vector_unit_x": float("nan"),
+        "home_vector_unit_y": float("nan"),
+        "home_vector_distance_px": float("nan"),
+        "home_vector_alignment": float("nan"),
+        "home_vector_alignment_angle_deg": float("nan"),
+    }
+    theta = getattr(trj, "theta", None)
+    if theta is None:
+        return nan_diag
+
+    event_frame = _episode_home_vector_alignment_frame(ep)
+    nan_diag["home_vector_alignment_frame"] = int(event_frame)
+    if event_frame < 0 or event_frame >= len(theta):
+        return nan_diag
+
+    x = getattr(trj, "x", None)
+    y = getattr(trj, "y", None)
+    if x is None or y is None or event_frame >= len(x) or event_frame >= len(y):
+        return nan_diag
+
+    tx = float(theta[event_frame])
+    px = float(x[event_frame])
+    py = float(y[event_frame])
+    nan_diag["theta_deg"] = tx
+    if not (np.isfinite(tx) and np.isfinite(px) and np.isfinite(py)):
+        return nan_diag
+
+    cx = ep.get("reward_cx_px")
+    cy = ep.get("reward_cy_px")
+    if cx is None or cy is None:
+        cs = trn.circles(getattr(trj, "f", 0)) if trn and trn.isCircle() else []
+        if not cs:
+            return nan_diag
+        cx, cy, _r = cs[0]
+
+    cx = float(cx)
+    cy = float(cy)
+    if not (np.isfinite(cx) and np.isfinite(cy)):
+        return nan_diag
+
+    home_x = cx - px
+    home_y = cy - py
+    home_norm = float(np.hypot(home_x, home_y))
+    nan_diag["home_vector_x"] = float(home_x)
+    nan_diag["home_vector_y"] = float(home_y)
+    nan_diag["home_vector_distance_px"] = float(home_norm)
+    if home_norm <= 0.0 or not np.isfinite(home_norm):
+        return nan_diag
+
+    theta_rad = np.deg2rad(tx)
+    orient_x = float(np.sin(theta_rad))
+    orient_y = float(-np.cos(theta_rad))
+    alignment = float((orient_x * home_x + orient_y * home_y) / home_norm)
+    alignment_clipped = float(np.clip(alignment, -1.0, 1.0))
+    return {
+        "home_vector_alignment_frame": int(event_frame),
+        "theta_deg": float(tx),
+        "orientation_x": orient_x,
+        "orientation_y": orient_y,
+        "home_vector_x": float(home_x),
+        "home_vector_y": float(home_y),
+        "home_vector_unit_x": float(home_x / home_norm),
+        "home_vector_unit_y": float(home_y / home_norm),
+        "home_vector_distance_px": float(home_norm),
+        "home_vector_alignment": alignment,
+        "home_vector_alignment_angle_deg": float(
+            np.rad2deg(np.arccos(alignment_clipped))
+        ),
+    }
+
+
+def _theta_home_vector_alignment(trj, trn, ep: dict) -> float:
+    return float(
+        _theta_home_vector_alignment_diagnostics(trj, trn, ep)[
+            "home_vector_alignment"
+        ]
+    )
+
+
+def _episode_passes_home_vector_alignment_filter(
+    trj,
+    trn,
+    ep: dict,
+    *,
+    threshold: float,
+    window_radius_frames: int,
+    heading_estimator: str,
+    home_vector_anchor: str,
+    max_interpolated_heading_frames: int | None,
+) -> tuple[bool, float]:
+    if not bool(ep.get("turns_back", False)):
+        return False, float("nan")
+
+    alignment = _theta_home_vector_alignment(trj, trn, ep)
+    passes = bool(np.isfinite(alignment) and alignment >= float(threshold))
+    return passes, float(alignment)
+
+
 def _selected_training_indices(vas, opts) -> list[int]:
     vas_ok = [va for va in vas if not getattr(va, "_skipped", False)]
     if not vas_ok:
@@ -164,6 +281,61 @@ def _effective_windowing(opts) -> tuple[int, int, int]:
     )
     last_sync = int(getattr(opts, "turnback_excursion_bin_last_sync_buckets", 0) or 0)
     return max(0, int(skip_first or 0)), max(0, int(keep_first or 0)), max(0, last_sync)
+
+
+def _resolve_home_vector_alignment_filter(opts) -> dict:
+    raw_max_interp = getattr(
+        opts,
+        "turnback_excursion_bin_home_vector_alignment_max_interpolated_heading_frames",
+        1,
+    )
+    if raw_max_interp is None:
+        raw_max_interp = 1
+    raw_max_interp = int(raw_max_interp)
+
+    return {
+        "enabled": bool(
+            getattr(opts, "turnback_excursion_bin_require_home_vector_alignment", False)
+        ),
+        "threshold": float(
+            getattr(
+                opts,
+                "turnback_excursion_bin_home_vector_alignment_threshold",
+                0.0,
+            )
+            or 0.0
+        ),
+        "window_radius_frames": max(
+            0,
+            int(
+                getattr(
+                    opts,
+                    "turnback_excursion_bin_home_vector_alignment_window_radius_frames",
+                    2,
+                )
+                or 0
+            ),
+        ),
+        "heading_estimator": str(
+            getattr(
+                opts,
+                "turnback_excursion_bin_home_vector_alignment_heading_estimator",
+                "mean",
+            )
+            or "mean"
+        ),
+        "home_vector_anchor": str(
+            getattr(
+                opts,
+                "turnback_excursion_bin_home_vector_alignment_home_vector_anchor",
+                "intersection",
+            )
+            or "intersection"
+        ),
+        "max_interpolated_heading_frames": (
+            None if raw_max_interp < 0 else max(0, raw_max_interp)
+        ),
+    }
 
 
 def _selected_windows_for_va(
@@ -536,6 +708,12 @@ def _compute_pair_curves(
     debug: bool,
     min_episodes: int = 0,
     exclude_wall_contact: bool = False,
+    require_home_vector_alignment: bool = False,
+    home_vector_alignment_threshold: float = 0.0,
+    home_vector_alignment_window_radius_frames: int = 2,
+    home_vector_alignment_heading_estimator: str = "mean",
+    home_vector_alignment_home_vector_anchor: str = "intersection",
+    home_vector_alignment_max_interpolated_heading_frames: int | None = 1,
 ):
     n_videos = len(vas)
     n_pairs = int(inner_deltas_mm.size)
@@ -622,7 +800,30 @@ def _compute_pair_curves(
                         if not _frame_in_windows(event_t, windows_by_training[t_idx]):
                             continue
                         total += 1
-                        if bool(ep.get("turns_back", False)):
+                        if require_home_vector_alignment:
+                            passes_alignment, _alignment = (
+                                _episode_passes_home_vector_alignment_filter(
+                                    trj,
+                                    trn,
+                                    ep,
+                                    threshold=home_vector_alignment_threshold,
+                                    window_radius_frames=(
+                                        home_vector_alignment_window_radius_frames
+                                    ),
+                                    heading_estimator=(
+                                        home_vector_alignment_heading_estimator
+                                    ),
+                                    home_vector_anchor=(
+                                        home_vector_alignment_home_vector_anchor
+                                    ),
+                                    max_interpolated_heading_frames=(
+                                        home_vector_alignment_max_interpolated_heading_frames
+                                    ),
+                                )
+                            )
+                            if passes_alignment:
+                                turns += 1
+                        elif bool(ep.get("turns_back", False)):
                             turns += 1
 
                 min_n = max(0, int(min_episodes or 0))
@@ -686,6 +887,18 @@ _DEBUG_EPISODE_FIELDS = [
     "event_frame",
     "turns_back",
     "end_reason",
+    "home_vector_alignment_frame",
+    "theta_deg",
+    "orientation_x",
+    "orientation_y",
+    "home_vector_x",
+    "home_vector_y",
+    "home_vector_unit_x",
+    "home_vector_unit_y",
+    "home_vector_distance_px",
+    "home_vector_alignment",
+    "home_vector_alignment_angle_deg",
+    "home_vector_alignment_pass",
     "reward_cx_px",
     "reward_cy_px",
     "reward_radius_px",
@@ -723,6 +936,12 @@ def _write_turnback_pair_debug_episodes_csv(
     keep_first: int,
     last_sync_buckets: int,
     exclude_wall_contact: bool = False,
+    require_home_vector_alignment: bool = False,
+    home_vector_alignment_threshold: float = 0.0,
+    home_vector_alignment_window_radius_frames: int = 2,
+    home_vector_alignment_heading_estimator: str = "mean",
+    home_vector_alignment_home_vector_anchor: str = "intersection",
+    home_vector_alignment_max_interpolated_heading_frames: int | None = 1,
 ) -> int:
     os.makedirs(os.path.dirname(out_csv) or ".", exist_ok=True)
     n_rows = 0
@@ -804,6 +1023,22 @@ def _write_turnback_pair_debug_episodes_csv(
                             if not matched_windows:
                                 continue
                             for win in matched_windows:
+                                alignment_diag = (
+                                    _theta_home_vector_alignment_diagnostics(
+                                        trj, trn, ep
+                                    )
+                                )
+                                alignment = float(
+                                    alignment_diag["home_vector_alignment"]
+                                )
+                                alignment_pass = ""
+                                if require_home_vector_alignment:
+                                    alignment_pass = bool(
+                                        bool(ep.get("turns_back", False))
+                                        and np.isfinite(alignment)
+                                        and alignment
+                                        >= float(home_vector_alignment_threshold)
+                                    )
                                 display_fly_idx = (
                                     fly_idx
                                     if va_fly_idx is None
@@ -825,7 +1060,9 @@ def _write_turnback_pair_debug_episodes_csv(
                                     "window_start": int(win["start"]),
                                     "window_stop": int(win["stop"]),
                                     "episode_idx": int(ep_idx),
+                                    "home_vector_alignment_pass": alignment_pass,
                                 }
+                                row.update(alignment_diag)
                                 for key in _DEBUG_EPISODE_FIELDS:
                                     if key not in row and key in ep:
                                         row[key] = ep[key]
@@ -868,6 +1105,12 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
     exclude_wall_contact = bool(
         getattr(opts, "turnback_excursion_bin_exclude_wall_contact", False)
     )
+    home_vector_filter = _resolve_home_vector_alignment_filter(opts)
+    if home_vector_filter["enabled"] and pair_deltas_mm is None:
+        raise ValueError(
+            "--turnback-excursion-bin-require-home-vector-alignment is currently "
+            "supported only with --turnback-excursion-bin-radius-pairs-mm."
+        )
     min_episodes = min_episode_count_for_type(opts, EPISODE_TYPE_INNER_EXIT_REENTRY)
 
     if pair_deltas_mm is None:
@@ -938,6 +1181,20 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
             debug=debug,
             min_episodes=min_episodes,
             exclude_wall_contact=exclude_wall_contact,
+            require_home_vector_alignment=home_vector_filter["enabled"],
+            home_vector_alignment_threshold=home_vector_filter["threshold"],
+            home_vector_alignment_window_radius_frames=home_vector_filter[
+                "window_radius_frames"
+            ],
+            home_vector_alignment_heading_estimator=home_vector_filter[
+                "heading_estimator"
+            ],
+            home_vector_alignment_home_vector_anchor=home_vector_filter[
+                "home_vector_anchor"
+            ],
+            home_vector_alignment_max_interpolated_heading_frames=(
+                home_vector_filter["max_interpolated_heading_frames"]
+            ),
         )
 
     n_videos = len(vas_ok)
@@ -982,6 +1239,23 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         ],
         dtype=object,
     )
+    if pair_deltas_mm is not None:
+        if home_vector_filter["enabled"]:
+            description = (
+                "Fixed dual-circle turnback probability for independent "
+                "inner/outer radius pairs, with successful re-entries requiring "
+                "theta-derived home-vector orientation alignment"
+            )
+        else:
+            description = (
+                "Fixed dual-circle turnback probability for independent "
+                "inner/outer radius pairs"
+            )
+    else:
+        description = (
+            "Exact bin-averaged turnback probability over radial distance bins "
+            "from reward center"
+        )
 
     os.makedirs(os.path.dirname(out_fn) or ".", exist_ok=True)
     payload = dict(
@@ -1061,15 +1335,34 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
         turnback_excursion_bin_exclude_wall_contact=np.array(
             exclude_wall_contact, dtype=bool
         ),
+        turnback_excursion_bin_require_home_vector_alignment=np.array(
+            bool(home_vector_filter["enabled"]), dtype=bool
+        ),
+        turnback_excursion_bin_home_vector_alignment_threshold=np.array(
+            float(home_vector_filter["threshold"]), dtype=float
+        ),
+        turnback_excursion_bin_home_vector_alignment_window_radius_frames=np.array(
+            int(home_vector_filter["window_radius_frames"]), dtype=int
+        ),
+        turnback_excursion_bin_home_vector_alignment_heading_estimator=np.array(
+            str(home_vector_filter["heading_estimator"]), dtype=object
+        ),
+        turnback_excursion_bin_home_vector_alignment_home_vector_anchor=np.array(
+            str(home_vector_filter["home_vector_anchor"]), dtype=object
+        ),
+        turnback_excursion_bin_home_vector_alignment_max_interpolated_heading_frames=np.array(
+            -1
+            if home_vector_filter["max_interpolated_heading_frames"] is None
+            else int(home_vector_filter["max_interpolated_heading_frames"]),
+            dtype=int,
+        ),
+        turnback_excursion_bin_home_vector_alignment_convention=np.array(
+            "Trajectory.theta orientation vector dotted with event-frame vector to reward center",
+            dtype=object,
+        ),
         min_turnback_episodes=np.array(min_episodes, dtype=int),
         turnback_excursion_bin_window_summary=window_strings,
-        turnback_excursion_bin_description=np.asarray(
-            (
-                "Fixed dual-circle turnback probability for independent inner/outer radius pairs"
-                if pair_deltas_mm is not None
-                else "Exact bin-averaged turnback probability over radial distance bins from reward center"
-            )
-        ),
+        turnback_excursion_bin_description=np.asarray(description),
         bucket_len_min=np.array(np.nan, dtype=float),
     )
     if pair_deltas_mm is not None:
@@ -1110,6 +1403,20 @@ def export_turnback_excursion_bin_sli_bundle(vas, opts, gls, out_fn):
                 keep_first=keep_first,
                 last_sync_buckets=last_sync_buckets,
                 exclude_wall_contact=exclude_wall_contact,
+                require_home_vector_alignment=home_vector_filter["enabled"],
+                home_vector_alignment_threshold=home_vector_filter["threshold"],
+                home_vector_alignment_window_radius_frames=home_vector_filter[
+                    "window_radius_frames"
+                ],
+                home_vector_alignment_heading_estimator=home_vector_filter[
+                    "heading_estimator"
+                ],
+                home_vector_alignment_home_vector_anchor=home_vector_filter[
+                    "home_vector_anchor"
+                ],
+                home_vector_alignment_max_interpolated_heading_frames=(
+                    home_vector_filter["max_interpolated_heading_frames"]
+                ),
             )
             print(
                 "[export] Wrote turnback-excursion-bin debug episodes CSV: "

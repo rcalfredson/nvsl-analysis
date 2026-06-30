@@ -34,11 +34,15 @@ class _Training:
 
 
 class _Trajectory:
-    def __init__(self, episodes, *, bad=False):
+    def __init__(self, episodes, *, bad=False, x=None, y=None, theta=None, f=0):
         self._episodes = list(episodes)
         self._bad = bad
         self.calls = []
         self.boundary_event_stats = {}
+        self.x = np.asarray([] if x is None else x, dtype=float)
+        self.y = np.asarray([] if y is None else y, dtype=float)
+        self.theta = None if theta is None else np.asarray(theta, dtype=float)
+        self.f = int(f)
 
     def reward_turnback_excursion_episodes_for_training(self, **kwargs):
         self.calls.append(kwargs)
@@ -515,6 +519,147 @@ def test_turnback_pair_export_applies_exp_target_sync_bucket_filter(tmp_path, mo
     np.testing.assert_array_equal(loaded["exp_target_sync_bucket_filter_eligible"], [False])
 
 
+def test_turnback_pair_home_vector_alignment_filter_uses_theta_orientation():
+    x = np.zeros(40, dtype=float)
+    y = np.zeros(40, dtype=float)
+    theta = np.zeros(40, dtype=float)
+    x[10] = 1.0
+    y[10] = 0.0
+    theta[10] = 270.0
+    x[20] = 1.0
+    y[20] = 0.0
+    theta[20] = 90.0
+    exp = _Trajectory(
+        [
+            {
+                **_episode(11, 0.0, True),
+                "event_frame": 10,
+                "reward_cx_px": 0.0,
+                "reward_cy_px": 0.0,
+            },
+            {
+                **_episode(21, 0.0, True),
+                "event_frame": 20,
+                "reward_cx_px": 0.0,
+                "reward_cy_px": 0.0,
+            },
+            {
+                **_episode(30, 0.0, False),
+                "event_frame": 29,
+                "reward_cx_px": 0.0,
+                "reward_cy_px": 0.0,
+            },
+        ],
+        x=x,
+        y=y,
+        theta=theta,
+    )
+    va = _va(trx=[exp], noyc=True, sync_bucket_ranges=[[(0, 50)]])
+
+    ratio_exp, _, turn_exp, _, total_exp, _, _ = _pair_curves(
+        [va],
+        pairs=((2.0, 3.0),),
+        require_home_vector_alignment=True,
+        home_vector_alignment_threshold=0.0,
+        home_vector_alignment_window_radius_frames=2,
+        home_vector_alignment_heading_estimator="mean",
+        home_vector_alignment_home_vector_anchor="intersection",
+        home_vector_alignment_max_interpolated_heading_frames=1,
+    )
+
+    np.testing.assert_allclose(ratio_exp, [[1.0 / 3.0]])
+    np.testing.assert_array_equal(turn_exp, [[1.0]])
+    np.testing.assert_array_equal(total_exp, [[3]])
+
+
+def test_turnback_pair_export_applies_home_vector_alignment_filter(
+    tmp_path, monkeypatch
+):
+    x = np.zeros(30, dtype=float)
+    y = np.zeros(30, dtype=float)
+    theta = np.zeros(30, dtype=float)
+    x[10] = 1.0
+    theta[10] = 270.0
+    x[20] = 1.0
+    theta[20] = 90.0
+    exp = _Trajectory(
+        [
+            {
+                **_episode(11, 0.0, True),
+                "event_frame": 10,
+                "reward_cx_px": 0.0,
+                "reward_cy_px": 0.0,
+            },
+            {
+                **_episode(21, 0.0, True),
+                "event_frame": 20,
+                "reward_cx_px": 0.0,
+                "reward_cy_px": 0.0,
+            },
+            {
+                **_episode(25, 0.0, False),
+                "event_frame": 24,
+                "reward_cx_px": 0.0,
+                "reward_cy_px": 0.0,
+            },
+        ],
+        x=x,
+        y=y,
+        theta=theta,
+    )
+    va = _va(trx=[exp], noyc=True, sync_bucket_ranges=[[(0, 30)]])
+    opts = SimpleNamespace(
+        export_group_label="group",
+        turnback_excursion_bin_edges_mm=None,
+        turnback_excursion_bin_radii_mm=None,
+        turnback_excursion_bin_radius_pairs_mm="2:3",
+        turnback_excursion_bin_pairs_mm=None,
+        turnback_excursion_bin_trainings="1",
+        turnback_excursion_bin_skip_first_sync_buckets=0,
+        turnback_excursion_bin_keep_first_sync_buckets=0,
+        turnback_excursion_bin_last_sync_buckets=0,
+        turnback_inner_delta_mm=2.0,
+        turnback_inner_radius_mm=None,
+        turnback_border_width_mm=0.1,
+        turnback_inner_radius_offset_px=0.0,
+        turnback_excursion_bin_debug=False,
+        best_worst_trn=1,
+        sli_use_training_mean=True,
+        sli_select_skip_first_sync_buckets=0,
+        sli_select_keep_first_sync_buckets=0,
+        min_turnback_episodes=1,
+        require_exp_target_sync_bucket=False,
+        exp_target_sync_bucket_filter_training=1,
+        exp_target_sync_bucket_filter_sync_bucket=1,
+        piTh=10,
+        turnback_excursion_bin_debug_episodes_csv=None,
+        turnback_excursion_bin_require_home_vector_alignment=True,
+        turnback_excursion_bin_home_vector_alignment_threshold=0.0,
+        turnback_excursion_bin_home_vector_alignment_window_radius_frames=2,
+        turnback_excursion_bin_home_vector_alignment_heading_estimator="mean",
+        turnback_excursion_bin_home_vector_alignment_home_vector_anchor="intersection",
+        turnback_excursion_bin_home_vector_alignment_max_interpolated_heading_frames=1,
+    )
+    monkeypatch.setattr(
+        "src.exporting.turnback_excursion_bin_sli_bundle._compute_sli_scalar_and_timeseries_from_rpid",
+        lambda _vas, _opts: (
+            np.asarray([0.1], dtype=float),
+            np.asarray([[[0.1]]], dtype=float),
+        ),
+    )
+    out = tmp_path / "turnback_pairs_theta_filter.npz"
+
+    export_turnback_excursion_bin_sli_bundle([va], opts, gls=None, out_fn=str(out))
+
+    with np.load(out, allow_pickle=True) as bundle:
+        assert bool(bundle["turnback_excursion_bin_require_home_vector_alignment"])
+        np.testing.assert_allclose(bundle["turnback_excursion_bin_turn_exp"], [[1.0]])
+        np.testing.assert_array_equal(bundle["turnback_excursion_bin_total_exp"], [[3]])
+        np.testing.assert_allclose(
+            bundle["turnback_excursion_bin_ratio_exp"], [[1.0 / 3.0]]
+        )
+
+
 def test_turnback_pair_debug_csv_uses_video_analysis_fly_index(tmp_path):
     exp = _Trajectory([_episode(10, 0.0, True)])
     ctrl = _Trajectory([_episode(20, 0.0, False)])
@@ -546,3 +691,66 @@ def test_turnback_pair_debug_csv_uses_video_analysis_fly_index(tmp_path):
         rows = list(csv.DictReader(fh))
     assert [row["fly_role"] for row in rows] == ["exp", "ctrl"]
     assert [row["fly_idx"] for row in rows] == ["7", "7"]
+
+
+def test_turnback_pair_debug_csv_includes_theta_alignment_diagnostics(tmp_path):
+    x = np.zeros(25, dtype=float)
+    y = np.zeros(25, dtype=float)
+    theta = np.zeros(25, dtype=float)
+    x[10] = 1.0
+    theta[10] = 270.0
+    x[20] = 1.0
+    theta[20] = 90.0
+    exp = _Trajectory(
+        [
+            {
+                **_episode(11, 0.0, True),
+                "event_frame": 10,
+                "reward_cx_px": 0.0,
+                "reward_cy_px": 0.0,
+            },
+            {
+                **_episode(21, 0.0, True),
+                "event_frame": 20,
+                "reward_cx_px": 0.0,
+                "reward_cy_px": 0.0,
+            },
+        ],
+        x=x,
+        y=y,
+        theta=theta,
+    )
+    va = _va(trx=[exp], sync_bucket_ranges=[[(0, 25)]], noyc=True)
+    out_csv = tmp_path / "turnback_pair_debug_theta.csv"
+
+    n_rows = _write_turnback_pair_debug_episodes_csv(
+        [va],
+        out_csv=str(out_csv),
+        inner_deltas_mm=np.asarray([2.0], dtype=float),
+        outer_deltas_mm=np.asarray([3.0], dtype=float),
+        legacy_pair_deltas=False,
+        border_width_mm=0.1,
+        radius_offset_px=0.0,
+        selected_trainings=[0],
+        skip_first=0,
+        keep_first=0,
+        last_sync_buckets=0,
+        exclude_wall_contact=False,
+        require_home_vector_alignment=True,
+        home_vector_alignment_threshold=0.0,
+    )
+
+    assert n_rows == 2
+    with open(out_csv, newline="") as fh:
+        rows = list(csv.DictReader(fh))
+
+    assert rows[0]["home_vector_alignment_pass"] == "True"
+    assert rows[1]["home_vector_alignment_pass"] == "False"
+    assert float(rows[0]["theta_deg"]) == pytest.approx(270.0)
+    assert float(rows[1]["theta_deg"]) == pytest.approx(90.0)
+    assert float(rows[0]["home_vector_alignment"]) == pytest.approx(1.0)
+    assert float(rows[1]["home_vector_alignment"]) == pytest.approx(-1.0)
+    assert float(rows[0]["home_vector_alignment_angle_deg"]) == pytest.approx(0.0)
+    assert float(rows[1]["home_vector_alignment_angle_deg"]) == pytest.approx(180.0)
+    assert float(rows[0]["orientation_x"]) == pytest.approx(-1.0)
+    assert float(rows[0]["home_vector_unit_x"]) == pytest.approx(-1.0)

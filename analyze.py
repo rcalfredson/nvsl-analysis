@@ -6434,6 +6434,73 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--turnback-excursion-bin-require-home-vector-alignment",
+    action="store_true",
+    help=(
+        "For fixed pair-mode turnback-excursion-bin exports, count a successful "
+        "inner re-entry only when the theta-derived orientation/home-vector cosine is at least "
+        "--turnback-excursion-bin-home-vector-alignment-threshold. The "
+        "denominator remains all eligible inner-exit episodes."
+    ),
+)
+g.add_argument(
+    "--turnback-excursion-bin-home-vector-alignment-threshold",
+    type=float,
+    default=0.0,
+    help=(
+        "Minimum theta-derived orientation/home-vector cosine required when "
+        "--turnback-excursion-bin-require-home-vector-alignment is enabled. "
+        "Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--turnback-excursion-bin-home-vector-alignment-window-radius-frames",
+    type=int,
+    default=2,
+    help=(
+        "Deprecated compatibility option; the turnback-excursion-bin "
+        "home-vector alignment filter now uses Trajectory.theta at the episode "
+        "event frame. Default: "
+        "%(default)s."
+    ),
+)
+g.add_argument(
+    "--turnback-excursion-bin-home-vector-alignment-heading-estimator",
+    choices=[
+        "mean",
+        "adaptive_mean_one_point",
+        "one_point",
+        "reentry_mean",
+        "endpoint",
+    ],
+    default="mean",
+    help=(
+        "Deprecated compatibility option; the turnback-excursion-bin "
+        "home-vector alignment filter now uses Trajectory.theta. Default: "
+        "%(default)s."
+    ),
+)
+g.add_argument(
+    "--turnback-excursion-bin-home-vector-alignment-home-vector-anchor",
+    choices=["intersection", "reentry"],
+    default="intersection",
+    help=(
+        "Deprecated compatibility option; the turnback-excursion-bin "
+        "home-vector alignment filter anchors the home vector at the episode "
+        "event frame. Default: %(default)s."
+    ),
+)
+g.add_argument(
+    "--turnback-excursion-bin-home-vector-alignment-max-interpolated-heading-frames",
+    type=int,
+    default=1,
+    help=(
+        "Deprecated compatibility option; the turnback-excursion-bin "
+        "home-vector alignment filter now uses Trajectory.theta. Use -1 for no "
+        "limit. Default: %(default)s."
+    ),
+)
+g.add_argument(
     "--return-prob-excursion-bin-debug",
     action="store_true",
     help=(

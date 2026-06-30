@@ -233,7 +233,14 @@ class VideoAnalysis:
         needs_tp = (
             opts.contact_geometry == "horizontal" and opts.turn_prob_by_dist
         ) or (opts.contact_geometry == "circular" and opts.outside_circle_radii)
-        if needs_tp or getattr(opts, "behavior_state_analysis", False):
+        needs_turnback_theta_alignment = bool(
+            getattr(opts, "turnback_excursion_bin_require_home_vector_alignment", False)
+        )
+        if (
+            needs_tp
+            or getattr(opts, "behavior_state_analysis", False)
+            or needs_turnback_theta_alignment
+        ):
             opts.chooseOrientations = True
 
         if (

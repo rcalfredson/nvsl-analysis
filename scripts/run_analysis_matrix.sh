@@ -4,6 +4,8 @@ set -euo pipefail
 DATE_TAG="2026-06-22"
 PRINT_ONLY="${PRINT_ONLY:-0}"
 RUN_FLAT_HTL_TURNBACK_PAIRS="${RUN_FLAT_HTL_TURNBACK_PAIRS:-0}"
+RUN_FLAT_HTL_TURNBACK_HOME_VECTOR_VARIANT="${RUN_FLAT_HTL_TURNBACK_HOME_VECTOR_VARIANT:-0}"
+FLAT_HTL_TURNBACK_HOME_VECTOR_ALIGNMENT_THRESHOLD="${FLAT_HTL_TURNBACK_HOME_VECTOR_ALIGNMENT_THRESHOLD:-0}"
 RETURN_LEG_TORTUOSITY_EXAMPLES="${RETURN_LEG_TORTUOSITY_EXAMPLES:-0}"
 RETURN_LEG_TORTUOSITY_EXAMPLES_PER_BIN="${RETURN_LEG_TORTUOSITY_EXAMPLES_PER_BIN:-6}"
 RETURN_LEG_TORTUOSITY_EXAMPLES_MAX_PER_FLY="${RETURN_LEG_TORTUOSITY_EXAMPLES_MAX_PER_FLY:-0}"
@@ -75,11 +77,22 @@ join_by_comma() {
   echo "$*"
 }
 
+slug_decimal() {
+  local value="$1"
+  value="${value//- /m}"
+  value="${value//-/m}"
+  value="${value//./p}"
+  echo "$value"
+}
+
 run_flat_htl_turnback_pairs() {
   local pairs_label="$1"
   local pairs_arg="$2"
   local filter_tag="$3"
   local wall_tag="$4"
+  local variant_suffix="$5"
+  shift 5
+  local extra_flags=("$@")
 
   local filter_flags=()
   case "$filter_tag" in
@@ -122,7 +135,7 @@ run_flat_htl_turnback_pairs() {
     local dataset="${!var_name}"
     local group_slug="${FLAT_HTL_GROUP_SLUGS[$i]}"
     local group_label="${FLAT_HTL_GROUP_LABELS[$i]}"
-    local bundle="exports/turnbackPairs_${filter_tag}_${wall_tag}_${group_slug}_flatHtl_T2_p${pairs_label}_${DATE_TAG}.npz"
+    local bundle="exports/turnbackPairs_${filter_tag}_${wall_tag}_${group_slug}_flatHtl_T2_p${pairs_label}${variant_suffix}_${DATE_TAG}.npz"
 
     bundles+=("$bundle")
 
@@ -141,12 +154,13 @@ run_flat_htl_turnback_pairs() {
       --sli-select-keep-first-sync-buckets 4 \
       --export-group-label "$group_label" \
       "${filter_flags[@]}" \
-      "${wall_flags[@]}"
+      "${wall_flags[@]}" \
+      "${extra_flags[@]}"
 
     run_cmd \
       python -m scripts.plot_turnback_excursion_bin_sli_bundles \
       --bundles "$bundle" \
-      --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_${group_slug}_flatHtl_T2_p${pairs_label}_top20Bottom50_sliT2Sb2-5_${DATE_TAG}.png" \
+      --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_${group_slug}_flatHtl_T2_p${pairs_label}${variant_suffix}_top20Bottom50_sliT2Sb2-5_${DATE_TAG}.png" \
       --sli-extremes both \
       --top-sli-fraction 0.2 \
       --bottom-sli-fraction 0.5 \
@@ -160,7 +174,7 @@ run_flat_htl_turnback_pairs() {
   run_cmd \
     python -m scripts.plot_turnback_excursion_bin_sli_bundles \
     --bundles "$bundle_csv" \
-    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatHtl_T2_p${pairs_label}_top20_sliT2Sb2-5_${DATE_TAG}.png" \
+    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatHtl_T2_p${pairs_label}${variant_suffix}_top20_sliT2Sb2-5_${DATE_TAG}.png" \
     --sli-extremes top \
     --top-sli-fraction 0.2 \
     --stats
@@ -168,17 +182,35 @@ run_flat_htl_turnback_pairs() {
   run_cmd \
     python -m scripts.plot_turnback_excursion_bin_sli_bundles \
     --bundles "$bundle_csv" \
-    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatHtl_T2_p${pairs_label}_${DATE_TAG}.png" \
+    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatHtl_T2_p${pairs_label}${variant_suffix}_${DATE_TAG}.png" \
     --stats
 }
 
 if [[ "$RUN_FLAT_HTL_TURNBACK_PAIRS" == "1" ]]; then
+  if [[ "$RUN_FLAT_HTL_TURNBACK_HOME_VECTOR_VARIANT" != "0" && "$RUN_FLAT_HTL_TURNBACK_HOME_VECTOR_VARIANT" != "1" ]]; then
+    echo "RUN_FLAT_HTL_TURNBACK_HOME_VECTOR_VARIANT must be 0 or 1." >&2
+    exit 1
+  fi
+
   for wall_tag in wall noWall; do
-    run_flat_htl_turnback_pairs \
-      "2-3_3-4_4-5" \
-      "2:3,3:4,4:5" \
-      minEpSb5Filt \
-      "$wall_tag"
+    # run_flat_htl_turnback_pairs \
+    #   "2-3_3-4_4-5" \
+    #   "2:3,3:4,4:5" \
+    #   minEpSb5Filt \
+    #   "$wall_tag" \
+    #   ""
+
+    if [[ "$RUN_FLAT_HTL_TURNBACK_HOME_VECTOR_VARIANT" == "1" ]]; then
+      threshold_slug="$(slug_decimal "$FLAT_HTL_TURNBACK_HOME_VECTOR_ALIGNMENT_THRESHOLD")"
+      run_flat_htl_turnback_pairs \
+        "2-3_3-4_4-5" \
+        "2:3,3:4,4:5" \
+        minEpSb5Filt \
+        "$wall_tag" \
+        "_homeVecAlignGe${threshold_slug}" \
+        --turnback-excursion-bin-require-home-vector-alignment \
+        --turnback-excursion-bin-home-vector-alignment-threshold "$FLAT_HTL_TURNBACK_HOME_VECTOR_ALIGNMENT_THRESHOLD"
+    fi
   done
   exit 0
 fi
