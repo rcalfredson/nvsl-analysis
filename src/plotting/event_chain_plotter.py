@@ -2,6 +2,7 @@ import math
 from math import sin, cos
 import os
 import random
+import re
 import textwrap
 from typing import Optional, Tuple
 
@@ -15,6 +16,20 @@ from src.analysis.behavior_states import (
 )
 from src.utils.common import writeImage
 from src.utils.constants import CONTACT_BUFFER_OFFSETS
+
+
+TURN_REJECTION_STYLE = {
+    "turn": ("red", "Sharp turn"),
+    "single_frame_local_turn": ("red", "Sharp turn"),
+    "apex_bridge_turn": ("red", "Sharp turn"),
+    "too_long": ("blue", "Duration > 0.75 s"),
+    "no_velocity_angle_pairs": ("goldenrod", "No valid velocity-angle pair"),
+    "too_little_velocity_angle_change": (
+        "orange",
+        "Sum of vel. angle deltas < 90 deg",
+    ),
+    "sidewall_contact": ("purple", "Sidewall contact"),
+}
 
 
 class EventChainPlotter:
@@ -3623,6 +3638,282 @@ class EventChainPlotter:
             labels.append(label)
             handles.append(plt.Line2D([0], [0], color=color, lw=2))
 
+    @staticmethod
+    def _format_debug_list(values, max_items=8):
+        values = list(values or [])
+        if len(values) <= max_items:
+            return ",".join(str(v) for v in values)
+        shown = ",".join(str(v) for v in values[:max_items])
+        return f"{shown},...(+{len(values) - max_items})"
+
+    @staticmethod
+    def _format_debug_pairs(pairs, max_items=8):
+        pairs = list(pairs or [])
+        formatted = [f"{a}:{b}" for a, b in pairs[:max_items]]
+        if len(pairs) > max_items:
+            formatted.append(f"...(+{len(pairs) - max_items})")
+        return ",".join(formatted)
+
+    @staticmethod
+    def _event_total_angle_deg(event_diag):
+        if not event_diag:
+            return np.nan
+        total = event_diag.get("total_vel_angle_delta", np.nan)
+        return float(180 * total / np.pi) if np.isfinite(total) else np.nan
+
+    @staticmethod
+    def _event_rejection_reason(rejection_reasons, event_idx):
+        if isinstance(rejection_reasons, dict):
+            return rejection_reasons.get(event_idx)
+        if rejection_reasons is not None and event_idx < len(rejection_reasons):
+            return rejection_reasons[event_idx]
+        return None
+
+    def _build_turn_debug_row(self, event_idx, bcr, rejection_reasons, event_diag):
+        reg = bcr[event_idx]
+        reason = self._event_rejection_reason(rejection_reasons, event_idx) or "turn"
+        duration_s = (
+            (reg.stop - reg.start) / float(self.va.fps)
+            if getattr(self.va, "fps", None)
+            else np.nan
+        )
+        return {
+            "video_analysis_f": getattr(self.va, "f", ""),
+            "video_path": getattr(self.va, "fn", ""),
+            "trajectory_f": getattr(self.trj, "f", ""),
+            "event_idx": event_idx,
+            "start_frame": reg.start,
+            "stop_frame": reg.stop,
+            "detector_interval": f"[{reg.start},{reg.stop})",
+            "plotted_segment_start_frame": max(0, reg.start - 1),
+            "plotted_segment_stop_frame": reg.stop,
+            "angle_window_start_frame": (
+                event_diag.get("angle_window_start_frame", "") if event_diag else ""
+            ),
+            "angle_window_stop_frame": (
+                event_diag.get("angle_window_stop_frame", "") if event_diag else ""
+            ),
+            "duration_frames": reg.stop - reg.start,
+            "duration_s": f"{duration_s:.3f}" if np.isfinite(duration_s) else "",
+            "reason": reason,
+            "total_vel_angle_delta_deg": (
+                f"{self._event_total_angle_deg(event_diag):.2f}"
+                if event_diag
+                and np.isfinite(self._event_total_angle_deg(event_diag))
+                else ""
+            ),
+            "low_speed_frames": self._format_debug_list(
+                event_diag.get("low_speed_frames", []) if event_diag else []
+            ),
+            "low_speed_speed_frames": self._format_debug_list(
+                event_diag.get("low_speed_speed_frames", []) if event_diag else []
+            ),
+            "wall_contact_start_frames": self._format_debug_list(
+                event_diag.get("wall_contact_start_frames", []) if event_diag else []
+            ),
+            "used_angle_pairs": self._format_debug_pairs(
+                event_diag.get("used_angle_pairs", []) if event_diag else []
+            ),
+            "used_speed_frames": self._format_debug_pairs(
+                event_diag.get("used_speed_frames", []) if event_diag else []
+            ),
+            "valid_angle_pair_count": (
+                len(event_diag.get("used_angle_pairs", [])) if event_diag else 0
+            ),
+            "speed_gate": event_diag.get("speed_gate", "") if event_diag else "",
+            "angle_pair_mode": (
+                event_diag.get("angle_pair_mode", "") if event_diag else ""
+            ),
+            "apex_bridge_mode": (
+                event_diag.get("apex_bridge_mode", "") if event_diag else ""
+            ),
+            "apex_bridge_pair": self._format_debug_pairs(
+                [event_diag.get("apex_bridge_pair")]
+                if event_diag and event_diag.get("apex_bridge_pair")
+                else []
+            ),
+            "apex_bridge_rejection": (
+                event_diag.get("apex_bridge_rejection", "") if event_diag else ""
+            ),
+            "single_frame_turn_mode": (
+                event_diag.get("single_frame_turn_mode", "") if event_diag else ""
+            ),
+            "single_frame_local_window_pair": self._format_debug_pairs(
+                [event_diag.get("single_frame_local_window_pair")]
+                if event_diag and event_diag.get("single_frame_local_window_pair")
+                else []
+            ),
+            "single_frame_local_window_rejection": (
+                event_diag.get("single_frame_local_window_rejection", "")
+                if event_diag
+                else ""
+            ),
+            "vel_angle_delta_deg": self._format_debug_list(
+                [
+                    f"{180 * delta / np.pi:.2f}"
+                    for delta in event_diag.get("vel_angle_deltas", [])
+                ]
+                if event_diag
+                else []
+            ),
+            "min_turn_speed_px_per_frame": (
+                f"{event_diag.get('min_turn_speed_px_per_frame'):.4f}"
+                if event_diag
+                and event_diag.get("min_turn_speed_px_per_frame") is not None
+                else ""
+            ),
+        }
+
+    def _write_turn_debug_tsv(self, output_path, rows):
+        if not rows:
+            return
+        debug_path = os.path.splitext(output_path)[0] + "_debug.tsv"
+        with open(debug_path, "w", encoding="utf-8") as f:
+            fields = list(rows[0].keys())
+            f.write("\t".join(fields) + "\n")
+            for row in rows:
+                f.write("\t".join(str(row.get(field, "")) for field in fields) + "\n")
+
+    @staticmethod
+    def _filename_slug(value, fallback="unknown"):
+        value = "" if value is None else str(value)
+        value = os.path.splitext(os.path.basename(value))[0]
+        value = re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("._-")
+        return value or fallback
+
+    def _turn_debug_artifact_stem(self, start_idx, context_suffix):
+        video_slug = self._filename_slug(getattr(self.va, "fn", None), "video_unknown")
+        va_f = self._filename_slug(getattr(self.va, "f", None), "none")
+        trj_f = self._filename_slug(getattr(self.trj, "f", None), "none")
+        return (
+            f"chained_turn_{start_idx}__{video_slug}"
+            f"__vaF{va_f}__trjF{trj_f}{context_suffix}"
+        )
+
+    @staticmethod
+    def _boxes_overlap(box_a, box_b):
+        ax0, ax1, ay0, ay1 = box_a
+        bx0, bx1, by0, by1 = box_b
+        return ax0 < bx1 and ax1 > bx0 and ay0 < by1 and ay1 > by0
+
+    @staticmethod
+    def _estimate_text_box(text, center_x, center_y, x_span, y_span):
+        lines = str(text).splitlines() or [""]
+        max_chars = max(len(line) for line in lines)
+        width = max(18.0, max_chars * x_span * 0.010)
+        height = max(10.0, len(lines) * y_span * 0.025)
+        return (
+            center_x - width / 2,
+            center_x + width / 2,
+            center_y - height / 2,
+            center_y + height / 2,
+        )
+
+    @staticmethod
+    def _event_path_box(x, y, start, stop, x_span, y_span):
+        x_seg = np.asarray(x[start:stop + 1], dtype=float)
+        y_seg = np.asarray(y[start:stop + 1], dtype=float)
+        finite = np.isfinite(x_seg) & np.isfinite(y_seg) & (x_seg != 0) & (y_seg != 0)
+        if not np.any(finite):
+            return None
+        margin_x = x_span * 0.035
+        margin_y = y_span * 0.035
+        return (
+            float(np.min(x_seg[finite]) - margin_x),
+            float(np.max(x_seg[finite]) + margin_x),
+            float(np.min(y_seg[finite]) - margin_y),
+            float(np.max(y_seg[finite]) + margin_y),
+        )
+
+    def _place_debug_label(
+        self,
+        ax,
+        *,
+        event_idx,
+        bcr,
+        text,
+        color,
+        placed_boxes,
+        top_left,
+        bottom_right,
+    ):
+        reg = bcr[event_idx]
+        x_span = abs(float(bottom_right[0]) - float(top_left[0]))
+        y_span = abs(float(top_left[1]) - float(bottom_right[1]))
+        x_seg = np.asarray(self.trj.x[reg.start:reg.stop + 1], dtype=float)
+        y_seg = np.asarray(self.trj.y[reg.start:reg.stop + 1], dtype=float)
+        finite = np.isfinite(x_seg) & np.isfinite(y_seg) & (x_seg != 0) & (y_seg != 0)
+        if np.any(finite):
+            anchor_x = float(np.median(x_seg[finite]))
+            anchor_y = float(np.median(y_seg[finite]))
+        else:
+            anchor_x = float(self.trj.x[reg.start])
+            anchor_y = float(self.trj.y[reg.start])
+
+        path_box = self._event_path_box(
+            self.trj.x, self.trj.y, reg.start, reg.stop, x_span, y_span
+        )
+        offset_x = x_span * 0.24
+        offset_y = y_span * 0.16
+        candidates = [
+            (anchor_x - offset_x, anchor_y - offset_y),
+            (anchor_x + offset_x, anchor_y - offset_y),
+            (anchor_x - offset_x, anchor_y + offset_y),
+            (anchor_x + offset_x, anchor_y + offset_y),
+            (anchor_x, anchor_y - offset_y * 1.45),
+            (anchor_x, anchor_y + offset_y * 1.45),
+            (anchor_x - offset_x * 1.35, anchor_y),
+            (anchor_x + offset_x * 1.35, anchor_y),
+        ]
+
+        x_min = min(float(top_left[0]), float(bottom_right[0])) - x_span * 0.08
+        x_max = max(float(top_left[0]), float(bottom_right[0])) + x_span * 0.08
+        y_min = min(float(top_left[1]), float(bottom_right[1])) - y_span * 0.08
+        y_max = max(float(top_left[1]), float(bottom_right[1])) + y_span * 0.08
+
+        chosen_x, chosen_y, chosen_box = candidates[0][0], candidates[0][1], None
+        for cand_x, cand_y in candidates:
+            box = self._estimate_text_box(text, cand_x, cand_y, x_span, y_span)
+            dx_left = max(0.0, x_min - box[0])
+            dx_right = max(0.0, box[1] - x_max)
+            dy_bottom = max(0.0, y_min - box[2])
+            dy_top = max(0.0, box[3] - y_max)
+            cand_x += dx_left - dx_right
+            cand_y += dy_bottom - dy_top
+            box = self._estimate_text_box(text, cand_x, cand_y, x_span, y_span)
+
+            overlaps_label = any(self._boxes_overlap(box, prev) for prev in placed_boxes)
+            overlaps_path = path_box is not None and self._boxes_overlap(box, path_box)
+            if not overlaps_label and not overlaps_path:
+                chosen_x, chosen_y, chosen_box = cand_x, cand_y, box
+                break
+            if chosen_box is None and not overlaps_label:
+                chosen_x, chosen_y, chosen_box = cand_x, cand_y, box
+
+        if chosen_box is None:
+            chosen_box = self._estimate_text_box(text, chosen_x, chosen_y, x_span, y_span)
+        placed_boxes.append(chosen_box)
+
+        ax.plot(
+            [anchor_x, chosen_x],
+            [anchor_y, chosen_y],
+            color=color,
+            linewidth=0.8,
+            alpha=0.45,
+            zorder=7,
+        )
+        ax.text(
+            chosen_x,
+            chosen_y,
+            text,
+            fontsize=7,
+            color="black",
+            ha="center",
+            va="center",
+            bbox=dict(facecolor="white", edgecolor=color, alpha=0.82),
+            zorder=8,
+        )
+
     def _plot_large_turn_event_chain(
         self,
         exits,
@@ -3657,7 +3948,7 @@ class EventChainPlotter:
 
         image_format = image_format or self.image_format
 
-        plt.figure(figsize=(12, 8))
+        plt.figure(figsize=(12, 10))
 
         # Define default color_map if none is provided
         if color_map is None:
@@ -6396,6 +6687,9 @@ class EventChainPlotter:
         start_frame=None,
         mode="all_types",
         image_format=None,
+        turn_angle_diagnostics=None,
+        debug_tsv=False,
+        debug_labels=False,
     ):
         image_format = image_format or self.image_format
 
@@ -6408,25 +6702,42 @@ class EventChainPlotter:
             turning_idxs=turning_idxs,
             rejection_reasons=rejection_reasons or {},
             frames_to_skip=frames_to_skip or set(),
+            turn_angle_diagnostics=turn_angle_diagnostics or [],
             start_frame=start_frame,
             mode=mode,
             image_format=image_format,
             overlays=overlays,
+            debug_tsv=debug_tsv,
+            debug_labels=debug_labels,
+            context_suffix="",
         )
 
     def plot_sharp_turn_chain_circle(
-        self, radius_stats, trn_index, start_frame, mode, image_format=None
+        self,
+        radius_stats,
+        trn_index,
+        start_frame,
+        mode,
+        image_format=None,
+        debug_tsv=False,
+        debug_labels=False,
     ):
         image_format = image_format or self.image_format
         bcr = radius_stats["boundary_contact_regions"]
         turning_idxs = radius_stats["turning_indices"]
         rejection_reasons = radius_stats.get("rejection_reasons", {})
         frames_to_skip = radius_stats.get("frames_to_skip", set())
+        turn_angle_diagnostics = radius_stats.get("turn_angle_diagnostics", [])
 
         cx, cy, _ = self.va.trns[trn_index].circles(self.trj.f)[0]
 
         def overlays(top_left, bottom_right, contact_buffer_px, _trn_index):
             self._draw_circle_overlays(radius_stats, cx=cx, cy=cy, trn_index=_trn_index)
+
+        radius_mm = radius_stats.get("circle_radius_mm")
+        radius_suffix = ""
+        if radius_mm is not None:
+            radius_suffix = f"_r{float(radius_mm):g}mm"
 
         self._plot_event_chain_core(
             ellipse_ref_pt="ctr",
@@ -6434,10 +6745,15 @@ class EventChainPlotter:
             turning_idxs=turning_idxs,
             rejection_reasons=rejection_reasons,
             frames_to_skip=frames_to_skip,
+            turn_angle_diagnostics=turn_angle_diagnostics,
             start_frame=start_frame,
             mode=mode,
             image_format=image_format,
             overlays=overlays,
+            trn_index=trn_index,
+            debug_tsv=debug_tsv,
+            debug_labels=debug_labels,
+            context_suffix=f"_trn{trn_index + 1}{radius_suffix}",
         )
 
     def _plot_event_chain_core(
@@ -6447,11 +6763,15 @@ class EventChainPlotter:
         turning_idxs,
         rejection_reasons,
         frames_to_skip,
+        turn_angle_diagnostics=None,
         start_frame=None,
         mode="all_types",
         image_format=None,
         overlays=None,
         trn_index=-1,
+        debug_tsv=False,
+        debug_labels=False,
+        context_suffix="",
     ):
         """
         Plots a chain of sharp turn events in a single figure, applying
@@ -6471,7 +6791,7 @@ class EventChainPlotter:
         - start_frame: optional starting frame to begin the search for events
         - mode: determines which frames to include in the plot:
                 'all_types' - show two sharp turns along with all parts of the trajectory between them.
-                'turn_plus_1' - show a single sharp turn and one non-turn event following it, with distinct colors.
+                'turn_plus_1' - show a single sharp turn and the next boundary-contact event following it.
         """
         image_format = image_format or self.image_format
         speed_threshold_high = 18
@@ -6513,32 +6833,34 @@ class EventChainPlotter:
         # Define the start and end frames for the selected chain of turns
         start_frame = bcr[selected_turns[0]].start
         end_frame = bcr[selected_turns[-1]].stop
+        selected_debug_event_indices = list(selected_turns)
 
         if mode == "all_types":
             frames_range = range(
                 max(0, start_frame - 5), min(len(self.x), end_frame + 5)
             )
+            selected_debug_event_indices = [
+                idx
+                for idx, reg in enumerate(bcr)
+                if reg.start - 1 >= frames_range.start and reg.stop <= frames_range.stop
+            ]
         elif mode == "turn_plus_1":
-            # Find the first event after the selected sharp turn that is not a sharp turn
-            next_event_idx = None
-            for i in range(selected_turns[-1] + 1, len(bcr)):
-                if i not in turning_idxs:
-                    next_event_idx = i
-                    break
-                else:
-                    return
-
-            # If a non-turn event is found, update end_frame to include it
-            if next_event_idx is not None:
-                end_frame = bcr[next_event_idx].stop
-
-                # Include all frames between the sharp turn and the following non-turn event
-                frames_range = range(
-                    max(0, start_frame - 5), min(len(self.x), end_frame + 5)
-                )
-            else:
-                # If no non-turn event is found, skip this segment
+            # Include the next boundary-contact event after the selected sharp turn,
+            # regardless of whether that next event is also a sharp turn.
+            next_event_idx = selected_turns[-1] + 1
+            if next_event_idx >= len(bcr):
                 return
+            end_frame = bcr[next_event_idx].stop
+            selected_debug_event_indices = list(selected_turns) + [next_event_idx]
+
+            frames_range = range(
+                max(0, start_frame - 5), min(len(self.x), end_frame + 5)
+            )
+            selected_debug_event_indices = [
+                idx
+                for idx, reg in enumerate(bcr)
+                if reg.start - 1 >= frames_range.start and reg.stop <= frames_range.stop
+            ]
 
         plt.figure(figsize=(12, 8))
 
@@ -6569,6 +6891,11 @@ class EventChainPlotter:
         current_bcr_index = None
 
         frames_to_mark = []
+        excluded_by_speed_label_added = False
+        nonadjacent_pair_label_added = False
+        annotated_events = set()
+        debug_rows = []
+        debug_label_boxes = []
 
         for i in frames_range:
             if (
@@ -6583,6 +6910,8 @@ class EventChainPlotter:
             color = "black"
             label = None
             rejection_reason = None
+            current_bcr_index = None
+            current_event_diag = None
 
             # Determine if the current frame is part of a sharp turn
             is_turn = any(bcr[j].start - 1 <= i < bcr[j].stop for j in selected_turns)
@@ -6593,18 +6922,25 @@ class EventChainPlotter:
                     color = "red"
                     label = "Sharp turn"
                 else:
-                    is_event = any(
-                        (
+                    is_event = False
+                    for j in range(len(bcr)):
+                        if (
                             bcr[j].start - 1 <= i < bcr[j].stop
                             and bcr[j].start - 1 >= frames_range.start
                             and bcr[j].stop <= frames_range.stop
-                        )
-                        for j in range(len(bcr))
-                        if j not in selected_turns
-                    )
+                            and j not in selected_turns
+                        ):
+                            is_event = True
+                            current_bcr_index = j
+                            break
                     if is_event:
-                        color = "blue"
-                        label = "Boundary crossing w/out sharp turn"
+                        rejection_reason = self._event_rejection_reason(
+                            rejection_reasons, current_bcr_index
+                        )
+                        color, label = TURN_REJECTION_STYLE.get(
+                            rejection_reason,
+                            ("blue", "Boundary crossing w/out sharp turn"),
+                        )
 
             elif mode == "all_types":
                 if is_turn:
@@ -6617,20 +6953,61 @@ class EventChainPlotter:
                             and bcr[j].start - 1 >= frames_range.start
                             and bcr[j].stop <= frames_range.stop
                         ):
-                            rejection_reason = rejection_reasons[j]
+                            rejection_reason = self._event_rejection_reason(
+                                rejection_reasons, j
+                            )
                             current_bcr_index = j
-                            color_label_map = {
-                                "too_long": ("blue", "Duration > 0.75 s"),
-                                "too_little_velocity_angle_change": (
-                                    "orange",
-                                    "Sum of vel. angle deltas < 90°",
-                                ),
-                                "sidewall_contact": ("purple", "Sidewall contact"),
-                            }
-                            color, label = color_label_map.get(
+                            color, label = TURN_REJECTION_STYLE.get(
                                 rejection_reason, ("black", None)
                             )
                             break
+
+            if current_bcr_index is None:
+                for j in selected_turns:
+                    if bcr[j].start - 1 <= i < bcr[j].stop:
+                        current_bcr_index = j
+                        break
+
+            if (
+                turn_angle_diagnostics
+                and current_bcr_index is not None
+                and current_bcr_index < len(turn_angle_diagnostics)
+            ):
+                current_event_diag = turn_angle_diagnostics[current_bcr_index]
+
+            if (
+                (debug_tsv or debug_labels)
+                and current_bcr_index is not None
+                and current_bcr_index in selected_debug_event_indices
+                and current_bcr_index not in annotated_events
+                and color != "black"
+            ):
+                debug_row = self._build_turn_debug_row(
+                    current_bcr_index, bcr, rejection_reasons, current_event_diag
+                )
+                debug_rows.append(debug_row)
+                if debug_labels:
+                    angle_text = debug_row["total_vel_angle_delta_deg"] or "n/a"
+                    debug_text = "\n".join(
+                        [
+                            f"evt {current_bcr_index}",
+                            str(debug_row["reason"]),
+                            f"frames {debug_row['start_frame']}-{debug_row['stop_frame']}",
+                            f"dur {debug_row['duration_s']}s, sum {angle_text} deg",
+                            f"pairs {debug_row['used_angle_pairs'] or 'none'}",
+                        ]
+                    )
+                    self._place_debug_label(
+                        plt.gca(),
+                        event_idx=current_bcr_index,
+                        bcr=bcr,
+                        text=debug_text,
+                        color=color,
+                        placed_boxes=debug_label_boxes,
+                        top_left=top_left,
+                        bottom_right=bottom_right,
+                    )
+                annotated_events.add(current_bcr_index)
 
             if i in frames_to_skip and color != "black":
                 frames_to_mark.append((self.trj.x[i], self.trj.y[i]))
@@ -6646,6 +7023,12 @@ class EventChainPlotter:
             x_end = max(min(x[i + 1], bottom_right[0]), top_left[0])
 
             turn_too_long = rejection_reason == "too_long"
+            excluded_by_speed = False
+            if current_event_diag:
+                low_speed_frames = current_event_diag.get("low_speed_frames", [])
+                excluded_by_speed = i in low_speed_frames
+            elif getattr(self.trj, "walking", None) is not None:
+                excluded_by_speed = not (self.trj.walking[i] and self.trj.walking[i + 1])
 
             if not turn_too_long or (
                 turn_too_long
@@ -6653,7 +7036,46 @@ class EventChainPlotter:
                     self.trj.nan[i] and self.trj.nan[i + 1] and self.trj.nan[i + 2]
                 )
             ):
-                plt.plot([x_start, x_end], [y[i], y[i + 1]], color=color, zorder=3)
+                line_kwargs = {"color": color, "zorder": 3}
+                if excluded_by_speed and color != "black":
+                    line_kwargs.update({"linestyle": "--", "alpha": 0.3, "linewidth": 2.5})
+                    if not excluded_by_speed_label_added:
+                        labels.append("Excluded by speed < min_turn_speed")
+                        handles.append(
+                            plt.Line2D(
+                                [0],
+                                [0],
+                                color="gray",
+                                lw=2.5,
+                                linestyle="--",
+                                alpha=0.5,
+                            )
+                        )
+                        excluded_by_speed_label_added = True
+                plt.plot([x_start, x_end], [y[i], y[i + 1]], **line_kwargs)
+
+            if current_event_diag and color != "black":
+                for lower_idx, upper_idx in current_event_diag.get("used_angle_pairs", []):
+                    if lower_idx != i or upper_idx - lower_idx <= 1:
+                        continue
+                    if upper_idx >= len(x) or upper_idx >= len(y):
+                        continue
+                    pair_x_end = max(min(x[upper_idx], bottom_right[0]), top_left[0])
+                    pair_label = None
+                    if not nonadjacent_pair_label_added:
+                        pair_label = "Non-adjacent angle pair used"
+                        nonadjacent_pair_label_added = True
+                    plt.plot(
+                        [x_start, pair_x_end],
+                        [y[i], y[upper_idx]],
+                        color="gray",
+                        linestyle=":",
+                        linewidth=1.2,
+                        alpha=0.65,
+                        zorder=5,
+                        label=pair_label,
+                    )
+                    break
 
             if (
                 turn_too_long
@@ -6716,14 +7138,16 @@ class EventChainPlotter:
             # Skip drawing arrows if there are too many successive slow frames
             if successive_slow_frames >= max_slow_frames:
                 continue  # Skip the current frame for arrow placement
+            if excluded_by_speed:
+                continue
 
             last_arrow_idx = self._draw_arrow_for_speed(
                 i, x_start, x_end, y[i], y[i + 1], last_arrow_idx, arrow_interval, speed
             )
 
         # Set plot limits with padding
-        padding_x = (bottom_right[0] - top_left[0]) * 0.1
-        padding_y = (top_left[1] - bottom_right[1]) * 0.1
+        padding_x = (bottom_right[0] - top_left[0]) * 0.03
+        padding_y = (top_left[1] - bottom_right[1]) * 0.03
         self._setup_plot_and_axes(top_left, bottom_right, padding_x, padding_y)
 
         # Plot a horizontal line at the vertical midpoint
@@ -6747,6 +7171,11 @@ class EventChainPlotter:
             handles.append(
                 plt.Line2D([0], [0], marker="o", color="green", lw=0, markersize=6)
             )
+        if nonadjacent_pair_label_added and "Non-adjacent angle pair used" not in labels:
+            labels.append("Non-adjacent angle pair used")
+            handles.append(
+                plt.Line2D([0], [0], color="gray", lw=1.2, linestyle=":", alpha=0.65)
+            )
 
         # Add the legend outside the plot area
         plt.legend(
@@ -6766,8 +7195,11 @@ class EventChainPlotter:
             f"Boundary contact events and sharp turns, {start_frame} to {end_frame}"
         )
 
-        output_path = f"imgs/turn__{ellipse_ref_pt}_ref_pt/chained_turn_{start_idx}_f{self.trj.f}.{image_format}"
+        artifact_stem = self._turn_debug_artifact_stem(start_idx, context_suffix)
+        output_path = f"imgs/turn__{ellipse_ref_pt}_ref_pt/{artifact_stem}.{image_format}"
         output_dir = os.path.dirname(output_path)
         os.makedirs(output_dir, exist_ok=True)
         writeImage(output_path, format=image_format)
+        if debug_tsv:
+            self._write_turn_debug_tsv(output_path, debug_rows)
         plt.close()

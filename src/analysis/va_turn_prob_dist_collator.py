@@ -25,6 +25,29 @@ class VATurnProbabilityDistanceCollator:
         self.min_vel_angle_delta = opts.min_vel_angle_delta
         self.opts = opts
 
+    @staticmethod
+    def _plot_training_selected(opts, trn_index):
+        selected = getattr(opts, "bnd_ct_plot_trainings", None)
+        if not selected:
+            return True
+
+        trainings = {
+            int(item.strip())
+            for item in str(selected).split(",")
+            if item.strip()
+        }
+        return trn_index + 1 in trainings
+
+    @staticmethod
+    def _filter_event_indexed_values(values, original_indices):
+        if values is None:
+            return values
+        return [
+            values[idx]
+            for idx in original_indices
+            if idx < len(values)
+        ]
+
     def invert_distances(self):
         """
         Adjusts the reference point for the distances to match the upper and lower edges
@@ -60,7 +83,11 @@ class VATurnProbabilityDistanceCollator:
                     btp, bcombo, ref_pt = "circle", "ctr", "ctr"
                     radius_stats = be_stats[btp][bcombo][ref_pt]
 
-                    if self.opts.bnd_ct_plots:
+                    if (
+                        self.opts.bnd_ct_plots
+                        and getattr(self.opts, "bnd_ct_plot_scope", "all")
+                        != "noncircular"
+                    ):
                         plotter = EventChainPlotter(
                             traj, self.va, image_format=self.opts.imageFormat
                         )
@@ -70,18 +97,25 @@ class VATurnProbabilityDistanceCollator:
                                 "Circle-based sharp turn troubleshooting plots are not implemented yet."
                             )
                         for trn_index, trn in enumerate(self.va.trns):
+                            if not self._plot_training_selected(self.opts, trn_index):
+                                continue
+
                             bcr_all = radius_stats["boundary_contact_regions"]
                             turning_all = radius_stats["turning_indices"]
-
-                            bcr_filtered = [
-                                ev
-                                for ev in bcr_all
+                            original_indices = [
+                                idx
+                                for idx, ev in enumerate(bcr_all)
                                 if ev.start >= trn.start and ev.stop <= trn.stop
                             ]
+                            bcr_filtered = [bcr_all[idx] for idx in original_indices]
+                            original_to_filtered = {
+                                original_idx: new_idx
+                                for new_idx, original_idx in enumerate(original_indices)
+                            }
                             turning_filtered = [
-                                new_idx
-                                for new_idx, ev in enumerate(bcr_filtered)
-                                if ev in [bcr_all[idx] for idx in turning_all]
+                                original_to_filtered[idx]
+                                for idx in turning_all
+                                if idx in original_to_filtered
                             ]
 
                             if not turning_filtered:
@@ -91,6 +125,18 @@ class VATurnProbabilityDistanceCollator:
                                 **radius_stats,
                                 "boundary_contact_regions": bcr_filtered,
                                 "turning_indices": turning_filtered,
+                                "rejection_reasons": self._filter_event_indexed_values(
+                                    radius_stats.get("rejection_reasons"),
+                                    original_indices,
+                                ),
+                                "total_vel_angle_deltas": self._filter_event_indexed_values(
+                                    radius_stats.get("total_vel_angle_deltas"),
+                                    original_indices,
+                                ),
+                                "turn_angle_diagnostics": self._filter_event_indexed_values(
+                                    radius_stats.get("turn_angle_diagnostics"),
+                                    original_indices,
+                                ),
                                 "circle_radius_mm": self.opts.outside_circle_radii[i],
                             }
 
@@ -99,6 +145,18 @@ class VATurnProbabilityDistanceCollator:
                                 trn_index=trn_index,
                                 start_frame=self.opts.bnd_ct_plot_start_fm,
                                 mode=self.opts.bnd_ct_plot_mode,
+                                debug_tsv=bool(
+                                    getattr(self.opts, "bnd_ct_plot_debug", False)
+                                    or getattr(
+                                        self.opts, "bnd_ct_plot_debug_tsv", False
+                                    )
+                                ),
+                                debug_labels=bool(
+                                    getattr(self.opts, "bnd_ct_plot_debug", False)
+                                    or getattr(
+                                        self.opts, "bnd_ct_plot_debug_labels", False
+                                    )
+                                ),
                             )
 
                 turn_results = self.va.determineTurnDirectionality(

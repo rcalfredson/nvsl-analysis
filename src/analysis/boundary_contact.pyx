@@ -359,6 +359,8 @@ cpdef findTurns(va, opts, boundary_dist_calc, bnd_tp, boundary_combo, ellipse_re
     
     if opts.bnd_ct_plots is None:
         return
+    if getattr(opts, "bnd_ct_plot_scope", "all") == "circular":
+        return
     mode = opts.bnd_ct_plots if opts.bnd_ct_plots else "troubleshooting"
     
     boundary_dist_calc.visualize_turns(ellipse_ref_pt, opts, mode=mode)
@@ -1773,6 +1775,9 @@ cdef class EllipseToBoundaryDistCalculator:
         frames_to_skip = self.return_data["boundary_event_stats"][self.boundary_type][
             self.boundary_combo
         ][ellipse_ref_pt].get("frames_to_skip", set())
+        turn_angle_diagnostics = self.return_data["boundary_event_stats"][
+            self.boundary_type
+        ][self.boundary_combo][ellipse_ref_pt].get("turn_angle_diagnostics", [])
 
         plotter = EventChainPlotter(self.trj, self.va, self.y_bounds, self.x, self.y)
 
@@ -1785,6 +1790,15 @@ cdef class EllipseToBoundaryDistCalculator:
             start_frame,
             mode,
             image_format,
+            turn_angle_diagnostics=turn_angle_diagnostics,
+            debug_tsv=bool(
+                getattr(opts, "bnd_ct_plot_debug", False)
+                or getattr(opts, "bnd_ct_plot_debug_tsv", False)
+            ),
+            debug_labels=bool(
+                getattr(opts, "bnd_ct_plot_debug", False)
+                or getattr(opts, "bnd_ct_plot_debug_labels", False)
+            ),
         )
 
     def detectWallContact(self, ellipse_edge_pt="closest", experimental=False):
@@ -1897,6 +1911,12 @@ cdef class EllipseToBoundaryDistCalculator:
         turning_idxs_filtered = []
 
         rejection_reasons = []  # Structure to hold rejection reasons
+        turn_angle_diagnostics = []
+
+        stats = self.return_data["boundary_event_stats"][
+            self.boundary_type
+        ][self.boundary_combo][ellipse_ref_pt]
+        stats['total_vel_angle_deltas'] = []
 
         # Initialize frames_to_skip key in return_data before the loop
         if 'frames_to_skip' not in self.return_data[
@@ -1914,26 +1934,69 @@ cdef class EllipseToBoundaryDistCalculator:
         for idx in range(len(bcr)):
             start_frame = bcr[idx].start
             end_frame = bcr[idx].stop
+            angle_window_start = max(0, start_frame - 1)
+            angle_window_stop = end_frame
+            event_diag = {
+                "start_frame": start_frame,
+                "end_frame": end_frame,
+                "duration_frames": end_frame - start_frame,
+                "angle_window_start_frame": angle_window_start,
+                "angle_window_stop_frame": angle_window_stop,
+                "min_turn_speed_px_per_frame": self.min_turn_speed,
+                "speed_gate": "velocity_angle_forward_segment",
+                "low_speed_frames": [],
+                "low_speed_speed_frames": [],
+                "wall_contact_start_frames": [],
+                "used_angle_pairs": [],
+                "used_speed_frames": [],
+                "vel_angle_deltas": [],
+                "angle_pair_mode": "boundary_crossing_window",
+                "total_vel_angle_delta": np.nan,
+            }
 
             if end_frame - start_frame > duration_in_frames:
                 rejection_reasons.append("too_long")
+                stats['total_vel_angle_deltas'].append(np.nan)
+                turn_angle_diagnostics.append(event_diag)
                 continue
 
             # Determine frames to skip based on wall contact and speed threshold
             for region in wall_contact_regions:
                 if start_frame <= region.start < end_frame:
                     frames_to_skip.add(region.start)
+                    event_diag["wall_contact_start_frames"].append(region.start)
 
             vel_angle_deltas = []
-            for i in range(start_frame - 1, end_frame):
-                if i in frames_to_skip or self.trj.sp[i] < self.min_turn_speed:
+            for i in range(angle_window_start, angle_window_stop):
+                if i in frames_to_skip:
+                    continue
+                speed_index = i + 1
+                if (
+                    speed_index >= len(self.trj.sp) or
+                    not np.isfinite(self.trj.sp[speed_index]) or
+                    self.trj.sp[speed_index] < self.min_turn_speed
+                ):
+                    event_diag["low_speed_frames"].append(i)
+                    event_diag["low_speed_speed_frames"].append(speed_index)
                     continue
 
                 upper_index = i + 1
                 while upper_index < end_frame and (
                     upper_index in frames_to_skip or
-                    self.trj.sp[upper_index] < self.min_turn_speed
+                    upper_index + 1 >= len(self.trj.sp) or
+                    not np.isfinite(self.trj.sp[upper_index + 1]) or
+                    self.trj.sp[upper_index + 1] < self.min_turn_speed
                 ):
+                    if (
+                        upper_index not in frames_to_skip and
+                        (
+                            upper_index + 1 >= len(self.trj.sp) or
+                            not np.isfinite(self.trj.sp[upper_index + 1]) or
+                            self.trj.sp[upper_index + 1] < self.min_turn_speed
+                        )
+                    ):
+                        event_diag["low_speed_frames"].append(upper_index)
+                        event_diag["low_speed_speed_frames"].append(upper_index + 1)
                     upper_index += 1
 
                 if upper_index >= end_frame:
@@ -1943,22 +2006,28 @@ cdef class EllipseToBoundaryDistCalculator:
                     (self.trj.velAngles[upper_index] - self.trj.velAngles[i])
                 )
                 alt_vel_angle = 2 * np.pi - vel_angle_delta
-                vel_angle_deltas.append(min(vel_angle_delta, alt_vel_angle))
+                vel_angle_delta = min(vel_angle_delta, alt_vel_angle)
+                vel_angle_deltas.append(vel_angle_delta)
+                event_diag["used_angle_pairs"].append((i, upper_index))
+                event_diag["used_speed_frames"].append((speed_index, upper_index + 1))
+                event_diag["vel_angle_deltas"].append(vel_angle_delta)
 
             total_vel_angle_delta = np.abs(np.sum(vel_angle_deltas))
+            event_diag["low_speed_frames"] = sorted(set(event_diag["low_speed_frames"]))
+            event_diag["low_speed_speed_frames"] = sorted(
+                set(event_diag["low_speed_speed_frames"])
+            )
+            event_diag["total_vel_angle_delta"] = total_vel_angle_delta
 
-            if 'total_vel_angle_deltas' not in self.return_data["boundary_event_stats"][
-                self.boundary_type][self.boundary_combo][ellipse_ref_pt]:
-                self.return_data["boundary_event_stats"][
-                    self.boundary_type][self.boundary_combo][ellipse_ref_pt]['total_vel_angle_deltas'] = []
-            self.return_data["boundary_event_stats"][
-                self.boundary_type][self.boundary_combo][ellipse_ref_pt][
-                    'total_vel_angle_deltas'].append(total_vel_angle_delta)
+            stats['total_vel_angle_deltas'].append(total_vel_angle_delta)
+            turn_angle_diagnostics.append(event_diag)
 
             if total_vel_angle_delta >= np.pi * min_vel_angle_delta / 180:
                 is_turning[start_frame:end_frame] = 1
                 turning_idxs_filtered.append(idx)
                 rejection_reasons.append("turn")
+            elif not vel_angle_deltas:
+                rejection_reasons.append("no_velocity_angle_pairs")
             else:
                 rejection_reasons.append("too_little_velocity_angle_change")
 
@@ -1966,6 +2035,9 @@ cdef class EllipseToBoundaryDistCalculator:
         self.return_data["boundary_event_stats"][self.boundary_type][
             self.boundary_combo
         ][ellipse_ref_pt]['rejection_reasons'] = rejection_reasons
+        self.return_data["boundary_event_stats"][self.boundary_type][
+            self.boundary_combo
+        ][ellipse_ref_pt]['turn_angle_diagnostics'] = turn_angle_diagnostics
 
         is_near_turning = np.zeros(len(self.x))
         for idx in turning_idxs_filtered:

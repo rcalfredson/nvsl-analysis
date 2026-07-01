@@ -4574,6 +4574,65 @@ g.add_argument(
     "selected randomly.",
 )
 g.add_argument(
+    "--bnd-ct-plot-trainings",
+    type=str,
+    default=None,
+    help=(
+        "Comma-separated 1-based training indices to sample for boundary-contact "
+        "trajectory plots. If omitted, all trainings are eligible."
+    ),
+)
+g.add_argument(
+    "--bnd-ct-plot-scope",
+    choices=["all", "circular", "noncircular"],
+    default="all",
+    help=(
+        "Limit boundary-contact/sharp-turn trajectory plots to circular "
+        "turn-probability examples, non-circular boundary examples, or both."
+    ),
+)
+g.add_argument(
+    "--bnd-ct-plot-debug",
+    action="store_true",
+    help=(
+        "Backward-compatible shortcut for --bnd-ct-plot-debug-tsv and "
+        "--bnd-ct-plot-debug-labels."
+    ),
+)
+g.add_argument(
+    "--bnd-ct-plot-debug-tsv",
+    action="store_true",
+    help=(
+        "Write a per-image TSV with boundary-contact/sharp-turn event diagnostics."
+    ),
+)
+g.add_argument(
+    "--bnd-ct-plot-debug-labels",
+    action="store_true",
+    help=(
+        "Annotate boundary-contact/sharp-turn trajectory samples with event "
+        "diagnostic labels."
+    ),
+)
+g.add_argument(
+    "--circle-single-frame-turn-mode",
+    choices=["off", "local_window"],
+    default="off",
+    help=(
+        "Deprecated compatibility option. One-frame outside-circle events are now "
+        "handled by the standard boundary-crossing velocity-angle window."
+    ),
+)
+g.add_argument(
+    "--circle-low-speed-apex-turn-mode",
+    choices=["off", "bridge"],
+    default="off",
+    help=(
+        "Deprecated compatibility option. Low-speed apex cases are now handled by "
+        "the standard boundary-crossing velocity-angle window and speed-skip logic."
+    ),
+)
+g.add_argument(
     "--turn",
     help="detect turn events as a subset of boundary-contact events with respect either"
     " to the wall, to the plastic/agarose boundary, or the reward circle (circle) / "
