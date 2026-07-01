@@ -118,7 +118,10 @@ class VATurnProbabilityDistanceCollator:
                                 if idx in original_to_filtered
                             ]
 
-                            if not turning_filtered:
+                            if (
+                                not turning_filtered
+                                and self.opts.bnd_ct_plot_mode != "example_zoo"
+                            ):
                                 continue
 
                             rs_filtered = {

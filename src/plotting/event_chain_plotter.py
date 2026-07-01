@@ -6739,6 +6739,16 @@ class EventChainPlotter:
         if radius_mm is not None:
             radius_suffix = f"_r{float(radius_mm):g}mm"
 
+        if mode == "example_zoo":
+            self._plot_circle_turn_example_zoo(
+                radius_stats=radius_stats,
+                trn_index=trn_index,
+                image_format=image_format,
+                debug_tsv=debug_tsv,
+                context_suffix=f"_trn{trn_index + 1}{radius_suffix}",
+            )
+            return
+
         self._plot_event_chain_core(
             ellipse_ref_pt="ctr",
             bcr=bcr,
@@ -6755,6 +6765,292 @@ class EventChainPlotter:
             debug_labels=debug_labels,
             context_suffix=f"_trn{trn_index + 1}{radius_suffix}",
         )
+
+    def _turn_zoo_event_reason(self, rejection_reasons, event_idx, turning_idxs):
+        reason = self._event_rejection_reason(rejection_reasons, event_idx)
+        if reason:
+            return reason
+        return "turn" if event_idx in set(turning_idxs or []) else None
+
+    def _sample_turn_zoo_events(self, bcr, turning_idxs, rejection_reasons):
+        candidates = {}
+        for event_idx in range(len(bcr)):
+            reason = self._turn_zoo_event_reason(
+                rejection_reasons, event_idx, turning_idxs
+            )
+            if not reason:
+                continue
+            candidates.setdefault(reason, []).append(event_idx)
+
+        ordered_reasons = [
+            "turn",
+            "too_little_velocity_angle_change",
+            "no_velocity_angle_pairs",
+            "too_long",
+            "sidewall_contact",
+        ]
+        ordered_reasons.extend(
+            sorted(reason for reason in candidates if reason not in ordered_reasons)
+        )
+
+        selected = []
+        for reason in ordered_reasons:
+            reason_candidates = list(candidates.get(reason, []))
+            if not reason_candidates:
+                continue
+            random.shuffle(reason_candidates)
+            target_count = 2 if reason == "turn" else 1
+            for event_idx in reason_candidates[:target_count]:
+                selected.append((event_idx, reason))
+        return selected
+
+    def _draw_circle_turn_zoo_panel(
+        self,
+        ax,
+        *,
+        event_idx,
+        reason,
+        bcr,
+        radius_stats,
+        turn_angle_diagnostics,
+        trn_index,
+    ):
+        plt.sca(ax)
+        reg = bcr[event_idx]
+        start = max(0, reg.start - 2)
+        stop = min(len(self.x) - 1, reg.stop + 2)
+        color, style_label = TURN_REJECTION_STYLE.get(reason, ("black", reason))
+
+        cx, cy, _ = self.va.trns[trn_index].circles(self.trj.f)[0]
+        r_px = float(radius_stats["circle_radius_px"])
+        cx_trn, cy_trn, r_trn = self.va.trns[trn_index].circles(self.trj.f)[0]
+
+        ax.add_patch(
+            plt.Circle(
+                (cx, cy),
+                r_px,
+                color="black",
+                fill=False,
+                linestyle="--",
+                linewidth=1.4,
+                zorder=1,
+            )
+        )
+        ax.add_patch(
+            plt.Circle(
+                (cx_trn, cy_trn),
+                r_trn,
+                color=self.reward_circle_color,
+                fill=False,
+                linestyle=":",
+                linewidth=1.2,
+                zorder=1,
+            )
+        )
+
+        diag = (
+            turn_angle_diagnostics[event_idx]
+            if event_idx < len(turn_angle_diagnostics)
+            else None
+        )
+        low_speed_frames = set(diag.get("low_speed_frames", []) if diag else [])
+
+        x_vals = np.asarray(self.x[start : stop + 1], dtype=float)
+        y_vals = np.asarray(self.y[start : stop + 1], dtype=float)
+        finite = np.isfinite(x_vals) & np.isfinite(y_vals) & (x_vals != 0) & (y_vals != 0)
+
+        for i in range(start, stop):
+            if (
+                not np.isfinite(self.x[i])
+                or not np.isfinite(self.y[i])
+                or not np.isfinite(self.x[i + 1])
+                or not np.isfinite(self.y[i + 1])
+                or self.x[i] == 0
+                or self.y[i] == 0
+                or self.x[i + 1] == 0
+                or self.y[i + 1] == 0
+            ):
+                continue
+            in_event = reg.start - 1 <= i < reg.stop
+            segment_color = color if in_event else "black"
+            line_kwargs = {
+                "color": segment_color,
+                "linewidth": 2.2 if in_event else 1.2,
+                "zorder": 3 if in_event else 2,
+            }
+            if in_event and i in low_speed_frames:
+                line_kwargs.update({"linestyle": "--", "alpha": 0.35})
+            ax.plot(
+                [self.x[i], self.x[i + 1]],
+                [self.y[i], self.y[i + 1]],
+                **line_kwargs,
+            )
+            if in_event and i not in low_speed_frames:
+                self._draw_arrow_for_speed(
+                    i,
+                    self.x[i],
+                    self.x[i + 1],
+                    self.y[i],
+                    self.y[i + 1],
+                    None,
+                    1,
+                    np.hypot(self.x[i + 1] - self.x[i], self.y[i + 1] - self.y[i]),
+                    arrow_color=segment_color,
+                )
+
+        if diag:
+            for lower_idx, upper_idx in diag.get("used_angle_pairs", []):
+                if upper_idx - lower_idx <= 1:
+                    continue
+                if lower_idx < start or upper_idx > stop:
+                    continue
+                ax.plot(
+                    [self.x[lower_idx], self.x[upper_idx]],
+                    [self.y[lower_idx], self.y[upper_idx]],
+                    color="gray",
+                    linestyle=":",
+                    linewidth=1.0,
+                    alpha=0.65,
+                    zorder=4,
+                )
+
+        title = style_label
+        if reason == "turn":
+            title = "Sharp turn"
+        total_deg = self._event_total_angle_deg(diag)
+        subtitle = f"evt {event_idx}, frames {reg.start}-{reg.stop}"
+        if np.isfinite(total_deg):
+            subtitle += f", sum {total_deg:.1f} deg"
+        ax.set_title(f"{title}\n{subtitle}", fontsize=8)
+
+        if np.any(finite):
+            path_min_x = float(np.min(x_vals[finite]))
+            path_max_x = float(np.max(x_vals[finite]))
+            path_min_y = float(np.min(y_vals[finite]))
+            path_max_y = float(np.max(y_vals[finite]))
+        else:
+            path_min_x = path_max_x = float(cx)
+            path_min_y = path_max_y = float(cy)
+
+        min_x = min(cx - r_px, path_min_x)
+        max_x = max(cx + r_px, path_max_x)
+        min_y = min(cy - r_px, path_min_y)
+        max_y = max(cy + r_px, path_max_y)
+        span = max(max_x - min_x, max_y - min_y)
+        pad = max(r_px * 0.20, span * 0.08)
+        mid_x = (min_x + max_x) / 2
+        mid_y = (min_y + max_y) / 2
+        half_span = span / 2 + pad
+        ax.set_xlim(mid_x - half_span, mid_x + half_span)
+        ax.set_ylim(mid_y + half_span, mid_y - half_span)
+        ax.set_aspect("equal", adjustable="box")
+        ax.axis("off")
+
+    def _plot_circle_turn_example_zoo(
+        self,
+        *,
+        radius_stats,
+        trn_index,
+        image_format=None,
+        debug_tsv=False,
+        context_suffix="",
+    ):
+        image_format = image_format or self.image_format
+        bcr = radius_stats["boundary_contact_regions"]
+        turning_idxs = radius_stats.get("turning_indices", [])
+        rejection_reasons = radius_stats.get("rejection_reasons", {})
+        turn_angle_diagnostics = radius_stats.get("turn_angle_diagnostics", [])
+
+        selected_events = self._sample_turn_zoo_events(
+            bcr, turning_idxs, rejection_reasons
+        )
+        if not selected_events:
+            return
+
+        ncols = min(3, len(selected_events))
+        nrows = int(math.ceil(len(selected_events) / ncols))
+        fig, axes = plt.subplots(
+            nrows,
+            ncols,
+            figsize=(4.0 * ncols, 3.8 * nrows),
+            squeeze=False,
+        )
+        debug_rows = []
+
+        for ax, (event_idx, reason) in zip(axes.flat, selected_events):
+            self._draw_circle_turn_zoo_panel(
+                ax,
+                event_idx=event_idx,
+                reason=reason,
+                bcr=bcr,
+                radius_stats=radius_stats,
+                turn_angle_diagnostics=turn_angle_diagnostics,
+                trn_index=trn_index,
+            )
+            diag = (
+                turn_angle_diagnostics[event_idx]
+                if event_idx < len(turn_angle_diagnostics)
+                else None
+            )
+            debug_rows.append(
+                self._build_turn_debug_row(event_idx, bcr, rejection_reasons, diag)
+            )
+
+        for ax in axes.flat[len(selected_events) :]:
+            ax.axis("off")
+
+        handles = []
+        labels = []
+        for _, reason in selected_events:
+            color, label = TURN_REJECTION_STYLE.get(reason, ("black", reason))
+            self._add_legend_entry(handles, labels, label, color)
+        if any(
+            row.get("low_speed_frames") for row in debug_rows
+        ):
+            labels.append("Excluded by speed < min_turn_speed")
+            handles.append(
+                plt.Line2D([0], [0], color="gray", lw=2.5, linestyle="--", alpha=0.5)
+            )
+        if any("," in row.get("used_angle_pairs", "") for row in debug_rows):
+            labels.append("Non-adjacent angle pair used")
+            handles.append(
+                plt.Line2D([0], [0], color="gray", lw=1.2, linestyle=":", alpha=0.65)
+            )
+
+        radius_mm = radius_stats.get("circle_radius_mm")
+        radius_label = (
+            f", r={float(radius_mm):g} mm" if radius_mm is not None else ""
+        )
+        video_slug = self._filename_slug(getattr(self.va, "fn", None), "video_unknown")
+        fig.suptitle(
+            f"Boundary sharp-turn example zoo\n{video_slug}, training {trn_index + 1}{radius_label}",
+            fontsize=12,
+        )
+        if handles:
+            fig.legend(
+                handles,
+                labels,
+                loc="lower center",
+                ncol=min(3, len(labels)),
+                fontsize=8,
+                frameon=True,
+            )
+
+        artifact_stem = self._turn_debug_artifact_stem("zoo", context_suffix)
+        output_path = f"imgs/turn__ctr_ref_pt/{artifact_stem}.{image_format}"
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        fig.subplots_adjust(
+            left=0.03,
+            right=0.98,
+            top=0.86,
+            bottom=0.12 if handles else 0.04,
+            wspace=0.08,
+            hspace=0.36,
+        )
+        writeImage(output_path, format=image_format)
+        if debug_tsv:
+            self._write_turn_debug_tsv(output_path, debug_rows)
+        plt.close(fig)
 
     def _plot_event_chain_core(
         self,

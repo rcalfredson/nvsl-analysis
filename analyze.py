@@ -4560,10 +4560,11 @@ g.add_argument(
 )
 g.add_argument(
     "--bnd-ct-plot-mode",
-    choices=["all_types", "turn_plus_1"],
+    choices=["all_types", "turn_plus_1", "example_zoo"],
     default="all_types",
     help="Mode for boundary contact/sharp turn trajectory plot. 'all_types' includes all frames"
-    " between two sharp turns. 'turn_plus_1' shows a single sharp turn and the subsequent non-turn event.",
+    " between two sharp turns. 'turn_plus_1' shows a single sharp turn and the subsequent event."
+    " 'example_zoo' samples separate events by classification and renders them together.",
 )
 g.add_argument(
     "--bnd-ct-plot-start-fm",
