@@ -376,7 +376,7 @@ def _resolve_home_vector_alignment_filter(opts) -> dict:
 
 def _resolve_min_walking_fraction(opts) -> float:
     threshold = float(
-        getattr(opts, "turnback_excursion_bin_min_walking_fraction", 0.75) or 0.0
+        getattr(opts, "turnback_excursion_bin_min_walking_fraction", 0.0) or 0.0
     )
     if threshold < 0.0 or threshold > 1.0:
         raise ValueError(
@@ -571,7 +571,7 @@ def _compute_turnback_curves(
     debug: bool,
     min_episodes: int = 0,
     exclude_wall_contact: bool = False,
-    min_walking_fraction: float = 0.75,
+    min_walking_fraction: float = 0.0,
 ):
     bin_edges_mm, _open_ended_upper_bin = _resolve_open_ended_upper_edge(
         vas,
@@ -771,7 +771,7 @@ def _compute_pair_curves(
     home_vector_alignment_heading_estimator: str = "mean",
     home_vector_alignment_home_vector_anchor: str = "intersection",
     home_vector_alignment_max_interpolated_heading_frames: int | None = 1,
-    min_walking_fraction: float = 0.75,
+    min_walking_fraction: float = 0.0,
 ):
     n_videos = len(vas)
     n_pairs = int(inner_deltas_mm.size)
@@ -1012,7 +1012,7 @@ def _write_turnback_pair_debug_episodes_csv(
     home_vector_alignment_heading_estimator: str = "mean",
     home_vector_alignment_home_vector_anchor: str = "intersection",
     home_vector_alignment_max_interpolated_heading_frames: int | None = 1,
-    min_walking_fraction: float = 0.75,
+    min_walking_fraction: float = 0.0,
 ) -> int:
     os.makedirs(os.path.dirname(out_csv) or ".", exist_ok=True)
     n_rows = 0

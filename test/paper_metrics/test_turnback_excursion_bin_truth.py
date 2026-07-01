@@ -179,6 +179,38 @@ def test_pair_deltas_accept_independent_inner_outer_pairs_and_reject_bad_inputs(
         _pair_deltas_mm(SimpleNamespace(turnback_excursion_bin_pairs_mm="4:4"))
 
 
+def test_turnback_pair_min_walking_fraction_defaults_to_disabled():
+    walking = np.zeros(30, dtype=bool)
+    walking[10:20] = True
+    exp = _Trajectory(
+        [
+            {**_episode(10, 0.0, True), "start": 0},
+            {**_episode(20, 0.0, False), "start": 10},
+        ],
+        walking=walking,
+    )
+    va = _va(trx=[exp], noyc=True, sync_bucket_ranges=[[(0, 30)]])
+
+    ratio_exp, _, turn_exp, _, total_exp, _, _ = _pair_curves(
+        [va],
+        pairs=((2.0, 3.0),),
+    )
+
+    np.testing.assert_allclose(ratio_exp, [[0.5]])
+    np.testing.assert_array_equal(turn_exp, [[1.0]])
+    np.testing.assert_array_equal(total_exp, [[2]])
+
+    ratio_exp, _, turn_exp, _, total_exp, _, _ = _pair_curves(
+        [va],
+        pairs=((2.0, 3.0),),
+        min_walking_fraction=0.75,
+    )
+
+    np.testing.assert_allclose(ratio_exp, [[0.0]])
+    np.testing.assert_array_equal(turn_exp, [[0.0]])
+    np.testing.assert_array_equal(total_exp, [[1]])
+
+
 def test_training_selection_and_windowing_match_panel_metadata_conventions():
     vas = [_va(trns=[_Training(name="t1"), _Training(name="T2"), _Training(name="T3")])]
 
