@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import os
 
 import numpy as np
@@ -152,6 +153,298 @@ def _frame_in_windows(frame: int, windows) -> bool:
         if int(win["start"]) <= frame < int(win["stop"]):
             return True
     return False
+
+
+_DEBUG_EPISODE_FIELDS = [
+    "video_index",
+    "video_id",
+    "fly_idx",
+    "fly_role",
+    "training_idx",
+    "training_name",
+    "radius_idx",
+    "requested_outer_mm",
+    "radius_mode",
+    "window_start",
+    "window_stop",
+    "episode_idx",
+    "anchor_reward",
+    "reward_entry",
+    "start",
+    "stop",
+    "event_frame",
+    "returns",
+    "end_reason",
+    "wall_overlap",
+    "included_in_metric",
+    "reward_cx_px",
+    "reward_cy_px",
+    "reward_radius_px",
+    "reward_radius_mm",
+    "outer_radius_px",
+    "outer_radius_mm",
+    "px_per_mm",
+    "reward_delta_mm",
+    "border_width_mm",
+    "start_x_px",
+    "start_y_px",
+    "event_x_px",
+    "event_y_px",
+    "start_distance_px",
+    "event_distance_px",
+    "start_distance_mm",
+    "event_distance_mm",
+]
+
+
+def _wall_contact_regions_if_available(trj):
+    try:
+        return trj.boundary_event_stats["wall"]["all"]["edge"][
+            "boundary_contact_regions"
+        ]
+    except (KeyError, TypeError, AttributeError):
+        return None
+
+
+def _return_prob_episode_geometry(
+    trj,
+    trn,
+    ep: dict,
+    *,
+    requested_outer_mm: float,
+    legacy_outer_radii: bool,
+    reward_radius_mm: float | None,
+    reward_delta_mm: float | None,
+    border_width_mm: float,
+) -> dict:
+    nan_diag = {
+        "reward_cx_px": float("nan"),
+        "reward_cy_px": float("nan"),
+        "reward_radius_px": float("nan"),
+        "reward_radius_mm": float("nan"),
+        "outer_radius_px": float("nan"),
+        "outer_radius_mm": float("nan"),
+        "px_per_mm": float("nan"),
+        "reward_delta_mm": (
+            float("nan") if reward_delta_mm is None else float(reward_delta_mm)
+        ),
+        "border_width_mm": float(border_width_mm),
+        "start_x_px": float("nan"),
+        "start_y_px": float("nan"),
+        "event_x_px": float("nan"),
+        "event_y_px": float("nan"),
+        "start_distance_px": float("nan"),
+        "event_distance_px": float("nan"),
+        "start_distance_mm": float("nan"),
+        "event_distance_mm": float("nan"),
+    }
+
+    if trn is None or not trn.isCircle():
+        return nan_diag
+    try:
+        cs = trn.circles(getattr(trj, "f", 0))
+    except Exception:
+        cs = []
+    if not cs:
+        return nan_diag
+    cx, cy, r_px = cs[0]
+    try:
+        cx = float(cx)
+        cy = float(cy)
+        r_px = float(r_px)
+    except (TypeError, ValueError):
+        return nan_diag
+    if not (np.isfinite(cx) and np.isfinite(cy) and np.isfinite(r_px)):
+        return nan_diag
+
+    try:
+        fctr = float(getattr(trj.va.xf, "fctr", 1.0) or 1.0)
+        px_per_mm = float(trj.va.ct.pxPerMmFloor()) * fctr
+    except Exception:
+        px_per_mm = float("nan")
+    if not (np.isfinite(px_per_mm) and px_per_mm > 0.0):
+        return {
+            **nan_diag,
+            "reward_cx_px": cx,
+            "reward_cy_px": cy,
+            "reward_radius_px": r_px,
+        }
+
+    base_reward_radius_mm = r_px / px_per_mm
+    resolved_reward_radius_mm = (
+        float(reward_radius_mm)
+        if reward_radius_mm is not None
+        else base_reward_radius_mm + float(reward_delta_mm or 0.0)
+    )
+    resolved_outer_radius_mm = (
+        resolved_reward_radius_mm + float(requested_outer_mm)
+        if legacy_outer_radii
+        else float(requested_outer_mm)
+    )
+    reward_r_px = resolved_reward_radius_mm * px_per_mm
+    outer_r_px = resolved_outer_radius_mm * px_per_mm
+
+    out = {
+        **nan_diag,
+        "reward_cx_px": cx,
+        "reward_cy_px": cy,
+        "reward_radius_px": r_px,
+        "reward_radius_mm": resolved_reward_radius_mm,
+        "outer_radius_px": outer_r_px,
+        "outer_radius_mm": resolved_outer_radius_mm,
+        "px_per_mm": px_per_mm,
+    }
+
+    x = getattr(trj, "x", None)
+    y = getattr(trj, "y", None)
+    if x is None or y is None:
+        return out
+    event_frame = int(ep.get("event_frame", int(ep.get("stop", 0)) - 1))
+    for prefix, frame in (
+        ("start", int(ep.get("start", 0))),
+        ("event", event_frame),
+    ):
+        if 0 <= frame < len(x) and 0 <= frame < len(y):
+            px = float(x[frame])
+            py = float(y[frame])
+            if np.isfinite(px) and np.isfinite(py):
+                dist_px = float(np.hypot(px - cx, py - cy))
+                out[f"{prefix}_x_px"] = px
+                out[f"{prefix}_y_px"] = py
+                out[f"{prefix}_distance_px"] = dist_px
+                out[f"{prefix}_distance_mm"] = dist_px / px_per_mm
+    return out
+
+
+def _write_return_prob_outer_radius_debug_episodes_csv(
+    vas,
+    *,
+    out_csv: str,
+    outer_radii_mm: np.ndarray,
+    legacy_outer_radii: bool,
+    reward_radius_mm: float | None,
+    reward_delta_mm: float | None,
+    border_width_mm: float,
+    selected_trainings: list[int],
+    skip_first: int,
+    keep_first: int,
+    last_sync_buckets: int,
+    exclude_wall_contact: bool = False,
+) -> int:
+    os.makedirs(os.path.dirname(out_csv) or ".", exist_ok=True)
+    n_rows = 0
+    with open(out_csv, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=_DEBUG_EPISODE_FIELDS)
+        writer.writeheader()
+
+        for vi, va in enumerate(vas):
+            vid = getattr(va, "fn", f"va_{vi}")
+            va_fly_idx = getattr(va, "f", None)
+            video_id = f"{vid}::f{va_fly_idx if va_fly_idx is not None else -1}"
+            windows = _selected_windows_for_va(
+                va,
+                selected_trainings,
+                skip_first=skip_first,
+                keep_first=keep_first,
+                last_sync_buckets=last_sync_buckets,
+            )
+            if not windows:
+                continue
+            windows_by_training = {int(win["training_idx"]): [win] for win in windows}
+
+            for radius_idx, outer_radius_mm in enumerate(outer_radii_mm):
+                for fly_idx, trj in enumerate(getattr(va, "trx", [])):
+                    if getattr(trj, "_bad", False):
+                        continue
+                    if fly_idx > 1:
+                        continue
+                    ctrl = bool(fly_idx == 1)
+                    if ctrl and getattr(va, "noyc", False):
+                        continue
+
+                    fly_role = "ctrl" if ctrl else "exp"
+                    wall_regions = _wall_contact_regions_if_available(trj)
+                    for t_idx in selected_trainings:
+                        if t_idx >= len(getattr(va, "trns", [])):
+                            continue
+                        trn = va.trns[t_idx]
+                        if trn is None or not trn.isCircle():
+                            continue
+                        if t_idx not in windows_by_training:
+                            continue
+
+                        episodes = trj.reward_return_probability_episodes_for_training(
+                            trn=trn,
+                            outer_radius_mm=(
+                                None if legacy_outer_radii else float(outer_radius_mm)
+                            ),
+                            outer_delta_mm=(
+                                float(outer_radius_mm) if legacy_outer_radii else None
+                            ),
+                            reward_radius_mm=reward_radius_mm,
+                            reward_delta_mm=reward_delta_mm,
+                            border_width_mm=float(border_width_mm),
+                            ctrl=ctrl,
+                            debug=False,
+                        )
+                        if not episodes:
+                            continue
+
+                        for ep_idx, ep in enumerate(episodes):
+                            event_t = int(ep.get("event_frame", int(ep["stop"]) - 1))
+                            matched_windows = [
+                                win
+                                for win in windows_by_training[t_idx]
+                                if _frame_in_windows(event_t, [win])
+                            ]
+                            if not matched_windows:
+                                continue
+                            wall_overlap = episode_overlaps_wall_contact(
+                                ep, wall_regions
+                            )
+                            included = not (bool(exclude_wall_contact) and wall_overlap)
+                            for win in matched_windows:
+                                row = {
+                                    "video_index": int(vi),
+                                    "video_id": video_id,
+                                    "fly_idx": (
+                                        int(va_fly_idx)
+                                        if va_fly_idx is not None
+                                        else int(fly_idx)
+                                    ),
+                                    "fly_role": fly_role,
+                                    "training_idx": int(t_idx),
+                                    "training_name": trn.name(),
+                                    "radius_idx": int(radius_idx),
+                                    "requested_outer_mm": float(outer_radius_mm),
+                                    "radius_mode": (
+                                        "delta" if legacy_outer_radii else "radius"
+                                    ),
+                                    "window_start": int(win["start"]),
+                                    "window_stop": int(win["stop"]),
+                                    "episode_idx": int(ep_idx),
+                                    "event_frame": int(event_t),
+                                    "wall_overlap": bool(wall_overlap),
+                                    "included_in_metric": bool(included),
+                                }
+                                row.update(
+                                    _return_prob_episode_geometry(
+                                        trj,
+                                        trn,
+                                        ep,
+                                        requested_outer_mm=float(outer_radius_mm),
+                                        legacy_outer_radii=legacy_outer_radii,
+                                        reward_radius_mm=reward_radius_mm,
+                                        reward_delta_mm=reward_delta_mm,
+                                        border_width_mm=border_width_mm,
+                                    )
+                                )
+                                for key in _DEBUG_EPISODE_FIELDS:
+                                    if key not in row and key in ep:
+                                        row[key] = ep[key]
+                                writer.writerow(row)
+                                n_rows += 1
+    return n_rows
 
 
 def _compute_return_prob_curves(
@@ -478,6 +771,28 @@ def export_return_prob_outer_radius_sli_bundle(vas, opts, gls, out_fn):
             bool(getattr(opts, "sli_use_training_mean", False))
         ),
     )
+    debug_episodes_csv = getattr(
+        opts, "return_prob_outer_radius_debug_episodes_csv", None
+    )
+    if debug_episodes_csv:
+        n_debug_rows = _write_return_prob_outer_radius_debug_episodes_csv(
+            vas_ok,
+            out_csv=str(debug_episodes_csv),
+            outer_radii_mm=outer_radii_mm,
+            legacy_outer_radii=legacy_outer_radii,
+            reward_radius_mm=reward_radius_mm,
+            reward_delta_mm=reward_delta_mm,
+            border_width_mm=border_width_mm,
+            selected_trainings=selected_trainings,
+            skip_first=skip_first,
+            keep_first=keep_first,
+            last_sync_buckets=last_sync_buckets,
+            exclude_wall_contact=exclude_wall_contact,
+        )
+        print(
+            "[export] Wrote return-prob-outer-radius debug episodes CSV: "
+            f"{debug_episodes_csv} (rows={n_debug_rows})"
+        )
     print(
         "[export] Wrote return-prob-outer-radius+SLI bundle: "
         f"{out_fn} (n={len(vas_ok)})"
