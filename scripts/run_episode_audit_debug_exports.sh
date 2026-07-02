@@ -10,6 +10,11 @@ set -euo pipefail
 #
 # Useful dry run:
 #   PRINT_ONLY=1 scripts/run_episode_audit_debug_exports.sh
+#
+# Full audit pipeline:
+#   scripts/run_episode_audit_debug_exports.sh
+#   python -m scripts.collate_episode_audit
+#   python -m scripts.plot_turnback_episode_pools
 
 PRINT_ONLY="${PRINT_ONLY:-0}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
