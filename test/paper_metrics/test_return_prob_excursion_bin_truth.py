@@ -1,3 +1,4 @@
+import csv
 from types import SimpleNamespace
 
 import numpy as np
@@ -15,6 +16,7 @@ from src.exporting.return_prob_excursion_bin_sli_bundle import (
 )
 from src.exporting.return_prob_outer_radius_sli_bundle import (
     _compute_return_prob_curves as _compute_return_prob_outer_radius_curves,
+    _write_return_prob_outer_radius_debug_episodes_csv,
     export_return_prob_outer_radius_sli_bundle,
 )
 from src.plotting.return_prob_outer_radius_sli_bundle_plotter import (
@@ -532,6 +534,61 @@ def test_return_prob_outer_radius_export_records_wall_contact_exclusion(
         np.testing.assert_allclose(
             bundle["fraction_within_radius_outer_radius_ratio_exp"], [[0.5]]
         )
+
+
+def test_return_prob_outer_radius_debug_csv_records_episode_audit_fields(tmp_path):
+    exp = _OuterRadiusTrajectory(
+        [
+            {
+                "start": 0,
+                "stop": 10,
+                "anchor_reward": 0,
+                "reward_entry": 10,
+                "returns": True,
+                "end_reason": "reenter_reward",
+            },
+            {
+                "start": 20,
+                "stop": 30,
+                "anchor_reward": 20,
+                "reward_entry": None,
+                "returns": False,
+                "end_reason": "exit_outer",
+            },
+        ]
+    )
+    exp.boundary_event_stats = _wall_regions((22, 24))
+    va = _va(trx=[exp], noyc=True, sync_bucket_ranges=[[(0, 50)]], fn="debug-video")
+    out_csv = tmp_path / "return_prob_outer_radius_debug.csv"
+
+    n_rows = _write_return_prob_outer_radius_debug_episodes_csv(
+        [va],
+        out_csv=str(out_csv),
+        outer_radii_mm=np.asarray([16.0], dtype=float),
+        legacy_outer_radii=False,
+        reward_radius_mm=None,
+        reward_delta_mm=0.0,
+        border_width_mm=0.1,
+        selected_trainings=[0],
+        skip_first=0,
+        keep_first=0,
+        last_sync_buckets=0,
+        exclude_wall_contact=True,
+    )
+
+    assert n_rows == 2
+    with open(out_csv, newline="") as fh:
+        rows = list(csv.DictReader(fh))
+
+    assert [row["video_id"] for row in rows] == ["debug-video::f-1"] * 2
+    assert [row["fly_role"] for row in rows] == ["exp", "exp"]
+    assert [row["requested_outer_mm"] for row in rows] == ["16.0", "16.0"]
+    assert [row["radius_mode"] for row in rows] == ["radius", "radius"]
+    assert [row["returns"] for row in rows] == ["True", "False"]
+    assert [row["end_reason"] for row in rows] == ["reenter_reward", "exit_outer"]
+    assert [row["wall_overlap"] for row in rows] == ["False", "True"]
+    assert [row["included_in_metric"] for row in rows] == ["True", "False"]
+    assert [row["event_frame"] for row in rows] == ["9", "29"]
 
 
 def test_return_prob_outer_radius_plotter_preserves_duplicate_filename_fly_ids():

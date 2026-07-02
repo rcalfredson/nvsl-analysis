@@ -6475,6 +6475,17 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--return-prob-outer-radius-debug-episodes-csv",
+    type=str,
+    default=None,
+    help=(
+        "Optional sidecar CSV for return-prob-outer-radius exports. Writes one "
+        "row per selected reward-anchored excursion episode, including outcome, "
+        "radius geometry, wall-overlap status, and start/outcome positions when "
+        "available."
+    ),
+)
+g.add_argument(
     "--turnback-excursion-bin-debug",
     action="store_true",
     help=(
