@@ -194,6 +194,12 @@ _DEBUG_EPISODE_FIELDS = [
     "event_distance_px",
     "start_distance_mm",
     "event_distance_mm",
+    "full_trajectory_start",
+    "full_trajectory_stop",
+    "full_trajectory_max_radius_mm",
+    "full_trajectory_max_excursion_mm",
+    "full_trajectory_max_dist_frame",
+    "full_trajectory_returns",
 ]
 
 
@@ -316,6 +322,40 @@ def _return_prob_episode_geometry(
     return out
 
 
+def _full_trajectory_debug_fields(ep: dict | None) -> dict:
+    if not ep:
+        return {
+            "full_trajectory_start": "",
+            "full_trajectory_stop": "",
+            "full_trajectory_max_radius_mm": "",
+            "full_trajectory_max_excursion_mm": "",
+            "full_trajectory_max_dist_frame": "",
+            "full_trajectory_returns": "",
+        }
+    return {
+        "full_trajectory_start": ep.get("start", ""),
+        "full_trajectory_stop": ep.get("stop", ""),
+        "full_trajectory_max_radius_mm": ep.get("max_radius_mm", ""),
+        "full_trajectory_max_excursion_mm": ep.get("max_excursion_mm", ""),
+        "full_trajectory_max_dist_frame": ep.get("max_dist_frame", ""),
+        "full_trajectory_returns": ep.get("returns", ""),
+    }
+
+
+def _full_trajectory_lookup(episodes) -> dict[tuple[str, int], dict]:
+    lookup: dict[tuple[str, int], dict] = {}
+    for ep in episodes or []:
+        for key_name in ("anchor_reward", "start"):
+            value = ep.get(key_name)
+            if value is None:
+                continue
+            try:
+                lookup.setdefault((key_name, int(value)), ep)
+            except (TypeError, ValueError):
+                continue
+    return lookup
+
+
 def _write_return_prob_outer_radius_debug_episodes_csv(
     vas,
     *,
@@ -373,6 +413,17 @@ def _write_return_prob_outer_radius_debug_episodes_csv(
                         if t_idx not in windows_by_training:
                             continue
 
+                        full_episodes = (
+                            trj.reward_return_excursion_episodes_for_training(
+                                trn=trn,
+                                reward_radius_mm=reward_radius_mm,
+                                reward_delta_mm=reward_delta_mm,
+                                border_width_mm=float(border_width_mm),
+                                ctrl=ctrl,
+                                debug=False,
+                            )
+                        )
+                        full_lookup = _full_trajectory_lookup(full_episodes)
                         episodes = trj.reward_return_probability_episodes_for_training(
                             trn=trn,
                             outer_radius_mm=(
@@ -402,6 +453,19 @@ def _write_return_prob_outer_radius_debug_episodes_csv(
                             wall_overlap = episode_overlaps_wall_contact(
                                 ep, wall_regions
                             )
+                            try:
+                                full_ep = full_lookup.get(
+                                    ("anchor_reward", int(ep.get("anchor_reward")))
+                                )
+                            except (TypeError, ValueError):
+                                full_ep = None
+                            if full_ep is None:
+                                try:
+                                    full_ep = full_lookup.get(
+                                        ("start", int(ep.get("start")))
+                                    )
+                                except (TypeError, ValueError):
+                                    full_ep = None
                             included = not (bool(exclude_wall_contact) and wall_overlap)
                             for win in matched_windows:
                                 row = {
@@ -439,6 +503,7 @@ def _write_return_prob_outer_radius_debug_episodes_csv(
                                         border_width_mm=border_width_mm,
                                     )
                                 )
+                                row.update(_full_trajectory_debug_fields(full_ep))
                                 for key in _DEBUG_EPISODE_FIELDS:
                                     if key not in row and key in ep:
                                         row[key] = ep[key]

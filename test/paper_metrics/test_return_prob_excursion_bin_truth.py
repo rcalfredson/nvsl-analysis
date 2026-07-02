@@ -546,6 +546,9 @@ def test_return_prob_outer_radius_debug_csv_records_episode_audit_fields(tmp_pat
                 "reward_entry": 10,
                 "returns": True,
                 "end_reason": "reenter_reward",
+                "max_radius_mm": 5.0,
+                "max_excursion_mm": 2.0,
+                "max_dist_frame": 5,
             },
             {
                 "start": 20,
@@ -554,6 +557,9 @@ def test_return_prob_outer_radius_debug_csv_records_episode_audit_fields(tmp_pat
                 "reward_entry": None,
                 "returns": False,
                 "end_reason": "exit_outer",
+                "max_radius_mm": 18.0,
+                "max_excursion_mm": 15.0,
+                "max_dist_frame": 28,
             },
         ]
     )
@@ -589,6 +595,11 @@ def test_return_prob_outer_radius_debug_csv_records_episode_audit_fields(tmp_pat
     assert [row["wall_overlap"] for row in rows] == ["False", "True"]
     assert [row["included_in_metric"] for row in rows] == ["True", "False"]
     assert [row["event_frame"] for row in rows] == ["9", "29"]
+    assert [row["full_trajectory_start"] for row in rows] == ["0", "20"]
+    assert [row["full_trajectory_stop"] for row in rows] == ["10", "30"]
+    assert [row["full_trajectory_max_radius_mm"] for row in rows] == ["5.0", "18.0"]
+    assert [row["full_trajectory_max_excursion_mm"] for row in rows] == ["2.0", "15.0"]
+    assert [row["full_trajectory_max_dist_frame"] for row in rows] == ["5", "28"]
 
 
 def test_return_prob_outer_radius_plotter_preserves_duplicate_filename_fly_ids():
