@@ -12530,19 +12530,26 @@ def postAnalyze(vas):
                     opts, "best_worst_extreme", "both"
                 )
 
-            plot_cross_fly_correlations(
-                sli_values=sli_ser,
-                vas=vas,
-                training_idx=sli_training_idx,
-                opts=opts,
-                reward_pi_first_bucket=reward_pi_first_bucket,
-                out_dir="imgs/correlations",
-                plot_customizer=customizer,
-                sli_ctx=sli_ctx,
-                reward_rate_ctx=reward_rate_ctx,
-                sli_selected=sli_selected_for_correlations,
-                sli_extremes=sli_extremes_for_correlations,
-            )
+            if getattr(opts, "memory_saver", False):
+                print(
+                    '[memory_saver] skipping "cross-fly correlation scatter plots" because '
+                    "memory-saver may replace full trajectories with SlimTrajectory stubs; "
+                    "these plots can lazily compute metrics that require full reward-entry state."
+                )
+            else:
+                plot_cross_fly_correlations(
+                    sli_values=sli_ser,
+                    vas=vas,
+                    training_idx=sli_training_idx,
+                    opts=opts,
+                    reward_pi_first_bucket=reward_pi_first_bucket,
+                    out_dir="imgs/correlations",
+                    plot_customizer=customizer,
+                    sli_ctx=sli_ctx,
+                    reward_rate_ctx=reward_rate_ctx,
+                    sli_selected=sli_selected_for_correlations,
+                    sli_extremes=sli_extremes_for_correlations,
+                )
 
         a_orig = a.copy()
 
