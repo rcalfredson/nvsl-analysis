@@ -1408,6 +1408,7 @@ def plot_overlays(
                 alpha=float(stats_alpha),
                 min_n_per_group=3,
                 nlabel_off_frac=0.0,  # IMPORTANT: n is in legend, not above bars
+                stack_gap_frac=0.030,
             )
 
             annotate_grouped_bars_per_bin(
