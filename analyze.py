@@ -9488,8 +9488,8 @@ def plotRewards(
                         rrd_mean_dist="Reward return distance [mm]",
                         meddist="median dist. to reward\ncircle center [mm]",
                         meddist_exp_min_yok="med. dist. to center [mm]\n$(\\text{exp} - \\text{yok})$",
-                        commag="COM dist. to circle center [mm]",
-                        commag_exp_min_yok="COM dist. to circle center [mm]\n"
+                        commag="COM distance from reward center (mm)",
+                        commag_exp_min_yok="COM distance from reward center (mm)\n"
                         "$(\\text{exp} - \\text{yok})$",
                     )
                     if opts.prefCircleSlideRad:

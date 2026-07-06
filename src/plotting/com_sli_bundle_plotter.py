@@ -1221,7 +1221,7 @@ def plot_com_sli_bundle_data(
         plt.xlabel(maybe_sentence_case(str(xlabel or default_xlabel)))
 
         if metric == "commag":
-            y_label = "COM dist. to circle center [mm]"
+            y_label = "COM distance from reward center (mm)"
             if turnback_mode == "exp_minus_ctrl":
                 y_label += "\n(exp - yok)"
             elif turnback_mode == "ctrl":
@@ -1236,13 +1236,13 @@ def plot_com_sli_bundle_data(
             else:
                 y_label = "Turnback ratio"
         elif metric == "between_reward_maxdist":
-            y_label = "Mean between-reward max dist. [mm]"
+            y_label = "Max distance from reward center (mm)"
             if turnback_mode == "exp_minus_ctrl":
                 y_label += "\n(exp - yok)"
             elif turnback_mode == "ctrl":
                 y_label += "\n(yok)"
         elif metric == "between_reward_return_leg_dist":
-            y_label = "Mean between-reward return-leg dist. [mm]"
+            y_label = "Return-leg length (mm)"
             if turnback_mode == "exp_minus_ctrl":
                 y_label += "\n(exp - yok)"
             elif turnback_mode == "ctrl":
