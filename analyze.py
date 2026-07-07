@@ -4692,6 +4692,16 @@ g.add_argument(
     help="Frames of context to add on both sides of behavior-state trajectory plots.",
 )
 g.add_argument(
+    "--behavior-state-plot-turn-boundary-pad",
+    type=int,
+    default=2,
+    help=(
+        "If a behavior-state plot window starts or stops inside a detected turn, "
+        "expand to the full turn plus this many buffer frames. Use 0 to disable. "
+        "Default: 2."
+    ),
+)
+g.add_argument(
     "--behavior-state-plot-out-dir",
     type=str,
     default="imgs/behavior_states",
@@ -11597,6 +11607,8 @@ def _generate_behavior_state_plots(vas):
                 role_idx = va.flies.index(trj.f)
             except Exception:
                 role_idx = int(trj.f)
+            if role_idx != 0:
+                continue
 
             plotter = EventChainPlotter(
                 trj,
@@ -16232,7 +16244,9 @@ if __name__ == "__main__":
     else:
         opts.rTurnAnlyz = False
 
-    if getattr(opts, "behavior_state_plots", False):
+    if getattr(opts, "behavior_state_plots", False) or getattr(
+        opts, "export_turn_home_vector_alignment_sli_bundle", None
+    ):
         opts.behavior_state_analysis = True
 
     # If polar wants wall-contact exclusion, we must compute wall contact

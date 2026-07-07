@@ -12,7 +12,9 @@ import numpy as np
 
 from src.analysis.behavior_states import (
     BehaviorState,
+    DEFAULT_BEHAVIOR_STATE_CONFIG,
     analyze_trajectory_behavior_states,
+    behavior_state_config_from_opts,
 )
 from src.utils.common import writeImage
 from src.utils.constants import CONTACT_BUFFER_OFFSETS
@@ -71,6 +73,38 @@ class EventChainPlotter:
         if color in {"black", "k"}:
             return "black"
         return "lightgray"
+
+    @staticmethod
+    def _expand_behavior_state_turn_window(
+        states, start_frame, stop_frame, *, turn_boundary_pad=2
+    ):
+        """Expand plot limits when the requested window cuts through a turn."""
+        n_frames = len(states)
+        if n_frames < 1:
+            return start_frame, stop_frame
+
+        start_frame = max(0, min(n_frames - 1, int(start_frame)))
+        stop_frame = max(0, min(n_frames - 1, int(stop_frame)))
+        if stop_frame < start_frame:
+            return start_frame, stop_frame
+
+        pad = max(0, int(turn_boundary_pad or 0))
+        turn_value = int(BehaviorState.TURN)
+
+        if int(states[start_frame]) == turn_value:
+            while start_frame > 0 and int(states[start_frame - 1]) == turn_value:
+                start_frame -= 1
+            start_frame = max(0, start_frame - pad)
+
+        if int(states[stop_frame]) == turn_value:
+            while (
+                stop_frame < n_frames - 1
+                and int(states[stop_frame + 1]) == turn_value
+            ):
+                stop_frame += 1
+            stop_frame = min(n_frames - 1, stop_frame + pad)
+
+        return start_frame, stop_frame
 
     @staticmethod
     def _wrap_multiline_text(text, width, *, break_long_words=False):
@@ -4923,7 +4957,8 @@ class EventChainPlotter:
         image_format = image_format or self.image_format
         states = getattr(self.trj, "behavior_state", None)
         if states is None:
-            states = analyze_trajectory_behavior_states(self.trj)
+            config = behavior_state_config_from_opts(getattr(self.va, "opts", None))
+            states = analyze_trajectory_behavior_states(self.trj, config=config)
         if states is None:
             print(
                 f"[plot_behavior_state_trajectory] No behavior states for fly {self.trj.f}; skipping."
@@ -4957,6 +4992,16 @@ class EventChainPlotter:
 
         start_frame = max(0, int(start_frame) - int(pad))
         stop_frame = min(n_frames - 1, int(stop_frame) + int(pad))
+        start_frame, stop_frame = self._expand_behavior_state_turn_window(
+            states,
+            start_frame,
+            stop_frame,
+            turn_boundary_pad=getattr(
+                getattr(self.va, "opts", None),
+                "behavior_state_plot_turn_boundary_pad",
+                2,
+            ),
+        )
         if stop_frame <= start_frame:
             print(
                 f"[plot_behavior_state_trajectory] Empty frame window "
@@ -5111,6 +5156,88 @@ class EventChainPlotter:
                 label=label,
             )
 
+        opts = getattr(self.va, "opts", None)
+        if bool(getattr(opts, "behavior_state_plot_slow_markers", False)):
+            body_speed = np.asarray(
+                getattr(self.trj, "behavior_body_speed_mm_s", []), dtype=np.float64
+            )
+            n_speeds = min(n_frames, body_speed.size)
+            if n_speeds:
+                speed_threshold = max(
+                    0.0,
+                    float(
+                        getattr(
+                            opts,
+                            "behavior_state_plot_slow_marker_speed_mm_s",
+                            2.5,
+                        )
+                        or 0.0
+                    ),
+                )
+                slow_start = min(start_frame, n_speeds - 1)
+                slow_stop = min(stop_frame, n_speeds - 1)
+                slow_frames = np.arange(slow_start, slow_stop + 1, dtype=int)
+                slow_frames = slow_frames[
+                    np.isfinite(body_speed[slow_frames])
+                    & (body_speed[slow_frames] <= speed_threshold)
+                    & np.isfinite(self.x[slow_frames])
+                    & np.isfinite(self.y[slow_frames])
+                ]
+                if slow_frames.size:
+                    max_markers = max(
+                        1,
+                        int(
+                            getattr(
+                                opts,
+                                "behavior_state_plot_slow_marker_max_count",
+                                600,
+                            )
+                            or 600
+                        ),
+                    )
+                    marker_step = max(1, int(np.ceil(slow_frames.size / max_markers)))
+                    slow_markers = slow_frames[::marker_step]
+                    min_size = max(
+                        1.0,
+                        float(
+                            getattr(
+                                opts,
+                                "behavior_state_plot_slow_marker_min_size",
+                                18.0,
+                            )
+                            or 18.0
+                        ),
+                    )
+                    max_size = max(
+                        min_size,
+                        float(
+                            getattr(
+                                opts,
+                                "behavior_state_plot_slow_marker_max_size",
+                                90.0,
+                            )
+                            or 90.0
+                        ),
+                    )
+                    if speed_threshold > 0:
+                        steady = 1.0 - np.clip(
+                            body_speed[slow_markers] / speed_threshold, 0.0, 1.0
+                        )
+                    else:
+                        steady = np.ones(slow_markers.size, dtype=np.float64)
+                    marker_sizes = min_size + steady * (max_size - min_size)
+                    ax.scatter(
+                        self.x[slow_markers],
+                        self.y[slow_markers],
+                        s=marker_sizes,
+                        facecolors="none",
+                        edgecolors="#202020",
+                        linewidths=0.55 if minimal else 0.75,
+                        alpha=0.28 if minimal else 0.34,
+                        zorder=5.5,
+                        label=None if minimal else "Slow movement",
+                    )
+
         rest_frames = np.arange(start_frame, stop_frame + 1, dtype=int)
         rest_frames = rest_frames[window_states == int(BehaviorState.REST)]
         rest_frames = rest_frames[
@@ -5210,17 +5337,29 @@ class EventChainPlotter:
 
         out_dir = out_dir or os.path.join("imgs", "behavior_states")
         os.makedirs(out_dir, exist_ok=True)
-        trn_tag = f"trn{trn_index + 1}" if trn_index is not None else "frames"
-        minimal_tag = "_minimal" if minimal else ""
+        trn_tag = f"trn{trn_index + 1}" if trn_index is not None else "fm"
+        source = str(
+            getattr(
+                getattr(self.va, "opts", None),
+                "behavior_state_turn_angular_source",
+                None,
+            )
+            or DEFAULT_BEHAVIOR_STATE_CONFIG.turn_angular_source
+        ).strip().lower().replace("-", "_")
+        source_tags = {
+            "theta": "heading_only",
+            "path": "velAngle_only",
+            "theta_or_path": "velAngle_or_heading",
+        }
+        source_tag = source_tags.get(source, source)
         out_path = os.path.join(
             out_dir,
-            f"{video_id}__fly{fly_idx}_role{role_idx}_{trn_tag}_"
-            f"{start_frame}-{stop_frame}{minimal_tag}.{image_format}",
+            f"{video_id}__fly{fly_idx}_{trn_tag}_{start_frame}-{stop_frame}_"
+            f"{source_tag}.{image_format}",
         )
         writeImage(out_path, format=image_format)
         plt.close(fig)
         print(f"[plot_behavior_state_trajectory] wrote {out_path}")
-
     def plot_between_reward_chain(
         self,
         trn_index,
