@@ -8,7 +8,7 @@ cimport numpy as cnp
 
 from src.analysis.well_contact import detect_well_contacts_edge_or_center
 from src.plotting.event_chain_plotter import EventChainPlotter
-from src.utils.common import CT
+from src.utils.common import CT, signed_circular_angle_delta
 from src.utils.constants import CONTACT_BUFFER_OFFSETS
 from src.utils.debug_util import (
     ellipse_edge_points_within_boundaries,
@@ -2002,22 +2002,23 @@ cdef class EllipseToBoundaryDistCalculator:
                 if upper_index >= end_frame:
                     break
 
-                vel_angle_delta = abs(
-                    (self.trj.velAngles[upper_index] - self.trj.velAngles[i])
+                vel_angle_delta = signed_circular_angle_delta(
+                    self.trj.velAngles[upper_index],
+                    self.trj.velAngles[i]
                 )
-                alt_vel_angle = 2 * np.pi - vel_angle_delta
-                vel_angle_delta = min(vel_angle_delta, alt_vel_angle)
                 vel_angle_deltas.append(vel_angle_delta)
                 event_diag["used_angle_pairs"].append((i, upper_index))
                 event_diag["used_speed_frames"].append((speed_index, upper_index + 1))
                 event_diag["vel_angle_deltas"].append(vel_angle_delta)
 
-            total_vel_angle_delta = np.abs(np.sum(vel_angle_deltas))
+            signed_total_vel_angle_delta = np.sum(vel_angle_deltas)
+            total_vel_angle_delta = np.abs(signed_total_vel_angle_delta)
+            event_diag["signed_total_vel_angle_delta"] = signed_total_vel_angle_delta
+            event_diag["total_vel_angle_delta"] = total_vel_angle_delta
             event_diag["low_speed_frames"] = sorted(set(event_diag["low_speed_frames"]))
             event_diag["low_speed_speed_frames"] = sorted(
                 set(event_diag["low_speed_speed_frames"])
             )
-            event_diag["total_vel_angle_delta"] = total_vel_angle_delta
 
             stats['total_vel_angle_deltas'].append(total_vel_angle_delta)
             turn_angle_diagnostics.append(event_diag)

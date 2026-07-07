@@ -143,6 +143,27 @@ def areaUnderCurve(a):
     assert np.isnan(np.trapz([1, np.nan]))
     return np.trapz(a, axis=1)
 
+def signed_circular_angle_delta(angle_b, angle_a):
+    """
+    Return the signed shorted angular difference from angle_a to angle_b.
+
+    The result is wrapped into [-pi, pi), so positive and negative values
+    preserve opposite directions of angular change.
+
+    Parameters
+    ----------
+    angle_b : float or np.ndarray
+        Destination angle(s), in radians.
+    angle_a : float or np.ndarray
+        Starting angle(s), in radians.
+
+    Returns
+    -------
+    float or np.ndarray
+        Signed angular difference(s), in radians, wrapped to [pi, pi).
+    """
+    return np.mod(angle_b - angle_a + np.pi, 2 * np.pi) - np.pi
+
 
 # text utilities
 def sentence_case(s: str) -> str:
