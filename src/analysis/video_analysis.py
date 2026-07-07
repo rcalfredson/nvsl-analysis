@@ -85,7 +85,10 @@ from src.analysis.episode_filters import (
     EPISODE_TYPE_OUTER_ENTRY_REEXIT,
     min_episode_count_for_type,
 )
-from src.analysis.behavior_states import analyze_trajectory_behavior_states
+from src.analysis.behavior_states import (
+    analyze_trajectory_behavior_states,
+    behavior_state_config_from_opts,
+)
 from src.analysis.ellipse_to_boundary_dist import (
     TrjDataContainer,
     VaDataContainer,
@@ -2718,9 +2721,10 @@ class VideoAnalysis:
         split into run/rest with a Schmitt trigger on body speed.
         """
         print("\nanalyzing behavior states (turn/run/rest)...")
+        config = behavior_state_config_from_opts(self.opts)
         self.behavior_state_counts = []
         for trj in self.trx:
-            states = analyze_trajectory_behavior_states(trj)
+            states = analyze_trajectory_behavior_states(trj, config=config)
             if states is None:
                 self.behavior_state_counts.append({})
                 continue

@@ -4698,6 +4698,109 @@ g.add_argument(
     help="Output directory for behavior-state trajectory plots.",
 )
 g.add_argument(
+    "--behavior-state-plot-slow-markers",
+    action="store_true",
+    help=(
+        "Overlay hollow circles on behavior-state trajectory plots where the fly "
+        "is moving slowly. Circle area increases as body speed decreases."
+    ),
+)
+g.add_argument(
+    "--behavior-state-plot-slow-marker-speed-mm-s",
+    type=float,
+    default=2.5,
+    help="Body-speed threshold in mm/s for behavior-state slow-marker overlay. Default: 2.5.",
+)
+g.add_argument(
+    "--behavior-state-plot-slow-marker-min-size",
+    type=float,
+    default=18.0,
+    help="Minimum slow-marker area in points^2. Default: 18.",
+)
+g.add_argument(
+    "--behavior-state-plot-slow-marker-max-size",
+    type=float,
+    default=90.0,
+    help="Maximum slow-marker area in points^2. Default: 90.",
+)
+g.add_argument(
+    "--behavior-state-plot-slow-marker-max-count",
+    type=int,
+    default=600,
+    help=(
+        "Maximum number of slow markers to draw per behavior-state plot; dense "
+        "windows are evenly subsampled. Default: 600."
+    ),
+)
+g.add_argument(
+    "--behavior-state-turn-angular-small-deg-s",
+    type=float,
+    default=None,
+    help=(
+        "Small angular-speed threshold in deg/s for core behavior-state turn "
+        "scoring. Applies to both theta-based and path-bearing angular speeds. "
+        "Default: 80."
+    ),
+)
+g.add_argument(
+    "--behavior-state-turn-angular-source",
+    choices=("theta", "path", "theta_or_path"),
+    default=None,
+    help=(
+        "Angular-speed source for core behavior-state turn scoring. 'theta' uses "
+        "body heading only, 'path' uses velocity angle only, and 'theta_or_path' "
+        "uses the larger score from either source. Default: theta_or_path."
+    ),
+)
+g.add_argument(
+    "--behavior-state-turn-path-min-speed-mm-s",
+    type=float,
+    default=None,
+    help=(
+        "Minimum body speed in mm/s required for velocity-angle angular speed to "
+        "contribute to core behavior-state turn scoring. Default: 2.0."
+    ),
+)
+g.add_argument(
+    "--behavior-state-turn-path-angular-alignment",
+    choices=("vertex", "segment_end"),
+    default=None,
+    help=(
+        "Frame assignment for velocity-angle angular speed. 'vertex' shifts each "
+        "bend one frame earlier to label the spatial corner; 'segment_end' keeps "
+        "the previous interval-ending assignment. Default: vertex."
+    ),
+)
+g.add_argument(
+    "--behavior-state-turn-path-angular-shift-frames",
+    type=int,
+    default=None,
+    help=(
+        "Frames to shift velocity-angle angular evidence earlier during core "
+        "turn scoring. Default: 0. Heading angular evidence keeps the historical "
+        "2-frame shift."
+    ),
+)
+g.add_argument(
+    "--behavior-state-turn-angular-large-deg-s",
+    type=float,
+    default=None,
+    help=(
+        "Large angular-speed threshold in deg/s for core behavior-state turn "
+        "scoring. Applies to both theta-based and path-bearing angular speeds. "
+        "Default: 120."
+    ),
+)
+g.add_argument(
+    "--behavior-state-turn-min-segments",
+    type=int,
+    default=None,
+    help=(
+        "Minimum number of plotted trajectory segments required for a detected "
+        "turn island to be kept. Use 1 for the older behavior. Default: 2."
+    ),
+)
+g.add_argument(
     "--turn-dir",
     action="store_true",
     help="analyze directionality of agarose- and/or boundary-anchored turns",

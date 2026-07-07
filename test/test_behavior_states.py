@@ -2,13 +2,18 @@ import numpy as np
 
 from src.analysis.behavior_states import (
     BehaviorState,
+    BehaviorStateConfig,
     DEFAULT_BEHAVIOR_STATE_CONFIG,
     _reference_savgol_filter,
     analyze_trajectory_behavior_states,
+    behavior_state_config_from_opts,
     classify_behavior_states,
+    filter_short_turn_segments,
     find_turns,
+    path_angular_speed_rad_s,
     schmitt,
 )
+from src.plotting.event_chain_plotter import EventChainPlotter
 
 
 def _reference_find_turns(angular_speed, head_speed, body_speed):
@@ -33,6 +38,48 @@ def _reference_find_turns(angular_speed, head_speed, body_speed):
     )
 
 
+def test_behavior_state_plot_window_expands_clipped_turn_boundaries():
+    states = np.array(
+        [
+            BehaviorState.RUN,
+            BehaviorState.TURN,
+            BehaviorState.TURN,
+            BehaviorState.TURN,
+            BehaviorState.RUN,
+            BehaviorState.RUN,
+            BehaviorState.TURN,
+            BehaviorState.TURN,
+            BehaviorState.RUN,
+        ],
+        dtype=np.int8,
+    )
+
+    start, stop = EventChainPlotter._expand_behavior_state_turn_window(
+        states, 2, 6, turn_boundary_pad=1
+    )
+
+    assert (start, stop) == (0, 8)
+
+
+def test_behavior_state_plot_window_does_not_expand_unclipped_boundaries():
+    states = np.array(
+        [
+            BehaviorState.RUN,
+            BehaviorState.TURN,
+            BehaviorState.TURN,
+            BehaviorState.RUN,
+            BehaviorState.RUN,
+        ],
+        dtype=np.int8,
+    )
+
+    start, stop = EventChainPlotter._expand_behavior_state_turn_window(
+        states, 0, 4, turn_boundary_pad=2
+    )
+
+    assert (start, stop) == (0, 4)
+
+
 def test_find_turns_matches_reference_two_signal_scoring():
     n = 24
     angular_speed = np.zeros(n)
@@ -50,6 +97,156 @@ def test_find_turns_matches_reference_two_signal_scoring():
     assert np.any(expected)
 
 
+def test_find_turns_uses_path_angular_score_when_theta_is_flat():
+    n = 16
+    angular_speed = np.zeros(n)
+    path_angular_speed = np.zeros(n)
+    head_speed = np.ones(n)
+    body_speed = np.ones(n)
+    path_angular_speed[5:8] = DEFAULT_BEHAVIOR_STATE_CONFIG.angular_large_turn_rad_s + 0.2
+    config = BehaviorStateConfig(
+        savgol_window=99,
+        angular_mask_shift_frames=0,
+        turn_min_segments=1,
+        turn_score_threshold=2.0,
+    )
+
+    turns = find_turns(
+        angular_speed,
+        head_speed,
+        body_speed,
+        config=config,
+        path_angular_speed_rad_s=path_angular_speed,
+    )
+
+    expected = np.zeros(n, dtype=bool)
+    expected[5:8] = True
+    np.testing.assert_array_equal(turns, expected)
+
+
+def test_find_turns_can_shift_path_angular_score_when_requested():
+    n = 16
+    angular_speed = np.zeros(n)
+    path_angular_speed = np.zeros(n)
+    head_speed = np.ones(n)
+    body_speed = np.ones(n)
+    path_angular_speed[5:8] = DEFAULT_BEHAVIOR_STATE_CONFIG.angular_large_turn_rad_s + 0.2
+    config = BehaviorStateConfig(
+        savgol_window=99,
+        angular_mask_shift_frames=0,
+        path_angular_mask_shift_frames=2,
+        turn_min_segments=1,
+        turn_score_threshold=2.0,
+    )
+
+    turns = find_turns(
+        angular_speed,
+        head_speed,
+        body_speed,
+        config=config,
+        path_angular_speed_rad_s=path_angular_speed,
+    )
+
+    expected = np.zeros(n, dtype=bool)
+    expected[3:6] = True
+    np.testing.assert_array_equal(turns, expected)
+
+
+def test_find_turns_path_source_ignores_theta_angular_score():
+    n = 16
+    angular_speed = np.zeros(n)
+    path_angular_speed = np.zeros(n)
+    head_speed = np.ones(n)
+    body_speed = np.ones(n)
+    angular_speed[5:8] = DEFAULT_BEHAVIOR_STATE_CONFIG.angular_large_turn_rad_s + 0.2
+    config = BehaviorStateConfig(
+        turn_angular_source="path",
+        savgol_window=99,
+        angular_mask_shift_frames=0,
+        turn_score_threshold=2.0,
+    )
+
+    turns = find_turns(
+        angular_speed,
+        head_speed,
+        body_speed,
+        config=config,
+        path_angular_speed_rad_s=path_angular_speed,
+    )
+
+    np.testing.assert_array_equal(turns, np.zeros(n, dtype=bool))
+
+
+def test_filter_short_turn_segments_removes_one_segment_turns_by_default():
+    turn_mask = np.zeros(8, dtype=bool)
+    turn_mask[2] = True
+    turn_mask[4:6] = True
+
+    filtered = filter_short_turn_segments(turn_mask)
+
+    expected = np.zeros(8, dtype=bool)
+    expected[4:6] = True
+    np.testing.assert_array_equal(filtered, expected)
+
+
+def test_find_turns_can_keep_one_segment_turns_when_configured():
+    n = 12
+    angular_speed = np.zeros(n)
+    head_speed = np.ones(n)
+    body_speed = np.ones(n)
+    angular_speed[5] = DEFAULT_BEHAVIOR_STATE_CONFIG.angular_large_turn_rad_s + 0.2
+    config = BehaviorStateConfig(
+        savgol_window=99,
+        angular_mask_shift_frames=0,
+        turn_min_segments=1,
+        turn_score_threshold=2.0,
+    )
+
+    turns = find_turns(angular_speed, head_speed, body_speed, config=config)
+
+    expected = np.zeros(n, dtype=bool)
+    expected[5] = True
+    np.testing.assert_array_equal(turns, expected)
+
+
+def test_find_turns_drops_one_segment_turns_by_default():
+    n = 12
+    angular_speed = np.zeros(n)
+    head_speed = np.ones(n)
+    body_speed = np.ones(n)
+    angular_speed[5] = DEFAULT_BEHAVIOR_STATE_CONFIG.angular_large_turn_rad_s + 0.2
+    config = BehaviorStateConfig(
+        savgol_window=99,
+        angular_mask_shift_frames=0,
+        turn_score_threshold=2.0,
+    )
+
+    turns = find_turns(angular_speed, head_speed, body_speed, config=config)
+
+    np.testing.assert_array_equal(turns, np.zeros(n, dtype=bool))
+
+
+def test_behavior_state_config_from_opts_sets_core_turn_thresholds():
+    class Opts:
+        behavior_state_turn_angular_source = "path"
+        behavior_state_turn_path_angular_alignment = "segment_end"
+        behavior_state_turn_path_min_speed_mm_s = 3.0
+        behavior_state_turn_path_angular_shift_frames = 1
+        behavior_state_turn_angular_small_deg_s = 100.0
+        behavior_state_turn_angular_large_deg_s = 150.0
+        behavior_state_turn_min_segments = 3
+
+    config = behavior_state_config_from_opts(Opts())
+
+    assert config.turn_angular_source == "path"
+    assert config.turn_path_angular_alignment == "segment_end"
+    assert config.turn_path_min_speed_mm_s == 3.0
+    assert config.path_angular_mask_shift_frames == 1
+    assert np.isclose(config.angular_small_turn_rad_s, np.deg2rad(100.0))
+    assert np.isclose(config.angular_large_turn_rad_s, np.deg2rad(150.0))
+    assert config.turn_min_segments == 3
+
+
 def test_classify_behavior_states_uses_turns_before_run_schmitt():
     n = 32
     body_speed = np.r_[np.zeros(8), np.full(16, 4.0), np.zeros(8)]
@@ -65,6 +262,51 @@ def test_classify_behavior_states_uses_turns_before_run_schmitt():
     np.testing.assert_array_equal(states == BehaviorState.TURN, turn_mask)
     np.testing.assert_array_equal(states == BehaviorState.RUN, walking & ~turn_mask)
     np.testing.assert_array_equal(states == BehaviorState.REST, ~(walking | turn_mask))
+
+
+def test_path_angular_speed_detects_movement_bearing_change():
+    x = np.array([0.0, 1.0, 2.0, 2.0, 2.0])
+    y = np.array([0.0, 0.0, 0.0, 1.0, 2.0])
+    body_speed = np.full_like(x, 2.0)
+    config = BehaviorStateConfig(savgol_window=99)
+
+    path_speed = path_angular_speed_rad_s(
+        x, y, fps=10.0, body_speed_mm_s=body_speed, config=config
+    )
+
+    assert np.isfinite(path_speed[2])
+    assert path_speed[2] > 0
+    assert path_speed[3] == 0
+
+
+def test_path_angular_speed_can_use_segment_end_alignment():
+    x = np.array([0.0, 1.0, 2.0, 2.0, 2.0])
+    y = np.array([0.0, 0.0, 0.0, 1.0, 2.0])
+    body_speed = np.full_like(x, 2.0)
+    config = BehaviorStateConfig(
+        savgol_window=99, turn_path_angular_alignment="segment_end"
+    )
+
+    path_speed = path_angular_speed_rad_s(
+        x, y, fps=10.0, body_speed_mm_s=body_speed, config=config
+    )
+
+    assert path_speed[2] == 0
+    assert np.isfinite(path_speed[3])
+    assert path_speed[3] > 0
+
+
+def test_path_angular_speed_uses_core_path_min_speed_gate():
+    x = np.array([0.0, 1.0, 2.0, 2.0, 2.0])
+    y = np.array([0.0, 0.0, 0.0, 1.0, 2.0])
+    body_speed = np.full_like(x, 1.5)
+    config = BehaviorStateConfig(savgol_window=99, turn_path_min_speed_mm_s=2.0)
+
+    path_speed = path_angular_speed_rad_s(
+        x, y, fps=10.0, body_speed_mm_s=body_speed, config=config
+    )
+
+    assert np.all(~np.isfinite(path_speed))
 
 
 def test_analyze_trajectory_behavior_states_attaches_reference_signals():
@@ -99,4 +341,5 @@ def test_analyze_trajectory_behavior_states_attaches_reference_signals():
     assert trj.behavior_body_speed_mm_s.shape == trj.x.shape
     assert trj.behavior_head_speed_mm_s.shape == trj.x.shape
     assert trj.behavior_angular_speed_rad_s.shape == trj.x.shape
+    assert trj.behavior_path_angular_speed_rad_s.shape == trj.x.shape
     assert trj.behavior_turn_mask.dtype == bool
