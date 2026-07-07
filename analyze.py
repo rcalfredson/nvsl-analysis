@@ -133,6 +133,9 @@ from src.exporting.turnback_home_vector_alignment_sli_bundle import (
     export_turnback_home_vector_alignment_examples,
     export_turnback_home_vector_alignment_sli_bundle,
 )
+from src.exporting.turn_home_vector_alignment_sli_bundle import (
+    export_turn_home_vector_alignment_sli_bundle,
+)
 from src.exporting.wallpct_sli_bundle import export_wallpct_sli_bundle
 from src.exporting.wall_contacts_per_reward_interval import (
     save_wall_contacts_per_reward_interval_npz,
@@ -5787,6 +5790,15 @@ g.add_argument(
     )
 )
 g.add_argument(
+    "--export-turn-home-vector-alignment-sli-bundle",
+    type=str,
+    default=None,
+    help=(
+        "Write an .npz scalar-bar bundle with per-turn improvement in "
+        "reward-center home-vector heading alignment for behavior-state turns."
+    ),
+)
+g.add_argument(
     "--export-turnback-home-vector-alignment-examples",
     type=str,
     default=None,
@@ -5859,6 +5871,48 @@ g.add_argument(
         "Trainings to include in turnback-home-vector-alignment exports, "
         "e.g. '2' or '2-3'. Default: 2."
     )
+)
+g.add_argument(
+    "--turn-home-vector-alignment-trainings",
+    type=str,
+    default=None,
+    help=(
+        "Trainings to include in turn home-vector alignment exports, e.g. "
+        "'1,2' or '1-2'. Default: 1,2."
+    ),
+)
+g.add_argument(
+    "--turn-home-vector-alignment-include-pre",
+    action=argparse.BooleanOptionalAction,
+    default=True,
+    help=(
+        "Include a pre-training panel before the selected trainings for turn "
+        "home-vector alignment exports. Default: enabled."
+    ),
+)
+g.add_argument(
+    "--turn-home-vector-alignment-turn-filter",
+    choices=("all", "exclude_wall_contact"),
+    default="all",
+    help=(
+        "Turn inclusion filter for turn home-vector alignment exports. "
+        "Default: all."
+    ),
+)
+g.add_argument(
+    "--turn-home-vector-alignment-anchor",
+    choices=("frame", "segment_midpoint"),
+    default="frame",
+    help=(
+        "Anchor point for start/end home vectors in turn home-vector alignment. "
+        "Default: frame."
+    ),
+)
+g.add_argument(
+    "--turn-home-vector-alignment-min-turns",
+    type=int,
+    default=1,
+    help="Minimum eligible turns required for a fly to contribute to a panel. Default: 1.",
 )
 g.add_argument(
     '--turnback-home-vector-alignment-sli-group',
@@ -6145,6 +6199,15 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--turn-home-vector-alignment-skip-first-sync-buckets",
+    type=int,
+    default=None,
+    help=(
+        "Optional export-specific sync-bucket skip for turn home-vector alignment "
+        "bundles. Defaults to --skip-first-sync-buckets."
+    ),
+)
+g.add_argument(
     "--turnback-outer-radius-keep-first-sync-buckets",
     type=int,
     default=None,
@@ -6208,6 +6271,15 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--turn-home-vector-alignment-keep-first-sync-buckets",
+    type=int,
+    default=None,
+    help=(
+        "Optional export-specific sync-bucket cap for turn home-vector alignment "
+        "bundles. Defaults to --keep-first-sync-buckets."
+    ),
+)
+g.add_argument(
     "--turnback-outer-radius-last-sync-buckets",
     type=int,
     default=0,
@@ -6254,6 +6326,16 @@ g.add_argument(
     help=(
         "After training selection and optional skip/keep trimming, keep only the "
         "last K sync buckets per training for turnback-home-vector-alignment bundles. "
+        "Default: 0, meaning no tail restriction."
+    ),
+)
+g.add_argument(
+    "--turn-home-vector-alignment-last-sync-buckets",
+    type=int,
+    default=None,
+    help=(
+        "After training selection and optional skip/keep trimming, keep only the "
+        "last K sync buckets per training for turn home-vector alignment bundles. "
         "Default: 0, meaning no tail restriction."
     ),
 )
@@ -11974,6 +12056,12 @@ def _export_post_analyze_bundles(vas, gls) -> int:
             )
             num_exports += 1
 
+    if getattr(opts, "export_turn_home_vector_alignment_sli_bundle", None):
+        export_turn_home_vector_alignment_sli_bundle(
+            vas, opts, gls, opts.export_turn_home_vector_alignment_sli_bundle
+        )
+        num_exports += 1
+
     if getattr(opts, "export_weaving_sli_bundle", None):
         export_weaving_sli_bundle(vas, opts, gls, opts.export_weaving_sli_bundle)
         num_exports += 1
@@ -16302,6 +16390,18 @@ if __name__ == "__main__":
             print(
                 f"[return-prob-excursion-bin] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
                 "because --return-prob-excursion-bin-exclude-wall-contact was set"
+            )
+            opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
+
+    if (
+        getattr(opts, "turn_home_vector_alignment_turn_filter", "all")
+        == "exclude_wall_contact"
+    ):
+        if getattr(opts, "wall", None) is None:
+            print(
+                f"[turn-home-vector-alignment] enabling "
+                f"--wall={WALL_CONTACT_DEFAULT_THRESH_STR} because wall-contact "
+                "turn filtering was requested"
             )
             opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 
