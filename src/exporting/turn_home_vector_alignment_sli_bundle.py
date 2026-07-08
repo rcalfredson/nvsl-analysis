@@ -24,7 +24,7 @@ from src.exporting.wall_contact_episode_filter import (
 )
 from src.utils.parsers import parse_training_selector
 
-Y_LABEL = "Turn home-vector alignment improvement"
+Y_LABEL = "Turn home-vector alignment improvement (deg)"
 BASE_TITLE = "Turn home-vector alignment improvement"
 
 TURN_FILTER_ALL = "all"
@@ -211,6 +211,13 @@ def _home_vector_to_reward_center(anchor_xy, trn, trj):
     return hx, hy
 
 
+def _heading_home_angle_deg(heading, home) -> float:
+    alignment = cosine_alignment(heading, home)
+    if not np.isfinite(alignment):
+        return float("nan")
+    return float(np.degrees(np.arccos(np.clip(alignment, -1.0, 1.0))))
+
+
 def turn_home_vector_alignment_delta(
     trj,
     trn,
@@ -220,12 +227,15 @@ def turn_home_vector_alignment_delta(
     anchor: str = ANCHOR_FRAME,
 ) -> float:
     """
-    Compute end-minus-start reward-center alignment for one turn island.
+    Compute start-minus-end heading-to-home angular error for one turn island.
 
     A turn mask frame labels a plotted trajectory segment. For an island
     start..stop, start heading uses the last pre-turn segment plus first in-turn
     segment (frame start-1 to start+1), while end heading uses the last in-turn
     segment plus first post-turn segment (frame stop to stop+2).
+
+    The returned value is in degrees. Positive values mean the heading became
+    better aligned with the home vector over the turn.
     """
     start = int(turn_start)
     stop = int(turn_stop)
@@ -247,11 +257,11 @@ def turn_home_vector_alignment_delta(
     if start_home is None or end_home is None:
         return float("nan")
 
-    start_alignment = cosine_alignment(start_heading, start_home)
-    end_alignment = cosine_alignment(end_heading, end_home)
-    if not (np.isfinite(start_alignment) and np.isfinite(end_alignment)):
+    start_angle = _heading_home_angle_deg(start_heading, start_home)
+    end_angle = _heading_home_angle_deg(end_heading, end_home)
+    if not (np.isfinite(start_angle) and np.isfinite(end_angle)):
         return float("nan")
-    return float(end_alignment - start_alignment)
+    return float(start_angle - end_angle)
 
 
 def _turn_within_windows(start: int, stop: int, windows) -> bool:
@@ -478,7 +488,7 @@ def export_turn_home_vector_alignment_sli_bundle(vas, opts, gls, out_fn):
         },
         "generated_utc": datetime.now(timezone.utc).isoformat(),
         "group_label": _safe_group_label(opts, gls),
-        "metric": "turn_home_vector_alignment_delta",
+        "metric": "turn_home_vector_alignment_angle_improvement_deg",
         "heading_convention": (
             "path-derived heading; start uses frame start-1 to start+1, "
             "end uses frame stop to stop+2"

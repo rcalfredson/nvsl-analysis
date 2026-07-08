@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from src.exporting.turn_home_vector_alignment_sli_bundle import (
     ANCHOR_FRAME,
@@ -36,6 +37,7 @@ def test_turn_home_vector_alignment_delta_positive_when_turn_improves_alignment(
 
     assert np.isfinite(delta)
     assert delta > 0.0
+    assert delta == pytest.approx(38.6598082541)
 
 
 def test_turn_home_vector_alignment_delta_supports_segment_midpoint_anchor():
@@ -54,3 +56,4 @@ def test_turn_home_vector_alignment_delta_supports_segment_midpoint_anchor():
     )
 
     assert np.isfinite(delta)
+    assert delta == pytest.approx(41.8201698801)
