@@ -10,9 +10,10 @@ TURN_FILTER="${TURN_FILTER:-all}"
 TURN_ANCHOR="${TURN_ANCHOR:-frame}"
 TURN_MIN_TURNS="${TURN_MIN_TURNS:-1}"
 
-TURN_ANGULAR_SOURCE="${TURN_ANGULAR_SOURCE:-theta_or_path}"
+TURN_ANGULAR_SOURCE="${TURN_ANGULAR_SOURCE:-path_no_head_body}"
 TURN_ANGULAR_SMALL_DEG_S="${TURN_ANGULAR_SMALL_DEG_S:-100}"
 TURN_ANGULAR_LARGE_DEG_S="${TURN_ANGULAR_LARGE_DEG_S:-140}"
+TURN_SCORE_THRESHOLD="${TURN_SCORE_THRESHOLD:-1.4}"
 TURN_PATH_MIN_SPEED_MM_S="${TURN_PATH_MIN_SPEED_MM_S:-2}"
 TURN_MIN_SEGMENTS="${TURN_MIN_SEGMENTS:-2}"
 
@@ -88,7 +89,7 @@ mkdir -p "$OUT_DIR"
 mkdir -p "$MPLCONFIGDIR"
 
 filter_slug="$(turn_filter_slug)"
-run_slug="turnHomeVectorAlignment_${filter_slug}_${TURN_ANGULAR_SOURCE}_small${TURN_ANGULAR_SMALL_DEG_S}_large${TURN_ANGULAR_LARGE_DEG_S}_sb2-5_${DATE_TAG}"
+run_slug="turnHomeVectorAlignment_${filter_slug}_${TURN_ANGULAR_SOURCE}_score${TURN_SCORE_THRESHOLD}_small${TURN_ANGULAR_SMALL_DEG_S}_large${TURN_ANGULAR_LARGE_DEG_S}_sb2-5_${DATE_TAG}"
 
 bundles=()
 
@@ -116,6 +117,7 @@ for i in "${!GROUP_VARS[@]}"; do
     --behavior-state-turn-angular-source "$TURN_ANGULAR_SOURCE" \
     --behavior-state-turn-angular-small-deg-s "$TURN_ANGULAR_SMALL_DEG_S" \
     --behavior-state-turn-angular-large-deg-s "$TURN_ANGULAR_LARGE_DEG_S" \
+    --behavior-state-turn-score-threshold "$TURN_SCORE_THRESHOLD" \
     --behavior-state-turn-path-min-speed-mm-s "$TURN_PATH_MIN_SPEED_MM_S" \
     --behavior-state-turn-min-segments "$TURN_MIN_SEGMENTS" \
     --export-group-label "$group_label"
@@ -128,7 +130,7 @@ run_cmd \
   --input "AR Ctrl>Kir FLC=${bundles[2]}" \
   --out "${OUT_DIR}/${run_slug}.png" \
   --title "Turn home-vector alignment improvement, sync buckets 2-5" \
-  --ylabel "Home-vector alignment improvement during turn" \
+  --ylabel "Home-vector alignment improvement during turn (deg)" \
   --points \
   --stats
 
