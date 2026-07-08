@@ -20,6 +20,7 @@ class BehaviorStateConfig:
     turn_angular_source: str = "theta_or_path"
     turn_path_angular_alignment: str = "vertex"
     turn_path_min_speed_mm_s: float = 2.0
+    turn_path_min_segment_speed_mm_s: float | None = None
     head_body_small_turn_mm_s: float = 1.0
     head_body_large_turn_mm_s: float = 1.5
     run_low_mm_s: float = 1.0
@@ -32,6 +33,10 @@ class BehaviorStateConfig:
     turn_score_threshold: float = 1.8
     head_vertex_axis_fraction: float = 0.5
     turn_min_segments: int = 2
+    turn_expand_largest_vertex: bool = False
+    turn_absorb_sharp_gaps: bool = False
+    turn_sharp_gap_max_segments: int = 2
+    turn_sharp_gap_min_peak_ratio: float = 1.0
 
 
 DEFAULT_BEHAVIOR_STATE_CONFIG = BehaviorStateConfig()
@@ -64,7 +69,7 @@ def behavior_state_config_from_opts(opts) -> BehaviorStateConfig:
     angular_source = getattr(opts, "behavior_state_turn_angular_source", None)
     if angular_source is not None:
         source = str(angular_source).strip().lower().replace("-", "_")
-        if source not in {"theta", "path", "theta_or_path"}:
+        if source not in {"theta", "path", "theta_or_path", "path_no_head_body"}:
             raise ValueError(f"Unknown behavior-state turn angular source: {source}")
         updates["turn_angular_source"] = source
 
@@ -83,6 +88,14 @@ def behavior_state_config_from_opts(opts) -> BehaviorStateConfig:
     if path_turn_min_speed is not None:
         updates["turn_path_min_speed_mm_s"] = max(0.0, float(path_turn_min_speed))
 
+    path_turn_min_segment_speed = getattr(
+        opts, "behavior_state_turn_path_min_segment_speed_mm_s", None
+    )
+    if path_turn_min_segment_speed is not None:
+        updates["turn_path_min_segment_speed_mm_s"] = max(
+            0.0, float(path_turn_min_segment_speed)
+        )
+
     path_shift = getattr(opts, "behavior_state_turn_path_angular_shift_frames", None)
     if path_shift is not None:
         updates["path_angular_mask_shift_frames"] = max(0, int(path_shift))
@@ -95,9 +108,37 @@ def behavior_state_config_from_opts(opts) -> BehaviorStateConfig:
     if large_turn_deg is not None:
         updates["angular_large_turn_rad_s"] = float(large_turn_deg) * np.pi / 180.0
 
+    turn_score_threshold = getattr(opts, "behavior_state_turn_score_threshold", None)
+    if turn_score_threshold is not None:
+        updates["turn_score_threshold"] = float(turn_score_threshold)
+
     min_segments = getattr(opts, "behavior_state_turn_min_segments", None)
     if min_segments is not None:
         updates["turn_min_segments"] = max(1, int(min_segments))
+
+    expand_largest_vertex = getattr(
+        opts, "behavior_state_turn_expand_largest_vertex", None
+    )
+    if expand_largest_vertex is not None:
+        updates["turn_expand_largest_vertex"] = bool(expand_largest_vertex)
+
+    absorb_sharp_gaps = getattr(opts, "behavior_state_turn_absorb_sharp_gaps", None)
+    if absorb_sharp_gaps is not None:
+        updates["turn_absorb_sharp_gaps"] = bool(absorb_sharp_gaps)
+
+    sharp_gap_max_segments = getattr(
+        opts, "behavior_state_turn_sharp_gap_max_segments", None
+    )
+    if sharp_gap_max_segments is not None:
+        updates["turn_sharp_gap_max_segments"] = max(1, int(sharp_gap_max_segments))
+
+    sharp_gap_min_peak_ratio = getattr(
+        opts, "behavior_state_turn_sharp_gap_min_peak_ratio", None
+    )
+    if sharp_gap_min_peak_ratio is not None:
+        updates["turn_sharp_gap_min_peak_ratio"] = max(
+            0.0, float(sharp_gap_min_peak_ratio)
+        )
 
     return replace(cfg, **updates)
 
@@ -143,6 +184,213 @@ def filter_short_turn_segments(
     for start, stop in _true_runs(out):
         if stop - start + 1 < minimum:
             out[start : stop + 1] = False
+    return out
+
+
+def expand_turns_to_largest_path_vertex(
+    turn_mask: np.ndarray,
+    path_angular_speed_rad_s: np.ndarray | None,
+    *,
+    boundary_vertex_min_rad_s: float = (
+        DEFAULT_BEHAVIOR_STATE_CONFIG.angular_large_turn_rad_s
+    ),
+) -> np.ndarray:
+    mask = np.asarray(turn_mask, dtype=bool)
+    out = mask.copy()
+    if path_angular_speed_rad_s is None or out.size == 0:
+        return out
+
+    path_speed = np.asarray(path_angular_speed_rad_s, dtype=np.float64)
+    n = min(out.size, path_speed.size)
+    if n == 0:
+        return out
+    out = out[:n].copy()
+    original = mask[:n]
+    abs_path_speed = np.abs(path_speed[:n])
+    boundary_min = max(0.0, float(boundary_vertex_min_rad_s))
+
+    for start, stop in _true_runs(original):
+        if stop >= n:
+            continue
+        local = abs_path_speed[start : stop + 1]
+        finite = np.isfinite(local)
+        if not np.any(finite):
+            continue
+        finite_local_indices = np.flatnonzero(finite)
+        local_peak = finite_local_indices[
+            int(np.nanargmax(local[finite_local_indices]))
+        ]
+        vertex = start + int(local_peak)
+
+        candidates = []
+        incoming_segment = vertex - 1
+        if incoming_segment >= 0 and not original[incoming_segment]:
+            would_bridge_previous_turn = (
+                incoming_segment - 1 >= 0 and original[incoming_segment - 1]
+            )
+            if not would_bridge_previous_turn:
+                candidates.append(incoming_segment)
+
+        outgoing_segment = vertex
+        if outgoing_segment < n and not original[outgoing_segment]:
+            would_bridge_next_turn = (
+                outgoing_segment + 1 < n and original[outgoing_segment + 1]
+            )
+            if not would_bridge_next_turn:
+                candidates.append(outgoing_segment)
+
+        if candidates:
+            out[candidates[0]] = True
+
+        if abs_path_speed[start] >= boundary_min:
+            incoming_segment = start - 1
+            if incoming_segment >= 0 and not original[incoming_segment]:
+                would_bridge_previous_turn = (
+                    incoming_segment - 1 >= 0 and original[incoming_segment - 1]
+                )
+                if not would_bridge_previous_turn:
+                    out[incoming_segment] = True
+
+        outgoing_vertex = stop + 1
+        if outgoing_vertex < n and abs_path_speed[outgoing_vertex] >= boundary_min:
+            outgoing_segment = stop + 1
+            if outgoing_segment < n and not original[outgoing_segment]:
+                would_bridge_next_turn = (
+                    outgoing_segment + 1 < n and original[outgoing_segment + 1]
+                )
+                if not would_bridge_next_turn:
+                    out[outgoing_segment] = True
+
+    if mask.size > n:
+        padded = mask.copy()
+        padded[:n] = out
+        return padded
+    return out
+
+
+def _finite_abs_peak(values: np.ndarray) -> float:
+    finite_values = np.asarray(values, dtype=np.float64)
+    finite_values = finite_values[np.isfinite(finite_values)]
+    if finite_values.size == 0:
+        return np.nan
+    return float(np.max(np.abs(finite_values)))
+
+
+def _dominant_sign(value: float) -> int:
+    if not np.isfinite(value) or value == 0:
+        return 0
+    return 1 if value > 0 else -1
+
+
+def _split_opposing_path_vertices(
+    turn_mask: np.ndarray,
+    path_angular_speed_rad_s: np.ndarray,
+    *,
+    min_segments: int,
+) -> np.ndarray:
+    out = np.asarray(turn_mask, dtype=bool).copy()
+    path_speed = np.asarray(path_angular_speed_rad_s, dtype=np.float64)
+    n = min(out.size, path_speed.size)
+    if n == 0:
+        return out
+
+    minimum = max(1, int(min_segments))
+    for start, stop in _true_runs(out[:n]):
+        local = path_speed[start : stop + 1]
+        finite_local = np.flatnonzero(np.isfinite(local) & (local != 0))
+        if finite_local.size < 2:
+            continue
+
+        signed_vertices = [(start + int(i), _dominant_sign(local[int(i)])) for i in finite_local]
+        split_candidates = []
+        for (left_idx, left_sign), (right_idx, right_sign) in zip(
+            signed_vertices, signed_vertices[1:]
+        ):
+            if left_sign == 0 or right_sign == 0 or left_sign == right_sign:
+                continue
+            lo, hi = sorted((left_idx, right_idx))
+            window = np.abs(path_speed[lo : hi + 1])
+            finite = np.isfinite(window)
+            if not np.any(finite):
+                continue
+            finite_offsets = np.flatnonzero(finite)
+            weakest_offset = finite_offsets[int(np.nanargmin(window[finite_offsets]))]
+            split_idx = lo + int(weakest_offset)
+            left_len = split_idx - start
+            right_len = stop - split_idx
+            if left_len >= minimum and right_len >= minimum:
+                split_candidates.append((float(window[weakest_offset]), split_idx))
+
+        if not split_candidates:
+            continue
+        _, split_idx = min(split_candidates, key=lambda item: item[0])
+        out[split_idx] = False
+
+    return filter_short_turn_segments(out, min_segments=minimum)
+
+
+def absorb_sharp_turn_gaps(
+    turn_mask: np.ndarray,
+    path_angular_speed_rad_s: np.ndarray | None,
+    *,
+    max_gap_segments: int = DEFAULT_BEHAVIOR_STATE_CONFIG.turn_sharp_gap_max_segments,
+    min_peak_ratio: float = DEFAULT_BEHAVIOR_STATE_CONFIG.turn_sharp_gap_min_peak_ratio,
+    boundary_vertex_min_rad_s: float = (
+        DEFAULT_BEHAVIOR_STATE_CONFIG.angular_large_turn_rad_s
+    ),
+    min_segments: int = DEFAULT_BEHAVIOR_STATE_CONFIG.turn_min_segments,
+    split_opposing: bool = True,
+) -> np.ndarray:
+    mask = np.asarray(turn_mask, dtype=bool)
+    out = mask.copy()
+    if path_angular_speed_rad_s is None or out.size == 0:
+        return out
+
+    path_speed = np.asarray(path_angular_speed_rad_s, dtype=np.float64)
+    n = min(out.size, path_speed.size)
+    if n == 0:
+        return out
+    out = out[:n].copy()
+    original = mask[:n]
+    max_gap = max(1, int(max_gap_segments))
+    ratio = max(0.0, float(min_peak_ratio))
+    boundary_min = max(0.0, float(boundary_vertex_min_rad_s))
+    runs = _true_runs(original)
+
+    for (left_start, left_stop), (right_start, right_stop) in zip(runs, runs[1:]):
+        gap_start = left_stop + 1
+        gap_stop = right_start - 1
+        gap_len = gap_stop - gap_start + 1
+        if gap_len < 1 or gap_len > max_gap:
+            continue
+
+        left_boundary = path_speed[left_stop] if left_stop < n else np.nan
+        if np.isfinite(left_boundary) and abs(left_boundary) >= boundary_min:
+            out[gap_start] = True
+
+        right_boundary = path_speed[right_start] if right_start < n else np.nan
+        if np.isfinite(right_boundary) and abs(right_boundary) >= boundary_min:
+            out[gap_stop] = True
+
+        gap_peak = _finite_abs_peak(path_speed[gap_start : gap_stop + 1])
+        left_peak = _finite_abs_peak(path_speed[left_start : left_stop + 1])
+        right_peak = _finite_abs_peak(path_speed[right_start : right_stop + 1])
+        adjacent_peaks = [p for p in (left_peak, right_peak) if np.isfinite(p)]
+        if not np.isfinite(gap_peak) or not adjacent_peaks:
+            continue
+        reference_peak = min(adjacent_peaks)
+        if gap_peak >= ratio * reference_peak:
+            out[gap_start : gap_stop + 1] = True
+
+    if split_opposing:
+        out = _split_opposing_path_vertices(
+            out, path_speed[:n], min_segments=min_segments
+        )
+
+    if mask.size > n:
+        padded = mask.copy()
+        padded[:n] = out
+        return padded
     return out
 
 
@@ -203,7 +451,7 @@ def turn_score_components(
     if angular_source == "theta":
         path_angular_score = np.zeros_like(path_angular_score)
         angular_score = theta_angular_score.copy()
-    elif angular_source == "path":
+    elif angular_source in {"path", "path_no_head_body"}:
         theta_angular_score = np.zeros_like(theta_angular_score)
         angular_score = path_angular_score.copy()
     elif angular_source == "theta_or_path":
@@ -220,6 +468,8 @@ def turn_score_components(
     ).astype(float) + (
         shifted_head_body_diff > config.head_body_large_turn_mm_s
     ).astype(float)
+    if angular_source == "path_no_head_body":
+        head_body_score = np.zeros_like(head_body_score)
 
     smoothed_angular_score = _reference_savgol_filter(
         angular_score, order=config.savgol_order, window=config.savgol_window
@@ -272,6 +522,7 @@ def path_angular_speed_rad_s(
     y_px: np.ndarray,
     *,
     fps: float,
+    px_per_mm: float | None = None,
     dt_s: np.ndarray | None = None,
     body_speed_mm_s: np.ndarray | None = None,
     config: BehaviorStateConfig = DEFAULT_BEHAVIOR_STATE_CONFIG,
@@ -310,6 +561,28 @@ def path_angular_speed_rad_s(
             | (body_speed[:n] < config.turn_path_min_speed_mm_s)
         )
         out[low_speed] = np.nan
+    min_segment_speed = config.turn_path_min_segment_speed_mm_s
+    if min_segment_speed is None:
+        min_segment_speed = config.turn_path_min_speed_mm_s
+    if px_per_mm is not None and float(min_segment_speed) > 0:
+        segment_speed = np.hypot(dx, dy) / dt / float(px_per_mm)
+        n = min(out.size, segment_speed.size)
+        unreliable_vertex = np.ones(out.size, dtype=bool)
+        if n > 1:
+            incoming = segment_speed[: n - 1]
+            outgoing = segment_speed[1:n]
+            threshold = float(min_segment_speed)
+            unreliable = (
+                ~np.isfinite(incoming)
+                | ~np.isfinite(outgoing)
+                | (incoming < threshold)
+                | (outgoing < threshold)
+            )
+            if alignment == "vertex":
+                unreliable_vertex[: n - 1] = unreliable
+            else:
+                unreliable_vertex[1:n] = unreliable
+        out[unreliable_vertex] = np.nan
     return _reference_savgol_filter(
         out, order=config.savgol_order, window=config.savgol_window
     )
@@ -367,9 +640,26 @@ def find_turns(
         path_angular_speed_rad_s=path_angular_speed_rad_s,
     )
     turn_mask = components["raw_turn_mask"]
-    return filter_short_turn_segments(
+    turn_mask = filter_short_turn_segments(
         turn_mask, min_segments=config.turn_min_segments
     )
+    angular_source = str(config.turn_angular_source).strip().lower().replace("-", "_")
+    if config.turn_expand_largest_vertex and angular_source != "theta":
+        turn_mask = expand_turns_to_largest_path_vertex(
+            turn_mask,
+            components["path_angular_speed_rad_s"],
+            boundary_vertex_min_rad_s=config.angular_large_turn_rad_s,
+        )
+    if config.turn_absorb_sharp_gaps and angular_source != "theta":
+        turn_mask = absorb_sharp_turn_gaps(
+            turn_mask,
+            components["path_angular_speed_rad_s"],
+            max_gap_segments=config.turn_sharp_gap_max_segments,
+            min_peak_ratio=config.turn_sharp_gap_min_peak_ratio,
+            min_segments=config.turn_min_segments,
+            split_opposing=True,
+        )
+    return turn_mask
 
 
 def classify_behavior_states(
@@ -421,6 +711,7 @@ def analyze_trajectory_behavior_states(
         trj.x,
         trj.y,
         fps=trj.va.fps,
+        px_per_mm=px_per_mm,
         dt_s=dt_s,
         body_speed_mm_s=body_speed,
         config=config,

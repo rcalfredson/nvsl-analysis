@@ -4746,6 +4746,14 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--behavior-state-debug-tsv",
+    action="store_true",
+    help=(
+        "With behavior-state plots, write a per-frame TSV of the current core "
+        "turn-detector scores and labels next to each plot."
+    ),
+)
+g.add_argument(
     "--behavior-state-turn-angular-small-deg-s",
     type=float,
     default=None,
@@ -4757,12 +4765,14 @@ g.add_argument(
 )
 g.add_argument(
     "--behavior-state-turn-angular-source",
-    choices=("theta", "path", "theta_or_path"),
+    choices=("theta", "path", "theta_or_path", "path_no_head_body"),
     default=None,
     help=(
         "Angular-speed source for core behavior-state turn scoring. 'theta' uses "
-        "body heading only, 'path' uses velocity angle only, and 'theta_or_path' "
-        "uses the larger score from either source. Default: theta_or_path."
+        "body heading angular speed, 'path' uses velocity-angle angular speed, "
+        "'theta_or_path' uses the larger score from either source, and "
+        "'path_no_head_body' uses velocity-angle angular speed while disabling "
+        "the head-minus-body speed contribution. Default: theta_or_path."
     ),
 )
 g.add_argument(
@@ -4772,6 +4782,16 @@ g.add_argument(
     help=(
         "Minimum body speed in mm/s required for velocity-angle angular speed to "
         "contribute to core behavior-state turn scoring. Default: 2.0."
+    ),
+)
+g.add_argument(
+    "--behavior-state-turn-path-min-segment-speed-mm-s",
+    type=float,
+    default=None,
+    help=(
+        "Minimum raw speed in mm/s required for both trajectory segments adjacent "
+        "to a velocity-angle vertex. Use 0 for the older behavior. Default: same "
+        "as --behavior-state-turn-path-min-speed-mm-s."
     ),
 )
 g.add_argument(
@@ -4805,12 +4825,57 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--behavior-state-turn-score-threshold",
+    type=float,
+    default=None,
+    help=(
+        "Minimum combined turn score required for core behavior-state turn "
+        "detection before the minimum-segment filter is applied. Default: 1.8."
+    ),
+)
+g.add_argument(
     "--behavior-state-turn-min-segments",
     type=int,
     default=None,
     help=(
         "Minimum number of plotted trajectory segments required for a detected "
         "turn island to be kept. Use 1 for the older behavior. Default: 2."
+    ),
+)
+g.add_argument(
+    "--behavior-state-turn-expand-largest-vertex",
+    action="store_true",
+    help=(
+        "After core turn detection, add at most one adjacent segment to each "
+        "detected turn when needed to include both segments attached to that "
+        "turn's largest path-angle vertex. Default: off."
+    ),
+)
+g.add_argument(
+    "--behavior-state-turn-absorb-sharp-gaps",
+    action="store_true",
+    help=(
+        "After core turn detection, absorb short non-turn gaps between adjacent "
+        "turns when the gap contains path-angle evidence at least as sharp as "
+        "the weaker neighboring turn, then split mixed-direction islands at "
+        "their weakest opposite-sign vertex. Default: off."
+    ),
+)
+g.add_argument(
+    "--behavior-state-turn-sharp-gap-max-segments",
+    type=int,
+    default=None,
+    help=(
+        "Maximum non-turn gap size eligible for sharp-gap absorption. Default: 2."
+    ),
+)
+g.add_argument(
+    "--behavior-state-turn-sharp-gap-min-peak-ratio",
+    type=float,
+    default=None,
+    help=(
+        "Minimum ratio of gap path-angle peak to the weaker adjacent turn peak "
+        "required for sharp-gap absorption. Default: 1.0."
     ),
 )
 g.add_argument(

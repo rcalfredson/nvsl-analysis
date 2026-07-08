@@ -4,6 +4,7 @@ import os
 import random
 import re
 import textwrap
+import csv
 from typing import Optional, Tuple
 
 import matplotlib.patches as patches
@@ -15,6 +16,8 @@ from src.analysis.behavior_states import (
     DEFAULT_BEHAVIOR_STATE_CONFIG,
     analyze_trajectory_behavior_states,
     behavior_state_config_from_opts,
+    find_turns,
+    turn_score_components,
 )
 from src.utils.common import writeImage
 from src.utils.constants import CONTACT_BUFFER_OFFSETS
@@ -5350,6 +5353,7 @@ class EventChainPlotter:
             "theta": "heading_only",
             "path": "velAngle_only",
             "theta_or_path": "velAngle_or_heading",
+            "path_no_head_body": "velAngle_noHeadBody",
         }
         source_tag = source_tags.get(source, source)
         out_path = os.path.join(
@@ -5360,6 +5364,160 @@ class EventChainPlotter:
         writeImage(out_path, format=image_format)
         plt.close(fig)
         print(f"[plot_behavior_state_trajectory] wrote {out_path}")
+
+        if bool(getattr(opts, "behavior_state_debug_tsv", False)):
+            debug_path = os.path.splitext(out_path)[0] + "_debug.tsv"
+            self._write_behavior_state_debug_tsv(
+                debug_path,
+                start_frame=start_frame,
+                stop_frame=stop_frame,
+                states=states,
+            )
+
+    def _write_behavior_state_debug_tsv(
+        self,
+        out_path: str,
+        *,
+        start_frame: int,
+        stop_frame: int,
+        states: np.ndarray,
+    ) -> None:
+        config = behavior_state_config_from_opts(getattr(self.va, "opts", None))
+        angular_speed = np.asarray(
+            getattr(self.trj, "behavior_angular_speed_rad_s", []), dtype=np.float64
+        )
+        path_angular_speed = np.asarray(
+            getattr(self.trj, "behavior_path_angular_speed_rad_s", []),
+            dtype=np.float64,
+        )
+        head_speed = np.asarray(
+            getattr(self.trj, "behavior_head_speed_mm_s", []), dtype=np.float64
+        )
+        body_speed = np.asarray(
+            getattr(self.trj, "behavior_body_speed_mm_s", []), dtype=np.float64
+        )
+        if not (
+            angular_speed.size
+            and path_angular_speed.size
+            and head_speed.size
+            and body_speed.size
+        ):
+            print(
+                f"[plot_behavior_state_trajectory] No behavior-state signals for "
+                f"debug TSV; skipping {out_path}."
+            )
+            return
+
+        components = turn_score_components(
+            angular_speed,
+            head_speed,
+            body_speed,
+            config=config,
+            path_angular_speed_rad_s=path_angular_speed,
+        )
+        final_turn = find_turns(
+            angular_speed,
+            head_speed,
+            body_speed,
+            config=config,
+            path_angular_speed_rad_s=path_angular_speed,
+        )
+        n = min(
+            len(states),
+            len(self.x),
+            len(self.y),
+            angular_speed.size,
+            path_angular_speed.size,
+            head_speed.size,
+            body_speed.size,
+            final_turn.size,
+            *(len(v) for v in components.values()),
+        )
+        start = max(0, int(start_frame))
+        stop = min(n - 1, int(stop_frame))
+        if stop < start:
+            return
+
+        angular_source = str(config.turn_angular_source)
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+        with open(out_path, "w", newline="") as fh:
+            writer = csv.writer(fh, delimiter="\t")
+            writer.writerow(
+                [
+                    "frame",
+                    "x_px",
+                    "y_px",
+                    "state",
+                    "turn_label",
+                    "score_threshold_turn",
+                    "turn_score",
+                    "turn_score_threshold",
+                    "theta_angular_score",
+                    "path_angular_score",
+                    "combined_angular_score",
+                    "head_body_score",
+                    "smoothed_angular_score",
+                    "smoothed_head_body_score",
+                    "angular_speed_deg_s",
+                    "path_angular_speed_deg_s",
+                    "body_speed_mm_s",
+                    "head_speed_mm_s",
+                    "head_body_diff_mm_s",
+                    "shifted_head_body_diff_mm_s",
+                    "angular_source",
+                    "angular_small_threshold_deg_s",
+                    "angular_large_threshold_deg_s",
+                    "path_min_speed_mm_s",
+                    "path_min_segment_speed_mm_s",
+                    "turn_min_segments",
+                    "turn_expand_largest_vertex",
+                    "turn_absorb_sharp_gaps",
+                    "turn_sharp_gap_max_segments",
+                    "turn_sharp_gap_min_peak_ratio",
+                ]
+            )
+            for frame in range(start, stop + 1):
+                state = BehaviorState(int(states[frame])).name.lower()
+                writer.writerow(
+                    [
+                        frame,
+                        self.x[frame],
+                        self.y[frame],
+                        state,
+                        int(final_turn[frame]),
+                        int(components["raw_turn_mask"][frame]),
+                        components["turn_score"][frame],
+                        config.turn_score_threshold,
+                        components["theta_angular_score"][frame],
+                        components["path_angular_score"][frame],
+                        components["angular_score"][frame],
+                        components["head_body_score"][frame],
+                        components["smoothed_angular_score"][frame],
+                        components["smoothed_head_body_score"][frame],
+                        np.rad2deg(angular_speed[frame]),
+                        np.rad2deg(components["path_angular_speed_rad_s"][frame]),
+                        body_speed[frame],
+                        head_speed[frame],
+                        components["head_body_diff_mm_s"][frame],
+                        components["shifted_head_body_diff_mm_s"][frame],
+                        angular_source,
+                        np.rad2deg(config.angular_small_turn_rad_s),
+                        np.rad2deg(config.angular_large_turn_rad_s),
+                        config.turn_path_min_speed_mm_s,
+                        (
+                            config.turn_path_min_segment_speed_mm_s
+                            if config.turn_path_min_segment_speed_mm_s is not None
+                            else config.turn_path_min_speed_mm_s
+                        ),
+                        int(config.turn_min_segments),
+                        int(config.turn_expand_largest_vertex),
+                        int(config.turn_absorb_sharp_gaps),
+                        int(config.turn_sharp_gap_max_segments),
+                        config.turn_sharp_gap_min_peak_ratio,
+                    ]
+                )
+        print(f"[plot_behavior_state_trajectory] wrote {out_path}")
+
     def plot_between_reward_chain(
         self,
         trn_index,
