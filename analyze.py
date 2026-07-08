@@ -4879,6 +4879,48 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--behavior-state-turn-rescue-pivot-pauses",
+    action="store_true",
+    help=(
+        "After core turn detection, rescue one-frame pivot pauses as turns when "
+        "one short segment is flanked by two moving segments with a large angle "
+        "change. Includes incoming, short, and outgoing segments. Default: off."
+    ),
+)
+g.add_argument(
+    "--behavior-state-turn-pivot-min-angle-deg",
+    type=float,
+    default=None,
+    help="Minimum flanking-segment angle for pivot-pause rescue. Default: 100.",
+)
+g.add_argument(
+    "--behavior-state-turn-pivot-max-short-segments",
+    type=int,
+    default=None,
+    help=(
+        "Maximum number of consecutive low-speed middle segments allowed in "
+        "pivot-pause rescue. Default: 1."
+    ),
+)
+g.add_argument(
+    "--behavior-state-turn-pivot-short-max-speed-mm-s",
+    type=float,
+    default=None,
+    help=(
+        "Maximum raw speed for the short middle segment in pivot-pause rescue. "
+        "Default: same as path min segment speed."
+    ),
+)
+g.add_argument(
+    "--behavior-state-turn-pivot-flank-min-speed-mm-s",
+    type=float,
+    default=None,
+    help=(
+        "Minimum raw speed for the incoming and outgoing flanking segments in "
+        "pivot-pause rescue. Default: same as path min segment speed."
+    ),
+)
+g.add_argument(
     "--turn-dir",
     action="store_true",
     help="analyze directionality of agarose- and/or boundary-anchored turns",

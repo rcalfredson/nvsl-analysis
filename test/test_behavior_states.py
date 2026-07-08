@@ -12,6 +12,8 @@ from src.analysis.behavior_states import (
     filter_short_turn_segments,
     find_turns,
     path_angular_speed_rad_s,
+    pivot_pause_turn_mask,
+    raw_segment_speed_mm_s,
     schmitt,
 )
 from src.plotting.event_chain_plotter import EventChainPlotter
@@ -360,6 +362,91 @@ def test_find_turns_path_source_still_uses_head_body_score():
     assert np.any(turns)
 
 
+def test_pivot_pause_turn_mask_includes_incoming_short_and_outgoing_segments():
+    x = np.array([0.0, 10.0, 10.5, 10.5, 20.5])
+    y = np.array([0.0, 0.0, 0.5, 10.5, 10.5])
+    segment_speed = raw_segment_speed_mm_s(x, y, fps=10.0, px_per_mm=10.0)
+    body_speed = np.full_like(x, 3.0)
+    config = BehaviorStateConfig(
+        turn_rescue_pivot_pauses=True,
+        turn_path_min_segment_speed_mm_s=2.0,
+        turn_pivot_min_angle_rad=np.deg2rad(80.0),
+    )
+
+    mask = pivot_pause_turn_mask(
+        x, y, segment_speed, body_speed_mm_s=body_speed, config=config
+    )
+
+    expected = np.zeros_like(mask, dtype=bool)
+    expected[0:3] = True
+    np.testing.assert_array_equal(mask, expected)
+
+
+def test_pivot_pause_turn_mask_can_include_two_short_segments():
+    x = np.array([0.0, 10.0, 10.5, 11.0, 11.0, 21.0])
+    y = np.array([0.0, 0.0, 0.5, 1.0, 11.0, 11.0])
+    segment_speed = raw_segment_speed_mm_s(x, y, fps=10.0, px_per_mm=10.0)
+    body_speed = np.full_like(x, 3.0)
+    config = BehaviorStateConfig(
+        turn_rescue_pivot_pauses=True,
+        turn_path_min_segment_speed_mm_s=2.0,
+        turn_pivot_min_angle_rad=np.deg2rad(80.0),
+        turn_pivot_max_short_segments=2,
+    )
+
+    mask = pivot_pause_turn_mask(
+        x, y, segment_speed, body_speed_mm_s=body_speed, config=config
+    )
+
+    expected = np.zeros_like(mask, dtype=bool)
+    expected[0:4] = True
+    np.testing.assert_array_equal(mask, expected)
+
+
+def test_pivot_pause_turn_mask_rejects_rest_like_body_speed():
+    x = np.array([0.0, 10.0, 10.5, 11.0, 11.0, 21.0])
+    y = np.array([0.0, 0.0, 0.5, 1.0, 11.0, 11.0])
+    segment_speed = raw_segment_speed_mm_s(x, y, fps=10.0, px_per_mm=10.0)
+    body_speed = np.full_like(x, 0.5)
+    config = BehaviorStateConfig(
+        turn_rescue_pivot_pauses=True,
+        turn_path_min_segment_speed_mm_s=2.0,
+        turn_pivot_min_angle_rad=np.deg2rad(80.0),
+        turn_pivot_max_short_segments=2,
+    )
+
+    mask = pivot_pause_turn_mask(
+        x, y, segment_speed, body_speed_mm_s=body_speed, config=config
+    )
+
+    np.testing.assert_array_equal(mask, np.zeros_like(mask, dtype=bool))
+
+
+def test_find_turns_can_rescue_pivot_pause_mask():
+    n = 8
+    angular_speed = np.zeros(n)
+    path_angular_speed = np.zeros(n)
+    head_speed = np.ones(n)
+    body_speed = np.ones(n)
+    pivot_mask = np.zeros(n, dtype=bool)
+    pivot_mask[2:5] = True
+    config = BehaviorStateConfig(
+        turn_angular_source="path_no_head_body",
+        turn_rescue_pivot_pauses=True,
+    )
+
+    turns = find_turns(
+        angular_speed,
+        head_speed,
+        body_speed,
+        config=config,
+        path_angular_speed_rad_s=path_angular_speed,
+        pivot_turn_mask=pivot_mask,
+    )
+
+    np.testing.assert_array_equal(turns, pivot_mask)
+
+
 def test_filter_short_turn_segments_removes_one_segment_turns_by_default():
     turn_mask = np.zeros(8, dtype=bool)
     turn_mask[2] = True
@@ -424,6 +511,11 @@ def test_behavior_state_config_from_opts_sets_core_turn_thresholds():
         behavior_state_turn_absorb_sharp_gaps = True
         behavior_state_turn_sharp_gap_max_segments = 4
         behavior_state_turn_sharp_gap_min_peak_ratio = 0.9
+        behavior_state_turn_rescue_pivot_pauses = True
+        behavior_state_turn_pivot_min_angle_deg = 100.0
+        behavior_state_turn_pivot_max_short_segments = 2
+        behavior_state_turn_pivot_short_max_speed_mm_s = 1.0
+        behavior_state_turn_pivot_flank_min_speed_mm_s = 2.0
 
     config = behavior_state_config_from_opts(Opts())
 
@@ -440,6 +532,11 @@ def test_behavior_state_config_from_opts_sets_core_turn_thresholds():
     assert config.turn_absorb_sharp_gaps is True
     assert config.turn_sharp_gap_max_segments == 4
     assert config.turn_sharp_gap_min_peak_ratio == 0.9
+    assert config.turn_rescue_pivot_pauses is True
+    assert np.isclose(config.turn_pivot_min_angle_rad, np.deg2rad(100.0))
+    assert config.turn_pivot_max_short_segments == 2
+    assert config.turn_pivot_short_segment_max_speed_mm_s == 1.0
+    assert config.turn_pivot_flank_min_speed_mm_s == 2.0
 
 
 def test_classify_behavior_states_uses_turns_before_run_schmitt():

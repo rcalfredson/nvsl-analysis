@@ -37,6 +37,11 @@ class BehaviorStateConfig:
     turn_absorb_sharp_gaps: bool = False
     turn_sharp_gap_max_segments: int = 2
     turn_sharp_gap_min_peak_ratio: float = 1.0
+    turn_rescue_pivot_pauses: bool = False
+    turn_pivot_min_angle_rad: float = 100.0 * np.pi / 180.0
+    turn_pivot_max_short_segments: int = 1
+    turn_pivot_short_segment_max_speed_mm_s: float | None = None
+    turn_pivot_flank_min_speed_mm_s: float | None = None
 
 
 DEFAULT_BEHAVIOR_STATE_CONFIG = BehaviorStateConfig()
@@ -138,6 +143,40 @@ def behavior_state_config_from_opts(opts) -> BehaviorStateConfig:
     if sharp_gap_min_peak_ratio is not None:
         updates["turn_sharp_gap_min_peak_ratio"] = max(
             0.0, float(sharp_gap_min_peak_ratio)
+        )
+
+    rescue_pivot_pauses = getattr(
+        opts, "behavior_state_turn_rescue_pivot_pauses", None
+    )
+    if rescue_pivot_pauses is not None:
+        updates["turn_rescue_pivot_pauses"] = bool(rescue_pivot_pauses)
+
+    pivot_min_angle_deg = getattr(
+        opts, "behavior_state_turn_pivot_min_angle_deg", None
+    )
+    if pivot_min_angle_deg is not None:
+        updates["turn_pivot_min_angle_rad"] = float(pivot_min_angle_deg) * np.pi / 180.0
+
+    pivot_max_short_segments = getattr(
+        opts, "behavior_state_turn_pivot_max_short_segments", None
+    )
+    if pivot_max_short_segments is not None:
+        updates["turn_pivot_max_short_segments"] = max(1, int(pivot_max_short_segments))
+
+    pivot_short_max_speed = getattr(
+        opts, "behavior_state_turn_pivot_short_max_speed_mm_s", None
+    )
+    if pivot_short_max_speed is not None:
+        updates["turn_pivot_short_segment_max_speed_mm_s"] = max(
+            0.0, float(pivot_short_max_speed)
+        )
+
+    pivot_flank_min_speed = getattr(
+        opts, "behavior_state_turn_pivot_flank_min_speed_mm_s", None
+    )
+    if pivot_flank_min_speed is not None:
+        updates["turn_pivot_flank_min_speed_mm_s"] = max(
+            0.0, float(pivot_flank_min_speed)
         )
 
     return replace(cfg, **updates)
@@ -402,6 +441,110 @@ def absorb_sharp_turn_gaps(
     return out
 
 
+def raw_segment_speed_mm_s(
+    x_px: np.ndarray,
+    y_px: np.ndarray,
+    *,
+    fps: float,
+    px_per_mm: float,
+    dt_s: np.ndarray | None = None,
+) -> np.ndarray:
+    x = np.asarray(x_px, dtype=np.float64)
+    y = np.asarray(y_px, dtype=np.float64)
+    n = min(x.size, y.size)
+    speed = np.full(n, np.nan, dtype=np.float64)
+    if n < 2:
+        return speed
+
+    dr_px = np.hypot(np.diff(x[:n]), np.diff(y[:n]))
+    if dt_s is None:
+        dt = np.full(n - 1, 1.0 / float(fps), dtype=np.float64)
+    else:
+        dt_arr = np.asarray(dt_s, dtype=np.float64)[:n]
+        dt = dt_arr[1:n] if dt_arr.size >= n else np.full(n - 1, np.nan)
+    speed[:-1] = dr_px / dt / float(px_per_mm)
+    return speed
+
+
+def pivot_pause_turn_mask(
+    x_px: np.ndarray,
+    y_px: np.ndarray,
+    segment_speed_mm_s: np.ndarray,
+    *,
+    body_speed_mm_s: np.ndarray | None = None,
+    config: BehaviorStateConfig = DEFAULT_BEHAVIOR_STATE_CONFIG,
+) -> np.ndarray:
+    x = np.asarray(x_px, dtype=np.float64)
+    y = np.asarray(y_px, dtype=np.float64)
+    segment_speed = np.asarray(segment_speed_mm_s, dtype=np.float64)
+    n = min(x.size, y.size, segment_speed.size)
+    if body_speed_mm_s is not None:
+        body_speed = np.asarray(body_speed_mm_s, dtype=np.float64)[:n]
+    else:
+        body_speed = None
+    out = np.zeros(n, dtype=bool)
+    if n < 4:
+        return out
+
+    min_segment_speed = config.turn_path_min_segment_speed_mm_s
+    if min_segment_speed is None:
+        min_segment_speed = config.turn_path_min_speed_mm_s
+    short_max = (
+        config.turn_pivot_short_segment_max_speed_mm_s
+        if config.turn_pivot_short_segment_max_speed_mm_s is not None
+        else min_segment_speed
+    )
+    flank_min = (
+        config.turn_pivot_flank_min_speed_mm_s
+        if config.turn_pivot_flank_min_speed_mm_s is not None
+        else min_segment_speed
+    )
+    short_max = max(0.0, float(short_max))
+    flank_min = max(0.0, float(flank_min))
+    min_angle = max(0.0, float(config.turn_pivot_min_angle_rad))
+    max_short_segments = max(1, int(config.turn_pivot_max_short_segments))
+
+    for short_start in range(1, n - 2):
+        for short_len in range(1, max_short_segments + 1):
+            incoming = short_start - 1
+            outgoing = short_start + short_len
+            if outgoing >= n - 1:
+                break
+
+            short_speeds = segment_speed[short_start:outgoing]
+            speeds = np.r_[segment_speed[incoming], short_speeds, segment_speed[outgoing]]
+            if not np.all(np.isfinite(speeds)):
+                continue
+            if np.any(short_speeds > short_max):
+                continue
+            if segment_speed[incoming] < flank_min or segment_speed[outgoing] < flank_min:
+                continue
+            if body_speed is not None:
+                body_window = body_speed[incoming : outgoing + 1]
+                if (
+                    body_window.size != outgoing - incoming + 1
+                    or not np.all(np.isfinite(body_window))
+                    or np.any(body_window < config.run_low_mm_s)
+                ):
+                    continue
+
+            incoming_angle = np.arctan2(
+                y[incoming + 1] - y[incoming], x[incoming + 1] - x[incoming]
+            )
+            outgoing_angle = np.arctan2(
+                y[outgoing + 1] - y[outgoing], x[outgoing + 1] - x[outgoing]
+            )
+            turn_angle = outgoing_angle - incoming_angle
+            if turn_angle > np.pi:
+                turn_angle -= 2 * np.pi
+            elif turn_angle < -np.pi:
+                turn_angle += 2 * np.pi
+            if abs(turn_angle) >= min_angle:
+                out[incoming : outgoing + 1] = True
+
+    return out
+
+
 def _angular_turn_score(
     angular_speed_rad_s: np.ndarray,
     *,
@@ -639,6 +782,7 @@ def find_turns(
     *,
     config: BehaviorStateConfig = DEFAULT_BEHAVIOR_STATE_CONFIG,
     path_angular_speed_rad_s: np.ndarray | None = None,
+    pivot_turn_mask: np.ndarray | None = None,
 ) -> np.ndarray:
     components = turn_score_components(
         angular_speed_rad_s,
@@ -667,6 +811,11 @@ def find_turns(
             min_segments=config.turn_min_segments,
             split_opposing=True,
         )
+    if config.turn_rescue_pivot_pauses and angular_source != "theta":
+        if pivot_turn_mask is not None:
+            pivot_mask = np.asarray(pivot_turn_mask, dtype=bool)
+            n = min(turn_mask.size, pivot_mask.size)
+            turn_mask[:n] |= pivot_mask[:n]
     return turn_mask
 
 
@@ -677,6 +826,7 @@ def classify_behavior_states(
     *,
     config: BehaviorStateConfig = DEFAULT_BEHAVIOR_STATE_CONFIG,
     path_angular_speed_rad_s: np.ndarray | None = None,
+    pivot_turn_mask: np.ndarray | None = None,
 ) -> np.ndarray:
     states = np.full(len(body_speed_mm_s), BehaviorState.REST, dtype=np.int8)
     turn_mask = find_turns(
@@ -685,6 +835,7 @@ def classify_behavior_states(
         body_speed_mm_s,
         config=config,
         path_angular_speed_rad_s=path_angular_speed_rad_s,
+        pivot_turn_mask=pivot_turn_mask,
     )
     states[turn_mask] = BehaviorState.TURN
 
@@ -724,16 +875,36 @@ def analyze_trajectory_behavior_states(
         body_speed_mm_s=body_speed,
         config=config,
     )
+    segment_speed = raw_segment_speed_mm_s(
+        trj.x,
+        trj.y,
+        fps=trj.va.fps,
+        px_per_mm=px_per_mm,
+        dt_s=dt_s,
+    )
+    if config.turn_rescue_pivot_pauses:
+        pivot_mask = pivot_pause_turn_mask(
+            trj.x,
+            trj.y,
+            segment_speed,
+            body_speed_mm_s=body_speed,
+            config=config,
+        )
+    else:
+        pivot_mask = np.zeros_like(segment_speed, dtype=bool)
     trj.behavior_body_speed_mm_s = body_speed
     trj.behavior_head_speed_mm_s = head_speed
     trj.behavior_angular_speed_rad_s = angular_speed
     trj.behavior_path_angular_speed_rad_s = path_angular_speed
+    trj.behavior_raw_segment_speed_mm_s = segment_speed
+    trj.behavior_pivot_turn_mask = pivot_mask
     trj.behavior_turn_mask = find_turns(
         angular_speed,
         head_speed,
         body_speed,
         config=config,
         path_angular_speed_rad_s=path_angular_speed,
+        pivot_turn_mask=pivot_mask,
     )
     trj.behavior_state = classify_behavior_states(
         body_speed,
@@ -741,6 +912,7 @@ def analyze_trajectory_behavior_states(
         head_speed,
         config=config,
         path_angular_speed_rad_s=path_angular_speed,
+        pivot_turn_mask=pivot_mask,
     )
     return trj.behavior_state
 

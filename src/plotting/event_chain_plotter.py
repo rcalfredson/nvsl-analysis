@@ -5396,6 +5396,13 @@ class EventChainPlotter:
         body_speed = np.asarray(
             getattr(self.trj, "behavior_body_speed_mm_s", []), dtype=np.float64
         )
+        raw_segment_speed = np.asarray(
+            getattr(self.trj, "behavior_raw_segment_speed_mm_s", []),
+            dtype=np.float64,
+        )
+        pivot_turn = np.asarray(
+            getattr(self.trj, "behavior_pivot_turn_mask", []), dtype=bool
+        )
         if not (
             angular_speed.size
             and path_angular_speed.size
@@ -5421,6 +5428,7 @@ class EventChainPlotter:
             body_speed,
             config=config,
             path_angular_speed_rad_s=path_angular_speed,
+            pivot_turn_mask=pivot_turn,
         )
         n = min(
             len(states),
@@ -5431,6 +5439,8 @@ class EventChainPlotter:
             head_speed.size,
             body_speed.size,
             final_turn.size,
+            raw_segment_speed.size if raw_segment_speed.size else final_turn.size,
+            pivot_turn.size if pivot_turn.size else final_turn.size,
             *(len(v) for v in components.values()),
         )
         start = max(0, int(start_frame))
@@ -5461,9 +5471,11 @@ class EventChainPlotter:
                     "angular_speed_deg_s",
                     "path_angular_speed_deg_s",
                     "body_speed_mm_s",
+                    "raw_segment_speed_mm_s",
                     "head_speed_mm_s",
                     "head_body_diff_mm_s",
                     "shifted_head_body_diff_mm_s",
+                    "pivot_rescue_turn",
                     "angular_source",
                     "angular_small_threshold_deg_s",
                     "angular_large_threshold_deg_s",
@@ -5474,10 +5486,24 @@ class EventChainPlotter:
                     "turn_absorb_sharp_gaps",
                     "turn_sharp_gap_max_segments",
                     "turn_sharp_gap_min_peak_ratio",
+                    "turn_rescue_pivot_pauses",
+                    "turn_pivot_min_angle_deg",
+                    "turn_pivot_max_short_segments",
+                    "turn_pivot_short_max_speed_mm_s",
+                    "turn_pivot_flank_min_speed_mm_s",
                 ]
             )
             for frame in range(start, stop + 1):
                 state = BehaviorState(int(states[frame])).name.lower()
+                raw_segment = (
+                    raw_segment_speed[frame] if raw_segment_speed.size else np.nan
+                )
+                pivot_label = int(pivot_turn[frame]) if pivot_turn.size else 0
+                min_segment_speed = (
+                    config.turn_path_min_segment_speed_mm_s
+                    if config.turn_path_min_segment_speed_mm_s is not None
+                    else config.turn_path_min_speed_mm_s
+                )
                 writer.writerow(
                     [
                         frame,
@@ -5497,23 +5523,35 @@ class EventChainPlotter:
                         np.rad2deg(angular_speed[frame]),
                         np.rad2deg(components["path_angular_speed_rad_s"][frame]),
                         body_speed[frame],
+                        raw_segment,
                         head_speed[frame],
                         components["head_body_diff_mm_s"][frame],
                         components["shifted_head_body_diff_mm_s"][frame],
+                        pivot_label,
                         angular_source,
                         np.rad2deg(config.angular_small_turn_rad_s),
                         np.rad2deg(config.angular_large_turn_rad_s),
                         config.turn_path_min_speed_mm_s,
-                        (
-                            config.turn_path_min_segment_speed_mm_s
-                            if config.turn_path_min_segment_speed_mm_s is not None
-                            else config.turn_path_min_speed_mm_s
-                        ),
+                        min_segment_speed,
                         int(config.turn_min_segments),
                         int(config.turn_expand_largest_vertex),
                         int(config.turn_absorb_sharp_gaps),
                         int(config.turn_sharp_gap_max_segments),
                         config.turn_sharp_gap_min_peak_ratio,
+                        int(config.turn_rescue_pivot_pauses),
+                        np.rad2deg(config.turn_pivot_min_angle_rad),
+                        int(config.turn_pivot_max_short_segments),
+                        (
+                            config.turn_pivot_short_segment_max_speed_mm_s
+                            if config.turn_pivot_short_segment_max_speed_mm_s
+                            is not None
+                            else min_segment_speed
+                        ),
+                        (
+                            config.turn_pivot_flank_min_speed_mm_s
+                            if config.turn_pivot_flank_min_speed_mm_s is not None
+                            else min_segment_speed
+                        ),
                     ]
                 )
         print(f"[plot_behavior_state_trajectory] wrote {out_path}")
