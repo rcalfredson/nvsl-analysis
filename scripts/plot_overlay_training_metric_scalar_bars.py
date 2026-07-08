@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 
 from src.plotting.overlay_training_metric_scalar_bars import (
     OmnibusLearnerEntry,
+    baseline_delta_exports,
     load_export_npz,
     plot_omnibus_learner_overlays,
     plot_overlays,
@@ -75,6 +76,23 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument("--xlabel", default=None, help="X-axis label override.")
     p.add_argument("--ylabel", default=None, help="Y-axis label override.")
+    p.add_argument(
+        "--baseline-delta-panel",
+        default=None,
+        help=(
+            "Convert each export to per-unit target-minus-baseline deltas using "
+            "this panel as baseline, for example 'Pre-training'."
+        ),
+    )
+    p.add_argument(
+        "--baseline-delta-target-panel",
+        action="append",
+        default=None,
+        help=(
+            "Panel to subtract --baseline-delta-panel from. Repeatable. "
+            "Defaults to every non-baseline panel."
+        ),
+    )
     p.add_argument(
         "--ymax",
         "--max",
@@ -160,6 +178,18 @@ def main() -> None:
             )
         else:
             xs.append(load_export_npz(label, path))
+
+    if args.baseline_delta_panel:
+        if args.omnibus_learner_layout:
+            raise SystemExit(
+                "--baseline-delta-panel is not currently supported with "
+                "--omnibus-learner-layout."
+            )
+        xs = baseline_delta_exports(
+            xs,
+            baseline_panel=args.baseline_delta_panel,
+            target_panels=args.baseline_delta_target_panel,
+        )
 
     # Reasonable defaults if not provided
     if args.xlabel is None:

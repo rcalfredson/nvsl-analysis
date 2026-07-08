@@ -300,6 +300,39 @@ def _mean_ci_from_util(x: np.ndarray, conf: float) -> tuple[float, float, float,
     return float(m), float(lo), float(hi), int(n)
 
 
+def _scalar_bar_y_limits(
+    *,
+    means,
+    lows,
+    highs,
+    samples=None,
+    ymax: float | None = None,
+) -> tuple[float, float]:
+    vals = []
+    for seq in (means, lows, highs):
+        vals.extend(np.asarray(seq, dtype=float).ravel().tolist())
+    if samples is not None:
+        for sample in samples:
+            vals.extend(np.asarray(sample, dtype=float).ravel().tolist())
+
+    finite = np.asarray(vals, dtype=float)
+    finite = finite[np.isfinite(finite)]
+    if finite.size == 0:
+        return 0.0, float(ymax) if ymax is not None else 1.0
+
+    data_min = min(float(np.min(finite)), 0.0)
+    data_max = max(float(np.max(finite)), 0.0)
+    span = data_max - data_min
+    if not np.isfinite(span) or span <= 0.0:
+        span = max(abs(data_max), abs(data_min), 1.0)
+
+    bottom = data_min - (0.10 * span if data_min < 0.0 else 0.0)
+    top = float(ymax) if ymax is not None else data_max + 0.16 * span
+    if top <= bottom:
+        top = bottom + max(span, 1.0)
+    return float(bottom), float(top)
+
+
 def load_export_npz(group: str, path: str) -> ExportedTrainingScalarBars:
     d = np.load(path, allow_pickle=True)
 
@@ -375,6 +408,81 @@ def validate_alignment(xs: list[ExportedTrainingScalarBars]) -> None:
             raise ValueError(
                 _fmt_mismatch("panel_labels", [y.panel_labels for y in xs])
             )
+
+
+def baseline_delta_exports(
+    xs: list[ExportedTrainingScalarBars],
+    *,
+    baseline_panel: str,
+    target_panels: list[str] | tuple[str, ...] | None = None,
+) -> list[ExportedTrainingScalarBars]:
+    if not xs:
+        return []
+
+    labels0 = xs[0].panel_labels
+    if baseline_panel not in labels0:
+        raise ValueError(
+            f"baseline panel {baseline_panel!r} not found; available: {labels0!r}"
+        )
+    baseline_idx = labels0.index(baseline_panel)
+
+    if target_panels is None:
+        target_panels = [label for label in labels0 if label != baseline_panel]
+    target_panels = [str(label) for label in target_panels]
+    missing = [label for label in target_panels if label not in labels0]
+    if missing:
+        raise ValueError(
+            f"target panel(s) {missing!r} not found; available: {labels0!r}"
+        )
+    target_idxs = [labels0.index(label) for label in target_panels]
+    delta_labels = [f"{label} - {baseline_panel}" for label in target_panels]
+
+    out: list[ExportedTrainingScalarBars] = []
+    for x in xs:
+        if x.panel_labels != labels0:
+            raise ValueError(
+                _fmt_mismatch("panel_labels", [y.panel_labels for y in xs])
+            )
+        matrix, unit_ids = _group_union_matrix(x)
+        per_panel_values = []
+        per_panel_ids = []
+        means = []
+        lows = []
+        highs = []
+        ns = []
+        for target_idx in target_idxs:
+            vals = matrix[:, target_idx] - matrix[:, baseline_idx]
+            mask = np.isfinite(vals)
+            vals_finite = vals[mask].astype(float, copy=False)
+            ids_finite = unit_ids[mask].astype(object, copy=False)
+            mean, lo, hi, n = _mean_ci_from_util(vals_finite, conf=x.ci_conf)
+            per_panel_values.append(vals_finite)
+            per_panel_ids.append(ids_finite)
+            means.append(mean)
+            lows.append(lo)
+            highs.append(hi)
+            ns.append(n)
+
+        meta = dict(x.meta or {})
+        meta["baseline_delta_panel"] = baseline_panel
+        meta["baseline_delta_target_panels"] = list(target_panels)
+        meta["y_label"] = f"Change in {meta.get('y_label', 'value')}"
+        meta["base_title"] = f"Change in {meta.get('base_title', 'overlay bars')}"
+
+        out.append(
+            ExportedTrainingScalarBars(
+                group=x.group,
+                panel_labels=delta_labels,
+                per_unit_values_panel=np.asarray(per_panel_values, dtype=object),
+                per_unit_ids_panel=np.asarray(per_panel_ids, dtype=object),
+                mean=np.asarray(means, dtype=float),
+                ci_lo=np.asarray(lows, dtype=float),
+                ci_hi=np.asarray(highs, dtype=float),
+                n_units_panel=np.asarray(ns, dtype=int),
+                meta=meta,
+            )
+        )
+    return out
 
 
 def _panel_n(x: ExportedTrainingScalarBars, p_idx: int) -> int | None:
@@ -1075,8 +1183,16 @@ def plot_omnibus_learner_overlays(
     )
     _italicize_xtick_labels(ax)
 
-    ylim_top = float(ymax) if ymax is not None else max(1.0, np.nanmax(highs) * 1.18)
-    ax.set_ylim(0, ylim_top)
+    ylim_bottom, ylim_top = _scalar_bar_y_limits(
+        means=means,
+        lows=lows,
+        highs=highs,
+        samples=samples_by_key.values(),
+        ymax=ymax,
+    )
+    ax.set_ylim(ylim_bottom, ylim_top)
+    if ylim_bottom < 0.0 < ylim_top:
+        ax.axhline(0.0, color=NEUTRAL_MID, linewidth=0.8, alpha=0.65, zorder=0)
     bracket_tops = None
     base_text_count = len(ax.texts)
     if stats:
@@ -1394,7 +1510,6 @@ def plot_overlays(
     panel_n_texts: list[str | None] = []
     bracket_tops = None
     base_text_count = len(ax.texts)
-    base_line_count = len(ax.lines)
 
     tick_rotation = 30
     if P >= 8:
@@ -1449,9 +1564,17 @@ def plot_overlays(
     if ylabel:
         ax.set_ylabel(ylabel)
 
-    ax.set_ylim(bottom=0)
-    if ymax is not None:
-        ax.set_ylim(top=float(ymax))
+    ylim_bottom, ylim_top = _scalar_bar_y_limits(
+        means=means_plot,
+        lows=lo_plot,
+        highs=hi_plot,
+        samples=per_unit_by_group,
+        ymax=ymax,
+    )
+    ax.set_ylim(ylim_bottom, ylim_top)
+    if ylim_bottom < 0.0 < ylim_top:
+        ax.axhline(0.0, color=NEUTRAL_MID, linewidth=0.8, alpha=0.65, zorder=0)
+    base_line_count = len(ax.lines)
 
     if stats:
         cfg_stats = StatAnnotConfig(

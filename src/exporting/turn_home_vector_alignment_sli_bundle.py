@@ -486,6 +486,20 @@ def export_turn_home_vector_alignment_sli_bundle(vas, opts, gls, out_fn):
                 getattr(opts, "turn_home_vector_alignment_include_pre", True)
             ),
         },
+        "sli_selection": {
+            "sli_group": getattr(opts, "turn_home_vector_alignment_sli_group", "all"),
+            "top_sli_fraction": getattr(opts, "top_sli_fraction", None),
+            "bottom_sli_fraction": getattr(opts, "bottom_sli_fraction", None),
+            "training": getattr(opts, "best_worst_trn", None),
+            "use_training_mean": bool(getattr(opts, "sli_use_training_mean", False)),
+            "skip_first_sync_buckets": getattr(
+                opts, "sli_select_skip_first_sync_buckets", None
+            ),
+            "keep_first_sync_buckets": getattr(
+                opts, "sli_select_keep_first_sync_buckets", None
+            ),
+            "bucket": getattr(opts, "sli_select_bucket", None),
+        },
         "generated_utc": datetime.now(timezone.utc).isoformat(),
         "group_label": _safe_group_label(opts, gls),
         "metric": "turn_home_vector_alignment_angle_improvement_deg",

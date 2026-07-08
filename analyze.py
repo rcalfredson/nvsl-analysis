@@ -6022,6 +6022,16 @@ g.add_argument(
     help="Minimum eligible turns required for a fly to contribute to a panel. Default: 1.",
 )
 g.add_argument(
+    "--turn-home-vector-alignment-sli-group",
+    choices=["all", "top", "bottom"],
+    default="all",
+    help=(
+        "Restrict turn home-vector alignment export to all flies, top-SLI flies, "
+        "or bottom-SLI flies. Top/bottom groups are defined by the standard "
+        "best/worst SLI selection options."
+    ),
+)
+g.add_argument(
     '--turnback-home-vector-alignment-sli-group',
     choices=["all", "top", "bottom"],
     default="all",
@@ -12039,6 +12049,116 @@ def _select_turnback_home_vector_alignment_vas(vas):
 
     return [vas[i] for i in selected]
 
+def _turn_home_vector_alignment_sli_fraction(opts, sli_group: str) -> float:
+    if sli_group == "top":
+        frac = getattr(opts, "top_sli_fraction", None)
+    elif sli_group == "bottom":
+        frac = getattr(opts, "bottom_sli_fraction", None)
+    else:
+        return 1.0
+
+    if frac is None:
+        return 0.25
+    return float(frac)
+
+def _select_turn_home_vector_alignment_vas(vas):
+    sli_group = getattr(opts, "turn_home_vector_alignment_sli_group", "all")
+    if sli_group == "all":
+        return vas
+
+    if not vas:
+        return vas
+
+    va0 = vas[0]
+    if getattr(va0, "noyc", False) or getattr(va0, "choice", False):
+        raise RuntimeError(
+            "--turn-home-vector-alignment-sli-group requires ordinary "
+            "experimental/yoked SLI data; this run appears to be no-yoked-control "
+            "or choice-mode."
+        )
+
+    sli_training_idx = int(getattr(opts, "best_worst_trn", 2)) - 1
+    use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
+
+    skip_k = _effective_skip_first_sync_buckets_opts_only(opts)
+    keep_k = _effective_keep_first_sync_buckets_opts_only(opts)
+
+    raw_sel_skip = getattr(opts, "sli_select_skip_first_sync_buckets", None)
+    raw_sel_keep = getattr(opts, "sli_select_keep_first_sync_buckets", None)
+    sel_skip_k = skip_k if raw_sel_skip is None else max(0, int(raw_sel_skip))
+    sel_keep_k = keep_k if raw_sel_keep is None else max(0, int(raw_sel_keep))
+
+    tp_sli, calc_sli = typeCalc("rpid")
+    trns_sli = trnsForType(va0, tp_sli)
+    if not trns_sli:
+        raise RuntimeError(
+            "Could not compute SLI subset for turn home-vector alignment: "
+            "no SLI trainings were available."
+        )
+
+    a_sli = np.array([vaVarForType(va_, tp_sli, calc_sli) for va_ in vas])
+    a_sli = a_sli.reshape((len(vas), len(trns_sli), -1))
+
+    n_videos = len(vas)
+    n_trains = len(trns_sli)
+    n_flies = len(va0.flies)
+    nb_sli = a_sli.shape[2] // n_flies
+    raw_4 = a_sli.reshape((n_videos, n_trains, n_flies, nb_sli))
+
+    sel_bucket_idx = _resolve_sli_select_bucket_idx(
+        opts,
+        nb=nb_sli,
+        skip_first_sync_buckets=sel_skip_k,
+        keep_first_sync_buckets=sel_keep_k,
+        average_over_buckets=use_training_mean,
+    )
+
+    sli_ser = compute_sli_per_fly(
+        raw_4,
+        sli_training_idx,
+        bucket_idx=sel_bucket_idx,
+        average_over_buckets=use_training_mean,
+        skip_first_sync_buckets=sel_skip_k,
+        keep_first_sync_buckets=sel_keep_k,
+    )
+
+    top_fraction = None
+    bottom_fraction = None
+    if sli_group == "top":
+        top_fraction = _turn_home_vector_alignment_sli_fraction(opts, sli_group)
+    elif sli_group == "bottom":
+        bottom_fraction = _turn_home_vector_alignment_sli_fraction(opts, sli_group)
+    else:
+        raise ValueError(f"Unknown turn_home_vector_alignment_sli_group: {sli_group!r}")
+
+    saved_bottom, saved_top = select_fractional_groups(
+        sli_ser,
+        top_fraction=top_fraction,
+        bottom_fraction=bottom_fraction,
+    )
+
+    if sli_group == "top":
+        selected = [] if saved_top is None else list(saved_top)
+    else:
+        selected = [] if saved_bottom is None else list(saved_bottom)
+
+    if not selected:
+        raise RuntimeError(
+            "SLI subset selection for turn home-vector alignment selected no flies "
+            f"(sli_group={sli_group!r}, top_fraction={top_fraction}, "
+            f"bottom_fraction={bottom_fraction})."
+        )
+
+    print(
+        "[turn-home-vector-alignment] restricting export to "
+        f"{len(selected)} {sli_group}-SLI flies "
+        f"(top_fraction={top_fraction}, bottom_fraction={bottom_fraction}, "
+        f"T{int(sli_training_idx) + 1}, skip={sel_skip_k}, keep={sel_keep_k}, "
+        f"use_training_mean={use_training_mean})"
+    )
+
+    return [vas[i] for i in selected]
+
 def _export_post_analyze_bundles(vas, gls) -> int:
     num_exports = 0
     if getattr(opts, "export_commag_sli_bundle", None):
@@ -12164,8 +12284,12 @@ def _export_post_analyze_bundles(vas, gls) -> int:
             num_exports += 1
 
     if getattr(opts, "export_turn_home_vector_alignment_sli_bundle", None):
+        vas_for_turn_home_vector = _select_turn_home_vector_alignment_vas(vas)
         export_turn_home_vector_alignment_sli_bundle(
-            vas, opts, gls, opts.export_turn_home_vector_alignment_sli_bundle
+            vas_for_turn_home_vector,
+            opts,
+            gls,
+            opts.export_turn_home_vector_alignment_sli_bundle,
         )
         num_exports += 1
 
