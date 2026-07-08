@@ -131,6 +131,7 @@ from src.exporting.turnback_excursion_bin_sli_bundle import (
 from src.exporting.turnback_outer_radius_sli_bundle import (
     export_turnback_outer_radius_sli_bundle,
 )
+from src.exporting.turn_prob_dist_sli_bundle import export_turn_prob_dist_sli_bundle
 from src.exporting.turnback_sli_bundle import export_turnback_sli_bundle
 from src.exporting.turnback_home_vector_alignment_sli_bundle import (
     export_turnback_home_vector_alignment_examples,
@@ -5882,6 +5883,15 @@ g.add_argument(
     help=(
         "Write a .npz bundle with fixed-window turnback ratios as a function of "
         "outer-circle radius for multi-group overlays/stats."
+    ),
+)
+g.add_argument(
+    "--export-turn-prob-dist-sli-bundle",
+    type=str,
+    default=None,
+    help=(
+        "Write an .npz bundle with per-video sharp-turn probability by distance "
+        "for cached plotting of turn-probability panels."
     ),
 )
 g.add_argument(
@@ -12497,6 +12507,12 @@ def _export_post_analyze_bundles(vas, gls) -> int:
     if getattr(opts, "export_turnback_outer_radius_sli_bundle", None):
         export_turnback_outer_radius_sli_bundle(
             vas, opts, gls, opts.export_turnback_outer_radius_sli_bundle
+        )
+        num_exports += 1
+
+    if getattr(opts, "export_turn_prob_dist_sli_bundle", None):
+        export_turn_prob_dist_sli_bundle(
+            vas, opts, gls, opts.export_turn_prob_dist_sli_bundle
         )
         num_exports += 1
 
