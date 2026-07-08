@@ -316,10 +316,18 @@ def _split_opposing_path_vertices(
             finite_offsets = np.flatnonzero(finite)
             weakest_offset = finite_offsets[int(np.nanargmin(window[finite_offsets]))]
             split_idx = lo + int(weakest_offset)
-            left_len = split_idx - start
-            right_len = stop - split_idx
-            if left_len >= minimum and right_len >= minimum:
-                split_candidates.append((float(window[weakest_offset]), split_idx))
+            split_segment = max(start, split_idx - 1)
+            candidate_segments = [split_segment]
+            if split_idx not in candidate_segments:
+                candidate_segments.append(split_idx)
+            for candidate_segment in candidate_segments:
+                left_len = candidate_segment - start
+                right_len = stop - candidate_segment
+                if left_len >= minimum and right_len >= minimum:
+                    split_candidates.append(
+                        (float(window[weakest_offset]), candidate_segment)
+                    )
+                    break
 
         if not split_candidates:
             continue

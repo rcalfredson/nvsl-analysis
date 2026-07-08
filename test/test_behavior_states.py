@@ -329,8 +329,8 @@ def test_absorb_sharp_turn_gaps_splits_opposing_direction_island_at_weakest_vert
     )
 
     expected = np.zeros(14, dtype=bool)
-    expected[3:6] = True
-    expected[7:9] = True
+    expected[3:5] = True
+    expected[6:9] = True
     np.testing.assert_array_equal(turns, expected)
 
 
