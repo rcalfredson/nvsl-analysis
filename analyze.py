@@ -135,6 +135,8 @@ from src.exporting.turnback_home_vector_alignment_sli_bundle import (
 )
 from src.exporting.turn_home_vector_alignment_sli_bundle import (
     export_turn_home_vector_alignment_sli_bundle,
+    parse_radius_ranges_mm as parse_turn_home_vector_alignment_radius_ranges_mm,
+    radius_range_slug as turn_home_vector_alignment_radius_range_slug,
 )
 from src.exporting.wallpct_sli_bundle import export_wallpct_sli_bundle
 from src.exporting.wall_contacts_per_reward_interval import (
@@ -6022,6 +6024,26 @@ g.add_argument(
     help="Minimum eligible turns required for a fly to contribute to a panel. Default: 1.",
 )
 g.add_argument(
+    "--turn-home-vector-alignment-radius-range-mm",
+    type=str,
+    default=None,
+    help=(
+        "Optional radial distance band from reward-circle center for turn home-vector "
+        "alignment exports, formatted as lo-hi or lo:hi in mm. A turn is included "
+        "only when frames start-1 through stop+2 are fully within [lo, hi)."
+    ),
+)
+g.add_argument(
+    "--turn-home-vector-alignment-radius-ranges-mm",
+    type=str,
+    default=None,
+    help=(
+        "Optional comma-separated radial distance bands from reward-circle center "
+        "for turn home-vector alignment exports, e.g. '3-5,8-10'. The export "
+        "bundle path is suffixed with each band slug."
+    ),
+)
+g.add_argument(
     "--turn-home-vector-alignment-sli-group",
     choices=["all", "top", "bottom"],
     default="all",
@@ -6029,6 +6051,16 @@ g.add_argument(
         "Restrict turn home-vector alignment export to all flies, top-SLI flies, "
         "or bottom-SLI flies. Top/bottom groups are defined by the standard "
         "best/worst SLI selection options."
+    ),
+)
+g.add_argument(
+    "--turn-home-vector-alignment-sli-groups",
+    type=str,
+    default=None,
+    help=(
+        "Optional comma-separated SLI groups to export in one loaded run for "
+        "turn home-vector alignment, e.g. 'all,top,bottom'. Output bundle paths "
+        "are suffixed for non-all groups."
     ),
 )
 g.add_argument(
@@ -12061,8 +12093,60 @@ def _turn_home_vector_alignment_sli_fraction(opts, sli_group: str) -> float:
         return 0.25
     return float(frac)
 
-def _select_turn_home_vector_alignment_vas(vas):
-    sli_group = getattr(opts, "turn_home_vector_alignment_sli_group", "all")
+
+def _parse_turn_home_vector_alignment_sli_groups(opts) -> list[str]:
+    raw = getattr(opts, "turn_home_vector_alignment_sli_groups", None)
+    if raw is None or not str(raw).strip():
+        return [str(getattr(opts, "turn_home_vector_alignment_sli_group", "all"))]
+
+    groups = []
+    for part in str(raw).split(","):
+        group = part.strip()
+        if not group:
+            continue
+        if group not in {"all", "top", "bottom"}:
+            raise ValueError(
+                "--turn-home-vector-alignment-sli-groups entries must be one of "
+                f"'all', 'top', or 'bottom'; got {group!r}"
+            )
+        if group not in groups:
+            groups.append(group)
+
+    if not groups:
+        raise ValueError(
+            "--turn-home-vector-alignment-sli-groups must contain at least one group."
+        )
+    return groups
+
+
+def _turn_home_vector_alignment_sli_group_slug(opts, sli_group: str) -> str:
+    if sli_group == "all":
+        return ""
+    fraction = _turn_home_vector_alignment_sli_fraction(opts, sli_group)
+    frac_slug = f"{float(fraction) * 100.0:g}".replace(".", "p")
+    prefix = "top" if sli_group == "top" else "bottom"
+    trn = int(getattr(opts, "best_worst_trn", 2) or 2)
+    skip = int(getattr(opts, "sli_select_skip_first_sync_buckets", 0) or 0)
+    keep = int(getattr(opts, "sli_select_keep_first_sync_buckets", 0) or 0)
+    if keep > 0:
+        bucket_part = f"Sb{skip + 1}-{skip + keep}"
+    else:
+        bucket_part = f"Sb{skip + 1}+"
+    return f"{prefix}{frac_slug}_sliT{trn}{bucket_part}"
+
+
+def _suffix_npz_path(path: str, suffix: str) -> str:
+    if not suffix:
+        return path
+    root, ext = os.path.splitext(path)
+    ext = ext or ".npz"
+    return f"{root}_{suffix}{ext}"
+
+
+def _select_turn_home_vector_alignment_vas(vas, export_opts=None):
+    if export_opts is None:
+        export_opts = opts
+    sli_group = getattr(export_opts, "turn_home_vector_alignment_sli_group", "all")
     if sli_group == "all":
         return vas
 
@@ -12077,14 +12161,14 @@ def _select_turn_home_vector_alignment_vas(vas):
             "or choice-mode."
         )
 
-    sli_training_idx = int(getattr(opts, "best_worst_trn", 2)) - 1
-    use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
+    sli_training_idx = int(getattr(export_opts, "best_worst_trn", 2)) - 1
+    use_training_mean = bool(getattr(export_opts, "sli_use_training_mean", False))
 
-    skip_k = _effective_skip_first_sync_buckets_opts_only(opts)
-    keep_k = _effective_keep_first_sync_buckets_opts_only(opts)
+    skip_k = _effective_skip_first_sync_buckets_opts_only(export_opts)
+    keep_k = _effective_keep_first_sync_buckets_opts_only(export_opts)
 
-    raw_sel_skip = getattr(opts, "sli_select_skip_first_sync_buckets", None)
-    raw_sel_keep = getattr(opts, "sli_select_keep_first_sync_buckets", None)
+    raw_sel_skip = getattr(export_opts, "sli_select_skip_first_sync_buckets", None)
+    raw_sel_keep = getattr(export_opts, "sli_select_keep_first_sync_buckets", None)
     sel_skip_k = skip_k if raw_sel_skip is None else max(0, int(raw_sel_skip))
     sel_keep_k = keep_k if raw_sel_keep is None else max(0, int(raw_sel_keep))
 
@@ -12106,7 +12190,7 @@ def _select_turn_home_vector_alignment_vas(vas):
     raw_4 = a_sli.reshape((n_videos, n_trains, n_flies, nb_sli))
 
     sel_bucket_idx = _resolve_sli_select_bucket_idx(
-        opts,
+        export_opts,
         nb=nb_sli,
         skip_first_sync_buckets=sel_skip_k,
         keep_first_sync_buckets=sel_keep_k,
@@ -12125,9 +12209,11 @@ def _select_turn_home_vector_alignment_vas(vas):
     top_fraction = None
     bottom_fraction = None
     if sli_group == "top":
-        top_fraction = _turn_home_vector_alignment_sli_fraction(opts, sli_group)
+        top_fraction = _turn_home_vector_alignment_sli_fraction(export_opts, sli_group)
     elif sli_group == "bottom":
-        bottom_fraction = _turn_home_vector_alignment_sli_fraction(opts, sli_group)
+        bottom_fraction = _turn_home_vector_alignment_sli_fraction(
+            export_opts, sli_group
+        )
     else:
         raise ValueError(f"Unknown turn_home_vector_alignment_sli_group: {sli_group!r}")
 
@@ -12284,14 +12370,60 @@ def _export_post_analyze_bundles(vas, gls) -> int:
             num_exports += 1
 
     if getattr(opts, "export_turn_home_vector_alignment_sli_bundle", None):
-        vas_for_turn_home_vector = _select_turn_home_vector_alignment_vas(vas)
-        export_turn_home_vector_alignment_sli_bundle(
-            vas_for_turn_home_vector,
-            opts,
-            gls,
-            opts.export_turn_home_vector_alignment_sli_bundle,
+        sli_groups = _parse_turn_home_vector_alignment_sli_groups(opts)
+        radius_ranges_raw = getattr(
+            opts, "turn_home_vector_alignment_radius_ranges_mm", None
         )
-        num_exports += 1
+        if radius_ranges_raw is not None and str(radius_ranges_raw).strip() and getattr(
+            opts, "turn_home_vector_alignment_radius_range_mm", None
+        ):
+            raise ValueError(
+                "Use either --turn-home-vector-alignment-radius-range-mm or "
+                "--turn-home-vector-alignment-radius-ranges-mm, not both."
+            )
+
+        radius_ranges = []
+        if radius_ranges_raw is not None and str(radius_ranges_raw).strip():
+            radius_ranges = parse_turn_home_vector_alignment_radius_ranges_mm(
+                radius_ranges_raw
+            )
+
+        base_out = opts.export_turn_home_vector_alignment_sli_bundle
+        for sli_group in sli_groups:
+            group_opts = copy.copy(opts)
+            group_opts.turn_home_vector_alignment_sli_group = sli_group
+            group_slug = _turn_home_vector_alignment_sli_group_slug(
+                group_opts, sli_group
+            )
+            group_out = _suffix_npz_path(base_out, group_slug)
+            vas_for_turn_home_vector = _select_turn_home_vector_alignment_vas(
+                vas, group_opts
+            )
+
+            if radius_ranges:
+                for radius_range in radius_ranges:
+                    export_opts = copy.copy(group_opts)
+                    export_opts.turn_home_vector_alignment_radius_range_mm = (
+                        f"{radius_range[0]:g}-{radius_range[1]:g}"
+                    )
+                    radius_slug = turn_home_vector_alignment_radius_range_slug(
+                        radius_range
+                    )
+                    export_turn_home_vector_alignment_sli_bundle(
+                        vas_for_turn_home_vector,
+                        export_opts,
+                        gls,
+                        _suffix_npz_path(group_out, radius_slug),
+                    )
+                    num_exports += 1
+            else:
+                export_turn_home_vector_alignment_sli_bundle(
+                    vas_for_turn_home_vector,
+                    group_opts,
+                    gls,
+                    group_out,
+                )
+                num_exports += 1
 
     if getattr(opts, "export_weaving_sli_bundle", None):
         export_weaving_sli_bundle(vas, opts, gls, opts.export_weaving_sli_bundle)

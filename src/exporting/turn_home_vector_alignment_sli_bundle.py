@@ -211,6 +211,119 @@ def _home_vector_to_reward_center(anchor_xy, trn, trj):
     return hx, hy
 
 
+def parse_radius_range_mm(raw) -> tuple[float, float] | None:
+    if raw is None or not str(raw).strip():
+        return None
+    text = str(raw).strip()
+    sep = ":" if ":" in text else "-"
+    if sep not in text:
+        raise ValueError(
+            "turn_home_vector_alignment_radius_range_mm must use lo-hi or lo:hi "
+            "format, e.g. '3-5'."
+        )
+    lo_raw, hi_raw = text.split(sep, 1)
+    lo = float(lo_raw.strip())
+    hi = float(hi_raw.strip())
+    if not (np.isfinite(lo) and np.isfinite(hi)):
+        raise ValueError("Turn home-vector alignment radial bounds must be finite.")
+    if lo < 0.0 or hi <= lo:
+        raise ValueError(
+            "Turn home-vector alignment radial range requires 0 <= lower < upper."
+        )
+    return float(lo), float(hi)
+
+
+def parse_radius_ranges_mm(raw) -> list[tuple[float, float]]:
+    if raw is None or not str(raw).strip():
+        return []
+    ranges = []
+    for part in str(raw).split(","):
+        item = part.strip()
+        if not item:
+            continue
+        parsed = parse_radius_range_mm(item)
+        if parsed is not None:
+            ranges.append(parsed)
+    if not ranges:
+        raise ValueError(
+            "turn_home_vector_alignment_radius_ranges_mm must contain at least "
+            "one lo-hi or lo:hi range."
+        )
+    return ranges
+
+
+def radius_range_slug(radius_range_mm: tuple[float, float]) -> str:
+    def _slug_num(value: float) -> str:
+        text = f"{float(value):g}"
+        return text.replace("-", "_").replace(".", "p")
+
+    lo, hi = radius_range_mm
+    return f"r{_slug_num(lo)}_{_slug_num(hi)}mm"
+
+
+def _px_per_mm_for_trj(trj) -> float:
+    try:
+        va = getattr(trj, "va", None)
+        xf = getattr(va, "xf", None)
+        fctr = float(getattr(xf, "fctr", 1.0) or 1.0)
+        ct = getattr(va, "ct", None)
+        if ct is not None and hasattr(ct, "pxPerMmFloor"):
+            return float(ct.pxPerMmFloor()) * fctr
+    except Exception:
+        pass
+
+    for attr in ("pxPerMmFloor", "px_per_mm"):
+        val = getattr(trj, attr, None)
+        if val is None:
+            continue
+        try:
+            return float(val() if callable(val) else val)
+        except Exception:
+            continue
+    return float("nan")
+
+
+def _turn_fully_within_radius_range_mm(
+    trj,
+    trn,
+    start: int,
+    stop: int,
+    radius_range_mm: tuple[float, float] | None,
+) -> bool:
+    if radius_range_mm is None:
+        return True
+
+    lo_mm, hi_mm = radius_range_mm
+    px_per_mm = _px_per_mm_for_trj(trj)
+    if not (np.isfinite(px_per_mm) and px_per_mm > 0.0):
+        return False
+
+    try:
+        cx, cy, _r = trn.circles(getattr(trj, "f", 0))[0]
+    except Exception:
+        return False
+    cx = float(cx)
+    cy = float(cy)
+    if not (np.isfinite(cx) and np.isfinite(cy)):
+        return False
+
+    x = np.asarray(getattr(trj, "x", []), dtype=float)
+    y = np.asarray(getattr(trj, "y", []), dtype=float)
+    lo_frame = max(0, int(start) - 1)
+    hi_frame = min(len(x), len(y), int(stop) + 3)
+    if hi_frame <= lo_frame:
+        return False
+
+    xs = x[lo_frame:hi_frame]
+    ys = y[lo_frame:hi_frame]
+    finite = np.isfinite(xs) & np.isfinite(ys)
+    if not np.all(finite):
+        return False
+
+    distances_mm = np.hypot(xs - cx, ys - cy) / px_per_mm
+    return bool(np.all((distances_mm >= lo_mm) & (distances_mm < hi_mm)))
+
+
 def _heading_home_angle_deg(heading, home) -> float:
     alignment = cosine_alignment(heading, home)
     if not np.isfinite(alignment):
@@ -279,11 +392,17 @@ def _iter_turn_alignment_deltas_for_panel(
     turn_filter: str,
     anchor: str,
     wall_regions,
+    radius_range_mm: tuple[float, float] | None,
 ):
     states = getattr(trj, "behavior_state", None)
     if states is None:
         config = behavior_state_config_from_opts(getattr(va, "opts", None))
         states = analyze_trajectory_behavior_states(trj, config=config)
+        if states is not None:
+            try:
+                trj.behavior_state = states
+            except Exception:
+                pass
     if states is None:
         return
 
@@ -304,6 +423,10 @@ def _iter_turn_alignment_deltas_for_panel(
             ep = {"start": int(start), "stop": int(stop) + 2}
             if episode_overlaps_wall_contact(ep, wall_regions):
                 continue
+        if not _turn_fully_within_radius_range_mm(
+            trj, trn, start, stop, radius_range_mm
+        ):
+            continue
         val = turn_home_vector_alignment_delta(
             trj, trn, start, stop, anchor=anchor
         )
@@ -311,7 +434,9 @@ def _iter_turn_alignment_deltas_for_panel(
             yield float(val)
 
 
-def _collect_panel_values(vas, opts, *, selected_trainings, skip_first, keep_first, last_sync):
+def _collect_panel_values(
+    vas, opts, *, selected_trainings, skip_first, keep_first, last_sync
+):
     turn_filter = str(
         getattr(opts, "turn_home_vector_alignment_turn_filter", TURN_FILTER_ALL)
         or TURN_FILTER_ALL
@@ -331,7 +456,12 @@ def _collect_panel_values(vas, opts, *, selected_trainings, skip_first, keep_fir
             f"got {anchor!r}"
         )
 
-    min_turns = max(1, int(getattr(opts, "turn_home_vector_alignment_min_turns", 1) or 1))
+    min_turns = max(
+        1, int(getattr(opts, "turn_home_vector_alignment_min_turns", 1) or 1)
+    )
+    radius_range_mm = parse_radius_range_mm(
+        getattr(opts, "turn_home_vector_alignment_radius_range_mm", None)
+    )
 
     panel_labels = []
     panel_values: list[list[float]] = []
@@ -386,6 +516,7 @@ def _collect_panel_values(vas, opts, *, selected_trainings, skip_first, keep_fir
                             turn_filter=turn_filter,
                             anchor=anchor,
                             wall_regions=wall_regions,
+                            radius_range_mm=radius_range_mm,
                         )
                     ),
                     dtype=float,
@@ -422,6 +553,16 @@ def _collect_panel_values(vas, opts, *, selected_trainings, skip_first, keep_fir
             getattr(opts, "behavior_state_turn_angular_source", "theta_or_path")
             or "theta_or_path"
         ),
+        "radius_range_mm": (
+            None
+            if radius_range_mm is None
+            else {
+                "lower": float(radius_range_mm[0]),
+                "upper": float(radius_range_mm[1]),
+            }
+        ),
+        "radius_range_inclusion": "lower_inclusive_upper_exclusive",
+        "radius_range_frame_span": "start-1_through_stop+2",
     }
     return (
         panel_keys,
