@@ -6033,6 +6033,14 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--turn-home-vector-alignment-skip-existing",
+    action="store_true",
+    help=(
+        "Do not overwrite turn home-vector alignment bundle files that already "
+        "exist. Missing value-mode, SLI-subset, or radial-bin bundles are still written."
+    ),
+)
+g.add_argument(
     "--turn-home-vector-alignment-radius-range-mm",
     type=str,
     default=None,
@@ -12437,26 +12445,38 @@ def _export_post_analyze_bundles(vas, gls) -> int:
                         radius_out = _suffix_npz_path(group_out, radius_slug)
                         if value_mode == "exp_minus_yok":
                             radius_out = _suffix_npz_path(radius_out, "expMinusYok")
-                        export_turn_home_vector_alignment_sli_bundle(
-                            vas_for_turn_home_vector,
-                            export_opts,
-                            gls,
-                            radius_out,
-                        )
-                        num_exports += 1
+                        if (
+                            group_opts.turn_home_vector_alignment_skip_existing
+                            and os.path.exists(radius_out)
+                        ):
+                            print(f"[export] Reusing existing bundle: {radius_out}")
+                        else:
+                            export_turn_home_vector_alignment_sli_bundle(
+                                vas_for_turn_home_vector,
+                                export_opts,
+                                gls,
+                                radius_out,
+                            )
+                            num_exports += 1
                 else:
                     value_out = (
                         group_out
                         if value_mode == "exp"
                         else _suffix_npz_path(group_out, "expMinusYok")
                     )
-                    export_turn_home_vector_alignment_sli_bundle(
-                        vas_for_turn_home_vector,
-                        value_opts,
-                        gls,
-                        value_out,
-                    )
-                    num_exports += 1
+                    if (
+                        group_opts.turn_home_vector_alignment_skip_existing
+                        and os.path.exists(value_out)
+                    ):
+                        print(f"[export] Reusing existing bundle: {value_out}")
+                    else:
+                        export_turn_home_vector_alignment_sli_bundle(
+                            vas_for_turn_home_vector,
+                            value_opts,
+                            gls,
+                            value_out,
+                        )
+                        num_exports += 1
 
     if getattr(opts, "export_weaving_sli_bundle", None):
         export_weaving_sli_bundle(vas, opts, gls, opts.export_weaving_sli_bundle)

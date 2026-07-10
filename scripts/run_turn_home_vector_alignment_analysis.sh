@@ -4,8 +4,13 @@ set -euo pipefail
 DATE_TAG="${DATE_TAG:-$(date +%F)}"
 PRINT_ONLY="${PRINT_ONLY:-0}"
 PLOT_ONLY="${PLOT_ONLY:-0}"
+REUSE_EXISTING_BUNDLES="${REUSE_EXISTING_BUNDLES:-0}"
 OUT_DIR="${OUT_DIR:-exports/turn_home_vector_alignment}"
 VIDEO_LISTS_FILE="${VIDEO_LISTS_FILE:-video_lists.log}"
+COMPARISON_GROUP="${COMPARISON_GROUP:-ar_ctrl}"
+
+MBKC_HEADER="${MBKC_HEADER:-UAS>>CsC (X); 19B03-lexA (MBKC)/otd-flp; 0273Gal4/lexAop>>Kir}"
+MBKC_SUBHEADER="${MBKC_SUBHEADER:-Flat-lower chamber reward circle shrink in T2, T3, closer to the center  10d old flies}"
 
 TURN_FILTER="${TURN_FILTER:-all}"
 TURN_ANCHOR="${TURN_ANCHOR:-frame}"
@@ -32,9 +37,9 @@ FLIES="${FLIES:-0-1}"
 RCC="${RCC:-15}"
 export MPLCONFIGDIR="${MPLCONFIGDIR:-/tmp/matplotlib-${USER:-nvsl}}"
 
-GROUP_VARS=(INTACT_CTRL INTACT_PFND AR_CTRL)
-GROUP_SLUGS=(intact_ctrlKir intact_pfnKir ar_ctrlKir)
-GROUP_LABELS=("Ctrl>Kir FLC" "PFNd>Kir FLC" "AR Ctrl>Kir FLC")
+GROUP_VARS=(INTACT_CTRL INTACT_PFND)
+GROUP_SLUGS=(intact_ctrlKir intact_pfnKir)
+GROUP_LABELS=("Ctrl>Kir FLC" "PFNd>Kir FLC")
 
 require_dataset_vars() {
   for var_name in "$@"; do
@@ -59,6 +64,32 @@ load_dataset_vars_from_log() {
         ;;
     esac
   done < "$VIDEO_LISTS_FILE"
+}
+
+load_mbkc_dataset_from_log() {
+  if [[ -n "${MBKC_KIR:-}" ]]; then
+    return
+  fi
+  if [[ ! -f "$VIDEO_LISTS_FILE" ]]; then
+    return
+  fi
+
+  MBKC_KIR="$({
+    awk -v header="$MBKC_HEADER" -v subheader="$MBKC_SUBHEADER" '
+      $0 == header { in_section = 1; next }
+      in_section && $0 == subheader { want_command = 1; next }
+      want_command && /^python analyze\.py / {
+        marker = " -v \""
+        start = index($0, marker)
+        if (!start) exit 2
+        value = substr($0, start + length(marker))
+        stop = index(value, "\"")
+        if (!stop) exit 2
+        print substr(value, 1, stop - 1)
+        exit
+      }
+    ' "$VIDEO_LISTS_FILE"
+  } || true)"
 }
 
 run_cmd() {
@@ -124,6 +155,29 @@ bundle_with_suffix() {
   echo "${bundle%.npz}_${suffix}.npz"
 }
 
+all_group_bundles_exist() {
+  local base_bundle="$1"
+  local subset_slug radial_slug bundle
+  for subset_slug in "${SLI_SLUGS[@]}"; do
+    bundle="$base_bundle"
+    if [[ -n "$subset_slug" ]]; then
+      bundle="$(bundle_with_suffix "$bundle" "$subset_slug")"
+    fi
+    if [[ -n "$TURN_RADIAL_BINS" ]]; then
+      for radial_slug in "${RADIAL_SLUGS[@]}"; do
+        local radial_bundle
+        radial_bundle="$(bundle_with_suffix "$bundle" "$radial_slug")"
+        [[ -f "$radial_bundle" ]] || return 1
+        [[ -f "$(bundle_with_suffix "$radial_bundle" expMinusYok)" ]] || return 1
+      done
+    else
+      [[ -f "$bundle" ]] || return 1
+      [[ -f "$(bundle_with_suffix "$bundle" expMinusYok)" ]] || return 1
+    fi
+  done
+  return 0
+}
+
 turn_filter_slug() {
   case "$TURN_FILTER" in
     all)
@@ -138,6 +192,31 @@ turn_filter_slug() {
       ;;
   esac
 }
+
+case "$COMPARISON_GROUP" in
+  ar_ctrl)
+    GROUP_VARS+=(AR_CTRL)
+    GROUP_SLUGS+=(ar_ctrlKir)
+    GROUP_LABELS+=("AR Ctrl>Kir FLC")
+    PLOT_COMPARISON_SUFFIX=""
+    ;;
+  mbkc_kir)
+    load_mbkc_dataset_from_log
+    GROUP_VARS+=(MBKC_KIR)
+    GROUP_SLUGS+=(intact_mbkcKir)
+    GROUP_LABELS+=("MBKC>Kir FLC")
+    PLOT_COMPARISON_SUFFIX="_vs_mbkcKir"
+    ;;
+  *)
+    echo "COMPARISON_GROUP must be ar_ctrl or mbkc_kir, got: $COMPARISON_GROUP" >&2
+    exit 1
+    ;;
+esac
+
+if [[ "$REUSE_EXISTING_BUNDLES" != "0" && "$REUSE_EXISTING_BUNDLES" != "1" ]]; then
+  echo "REUSE_EXISTING_BUNDLES must be 0 or 1." >&2
+  exit 1
+fi
 
 if [[ "$PLOT_ONLY" == "0" ]]; then
   load_dataset_vars_from_log
@@ -200,9 +279,9 @@ plot_alignment_outputs() {
 
   run_cmd \
     python -m scripts.plot_overlay_training_metric_scalar_bars \
-    --input "Ctrl>Kir FLC=${bundle_ctrl}" \
-    --input "PFNd>Kir FLC=${bundle_pfn}" \
-    --input "AR Ctrl>Kir FLC=${bundle_ar}" \
+    --input "${GROUP_LABELS[0]}=${bundle_ctrl}" \
+    --input "${GROUP_LABELS[1]}=${bundle_pfn}" \
+    --input "${GROUP_LABELS[2]}=${bundle_ar}" \
     --out "${OUT_DIR}/${set_slug}${output_suffix}.png" \
     --title "${title_prefix}: turn home-vector alignment improvement${title_mode}, sync buckets 2-5" \
     --ylabel "$ylabel" \
@@ -211,9 +290,9 @@ plot_alignment_outputs() {
 
   run_cmd \
     python -m scripts.plot_overlay_training_metric_scalar_bars \
-    --input "Ctrl>Kir FLC=${bundle_ctrl}" \
-    --input "PFNd>Kir FLC=${bundle_pfn}" \
-    --input "AR Ctrl>Kir FLC=${bundle_ar}" \
+    --input "${GROUP_LABELS[0]}=${bundle_ctrl}" \
+    --input "${GROUP_LABELS[1]}=${bundle_pfn}" \
+    --input "${GROUP_LABELS[2]}=${bundle_ar}" \
     --out "${OUT_DIR}/${set_slug}${output_suffix}_deltaFromPre.png" \
     --title "${title_prefix}: training change in turn home-vector alignment improvement${title_mode}, sync buckets 2-5" \
     --ylabel "$delta_ylabel" \
@@ -225,9 +304,9 @@ plot_alignment_outputs() {
 
   run_cmd \
     python -m scripts.stats_turn_home_vector_alignment \
-    --input "Ctrl>Kir FLC=${bundle_ctrl}" \
-    --input "PFNd>Kir FLC=${bundle_pfn}" \
-    --input "AR Ctrl>Kir FLC=${bundle_ar}" \
+    --input "${GROUP_LABELS[0]}=${bundle_ctrl}" \
+    --input "${GROUP_LABELS[1]}=${bundle_pfn}" \
+    --input "${GROUP_LABELS[2]}=${bundle_ar}" \
     --out-tsv "${OUT_DIR}/${set_slug}${output_suffix}_stats.tsv"
 
   printf '[%s%s] Overview plot: %s/%s%s.png\n' "$title_prefix" "$title_mode" "$OUT_DIR" "$set_slug" "$output_suffix"
@@ -302,7 +381,13 @@ run_alignment_set() {
           done
         fi
       fi
+    elif [[ "$REUSE_EXISTING_BUNDLES" == "1" ]] && all_group_bundles_exist "$bundle"; then
+      printf '\n[%s] Reusing all existing bundles; analysis skipped.\n' "$group_label"
     else
+      local reuse_flags=()
+      if [[ "$REUSE_EXISTING_BUNDLES" == "1" ]]; then
+        reuse_flags+=(--turn-home-vector-alignment-skip-existing)
+      fi
       run_cmd \
         python analyze.py \
         -v "$dataset" \
@@ -310,6 +395,7 @@ run_alignment_set() {
         --rCC "$RCC" \
         --export-turn-home-vector-alignment-sli-bundle "$bundle" \
         --turn-home-vector-alignment-value-modes exp,exp_minus_yok \
+        "${reuse_flags[@]}" \
         "${subset_flags[@]}" \
         --turn-home-vector-alignment-trainings "$TRAININGS" \
         --turn-home-vector-alignment-include-pre \
@@ -359,7 +445,7 @@ run_alignment_set() {
       bundle_csv="$(join_by_comma "${subset_bundles[@]}")"
       printf '\n[%s] Bundles: %s\n' "$subset_title" "$bundle_csv"
       plot_alignment_output_pair \
-        "$subset_set_slug" \
+        "${subset_set_slug}${PLOT_COMPARISON_SUFFIX}" \
         "$subset_title" \
         "${subset_bundles[0]}" \
         "${subset_bundles[1]}" \
@@ -388,7 +474,7 @@ run_alignment_set() {
         bundle_csv="$(join_by_comma "${radial_bundles[@]}")"
         printf '\n[%s] Bundles: %s\n' "$title_prefix" "$bundle_csv"
         plot_alignment_output_pair \
-          "$radial_set_slug" \
+          "${radial_set_slug}${PLOT_COMPARISON_SUFFIX}" \
           "$title_prefix" \
           "${radial_bundles[0]}" \
           "${radial_bundles[1]}" \
