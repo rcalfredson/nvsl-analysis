@@ -4,12 +4,24 @@ import pytest
 from src.exporting.turn_home_vector_alignment_sli_bundle import (
     ANCHOR_FRAME,
     ANCHOR_SEGMENT_MIDPOINT,
+    VALUE_MODE_EXP,
+    VALUE_MODE_EXP_MINUS_YOK,
+    _combine_role_panel_means,
     _turn_fully_within_radius_range_mm,
     parse_radius_range_mm,
     parse_radius_ranges_mm,
     radius_range_slug,
     turn_home_vector_alignment_delta,
 )
+
+
+def test_combine_role_panel_means_supports_exp_and_paired_exp_minus_yok():
+    role_results = [(12.5, 8), (4.0, 6)]
+
+    assert _combine_role_panel_means(role_results, VALUE_MODE_EXP) == 12.5
+    assert (
+        _combine_role_panel_means(role_results, VALUE_MODE_EXP_MINUS_YOK) == 8.5
+    )
 
 
 class DummyTrajectory:

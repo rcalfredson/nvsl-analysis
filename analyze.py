@@ -6024,6 +6024,15 @@ g.add_argument(
     help="Minimum eligible turns required for a fly to contribute to a panel. Default: 1.",
 )
 g.add_argument(
+    "--turn-home-vector-alignment-value-modes",
+    default="exp",
+    help=(
+        "Comma-separated bundle value modes: exp and/or exp_minus_yok. "
+        "The latter subtracts each video's yoked-fly panel mean from its "
+        "experimental-fly panel mean. Default: exp."
+    ),
+)
+g.add_argument(
     "--turn-home-vector-alignment-radius-range-mm",
     type=str,
     default=None,
@@ -12400,30 +12409,54 @@ def _export_post_analyze_bundles(vas, gls) -> int:
                 vas, group_opts
             )
 
-            if radius_ranges:
-                for radius_range in radius_ranges:
-                    export_opts = copy.copy(group_opts)
-                    export_opts.turn_home_vector_alignment_radius_range_mm = (
-                        f"{radius_range[0]:g}-{radius_range[1]:g}"
-                    )
-                    radius_slug = turn_home_vector_alignment_radius_range_slug(
-                        radius_range
+            value_modes = [
+                item.strip()
+                for item in str(group_opts.turn_home_vector_alignment_value_modes).split(",")
+                if item.strip()
+            ]
+            invalid_value_modes = set(value_modes) - {"exp", "exp_minus_yok"}
+            if not value_modes or invalid_value_modes:
+                raise ValueError(
+                    "--turn-home-vector-alignment-value-modes must contain exp "
+                    "and/or exp_minus_yok; got "
+                    f"{group_opts.turn_home_vector_alignment_value_modes!r}"
+                )
+
+            for value_mode in value_modes:
+                value_opts = copy.copy(group_opts)
+                value_opts.turn_home_vector_alignment_value_mode = value_mode
+                if radius_ranges:
+                    for radius_range in radius_ranges:
+                        export_opts = copy.copy(value_opts)
+                        export_opts.turn_home_vector_alignment_radius_range_mm = (
+                            f"{radius_range[0]:g}-{radius_range[1]:g}"
+                        )
+                        radius_slug = turn_home_vector_alignment_radius_range_slug(
+                            radius_range
+                        )
+                        radius_out = _suffix_npz_path(group_out, radius_slug)
+                        if value_mode == "exp_minus_yok":
+                            radius_out = _suffix_npz_path(radius_out, "expMinusYok")
+                        export_turn_home_vector_alignment_sli_bundle(
+                            vas_for_turn_home_vector,
+                            export_opts,
+                            gls,
+                            radius_out,
+                        )
+                        num_exports += 1
+                else:
+                    value_out = (
+                        group_out
+                        if value_mode == "exp"
+                        else _suffix_npz_path(group_out, "expMinusYok")
                     )
                     export_turn_home_vector_alignment_sli_bundle(
                         vas_for_turn_home_vector,
-                        export_opts,
+                        value_opts,
                         gls,
-                        _suffix_npz_path(group_out, radius_slug),
+                        value_out,
                     )
                     num_exports += 1
-            else:
-                export_turn_home_vector_alignment_sli_bundle(
-                    vas_for_turn_home_vector,
-                    group_opts,
-                    gls,
-                    group_out,
-                )
-                num_exports += 1
 
     if getattr(opts, "export_weaving_sli_bundle", None):
         export_weaving_sli_bundle(vas, opts, gls, opts.export_weaving_sli_bundle)

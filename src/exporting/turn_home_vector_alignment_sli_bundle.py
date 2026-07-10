@@ -35,6 +35,19 @@ ANCHOR_FRAME = "frame"
 ANCHOR_SEGMENT_MIDPOINT = "segment_midpoint"
 ANCHOR_CHOICES = (ANCHOR_FRAME, ANCHOR_SEGMENT_MIDPOINT)
 
+VALUE_MODE_EXP = "exp"
+VALUE_MODE_EXP_MINUS_YOK = "exp_minus_yok"
+VALUE_MODE_CHOICES = (VALUE_MODE_EXP, VALUE_MODE_EXP_MINUS_YOK)
+
+
+def _combine_role_panel_means(role_results, value_mode: str) -> float:
+    """Return the experimental value or the within-video exp-minus-yok value."""
+    if value_mode == VALUE_MODE_EXP:
+        return float(role_results[0][0])
+    if value_mode == VALUE_MODE_EXP_MINUS_YOK:
+        return float(role_results[0][0] - role_results[1][0])
+    raise ValueError(f"unknown turn home-vector alignment value mode: {value_mode!r}")
+
 
 def _selected_training_indices(vas, opts) -> list[int]:
     vas_ok = [va for va in vas if not getattr(va, "_skipped", False)]
@@ -462,6 +475,15 @@ def _collect_panel_values(
     radius_range_mm = parse_radius_range_mm(
         getattr(opts, "turn_home_vector_alignment_radius_range_mm", None)
     )
+    value_mode = str(
+        getattr(opts, "turn_home_vector_alignment_value_mode", VALUE_MODE_EXP)
+        or VALUE_MODE_EXP
+    )
+    if value_mode not in VALUE_MODE_CHOICES:
+        raise ValueError(
+            "turn_home_vector_alignment_value_mode must be one of "
+            f"{VALUE_MODE_CHOICES!r}; got {value_mode!r}"
+        )
 
     panel_labels = []
     panel_values: list[list[float]] = []
@@ -488,25 +510,28 @@ def _collect_panel_values(
                 panel_ids.append([])
                 panel_counts.append([])
 
-        for fly_idx, trj in enumerate(getattr(va, "trx", [])):
-            if fly_idx > 1:
-                continue
-            if fly_idx == 1 and getattr(va, "noyc", False):
-                continue
-            if fly_idx != 0:
-                continue
-            if getattr(trj, "_bad", False):
-                continue
+        trajectories = list(getattr(va, "trx", []))
+        if not trajectories or getattr(trajectories[0], "_bad", False):
+            continue
+        if value_mode == VALUE_MODE_EXP_MINUS_YOK and (
+            len(trajectories) < 2
+            or getattr(va, "noyc", False)
+            or getattr(trajectories[1], "_bad", False)
+        ):
+            continue
 
-            wall_regions = wall_contact_regions_for_trj(
-                trj,
-                enabled=(turn_filter == TURN_FILTER_EXCLUDE_WALL_CONTACT),
-                warned_missing=[False],
-                log_tag="turn-home-vector-alignment",
-            )
-            unit_id = _unit_id_for_va_fly(va, vi, fly_idx)
-
-            for panel in panels:
+        unit_id = _unit_id_for_va_fly(va, vi, 0)
+        for panel in panels:
+            role_results = []
+            role_indices = (0, 1) if value_mode == VALUE_MODE_EXP_MINUS_YOK else (0,)
+            for fly_idx in role_indices:
+                trj = trajectories[fly_idx]
+                wall_regions = wall_contact_regions_for_trj(
+                    trj,
+                    enabled=(turn_filter == TURN_FILTER_EXCLUDE_WALL_CONTACT),
+                    warned_missing=[False],
+                    log_tag="turn-home-vector-alignment",
+                )
                 vals = np.asarray(
                     list(
                         _iter_turn_alignment_deltas_for_panel(
@@ -523,11 +548,21 @@ def _collect_panel_values(
                 )
                 vals = vals[np.isfinite(vals)]
                 if vals.size < min_turns:
-                    continue
-                p_idx = panel_index_by_key[str(panel["panel_key"])]
-                panel_values[p_idx].append(float(np.mean(vals)))
-                panel_ids[p_idx].append(unit_id)
-                panel_counts[p_idx].append(int(vals.size))
+                    role_results = []
+                    break
+                role_results.append((float(np.mean(vals)), int(vals.size)))
+
+            if not role_results:
+                continue
+            value = _combine_role_panel_means(role_results, value_mode)
+            p_idx = panel_index_by_key[str(panel["panel_key"])]
+            panel_values[p_idx].append(value)
+            panel_ids[p_idx].append(unit_id)
+            panel_counts[p_idx].append(
+                role_results[0][1]
+                if value_mode == VALUE_MODE_EXP
+                else min(role_results[0][1], role_results[1][1])
+            )
 
     per_unit_values_panel = [np.asarray(vals, dtype=float) for vals in panel_values]
     per_unit_ids_panel = [np.asarray(ids, dtype=object) for ids in panel_ids]
@@ -548,6 +583,7 @@ def _collect_panel_values(
         "turn_filter": turn_filter,
         "anchor": anchor,
         "min_turns": int(min_turns),
+        "value_mode": value_mode,
         "turn_detector": "behavior_state",
         "turn_angular_source": str(
             getattr(opts, "behavior_state_turn_angular_source", "theta_or_path")
@@ -612,8 +648,16 @@ def export_turn_home_vector_alignment_sli_bundle(vas, opts, gls, out_fn):
 
     meta = {
         "log_tag": "turn-home-vector-alignment",
-        "y_label": Y_LABEL,
-        "base_title": BASE_TITLE,
+        "y_label": (
+            Y_LABEL
+            if metric_meta["value_mode"] == VALUE_MODE_EXP
+            else f"{Y_LABEL} (exp - yok)"
+        ),
+        "base_title": (
+            BASE_TITLE
+            if metric_meta["value_mode"] == VALUE_MODE_EXP
+            else f"{BASE_TITLE} (exp - yok)"
+        ),
         "pool_trainings": False,
         "ci": True,
         "ci_conf": 0.95,

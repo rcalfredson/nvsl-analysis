@@ -186,15 +186,26 @@ plot_alignment_outputs() {
   local bundle_ctrl="$3"
   local bundle_pfn="$4"
   local bundle_ar="$5"
+  local value_mode="${6:-exp}"
+  local output_suffix=""
+  local title_mode=""
+  local ylabel=$'Home-vector alignment\nimprovement during turn (deg)'
+  local delta_ylabel=$'Training - pre-training change\nin turn improvement (deg)'
+  if [[ "$value_mode" == "exp_minus_yok" ]]; then
+    output_suffix="_expMinusYok"
+    title_mode=" (experimental - yoked)"
+    ylabel=$'Home-vector alignment improvement\nduring turn (deg, exp - yok)'
+    delta_ylabel=$'Training - pre-training change\nin turn improvement (deg, exp - yok)'
+  fi
 
   run_cmd \
     python -m scripts.plot_overlay_training_metric_scalar_bars \
     --input "Ctrl>Kir FLC=${bundle_ctrl}" \
     --input "PFNd>Kir FLC=${bundle_pfn}" \
     --input "AR Ctrl>Kir FLC=${bundle_ar}" \
-    --out "${OUT_DIR}/${set_slug}.png" \
-    --title "${title_prefix}: turn home-vector alignment improvement, sync buckets 2-5" \
-    --ylabel $'Home-vector alignment\nimprovement during turn (deg)' \
+    --out "${OUT_DIR}/${set_slug}${output_suffix}.png" \
+    --title "${title_prefix}: turn home-vector alignment improvement${title_mode}, sync buckets 2-5" \
+    --ylabel "$ylabel" \
     --points \
     --stats
 
@@ -203,9 +214,9 @@ plot_alignment_outputs() {
     --input "Ctrl>Kir FLC=${bundle_ctrl}" \
     --input "PFNd>Kir FLC=${bundle_pfn}" \
     --input "AR Ctrl>Kir FLC=${bundle_ar}" \
-    --out "${OUT_DIR}/${set_slug}_deltaFromPre.png" \
-    --title "${title_prefix}: training change in turn home-vector alignment improvement, sync buckets 2-5" \
-    --ylabel $'Training - pre-training change\nin turn improvement (deg)' \
+    --out "${OUT_DIR}/${set_slug}${output_suffix}_deltaFromPre.png" \
+    --title "${title_prefix}: training change in turn home-vector alignment improvement${title_mode}, sync buckets 2-5" \
+    --ylabel "$delta_ylabel" \
     --baseline-delta-panel "Pre-training" \
     --baseline-delta-target-panel "Training 1" \
     --baseline-delta-target-panel "Training 2" \
@@ -217,11 +228,25 @@ plot_alignment_outputs() {
     --input "Ctrl>Kir FLC=${bundle_ctrl}" \
     --input "PFNd>Kir FLC=${bundle_pfn}" \
     --input "AR Ctrl>Kir FLC=${bundle_ar}" \
-    --out-tsv "${OUT_DIR}/${set_slug}_stats.tsv"
+    --out-tsv "${OUT_DIR}/${set_slug}${output_suffix}_stats.tsv"
 
-  printf '[%s] Overview plot: %s/%s.png\n' "$title_prefix" "$OUT_DIR" "$set_slug"
-  printf '[%s] Delta-from-pre plot: %s/%s_deltaFromPre.png\n' "$title_prefix" "$OUT_DIR" "$set_slug"
-  printf '[%s] Stats TSV: %s/%s_stats.tsv\n' "$title_prefix" "$OUT_DIR" "$set_slug"
+  printf '[%s%s] Overview plot: %s/%s%s.png\n' "$title_prefix" "$title_mode" "$OUT_DIR" "$set_slug" "$output_suffix"
+  printf '[%s%s] Delta-from-pre plot: %s/%s%s_deltaFromPre.png\n' "$title_prefix" "$title_mode" "$OUT_DIR" "$set_slug" "$output_suffix"
+  printf '[%s%s] Stats TSV: %s/%s%s_stats.tsv\n' "$title_prefix" "$title_mode" "$OUT_DIR" "$set_slug" "$output_suffix"
+}
+
+plot_alignment_output_pair() {
+  local set_slug="$1"
+  local title_prefix="$2"
+  shift 2
+  local exp_bundles=("$1" "$2" "$3")
+  local diff_bundles=()
+  for bundle in "${exp_bundles[@]}"; do
+    diff_bundles+=("$(bundle_with_suffix "$bundle" "expMinusYok")")
+  done
+
+  plot_alignment_outputs "$set_slug" "$title_prefix" "${exp_bundles[@]}" exp
+  plot_alignment_outputs "$set_slug" "$title_prefix" "${diff_bundles[@]}" exp_minus_yok
 }
 
 run_alignment_set() {
@@ -284,6 +309,7 @@ run_alignment_set() {
         -f "$FLIES" \
         --rCC "$RCC" \
         --export-turn-home-vector-alignment-sli-bundle "$bundle" \
+        --turn-home-vector-alignment-value-modes exp,exp_minus_yok \
         "${subset_flags[@]}" \
         --turn-home-vector-alignment-trainings "$TRAININGS" \
         --turn-home-vector-alignment-include-pre \
@@ -332,7 +358,7 @@ run_alignment_set() {
       local bundle_csv
       bundle_csv="$(join_by_comma "${subset_bundles[@]}")"
       printf '\n[%s] Bundles: %s\n' "$subset_title" "$bundle_csv"
-      plot_alignment_outputs \
+      plot_alignment_output_pair \
         "$subset_set_slug" \
         "$subset_title" \
         "${subset_bundles[0]}" \
@@ -361,7 +387,7 @@ run_alignment_set() {
         local bundle_csv
         bundle_csv="$(join_by_comma "${radial_bundles[@]}")"
         printf '\n[%s] Bundles: %s\n' "$title_prefix" "$bundle_csv"
-        plot_alignment_outputs \
+        plot_alignment_output_pair \
           "$radial_set_slug" \
           "$title_prefix" \
           "${radial_bundles[0]}" \
