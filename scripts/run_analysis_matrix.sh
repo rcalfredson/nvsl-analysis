@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DATE_TAG="2026-06-22"
+DATE_TAG="${DATE_TAG:-$(date +%F)}"
 PRINT_ONLY="${PRINT_ONLY:-0}"
 RUN_FLAT_HTL_TURNBACK_PAIRS="${RUN_FLAT_HTL_TURNBACK_PAIRS:-0}"
 RUN_FLAT_HTL_TURNBACK_HOME_VECTOR_VARIANT="${RUN_FLAT_HTL_TURNBACK_HOME_VECTOR_VARIANT:-0}"
@@ -28,6 +28,18 @@ GROUP_VARS=(INTACT_CTRL INTACT_PFND AR_CTRL)
 GROUP_SLUGS=(intact_ctrlKir intact_pfnKir ar_ctrlKir)
 GROUP_LABELS=("Ctrl>Kir FLC" "PFNd>Kir FLC" "AR Ctrl>Kir FLC")
 
+# Cohorts used specifically by the dual-circle turnback and turnback
+# home-vector alignment analyses. Keep the general GROUP_* arrays above
+# unchanged so the other analysis families in this matrix retain AR Ctrl>Kir.
+TURNBACK_COMPARISON_GROUP="${TURNBACK_COMPARISON_GROUP:-mbkc_kir}"
+VIDEO_LISTS_FILE="${VIDEO_LISTS_FILE:-video_lists.log}"
+MBKC_HEADER="${MBKC_HEADER:-UAS>>CsC (X); 19B03-lexA (MBKC)/otd-flp; 0273Gal4/lexAop>>Kir}"
+MBKC_SUBHEADER="${MBKC_SUBHEADER:-Flat-lower chamber reward circle shrink in T2, T3, closer to the center  10d old flies}"
+
+TURNBACK_GROUP_VARS=(INTACT_CTRL INTACT_PFND)
+TURNBACK_GROUP_SLUGS=(intact_ctrlKir intact_pfnKir)
+TURNBACK_GROUP_LABELS=("Ctrl>Kir FLC" "PFNd>Kir FLC")
+
 FLAT_HTL_GROUP_VARS=(
   FLAT_HTL_CTRL
   FLAT_HTL_HIND_TARSI_GENITALIA_GLUED
@@ -43,6 +55,52 @@ FLAT_HTL_GROUP_LABELS=(
   "Hind tarsi removed + genitalia-glued flat HTL"
   "Antennae-removed flat HTL"
 )
+
+load_mbkc_dataset_from_log() {
+  if [[ -n "${MBKC_KIR:-}" ]]; then
+    return
+  fi
+  if [[ ! -f "$VIDEO_LISTS_FILE" ]]; then
+    return
+  fi
+
+  MBKC_KIR="$({
+    awk -v header="$MBKC_HEADER" -v subheader="$MBKC_SUBHEADER" '
+      $0 == header { in_section = 1; next }
+      in_section && $0 == subheader { want_command = 1; next }
+      want_command && /^python analyze\.py / {
+        marker = " -v \""
+        start = index($0, marker)
+        if (!start) exit 2
+        value = substr($0, start + length(marker))
+        stop = index(value, "\"")
+        if (!stop) exit 2
+        print substr(value, 1, stop - 1)
+        exit
+      }
+    ' "$VIDEO_LISTS_FILE"
+  } || true)"
+}
+
+case "$TURNBACK_COMPARISON_GROUP" in
+  ar_ctrl)
+    TURNBACK_GROUP_VARS+=(AR_CTRL)
+    TURNBACK_GROUP_SLUGS+=(ar_ctrlKir)
+    TURNBACK_GROUP_LABELS+=("AR Ctrl>Kir FLC")
+    TURNBACK_PLOT_SUFFIX=""
+    ;;
+  mbkc_kir)
+    load_mbkc_dataset_from_log
+    TURNBACK_GROUP_VARS+=(MBKC_KIR)
+    TURNBACK_GROUP_SLUGS+=(intact_mbkcKir)
+    TURNBACK_GROUP_LABELS+=("MBKC>Kir FLC")
+    TURNBACK_PLOT_SUFFIX="_vs_mbkcKir"
+    ;;
+  *)
+    echo "TURNBACK_COMPARISON_GROUP must be ar_ctrl or mbkc_kir, got: $TURNBACK_COMPARISON_GROUP" >&2
+    exit 1
+    ;;
+esac
 
 require_dataset_vars() {
   for var_name in "$@"; do
@@ -61,6 +119,7 @@ elif [[ "$RUN_FLAT_HTL_TURNBACK_PAIRS" != "0" ]]; then
   exit 1
 else
   require_dataset_vars "${GROUP_VARS[@]}"
+  require_dataset_vars "${TURNBACK_GROUP_VARS[@]}"
 fi
 
 run_cmd() {
@@ -432,11 +491,11 @@ run_turnback_pairs() {
 
   local bundles=()
 
-  for i in "${!GROUP_VARS[@]}"; do
-    local var_name="${GROUP_VARS[$i]}"
+  for i in "${!TURNBACK_GROUP_VARS[@]}"; do
+    local var_name="${TURNBACK_GROUP_VARS[$i]}"
     local dataset="${!var_name}"
-    local group_slug="${GROUP_SLUGS[$i]}"
-    local group_label="${GROUP_LABELS[$i]}"
+    local group_slug="${TURNBACK_GROUP_SLUGS[$i]}"
+    local group_label="${TURNBACK_GROUP_LABELS[$i]}"
     local bundle="exports/turnbackPairs_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pairs_label}_${DATE_TAG}.npz"
 
     bundles+=("$bundle")
@@ -475,7 +534,7 @@ run_turnback_pairs() {
   run_cmd \
     python -m scripts.plot_turnback_excursion_bin_sli_bundles \
     --bundles "$bundle_csv" \
-    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatLgc_T2_p${pairs_label}_top20_sliT2Sb2-5_${DATE_TAG}.png" \
+    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatLgc_T2_p${pairs_label}_top20_sliT2Sb2-5${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.png" \
     --sli-extremes top \
     --top-sli-fraction 0.2 \
     --stats
@@ -483,7 +542,7 @@ run_turnback_pairs() {
   run_cmd \
     python -m scripts.plot_turnback_excursion_bin_sli_bundles \
     --bundles "$bundle_csv" \
-    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatLgc_T2_p${pairs_label}_${DATE_TAG}.png" \
+    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatLgc_T2_p${pairs_label}${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.png" \
     --stats
 }
 
@@ -538,11 +597,11 @@ run_turnback_home_vector_alignment() {
   local sample_cross_flags=()
   turnback_home_vector_alignment_sample_crossing_flags sample_cross_flags
 
-  for i in "${!GROUP_VARS[@]}"; do
-    local var_name="${GROUP_VARS[$i]}"
+  for i in "${!TURNBACK_GROUP_VARS[@]}"; do
+    local var_name="${TURNBACK_GROUP_VARS[$i]}"
     local dataset="${!var_name}"
-    local group_slug="${GROUP_SLUGS[$i]}"
-    local group_label="${GROUP_LABELS[$i]}"
+    local group_slug="${TURNBACK_GROUP_SLUGS[$i]}"
+    local group_label="${TURNBACK_GROUP_LABELS[$i]}"
     local bundle="exports/turnbackHomeVectorAlignment_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}_${DATE_TAG}.npz"
     local example_flags=()
     turnback_home_vector_alignment_example_flags \
@@ -583,10 +642,10 @@ run_turnback_home_vector_alignment() {
 
   run_cmd \
     python -m scripts.plot_overlay_training_metric_scalar_bars \
-    --input "Ctrl>Kir FLC=${bundles[0]}" \
-    --input "PFNd>Kir FLC=${bundles[1]}" \
-    --input "AR Ctrl>Kir FLC=${bundles[2]}" \
-    --out "exports/turnbackHomeVectorAlignment_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}_${DATE_TAG}.png" \
+    --input "${TURNBACK_GROUP_LABELS[0]}=${bundles[0]}" \
+    --input "${TURNBACK_GROUP_LABELS[1]}=${bundles[1]}" \
+    --input "${TURNBACK_GROUP_LABELS[2]}=${bundles[2]}" \
+    --out "exports/turnbackHomeVectorAlignment_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.png" \
     --title "Home-vector heading alignment at re-entry, ${inner_radius_mm}/${outer_radius_mm} mm" \
     --ylabel "Home-vector heading alignment at re-entry" \
     --stats
@@ -675,11 +734,11 @@ run_turnback_home_vector_alignment_subset_impl() {
   local sample_cross_flags=()
   turnback_home_vector_alignment_sample_crossing_flags sample_cross_flags
 
-  for i in "${!GROUP_VARS[@]}"; do
-    local var_name="${GROUP_VARS[$i]}"
+  for i in "${!TURNBACK_GROUP_VARS[@]}"; do
+    local var_name="${TURNBACK_GROUP_VARS[$i]}"
     local dataset="${!var_name}"
-    local group_slug="${GROUP_SLUGS[$i]}"
-    local group_label="${GROUP_LABELS[$i]}"
+    local group_slug="${TURNBACK_GROUP_SLUGS[$i]}"
+    local group_label="${TURNBACK_GROUP_LABELS[$i]}"
     local bundle="exports/turnbackHomeVectorAlignment_${subset_slug}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sliT2Sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}_${DATE_TAG}.npz"
     local example_flags=()
     turnback_home_vector_alignment_example_flags \
@@ -721,10 +780,10 @@ run_turnback_home_vector_alignment_subset_impl() {
 
   run_cmd \
     python -m scripts.plot_overlay_training_metric_scalar_bars \
-    --input "Ctrl>Kir FLC=${bundles[0]}" \
-    --input "PFNd>Kir FLC=${bundles[1]}" \
-    --input "AR Ctrl>Kir FLC=${bundles[2]}" \
-    --out "exports/turnbackHomeVectorAlignment_${subset_slug}_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sliT2Sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}_${DATE_TAG}.png" \
+    --input "${TURNBACK_GROUP_LABELS[0]}=${bundles[0]}" \
+    --input "${TURNBACK_GROUP_LABELS[1]}=${bundles[1]}" \
+    --input "${TURNBACK_GROUP_LABELS[2]}=${bundles[2]}" \
+    --out "exports/turnbackHomeVectorAlignment_${subset_slug}_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sliT2Sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.png" \
     --title "${subset_title}: home-vector heading alignment at re-entry, ${inner_radius_mm}/${outer_radius_mm} mm" \
     --ylabel "Home-vector heading alignment at re-entry" \
     --stats
@@ -989,6 +1048,18 @@ run_post_wall_departure_tortuosity() {
 #     minEpSb5Filt \
 #     "$wall_tag"
 # done
+
+# ---------------------------------------------------------------------
+# Dual-circle turnback ratio for the MBKC comparison.
+# Matches the default 3/5, 8/10, 13/15 mm geometry and the active
+# home-vector pass below: T2 SB5-presence filter, wall-contact included.
+# ---------------------------------------------------------------------
+
+run_turnback_pairs \
+  "3-5_8-10_13-15" \
+  "3:5,8:10,13:15" \
+  minEpSb5Filt \
+  wall
 
 # ---------------------------------------------------------------------
 # Turnback home-vector heading alignment at successful re-entry
