@@ -5016,8 +5016,9 @@ class EventChainPlotter:
             self.va.ct.floor(self.va.xf, f=self.va.nef * (self.trj.f) + self.va.ef)
         )
         top_left, bottom_right = floor_coords[0], floor_coords[1]
-        padding_x = (bottom_right[0] - top_left[0]) * 0.1
-        padding_y = (top_left[1] - bottom_right[1]) * 0.1
+        padding_fraction = 0.03 if minimal else 0.1
+        padding_x = (bottom_right[0] - top_left[0]) * padding_fraction
+        padding_y = (top_left[1] - bottom_right[1]) * padding_fraction
         contact_buffer_px = (
             self.va.ct.pxPerMmFloor()
             * self.va.xf.fctr
