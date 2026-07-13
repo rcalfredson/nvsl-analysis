@@ -6058,6 +6058,17 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--turn-home-vector-alignment-home-target",
+    choices=("reward_center", "opposite_reward_center"),
+    default="reward_center",
+    help=(
+        "Destination of the start/end home vectors. 'reward_center' uses the "
+        "reward-circle center; 'opposite_reward_center' uses that point rotated "
+        "180 degrees about the center of the fly's chamber floor. Default: "
+        "reward_center."
+    ),
+)
+g.add_argument(
     "--turn-home-vector-alignment-min-turns",
     type=int,
     default=1,

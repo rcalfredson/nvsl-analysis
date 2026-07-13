@@ -14,6 +14,7 @@ MBKC_SUBHEADER="${MBKC_SUBHEADER:-Flat-lower chamber reward circle shrink in T2,
 
 TURN_FILTER="${TURN_FILTER:-all}"
 TURN_ANCHOR="${TURN_ANCHOR:-frame}"
+TURN_HOME_TARGET="${TURN_HOME_TARGET:-reward_center}"
 TURN_MIN_TURNS="${TURN_MIN_TURNS:-5}"
 TURN_RADIAL_BINS="${TURN_RADIAL_BINS:-}"
 
@@ -228,8 +229,23 @@ fi
 mkdir -p "$OUT_DIR"
 mkdir -p "$MPLCONFIGDIR"
 
+case "$TURN_HOME_TARGET" in
+  reward_center)
+    home_target_slug=""
+    home_target_title=""
+    ;;
+  opposite_reward_center)
+    home_target_slug="_oppositeRewardCenter"
+    home_target_title="Opposite-anchor control, "
+    ;;
+  *)
+    echo "TURN_HOME_TARGET must be reward_center or opposite_reward_center." >&2
+    exit 1
+    ;;
+esac
+
 filter_slug="$(turn_filter_slug)"
-run_slug="turnHomeVectorAlignment_${filter_slug}_${TURN_ANGULAR_SOURCE}_score${TURN_SCORE_THRESHOLD}_small${TURN_ANGULAR_SMALL_DEG_S}_large${TURN_ANGULAR_LARGE_DEG_S}_sb2-5_${DATE_TAG}"
+run_slug="turnHomeVectorAlignment${home_target_slug}_${filter_slug}_${TURN_ANGULAR_SOURCE}_score${TURN_SCORE_THRESHOLD}_small${TURN_ANGULAR_SMALL_DEG_S}_large${TURN_ANGULAR_LARGE_DEG_S}_sb2-5_${DATE_TAG}"
 
 SLI_GROUPS=(all)
 SLI_SLUGS=("")
@@ -261,7 +277,7 @@ fi
 
 plot_alignment_outputs() {
   local set_slug="$1"
-  local title_prefix="$2"
+  local title_prefix="${home_target_title}$2"
   local bundle_ctrl="$3"
   local bundle_pfn="$4"
   local bundle_ar="$5"
@@ -401,6 +417,7 @@ run_alignment_set() {
         --turn-home-vector-alignment-include-pre \
         --turn-home-vector-alignment-turn-filter "$TURN_FILTER" \
         --turn-home-vector-alignment-anchor "$TURN_ANCHOR" \
+        --turn-home-vector-alignment-home-target "$TURN_HOME_TARGET" \
         --turn-home-vector-alignment-min-turns "$TURN_MIN_TURNS" \
         "${radial_flags[@]}" \
         --turn-home-vector-alignment-skip-first-sync-buckets "$SYNC_SKIP" \
