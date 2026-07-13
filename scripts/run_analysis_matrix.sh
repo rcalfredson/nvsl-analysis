@@ -25,6 +25,11 @@ TURNBACK_HOME_VECTOR_ALIGNMENT_EXCLUDE_SAMPLE_CROSSINGS="${TURNBACK_HOME_VECTOR_
 TURNBACK_HOME_VECTOR_ALIGNMENT_HEADING_ESTIMATOR="${TURNBACK_HOME_VECTOR_ALIGNMENT_HEADING_ESTIMATOR:-mean}"
 TURNBACK_HOME_VECTOR_ALIGNMENT_HOME_VECTOR_ANCHOR="${TURNBACK_HOME_VECTOR_ALIGNMENT_HOME_VECTOR_ANCHOR:-intersection}"
 TURNBACK_HOME_VECTOR_ALIGNMENT_REUSE_EXISTING_BUNDLES="${TURNBACK_HOME_VECTOR_ALIGNMENT_REUSE_EXISTING_BUNDLES:-1}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT="${TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT:-png}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT="${TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT#.}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT="${TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT,,}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_FONT_FAMILY="${TURNBACK_HOME_VECTOR_ALIGNMENT_FONT_FAMILY:-}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_FS="${TURNBACK_HOME_VECTOR_ALIGNMENT_FS:-}"
 
 GROUP_VARS=(INTACT_CTRL INTACT_PFND AR_CTRL)
 GROUP_SLUGS=(intact_ctrlKir intact_pfnKir ar_ctrlKir)
@@ -109,6 +114,10 @@ if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_REUSE_EXISTING_BUNDLES" != "0" && "$TURNB
   echo "TURNBACK_HOME_VECTOR_ALIGNMENT_REUSE_EXISTING_BUNDLES must be 0 or 1." >&2
   exit 1
 fi
+if [[ -z "$TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT" ]]; then
+  echo "TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT must not be empty." >&2
+  exit 1
+fi
 if [[ "$RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY" != "0" && "$RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY" != "1" ]]; then
   echo "RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY must be 0 or 1." >&2
   exit 1
@@ -145,6 +154,17 @@ run_cmd() {
 
   if [[ "$PRINT_ONLY" != "1" ]]; then
     "$@"
+  fi
+}
+
+turnback_home_vector_alignment_plot_style_flags() {
+  local -n out_flags="$1"
+  out_flags=(--image-format "$TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT")
+  if [[ -n "$TURNBACK_HOME_VECTOR_ALIGNMENT_FONT_FAMILY" ]]; then
+    out_flags+=(--fontFamily "$TURNBACK_HOME_VECTOR_ALIGNMENT_FONT_FAMILY")
+  fi
+  if [[ -n "$TURNBACK_HOME_VECTOR_ALIGNMENT_FS" ]]; then
+    out_flags+=(--fs "$TURNBACK_HOME_VECTOR_ALIGNMENT_FS")
   fi
 }
 
@@ -665,16 +685,19 @@ run_turnback_home_vector_alignment() {
     fi
   done
 
+  local plot_style_flags=()
+  turnback_home_vector_alignment_plot_style_flags plot_style_flags
   run_cmd \
     python -m scripts.plot_overlay_training_metric_scalar_bars \
     --input "${TURNBACK_GROUP_LABELS[0]}=${bundles[0]}" \
     --input "${TURNBACK_GROUP_LABELS[1]}=${bundles[1]}" \
     --input "${TURNBACK_GROUP_LABELS[2]}=${bundles[2]}" \
-    --out "exports/turnbackHomeVectorAlignment_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.png" \
+    --out "exports/turnbackHomeVectorAlignment_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.${TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT}" \
     --title "Home-vector heading alignment at re-entry, ${inner_radius_mm}/${outer_radius_mm} mm" \
     --ylabel "Home-vector heading alignment at re-entry" \
     --swarm \
-    --stats
+    --stats \
+    "${plot_style_flags[@]}"
 }
 
 run_turnback_home_vector_alignment_sli_subset() {
@@ -813,16 +836,19 @@ run_turnback_home_vector_alignment_subset_impl() {
     fi
   done
 
+  local plot_style_flags=()
+  turnback_home_vector_alignment_plot_style_flags plot_style_flags
   run_cmd \
     python -m scripts.plot_overlay_training_metric_scalar_bars \
     --input "${TURNBACK_GROUP_LABELS[0]}=${bundles[0]}" \
     --input "${TURNBACK_GROUP_LABELS[1]}=${bundles[1]}" \
     --input "${TURNBACK_GROUP_LABELS[2]}=${bundles[2]}" \
-    --out "exports/turnbackHomeVectorAlignment_${subset_slug}_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sliT2Sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.png" \
+    --out "exports/turnbackHomeVectorAlignment_${subset_slug}_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sliT2Sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.${TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT}" \
     --title "${subset_title}: home-vector heading alignment at re-entry, ${inner_radius_mm}/${outer_radius_mm} mm" \
     --ylabel "Home-vector heading alignment at re-entry" \
     --swarm \
-    --stats
+    --stats \
+    "${plot_style_flags[@]}"
 }
 
 run_turnback_home_vector_alignment_top20() {
@@ -865,15 +891,18 @@ plot_combined_turnback_home_vector_alignment() {
 
   local pair_labels=("3-5" "8-10" "13-15")
   local region_labels=("3/5 mm" "8/10 mm" "13/15 mm")
+  local plot_style_flags=()
+  turnback_home_vector_alignment_plot_style_flags plot_style_flags
   local plot_args=(
     python -m scripts.plot_overlay_training_metric_scalar_bars
-    --out "exports/${plot_prefix}${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.png"
+    --out "exports/${plot_prefix}${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.${TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT}"
     --title "$title"
     --xlabel "Inner/outer radius pair from reward center (mm)"
     --ylabel "Home-vector heading alignment at re-entry"
     --clustered-layout
     --swarm
     --stats
+    "${plot_style_flags[@]}"
   )
 
   local pair_i group_i key bundle
