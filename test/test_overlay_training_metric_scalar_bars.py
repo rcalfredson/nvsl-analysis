@@ -95,6 +95,28 @@ def test_fraction_overlay_uses_even_ticks_and_wraps_ylabel():
     plt.close(fig)
 
 
+def test_large_alignment_ylabel_wraps_before_vector_export_cutoff():
+    fig = plot_overlays(
+        [_export("Control", [0.5, 0.6, 0.7])],
+        ylabel="Home-vector heading alignment at re-entry",
+        opts=SimpleNamespace(
+            imageFormat="pdf",
+            fontSize=16,
+            fontFamily="Arial",
+        ),
+    )
+    ax = fig.axes[0]
+
+    assert ax.get_ylabel() == "Home-vector heading alignment\nat re-entry"
+    fig.canvas.draw()
+    label_bbox = ax.yaxis.get_label().get_window_extent(
+        renderer=fig.canvas.get_renderer()
+    )
+    assert label_bbox.y0 >= fig.bbox.y0
+    assert label_bbox.y1 <= fig.bbox.y1
+    plt.close(fig)
+
+
 def test_confidence_intervals_are_drawn_above_point_overlay():
     fig = plot_overlays([_export("Control", [0.25, 0.5, 0.75])], show_points=True)
     ax = fig.axes[0]

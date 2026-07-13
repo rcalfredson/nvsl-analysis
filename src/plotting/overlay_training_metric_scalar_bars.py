@@ -228,6 +228,9 @@ def _wrapped_ylabel_text(text: str) -> str:
         if phrase in text:
             before, after = text.split(phrase, 1)
             return f"{before}\n{phrase.strip()} {after}".rstrip()
+    if " heading alignment " in text:
+        before, after = text.split(" heading alignment ", 1)
+        return f"{before} heading\nalignment {after}".rstrip()
     if ", " in text:
         return text.replace(", ", ",\n", 1)
     if " per " in text:
@@ -243,10 +246,10 @@ def _ensure_ylabel_visible(fig: plt.Figure, ax: plt.Axes) -> None:
         return
 
     pad_x_px = max(8.0, 0.55 * float(label.get_fontsize()) + 4.0)
-    pad_y_px = max(10.0, 0.45 * float(label.get_fontsize()) + 4.0)
-    wrapped = _wrapped_ylabel_text(label.get_text())
-    if wrapped != label.get_text():
-        label.set_text(wrapped)
+    # A long, rotated label can technically remain inside the canvas while
+    # leaving too little breathing room for glyph ascenders/descenders in a
+    # vector export.  Use a font-scaled end margin before deciding it fits.
+    pad_y_px = max(10.0, 1.25 * float(label.get_fontsize()) + 4.0)
     fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
     fig_bbox = fig.bbox
@@ -259,6 +262,12 @@ def _ensure_ylabel_visible(fig: plt.Figure, ax: plt.Axes) -> None:
 
     if _within_bounds():
         return
+
+    wrapped = _wrapped_ylabel_text(label.get_text())
+    if wrapped != label.get_text():
+        label.set_text(wrapped)
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
 
     if _within_bounds():
         return
