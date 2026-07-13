@@ -1496,7 +1496,9 @@ def plot_overlays(
                 capthick=1.0,
                 elinewidth=1.0,
                 alpha=0.9,
-                zorder=3,
+                # Keep confidence intervals legible even when a dense point
+                # overlay occupies the same part of the bar.
+                zorder=5,
             )
 
         # baseline for brackets

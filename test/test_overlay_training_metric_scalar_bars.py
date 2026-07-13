@@ -1,6 +1,8 @@
+from types import SimpleNamespace
+
 import matplotlib.pyplot as plt
 import numpy as np
-from types import SimpleNamespace
+from matplotlib.collections import LineCollection, PathCollection
 
 from src.plotting.overlay_training_metric_scalar_bars import (
     ExportedTrainingScalarBars,
@@ -88,6 +90,27 @@ def test_fraction_overlay_uses_even_ticks_and_wraps_ylabel():
     assert label_bbox.x0 >= fig.bbox.x0
     assert label_bbox.y0 >= fig.bbox.y0
     assert label_bbox.y1 <= fig.bbox.y1
+    plt.close(fig)
+
+
+def test_confidence_intervals_are_drawn_above_point_overlay():
+    fig = plot_overlays([_export("Control", [0.25, 0.5, 0.75])], show_points=True)
+    ax = fig.axes[0]
+
+    point_zorders = [
+        artist.get_zorder()
+        for artist in ax.collections
+        if isinstance(artist, PathCollection)
+    ]
+    ci_zorders = [
+        artist.get_zorder()
+        for artist in ax.collections
+        if isinstance(artist, LineCollection)
+    ]
+
+    assert point_zorders
+    assert ci_zorders
+    assert min(ci_zorders) > max(point_zorders)
     plt.close(fig)
 
 
