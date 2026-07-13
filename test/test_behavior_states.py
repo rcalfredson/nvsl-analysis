@@ -16,6 +16,10 @@ from src.analysis.behavior_states import (
     raw_segment_speed_mm_s,
     schmitt,
 )
+from src.analysis.random_frame_windows import (
+    sample_non_overlapping_frame_windows,
+    sample_non_overlapping_frame_windows_from_domains,
+)
 from src.plotting.event_chain_plotter import EventChainPlotter
 
 
@@ -81,6 +85,73 @@ def test_behavior_state_plot_window_does_not_expand_unclipped_boundaries():
     )
 
     assert (start, stop) == (0, 4)
+
+
+def test_random_frame_windows_are_seeded_and_non_overlapping():
+    kwargs = dict(
+        domain_start=10,
+        domain_stop=1000,
+        window_span=100,
+        count=6,
+    )
+
+    windows = sample_non_overlapping_frame_windows(
+        **kwargs, rng=np.random.default_rng(42)
+    )
+    repeated = sample_non_overlapping_frame_windows(
+        **kwargs, rng=np.random.default_rng(42)
+    )
+
+    assert windows == repeated
+    assert all(stop - start == 100 for start, stop in windows)
+    assert all(left[1] < right[0] for left, right in zip(windows, windows[1:]))
+
+
+def test_random_frame_windows_respect_expanded_output_bounds():
+    def resolve(start, stop):
+        return start - 3, stop + 3
+
+    windows = sample_non_overlapping_frame_windows(
+        domain_start=10,
+        domain_stop=500,
+        window_span=40,
+        count=8,
+        rng=np.random.default_rng(7),
+        resolve_bounds=resolve,
+    )
+    resolved = [resolve(*window) for window in windows]
+
+    assert all(left[1] < right[0] for left, right in zip(resolved, resolved[1:]))
+
+
+def test_random_frame_windows_stay_wholly_within_separate_trainings():
+    trainings = [(100, 250), (500, 750)]
+
+    windows = sample_non_overlapping_frame_windows_from_domains(
+        frame_domains=trainings,
+        window_span=50,
+        count=5,
+        rng=np.random.default_rng(11),
+        resolve_bounds=lambda start, stop: (start - 2, stop + 2),
+    )
+
+    for start, stop in windows:
+        expanded = (start - 2, stop + 2)
+        assert any(
+            training_start <= expanded[0] and expanded[1] <= training_stop
+            for training_start, training_stop in trainings
+        )
+
+
+def test_random_frame_windows_report_when_too_many_are_requested():
+    with np.testing.assert_raises_regex(ValueError, "at most 2 fit"):
+        sample_non_overlapping_frame_windows(
+            domain_start=0,
+            domain_stop=21,
+            window_span=10,
+            count=3,
+            rng=np.random.default_rng(1),
+        )
 
 
 def test_find_turns_matches_reference_two_signal_scoring():

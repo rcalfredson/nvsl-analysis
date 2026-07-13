@@ -83,6 +83,9 @@ from src.utils.constants import (
     ST,
     WALL_CONTACT_DEFAULT_THRESH_STR,
 )
+from src.analysis.random_frame_windows import (
+    sample_non_overlapping_frame_windows_from_domains,
+)
 from src.analysis.motion import CircularMotionDetector
 from src.exporting.agarose_sli_bundle import export_agarose_sli_bundle
 from src.exporting.between_reward_maxdist_sli_bundle import (
@@ -4689,6 +4692,43 @@ g.add_argument(
     type=int,
     default=None,
     help="Optional stop frame for behavior-state trajectory plots.",
+)
+g.add_argument(
+    "--behavior-state-plot-random-samples",
+    type=int,
+    default=None,
+    metavar="N",
+    help=(
+        "Write N seeded, non-overlapping random behavior-state plot windows per "
+        "selected fly and video. Windows are contained within trainings and cannot "
+        "be combined with explicit start/stop frames."
+    ),
+)
+g.add_argument(
+    "--behavior-state-plot-random-seed",
+    type=int,
+    default=None,
+    metavar="SEED",
+    help="Random seed used by --behavior-state-plot-random-samples.",
+)
+g.add_argument(
+    "--behavior-state-plot-random-window",
+    type=int,
+    default=100,
+    metavar="FRAMES",
+    help=(
+        "Frame span for each random behavior-state plot window. Default: 100 "
+        "(for example, frames 63000-63100)."
+    ),
+)
+g.add_argument(
+    "--behavior-state-plot-fly",
+    choices=("exp", "yoked"),
+    default="exp",
+    help=(
+        "Fly role to use for behavior-state plots: experimental (exp) or yoked "
+        "control. Default: exp."
+    ),
 )
 g.add_argument(
     "--behavior-state-plot-pad",
@@ -11845,8 +11885,46 @@ def _generate_behavior_state_plots(vas):
     start_frame = getattr(opts, "behavior_state_plot_start_frame", None)
     stop_frame = getattr(opts, "behavior_state_plot_stop_frame", None)
     out_dir = getattr(opts, "behavior_state_plot_out_dir", "imgs/behavior_states")
+    random_samples = getattr(opts, "behavior_state_plot_random_samples", None)
+    random_seed = getattr(opts, "behavior_state_plot_random_seed", None)
+    random_window_value = getattr(opts, "behavior_state_plot_random_window", 100)
+    random_window = int(100 if random_window_value is None else random_window_value)
+    selected_role = str(
+        getattr(opts, "behavior_state_plot_fly", "exp") or "exp"
+    ).lower()
+    selected_role_idx = 0 if selected_role == "exp" else 1
+    pad = int(getattr(opts, "behavior_state_plot_pad", 0) or 0)
+
+    if random_samples is not None:
+        if start_frame is not None or stop_frame is not None:
+            print(
+                "[behavior_state_plots] --behavior-state-plot-random-samples "
+                "cannot be combined with explicit start/stop frames."
+            )
+            return
+        if random_seed is None:
+            print(
+                "[behavior_state_plots] --behavior-state-plot-random-seed is "
+                "required with --behavior-state-plot-random-samples."
+            )
+            return
+        if int(random_samples) < 1 or random_window < 1:
+            print(
+                "[behavior_state_plots] random sample count and window span "
+                "must both be at least 1."
+            )
+            return
+        rng = np.random.default_rng(int(random_seed))
+    else:
+        rng = None
+        if random_seed is not None:
+            print(
+                "[behavior_state_plots] --behavior-state-plot-random-seed has "
+                "no effect without --behavior-state-plot-random-samples."
+            )
 
     for va in vas:
+        found_selected_role = False
         for trj in va.trx:
             if va._bad(trj.f):
                 continue
@@ -11855,8 +11933,9 @@ def _generate_behavior_state_plots(vas):
                 role_idx = va.flies.index(trj.f)
             except Exception:
                 role_idx = int(trj.f)
-            if role_idx != 0:
+            if role_idx != selected_role_idx:
                 continue
+            found_selected_role = True
 
             plotter = EventChainPlotter(
                 trj,
@@ -11864,15 +11943,93 @@ def _generate_behavior_state_plots(vas):
                 y_bounds=None,
                 image_format=opts.imageFormat,
             )
-            plotter.plot_behavior_state_trajectory(
-                trn_index=trn_index,
-                start_frame=start_frame,
-                stop_frame=stop_frame,
-                pad=int(getattr(opts, "behavior_state_plot_pad", 0) or 0),
-                minimal=bool(getattr(opts, "behavior_state_plot_minimal", False)),
-                out_dir=out_dir,
-                image_format=opts.imageFormat,
-                role_idx=role_idx,
+            windows = [(start_frame, stop_frame)]
+            if random_samples is not None:
+                states = getattr(trj, "behavior_state", None)
+                if states is None:
+                    print(
+                        f"[behavior_state_plots] No behavior states for fly "
+                        f"{trj.f}; skipping random sampling."
+                    )
+                    continue
+                states = np.asarray(states, dtype=np.int8)
+                n_frames = min(len(plotter.x), len(plotter.y), len(states))
+                training_domains = []
+                if trn_index is not None:
+                    if trn_index < 0 or trn_index >= len(va.trns):
+                        print(
+                            f"[behavior_state_plots] Invalid training index "
+                            f"{trn_index + 1}; valid range is 1..{len(va.trns)}."
+                        )
+                        continue
+                    trn = va.trns[trn_index]
+                    training_domains.append(
+                        (max(0, int(trn.start)), min(n_frames - 1, int(trn.stop)))
+                    )
+                else:
+                    training_domains.extend(
+                        (max(0, int(trn.start)), min(n_frames - 1, int(trn.stop)))
+                        for trn in va.trns
+                    )
+
+                training_domains = [
+                    domain
+                    for domain in training_domains
+                    if domain[1] >= domain[0]
+                ]
+                if not training_domains:
+                    print(
+                        f"[behavior_state_plots] No usable training frame "
+                        f"intervals for fly {trj.f}; skipping random sampling."
+                    )
+                    continue
+
+                def resolve_bounds(sample_start, sample_stop):
+                    return plotter._resolve_behavior_state_plot_window(
+                        states,
+                        n_frames,
+                        trn_index=None,
+                        start_frame=sample_start,
+                        stop_frame=sample_stop,
+                        pad=pad,
+                    )
+
+                try:
+                    windows = sample_non_overlapping_frame_windows_from_domains(
+                        frame_domains=training_domains,
+                        window_span=random_window,
+                        count=int(random_samples),
+                        rng=rng,
+                        resolve_bounds=resolve_bounds,
+                    )
+                except ValueError as exc:
+                    print(f"[behavior_state_plots] {exc}; skipping fly {trj.f}.")
+                    continue
+                print(
+                    f"[behavior_state_plots] sampled {len(windows)} windows for "
+                    f"fly {trj.f} ({selected_role}), seed={random_seed}: "
+                    + ", ".join(f"{start}-{stop}" for start, stop in windows)
+                )
+
+            for window_start, window_stop in windows:
+                plotter.plot_behavior_state_trajectory(
+                    trn_index=trn_index,
+                    start_frame=window_start,
+                    stop_frame=window_stop,
+                    pad=pad,
+                    minimal=bool(
+                        getattr(opts, "behavior_state_plot_minimal", False)
+                    ),
+                    out_dir=out_dir,
+                    image_format=opts.imageFormat,
+                    role_idx=role_idx,
+                )
+
+        if not found_selected_role:
+            video_name = os.path.basename(getattr(va, "fn", "unknown video"))
+            print(
+                f"[behavior_state_plots] No usable {selected_role} fly found in "
+                f"{video_name}; skipping."
             )
 
 
