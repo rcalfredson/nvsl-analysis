@@ -1,3 +1,4 @@
+from dataclasses import replace
 from types import SimpleNamespace
 
 import matplotlib.pyplot as plt
@@ -7,6 +8,7 @@ from matplotlib.collections import LineCollection, PathCollection
 from src.plotting.overlay_training_metric_scalar_bars import (
     ExportedTrainingScalarBars,
     OmnibusLearnerEntry,
+    clustered_training_scalar_exports,
     plot_omnibus_learner_overlays,
     plot_overlays,
 )
@@ -114,6 +116,29 @@ def test_confidence_intervals_are_drawn_above_point_overlay():
     plt.close(fig)
 
 
+def test_significance_bracket_is_placed_above_swarm_points():
+    high = replace(
+        _export("High", [0.8, 0.9, 1.0]),
+        mean=np.asarray([0.3], dtype=float),
+        ci_lo=np.asarray([0.2], dtype=float),
+        ci_hi=np.asarray([0.45], dtype=float),
+    )
+    low = replace(
+        _export("Low", [0.1, 0.2, 0.3]),
+        mean=np.asarray([0.2], dtype=float),
+        ci_lo=np.asarray([0.1], dtype=float),
+        ci_hi=np.asarray([0.35], dtype=float),
+    )
+
+    fig = plot_overlays([high, low], show_points=True, stats=True)
+    ax = fig.axes[0]
+    bracket_lines = [line for line in ax.lines if len(line.get_xdata()) == 4]
+
+    assert bracket_lines
+    assert min(np.asarray(bracket_lines[0].get_ydata(), dtype=float)) > 1.0
+    plt.close(fig)
+
+
 def test_omnibus_learner_overlay_clusters_top_then_bottom():
     entries = [
         OmnibusLearnerEntry("Top 20% learners", "Ctrl>Kir FLC", _export("a", [0.9, 0.8, 0.85])),
@@ -147,4 +172,38 @@ def test_omnibus_learner_overlay_clusters_top_then_bottom():
     assert "Top 20% learners" in cluster_labels
     assert "Bottom 50% learners" in cluster_labels
     np.testing.assert_allclose(np.diff(ax.get_yticks()), 0.2)
+    plt.close(fig)
+
+
+def test_clustered_overlay_uses_regions_as_grouped_bar_bins_with_swarms():
+    regions = ["3/5 mm", "8/10 mm", "13/15 mm"]
+    genotypes = ["Ctrl>Kir FLC", "PFNd>Kir FLC", "MBKC>Kir FLC"]
+    entries = [
+        OmnibusLearnerEntry(
+            region,
+            genotype,
+            _export(f"{region}-{genotype}", [0.2, 0.4, 0.6]),
+        )
+        for region in regions
+        for genotype in genotypes
+    ]
+
+    grouped = clustered_training_scalar_exports(entries)
+    assert [export.group for export in grouped] == genotypes
+    assert all(export.panel_labels == regions for export in grouped)
+
+    fig = plot_overlays(grouped, show_points=True)
+    ax = fig.axes[0]
+
+    assert [tick.get_text() for tick in ax.get_xticklabels()] == regions
+    point_collections = [
+        artist
+        for artist in ax.collections
+        if isinstance(artist, PathCollection)
+    ]
+    assert len(point_collections) == len(regions) * len(genotypes)
+    assert all(
+        collection.get_offsets().shape[0] == 3
+        for collection in point_collections
+    )
     plt.close(fig)

@@ -14,9 +14,7 @@ from scipy.stats import ttest_ind
 from src.plotting.palettes import (
     NEUTRAL_DARK,
     NEUTRAL_MID,
-    group_metric_edge_color,
     group_metric_edge_color_for_label,
-    group_metric_fill_color,
     group_metric_fill_color_for_label,
     normalize_metric_palette_family,
 )
@@ -64,6 +62,66 @@ class OmnibusLearnerEntry:
     learner: str
     genotype: str
     export: ExportedTrainingScalarBars
+
+
+def clustered_training_scalar_exports(
+    entries: list[OmnibusLearnerEntry],
+) -> list[ExportedTrainingScalarBars]:
+    """Convert one-panel cluster/group inputs into grouped multi-panel exports."""
+    if not entries:
+        raise ValueError("At least one clustered entry is required.")
+
+    cluster_order: list[str] = []
+    group_order: list[str] = []
+    by_key: dict[tuple[str, str], ExportedTrainingScalarBars] = {}
+    for entry in entries:
+        if len(entry.export.panel_labels) != 1:
+            raise ValueError(
+                "Clustered inputs must each contain exactly one panel; "
+                f"{entry.learner!r}/{entry.genotype!r} has "
+                f"{len(entry.export.panel_labels)}."
+            )
+        if entry.learner not in cluster_order:
+            cluster_order.append(entry.learner)
+        if entry.genotype not in group_order:
+            group_order.append(entry.genotype)
+        key = (entry.learner, entry.genotype)
+        if key in by_key:
+            raise ValueError(f"Duplicate clustered input: {key!r}")
+        by_key[key] = entry.export
+
+    missing = [
+        (cluster, group)
+        for cluster in cluster_order
+        for group in group_order
+        if (cluster, group) not in by_key
+    ]
+    if missing:
+        raise ValueError(f"Missing clustered inputs: {missing}")
+
+    grouped: list[ExportedTrainingScalarBars] = []
+    for group in group_order:
+        exports = [by_key[(cluster, group)] for cluster in cluster_order]
+        grouped.append(
+            ExportedTrainingScalarBars(
+                group=group,
+                panel_labels=list(cluster_order),
+                per_unit_values_panel=np.asarray(
+                    [x.per_unit_values_panel[0] for x in exports], dtype=object
+                ),
+                per_unit_ids_panel=np.asarray(
+                    [x.per_unit_ids_panel[0] for x in exports], dtype=object
+                ),
+                mean=np.asarray([x.mean[0] for x in exports], dtype=float),
+                ci_lo=np.asarray([x.ci_lo[0] for x in exports], dtype=float),
+                ci_hi=np.asarray([x.ci_hi[0] for x in exports], dtype=float),
+                n_units_panel=np.asarray(
+                    [x.n_units_panel[0] for x in exports], dtype=int
+                ),
+                meta=dict(exports[0].meta or {}),
+            )
+        )
+    return grouped
 
 
 def _maybe_none_array(x) -> np.ndarray | None:
@@ -912,7 +970,15 @@ def _default_learner_order(entries: list[OmnibusLearnerEntry]) -> list[str]:
             return (1, lower)
         return (2, lower)
 
-    return sorted(labels, key=key)
+    # Learner plots conventionally put top before bottom, even if callers pass
+    # them in the opposite order.  For the more general clustered layout (for
+    # example radial regions), preserve the explicit CLI/input order.
+    if all(
+        label.lower().startswith(("top", "bottom"))
+        for label in labels
+    ):
+        return sorted(labels, key=key)
+    return labels
 
 
 def _default_genotype_order(entries: list[OmnibusLearnerEntry]) -> list[str]:
@@ -1057,6 +1123,9 @@ def plot_omnibus_learner_overlays(
     stats_alpha: float = 0.05,
     debug: bool = False,
     bar_alpha: float = 0.90,
+    show_points: bool = False,
+    point_alpha: float = 0.68,
+    point_size: float = 16.0,
     opts=None,
 ) -> plt.Figure:
     if opts is None:
@@ -1097,6 +1166,9 @@ def plot_omnibus_learner_overlays(
 
     learner_order = _default_learner_order(entries)
     genotype_order = _default_genotype_order(entries)
+    metric_palette_family = _metric_palette_family_from_exports(
+        [entry.export for entry in entries]
+    )
     by_key = {(entry.learner, entry.genotype): entry.export for entry in entries}
     missing = [
         (learner, genotype)
@@ -1146,19 +1218,47 @@ def plot_omnibus_learner_overlays(
     genotype_color = {genotype: gi for gi, genotype in enumerate(genotype_order)}
     for key, xpos, y, lo, hi in zip(keys_in_plot_order, xs_plot, means, lows, highs):
         gi = genotype_color[key[1]]
-        learner_alpha = (
-            bar_alpha if key[0] == learner_order[0] else min(bar_alpha, 0.68)
+        bar_color = group_metric_fill_color_for_label(
+            key[1], gi, metric_palette_family
+        )
+        edge_color = group_metric_edge_color_for_label(
+            key[1], gi, metric_palette_family
         )
         ax.bar(
             xpos,
             0.0 if not np.isfinite(y) else y,
             width=0.58,
-            color=group_metric_fill_color(gi, "wall_contacts"),
-            edgecolor=group_metric_edge_color(gi, "wall_contacts"),
+            color=bar_color,
+            edgecolor=edge_color,
             linewidth=0.9,
-            alpha=learner_alpha,
+            alpha=bar_alpha,
             label=key[1] if key[0] == learner_order[0] else None,
         )
+        if show_points:
+            vals = np.asarray(samples_by_key[key], dtype=float)
+            vals = vals[np.isfinite(vals)]
+            jitter_span = 0.30
+            jitter = (
+                np.asarray([0.0], dtype=float)
+                if vals.size == 1
+                else np.linspace(
+                    -0.5 * jitter_span,
+                    0.5 * jitter_span,
+                    vals.size,
+                    dtype=float,
+                )
+            )
+            if vals.size:
+                ax.scatter(
+                    np.full(vals.size, float(xpos)) + jitter,
+                    vals,
+                    s=float(point_size),
+                    facecolors="white",
+                    edgecolors=edge_color,
+                    linewidths=0.8,
+                    alpha=float(point_alpha),
+                    zorder=4,
+                )
         if np.isfinite(y) and np.isfinite(lo) and np.isfinite(hi):
             ax.errorbar(
                 [xpos],
@@ -1170,7 +1270,7 @@ def plot_omnibus_learner_overlays(
                 capthick=1.0,
                 elinewidth=1.0,
                 alpha=0.9,
-                zorder=3,
+                zorder=5,
             )
 
     ax.set_xticks(np.asarray(xs_plot, dtype=float))
@@ -1501,8 +1601,20 @@ def plot_overlays(
                 zorder=5,
             )
 
-        # baseline for brackets
-        hi_by_group.append(np.where(np.isfinite(hi), hi, y))
+        # Keep significance annotations clear of every visible element.  CI
+        # tops are sufficient for bar-only plots, but a swarm can extend well
+        # above its CI and would otherwise collide with brackets and stars.
+        annotation_hi = np.where(np.isfinite(hi), hi, y).astype(float, copy=True)
+        if show_points:
+            sample_matrix = np.asarray(mats[gi], dtype=float)
+            for p in range(P):
+                finite_samples = sample_matrix[:, p]
+                finite_samples = finite_samples[np.isfinite(finite_samples)]
+                if finite_samples.size:
+                    annotation_hi[p] = np.nanmax(
+                        [annotation_hi[p], float(np.max(finite_samples))]
+                    )
+        hi_by_group.append(annotation_hi)
 
         # stats payload
         if not (stats and stats_paired):
@@ -1583,7 +1695,10 @@ def plot_overlays(
             alpha=float(stats_alpha),
             min_n_per_group=3,
             headroom_frac=0.30 + 0.10 * max(font_scale - 1.0, 0.0),
-            stack_gap_frac=0.050 + 0.014 * max(font_scale - 1.0, 0.0),
+            # The step already includes bracket height, rendered star-text
+            # height, and pixel padding; this is only the additional gap
+            # between successive comparisons.
+            stack_gap_frac=0.030 + 0.010 * max(font_scale - 1.0, 0.0),
             gap_above_bars_frac=0.045 + 0.012 * max(font_scale - 1.0, 0.0),
             nlabel_off_frac=0.0,
             bracket_fontsize=annotation_font_size,
