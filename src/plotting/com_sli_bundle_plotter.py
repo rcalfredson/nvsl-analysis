@@ -70,6 +70,21 @@ def _single_line_label(label):
     return " ".join(str(label).split())
 
 
+def _sample_size_label_kwargs(metric):
+    """Return metric-specific styling that keeps sample sizes legible."""
+    if metric != "agarose":
+        return {}
+    return {
+        "bbox": {
+            "boxstyle": "round,pad=0.12",
+            "facecolor": "white",
+            "edgecolor": "none",
+            "alpha": 0.78,
+        },
+        "zorder": 5,
+    }
+
+
 def _bundle_metric_palette(metric):
     if metric == "commag":
         return get_palette("commag")
@@ -1434,6 +1449,7 @@ def plot_com_sli_bundle_data(
                     va=item["va"],
                     size=customizer.in_plot_font_size,
                     color=".2",
+                    **_sample_size_label_kwargs(metric),
                 )
                 txt._y_ = float(info["anchor_y"])
                 txt._final_y_ = float(y_n)
