@@ -1602,7 +1602,8 @@ cdef class EllipseToBoundaryDistCalculator:
                 turning_idxs_filtered,
                 start_frame=start_frame,
                 mode=plot_mode,
-                image_format=opts.imageFormat
+                image_format=opts.imageFormat,
+                opts=opts,
             )
 
     def _plot_single_event(self, idx, ellipse_ref_pt, bcr, turning_idxs_filtered, opts):
@@ -1753,7 +1754,8 @@ cdef class EllipseToBoundaryDistCalculator:
 
 
     def _plot_event_chain(
-        self, ellipse_ref_pt, bcr, turning_idxs_filtered, start_frame=None, mode='all_types', image_format='png'
+        self, ellipse_ref_pt, bcr, turning_idxs_filtered, opts, start_frame=None,
+        mode='all_types', image_format='png'
     ):
         """
         Plots a chain of sharp turn events in a single figure, applying 
@@ -1764,6 +1766,7 @@ cdef class EllipseToBoundaryDistCalculator:
         - ellipse_ref_pt: reference point on the ellipse
         - bcr: list of boundary contact regions
         - turning_idxs_filtered: list of indices of sharp turns
+        - opts: analysis options controlling debug artifacts and labels
         - start_frame: optional starting frame to begin the search for events
         - mode: determines which frames to include in the plot:
                 'all_types' - show two sharp turns along with all parts of the trajectory between them.
