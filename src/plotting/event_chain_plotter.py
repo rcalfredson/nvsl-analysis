@@ -7835,12 +7835,25 @@ class EventChainPlotter:
                 plt.Line2D([0], [0], color="gray", lw=1.2, linestyle=":", alpha=0.65)
             )
 
-        # Add the legend outside the plot area
-        plt.legend(
+        # Anchor the legend below the chamber boundary.  Deriving the anchor in
+        # display coordinates keeps the separation stable when the global font
+        # size (and therefore the legend box) changes.
+        ax = plt.gca()
+        fig = plt.gcf()
+        chamber_bottom_px = ax.transData.transform(
+            (bottom_right[0], bottom_right[1])
+        )[1]
+        font_size_pt = plt.rcParams.get("font.size", 10.0)
+        legend_gap_px = max(4.0, 0.25 * font_size_pt * fig.dpi / 72.0)
+        legend_anchor_y = ax.transAxes.inverted().transform(
+            (ax.bbox.x0, chamber_bottom_px - legend_gap_px)
+        )[1]
+
+        ax.legend(
             handles=handles,
             labels=labels,
             loc="upper center",
-            bbox_to_anchor=(0.5, 0.05),
+            bbox_to_anchor=(0.5, legend_anchor_y),
             fancybox=True,
             shadow=True,
             ncol=2,
