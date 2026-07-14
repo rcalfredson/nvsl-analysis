@@ -509,10 +509,12 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
             bool(getattr(opts, "sli_use_training_mean", False))
         ),
         "sli_select_skip_first_sync_buckets": np.array(
-            getattr(opts, "sli_select_skip_first_sync_buckets", 0), dtype=int
+            max(0, int(getattr(opts, "sli_select_skip_first_sync_buckets", 0) or 0)),
+            dtype=int,
         ),
         "sli_select_keep_first_sync_buckets": np.array(
-            getattr(opts, "sli_select_keep_first_sync_buckets", 0), dtype=int
+            max(0, int(getattr(opts, "sli_select_keep_first_sync_buckets", 0) or 0)),
+            dtype=int,
         ),
         **pre_payload,
     }

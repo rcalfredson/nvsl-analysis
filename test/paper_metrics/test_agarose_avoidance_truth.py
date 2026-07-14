@@ -194,7 +194,9 @@ def test_agarose_bundle_extraction_keeps_exp_ctrl_axes_and_counts():
     np.testing.assert_array_equal(avoid_ctrl, [[[0, 0, 0]]])
 
 
-def test_agarose_bundle_export_records_min_total_metadata(tmp_path, monkeypatch):
+def test_agarose_bundle_export_records_defaults_and_min_total_metadata(
+    tmp_path, monkeypatch
+):
     monkeypatch.setitem(
         sys.modules,
         "analyze",
@@ -217,8 +219,8 @@ def test_agarose_bundle_export_records_min_total_metadata(tmp_path, monkeypatch)
         export_group_label="Intact Control>Kir",
         best_worst_trn=1,
         sli_use_training_mean=True,
-        sli_select_skip_first_sync_buckets=0,
-        sli_select_keep_first_sync_buckets=0,
+        sli_select_skip_first_sync_buckets=None,
+        sli_select_keep_first_sync_buckets=None,
         min_agarose_episodes=2,
         agarose_dual_circle_min_total=1,
         agarose_sli_include_pre=False,
@@ -228,6 +230,8 @@ def test_agarose_bundle_export_records_min_total_metadata(tmp_path, monkeypatch)
     export_agarose_sli_bundle([va], opts, gls=None, out_fn=str(out))
 
     with np.load(out, allow_pickle=True) as bundle:
+        assert int(bundle["sli_select_skip_first_sync_buckets"]) == 0
+        assert int(bundle["sli_select_keep_first_sync_buckets"]) == 0
         assert int(bundle["min_agarose_episodes"]) == 2
         assert int(bundle["agarose_dual_circle_min_total"]) == 2
         assert int(bundle["episode_filter_agarose_sync_exp_min_episodes"]) == 2
