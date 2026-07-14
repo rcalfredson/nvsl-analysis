@@ -67,7 +67,7 @@ class TurnProbabilityByDistancePlotter:
         exclusion_indices_union = set()
 
         for dist in self.distances:
-            for va in self.va_instances:
+            for va_idx, va in enumerate(self.va_instances):
                 for timeframe in range(len(self.timeframes)):
                     # Create a list of conditions to check:
                     # Toward-center and away-from-center turns for
@@ -83,9 +83,11 @@ class TurnProbabilityByDistancePlotter:
                     if any(np.isnan(condition) for condition in conditions):
                         if self.gls:
                             group_idx = va.gidx
-                            exclusion_indices_union.add((va, timeframe, group_idx))
+                            exclusion_indices_union.add(
+                                (va_idx, timeframe, group_idx)
+                            )
                         else:
-                            exclusion_indices_union.add((va, timeframe))
+                            exclusion_indices_union.add((va_idx, timeframe))
 
         # Return the set of all excluded flies
         if self.gls:
@@ -172,13 +174,14 @@ class TurnProbabilityByDistancePlotter:
                     ctrl_values_toward, ctrl_values_away = [], []
                     exp_values_all, ctrl_values_all = [], []  # New for "all"
 
-                for va in self.va_instances:
+                for va_idx, va in enumerate(self.va_instances):
                     if self.gls:
                         group_idx = va.gidx
                         group = self.gls[group_idx]
                         if (
                             self.use_union_filter
-                            and (va, timeframe, group_idx) in exclude_indices[group]
+                            and (va_idx, timeframe, group_idx)
+                            in exclude_indices[group]
                         ):
                             continue
                         group_values_toward[group]["exp"].append(
@@ -210,7 +213,10 @@ class TurnProbabilityByDistancePlotter:
                             )
                         )
                     else:
-                        if self.use_union_filter and (va, timeframe) in exclude_indices:
+                        if (
+                            self.use_union_filter
+                            and (va_idx, timeframe) in exclude_indices
+                        ):
                             continue
                         exp_values_toward.append(
                             va.turn_prob_by_distance[dist][0][timeframe][0]
