@@ -266,6 +266,7 @@ from src.plotting.between_reward_polar_occupancy import (
     BetweenRewardPolarOccupancyConfig,
 )
 from src.plotting.annotation_layout import resolve_annotation_text_overlaps
+from src.plotting.axis_size import DEFAULT_PLOT_AXIS_SIZE_INCHES
 from src.plotting.reward_raster_plotter import RewardRasterConfig, RewardRasterPlotter
 from src.plotting.first_n_reward_diagnostics import (
     FirstNRewardDiagnosticsConfig,
@@ -451,6 +452,17 @@ def _parse_axis_limits_arg(
     if hi <= lo:
         raise ValueError(f"{flag_name} expects max > min, got: {s!r}")
     return (lo, hi)
+
+
+def _parse_axis_size_arg(
+    s: str | None, flag_name: str
+) -> tuple[float | None, float | None]:
+    vals = _parse_float_csv(s)
+    if not vals:
+        return (None, None)
+    if len(vals) != 2 or vals[0] <= 0 or vals[1] <= 0:
+        raise ValueError(f"{flag_name} expects positive 'width,height', got: {s!r}")
+    return vals[0], vals[1]
 
 
 def _parse_num_trainings_limit(num_trainings) -> int | None:
@@ -799,6 +811,17 @@ g.add_argument(
     help=(
         "Set shared x-axis limits for correlation scatter plots as 'MIN,MAX'. "
         "Example: --corr-xlim 0,2.2"
+    ),
+)
+g.add_argument(
+    "--standard-plot-axis-size",
+    type=str,
+    default=None,
+    metavar="WIDTH,HEIGHT",
+    help=(
+        "Physical data-axis size in inches for first-N reward diagnostics and "
+        "cross-fly correlation plots (default: 4.5,3.375). The canvas may grow "
+        "to accommodate labels, legends, and colorbars."
     ),
 )
 g.add_argument(
@@ -13803,6 +13826,9 @@ def postAnalyze(vas):
             sli_keep_first_sync_buckets=sel_keep_k,
             sli_explicit_bucket_idx=sel_bucket_idx,
             sli_total_sync_buckets=sli_total_sync_buckets,
+            axis_size_inches=getattr(
+                opts, "standard_plot_axis_size", DEFAULT_PLOT_AXIS_SIZE_INCHES
+            ),
         )
         diag_plotter = FirstNRewardDiagnosticsPlotter(
             vas=vas_for_diag,
@@ -17227,6 +17253,19 @@ if __name__ == "__main__":
     except Exception as e:
         raise ValueError(f"Invalid --corr-ylim: {e}") from e
     opts.corr_ylim = None if corr_ymin is None else (corr_ymin, corr_ymax)
+
+    try:
+        axis_width, axis_height = _parse_axis_size_arg(
+            getattr(opts, "standard_plot_axis_size", None),
+            "--standard-plot-axis-size",
+        )
+    except Exception as e:
+        raise ValueError(f"Invalid --standard-plot-axis-size: {e}") from e
+    opts.standard_plot_axis_size = (
+        DEFAULT_PLOT_AXIS_SIZE_INCHES
+        if axis_width is None
+        else (axis_width, axis_height)
+    )
 
     corr_reward_rate_trn = getattr(opts, "corr_reward_rate_trn", None)
     if corr_reward_rate_trn is not None and int(corr_reward_rate_trn) < 1:

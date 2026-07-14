@@ -23,6 +23,7 @@ from src.plotting.palettes import (
     correlation_plot_color,
 )
 from src.plotting.plot_customizer import PlotCustomizer
+from src.plotting.axis_size import DEFAULT_PLOT_AXIS_SIZE_INCHES, set_axis_size_inches
 from src.plotting.reward_window_utils import (
     cumulative_window_seconds_for_frame,
     frames_in_windows,
@@ -83,6 +84,7 @@ class CorrelationPlotConfig:
     dot_color: str = MUTED_CATEGORICAL[0]
     alpha: float = 0.85
     figsize: tuple = (5.5, 4.5)
+    axis_size_inches: tuple[float, float] = DEFAULT_PLOT_AXIS_SIZE_INCHES
     xlim: Optional[Tuple[float, float]] = None
     ylim: Optional[Tuple[float, float]] = None
     export_npz_dir: Optional[Path] = None
@@ -520,7 +522,13 @@ def _wrap_clipped_axis_labels(fig, *, pad_px: float = 2.0) -> bool:
     return changed
 
 
-def _finalize_correlation_layout(fig, customizer: PlotCustomizer, *, rect=None) -> None:
+def _finalize_correlation_layout(
+    fig,
+    customizer: PlotCustomizer,
+    *,
+    rect=None,
+    axis_size_inches=None,
+) -> None:
     customizer.adjust_padding_proportionally(wrap_axis_labels=False)
     if rect is None:
         fig.tight_layout()
@@ -536,6 +544,11 @@ def _finalize_correlation_layout(fig, customizer: PlotCustomizer, *, rect=None) 
             fig.tight_layout()
         else:
             fig.tight_layout(rect=rect)
+    if axis_size_inches is None:
+        axis_size_inches = getattr(
+            customizer, "standard_plot_axis_size", DEFAULT_PLOT_AXIS_SIZE_INCHES
+        )
+    set_axis_size_inches(fig.axes[0], axis_size_inches)
 
 
 def _place_legend_without_point_overlap(
@@ -1369,7 +1382,7 @@ def _scatter_with_corr(
     _add_significant_trend_line(ax, x_f, y_f, p, color=cfg.dot_color)
     _add_smart_stats_box(ax, _format_corr_annotation(r, p, x_f.size), x_f, y_f)
 
-    _finalize_correlation_layout(fig, customizer)
+    _finalize_correlation_layout(fig, customizer, axis_size_inches=cfg.axis_size_inches)
     out_path = _correlation_out_path(cfg.out_dir, filename, cfg.image_format)
     writeImage(str(out_path), format=cfg.image_format)
     _export_scatter_npz(
@@ -2130,9 +2143,13 @@ def plot_cross_fly_correlations(
             else Path(getattr(opts, "corr_export_npz_dir"))
         ),
         export_group_label=_corr_export_group_label(opts),
+        axis_size_inches=getattr(
+            opts, "standard_plot_axis_size", DEFAULT_PLOT_AXIS_SIZE_INCHES
+        ),
     )
     frac = getattr(opts, "best_worst_fraction", 0.2)
     customizer = plot_customizer or PlotCustomizer()
+    customizer.standard_plot_axis_size = cfg.axis_size_inches
 
     selected_bottom_idx, selected_top_idx, selected_mode = _normalize_selected_groups(
         sli_selected=sli_selected,

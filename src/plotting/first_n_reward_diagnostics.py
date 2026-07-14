@@ -10,6 +10,7 @@ from scipy.stats import pearsonr
 
 from src.analysis.sli_tools import default_single_bucket_idx
 from src.plotting.palettes import correlation_plot_color_for_metrics
+from src.plotting.axis_size import DEFAULT_PLOT_AXIS_SIZE_INCHES, set_axis_size_inches
 from src.plotting.between_reward_segment_binning import video_base
 from src.plotting.reward_window_utils import (
     cumulative_window_seconds_for_frame,
@@ -57,6 +58,7 @@ class FirstNRewardDiagnosticsConfig:
     sli_keep_first_sync_buckets: int | None = None
     sli_explicit_bucket_idx: int | None = None
     sli_total_sync_buckets: int | None = None
+    axis_size_inches: tuple[float, float] = DEFAULT_PLOT_AXIS_SIZE_INCHES
 
 
 @dataclass(frozen=True)
@@ -1132,6 +1134,7 @@ class FirstNRewardDiagnosticsPlotter:
         fig.tight_layout()
         if self._wrap_clipped_axis_labels(fig):
             fig.tight_layout()
+        set_axis_size_inches(ax, self.cfg.axis_size_inches)
         fig.savefig(path, dpi=200)
         plt.close(fig)
         print(f"[{self.log_tag}] wrote plot: {path}")
