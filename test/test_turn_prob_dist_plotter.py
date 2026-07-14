@@ -1,0 +1,40 @@
+from types import SimpleNamespace
+
+import numpy as np
+import pytest
+
+from src.plotting.turn_prob_dist_plotter import TurnProbabilityByDistancePlotter
+
+
+def _va(gidx, values):
+    return SimpleNamespace(
+        gidx=gidx,
+        turn_prob_by_distance={
+            distance: [[exp], [ctrl]]
+            for distance, exp, ctrl in values
+        },
+    )
+
+
+@pytest.mark.parametrize("grouped", [False, True])
+def test_union_filter_supports_unhashable_va_records(grouped):
+    vas = [
+        _va(0, [(1.0, (0.2, 0.3), (0.4, 0.5)), (2.0, (np.nan, 0.3), (0.4, 0.5))]),
+        _va(0, [(1.0, (0.6, 0.7), (0.8, 0.9)), (2.0, (0.6, 0.7), (0.8, 0.9))]),
+    ]
+    opts = SimpleNamespace(use_union_filter=True)
+    plotter = TurnProbabilityByDistancePlotter(
+        vas, gls=["group"] if grouped else None, opts=opts
+    )
+    plotter.timeframes = ["pre_trn"]
+
+    excluded = plotter.filter_flies()
+    expected = {(0, 0, 0)} if grouped else {(0, 0)}
+    assert excluded == ({"group": expected} if grouped else expected)
+
+    plotter.average_turn_probabilities()
+    results = plotter.results_toward[1.0]
+    if grouped:
+        results = results["group"]
+    assert results["exp"]["means"] == pytest.approx([0.6])
+    assert results["ctrl"]["means"] == pytest.approx([0.8])
