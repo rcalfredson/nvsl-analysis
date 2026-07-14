@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -56,9 +57,30 @@ def _bundle_to_vas(bundle):
     return vas
 
 
-def _selected_source(timeframe: str, direction: str, comparison: str) -> str:
+_IMAGE_FORMATS = {"png", "pdf", "svg", "jpg", "jpeg"}
+
+
+def _resolve_image_format(out: str, requested: str | None) -> str:
+    out_format = Path(out).suffix.lstrip(".").lower()
+    image_format = (requested or out_format or "png").strip().lstrip(".").lower()
+    if image_format not in _IMAGE_FORMATS:
+        raise ValueError(f"Unsupported image format: {image_format!r}")
+    if out_format in _IMAGE_FORMATS and out_format != image_format:
+        raise ValueError(
+            f"Output extension .{out_format} does not match image format "
+            f".{image_format}"
+        )
+    return image_format
+
+
+def _selected_source(
+    timeframe: str, direction: str, comparison: str, image_format: str
+) -> str:
     if comparison == "exp_across_groups":
-        return f"imgs/turn_probability_{timeframe}_{direction}_exp_across_groups.png"
+        return (
+            f"imgs/turn_probability_{timeframe}_{direction}_exp_across_groups."
+            f"{image_format}"
+        )
     raise ValueError(f"Unsupported comparison={comparison!r}")
 
 
@@ -102,12 +124,13 @@ def main():
         "--image-format",
         "--imgFormat",
         dest="image_format",
-        default="png",
-        help="Output image format.",
+        default=None,
+        help="Output image format (defaults to the --out extension, then PNG).",
     )
     p.add_argument("--fs", dest="font_size", type=float, default=None)
     p.add_argument("--fontFamily", dest="font_family", default=None)
     args = p.parse_args()
+    image_format = _resolve_image_format(args.out, args.image_format)
 
     bundle = np.load(args.bundle, allow_pickle=True)
     vas = _bundle_to_vas(bundle)
@@ -116,7 +139,7 @@ def main():
     ]
     opts = SimpleNamespace(
         contact_geometry=_scalar_string(bundle, "contact_geometry", "circular"),
-        imageFormat=args.image_format,
+        imageFormat=image_format,
         fontSize=args.font_size,
         fontFamily=args.font_family,
         turn_prob_dist_xlabel=args.xlabel,
@@ -137,7 +160,9 @@ def main():
     os.makedirs("imgs", exist_ok=True)
     plotter.plot_turn_probabilities()
 
-    src = _selected_source(args.timeframe, args.direction, args.comparison)
+    src = _selected_source(
+        args.timeframe, args.direction, args.comparison, image_format
+    )
     if not os.path.exists(src):
         raise FileNotFoundError(f"Expected plotter output was not created: {src}")
     out_dir = os.path.dirname(args.out)
