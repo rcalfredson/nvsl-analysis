@@ -4,6 +4,10 @@ import numpy as np
 import pytest
 
 from src.plotting.turn_prob_dist_plotter import TurnProbabilityByDistancePlotter
+from scripts.plot_turn_prob_dist_sli_bundle import (
+    _resolve_image_format,
+    _selected_source,
+)
 
 
 def _va(gidx, values):
@@ -38,3 +42,18 @@ def test_union_filter_supports_unhashable_va_records(grouped):
         results = results["group"]
     assert results["exp"]["means"] == pytest.approx([0.6])
     assert results["ctrl"]["means"] == pytest.approx([0.8])
+
+
+def test_bundle_plot_source_uses_requested_format():
+    assert _selected_source("t2_end", "all", "exp_across_groups", "pdf") == (
+        "imgs/turn_probability_t2_end_all_exp_across_groups.pdf"
+    )
+
+
+def test_bundle_plot_format_defaults_to_output_extension():
+    assert _resolve_image_format("plot.svg", None) == "svg"
+
+
+def test_bundle_plot_rejects_extension_format_mismatch():
+    with pytest.raises(ValueError, match="does not match"):
+        _resolve_image_format("plot.pdf", "png")
