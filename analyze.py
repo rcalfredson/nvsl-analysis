@@ -83,6 +83,9 @@ from src.utils.constants import (
     ST,
     WALL_CONTACT_DEFAULT_THRESH_STR,
 )
+from src.analysis.random_frame_windows import (
+    sample_non_overlapping_frame_windows_from_domains,
+)
 from src.analysis.motion import CircularMotionDetector
 from src.exporting.agarose_sli_bundle import export_agarose_sli_bundle
 from src.exporting.between_reward_maxdist_sli_bundle import (
@@ -136,6 +139,8 @@ from src.exporting.turnback_home_vector_alignment_sli_bundle import (
 )
 from src.exporting.turn_home_vector_alignment_sli_bundle import (
     export_turn_home_vector_alignment_sli_bundle,
+    parse_radius_ranges_mm as parse_turn_home_vector_alignment_radius_ranges_mm,
+    radius_range_slug as turn_home_vector_alignment_radius_range_slug,
 )
 from src.exporting.wallpct_sli_bundle import export_wallpct_sli_bundle
 from src.exporting.wall_contacts_per_reward_interval import (
@@ -4690,6 +4695,43 @@ g.add_argument(
     help="Optional stop frame for behavior-state trajectory plots.",
 )
 g.add_argument(
+    "--behavior-state-plot-random-samples",
+    type=int,
+    default=None,
+    metavar="N",
+    help=(
+        "Write N seeded, non-overlapping random behavior-state plot windows per "
+        "selected fly and video. Windows are contained within trainings and cannot "
+        "be combined with explicit start/stop frames."
+    ),
+)
+g.add_argument(
+    "--behavior-state-plot-random-seed",
+    type=int,
+    default=None,
+    metavar="SEED",
+    help="Random seed used by --behavior-state-plot-random-samples.",
+)
+g.add_argument(
+    "--behavior-state-plot-random-window",
+    type=int,
+    default=100,
+    metavar="FRAMES",
+    help=(
+        "Frame span for each random behavior-state plot window. Default: 100 "
+        "(for example, frames 63000-63100)."
+    ),
+)
+g.add_argument(
+    "--behavior-state-plot-fly",
+    choices=("exp", "yoked"),
+    default="exp",
+    help=(
+        "Fly role to use for behavior-state plots: experimental (exp) or yoked "
+        "control. Default: exp."
+    ),
+)
+g.add_argument(
     "--behavior-state-plot-pad",
     type=int,
     default=0,
@@ -6026,10 +6068,58 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--turn-home-vector-alignment-home-target",
+    choices=("reward_center", "opposite_reward_center"),
+    default="reward_center",
+    help=(
+        "Destination of the start/end home vectors. 'reward_center' uses the "
+        "reward-circle center; 'opposite_reward_center' uses that point rotated "
+        "180 degrees about the center of the fly's chamber floor. Default: "
+        "reward_center."
+    ),
+)
+g.add_argument(
     "--turn-home-vector-alignment-min-turns",
     type=int,
     default=1,
     help="Minimum eligible turns required for a fly to contribute to a panel. Default: 1.",
+)
+g.add_argument(
+    "--turn-home-vector-alignment-value-modes",
+    default="exp",
+    help=(
+        "Comma-separated bundle value modes: exp and/or exp_minus_yok. "
+        "The latter subtracts each video's yoked-fly panel mean from its "
+        "experimental-fly panel mean. Default: exp."
+    ),
+)
+g.add_argument(
+    "--turn-home-vector-alignment-skip-existing",
+    action="store_true",
+    help=(
+        "Do not overwrite turn home-vector alignment bundle files that already "
+        "exist. Missing value-mode, SLI-subset, or radial-bin bundles are still written."
+    ),
+)
+g.add_argument(
+    "--turn-home-vector-alignment-radius-range-mm",
+    type=str,
+    default=None,
+    help=(
+        "Optional radial distance band from reward-circle center for turn home-vector "
+        "alignment exports, formatted as lo-hi or lo:hi in mm. A turn is included "
+        "only when frames start-1 through stop+2 are fully within [lo, hi)."
+    ),
+)
+g.add_argument(
+    "--turn-home-vector-alignment-radius-ranges-mm",
+    type=str,
+    default=None,
+    help=(
+        "Optional comma-separated radial distance bands from reward-circle center "
+        "for turn home-vector alignment exports, e.g. '3-5,8-10'. The export "
+        "bundle path is suffixed with each band slug."
+    ),
 )
 g.add_argument(
     "--turn-home-vector-alignment-sli-group",
@@ -6039,6 +6129,16 @@ g.add_argument(
         "Restrict turn home-vector alignment export to all flies, top-SLI flies, "
         "or bottom-SLI flies. Top/bottom groups are defined by the standard "
         "best/worst SLI selection options."
+    ),
+)
+g.add_argument(
+    "--turn-home-vector-alignment-sli-groups",
+    type=str,
+    default=None,
+    help=(
+        "Optional comma-separated SLI groups to export in one loaded run for "
+        "turn home-vector alignment, e.g. 'all,top,bottom'. Output bundle paths "
+        "are suffixed for non-all groups."
     ),
 )
 g.add_argument(
@@ -11806,8 +11906,46 @@ def _generate_behavior_state_plots(vas):
     start_frame = getattr(opts, "behavior_state_plot_start_frame", None)
     stop_frame = getattr(opts, "behavior_state_plot_stop_frame", None)
     out_dir = getattr(opts, "behavior_state_plot_out_dir", "imgs/behavior_states")
+    random_samples = getattr(opts, "behavior_state_plot_random_samples", None)
+    random_seed = getattr(opts, "behavior_state_plot_random_seed", None)
+    random_window_value = getattr(opts, "behavior_state_plot_random_window", 100)
+    random_window = int(100 if random_window_value is None else random_window_value)
+    selected_role = str(
+        getattr(opts, "behavior_state_plot_fly", "exp") or "exp"
+    ).lower()
+    selected_role_idx = 0 if selected_role == "exp" else 1
+    pad = int(getattr(opts, "behavior_state_plot_pad", 0) or 0)
+
+    if random_samples is not None:
+        if start_frame is not None or stop_frame is not None:
+            print(
+                "[behavior_state_plots] --behavior-state-plot-random-samples "
+                "cannot be combined with explicit start/stop frames."
+            )
+            return
+        if random_seed is None:
+            print(
+                "[behavior_state_plots] --behavior-state-plot-random-seed is "
+                "required with --behavior-state-plot-random-samples."
+            )
+            return
+        if int(random_samples) < 1 or random_window < 1:
+            print(
+                "[behavior_state_plots] random sample count and window span "
+                "must both be at least 1."
+            )
+            return
+        rng = np.random.default_rng(int(random_seed))
+    else:
+        rng = None
+        if random_seed is not None:
+            print(
+                "[behavior_state_plots] --behavior-state-plot-random-seed has "
+                "no effect without --behavior-state-plot-random-samples."
+            )
 
     for va in vas:
+        found_selected_role = False
         for trj in va.trx:
             if va._bad(trj.f):
                 continue
@@ -11816,8 +11954,9 @@ def _generate_behavior_state_plots(vas):
                 role_idx = va.flies.index(trj.f)
             except Exception:
                 role_idx = int(trj.f)
-            if role_idx != 0:
+            if role_idx != selected_role_idx:
                 continue
+            found_selected_role = True
 
             plotter = EventChainPlotter(
                 trj,
@@ -11825,15 +11964,93 @@ def _generate_behavior_state_plots(vas):
                 y_bounds=None,
                 image_format=opts.imageFormat,
             )
-            plotter.plot_behavior_state_trajectory(
-                trn_index=trn_index,
-                start_frame=start_frame,
-                stop_frame=stop_frame,
-                pad=int(getattr(opts, "behavior_state_plot_pad", 0) or 0),
-                minimal=bool(getattr(opts, "behavior_state_plot_minimal", False)),
-                out_dir=out_dir,
-                image_format=opts.imageFormat,
-                role_idx=role_idx,
+            windows = [(start_frame, stop_frame)]
+            if random_samples is not None:
+                states = getattr(trj, "behavior_state", None)
+                if states is None:
+                    print(
+                        f"[behavior_state_plots] No behavior states for fly "
+                        f"{trj.f}; skipping random sampling."
+                    )
+                    continue
+                states = np.asarray(states, dtype=np.int8)
+                n_frames = min(len(plotter.x), len(plotter.y), len(states))
+                training_domains = []
+                if trn_index is not None:
+                    if trn_index < 0 or trn_index >= len(va.trns):
+                        print(
+                            f"[behavior_state_plots] Invalid training index "
+                            f"{trn_index + 1}; valid range is 1..{len(va.trns)}."
+                        )
+                        continue
+                    trn = va.trns[trn_index]
+                    training_domains.append(
+                        (max(0, int(trn.start)), min(n_frames - 1, int(trn.stop)))
+                    )
+                else:
+                    training_domains.extend(
+                        (max(0, int(trn.start)), min(n_frames - 1, int(trn.stop)))
+                        for trn in va.trns
+                    )
+
+                training_domains = [
+                    domain
+                    for domain in training_domains
+                    if domain[1] >= domain[0]
+                ]
+                if not training_domains:
+                    print(
+                        f"[behavior_state_plots] No usable training frame "
+                        f"intervals for fly {trj.f}; skipping random sampling."
+                    )
+                    continue
+
+                def resolve_bounds(sample_start, sample_stop):
+                    return plotter._resolve_behavior_state_plot_window(
+                        states,
+                        n_frames,
+                        trn_index=None,
+                        start_frame=sample_start,
+                        stop_frame=sample_stop,
+                        pad=pad,
+                    )
+
+                try:
+                    windows = sample_non_overlapping_frame_windows_from_domains(
+                        frame_domains=training_domains,
+                        window_span=random_window,
+                        count=int(random_samples),
+                        rng=rng,
+                        resolve_bounds=resolve_bounds,
+                    )
+                except ValueError as exc:
+                    print(f"[behavior_state_plots] {exc}; skipping fly {trj.f}.")
+                    continue
+                print(
+                    f"[behavior_state_plots] sampled {len(windows)} windows for "
+                    f"fly {trj.f} ({selected_role}), seed={random_seed}: "
+                    + ", ".join(f"{start}-{stop}" for start, stop in windows)
+                )
+
+            for window_start, window_stop in windows:
+                plotter.plot_behavior_state_trajectory(
+                    trn_index=trn_index,
+                    start_frame=window_start,
+                    stop_frame=window_stop,
+                    pad=pad,
+                    minimal=bool(
+                        getattr(opts, "behavior_state_plot_minimal", False)
+                    ),
+                    out_dir=out_dir,
+                    image_format=opts.imageFormat,
+                    role_idx=role_idx,
+                )
+
+        if not found_selected_role:
+            video_name = os.path.basename(getattr(va, "fn", "unknown video"))
+            print(
+                f"[behavior_state_plots] No usable {selected_role} fly found in "
+                f"{video_name}; skipping."
             )
 
 
@@ -12071,8 +12288,60 @@ def _turn_home_vector_alignment_sli_fraction(opts, sli_group: str) -> float:
         return 0.25
     return float(frac)
 
-def _select_turn_home_vector_alignment_vas(vas):
-    sli_group = getattr(opts, "turn_home_vector_alignment_sli_group", "all")
+
+def _parse_turn_home_vector_alignment_sli_groups(opts) -> list[str]:
+    raw = getattr(opts, "turn_home_vector_alignment_sli_groups", None)
+    if raw is None or not str(raw).strip():
+        return [str(getattr(opts, "turn_home_vector_alignment_sli_group", "all"))]
+
+    groups = []
+    for part in str(raw).split(","):
+        group = part.strip()
+        if not group:
+            continue
+        if group not in {"all", "top", "bottom"}:
+            raise ValueError(
+                "--turn-home-vector-alignment-sli-groups entries must be one of "
+                f"'all', 'top', or 'bottom'; got {group!r}"
+            )
+        if group not in groups:
+            groups.append(group)
+
+    if not groups:
+        raise ValueError(
+            "--turn-home-vector-alignment-sli-groups must contain at least one group."
+        )
+    return groups
+
+
+def _turn_home_vector_alignment_sli_group_slug(opts, sli_group: str) -> str:
+    if sli_group == "all":
+        return ""
+    fraction = _turn_home_vector_alignment_sli_fraction(opts, sli_group)
+    frac_slug = f"{float(fraction) * 100.0:g}".replace(".", "p")
+    prefix = "top" if sli_group == "top" else "bottom"
+    trn = int(getattr(opts, "best_worst_trn", 2) or 2)
+    skip = int(getattr(opts, "sli_select_skip_first_sync_buckets", 0) or 0)
+    keep = int(getattr(opts, "sli_select_keep_first_sync_buckets", 0) or 0)
+    if keep > 0:
+        bucket_part = f"Sb{skip + 1}-{skip + keep}"
+    else:
+        bucket_part = f"Sb{skip + 1}+"
+    return f"{prefix}{frac_slug}_sliT{trn}{bucket_part}"
+
+
+def _suffix_npz_path(path: str, suffix: str) -> str:
+    if not suffix:
+        return path
+    root, ext = os.path.splitext(path)
+    ext = ext or ".npz"
+    return f"{root}_{suffix}{ext}"
+
+
+def _select_turn_home_vector_alignment_vas(vas, export_opts=None):
+    if export_opts is None:
+        export_opts = opts
+    sli_group = getattr(export_opts, "turn_home_vector_alignment_sli_group", "all")
     if sli_group == "all":
         return vas
 
@@ -12087,14 +12356,14 @@ def _select_turn_home_vector_alignment_vas(vas):
             "or choice-mode."
         )
 
-    sli_training_idx = int(getattr(opts, "best_worst_trn", 2)) - 1
-    use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
+    sli_training_idx = int(getattr(export_opts, "best_worst_trn", 2)) - 1
+    use_training_mean = bool(getattr(export_opts, "sli_use_training_mean", False))
 
-    skip_k = _effective_skip_first_sync_buckets_opts_only(opts)
-    keep_k = _effective_keep_first_sync_buckets_opts_only(opts)
+    skip_k = _effective_skip_first_sync_buckets_opts_only(export_opts)
+    keep_k = _effective_keep_first_sync_buckets_opts_only(export_opts)
 
-    raw_sel_skip = getattr(opts, "sli_select_skip_first_sync_buckets", None)
-    raw_sel_keep = getattr(opts, "sli_select_keep_first_sync_buckets", None)
+    raw_sel_skip = getattr(export_opts, "sli_select_skip_first_sync_buckets", None)
+    raw_sel_keep = getattr(export_opts, "sli_select_keep_first_sync_buckets", None)
     sel_skip_k = skip_k if raw_sel_skip is None else max(0, int(raw_sel_skip))
     sel_keep_k = keep_k if raw_sel_keep is None else max(0, int(raw_sel_keep))
 
@@ -12116,7 +12385,7 @@ def _select_turn_home_vector_alignment_vas(vas):
     raw_4 = a_sli.reshape((n_videos, n_trains, n_flies, nb_sli))
 
     sel_bucket_idx = _resolve_sli_select_bucket_idx(
-        opts,
+        export_opts,
         nb=nb_sli,
         skip_first_sync_buckets=sel_skip_k,
         keep_first_sync_buckets=sel_keep_k,
@@ -12135,9 +12404,11 @@ def _select_turn_home_vector_alignment_vas(vas):
     top_fraction = None
     bottom_fraction = None
     if sli_group == "top":
-        top_fraction = _turn_home_vector_alignment_sli_fraction(opts, sli_group)
+        top_fraction = _turn_home_vector_alignment_sli_fraction(export_opts, sli_group)
     elif sli_group == "bottom":
-        bottom_fraction = _turn_home_vector_alignment_sli_fraction(opts, sli_group)
+        bottom_fraction = _turn_home_vector_alignment_sli_fraction(
+            export_opts, sli_group
+        )
     else:
         raise ValueError(f"Unknown turn_home_vector_alignment_sli_group: {sli_group!r}")
 
@@ -12300,14 +12571,96 @@ def _export_post_analyze_bundles(vas, gls) -> int:
             num_exports += 1
 
     if getattr(opts, "export_turn_home_vector_alignment_sli_bundle", None):
-        vas_for_turn_home_vector = _select_turn_home_vector_alignment_vas(vas)
-        export_turn_home_vector_alignment_sli_bundle(
-            vas_for_turn_home_vector,
-            opts,
-            gls,
-            opts.export_turn_home_vector_alignment_sli_bundle,
+        sli_groups = _parse_turn_home_vector_alignment_sli_groups(opts)
+        radius_ranges_raw = getattr(
+            opts, "turn_home_vector_alignment_radius_ranges_mm", None
         )
-        num_exports += 1
+        if radius_ranges_raw is not None and str(radius_ranges_raw).strip() and getattr(
+            opts, "turn_home_vector_alignment_radius_range_mm", None
+        ):
+            raise ValueError(
+                "Use either --turn-home-vector-alignment-radius-range-mm or "
+                "--turn-home-vector-alignment-radius-ranges-mm, not both."
+            )
+
+        radius_ranges = []
+        if radius_ranges_raw is not None and str(radius_ranges_raw).strip():
+            radius_ranges = parse_turn_home_vector_alignment_radius_ranges_mm(
+                radius_ranges_raw
+            )
+
+        base_out = opts.export_turn_home_vector_alignment_sli_bundle
+        for sli_group in sli_groups:
+            group_opts = copy.copy(opts)
+            group_opts.turn_home_vector_alignment_sli_group = sli_group
+            group_slug = _turn_home_vector_alignment_sli_group_slug(
+                group_opts, sli_group
+            )
+            group_out = _suffix_npz_path(base_out, group_slug)
+            vas_for_turn_home_vector = _select_turn_home_vector_alignment_vas(
+                vas, group_opts
+            )
+
+            value_modes = [
+                item.strip()
+                for item in str(group_opts.turn_home_vector_alignment_value_modes).split(",")
+                if item.strip()
+            ]
+            invalid_value_modes = set(value_modes) - {"exp", "exp_minus_yok"}
+            if not value_modes or invalid_value_modes:
+                raise ValueError(
+                    "--turn-home-vector-alignment-value-modes must contain exp "
+                    "and/or exp_minus_yok; got "
+                    f"{group_opts.turn_home_vector_alignment_value_modes!r}"
+                )
+
+            for value_mode in value_modes:
+                value_opts = copy.copy(group_opts)
+                value_opts.turn_home_vector_alignment_value_mode = value_mode
+                if radius_ranges:
+                    for radius_range in radius_ranges:
+                        export_opts = copy.copy(value_opts)
+                        export_opts.turn_home_vector_alignment_radius_range_mm = (
+                            f"{radius_range[0]:g}-{radius_range[1]:g}"
+                        )
+                        radius_slug = turn_home_vector_alignment_radius_range_slug(
+                            radius_range
+                        )
+                        radius_out = _suffix_npz_path(group_out, radius_slug)
+                        if value_mode == "exp_minus_yok":
+                            radius_out = _suffix_npz_path(radius_out, "expMinusYok")
+                        if (
+                            group_opts.turn_home_vector_alignment_skip_existing
+                            and os.path.exists(radius_out)
+                        ):
+                            print(f"[export] Reusing existing bundle: {radius_out}")
+                        else:
+                            export_turn_home_vector_alignment_sli_bundle(
+                                vas_for_turn_home_vector,
+                                export_opts,
+                                gls,
+                                radius_out,
+                            )
+                            num_exports += 1
+                else:
+                    value_out = (
+                        group_out
+                        if value_mode == "exp"
+                        else _suffix_npz_path(group_out, "expMinusYok")
+                    )
+                    if (
+                        group_opts.turn_home_vector_alignment_skip_existing
+                        and os.path.exists(value_out)
+                    ):
+                        print(f"[export] Reusing existing bundle: {value_out}")
+                    else:
+                        export_turn_home_vector_alignment_sli_bundle(
+                            vas_for_turn_home_vector,
+                            value_opts,
+                            gls,
+                            value_out,
+                        )
+                        num_exports += 1
 
     if getattr(opts, "export_weaving_sli_bundle", None):
         export_weaving_sli_bundle(vas, opts, gls, opts.export_weaving_sli_bundle)

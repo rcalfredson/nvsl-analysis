@@ -109,6 +109,45 @@ class EventChainPlotter:
 
         return start_frame, stop_frame
 
+    def _resolve_behavior_state_plot_window(
+        self,
+        states,
+        n_frames,
+        *,
+        trn_index=None,
+        start_frame=None,
+        stop_frame=None,
+        pad=0,
+    ):
+        """Resolve requested plot limits to the inclusive bounds written to disk."""
+        if start_frame is None or stop_frame is None:
+            if trn_index is not None:
+                if trn_index < 0 or trn_index >= len(self.va.trns):
+                    return None
+                trn = self.va.trns[trn_index]
+                if start_frame is None:
+                    start_frame = int(trn.start)
+                if stop_frame is None:
+                    stop_frame = int(trn.stop)
+            else:
+                if start_frame is None:
+                    start_frame = 0
+                if stop_frame is None:
+                    stop_frame = n_frames - 1
+
+        start_frame = max(0, int(start_frame) - int(pad))
+        stop_frame = min(n_frames - 1, int(stop_frame) + int(pad))
+        return self._expand_behavior_state_turn_window(
+            states,
+            start_frame,
+            stop_frame,
+            turn_boundary_pad=getattr(
+                getattr(self.va, "opts", None),
+                "behavior_state_plot_turn_boundary_pad",
+                2,
+            ),
+        )
+
     @staticmethod
     def _wrap_multiline_text(text, width, *, break_long_words=False):
         if width is None or int(width) <= 0:
@@ -4974,37 +5013,21 @@ class EventChainPlotter:
             print("[plot_behavior_state_trajectory] Too few frames to plot; skipping.")
             return
 
-        if start_frame is None or stop_frame is None:
-            if trn_index is not None:
-                if trn_index < 0 or trn_index >= len(self.va.trns):
-                    print(
-                        f"[plot_behavior_state_trajectory] Invalid trn_index={trn_index}; "
-                        f"valid range is 0..{len(self.va.trns) - 1}"
-                    )
-                    return
-                trn = self.va.trns[trn_index]
-                if start_frame is None:
-                    start_frame = int(trn.start)
-                if stop_frame is None:
-                    stop_frame = int(trn.stop)
-            else:
-                if start_frame is None:
-                    start_frame = 0
-                if stop_frame is None:
-                    stop_frame = n_frames - 1
-
-        start_frame = max(0, int(start_frame) - int(pad))
-        stop_frame = min(n_frames - 1, int(stop_frame) + int(pad))
-        start_frame, stop_frame = self._expand_behavior_state_turn_window(
+        resolved_window = self._resolve_behavior_state_plot_window(
             states,
-            start_frame,
-            stop_frame,
-            turn_boundary_pad=getattr(
-                getattr(self.va, "opts", None),
-                "behavior_state_plot_turn_boundary_pad",
-                2,
-            ),
+            n_frames,
+            trn_index=trn_index,
+            start_frame=start_frame,
+            stop_frame=stop_frame,
+            pad=pad,
         )
+        if resolved_window is None:
+            print(
+                f"[plot_behavior_state_trajectory] Invalid trn_index={trn_index}; "
+                f"valid range is 0..{len(self.va.trns) - 1}"
+            )
+            return
+        start_frame, stop_frame = resolved_window
         if stop_frame <= start_frame:
             print(
                 f"[plot_behavior_state_trajectory] Empty frame window "
@@ -5016,8 +5039,9 @@ class EventChainPlotter:
             self.va.ct.floor(self.va.xf, f=self.va.nef * (self.trj.f) + self.va.ef)
         )
         top_left, bottom_right = floor_coords[0], floor_coords[1]
-        padding_x = (bottom_right[0] - top_left[0]) * 0.1
-        padding_y = (top_left[1] - bottom_right[1]) * 0.1
+        padding_fraction = 0.03 if minimal else 0.1
+        padding_x = (bottom_right[0] - top_left[0]) * padding_fraction
+        padding_y = (top_left[1] - bottom_right[1]) * padding_fraction
         contact_buffer_px = (
             self.va.ct.pxPerMmFloor()
             * self.va.xf.fctr
@@ -5356,9 +5380,12 @@ class EventChainPlotter:
             "path_no_head_body": "velAngle_noHeadBody",
         }
         source_tag = source_tags.get(source, source)
+        # Preserve existing experimental-fly filenames while preventing a yoked
+        # audit from overwriting an experimental plot of the same frame window.
+        role_tag = "" if role_idx == 0 else "_yoked"
         out_path = os.path.join(
             out_dir,
-            f"{video_id}__fly{fly_idx}_{trn_tag}_{start_frame}-{stop_frame}_"
+            f"{video_id}__fly{fly_idx}{role_tag}_{trn_tag}_{start_frame}-{stop_frame}_"
             f"{source_tag}.{image_format}",
         )
         writeImage(out_path, format=image_format)

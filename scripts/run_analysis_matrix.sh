@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DATE_TAG="2026-06-22"
+DATE_TAG="${DATE_TAG:-$(date +%F)}"
 PRINT_ONLY="${PRINT_ONLY:-0}"
+RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY="${RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY:-0}"
 RUN_FLAT_HTL_TURNBACK_PAIRS="${RUN_FLAT_HTL_TURNBACK_PAIRS:-0}"
 RUN_FLAT_HTL_TURNBACK_HOME_VECTOR_VARIANT="${RUN_FLAT_HTL_TURNBACK_HOME_VECTOR_VARIANT:-0}"
 FLAT_HTL_TURNBACK_HOME_VECTOR_ALIGNMENT_THRESHOLD="${FLAT_HTL_TURNBACK_HOME_VECTOR_ALIGNMENT_THRESHOLD:-0}"
@@ -23,10 +24,29 @@ TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES_DIR="${TURNBACK_HOME_VECTOR_ALIGNMENT_EX
 TURNBACK_HOME_VECTOR_ALIGNMENT_EXCLUDE_SAMPLE_CROSSINGS="${TURNBACK_HOME_VECTOR_ALIGNMENT_EXCLUDE_SAMPLE_CROSSINGS:-0}"
 TURNBACK_HOME_VECTOR_ALIGNMENT_HEADING_ESTIMATOR="${TURNBACK_HOME_VECTOR_ALIGNMENT_HEADING_ESTIMATOR:-mean}"
 TURNBACK_HOME_VECTOR_ALIGNMENT_HOME_VECTOR_ANCHOR="${TURNBACK_HOME_VECTOR_ALIGNMENT_HOME_VECTOR_ANCHOR:-intersection}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_REUSE_EXISTING_BUNDLES="${TURNBACK_HOME_VECTOR_ALIGNMENT_REUSE_EXISTING_BUNDLES:-1}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT="${TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT:-png}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT="${TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT#.}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT="${TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT,,}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_FONT_FAMILY="${TURNBACK_HOME_VECTOR_ALIGNMENT_FONT_FAMILY:-}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_FS="${TURNBACK_HOME_VECTOR_ALIGNMENT_FS:-}"
 
 GROUP_VARS=(INTACT_CTRL INTACT_PFND AR_CTRL)
 GROUP_SLUGS=(intact_ctrlKir intact_pfnKir ar_ctrlKir)
 GROUP_LABELS=("Ctrl>Kir FLC" "PFNd>Kir FLC" "AR Ctrl>Kir FLC")
+
+# Cohorts used specifically by the dual-circle turnback and turnback
+# home-vector alignment analyses. Keep the general GROUP_* arrays above
+# unchanged so the other analysis families in this matrix retain AR Ctrl>Kir.
+TURNBACK_COMPARISON_GROUP="${TURNBACK_COMPARISON_GROUP:-mbkc_kir}"
+VIDEO_LISTS_FILE="${VIDEO_LISTS_FILE:-video_lists.log}"
+MBKC_HEADER="${MBKC_HEADER:-UAS>>CsC (X); 19B03-lexA (MBKC)/otd-flp; 0273Gal4/lexAop>>Kir}"
+MBKC_SUBHEADER="${MBKC_SUBHEADER:-Flat-lower chamber reward circle shrink in T2, T3, closer to the center  10d old flies}"
+
+TURNBACK_GROUP_VARS=(INTACT_CTRL INTACT_PFND)
+TURNBACK_GROUP_SLUGS=(intact_ctrlKir intact_pfnKir)
+TURNBACK_GROUP_LABELS=("Ctrl>Kir FLC" "PFNd>Kir FLC")
+declare -A TURNBACK_HOME_VECTOR_ALIGNMENT_BUNDLES=()
 
 FLAT_HTL_GROUP_VARS=(
   FLAT_HTL_CTRL
@@ -44,6 +64,65 @@ FLAT_HTL_GROUP_LABELS=(
   "Antennae-removed flat HTL"
 )
 
+load_mbkc_dataset_from_log() {
+  if [[ -n "${MBKC_KIR:-}" ]]; then
+    return
+  fi
+  if [[ ! -f "$VIDEO_LISTS_FILE" ]]; then
+    return
+  fi
+
+  MBKC_KIR="$({
+    awk -v header="$MBKC_HEADER" -v subheader="$MBKC_SUBHEADER" '
+      $0 == header { in_section = 1; next }
+      in_section && $0 == subheader { want_command = 1; next }
+      want_command && /^python analyze\.py / {
+        marker = " -v \""
+        start = index($0, marker)
+        if (!start) exit 2
+        value = substr($0, start + length(marker))
+        stop = index(value, "\"")
+        if (!stop) exit 2
+        print substr(value, 1, stop - 1)
+        exit
+      }
+    ' "$VIDEO_LISTS_FILE"
+  } || true)"
+}
+
+case "$TURNBACK_COMPARISON_GROUP" in
+  ar_ctrl)
+    TURNBACK_GROUP_VARS+=(AR_CTRL)
+    TURNBACK_GROUP_SLUGS+=(ar_ctrlKir)
+    TURNBACK_GROUP_LABELS+=("AR Ctrl>Kir FLC")
+    TURNBACK_PLOT_SUFFIX=""
+    ;;
+  mbkc_kir)
+    load_mbkc_dataset_from_log
+    TURNBACK_GROUP_VARS+=(MBKC_KIR)
+    TURNBACK_GROUP_SLUGS+=(intact_mbkcKir)
+    TURNBACK_GROUP_LABELS+=("MBKC>Kir FLC")
+    TURNBACK_PLOT_SUFFIX="_vs_mbkcKir"
+    ;;
+  *)
+    echo "TURNBACK_COMPARISON_GROUP must be ar_ctrl or mbkc_kir, got: $TURNBACK_COMPARISON_GROUP" >&2
+    exit 1
+    ;;
+esac
+
+if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_REUSE_EXISTING_BUNDLES" != "0" && "$TURNBACK_HOME_VECTOR_ALIGNMENT_REUSE_EXISTING_BUNDLES" != "1" ]]; then
+  echo "TURNBACK_HOME_VECTOR_ALIGNMENT_REUSE_EXISTING_BUNDLES must be 0 or 1." >&2
+  exit 1
+fi
+if [[ -z "$TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT" ]]; then
+  echo "TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT must not be empty." >&2
+  exit 1
+fi
+if [[ "$RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY" != "0" && "$RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY" != "1" ]]; then
+  echo "RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY must be 0 or 1." >&2
+  exit 1
+fi
+
 require_dataset_vars() {
   for var_name in "$@"; do
     if [[ -z "${!var_name:-}" ]]; then
@@ -59,8 +138,13 @@ if [[ "$RUN_FLAT_HTL_TURNBACK_PAIRS" == "1" ]]; then
 elif [[ "$RUN_FLAT_HTL_TURNBACK_PAIRS" != "0" ]]; then
   echo "RUN_FLAT_HTL_TURNBACK_PAIRS must be 0 or 1." >&2
   exit 1
+elif [[ "$RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY" == "1" ]]; then
+  if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_REUSE_EXISTING_BUNDLES" != "1" ]]; then
+    require_dataset_vars "${TURNBACK_GROUP_VARS[@]}"
+  fi
 else
   require_dataset_vars "${GROUP_VARS[@]}"
+  require_dataset_vars "${TURNBACK_GROUP_VARS[@]}"
 fi
 
 run_cmd() {
@@ -70,6 +154,17 @@ run_cmd() {
 
   if [[ "$PRINT_ONLY" != "1" ]]; then
     "$@"
+  fi
+}
+
+turnback_home_vector_alignment_plot_style_flags() {
+  local -n out_flags="$1"
+  out_flags=(--image-format "$TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT")
+  if [[ -n "$TURNBACK_HOME_VECTOR_ALIGNMENT_FONT_FAMILY" ]]; then
+    out_flags+=(--fontFamily "$TURNBACK_HOME_VECTOR_ALIGNMENT_FONT_FAMILY")
+  fi
+  if [[ -n "$TURNBACK_HOME_VECTOR_ALIGNMENT_FS" ]]; then
+    out_flags+=(--fs "$TURNBACK_HOME_VECTOR_ALIGNMENT_FS")
   fi
 }
 
@@ -432,11 +527,11 @@ run_turnback_pairs() {
 
   local bundles=()
 
-  for i in "${!GROUP_VARS[@]}"; do
-    local var_name="${GROUP_VARS[$i]}"
+  for i in "${!TURNBACK_GROUP_VARS[@]}"; do
+    local var_name="${TURNBACK_GROUP_VARS[$i]}"
     local dataset="${!var_name}"
-    local group_slug="${GROUP_SLUGS[$i]}"
-    local group_label="${GROUP_LABELS[$i]}"
+    local group_slug="${TURNBACK_GROUP_SLUGS[$i]}"
+    local group_label="${TURNBACK_GROUP_LABELS[$i]}"
     local bundle="exports/turnbackPairs_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pairs_label}_${DATE_TAG}.npz"
 
     bundles+=("$bundle")
@@ -475,7 +570,7 @@ run_turnback_pairs() {
   run_cmd \
     python -m scripts.plot_turnback_excursion_bin_sli_bundles \
     --bundles "$bundle_csv" \
-    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatLgc_T2_p${pairs_label}_top20_sliT2Sb2-5_${DATE_TAG}.png" \
+    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatLgc_T2_p${pairs_label}_top20_sliT2Sb2-5${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.png" \
     --sli-extremes top \
     --top-sli-fraction 0.2 \
     --stats
@@ -483,7 +578,7 @@ run_turnback_pairs() {
   run_cmd \
     python -m scripts.plot_turnback_excursion_bin_sli_bundles \
     --bundles "$bundle_csv" \
-    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatLgc_T2_p${pairs_label}_${DATE_TAG}.png" \
+    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatLgc_T2_p${pairs_label}${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.png" \
     --stats
 }
 
@@ -538,11 +633,11 @@ run_turnback_home_vector_alignment() {
   local sample_cross_flags=()
   turnback_home_vector_alignment_sample_crossing_flags sample_cross_flags
 
-  for i in "${!GROUP_VARS[@]}"; do
-    local var_name="${GROUP_VARS[$i]}"
-    local dataset="${!var_name}"
-    local group_slug="${GROUP_SLUGS[$i]}"
-    local group_label="${GROUP_LABELS[$i]}"
+  for i in "${!TURNBACK_GROUP_VARS[@]}"; do
+    local var_name="${TURNBACK_GROUP_VARS[$i]}"
+    local dataset="${!var_name:-}"
+    local group_slug="${TURNBACK_GROUP_SLUGS[$i]}"
+    local group_label="${TURNBACK_GROUP_LABELS[$i]}"
     local bundle="exports/turnbackHomeVectorAlignment_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}_${DATE_TAG}.npz"
     local example_flags=()
     turnback_home_vector_alignment_example_flags \
@@ -554,42 +649,55 @@ run_turnback_home_vector_alignment() {
       "$pair_label"
 
     bundles+=("$bundle")
+    TURNBACK_HOME_VECTOR_ALIGNMENT_BUNDLES["all|${pair_label}|${i}"]="$bundle"
 
-    run_cmd \
-      python analyze.py \
-      -v "$dataset" \
-      -f 0-1 \
-      --rCC 15 \
-      --export-turnback-home-vector-alignment-sli-bundle "$bundle" \
-      --turnback-home-vector-alignment-inner-radius-mm "$inner_radius_mm" \
-      --turnback-home-vector-alignment-outer-radius-mm "$outer_radius_mm" \
-      --turnback-home-vector-alignment-trainings 2 \
-      --turnback-home-vector-alignment-skip-first-sync-buckets 1 \
-      --turnback-home-vector-alignment-keep-first-sync-buckets 4 \
-      --turnback-home-vector-alignment-window-radius-frames 2 \
-      --turnback-home-vector-alignment-max-interpolated-heading-frames 1 \
-      --best-worst-trn 2 \
-      --sli-use-training-mean \
-      --sli-select-skip-first-sync-buckets 1 \
-      --sli-select-keep-first-sync-buckets 4 \
-      --export-group-label "$group_label" \
-      --turnback-home-vector-alignment-heading-estimator "$TURNBACK_HOME_VECTOR_ALIGNMENT_HEADING_ESTIMATOR" \
-      --turnback-home-vector-alignment-home-vector-anchor "$TURNBACK_HOME_VECTOR_ALIGNMENT_HOME_VECTOR_ANCHOR" \
-      "${sample_cross_flags[@]}" \
-      "${filter_flags[@]}" \
-      "${wall_flags[@]}" \
-      "${example_flags[@]}"
+    if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_REUSE_EXISTING_BUNDLES" == "1" && "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES" != "1" && -f "$bundle" ]]; then
+      printf '\n[%s, %s] Reusing existing bundle; analysis skipped: %s\n' "$group_label" "$pair_label" "$bundle"
+    else
+      if [[ -z "$dataset" ]]; then
+        echo "Missing required dataset variable for bundle export: $var_name" >&2
+        exit 1
+      fi
+      run_cmd \
+        python analyze.py \
+        -v "$dataset" \
+        -f 0-1 \
+        --rCC 15 \
+        --export-turnback-home-vector-alignment-sli-bundle "$bundle" \
+        --turnback-home-vector-alignment-inner-radius-mm "$inner_radius_mm" \
+        --turnback-home-vector-alignment-outer-radius-mm "$outer_radius_mm" \
+        --turnback-home-vector-alignment-trainings 2 \
+        --turnback-home-vector-alignment-skip-first-sync-buckets 1 \
+        --turnback-home-vector-alignment-keep-first-sync-buckets 4 \
+        --turnback-home-vector-alignment-window-radius-frames 2 \
+        --turnback-home-vector-alignment-max-interpolated-heading-frames 1 \
+        --best-worst-trn 2 \
+        --sli-use-training-mean \
+        --sli-select-skip-first-sync-buckets 1 \
+        --sli-select-keep-first-sync-buckets 4 \
+        --export-group-label "$group_label" \
+        --turnback-home-vector-alignment-heading-estimator "$TURNBACK_HOME_VECTOR_ALIGNMENT_HEADING_ESTIMATOR" \
+        --turnback-home-vector-alignment-home-vector-anchor "$TURNBACK_HOME_VECTOR_ALIGNMENT_HOME_VECTOR_ANCHOR" \
+        "${sample_cross_flags[@]}" \
+        "${filter_flags[@]}" \
+        "${wall_flags[@]}" \
+        "${example_flags[@]}"
+    fi
   done
 
+  local plot_style_flags=()
+  turnback_home_vector_alignment_plot_style_flags plot_style_flags
   run_cmd \
     python -m scripts.plot_overlay_training_metric_scalar_bars \
-    --input "Ctrl>Kir FLC=${bundles[0]}" \
-    --input "PFNd>Kir FLC=${bundles[1]}" \
-    --input "AR Ctrl>Kir FLC=${bundles[2]}" \
-    --out "exports/turnbackHomeVectorAlignment_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}_${DATE_TAG}.png" \
+    --input "${TURNBACK_GROUP_LABELS[0]}=${bundles[0]}" \
+    --input "${TURNBACK_GROUP_LABELS[1]}=${bundles[1]}" \
+    --input "${TURNBACK_GROUP_LABELS[2]}=${bundles[2]}" \
+    --out "exports/turnbackHomeVectorAlignment_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.${TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT}" \
     --title "Home-vector heading alignment at re-entry, ${inner_radius_mm}/${outer_radius_mm} mm" \
     --ylabel "Home-vector heading alignment at re-entry" \
-    --stats
+    --swarm \
+    --stats \
+    "${plot_style_flags[@]}"
 }
 
 run_turnback_home_vector_alignment_sli_subset() {
@@ -675,11 +783,11 @@ run_turnback_home_vector_alignment_subset_impl() {
   local sample_cross_flags=()
   turnback_home_vector_alignment_sample_crossing_flags sample_cross_flags
 
-  for i in "${!GROUP_VARS[@]}"; do
-    local var_name="${GROUP_VARS[$i]}"
-    local dataset="${!var_name}"
-    local group_slug="${GROUP_SLUGS[$i]}"
-    local group_label="${GROUP_LABELS[$i]}"
+  for i in "${!TURNBACK_GROUP_VARS[@]}"; do
+    local var_name="${TURNBACK_GROUP_VARS[$i]}"
+    local dataset="${!var_name:-}"
+    local group_slug="${TURNBACK_GROUP_SLUGS[$i]}"
+    local group_label="${TURNBACK_GROUP_LABELS[$i]}"
     local bundle="exports/turnbackHomeVectorAlignment_${subset_slug}_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pair_label}_sliT2Sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}_${DATE_TAG}.npz"
     local example_flags=()
     turnback_home_vector_alignment_example_flags \
@@ -691,43 +799,56 @@ run_turnback_home_vector_alignment_subset_impl() {
       "$pair_label"
 
     bundles+=("$bundle")
+    TURNBACK_HOME_VECTOR_ALIGNMENT_BUNDLES["${subset_slug}|${pair_label}|${i}"]="$bundle"
 
-    run_cmd \
-      python analyze.py \
-      -v "$dataset" \
-      -f 0-1 \
-      --rCC 15 \
-      --export-turnback-home-vector-alignment-sli-bundle "$bundle" \
-      "${subset_flags[@]}" \
-      --turnback-home-vector-alignment-inner-radius-mm "$inner_radius_mm" \
-      --turnback-home-vector-alignment-outer-radius-mm "$outer_radius_mm" \
-      --turnback-home-vector-alignment-trainings 2 \
-      --turnback-home-vector-alignment-skip-first-sync-buckets 1 \
-      --turnback-home-vector-alignment-keep-first-sync-buckets 4 \
-      --turnback-home-vector-alignment-window-radius-frames 2 \
-      --turnback-home-vector-alignment-max-interpolated-heading-frames 1 \
-      --best-worst-trn 2 \
-      --sli-use-training-mean \
-      --sli-select-skip-first-sync-buckets 1 \
-      --sli-select-keep-first-sync-buckets 4 \
-      --export-group-label "$group_label" \
-      --turnback-home-vector-alignment-heading-estimator "$TURNBACK_HOME_VECTOR_ALIGNMENT_HEADING_ESTIMATOR" \
-      --turnback-home-vector-alignment-home-vector-anchor "$TURNBACK_HOME_VECTOR_ALIGNMENT_HOME_VECTOR_ANCHOR" \
-      "${sample_cross_flags[@]}" \
-      "${filter_flags[@]}" \
-      "${wall_flags[@]}" \
-      "${example_flags[@]}"
+    if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_REUSE_EXISTING_BUNDLES" == "1" && "$TURNBACK_HOME_VECTOR_ALIGNMENT_EXAMPLES" != "1" && -f "$bundle" ]]; then
+      printf '\n[%s, %s, %s] Reusing existing bundle; analysis skipped: %s\n' "$subset_title" "$group_label" "$pair_label" "$bundle"
+    else
+      if [[ -z "$dataset" ]]; then
+        echo "Missing required dataset variable for bundle export: $var_name" >&2
+        exit 1
+      fi
+      run_cmd \
+        python analyze.py \
+        -v "$dataset" \
+        -f 0-1 \
+        --rCC 15 \
+        --export-turnback-home-vector-alignment-sli-bundle "$bundle" \
+        "${subset_flags[@]}" \
+        --turnback-home-vector-alignment-inner-radius-mm "$inner_radius_mm" \
+        --turnback-home-vector-alignment-outer-radius-mm "$outer_radius_mm" \
+        --turnback-home-vector-alignment-trainings 2 \
+        --turnback-home-vector-alignment-skip-first-sync-buckets 1 \
+        --turnback-home-vector-alignment-keep-first-sync-buckets 4 \
+        --turnback-home-vector-alignment-window-radius-frames 2 \
+        --turnback-home-vector-alignment-max-interpolated-heading-frames 1 \
+        --best-worst-trn 2 \
+        --sli-use-training-mean \
+        --sli-select-skip-first-sync-buckets 1 \
+        --sli-select-keep-first-sync-buckets 4 \
+        --export-group-label "$group_label" \
+        --turnback-home-vector-alignment-heading-estimator "$TURNBACK_HOME_VECTOR_ALIGNMENT_HEADING_ESTIMATOR" \
+        --turnback-home-vector-alignment-home-vector-anchor "$TURNBACK_HOME_VECTOR_ALIGNMENT_HOME_VECTOR_ANCHOR" \
+        "${sample_cross_flags[@]}" \
+        "${filter_flags[@]}" \
+        "${wall_flags[@]}" \
+        "${example_flags[@]}"
+    fi
   done
 
+  local plot_style_flags=()
+  turnback_home_vector_alignment_plot_style_flags plot_style_flags
   run_cmd \
     python -m scripts.plot_overlay_training_metric_scalar_bars \
-    --input "Ctrl>Kir FLC=${bundles[0]}" \
-    --input "PFNd>Kir FLC=${bundles[1]}" \
-    --input "AR Ctrl>Kir FLC=${bundles[2]}" \
-    --out "exports/turnbackHomeVectorAlignment_${subset_slug}_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sliT2Sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}_${DATE_TAG}.png" \
+    --input "${TURNBACK_GROUP_LABELS[0]}=${bundles[0]}" \
+    --input "${TURNBACK_GROUP_LABELS[1]}=${bundles[1]}" \
+    --input "${TURNBACK_GROUP_LABELS[2]}=${bundles[2]}" \
+    --out "exports/turnbackHomeVectorAlignment_${subset_slug}_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sliT2Sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.${TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT}" \
     --title "${subset_title}: home-vector heading alignment at re-entry, ${inner_radius_mm}/${outer_radius_mm} mm" \
     --ylabel "Home-vector heading alignment at re-entry" \
-    --stats
+    --swarm \
+    --stats \
+    "${plot_style_flags[@]}"
 }
 
 run_turnback_home_vector_alignment_top20() {
@@ -748,6 +869,58 @@ run_turnback_home_vector_alignment_bottom50() {
     --bottom-sli-fraction \
     0.50 \
     "$@"
+}
+
+plot_combined_turnback_home_vector_alignment() {
+  local subset_slug="$1"
+  local subset_title="$2"
+  local filter_tag="$3"
+  local wall_tag="$4"
+  local estimator_suffix
+  estimator_suffix="$(turnback_home_vector_alignment_heading_estimator_suffix)"
+  local home_anchor_suffix
+  home_anchor_suffix="$(turnback_home_vector_alignment_home_vector_anchor_suffix)"
+  local sample_cross_suffix
+  sample_cross_suffix="$(turnback_home_vector_alignment_sample_crossing_suffix)"
+  local plot_prefix="turnbackHomeVectorAlignment_${filter_tag}_${wall_tag}_flatLgc_T2_p3-5_8-10_13-15_sb2-5"
+  local title="Home-vector heading alignment at re-entry"
+  if [[ "$subset_slug" != "all" ]]; then
+    plot_prefix="turnbackHomeVectorAlignment_${subset_slug}_${filter_tag}_${wall_tag}_flatLgc_T2_p3-5_8-10_13-15_sliT2Sb2-5"
+    title="${subset_title}: ${title}"
+  fi
+
+  local pair_labels=("3-5" "8-10" "13-15")
+  local region_labels=("3/5 mm" "8/10 mm" "13/15 mm")
+  local plot_style_flags=()
+  turnback_home_vector_alignment_plot_style_flags plot_style_flags
+  local plot_args=(
+    python -m scripts.plot_overlay_training_metric_scalar_bars
+    --out "exports/${plot_prefix}${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.${TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT}"
+    --title "$title"
+    --xlabel "Inner/outer radius pair from reward center (mm)"
+    --ylabel "Home-vector heading alignment at re-entry"
+    --clustered-layout
+    --swarm
+    --stats
+    "${plot_style_flags[@]}"
+  )
+
+  local pair_i group_i key bundle
+  for pair_i in "${!pair_labels[@]}"; do
+    for group_i in "${!TURNBACK_GROUP_LABELS[@]}"; do
+      key="${subset_slug}|${pair_labels[$pair_i]}|${group_i}"
+      bundle="${TURNBACK_HOME_VECTOR_ALIGNMENT_BUNDLES[$key]:-}"
+      if [[ -z "$bundle" ]]; then
+        echo "Missing recorded turnback home-vector alignment bundle for $key" >&2
+        exit 1
+      fi
+      plot_args+=(
+        --input "${region_labels[$pair_i]}|${TURNBACK_GROUP_LABELS[$group_i]}=${bundle}"
+      )
+    done
+  done
+
+  run_cmd "${plot_args[@]}"
 }
 
 run_return_leg_tortuosity_bins() {
@@ -991,6 +1164,20 @@ run_post_wall_departure_tortuosity() {
 # done
 
 # ---------------------------------------------------------------------
+# Dual-circle turnback ratio for the MBKC comparison.
+# Matches the default 3/5, 8/10, 13/15 mm geometry and the active
+# home-vector pass below: T2 SB5-presence filter, wall-contact included.
+# ---------------------------------------------------------------------
+
+if [[ "$RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY" != "1" ]]; then
+  run_turnback_pairs \
+    "3-5_8-10_13-15" \
+    "3:5,8:10,13:15" \
+    minEpSb5Filt \
+    wall
+fi
+
+# ---------------------------------------------------------------------
 # Turnback home-vector heading alignment at successful re-entry
 # Metric: cos(heading - home vector), using displacement-derived heading.
 # Heading estimator: mean with radius 2, i.e. two-point symmetric sampling
@@ -1007,6 +1194,7 @@ for filter_tag in minEpSb5Filt; do
     run_turnback_home_vector_alignment "3-5" 3 5 "$filter_tag" "$wall_tag"
     run_turnback_home_vector_alignment "8-10" 8 10 "$filter_tag" "$wall_tag"
     run_turnback_home_vector_alignment "13-15" 13 15 "$filter_tag" "$wall_tag"
+    plot_combined_turnback_home_vector_alignment all "All flies" "$filter_tag" "$wall_tag"
   done
 done
 
@@ -1024,6 +1212,7 @@ for filter_tag in minEpSb5Filt; do
     run_turnback_home_vector_alignment_top20 "3-5" 3 5 "$filter_tag" "$wall_tag"
     run_turnback_home_vector_alignment_top20 "8-10" 8 10 "$filter_tag" "$wall_tag"
     run_turnback_home_vector_alignment_top20 "13-15" 13 15 "$filter_tag" "$wall_tag"
+    plot_combined_turnback_home_vector_alignment top20 "Top 20% SLI" "$filter_tag" "$wall_tag"
   done
 done
 
@@ -1041,8 +1230,13 @@ for filter_tag in minEpSb5Filt; do
     run_turnback_home_vector_alignment_bottom50 "3-5" 3 5 "$filter_tag" "$wall_tag"
     run_turnback_home_vector_alignment_bottom50 "8-10" 8 10 "$filter_tag" "$wall_tag"
     run_turnback_home_vector_alignment_bottom50 "13-15" 13 15 "$filter_tag" "$wall_tag"
+    plot_combined_turnback_home_vector_alignment bottom50 "Bottom 50% SLI" "$filter_tag" "$wall_tag"
   done
 done
+
+if [[ "$RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY" == "1" ]]; then
+  exit 0
+fi
 
 # ---------------------------------------------------------------------
 # Top-25% mean return-leg tortuosity by max-distance bin

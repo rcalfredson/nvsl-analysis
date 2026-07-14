@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from src.plotting.overlay_training_metric_scalar_bars import (
     OmnibusLearnerEntry,
     baseline_delta_exports,
+    clustered_training_scalar_exports,
     load_export_npz,
     plot_omnibus_learner_overlays,
     plot_overlays,
@@ -40,7 +41,8 @@ def parse_args() -> argparse.Namespace:
         required=True,
         help=(
             "Repeatable: 'GroupLabel=/path/to/export.npz'. With "
-            "--omnibus-learner-layout, use 'LearnerLabel|GenotypeLabel=/path/to/export.npz'."
+            "--omnibus-learner-layout or --clustered-layout, use "
+            "'ClusterLabel|GroupLabel=/path/to/export.npz'."
         ),
     )
     p.add_argument("--out", required=True, help="Output image path (png/pdf/etc).")
@@ -104,9 +106,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--points",
         "--show-points",
+        "--swarm",
         dest="show_points",
         action="store_true",
-        help="Overlay individual per-fly values on top of each bar.",
+        help="Overlay an individual-value swarm on top of each bar.",
     )
     p.add_argument(
         "--stats",
@@ -139,11 +142,27 @@ def parse_args() -> argparse.Namespace:
             "learner comparisons within each genotype."
         ),
     )
+    p.add_argument(
+        "--clustered-layout",
+        action="store_true",
+        help=(
+            "Plot one cluster per label before '|' and one group bar per label "
+            "after '|'. Input order determines cluster and group order."
+        ),
+    )
     return p.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+
+    if args.omnibus_learner_layout and args.clustered_layout:
+        raise SystemExit(
+            "Use only one of --omnibus-learner-layout and --clustered-layout."
+        )
+    clustered_layout = bool(
+        args.omnibus_learner_layout or args.clustered_layout
+    )
 
     xs = []
     omnibus_entries = []
@@ -155,19 +174,19 @@ def main() -> None:
         label, path = spec.split("=", 1)
         label = label.strip()
         path = path.strip()
-        if args.omnibus_learner_layout:
+        if clustered_layout:
             if "|" not in label:
                 raise SystemExit(
-                    "--omnibus-learner-layout input labels must be of the form "
-                    f"'LearnerLabel|GenotypeLabel=path.npz' (got: {spec})"
+                    "clustered-layout input labels must be of the form "
+                    f"'ClusterLabel|GroupLabel=path.npz' (got: {spec})"
                 )
             learner, genotype = label.split("|", 1)
             learner = learner.strip()
             genotype = genotype.strip()
             if not learner or not genotype:
                 raise SystemExit(
-                    "--omnibus-learner-layout input labels must include both "
-                    f"learner and genotype labels (got: {spec})"
+                    "clustered-layout input labels must include both "
+                    f"cluster and group labels (got: {spec})"
                 )
             omnibus_entries.append(
                 OmnibusLearnerEntry(
@@ -179,11 +198,14 @@ def main() -> None:
         else:
             xs.append(load_export_npz(label, path))
 
+    if args.clustered_layout:
+        xs = clustered_training_scalar_exports(omnibus_entries)
+
     if args.baseline_delta_panel:
-        if args.omnibus_learner_layout:
+        if clustered_layout:
             raise SystemExit(
                 "--baseline-delta-panel is not currently supported with "
-                "--omnibus-learner-layout."
+                "a clustered layout."
             )
         xs = baseline_delta_exports(
             xs,
@@ -193,7 +215,7 @@ def main() -> None:
 
     # Reasonable defaults if not provided
     if args.xlabel is None:
-        args.xlabel = None if args.omnibus_learner_layout else "training"
+        args.xlabel = None if clustered_layout else "training"
     if args.ylabel is None:
         first_export = omnibus_entries[0].export if args.omnibus_learner_layout else xs[0]
         args.ylabel = first_export.meta.get("y_label", "value")
@@ -220,6 +242,7 @@ def main() -> None:
             stats=args.stats,
             stats_alpha=args.stats_alpha,
             debug=args.stats_debug,
+            show_points=args.show_points,
             opts=opts,
         )
     else:
