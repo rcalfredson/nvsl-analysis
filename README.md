@@ -306,6 +306,29 @@ ENABLE_DEFAULT_BETWEEN_REWARD_SLI_PLOTS=false
 
 Use explicit bundle exports when you need reproducible filenames, more than two groups, plot-time SLI extremes, or a figure that combines independently analyzed cohorts.
 
+### Editing bundle labels without re-exporting
+
+The restricted metadata editor can inspect or replace only `group_label` and
+`group_labels`; it copies all data-array members as opaque bytes. With no edit
+option, it prints the labels currently stored in a bundle:
+
+```bash
+python -m scripts.edit_bundle_metadata exports/my_bundle.npz
+```
+
+Single-group bundles use `--group-label`. Multi-group bundles, including the
+turn-probability bundle used by panel 36, use ordered `--group-labels`:
+
+```bash
+python -m scripts.edit_bundle_metadata \
+  exports/turn_prob_dist_panel36_controlKir_vs_mbkcKir_19B03_flatHTL_T2_2026-07-08.npz \
+  --group-labels 'Control>Kir' 'MBKC-1>Kir'
+```
+
+Edits are atomic and in place. Add `--output exports/renamed_bundle.npz` to keep
+the original bundle. The editor rejects missing fields, blank labels, and any
+change in the number of labels so group-index assignments cannot be altered.
+
 ## Demo
 Below is a short demo to verify the pipeline with *real* data.
 1. **Download the sample data**
