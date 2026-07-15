@@ -4731,9 +4731,10 @@ g.add_argument(
     default=None,
     metavar="N",
     help=(
-        "Write N seeded, non-overlapping random behavior-state plot windows per "
-        "selected fly and video. Windows are contained within trainings and cannot "
-        "be combined with explicit start/stop frames."
+        "Write N seeded, non-overlapping random base windows per selected fly "
+        "and video. Base windows are detector-independent and contained within "
+        "trainings; plot padding and turn-boundary expansion are applied only "
+        "after sampling. Cannot be combined with explicit start/stop frames."
     ),
 )
 g.add_argument(
@@ -12083,6 +12084,7 @@ def _generate_behavior_state_plots(vas):
                 image_format=opts.imageFormat,
             )
             windows = [(start_frame, stop_frame)]
+            window_domains = {}
             if random_samples is not None:
                 states = getattr(trj, "behavior_state", None)
                 if states is None:
@@ -12123,29 +12125,26 @@ def _generate_behavior_state_plots(vas):
                     )
                     continue
 
-                def resolve_bounds(sample_start, sample_stop):
-                    return plotter._resolve_behavior_state_plot_window(
-                        states,
-                        n_frames,
-                        trn_index=None,
-                        start_frame=sample_start,
-                        stop_frame=sample_stop,
-                        pad=pad,
-                    )
-
                 try:
                     windows = sample_non_overlapping_frame_windows_from_domains(
                         frame_domains=training_domains,
                         window_span=random_window,
                         count=int(random_samples),
                         rng=rng,
-                        resolve_bounds=resolve_bounds,
                     )
                 except ValueError as exc:
                     print(f"[behavior_state_plots] {exc}; skipping fly {trj.f}.")
                     continue
+                window_domains = {
+                    (window_start, window_stop): next(
+                        domain
+                        for domain in training_domains
+                        if domain[0] <= window_start and window_stop <= domain[1]
+                    )
+                    for window_start, window_stop in windows
+                }
                 print(
-                    f"[behavior_state_plots] sampled {len(windows)} windows for "
+                    f"[behavior_state_plots] sampled {len(windows)} base windows for "
                     f"fly {trj.f} ({selected_role}), seed={random_seed}: "
                     + ", ".join(f"{start}-{stop}" for start, stop in windows)
                 )
@@ -12162,6 +12161,7 @@ def _generate_behavior_state_plots(vas):
                     out_dir=out_dir,
                     image_format=opts.imageFormat,
                     role_idx=role_idx,
+                    frame_domain=window_domains.get((window_start, window_stop)),
                 )
 
         if not found_selected_role:

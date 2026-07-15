@@ -119,12 +119,17 @@ class EventChainPlotter:
         start_frame=None,
         stop_frame=None,
         pad=0,
+        frame_domain=None,
     ):
         """Resolve requested plot limits to the inclusive bounds written to disk."""
+        if frame_domain is None and trn_index is not None:
+            if trn_index < 0 or trn_index >= len(self.va.trns):
+                return None
+            trn = self.va.trns[trn_index]
+            frame_domain = (int(trn.start), int(trn.stop))
+
         if start_frame is None or stop_frame is None:
             if trn_index is not None:
-                if trn_index < 0 or trn_index >= len(self.va.trns):
-                    return None
                 trn = self.va.trns[trn_index]
                 if start_frame is None:
                     start_frame = int(trn.start)
@@ -138,7 +143,7 @@ class EventChainPlotter:
 
         start_frame = max(0, int(start_frame) - int(pad))
         stop_frame = min(n_frames - 1, int(stop_frame) + int(pad))
-        return self._expand_behavior_state_turn_window(
+        start_frame, stop_frame = self._expand_behavior_state_turn_window(
             states,
             start_frame,
             stop_frame,
@@ -148,6 +153,11 @@ class EventChainPlotter:
                 2,
             ),
         )
+        if frame_domain is not None:
+            domain_start, domain_stop = (int(value) for value in frame_domain)
+            start_frame = max(start_frame, max(0, domain_start))
+            stop_frame = min(stop_frame, min(n_frames - 1, domain_stop))
+        return start_frame, stop_frame
 
     @staticmethod
     def _wrap_multiline_text(text, width, *, break_long_words=False):
@@ -4989,6 +4999,7 @@ class EventChainPlotter:
         out_dir: str | None = None,
         image_format: str | None = None,
         role_idx: int | None = None,
+        frame_domain: tuple[int, int] | None = None,
     ):
         """
         Plot a trajectory window color-coded by behavior state.
@@ -5021,6 +5032,7 @@ class EventChainPlotter:
             start_frame=start_frame,
             stop_frame=stop_frame,
             pad=pad,
+            frame_domain=frame_domain,
         )
         if resolved_window is None:
             print(

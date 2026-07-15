@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import numpy as np
 
 from src.analysis.behavior_states import (
@@ -95,6 +97,36 @@ def test_behavior_state_plot_window_does_not_expand_unclipped_boundaries():
     assert (start, stop) == (0, 4)
 
 
+def test_behavior_state_plot_expansion_is_clamped_to_sampling_domain():
+    plotter = object.__new__(EventChainPlotter)
+    plotter.va = SimpleNamespace(
+        opts=SimpleNamespace(behavior_state_plot_turn_boundary_pad=2),
+        trns=[],
+    )
+    states = np.array(
+        [
+            BehaviorState.TURN,
+            BehaviorState.TURN,
+            BehaviorState.TURN,
+            BehaviorState.RUN,
+            BehaviorState.RUN,
+            BehaviorState.RUN,
+            BehaviorState.RUN,
+        ],
+        dtype=np.int8,
+    )
+
+    resolved = plotter._resolve_behavior_state_plot_window(
+        states,
+        len(states),
+        start_frame=2,
+        stop_frame=5,
+        frame_domain=(2, 6),
+    )
+
+    assert resolved == (2, 5)
+
+
 def test_random_frame_windows_are_seeded_and_non_overlapping():
     kwargs = dict(
         domain_start=10,
@@ -113,6 +145,27 @@ def test_random_frame_windows_are_seeded_and_non_overlapping():
     assert windows == repeated
     assert all(stop - start == 100 for start, stop in windows)
     assert all(left[1] < right[0] for left, right in zip(windows, windows[1:]))
+
+
+def test_random_base_windows_do_not_depend_on_post_sampling_expansion():
+    kwargs = dict(
+        domain_start=10,
+        domain_stop=500,
+        window_span=40,
+        count=5,
+    )
+    windows_a = sample_non_overlapping_frame_windows(
+        **kwargs, rng=np.random.default_rng(19)
+    )
+    windows_b = sample_non_overlapping_frame_windows(
+        **kwargs, rng=np.random.default_rng(19)
+    )
+
+    rendered_a = [(start - 2, stop + 2) for start, stop in windows_a]
+    rendered_b = [(start - 7, stop + 7) for start, stop in windows_b]
+
+    assert windows_a == windows_b
+    assert rendered_a != rendered_b
 
 
 def test_random_frame_windows_respect_expanded_output_bounds():
