@@ -12,6 +12,8 @@ import numpy as np
 
 CACHE_SCHEMA_VERSION = 1
 DEFAULT_CACHE_SUBDIR = ".nvsl_cache"
+REQUIRED_WALL_COMBO = "all"
+REQUIRED_WALL_REF_PT = "edge"
 
 
 # ----------------------------- small helpers -----------------------------
@@ -154,6 +156,24 @@ def extract_wall_payload_from_trj(trj: Any) -> Dict[str, Any]:
             out["wall"][combo][ref_pt] = d
 
     return out
+
+
+def wall_payload_has_required_regions(payload_for_fly: Mapping[str, Any]) -> bool:
+    """Return whether a normalized payload contains the required wall regions.
+
+    An empty ``regions`` array is valid and means that the fly had no wall-contact
+    bouts. A missing key is invalid because it means wall-contact analysis did not
+    populate the trajectory (or the cache is incomplete).
+    """
+    try:
+        regions = payload_for_fly["wall"][REQUIRED_WALL_COMBO][
+            REQUIRED_WALL_REF_PT
+        ]["regions"]
+    except (KeyError, TypeError):
+        return False
+
+    regions = np.asarray(regions)
+    return regions.ndim == 2 and regions.shape[1] == 2
 
 
 def apply_wall_payload_to_trj(trj: Any, payload_for_fly: Dict[str, Any]) -> None:
@@ -329,6 +349,17 @@ def save_wall_cache_npz(
       - wall_orientations (string array) [optional]
       - per-fly arrays under systematic keys
     """
+    incomplete_flies = sorted(
+        int(fly)
+        for fly, payload in per_fly_payload.items()
+        if not wall_payload_has_required_regions(payload)
+    )
+    if incomplete_flies:
+        raise ValueError(
+            "refusing to write incomplete wall-contact cache payload for "
+            f"fly IDs {incomplete_flies}"
+        )
+
     manifest_full = dict(manifest)
     manifest_full["created_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     manifest_full["payload"] = {
@@ -417,5 +448,20 @@ def load_wall_cache_npz(
             per_fly[fly]["wall"].setdefault(combo, {})
             per_fly[fly]["wall"][combo].setdefault(ref_pt, {})
             per_fly[fly]["wall"][combo][ref_pt][field] = z[key]
+
+        declared_flies = {
+            int(fly) for fly in manifest.get("payload", {}).get("flies", [])
+        }
+        incomplete_flies = sorted(
+            fly
+            for fly in declared_flies
+            if fly not in per_fly
+            or not wall_payload_has_required_regions(per_fly[fly])
+        )
+        if incomplete_flies:
+            raise ValueError(
+                "wall-contact cache is missing required regions for "
+                f"fly IDs {incomplete_flies}"
+            )
 
         return manifest, per_fly, wall_orientations

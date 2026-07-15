@@ -29,6 +29,7 @@ from src.caching.wall_contact_cache import (
     load_wall_cache_npz,
     manifest_matches,
     save_wall_cache_npz,
+    wall_payload_has_required_regions,
     _sha256_file,
 )
 from src.utils.common import (
@@ -135,6 +136,20 @@ TRX_IMG_FILE = "imgs/%s__t%d.png"
 per_va_processing_times = []
 per_bnd_processing_times = []
 per_lgt_processing_times = []
+
+
+def _apply_boundary_contact_results(va, trajectory_indices, results):
+    """Attach worker results to the trajectories that produced the jobs."""
+    if len(trajectory_indices) != len(results):
+        raise RuntimeError(
+            "boundary-contact worker returned an unexpected number of results"
+        )
+    for trajectory_index, result in zip(trajectory_indices, results):
+        for key, value in result.items():
+            if key == "wall_orientations":
+                setattr(va, key, value)
+            else:
+                setattr(va.trx[trajectory_index], key, value)
 
 
 @dataclass(frozen=True)
@@ -2568,6 +2583,24 @@ class VideoAnalysis:
                         cache_spec.expected_manifest, manifest
                     )
                     if ok:
+                        required_fly_ids = {
+                            int(getattr(trj, "f", 0))
+                            for trj in self.trx
+                            if not trj.bad()
+                        }
+                        incomplete_fly_ids = sorted(
+                            fly
+                            for fly in required_fly_ids
+                            if fly not in per_fly
+                            or not wall_payload_has_required_regions(per_fly[fly])
+                        )
+                        if incomplete_fly_ids:
+                            ok = False
+                            reason = (
+                                "missing required wall regions for fly IDs "
+                                f"{incomplete_fly_ids}"
+                            )
+                    if ok:
                         cache_hit = True
                         cached_wall_per_fly = per_fly
                         cached_wall_orientations = wall_orients
@@ -2580,8 +2613,7 @@ class VideoAnalysis:
 
             except Exception as e:
                 # Non-fatal: fall back to compute path
-                if getattr(self.opts, "wall_debug", False):
-                    print(f"[wall-cache] disabled due to error: {e!r}")
+                print(f"[wall-cache] warning: cache unusable, recomputing: {e}")
 
         if cache_hit and wall_only_fastpath:
             warned_missing = False
@@ -2589,7 +2621,13 @@ class VideoAnalysis:
                 if trj.bad():
                     continue
                 f = int(getattr(trj, "f", 0))
-                if cached_wall_per_fly is None or f not in cached_wall_per_fly:
+                if (
+                    cached_wall_per_fly is None
+                    or f not in cached_wall_per_fly
+                    or not wall_payload_has_required_regions(
+                        cached_wall_per_fly[f]
+                    )
+                ):
                     if not warned_missing:
                         print(
                             "[wall-cache] warning: cache hit but missing payload for at least one fly, falling back to compute"
@@ -2604,11 +2642,12 @@ class VideoAnalysis:
                     self.wall_orientations = cached_wall_orientations
                 return
 
-        if (
+        run_sequentially = (
             self.opts.bnd_ct_plots
             or self.opts.wall_debug
             or self.opts.turn_prob_by_dist
-        ):
+        )
+        if run_sequentially:
             for i, trj in enumerate(self.trx):
                 if trj.bad():
                     continue
@@ -2648,9 +2687,11 @@ class VideoAnalysis:
                 self.trx[i].receiveDataByKey(res)
 
             input_data = []
-            for trj in self.trx:
+            trajectory_indices = []
+            for i, trj in enumerate(self.trx):
                 if trj.bad():
                     continue
+                trajectory_indices.append(i)
                 trj_proxy = TrjDataContainer(trj)
                 va_proxy = VaDataContainer(self)
                 input_data.append(
@@ -2664,12 +2705,7 @@ class VideoAnalysis:
                 )
             with ThreadPool() as pool:
                 results = pool.starmap(runBoundaryContactAnalyses, input_data)
-            for i, res in enumerate(results):
-                for k in res:
-                    if k == "wall_orientations":
-                        setattr(self, k, res[k])
-                    else:
-                        setattr(self.trx[i], k, res[k])
+            _apply_boundary_contact_results(self, trajectory_indices, results)
 
         # ---- wall-contact cache (apply / save) ----
         if cache_hit and cached_wall_per_fly is not None:
@@ -2694,7 +2730,13 @@ class VideoAnalysis:
                         if trj.bad():
                             continue
                         f = int(getattr(trj, "f", 0))
-                        per_fly_payload[f] = extract_wall_payload_from_trj(trj)
+                        payload = extract_wall_payload_from_trj(trj)
+                        if not wall_payload_has_required_regions(payload):
+                            raise ValueError(
+                                "missing wall/all/edge contact regions for "
+                                f"fly ID {f}"
+                            )
+                        per_fly_payload[f] = payload
 
                     wall_orients = getattr(self, "wall_orientations", None)
                     save_wall_cache_npz(
@@ -2707,11 +2749,23 @@ class VideoAnalysis:
                         f"[wall-cache] wrote: {os.path.basename(cache_spec.npz_path)}"
                     )
                 except Exception as e:
-                    if getattr(self.opts, "wall_debug", False):
-                        print(f"[wall-cache] write failed: {e!r}")
+                    print(f"[wall-cache] warning: write skipped: {e}")
 
-            if self.opts.timeit:
-                per_bnd_processing_times.append(timeit.default_timer() - bnd_start_t)
+        if wall_requested:
+            for trj in self.trx:
+                if trj.bad():
+                    continue
+                f = int(getattr(trj, "f", 0))
+                payload = extract_wall_payload_from_trj(trj)
+                if not wall_payload_has_required_regions(payload):
+                    raise RuntimeError(
+                        "wall-contact analysis did not produce "
+                        "wall/all/edge contact regions for "
+                        f"fly ID {f}"
+                    )
+
+        if self.opts.timeit and not run_sequentially:
+            per_bnd_processing_times.append(timeit.default_timer() - bnd_start_t)
 
     def _analyzeCircularAndTurningMotion(self):
         """
