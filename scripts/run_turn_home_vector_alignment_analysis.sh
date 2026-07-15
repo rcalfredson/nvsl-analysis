@@ -18,12 +18,19 @@ TURN_HOME_TARGET="${TURN_HOME_TARGET:-reward_center}"
 TURN_MIN_TURNS="${TURN_MIN_TURNS:-5}"
 TURN_RADIAL_BINS="${TURN_RADIAL_BINS:-}"
 
+BEHAVIOR_STATE_DETECTOR="${BEHAVIOR_STATE_DETECTOR:-haberkern}"
 TURN_ANGULAR_SOURCE="${TURN_ANGULAR_SOURCE:-path_no_head_body}"
 TURN_ANGULAR_SMALL_DEG_S="${TURN_ANGULAR_SMALL_DEG_S:-80}"
 TURN_ANGULAR_LARGE_DEG_S="${TURN_ANGULAR_LARGE_DEG_S:-120}"
 TURN_SCORE_THRESHOLD="${TURN_SCORE_THRESHOLD:-1.4}"
 TURN_PATH_MIN_SPEED_MM_S="${TURN_PATH_MIN_SPEED_MM_S:-2}"
 TURN_MIN_SEGMENTS="${TURN_MIN_SEGMENTS:-2}"
+SB_POSITION_SAVGOL_WINDOW="${SB_POSITION_SAVGOL_WINDOW:-3}"
+SB_POSITION_SAVGOL_ORDER="${SB_POSITION_SAVGOL_ORDER:-1}"
+SB_BUTTERWORTH_CUTOFF_HZ="${SB_BUTTERWORTH_CUTOFF_HZ:-2.0}"
+SB_ANGULAR_MOVING_AVERAGE_FRAMES="${SB_ANGULAR_MOVING_AVERAGE_FRAMES:-1}"
+SB_TURN_FLANK_FRAMES="${SB_TURN_FLANK_FRAMES:-2}"
+SB_TURN_PEAK_DEG_S="${SB_TURN_PEAK_DEG_S:-120}"
 
 SYNC_SKIP="${SYNC_SKIP:-1}"
 SYNC_KEEP="${SYNC_KEEP:-4}"
@@ -245,7 +252,12 @@ case "$TURN_HOME_TARGET" in
 esac
 
 filter_slug="$(turn_filter_slug)"
-run_slug="turnHomeVectorAlignment${home_target_slug}_${filter_slug}_${TURN_ANGULAR_SOURCE}_score${TURN_SCORE_THRESHOLD}_small${TURN_ANGULAR_SMALL_DEG_S}_large${TURN_ANGULAR_LARGE_DEG_S}_sb2-5_${DATE_TAG}"
+if [[ "$BEHAVIOR_STATE_DETECTOR" == "schmitt_butterworth" ]]; then
+  detector_slug="schmittButterworth_sg${SB_POSITION_SAVGOL_WINDOW}p${SB_POSITION_SAVGOL_ORDER}_bw${SB_BUTTERWORTH_CUTOFF_HZ}_ma${SB_ANGULAR_MOVING_AVERAGE_FRAMES}_flank${SB_TURN_FLANK_FRAMES}_peak${SB_TURN_PEAK_DEG_S}"
+else
+  detector_slug="haberkern_${TURN_ANGULAR_SOURCE}_score${TURN_SCORE_THRESHOLD}_small${TURN_ANGULAR_SMALL_DEG_S}_large${TURN_ANGULAR_LARGE_DEG_S}"
+fi
+run_slug="turnHomeVectorAlignment${home_target_slug}_${filter_slug}_${detector_slug}_sb2-5_${DATE_TAG}"
 
 SLI_GROUPS=(all)
 SLI_SLUGS=("")
@@ -422,6 +434,13 @@ run_alignment_set() {
         "${radial_flags[@]}" \
         --turn-home-vector-alignment-skip-first-sync-buckets "$SYNC_SKIP" \
         --turn-home-vector-alignment-keep-first-sync-buckets "$SYNC_KEEP" \
+        --behavior-state-detector "$BEHAVIOR_STATE_DETECTOR" \
+        --behavior-state-sb-position-savgol-window "$SB_POSITION_SAVGOL_WINDOW" \
+        --behavior-state-sb-position-savgol-order "$SB_POSITION_SAVGOL_ORDER" \
+        --behavior-state-sb-butterworth-cutoff-hz "$SB_BUTTERWORTH_CUTOFF_HZ" \
+        --behavior-state-sb-angular-moving-average-frames "$SB_ANGULAR_MOVING_AVERAGE_FRAMES" \
+        --behavior-state-sb-turn-flank-frames "$SB_TURN_FLANK_FRAMES" \
+        --behavior-state-sb-turn-peak-deg-s "$SB_TURN_PEAK_DEG_S" \
         --behavior-state-turn-angular-source "$TURN_ANGULAR_SOURCE" \
         --behavior-state-turn-angular-small-deg-s "$TURN_ANGULAR_SMALL_DEG_S" \
         --behavior-state-turn-angular-large-deg-s "$TURN_ANGULAR_LARGE_DEG_S" \

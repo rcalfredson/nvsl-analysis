@@ -4,7 +4,15 @@ from dataclasses import dataclass, replace
 from enum import IntEnum
 
 import numpy as np
-from scipy.signal import savgol_filter
+from scipy.signal import butter, savgol_filter, sosfiltfilt
+
+
+BEHAVIOR_STATE_DETECTOR_HABERKERN = "haberkern"
+BEHAVIOR_STATE_DETECTOR_SCHMITT_BUTTERWORTH = "schmitt_butterworth"
+BEHAVIOR_STATE_DETECTOR_CHOICES = (
+    BEHAVIOR_STATE_DETECTOR_HABERKERN,
+    BEHAVIOR_STATE_DETECTOR_SCHMITT_BUTTERWORTH,
+)
 
 
 class BehaviorState(IntEnum):
@@ -47,6 +55,30 @@ class BehaviorStateConfig:
 DEFAULT_BEHAVIOR_STATE_CONFIG = BehaviorStateConfig()
 
 
+@dataclass(frozen=True)
+class SchmittButterworthConfig:
+    """Configuration for the low-frame-rate Schmitt–Butterworth detector."""
+
+    position_savgol_window: int = 3
+    position_savgol_order: int = 1
+    walking_start_mm_s: float = 2.0
+    stopping_start_mm_s: float = 1.0
+    stopped_min_duration_s: float = 0.2
+    walking_min_duration_s: float = 0.05
+    stop_extension_radius_mm: float = 0.5
+    stop_extension_window_s: float = 1.0
+    butterworth_order: int = 4
+    butterworth_cutoff_hz: float = 2.0
+    angular_moving_average_frames: int = 1
+    turn_peak_threshold_deg_s: float = 120.0
+    turn_flank_frames: int = 2
+    turn_merge_radius_mm: float = 0.5
+    turn_min_angle_deg: float = 20.0
+
+
+DEFAULT_SCHMITT_BUTTERWORTH_CONFIG = SchmittButterworthConfig()
+
+
 def _reference_savgol_filter(
     values: np.ndarray,
     *,
@@ -67,7 +99,110 @@ def _shift_left_zero_tail(values: np.ndarray, frames: int) -> np.ndarray:
     return out
 
 
-def behavior_state_config_from_opts(opts) -> BehaviorStateConfig:
+def behavior_state_detector_from_opts(opts) -> str:
+    detector = str(
+        getattr(opts, "behavior_state_detector", BEHAVIOR_STATE_DETECTOR_HABERKERN)
+        or BEHAVIOR_STATE_DETECTOR_HABERKERN
+    ).strip().lower().replace("-", "_")
+    if detector not in BEHAVIOR_STATE_DETECTOR_CHOICES:
+        raise ValueError(f"Unknown behavior-state detector: {detector}")
+    return detector
+
+
+def _schmitt_butterworth_config_from_opts(opts) -> SchmittButterworthConfig:
+    cfg = DEFAULT_SCHMITT_BUTTERWORTH_CONFIG
+    updates = {}
+    option_fields = {
+        "behavior_state_sb_position_savgol_window": (
+            "position_savgol_window",
+            int,
+        ),
+        "behavior_state_sb_position_savgol_order": (
+            "position_savgol_order",
+            int,
+        ),
+        "behavior_state_sb_walking_start_mm_s": ("walking_start_mm_s", float),
+        "behavior_state_sb_stopping_start_mm_s": ("stopping_start_mm_s", float),
+        "behavior_state_sb_stopped_min_duration_s": (
+            "stopped_min_duration_s",
+            float,
+        ),
+        "behavior_state_sb_walking_min_duration_s": (
+            "walking_min_duration_s",
+            float,
+        ),
+        "behavior_state_sb_stop_extension_radius_mm": (
+            "stop_extension_radius_mm",
+            float,
+        ),
+        "behavior_state_sb_stop_extension_window_s": (
+            "stop_extension_window_s",
+            float,
+        ),
+        "behavior_state_sb_butterworth_cutoff_hz": (
+            "butterworth_cutoff_hz",
+            float,
+        ),
+        "behavior_state_sb_angular_moving_average_frames": (
+            "angular_moving_average_frames",
+            int,
+        ),
+        "behavior_state_sb_turn_peak_deg_s": (
+            "turn_peak_threshold_deg_s",
+            float,
+        ),
+        "behavior_state_sb_turn_flank_frames": ("turn_flank_frames", int),
+        "behavior_state_sb_turn_merge_radius_mm": (
+            "turn_merge_radius_mm",
+            float,
+        ),
+        "behavior_state_sb_turn_min_angle_deg": ("turn_min_angle_deg", float),
+    }
+    for option, (field, converter) in option_fields.items():
+        value = getattr(opts, option, None)
+        if value is not None:
+            updates[field] = converter(value)
+
+    out = replace(cfg, **updates)
+    if out.position_savgol_window < 1 or out.position_savgol_window % 2 == 0:
+        raise ValueError("Schmitt–Butterworth Savitzky–Golay window must be odd")
+    if not 0 <= out.position_savgol_order < out.position_savgol_window:
+        raise ValueError(
+            "Schmitt–Butterworth Savitzky–Golay order must be nonnegative and "
+            "smaller than its window"
+        )
+    if out.stopping_start_mm_s > out.walking_start_mm_s:
+        raise ValueError("Stopping threshold cannot exceed walking threshold")
+    positive_fields = (
+        "stopped_min_duration_s",
+        "walking_min_duration_s",
+        "stop_extension_radius_mm",
+        "stop_extension_window_s",
+        "butterworth_cutoff_hz",
+        "turn_peak_threshold_deg_s",
+        "turn_merge_radius_mm",
+        "turn_min_angle_deg",
+    )
+    if any(getattr(out, field) < 0 for field in positive_fields):
+        raise ValueError(
+            "Schmitt–Butterworth thresholds and durations must be nonnegative"
+        )
+    if out.angular_moving_average_frames < 1:
+        raise ValueError("Angular moving-average window must be at least one frame")
+    if out.turn_flank_frames < 2:
+        raise ValueError("Turn line fits require at least two frames per flank")
+    return out
+
+
+def behavior_state_config_from_opts(
+    opts,
+) -> BehaviorStateConfig | SchmittButterworthConfig:
+    if (
+        behavior_state_detector_from_opts(opts)
+        == BEHAVIOR_STATE_DETECTOR_SCHMITT_BUTTERWORTH
+    ):
+        return _schmitt_butterworth_config_from_opts(opts)
+
     cfg = DEFAULT_BEHAVIOR_STATE_CONFIG
     updates = {}
 
@@ -848,9 +983,484 @@ def classify_behavior_states(
     return states
 
 
-def analyze_trajectory_behavior_states(
-    trj, *, config: BehaviorStateConfig = DEFAULT_BEHAVIOR_STATE_CONFIG
+def smooth_schmitt_butterworth_positions(
+    x_px: np.ndarray,
+    y_px: np.ndarray,
+    *,
+    config: SchmittButterworthConfig = DEFAULT_SCHMITT_BUTTERWORTH_CONFIG,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Apply the alternative detector's position-only Savitzky–Golay filter."""
+    x = np.asarray(x_px, dtype=np.float64).copy()
+    y = np.asarray(y_px, dtype=np.float64).copy()
+    n = min(x.size, y.size)
+    x, y = x[:n], y[:n]
+    window = int(config.position_savgol_window)
+    if window > 1 and n >= window:
+        order = int(config.position_savgol_order)
+        x = savgol_filter(x, window, order, mode="interp")
+        y = savgol_filter(y, window, order, mode="interp")
+    return x, y
+
+
+def schmitt_walking_mask(
+    speed_mm_s: np.ndarray,
+    *,
+    walking_start_mm_s: float = (
+        DEFAULT_SCHMITT_BUTTERWORTH_CONFIG.walking_start_mm_s
+    ),
+    stopping_start_mm_s: float = (
+        DEFAULT_SCHMITT_BUTTERWORTH_CONFIG.stopping_start_mm_s
+    ),
+) -> np.ndarray:
+    """Inclusive Schmitt trigger, conservatively initialized as stopped."""
+    speed = np.asarray(speed_mm_s, dtype=np.float64)
+    walking = np.zeros(speed.size, dtype=bool)
+    state = False
+    for i, value in enumerate(speed):
+        if np.isfinite(value):
+            if value >= walking_start_mm_s:
+                state = True
+            elif value <= stopping_start_mm_s:
+                state = False
+        walking[i] = state
+    return walking
+
+
+def extend_schmitt_stops(
+    walking_mask: np.ndarray,
+    x_px: np.ndarray,
+    y_px: np.ndarray,
+    *,
+    fps: float,
+    px_per_mm: float,
+    dt_s: np.ndarray | None = None,
+    config: SchmittButterworthConfig = DEFAULT_SCHMITT_BUTTERWORTH_CONFIG,
+) -> np.ndarray:
+    """Perform a frozen, one-pass, fixed-endpoint extension of stopped bouts."""
+    walking = np.asarray(walking_mask, dtype=bool)
+    x = np.asarray(x_px, dtype=np.float64)
+    y = np.asarray(y_px, dtype=np.float64)
+    n = min(walking.size, x.size, y.size)
+    original = walking[:n].copy()
+    out = original.copy()
+    max_frames = max(0, n - 1)
+    dt_values = None if dt_s is None else np.asarray(dt_s, dtype=np.float64)[:n]
+    radius_px = float(config.stop_extension_radius_mm) * float(px_per_mm)
+
+    for start, stop in _true_runs(~original):
+        elapsed = 0.0
+        for offset in range(1, max_frames + 1):
+            frame = start - offset
+            if frame < 0:
+                break
+            elapsed += (
+                float(dt_values[frame + 1])
+                if dt_values is not None
+                else 1.0 / float(fps)
+            )
+            if elapsed > config.stop_extension_window_s + 1e-12:
+                break
+            if np.hypot(x[frame] - x[start], y[frame] - y[start]) > radius_px:
+                break
+            out[frame] = False
+        elapsed = 0.0
+        for offset in range(1, max_frames + 1):
+            frame = stop + offset
+            if frame >= n:
+                break
+            elapsed += (
+                float(dt_values[frame])
+                if dt_values is not None
+                else 1.0 / float(fps)
+            )
+            if elapsed > config.stop_extension_window_s + 1e-12:
+                break
+            if np.hypot(x[frame] - x[stop], y[frame] - y[stop]) > radius_px:
+                break
+            out[frame] = False
+    return out
+
+
+def _binary_bouts(mask: np.ndarray) -> list[tuple[int, int, bool]]:
+    values = np.asarray(mask, dtype=bool)
+    if values.size == 0:
+        return []
+    boundaries = np.flatnonzero(values[1:] != values[:-1]) + 1
+    starts = np.r_[0, boundaries]
+    stops = np.r_[boundaries - 1, values.size - 1]
+    return [
+        (int(start), int(stop), bool(values[start]))
+        for start, stop in zip(starts, stops)
+    ]
+
+
+def clean_schmitt_bout_durations(
+    walking_mask: np.ndarray,
+    *,
+    fps: float,
+    dt_s: np.ndarray | None = None,
+    config: SchmittButterworthConfig = DEFAULT_SCHMITT_BUTTERWORTH_CONFIG,
+) -> np.ndarray:
+    """Merge undersized bouts until stable; every edit removes a boundary."""
+    out = np.asarray(walking_mask, dtype=bool).copy()
+    dt_values = (
+        None
+        if dt_s is None
+        else np.asarray(dt_s, dtype=np.float64)[: out.size]
+    )
+    minimum_s = {
+        False: float(config.stopped_min_duration_s),
+        True: float(config.walking_min_duration_s),
+    }
+
+    def duration_s(start: int, stop: int) -> float:
+        if dt_values is None:
+            return (stop - start + 1) / float(fps)
+        return float(np.sum(dt_values[start : stop + 1]))
+
+    while True:
+        bouts = _binary_bouts(out)
+        if len(bouts) <= 1:
+            return out
+        selected = None
+        for target_state in (False, True):
+            selected = next(
+                (
+                    (start, stop, state)
+                    for start, stop, state in bouts
+                    if state == target_state
+                    and duration_s(start, stop) + 1e-12 < minimum_s[target_state]
+                ),
+                None,
+            )
+            if selected is not None:
+                break
+        if selected is None:
+            return out
+        start, stop, state = selected
+        out[start : stop + 1] = not state
+
+
+def schmitt_butterworth_path_angular_velocity_deg_s(
+    x_px: np.ndarray,
+    y_px: np.ndarray,
+    *,
+    fps: float,
+    dt_s: np.ndarray | None = None,
+) -> np.ndarray:
+    """Path-bearing angular velocity aligned to the spatial vertex frame."""
+    x = np.asarray(x_px, dtype=np.float64)
+    y = np.asarray(y_px, dtype=np.float64)
+    n = min(x.size, y.size)
+    out = np.zeros(n, dtype=np.float64)
+    if n < 3:
+        return out
+
+    dx = np.diff(x[:n])
+    dy = np.diff(y[:n])
+    valid_segment = np.isfinite(dx) & np.isfinite(dy) & (np.hypot(dx, dy) > 1e-12)
+    bearing = np.arctan2(-dy, dx)
+    for vertex in range(1, n - 1):
+        if not (valid_segment[vertex - 1] and valid_segment[vertex]):
+            continue
+        delta = np.arctan2(
+            np.sin(bearing[vertex] - bearing[vertex - 1]),
+            np.cos(bearing[vertex] - bearing[vertex - 1]),
+        )
+        if dt_s is None:
+            dt = 1.0 / float(fps)
+        else:
+            dt_values = np.asarray(dt_s, dtype=np.float64)
+            dt = 0.5 * (dt_values[vertex] + dt_values[vertex + 1])
+        if np.isfinite(dt) and dt > 0:
+            out[vertex] = np.rad2deg(delta) / dt
+    return out
+
+
+def _centered_moving_average(values: np.ndarray, frames: int) -> np.ndarray:
+    values = np.asarray(values, dtype=np.float64)
+    width = max(1, int(frames))
+    if width == 1 or values.size == 0:
+        return values.copy()
+    left = (width - 1) // 2
+    right = width - left - 1
+    mode = "reflect" if values.size > max(left, right) else "edge"
+    padded = np.pad(values, (left, right), mode=mode)
+    return np.convolve(padded, np.ones(width) / width, mode="valid")
+
+
+def filter_schmitt_butterworth_angular_velocity(
+    angular_velocity_deg_s: np.ndarray,
+    *,
+    fps: float,
+    config: SchmittButterworthConfig = DEFAULT_SCHMITT_BUTTERWORTH_CONFIG,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return zero-phase Butterworth and optional moving-average signals."""
+    raw = np.asarray(angular_velocity_deg_s, dtype=np.float64)
+    nyquist = 0.5 * float(fps)
+    cutoff = float(config.butterworth_cutoff_hz)
+    if not 0 < cutoff < nyquist:
+        raise ValueError(
+            f"Butterworth cutoff must be between 0 and Nyquist ({nyquist:g} Hz); "
+            f"got {cutoff:g} Hz"
+        )
+    sos = butter(
+        int(config.butterworth_order),
+        cutoff,
+        btype="lowpass",
+        fs=float(fps),
+        output="sos",
+    )
+    try:
+        filtered = sosfiltfilt(sos, raw)
+    except ValueError:
+        # Very short trajectories cannot support forward/backward filter padding.
+        filtered = raw.copy()
+    averaged = _centered_moving_average(
+        filtered, int(config.angular_moving_average_frames)
+    )
+    return filtered, averaged
+
+
+def strict_turn_peak_indices(
+    angular_velocity_deg_s: np.ndarray,
+    *,
+    threshold_deg_s: float,
+    flank_frames: int,
+) -> np.ndarray:
+    absolute = np.abs(np.asarray(angular_velocity_deg_s, dtype=np.float64))
+    if absolute.size < 3:
+        return np.array([], dtype=np.int64)
+    indices = np.arange(1, absolute.size - 1)
+    keep = (
+        (absolute[indices] >= threshold_deg_s)
+        & (absolute[indices] > absolute[indices - 1])
+        & (absolute[indices] > absolute[indices + 1])
+        & (indices >= flank_frames)
+        & (indices + flank_frames < absolute.size)
+    )
+    return indices[keep].astype(np.int64)
+
+
+def _forward_line_angle_rad(x: np.ndarray, y: np.ndarray) -> float:
+    if x.size < 2 or y.size < 2:
+        return np.nan
+    t = np.arange(x.size, dtype=np.float64)
+    vx = np.polyfit(t, x, 1)[0]
+    vy = -np.polyfit(t, y, 1)[0]
+    if not np.isfinite(vx + vy) or np.hypot(vx, vy) <= 1e-12:
+        return np.nan
+    return float(np.arctan2(vy, vx))
+
+
+def signed_turn_angle_deg(
+    x_px: np.ndarray,
+    y_px: np.ndarray,
+    *,
+    first_peak: int,
+    last_peak: int,
+    flank_frames: int,
+) -> float:
+    x = np.asarray(x_px, dtype=np.float64)
+    y = np.asarray(y_px, dtype=np.float64)
+    incoming = slice(first_peak - flank_frames, first_peak)
+    outgoing = slice(last_peak + 1, last_peak + flank_frames + 1)
+    before = _forward_line_angle_rad(x[incoming], y[incoming])
+    after = _forward_line_angle_rad(x[outgoing], y[outgoing])
+    if not np.isfinite(before + after):
+        return np.nan
+    return float(
+        np.rad2deg(np.arctan2(np.sin(after - before), np.cos(after - before)))
+    )
+
+
+def consolidate_schmitt_butterworth_peaks(
+    peaks: np.ndarray,
+    x_px: np.ndarray,
+    y_px: np.ndarray,
+    filtered_angular_velocity_deg_s: np.ndarray,
+    *,
+    px_per_mm: float,
+    config: SchmittButterworthConfig = DEFAULT_SCHMITT_BUTTERWORTH_CONFIG,
+) -> list[dict]:
+    peak_values = [int(value) for value in np.asarray(peaks, dtype=np.int64)]
+    if not peak_values:
+        return []
+    x = np.asarray(x_px, dtype=np.float64)
+    y = np.asarray(y_px, dtype=np.float64)
+    angular = np.asarray(filtered_angular_velocity_deg_s, dtype=np.float64)
+    groups: list[list[int]] = [[peak_values[0]]]
+    radius_px = config.turn_merge_radius_mm * float(px_per_mm)
+    for peak in peak_values[1:]:
+        previous = groups[-1][-1]
+        distance = np.hypot(x[peak] - x[previous], y[peak] - y[previous])
+        if np.isfinite(distance) and distance <= radius_px:
+            groups[-1].append(peak)
+        else:
+            groups.append([peak])
+
+    events = []
+    flank = int(config.turn_flank_frames)
+    for group in groups:
+        representative = max(group, key=lambda frame: (abs(angular[frame]), -frame))
+        angle = signed_turn_angle_deg(
+            x,
+            y,
+            first_peak=group[0],
+            last_peak=group[-1],
+            flank_frames=flank,
+        )
+        events.append(
+            {
+                "peaks": tuple(group),
+                "representative_peak": int(representative),
+                "start": int(group[0] - flank),
+                "stop": int(group[-1] + flank),
+                "signed_angle_deg": angle,
+                "peak_angular_velocity_deg_s": float(angular[representative]),
+            }
+        )
+    return events
+
+
+def wall_contact_mask_for_behavior_states(trj, n: int) -> np.ndarray:
+    """Expand the standard compact wall/all/edge regions into a frame mask."""
+    try:
+        regions = trj.boundary_event_stats["wall"]["all"]["edge"][
+            "boundary_contact_regions"
+        ]
+    except (AttributeError, KeyError, TypeError) as exc:
+        raise ValueError(
+            "Schmitt–Butterworth behavior states require wall-contact regions"
+        ) from exc
+    mask = np.zeros(int(n), dtype=bool)
+    for region in regions:
+        if isinstance(region, slice):
+            start = 0 if region.start is None else int(region.start)
+            stop = n if region.stop is None else int(region.stop)
+        elif hasattr(region, "start") and hasattr(region, "stop"):
+            start = 0 if region.start is None else int(region.start)
+            stop = n if region.stop is None else int(region.stop)
+        else:
+            start, stop = int(region[0]), int(region[1])
+        mask[max(0, start) : min(n, stop)] = True
+    return mask
+
+
+def analyze_trajectory_schmitt_butterworth_states(
+    trj,
+    *,
+    config: SchmittButterworthConfig = DEFAULT_SCHMITT_BUTTERWORTH_CONFIG,
 ) -> np.ndarray | None:
+    if trj.bad() or not trj.va:
+        return None
+    x = np.asarray(trj.x, dtype=np.float64)
+    y = np.asarray(trj.y, dtype=np.float64)
+    n = min(x.size, y.size)
+    if n == 0:
+        return None
+
+    fps = float(trj.va.fps)
+    px_per_mm = trj.va.ct.pxPerMmFloor() * getattr(trj.va.xf, "fctr", 1.0)
+    dt_s = _trajectory_dt_s(trj)
+    x_smooth, y_smooth = smooth_schmitt_butterworth_positions(
+        x[:n], y[:n], config=config
+    )
+    displacement_px = np.hypot(np.diff(x_smooth), np.diff(y_smooth))
+    displacement_px = np.append(
+        displacement_px[0] if displacement_px.size else 0.0, displacement_px
+    )
+    if dt_s is None:
+        speed_dt = np.full(n, 1.0 / fps, dtype=np.float64)
+    else:
+        speed_dt = np.asarray(dt_s, dtype=np.float64)[:n]
+    speed = displacement_px / speed_dt / float(px_per_mm)
+    preliminary_walking = schmitt_walking_mask(
+        speed,
+        walking_start_mm_s=config.walking_start_mm_s,
+        stopping_start_mm_s=config.stopping_start_mm_s,
+    )
+    extended_walking = extend_schmitt_stops(
+        preliminary_walking,
+        x_smooth,
+        y_smooth,
+        fps=fps,
+        px_per_mm=px_per_mm,
+        dt_s=dt_s,
+        config=config,
+    )
+    walking = clean_schmitt_bout_durations(
+        extended_walking, fps=fps, dt_s=dt_s, config=config
+    )
+    raw_angular = schmitt_butterworth_path_angular_velocity_deg_s(
+        x_smooth, y_smooth, fps=fps, dt_s=dt_s
+    )
+    butter_angular, final_angular = filter_schmitt_butterworth_angular_velocity(
+        raw_angular, fps=fps, config=config
+    )
+    peaks = strict_turn_peak_indices(
+        final_angular,
+        threshold_deg_s=config.turn_peak_threshold_deg_s,
+        flank_frames=config.turn_flank_frames,
+    )
+    events = consolidate_schmitt_butterworth_peaks(
+        peaks,
+        x_smooth,
+        y_smooth,
+        final_angular,
+        px_per_mm=px_per_mm,
+        config=config,
+    )
+    wall_contact = wall_contact_mask_for_behavior_states(trj, n)
+    turn_mask = np.zeros(n, dtype=bool)
+    for event in events:
+        start, stop = event["start"], event["stop"]
+        reason = None
+        if not np.isfinite(event["signed_angle_deg"]):
+            reason = "invalid_angle"
+        elif abs(event["signed_angle_deg"]) < config.turn_min_angle_deg:
+            reason = "angle_below_threshold"
+        elif np.any(~walking[start : stop + 1]):
+            reason = "stopped"
+        elif np.any(wall_contact[start : stop + 1]):
+            reason = "wall_contact"
+        event["accepted"] = reason is None
+        event["rejection_reason"] = reason
+        if reason is None:
+            turn_mask[start : stop + 1] = True
+
+    states = np.full(n, BehaviorState.REST, dtype=np.int8)
+    states[walking] = BehaviorState.RUN
+    states[turn_mask] = BehaviorState.TURN
+
+    trj.behavior_detector = BEHAVIOR_STATE_DETECTOR_SCHMITT_BUTTERWORTH
+    trj.behavior_body_speed_mm_s = speed
+    trj.behavior_path_angular_speed_rad_s = np.deg2rad(final_angular)
+    trj.behavior_turn_mask = turn_mask
+    trj.behavior_state = states
+    trj.behavior_sb_x_smooth_px = x_smooth
+    trj.behavior_sb_y_smooth_px = y_smooth
+    trj.behavior_sb_preliminary_walking_mask = preliminary_walking
+    trj.behavior_sb_extended_walking_mask = extended_walking
+    trj.behavior_sb_walking_mask = walking
+    trj.behavior_sb_raw_angular_velocity_deg_s = raw_angular
+    trj.behavior_sb_butterworth_angular_velocity_deg_s = butter_angular
+    trj.behavior_sb_angular_velocity_deg_s = final_angular
+    trj.behavior_sb_peak_indices = peaks
+    trj.behavior_sb_turn_events = events
+    trj.behavior_sb_wall_contact_mask = wall_contact
+    return states
+
+
+def analyze_trajectory_behavior_states(
+    trj,
+    *,
+    config: BehaviorStateConfig
+    | SchmittButterworthConfig = DEFAULT_BEHAVIOR_STATE_CONFIG,
+) -> np.ndarray | None:
+    if isinstance(config, SchmittButterworthConfig):
+        return analyze_trajectory_schmitt_butterworth_states(trj, config=config)
+
     if trj.bad() or trj.theta is None or trj.h is None or not trj.va:
         return None
 
@@ -892,6 +1502,7 @@ def analyze_trajectory_behavior_states(
         )
     else:
         pivot_mask = np.zeros_like(segment_speed, dtype=bool)
+    trj.behavior_detector = BEHAVIOR_STATE_DETECTOR_HABERKERN
     trj.behavior_body_speed_mm_s = body_speed
     trj.behavior_head_speed_mm_s = head_speed
     trj.behavior_angular_speed_rad_s = angular_speed

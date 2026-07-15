@@ -14,6 +14,7 @@ import numpy as np
 from src.analysis.behavior_states import (
     BehaviorState,
     DEFAULT_BEHAVIOR_STATE_CONFIG,
+    SchmittButterworthConfig,
     analyze_trajectory_behavior_states,
     behavior_state_config_from_opts,
     find_turns,
@@ -5365,19 +5366,31 @@ class EventChainPlotter:
         out_dir = out_dir or os.path.join("imgs", "behavior_states")
         os.makedirs(out_dir, exist_ok=True)
         trn_tag = f"trn{trn_index + 1}" if trn_index is not None else "fm"
-        source = str(
+        detector = str(
             getattr(
                 getattr(self.va, "opts", None),
-                "behavior_state_turn_angular_source",
-                None,
+                "behavior_state_detector",
+                "haberkern",
             )
-            or DEFAULT_BEHAVIOR_STATE_CONFIG.turn_angular_source
         ).strip().lower().replace("-", "_")
+        source = (
+            detector
+            if detector == "schmitt_butterworth"
+            else str(
+                getattr(
+                    getattr(self.va, "opts", None),
+                    "behavior_state_turn_angular_source",
+                    None,
+                )
+                or DEFAULT_BEHAVIOR_STATE_CONFIG.turn_angular_source
+            ).strip().lower().replace("-", "_")
+        )
         source_tags = {
             "theta": "heading_only",
             "path": "velAngle_only",
             "theta_or_path": "velAngle_or_heading",
             "path_no_head_body": "velAngle_noHeadBody",
+            "schmitt_butterworth": "schmittButterworth",
         }
         source_tag = source_tags.get(source, source)
         # Preserve existing experimental-fly filenames while preventing a yoked
@@ -5410,6 +5423,15 @@ class EventChainPlotter:
         states: np.ndarray,
     ) -> None:
         config = behavior_state_config_from_opts(getattr(self.va, "opts", None))
+        if isinstance(config, SchmittButterworthConfig):
+            self._write_schmitt_butterworth_debug_tsv(
+                out_path,
+                start_frame=start_frame,
+                stop_frame=stop_frame,
+                states=states,
+                config=config,
+            )
+            return
         angular_speed = np.asarray(
             getattr(self.trj, "behavior_angular_speed_rad_s", []), dtype=np.float64
         )
@@ -5579,6 +5601,152 @@ class EventChainPlotter:
                             if config.turn_pivot_flank_min_speed_mm_s is not None
                             else min_segment_speed
                         ),
+                    ]
+                )
+        print(f"[plot_behavior_state_trajectory] wrote {out_path}")
+
+    def _write_schmitt_butterworth_debug_tsv(
+        self,
+        out_path: str,
+        *,
+        start_frame: int,
+        stop_frame: int,
+        states: np.ndarray,
+        config: SchmittButterworthConfig,
+    ) -> None:
+        signals = {
+            "x_smooth_px": np.asarray(
+                getattr(self.trj, "behavior_sb_x_smooth_px", []), dtype=np.float64
+            ),
+            "y_smooth_px": np.asarray(
+                getattr(self.trj, "behavior_sb_y_smooth_px", []), dtype=np.float64
+            ),
+            "body_speed_mm_s": np.asarray(
+                getattr(self.trj, "behavior_body_speed_mm_s", []), dtype=np.float64
+            ),
+            "preliminary_walking": np.asarray(
+                getattr(self.trj, "behavior_sb_preliminary_walking_mask", []),
+                dtype=bool,
+            ),
+            "extended_walking": np.asarray(
+                getattr(self.trj, "behavior_sb_extended_walking_mask", []),
+                dtype=bool,
+            ),
+            "cleaned_walking": np.asarray(
+                getattr(self.trj, "behavior_sb_walking_mask", []), dtype=bool
+            ),
+            "raw_angular_velocity_deg_s": np.asarray(
+                getattr(self.trj, "behavior_sb_raw_angular_velocity_deg_s", []),
+                dtype=np.float64,
+            ),
+            "butterworth_angular_velocity_deg_s": np.asarray(
+                getattr(
+                    self.trj,
+                    "behavior_sb_butterworth_angular_velocity_deg_s",
+                    [],
+                ),
+                dtype=np.float64,
+            ),
+            "final_angular_velocity_deg_s": np.asarray(
+                getattr(self.trj, "behavior_sb_angular_velocity_deg_s", []),
+                dtype=np.float64,
+            ),
+            "wall_contact": np.asarray(
+                getattr(self.trj, "behavior_sb_wall_contact_mask", []), dtype=bool
+            ),
+            "turn": np.asarray(
+                getattr(self.trj, "behavior_turn_mask", []), dtype=bool
+            ),
+        }
+        if not signals or any(values.size == 0 for values in signals.values()):
+            print(
+                "[plot_behavior_state_trajectory] No Schmitt–Butterworth signals "
+                f"for debug TSV; skipping {out_path}."
+            )
+            return
+        n = min(len(states), *(values.size for values in signals.values()))
+        start = max(0, int(start_frame))
+        stop = min(n - 1, int(stop_frame))
+        if stop < start:
+            return
+
+        peak_mask = np.zeros(n, dtype=bool)
+        peaks = np.asarray(
+            getattr(self.trj, "behavior_sb_peak_indices", []), dtype=np.int64
+        )
+        peak_mask[peaks[(peaks >= 0) & (peaks < n)]] = True
+        event_by_frame = {}
+        for event_index, event in enumerate(
+            getattr(self.trj, "behavior_sb_turn_events", [])
+        ):
+            for frame in range(max(0, event["start"]), min(n - 1, event["stop"]) + 1):
+                event_by_frame[frame] = (event_index, event)
+
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+        with open(out_path, "w", newline="") as fh:
+            writer = csv.writer(fh, delimiter="\t")
+            writer.writerow(
+                [
+                    "frame",
+                    "x_px",
+                    "y_px",
+                    "x_smooth_px",
+                    "y_smooth_px",
+                    "state",
+                    "body_speed_mm_s",
+                    "preliminary_walking",
+                    "extended_walking",
+                    "cleaned_walking",
+                    "raw_angular_velocity_deg_s",
+                    "butterworth_angular_velocity_deg_s",
+                    "final_angular_velocity_deg_s",
+                    "is_peak",
+                    "wall_contact",
+                    "turn_label",
+                    "event_index",
+                    "event_representative_peak",
+                    "event_signed_angle_deg",
+                    "event_accepted",
+                    "event_rejection_reason",
+                    "position_savgol_window",
+                    "position_savgol_order",
+                    "butterworth_cutoff_hz",
+                    "angular_moving_average_frames",
+                    "turn_flank_frames",
+                    "turn_peak_threshold_deg_s",
+                ]
+            )
+            for frame in range(start, stop + 1):
+                event_index, event = event_by_frame.get(frame, ("", {}))
+                writer.writerow(
+                    [
+                        frame,
+                        self.x[frame],
+                        self.y[frame],
+                        signals["x_smooth_px"][frame],
+                        signals["y_smooth_px"][frame],
+                        BehaviorState(int(states[frame])).name.lower(),
+                        signals["body_speed_mm_s"][frame],
+                        int(signals["preliminary_walking"][frame]),
+                        int(signals["extended_walking"][frame]),
+                        int(signals["cleaned_walking"][frame]),
+                        signals["raw_angular_velocity_deg_s"][frame],
+                        signals["butterworth_angular_velocity_deg_s"][frame],
+                        signals["final_angular_velocity_deg_s"][frame],
+                        int(peak_mask[frame]),
+                        int(signals["wall_contact"][frame]),
+                        int(signals["turn"][frame]),
+                        event_index,
+                        event.get("representative_peak", ""),
+                        event.get("signed_angle_deg", ""),
+                        int(event["accepted"]) if event else "",
+                        event.get("rejection_reason", ""),
+                        config.position_savgol_window,
+                        config.position_savgol_order,
+                        config.butterworth_cutoff_hz,
+                        config.angular_moving_average_frames,
+                        config.turn_flank_frames,
+                        config.turn_peak_threshold_deg_s,
                     ]
                 )
         print(f"[plot_behavior_state_trajectory] wrote {out_path}")

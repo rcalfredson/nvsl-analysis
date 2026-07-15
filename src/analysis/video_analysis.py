@@ -233,6 +233,17 @@ class VideoAnalysis:
             return
         self.setOptionDefaults()
 
+        if (
+            getattr(opts, "behavior_state_analysis", False)
+            and getattr(opts, "behavior_state_detector", "haberkern")
+            == "schmitt_butterworth"
+            and not getattr(opts, "wall", None)
+        ):
+            opts.wall = (
+                f"{CONTACT_BUFFER_OFFSETS['wall']['min']}|"
+                f"{CONTACT_BUFFER_OFFSETS['wall']['max']}"
+            )
+
         needs_tp = (
             opts.contact_geometry == "horizontal" and opts.turn_prob_by_dist
         ) or (opts.contact_geometry == "circular" and opts.outside_circle_radii)
@@ -261,11 +272,11 @@ class VideoAnalysis:
         self._initTrx()
         self._initSlots()
         self._readNoteFile(fn)  # possibly overrides whether trajectories bad
-        if getattr(opts, "behavior_state_analysis", False):
-            self._analyzeBehaviorStates()
         if opts.circle:
             self._analyzeCircularAndTurningMotion()
         self.runBoundaryContactAnalyses()
+        if getattr(opts, "behavior_state_analysis", False):
+            self._analyzeBehaviorStates()
         if opts.jaabaOut:
             for trj in self.trx:
                 CircularMotionDetector(trj, opts).writeJaabaTrxFile()
@@ -747,6 +758,12 @@ class VideoAnalysis:
             )
         )
 
+        keep_wall_regions_for_behavior_states = bool(
+            getattr(self.opts, "behavior_state_analysis", False)
+            and getattr(self.opts, "behavior_state_detector", "haberkern")
+            == "schmitt_butterworth"
+        )
+
         keep_wall_regions = (
             keep_wall_regions_for_polar
             or keep_wall_regions_for_btw_rwd_com_mag
@@ -760,6 +777,7 @@ class VideoAnalysis:
             or keep_wall_regions_for_post_wall_departure_tortuosity
             or keep_wall_regions_for_return_prob_outer_radius
             or keep_wall_regions_for_wall_contacts_per_reward_interval_total
+            or keep_wall_regions_for_behavior_states
         )
 
         # ─────────────────────────────────────────────────────────────
@@ -2723,9 +2741,8 @@ class VideoAnalysis:
         """
         Opt-in frame-wise turn/run/rest classification.
 
-        The detector mirrors the reference behaviorseg.py method: turns are scored
-        from angular speed and the head-body speed difference; non-turn frames are
-        split into run/rest with a Schmitt trigger on body speed.
+        The selected detector supplies the state labels and attaches its
+        detector-specific diagnostic signals to each trajectory.
         """
         print("\nanalyzing behavior states (turn/run/rest)...")
         config = behavior_state_config_from_opts(self.opts)

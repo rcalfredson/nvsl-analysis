@@ -4,17 +4,25 @@ from src.analysis.behavior_states import (
     BehaviorState,
     BehaviorStateConfig,
     DEFAULT_BEHAVIOR_STATE_CONFIG,
+    SchmittButterworthConfig,
     _reference_savgol_filter,
     analyze_trajectory_behavior_states,
     absorb_sharp_turn_gaps,
     behavior_state_config_from_opts,
+    clean_schmitt_bout_durations,
     classify_behavior_states,
+    consolidate_schmitt_butterworth_peaks,
+    extend_schmitt_stops,
     filter_short_turn_segments,
     find_turns,
     path_angular_speed_rad_s,
     pivot_pause_turn_mask,
     raw_segment_speed_mm_s,
     schmitt,
+    schmitt_butterworth_path_angular_velocity_deg_s,
+    schmitt_walking_mask,
+    signed_turn_angle_deg,
+    strict_turn_peak_indices,
 )
 from src.analysis.random_frame_windows import (
     sample_non_overlapping_frame_windows,
@@ -727,3 +735,218 @@ def test_analyze_trajectory_behavior_states_attaches_reference_signals():
     assert trj.behavior_angular_speed_rad_s.shape == trj.x.shape
     assert trj.behavior_path_angular_speed_rad_s.shape == trj.x.shape
     assert trj.behavior_turn_mask.dtype == bool
+
+
+def test_schmitt_butterworth_config_from_opts_uses_low_fps_defaults_and_overrides():
+    class Opts:
+        behavior_state_detector = "schmitt_butterworth"
+        behavior_state_sb_butterworth_cutoff_hz = 1.5
+        behavior_state_sb_angular_moving_average_frames = 2
+
+    config = behavior_state_config_from_opts(Opts())
+
+    assert isinstance(config, SchmittButterworthConfig)
+    assert config.position_savgol_window == 3
+    assert config.position_savgol_order == 1
+    assert config.butterworth_cutoff_hz == 1.5
+    assert config.angular_moving_average_frames == 2
+    assert config.turn_flank_frames == 2
+    assert config.turn_peak_threshold_deg_s == 120.0
+
+
+def test_schmitt_walking_mask_uses_inclusive_thresholds_and_stopped_initial_state():
+    speed = np.array([1.5, 2.0, 1.5, 1.0, 1.5])
+
+    walking = schmitt_walking_mask(speed)
+
+    np.testing.assert_array_equal(walking, [False, True, True, False, False])
+
+
+def test_schmitt_stop_extension_is_fixed_anchor_contiguous_and_single_pass():
+    walking = np.array([True, True, False, False, True, True])
+    x = np.array([0.0, 0.4, 0.4, 0.4, 0.8, 1.5])
+    y = np.zeros_like(x)
+
+    extended = extend_schmitt_stops(
+        walking,
+        x,
+        y,
+        fps=2.0,
+        px_per_mm=1.0,
+    )
+
+    np.testing.assert_array_equal(extended, [False, False, False, False, False, True])
+
+
+def test_schmitt_short_bout_cleanup_merges_and_terminates():
+    config = SchmittButterworthConfig(
+        stopped_min_duration_s=0.2,
+        walking_min_duration_s=0.2,
+    )
+    walking = np.array([True, True, False, True, True])
+
+    cleaned = clean_schmitt_bout_durations(walking, fps=10.0, config=config)
+
+    np.testing.assert_array_equal(cleaned, np.ones(5, dtype=bool))
+
+
+def test_schmitt_bout_cleanup_uses_valid_sample_durations():
+    config = SchmittButterworthConfig(
+        stopped_min_duration_s=0.2,
+        walking_min_duration_s=0.05,
+    )
+    walking = np.array([True, False, True])
+
+    fixed_rate = clean_schmitt_bout_durations(
+        walking, fps=10.0, config=config
+    )
+    timestamped = clean_schmitt_bout_durations(
+        walking,
+        fps=10.0,
+        dt_s=np.array([0.1, 0.25, 0.1]),
+        config=config,
+    )
+
+    np.testing.assert_array_equal(fixed_rate, [True, True, True])
+    np.testing.assert_array_equal(timestamped, walking)
+
+
+def test_schmitt_path_angular_velocity_uses_cartesian_cw_ccw_sign():
+    ccw = schmitt_butterworth_path_angular_velocity_deg_s(
+        np.array([0.0, 1.0, 1.0]),
+        np.array([0.0, 0.0, -1.0]),
+        fps=1.0,
+    )
+    cw = schmitt_butterworth_path_angular_velocity_deg_s(
+        np.array([0.0, 1.0, 1.0]),
+        np.array([0.0, 0.0, 1.0]),
+        fps=1.0,
+    )
+
+    assert np.isclose(ccw[1], 90.0)
+    assert np.isclose(cw[1], -90.0)
+
+
+def test_schmitt_peak_detection_is_inclusive_but_rejects_plateaus():
+    signal = np.array([0.0, 100.0, 120.0, 100.0, 130.0, 130.0, 0.0])
+
+    peaks = strict_turn_peak_indices(
+        signal, threshold_deg_s=120.0, flank_frames=1
+    )
+
+    np.testing.assert_array_equal(peaks, [2])
+
+
+def test_schmitt_signed_turn_angle_uses_forward_parametric_flanks():
+    x = np.array([0.0, 1.0, 2.0, 2.0, 2.0])
+    y = np.array([0.0, 0.0, 0.0, -1.0, -2.0])
+
+    angle = signed_turn_angle_deg(
+        x, y, first_peak=2, last_peak=2, flank_frames=2
+    )
+
+    assert np.isclose(angle, 90.0)
+
+
+def test_schmitt_peak_consolidation_is_transitive_and_uses_largest_peak():
+    x = np.zeros(9)
+    y = np.zeros(9)
+    x[[2, 4, 6]] = [0.0, 0.4, 0.8]
+    angular = np.zeros(9)
+    angular[[2, 4, 6]] = [130.0, -180.0, 150.0]
+    config = SchmittButterworthConfig(
+        turn_flank_frames=2, turn_merge_radius_mm=0.5
+    )
+
+    events = consolidate_schmitt_butterworth_peaks(
+        np.array([2, 4, 6]),
+        x,
+        y,
+        angular,
+        px_per_mm=1.0,
+        config=config,
+    )
+
+    assert len(events) == 1
+    assert events[0]["peaks"] == (2, 4, 6)
+    assert events[0]["representative_peak"] == 4
+    assert (events[0]["start"], events[0]["stop"]) == (0, 8)
+
+
+def test_schmitt_butterworth_analysis_requires_and_uses_wall_regions():
+    class ChamberType:
+        def pxPerMmFloor(self):
+            return 1.0
+
+    class Xformer:
+        fctr = 1.0
+
+    class Video:
+        fps = 7.5
+        ct = ChamberType()
+        xf = Xformer()
+
+    class Trajectory:
+        va = Video()
+        x = np.arange(30, dtype=float)
+        y = np.zeros(30, dtype=float)
+        boundary_event_stats = {
+            "wall": {"all": {"edge": {"boundary_contact_regions": []}}}
+        }
+
+        def bad(self):
+            return False
+
+    trj = Trajectory()
+    states = analyze_trajectory_behavior_states(
+        trj, config=SchmittButterworthConfig()
+    )
+
+    np.testing.assert_array_equal(states, np.full(30, BehaviorState.RUN))
+    assert trj.behavior_detector == "schmitt_butterworth"
+    assert trj.behavior_sb_angular_velocity_deg_s.shape == (30,)
+    assert trj.behavior_sb_turn_events == []
+
+
+def test_schmitt_butterworth_rejects_turn_interval_at_wall():
+    class ChamberType:
+        def pxPerMmFloor(self):
+            return 1.0
+
+    class Xformer:
+        fctr = 1.0
+
+    class Video:
+        fps = 7.5
+        ct = ChamberType()
+        xf = Xformer()
+
+    class Trajectory:
+        va = Video()
+        x = np.r_[np.arange(15, dtype=float), np.full(15, 14.0)]
+        y = np.r_[np.zeros(15), -np.arange(1, 16, dtype=float)]
+
+        def bad(self):
+            return False
+
+    config = SchmittButterworthConfig(
+        butterworth_cutoff_hz=3.0,
+        turn_peak_threshold_deg_s=30.0,
+    )
+    away = Trajectory()
+    away.boundary_event_stats = {
+        "wall": {"all": {"edge": {"boundary_contact_regions": []}}}
+    }
+    at_wall = Trajectory()
+    at_wall.boundary_event_stats = {
+        "wall": {
+            "all": {"edge": {"boundary_contact_regions": [slice(13, 17)]}}
+        }
+    }
+
+    away_states = analyze_trajectory_behavior_states(away, config=config)
+    wall_states = analyze_trajectory_behavior_states(at_wall, config=config)
+
+    assert np.count_nonzero(away_states == BehaviorState.TURN) == 5
+    assert np.count_nonzero(wall_states == BehaviorState.TURN) == 0
+    assert at_wall.behavior_sb_turn_events[0]["rejection_reason"] == "wall_contact"

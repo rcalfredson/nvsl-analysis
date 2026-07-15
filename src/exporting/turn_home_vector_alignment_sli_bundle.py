@@ -665,9 +665,17 @@ def _collect_panel_values(
         "min_turns": int(min_turns),
         "value_mode": value_mode,
         "turn_detector": "behavior_state",
+        "behavior_state_detector": str(
+            getattr(opts, "behavior_state_detector", "haberkern") or "haberkern"
+        ),
         "turn_angular_source": str(
-            getattr(opts, "behavior_state_turn_angular_source", "theta_or_path")
-            or "theta_or_path"
+            "path"
+            if getattr(opts, "behavior_state_detector", "haberkern")
+            == "schmitt_butterworth"
+            else (
+                getattr(opts, "behavior_state_turn_angular_source", "theta_or_path")
+                or "theta_or_path"
+            )
         ),
         "radius_range_mm": (
             None

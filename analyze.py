@@ -4674,13 +4674,21 @@ g.add_argument(
     nargs="+",
 )
 g.add_argument(
+    "--behavior-state-detector",
+    choices=("haberkern", "schmitt_butterworth"),
+    default="haberkern",
+    help=(
+        "Frame-wise run/turn/rest detector. 'haberkern' preserves the existing "
+        "detector; 'schmitt_butterworth' uses smoothed positions, speed "
+        "hysteresis, and filtered path angular velocity. Default: haberkern."
+    ),
+)
+g.add_argument(
     "--behavior-state-analysis",
     action="store_true",
     help=(
-        "Opt in to frame-wise behavior state detection for turn/run/rest. "
-        "This mirrors tmp/behaviorseg.py: turn detection combines angular speed "
-        "with head-body speed difference, then non-turn frames are split into "
-        "run/rest by a Schmitt trigger on body speed."
+        "Opt in to frame-wise turn/run/rest detection using the detector selected "
+        "by --behavior-state-detector."
     ),
 )
 g.add_argument(
@@ -4818,6 +4826,93 @@ g.add_argument(
         "With behavior-state plots, write a per-frame TSV of the current core "
         "turn-detector scores and labels next to each plot."
     ),
+)
+g.add_argument(
+    "--behavior-state-sb-position-savgol-window",
+    type=int,
+    default=None,
+    help="Position Savitzky-Golay window for schmitt_butterworth. Default: 3.",
+)
+g.add_argument(
+    "--behavior-state-sb-position-savgol-order",
+    type=int,
+    default=None,
+    help="Position Savitzky-Golay polynomial order. Default: 1.",
+)
+g.add_argument(
+    "--behavior-state-sb-butterworth-cutoff-hz",
+    type=float,
+    default=None,
+    help="Path-angular-velocity Butterworth cutoff in Hz. Default: 2.0.",
+)
+g.add_argument(
+    "--behavior-state-sb-angular-moving-average-frames",
+    type=int,
+    default=None,
+    help=(
+        "Post-Butterworth moving-average width. Use 1 to disable; 2 and 3 "
+        "support the planned low-FPS sweep. Default: 1."
+    ),
+)
+g.add_argument(
+    "--behavior-state-sb-turn-flank-frames",
+    type=int,
+    default=None,
+    help="Frames in each incoming/outgoing turn line fit. Default: 2.",
+)
+g.add_argument(
+    "--behavior-state-sb-turn-peak-deg-s",
+    type=float,
+    default=None,
+    help="Absolute filtered angular-velocity peak threshold. Default: 120 deg/s.",
+)
+g.add_argument(
+    "--behavior-state-sb-walking-start-mm-s",
+    type=float,
+    default=None,
+    help="Inclusive walking-start Schmitt threshold. Default: 2 mm/s.",
+)
+g.add_argument(
+    "--behavior-state-sb-stopping-start-mm-s",
+    type=float,
+    default=None,
+    help="Inclusive stopping-start Schmitt threshold. Default: 1 mm/s.",
+)
+g.add_argument(
+    "--behavior-state-sb-stopped-min-duration-s",
+    type=float,
+    default=None,
+    help="Minimum stopped-bout duration. Default: 0.2 s.",
+)
+g.add_argument(
+    "--behavior-state-sb-walking-min-duration-s",
+    type=float,
+    default=None,
+    help="Minimum walking-bout duration. Default: 0.05 s.",
+)
+g.add_argument(
+    "--behavior-state-sb-stop-extension-radius-mm",
+    type=float,
+    default=None,
+    help="Fixed-endpoint stop-extension radius. Default: 0.5 mm.",
+)
+g.add_argument(
+    "--behavior-state-sb-stop-extension-window-s",
+    type=float,
+    default=None,
+    help="Maximum stop extension on each side. Default: 1 s.",
+)
+g.add_argument(
+    "--behavior-state-sb-turn-merge-radius-mm",
+    type=float,
+    default=None,
+    help="Maximum peak separation for transitive turn merging. Default: 0.5 mm.",
+)
+g.add_argument(
+    "--behavior-state-sb-turn-min-angle-deg",
+    type=float,
+    default=None,
+    help="Minimum absolute merged-turn angle. Default: 20 degrees.",
 )
 g.add_argument(
     "--behavior-state-turn-angular-small-deg-s",
@@ -16962,6 +17057,18 @@ if __name__ == "__main__":
         opts, "export_turn_home_vector_alignment_sli_bundle", None
     ):
         opts.behavior_state_analysis = True
+
+    if (
+        getattr(opts, "behavior_state_analysis", False)
+        and getattr(opts, "behavior_state_detector", "haberkern")
+        == "schmitt_butterworth"
+        and getattr(opts, "wall", None) is None
+    ):
+        print(
+            f"[behavior-states] enabling --wall={WALL_CONTACT_DEFAULT_THRESH_STR} "
+            "because schmitt_butterworth requires wall-contact regions"
+        )
+        opts.wall = WALL_CONTACT_DEFAULT_THRESH_STR
 
     # If polar wants wall-contact exclusion, we must compute wall contact
     if getattr(opts, "btw_rwd_polar_exclude_wall_contact", False):
