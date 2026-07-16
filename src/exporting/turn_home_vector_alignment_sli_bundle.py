@@ -46,6 +46,13 @@ VALUE_MODE_EXP = "exp"
 VALUE_MODE_EXP_MINUS_YOK = "exp_minus_yok"
 VALUE_MODE_CHOICES = (VALUE_MODE_EXP, VALUE_MODE_EXP_MINUS_YOK)
 
+RADIUS_ASSIGNMENT_FULL_CONTAINMENT = "full_containment"
+RADIUS_ASSIGNMENT_MAX_DISTANCE_POINT = "max_distance_point"
+RADIUS_ASSIGNMENT_CHOICES = (
+    RADIUS_ASSIGNMENT_FULL_CONTAINMENT,
+    RADIUS_ASSIGNMENT_MAX_DISTANCE_POINT,
+)
+
 
 def _combine_role_panel_means(role_results, value_mode: str) -> float:
     """Return the experimental value or the within-video exp-minus-yok value."""
@@ -353,12 +360,14 @@ def _px_per_mm_for_trj(trj) -> float:
     return float("nan")
 
 
-def _turn_fully_within_radius_range_mm(
+def _turn_matches_radius_range_mm(
     trj,
     trn,
     start: int,
     stop: int,
     radius_range_mm: tuple[float, float] | None,
+    *,
+    assignment: str = RADIUS_ASSIGNMENT_FULL_CONTAINMENT,
 ) -> bool:
     if radius_range_mm is None:
         return True
@@ -391,7 +400,33 @@ def _turn_fully_within_radius_range_mm(
         return False
 
     distances_mm = np.hypot(xs - cx, ys - cy) / px_per_mm
-    return bool(np.all((distances_mm >= lo_mm) & (distances_mm < hi_mm)))
+    if assignment == RADIUS_ASSIGNMENT_FULL_CONTAINMENT:
+        return bool(np.all((distances_mm >= lo_mm) & (distances_mm < hi_mm)))
+    if assignment == RADIUS_ASSIGNMENT_MAX_DISTANCE_POINT:
+        max_distance_mm = float(np.max(distances_mm))
+        return bool(lo_mm <= max_distance_mm < hi_mm)
+    raise ValueError(
+        "turn home-vector radius assignment must be one of "
+        f"{RADIUS_ASSIGNMENT_CHOICES!r}; got {assignment!r}"
+    )
+
+
+def _turn_fully_within_radius_range_mm(
+    trj,
+    trn,
+    start: int,
+    stop: int,
+    radius_range_mm: tuple[float, float] | None,
+) -> bool:
+    """Backward-compatible wrapper for the original radial inclusion rule."""
+    return _turn_matches_radius_range_mm(
+        trj,
+        trn,
+        start,
+        stop,
+        radius_range_mm,
+        assignment=RADIUS_ASSIGNMENT_FULL_CONTAINMENT,
+    )
 
 
 def _heading_home_angle_deg(heading, home) -> float:
@@ -465,6 +500,7 @@ def _iter_turn_alignment_deltas_for_panel(
     home_target: str,
     wall_regions,
     radius_range_mm: tuple[float, float] | None,
+    radius_assignment: str,
 ):
     states = getattr(trj, "behavior_state", None)
     if states is None:
@@ -495,8 +531,13 @@ def _iter_turn_alignment_deltas_for_panel(
             ep = {"start": int(start), "stop": int(stop) + 2}
             if episode_overlaps_wall_contact(ep, wall_regions):
                 continue
-        if not _turn_fully_within_radius_range_mm(
-            trj, trn, start, stop, radius_range_mm
+        if not _turn_matches_radius_range_mm(
+            trj,
+            trn,
+            start,
+            stop,
+            radius_range_mm,
+            assignment=radius_assignment,
         ):
             continue
         val = turn_home_vector_alignment_delta(
@@ -548,6 +589,19 @@ def _collect_panel_values(
     radius_range_mm = parse_radius_range_mm(
         getattr(opts, "turn_home_vector_alignment_radius_range_mm", None)
     )
+    radius_assignment = str(
+        getattr(
+            opts,
+            "turn_home_vector_alignment_radius_assignment",
+            RADIUS_ASSIGNMENT_FULL_CONTAINMENT,
+        )
+        or RADIUS_ASSIGNMENT_FULL_CONTAINMENT
+    )
+    if radius_assignment not in RADIUS_ASSIGNMENT_CHOICES:
+        raise ValueError(
+            "turn_home_vector_alignment_radius_assignment must be one of "
+            f"{RADIUS_ASSIGNMENT_CHOICES!r}; got {radius_assignment!r}"
+        )
     value_mode = str(
         getattr(opts, "turn_home_vector_alignment_value_mode", VALUE_MODE_EXP)
         or VALUE_MODE_EXP
@@ -616,6 +670,7 @@ def _collect_panel_values(
                             home_target=home_target,
                             wall_regions=wall_regions,
                             radius_range_mm=radius_range_mm,
+                            radius_assignment=radius_assignment,
                         )
                     ),
                     dtype=float,
@@ -687,6 +742,7 @@ def _collect_panel_values(
         ),
         "radius_range_inclusion": "lower_inclusive_upper_exclusive",
         "radius_range_frame_span": "start-1_through_stop+2",
+        "radius_assignment": radius_assignment,
     }
     return (
         panel_keys,

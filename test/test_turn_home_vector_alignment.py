@@ -5,11 +5,13 @@ from src.exporting.turn_home_vector_alignment_sli_bundle import (
     ANCHOR_FRAME,
     ANCHOR_SEGMENT_MIDPOINT,
     HOME_TARGET_OPPOSITE_REWARD_CENTER,
+    RADIUS_ASSIGNMENT_MAX_DISTANCE_POINT,
     VALUE_MODE_EXP,
     VALUE_MODE_EXP_MINUS_YOK,
     _combine_role_panel_means,
     _home_target_xy,
     _turn_fully_within_radius_range_mm,
+    _turn_matches_radius_range_mm,
     parse_radius_range_mm,
     parse_radius_ranges_mm,
     radius_range_slug,
@@ -134,3 +136,28 @@ def test_turn_radius_filter_requires_full_metric_span_inside_band():
 
     assert _turn_fully_within_radius_range_mm(trj, trn, 1, 2, (4.0, 5.0)) is False
     assert _turn_fully_within_radius_range_mm(trj, trn, 1, 2, (4.0, 5.2)) is True
+
+
+def test_turn_radius_filter_can_assign_by_max_distance_point():
+    trj = DummyTrajectory(
+        x=[4.0, 4.5, 4.6, 4.7, 5.1],
+        y=[0.0, 0.0, 0.0, 0.0, 0.0],
+    )
+    trn = DummyTraining(cx=0.0, cy=0.0)
+
+    assert _turn_matches_radius_range_mm(
+        trj,
+        trn,
+        1,
+        2,
+        (5.0, 6.0),
+        assignment=RADIUS_ASSIGNMENT_MAX_DISTANCE_POINT,
+    )
+    assert not _turn_matches_radius_range_mm(
+        trj,
+        trn,
+        1,
+        2,
+        (4.0, 5.0),
+        assignment=RADIUS_ASSIGNMENT_MAX_DISTANCE_POINT,
+    )

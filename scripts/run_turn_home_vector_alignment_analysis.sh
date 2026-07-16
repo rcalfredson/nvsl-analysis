@@ -17,6 +17,7 @@ TURN_ANCHOR="${TURN_ANCHOR:-frame}"
 TURN_HOME_TARGET="${TURN_HOME_TARGET:-reward_center}"
 TURN_MIN_TURNS="${TURN_MIN_TURNS:-5}"
 TURN_RADIAL_BINS="${TURN_RADIAL_BINS:-}"
+TURN_RADIAL_BIN_ASSIGNMENT="${TURN_RADIAL_BIN_ASSIGNMENT:-full_containment}"
 
 BEHAVIOR_STATE_DETECTOR="${BEHAVIOR_STATE_DETECTOR:-haberkern}"
 TURN_ANGULAR_SOURCE="${TURN_ANGULAR_SOURCE:-path_no_head_body}"
@@ -251,13 +252,26 @@ case "$TURN_HOME_TARGET" in
     ;;
 esac
 
+case "$TURN_RADIAL_BIN_ASSIGNMENT" in
+  full_containment)
+    radial_assignment_slug=""
+    ;;
+  max_distance_point)
+    radial_assignment_slug="_maxDistancePointBins"
+    ;;
+  *)
+    echo "TURN_RADIAL_BIN_ASSIGNMENT must be full_containment or max_distance_point." >&2
+    exit 1
+    ;;
+esac
+
 filter_slug="$(turn_filter_slug)"
 if [[ "$BEHAVIOR_STATE_DETECTOR" == "schmitt_butterworth" ]]; then
   detector_slug="schmittButterworth_sg${SB_POSITION_SAVGOL_WINDOW}p${SB_POSITION_SAVGOL_ORDER}_bw${SB_BUTTERWORTH_CUTOFF_HZ}_ma${SB_ANGULAR_MOVING_AVERAGE_FRAMES}_flank${SB_TURN_FLANK_FRAMES}_peak${SB_TURN_PEAK_DEG_S}"
 else
   detector_slug="haberkern_${TURN_ANGULAR_SOURCE}_score${TURN_SCORE_THRESHOLD}_small${TURN_ANGULAR_SMALL_DEG_S}_large${TURN_ANGULAR_LARGE_DEG_S}"
 fi
-run_slug="turnHomeVectorAlignment${home_target_slug}_${filter_slug}_${detector_slug}_sb2-5_${DATE_TAG}"
+run_slug="turnHomeVectorAlignment${home_target_slug}${radial_assignment_slug}_${filter_slug}_${detector_slug}_sb2-5_${DATE_TAG}"
 
 SLI_GROUPS=(all)
 SLI_SLUGS=("")
@@ -374,6 +388,7 @@ run_alignment_set() {
   if [[ -n "$TURN_RADIAL_BINS" ]]; then
     radial_flags=(
       --turn-home-vector-alignment-radius-ranges-mm "$TURN_RADIAL_BINS"
+      --turn-home-vector-alignment-radius-assignment "$TURN_RADIAL_BIN_ASSIGNMENT"
     )
   fi
 

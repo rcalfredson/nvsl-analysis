@@ -6241,6 +6241,17 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--turn-home-vector-alignment-radius-assignment",
+    choices=("full_containment", "max_distance_point"),
+    default="full_containment",
+    help=(
+        "How turns are assigned to radial distance bands. 'full_containment' "
+        "requires every frame from start-1 through stop+2 to lie in the band; "
+        "'max_distance_point' assigns the turn according to the maximum radial "
+        "distance over that span. Default: full_containment."
+    ),
+)
+g.add_argument(
     "--turn-home-vector-alignment-sli-group",
     choices=["all", "top", "bottom"],
     default="all",
