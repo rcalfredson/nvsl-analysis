@@ -228,9 +228,8 @@ def _wrapped_ylabel_text(text: str) -> str:
         if phrase in text:
             before, after = text.split(phrase, 1)
             return f"{before}\n{phrase.strip()} {after}".rstrip()
-    if " heading alignment " in text:
-        before, after = text.split(" heading alignment ", 1)
-        return f"{before} heading\nalignment {after}".rstrip()
+    if " alignment at " in text:
+        return text.replace(" alignment at ", " alignment\nat ", 1)
     if ", " in text:
         return text.replace(", ", ",\n", 1)
     if " per " in text:
@@ -250,6 +249,9 @@ def _ensure_ylabel_visible(fig: plt.Figure, ax: plt.Axes) -> None:
     # leaving too little breathing room for glyph ascenders/descenders in a
     # vector export.  Use a font-scaled end margin before deciding it fits.
     pad_y_px = max(10.0, 1.25 * float(label.get_fontsize()) + 4.0)
+    wrapped = _wrapped_ylabel_text(label.get_text())
+    if wrapped != label.get_text():
+        label.set_text(wrapped)
     fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
     fig_bbox = fig.bbox
@@ -259,15 +261,6 @@ def _ensure_ylabel_visible(fig: plt.Figure, ax: plt.Axes) -> None:
         x_ok = bbox.x0 >= fig_bbox.x0 + pad_x_px
         y_ok = bbox.y0 >= fig_bbox.y0 + pad_y_px and bbox.y1 <= fig_bbox.y1 - pad_y_px
         return x_ok and y_ok
-
-    if _within_bounds():
-        return
-
-    wrapped = _wrapped_ylabel_text(label.get_text())
-    if wrapped != label.get_text():
-        label.set_text(wrapped)
-        fig.canvas.draw()
-        renderer = fig.canvas.get_renderer()
 
     if _within_bounds():
         return
