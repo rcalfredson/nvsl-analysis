@@ -163,10 +163,10 @@ def test_significance_bracket_is_placed_above_swarm_points():
 
 def test_omnibus_learner_overlay_clusters_top_then_bottom():
     entries = [
-        OmnibusLearnerEntry("Top 20% learners", "Ctrl>Kir FLC", _export("a", [0.9, 0.8, 0.85])),
-        OmnibusLearnerEntry("Top 20% learners", "PFNd>Kir FLC", _export("b", [0.5, 0.45, 0.55])),
-        OmnibusLearnerEntry("Bottom 50% learners", "Ctrl>Kir FLC", _export("c", [0.35, 0.30, 0.40])),
-        OmnibusLearnerEntry("Bottom 50% learners", "PFNd>Kir FLC", _export("d", [0.2, 0.25, 0.15])),
+        OmnibusLearnerEntry("Top 20% learners", "Ctrl", _export("a", [0.9, 0.8, 0.85])),
+        OmnibusLearnerEntry("Top 20% learners", "PFNd>Kir", _export("b", [0.5, 0.45, 0.55])),
+        OmnibusLearnerEntry("Bottom 50% learners", "Ctrl", _export("c", [0.35, 0.30, 0.40])),
+        OmnibusLearnerEntry("Bottom 50% learners", "PFNd>Kir", _export("d", [0.2, 0.25, 0.15])),
     ]
 
     fig = plot_omnibus_learner_overlays(
@@ -185,10 +185,10 @@ def test_omnibus_learner_overlay_clusters_top_then_bottom():
     ax = fig.axes[0]
     tick_labels = [tick.get_text() for tick in ax.get_xticklabels()]
     assert tick_labels == [
-        "Ctrl>Kir FLC\n(n=3)",
-        "PFNd>Kir FLC\n(n=3)",
-        "Ctrl>Kir FLC\n(n=3)",
-        "PFNd>Kir FLC\n(n=3)",
+        "Ctrl\n(n=3)",
+        "PFNd>Kir\n(n=3)",
+        "Ctrl\n(n=3)",
+        "PFNd>Kir\n(n=3)",
     ]
     cluster_labels = [text.get_text() for text in ax.texts]
     assert "Top 20% learners" in cluster_labels
@@ -199,7 +199,7 @@ def test_omnibus_learner_overlay_clusters_top_then_bottom():
 
 def test_clustered_overlay_uses_regions_as_grouped_bar_bins_with_swarms():
     regions = ["3/5 mm", "8/10 mm", "13/15 mm"]
-    genotypes = ["Ctrl>Kir FLC", "PFNd>Kir FLC", "MBKC>Kir FLC"]
+    genotypes = ["Ctrl", "PFNd>Kir", "MBKC>Kir"]
     entries = [
         OmnibusLearnerEntry(
             region,

@@ -452,7 +452,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument(
         "--groups",
-        default="AR Ctrl>Kir FLC,PFNd>Kir FLC",
+        default="Antennae removed,PFNd>Kir",
         help="Comma-separated groups to plot. Use 'all' to include every group.",
     )
     p.add_argument(

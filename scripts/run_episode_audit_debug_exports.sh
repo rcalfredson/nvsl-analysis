@@ -102,7 +102,7 @@ require_dataset_vars INTACT_PFND AR_CTRL
 
 mkdir -p "$OUT_DIR" "$BUNDLE_DIR"
 
-run_turnback_export "$INTACT_PFND" "intact_pfnKir" "PFNd>Kir FLC"
-run_turnback_export "$AR_CTRL" "ar_ctrlKir" "AR Ctrl>Kir FLC"
-run_return_prob_export "$INTACT_PFND" "intact_pfnKir" "PFNd>Kir FLC"
-run_return_prob_export "$AR_CTRL" "ar_ctrlKir" "AR Ctrl>Kir FLC"
+run_turnback_export "$INTACT_PFND" "intact_pfnKir" "PFNd>Kir"
+run_turnback_export "$AR_CTRL" "ar_ctrlKir" "Antennae removed"
+run_return_prob_export "$INTACT_PFND" "intact_pfnKir" "PFNd>Kir"
+run_return_prob_export "$AR_CTRL" "ar_ctrlKir" "Antennae removed"

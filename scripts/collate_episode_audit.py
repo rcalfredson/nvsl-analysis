@@ -11,7 +11,7 @@ import pandas as pd
 DEFAULT_INPUTS = {
     "turnback_pfnd": (
         "turnback",
-        "PFNd>Kir FLC",
+        "PFNd>Kir",
         "tmp/episode_audit/"
         "turnbackPairs_minEpSb5Filt_wall_intact_pfnKir_flatLgc_T2_"
         "p3-5_8-10_13-15_debug.csv",
@@ -21,7 +21,7 @@ DEFAULT_INPUTS = {
     ),
     "turnback_ar": (
         "turnback",
-        "AR Ctrl>Kir FLC",
+        "Antennae removed",
         "tmp/episode_audit/"
         "turnbackPairs_minEpSb5Filt_wall_ar_ctrlKir_flatLgc_T2_"
         "p3-5_8-10_13-15_debug.csv",
@@ -31,7 +31,7 @@ DEFAULT_INPUTS = {
     ),
     "return_pfnd": (
         "return_prob",
-        "PFNd>Kir FLC",
+        "PFNd>Kir",
         "tmp/episode_audit/"
         "returnProb_minEpSb5Filt_wall_intact_pfnKir_flatLgc_T2_"
         "r6_11_16_debug.csv",
@@ -41,7 +41,7 @@ DEFAULT_INPUTS = {
     ),
     "return_ar": (
         "return_prob",
-        "AR Ctrl>Kir FLC",
+        "Antennae removed",
         "tmp/episode_audit/"
         "returnProb_minEpSb5Filt_wall_ar_ctrlKir_flatLgc_T2_"
         "r6_11_16_debug.csv",

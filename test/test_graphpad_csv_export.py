@@ -78,12 +78,12 @@ def test_scalar_npz_graphpad_csv_is_wide_numeric_table(tmp_path):
     _write_scalar_npz(b, [4.0])
 
     write_scalar_exports_graphpad_csv(
-        [load_export_npz("Ctrl>Kir FLC", a), load_export_npz("PFN>Kir FLC", b)],
+        [load_export_npz("Ctrl", a), load_export_npz("PFNd>Kir", b)],
         out,
     )
 
     assert out.read_text().splitlines() == [
-        "Ctrl>Kir FLC,PFN>Kir FLC",
+        "Ctrl,PFNd>Kir",
         "1.25,4",
         "2.5,",
     ]

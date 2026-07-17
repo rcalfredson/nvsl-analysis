@@ -48,7 +48,7 @@ export MPLCONFIGDIR="${MPLCONFIGDIR:-/tmp/matplotlib-${USER:-nvsl}}"
 
 GROUP_VARS=(INTACT_CTRL INTACT_PFND)
 GROUP_SLUGS=(intact_ctrlKir intact_pfnKir)
-GROUP_LABELS=("Ctrl>Kir FLC" "PFNd>Kir FLC")
+GROUP_LABELS=("Ctrl" "PFNd>Kir")
 
 require_dataset_vars() {
   for var_name in "$@"; do
@@ -206,14 +206,14 @@ case "$COMPARISON_GROUP" in
   ar_ctrl)
     GROUP_VARS+=(AR_CTRL)
     GROUP_SLUGS+=(ar_ctrlKir)
-    GROUP_LABELS+=("AR Ctrl>Kir FLC")
+    GROUP_LABELS+=("Antennae removed")
     PLOT_COMPARISON_SUFFIX=""
     ;;
   mbkc_kir)
     load_mbkc_dataset_from_log
     GROUP_VARS+=(MBKC_KIR)
     GROUP_SLUGS+=(intact_mbkcKir)
-    GROUP_LABELS+=("MBKC>Kir FLC")
+    GROUP_LABELS+=("MBKC>Kir")
     PLOT_COMPARISON_SUFFIX="_vs_mbkcKir"
     ;;
   *)

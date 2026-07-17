@@ -33,7 +33,7 @@ TURNBACK_HOME_VECTOR_ALIGNMENT_FS="${TURNBACK_HOME_VECTOR_ALIGNMENT_FS:-}"
 
 GROUP_VARS=(INTACT_CTRL INTACT_PFND AR_CTRL)
 GROUP_SLUGS=(intact_ctrlKir intact_pfnKir ar_ctrlKir)
-GROUP_LABELS=("Ctrl>Kir FLC" "PFNd>Kir FLC" "AR Ctrl>Kir FLC")
+GROUP_LABELS=("Ctrl" "PFNd>Kir" "Antennae removed")
 
 # Cohorts used specifically by the dual-circle turnback and turnback
 # home-vector alignment analyses. Keep the general GROUP_* arrays above
@@ -45,7 +45,7 @@ MBKC_SUBHEADER="${MBKC_SUBHEADER:-Flat-lower chamber reward circle shrink in T2,
 
 TURNBACK_GROUP_VARS=(INTACT_CTRL INTACT_PFND)
 TURNBACK_GROUP_SLUGS=(intact_ctrlKir intact_pfnKir)
-TURNBACK_GROUP_LABELS=("Ctrl>Kir FLC" "PFNd>Kir FLC")
+TURNBACK_GROUP_LABELS=("Ctrl" "PFNd>Kir")
 declare -A TURNBACK_HOME_VECTOR_ALIGNMENT_BUNDLES=()
 
 FLAT_HTL_GROUP_VARS=(
@@ -59,9 +59,9 @@ FLAT_HTL_GROUP_SLUGS=(
   antennaeRemoved
 )
 FLAT_HTL_GROUP_LABELS=(
-  "Control flat HTL"
-  "Hind tarsi removed + genitalia-glued flat HTL"
-  "Antennae-removed flat HTL"
+  "Ctrl"
+  "Hind tarsi removed + genitalia glued"
+  "Antennae removed"
 )
 
 load_mbkc_dataset_from_log() {
@@ -94,14 +94,14 @@ case "$TURNBACK_COMPARISON_GROUP" in
   ar_ctrl)
     TURNBACK_GROUP_VARS+=(AR_CTRL)
     TURNBACK_GROUP_SLUGS+=(ar_ctrlKir)
-    TURNBACK_GROUP_LABELS+=("AR Ctrl>Kir FLC")
+    TURNBACK_GROUP_LABELS+=("Antennae removed")
     TURNBACK_PLOT_SUFFIX=""
     ;;
   mbkc_kir)
     load_mbkc_dataset_from_log
     TURNBACK_GROUP_VARS+=(MBKC_KIR)
     TURNBACK_GROUP_SLUGS+=(intact_mbkcKir)
-    TURNBACK_GROUP_LABELS+=("MBKC>Kir FLC")
+    TURNBACK_GROUP_LABELS+=("MBKC>Kir")
     TURNBACK_PLOT_SUFFIX="_vs_mbkcKir"
     ;;
   *)
