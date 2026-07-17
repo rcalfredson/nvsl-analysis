@@ -266,7 +266,10 @@ from src.plotting.between_reward_polar_occupancy import (
     BetweenRewardPolarOccupancyPlotter,
     BetweenRewardPolarOccupancyConfig,
 )
-from src.plotting.annotation_layout import resolve_annotation_text_overlaps
+from src.plotting.annotation_layout import (
+    place_flexible_overlay_texts,
+    resolve_annotation_text_overlaps,
+)
 from src.plotting.axis_size import DEFAULT_PLOT_AXIS_SIZE_INCHES
 from src.plotting.reward_raster_plotter import RewardRasterConfig, RewardRasterPlotter
 from src.plotting.first_n_reward_diagnostics import (
@@ -9341,10 +9344,31 @@ def plotRewards(
         else:
             axs = axs[None]
     annotation_texts_by_ax = collections.defaultdict(list)
+    flexible_overlay_texts_by_ax = collections.defaultdict(list)
 
     def _track_annotation_text(ax, txt):
         if txt is not None:
             annotation_texts_by_ax[ax].append(txt)
+        return txt
+
+    def _add_auc_text(ax, x, y, label, *, size, base_y):
+        if sli_axis is not None and sli_axis.fixed:
+            txt = ax.text(
+                0.03,
+                0.97,
+                label,
+                transform=ax.transAxes,
+                ha="left",
+                va="top",
+                size=size,
+                color="0",
+            )
+            flexible_overlay_texts_by_ax[ax].append(txt)
+            return txt
+        txt = util.pltText(x, y, label, size=size, color="0")
+        txt._y_ = base_y
+        txt._final_y_ = y
+        _track_annotation_text(ax, txt)
         return txt
 
     def _subplot_title(t, f):
@@ -9718,17 +9742,15 @@ def plotRewards(
                         placement_ok = ys_auc is not None
                         p_ok = np.isfinite(p_auc)
                         if placement_ok and p_ok:
-                            txt = util.pltText(
+                            txt = _add_auc_text(
+                                ax,
                                 0.05 * (xs[-1] + 2 * bl - xs[0]),
                                 ys_auc,
                                 "AUC exp vs yok (n=%d): %s"
                                 % (n_auc, format_auc_stars(p_auc)),
                                 size=pch(12, customizer.in_plot_font_size),
-                                color="0",
+                                base_y=base_y_for_auc,
                             )
-                            txt._y_ = base_y_for_auc
-                            txt._final_y_ = ys_auc
-                            _track_annotation_text(ax, txt)
 
                     # AUC
                     if ng > 1 and not tp == "rpip" and not opts.hidePltTests:
@@ -9883,18 +9905,15 @@ def plotRewards(
                                 if tpn[4] is not None:
                                     print(tpn[4])
 
-                                txt = util.pltText(
+                                txt = _add_auc_text(
+                                    ax,
                                     0.05 * (xs[-1] + 2 * bl - xs[0]),
                                     ys,
                                     "%s (n=%d,%d): %s"
                                     % (nm, tpn[2], tpn[3], format_auc_stars(tpn[1])),
                                     size=pch(12, customizer.in_plot_font_size),
-                                    color="0",
+                                    base_y=base_y_for_auc,
                                 )
-
-                                txt._y_ = base_y_for_auc
-                                txt._final_y_ = ys
-                                _track_annotation_text(ax, txt)
 
                 runPFL = showPFL and ng == 1 and f == 0 and not post and comparable
                 runPT = showPT and ng == 1 and f == 0 and not post and comparable
@@ -10348,6 +10367,8 @@ def plotRewards(
         )
         for ax in plt.gcf().get_axes():
             ax.set_ylim(*sli_axis.limits)
+        for ax, texts in flexible_overlay_texts_by_ax.items():
+            place_flexible_overlay_texts(ax, texts)
 
     base, ext = os.path.splitext(imgFiles[tp] % blf)
     suffix_parts = []
