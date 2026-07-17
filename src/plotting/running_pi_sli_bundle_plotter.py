@@ -17,6 +17,10 @@ from src.analysis.sli_bundle_utils import (
 )
 from src.analysis.sli_tools import select_fractional_groups
 from src.plotting.sli_label_utils import pct_label
+from src.plotting.sli_axis_limits import (
+    load_sli_axis_limits,
+    warn_if_sli_values_clipped,
+)
 from src.plotting.plot_customizer import PlotCustomizer
 from src.utils.common import pick_above_or_expand, ttest_ind, writeImage
 import src.utils.util as util
@@ -356,6 +360,7 @@ def plot_running_pi_sli_bundles(
 ):
     if opts is None:
         opts = SimpleNamespace(imageFormat="png", fontSize=None, fontFamily=None)
+    sli_axis = load_sli_axis_limits() if metric == "sli" else None
 
     if sli_top_fraction is None:
         sli_top_fraction = sli_fraction
@@ -691,6 +696,13 @@ def plot_running_pi_sli_bundles(
             txt._final_y_ = float(ys_txt)
             lbls[bj].append(txt)
     ax.set_ylim(ylim[0], ylim[1])
+    if sli_axis is not None and sli_axis.fixed:
+        warn_if_sli_values_clipped(
+            [v for v in (y_min, y_max) if v is not None],
+            sli_axis.limits,
+            context="running PI/SLI bundle plot",
+        )
+        ax.set_ylim(*sli_axis.limits)
     customizer.adjust_padding_proportionally()
     writeImage(out_fn, format=getattr(opts, "imageFormat", "png"))
     plt.close()

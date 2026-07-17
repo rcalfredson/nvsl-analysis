@@ -278,6 +278,10 @@ from src.plotting.first_n_reward_sli_comparison import (
     FirstNRewardSLIComparisonPlotter,
 )
 from src.plotting.sli_label_utils import pct_label
+from src.plotting.sli_axis_limits import (
+    load_sli_axis_limits,
+    warn_if_sli_values_clipped,
+)
 from src.plotting.turn_directionality_plotter import TurnDirectionalityPlotter
 from src.plotting.turn_prob_dist_plotter import TurnProbabilityByDistancePlotter
 from src.utils.debug_fly_groups import init_fly_group_logging, log_fly_group
@@ -8976,6 +8980,7 @@ def plotRewards(
     nrp = tp == "nrpp"
     rpi, rpip = tp in ("rpi", "rpip"), tp in ("rpip", "rpipd")
     r_diff = tp in ("rpid", "rpipd")
+    sli_axis = load_sli_axis_limits() if r_diff else None
     diff_tp = r_diff or "exp_min_yok" in tp
     bnd_contact = tp in ("wall", "agarose", "boundary")
     num_events = tp == "agarose"
@@ -9240,6 +9245,8 @@ def plotRewards(
         or turnback_dual
         or rrd_mean_dist
     )
+    if sli_axis is not None and sli_axis.fixed:
+        useDynamicAxisLims = False
     useMidPlotAUCVerticalAlignment = (
         circle
         or bnd_contact
@@ -9305,11 +9312,10 @@ def plotRewards(
     elif tp == "agarose_per_rwd":
         ylim = [0, 15]
     elif r_diff:
-        if va.ct is CT.htl:
-            ylim_upper = 0.25
+        if sli_axis.fixed:
+            ylim = list(sli_axis.limits)
         else:
-            ylim_upper = 0.25
-        ylim = [-0.25, ylim_upper]
+            ylim = [-0.25, 0.25]
     else:
         ylim = [-1, 1]
     if circle:
@@ -10334,6 +10340,14 @@ def plotRewards(
             wrap_legend_labels=False,
             wrap_x_axis_labels=wrap_x_axis_labels,
         )
+
+    if sli_axis is not None and sli_axis.fixed:
+        plotted_bounds = [v for v in (mci_min, mci_max) if v is not None]
+        warn_if_sli_values_clipped(
+            plotted_bounds, sli_axis.limits, context=f"{tp} plot"
+        )
+        for ax in plt.gcf().get_axes():
+            ax.set_ylim(*sli_axis.limits)
 
     base, ext = os.path.splitext(imgFiles[tp] % blf)
     suffix_parts = []

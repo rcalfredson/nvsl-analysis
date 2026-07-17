@@ -113,13 +113,16 @@ By default, the script will use OS-specific path conventions (e.g., `/home/you/y
 
 If you want a machine-local override for selected `analyze.py` defaults without checking those preferences into Git, create a file named `.analyze.local.env` in the repository root. This file is ignored by Git.
 
-At present, this local config supports toggling selected analyze-time display/export behavior:
+At present, this local config supports selected analyze-time display/export behavior:
 
 ```env
 # Local-only defaults for analyze.py
 ENABLE_DEFAULT_BETWEEN_REWARD_SLI_PLOTS=false
 EXPORT_BUNDLE_EXIT_EARLY=true
 SHOW_AUC_P_VALUES=false
+SLI_YLIM_MODE=fixed
+SLI_YLIM_MIN=-0.5
+SLI_YLIM_MAX=2
 ```
 
 Accepted boolean values are `1`, `true`, `yes`, `on`, `0`, `false`, `no`, and `off`.
@@ -129,6 +132,10 @@ Behavior:
 - If `ENABLE_DEFAULT_BETWEEN_REWARD_SLI_PLOTS=false`, the default one-shot between-reward SLI-bracketed plots are skipped for your local runs only.
 - If `EXPORT_BUNDLE_EXIT_EARLY=true`, `postAnalyze` returns immediately after writing any requested top-level bundle export, before default plots, stats, and other post-analysis outputs.
 - If `SHOW_AUC_P_VALUES=false`, AUC labels show only significance stars / `ns`, without numeric p-values.
+- `SLI_YLIM_MODE` accepts `dynamic` (the default) or `fixed`. Fixed mode applies
+  `SLI_YLIM_MIN` and `SLI_YLIM_MAX` to time-dependent SLI plots produced both by
+  `analyze.py` and by the running PI/SLI bundle plotter. A warning is emitted if
+  plotted means or confidence limits fall outside the fixed range.
 
 ---
 
