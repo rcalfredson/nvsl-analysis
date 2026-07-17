@@ -528,14 +528,14 @@ class FirstNRewardDiagnosticsPlotter:
                 f"Time from 1st to {n_target}th {reward_phrase_singular} (s)"
             ),
             "selected_reward_rate_to_nth_per_min": (
-                f"reward rate during first {n_target} {reward_phrase}"
+                f"Reward rate during first {n_target} {reward_phrase}"
             ),
             "first_n_selected_reward_distance_traveled_mm": (
                 f"Distance traveled from 1st to {n_target}th "
                 f"{reward_phrase_singular} (mm)"
             ),
             "selected_reward_rate_to_nth_per_m": (
-                f"reward per distance traveled first {n_target} {reward_phrase}"
+                f"Reward per distance traveled first {n_target} {reward_phrase}"
             ),
         }
         return labels.get(str(name), str(name).replace("_", " "))
