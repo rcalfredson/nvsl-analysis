@@ -14454,6 +14454,13 @@ def postAnalyze(vas):
                         False,
                     )
                 ),
+                show_points=bool(
+                    getattr(
+                        opts,
+                        "wall_contacts_per_reward_interval_total_show_points",
+                        False,
+                    )
+                ),
                 opts=opts,
             )
             writeImage(str(out_file), format=opts.imageFormat)
