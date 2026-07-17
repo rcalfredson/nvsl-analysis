@@ -29,6 +29,7 @@ from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.sli_label_utils import pct_label
 from src.plotting.time_series_auc import add_auc_label, compute_auc_test
 from src.plotting.annotation_layout import resolve_annotation_text_overlaps
+from src.plotting.sync_bucket_axis_limits import default_sync_bucket_ylim
 
 
 def _format_sli_training_mean_window(skip_first_sync_buckets, keep_first_sync_buckets):
@@ -934,7 +935,11 @@ def plot_com_sli_bundle_data(
     elif metric == "between_reward_maxdist":
         ylim = [-2.0, 2.0] if turnback_mode == "exp_minus_ctrl" else [0.0, 20.0]
     elif metric == "between_reward_return_leg_dist":
-        ylim = [-5.0, 5.0] if turnback_mode == "exp_minus_ctrl" else [0.0, 20.0]
+        ylim = (
+            [-5.0, 5.0]
+            if turnback_mode == "exp_minus_ctrl"
+            else list(default_sync_bucket_ylim(metric))
+        )
     elif metric == "turnback":
         ylim = [-0.5, 0.5] if turnback_mode == "exp_minus_ctrl" else [0.0, 0.5]
     elif metric == "agarose":
@@ -957,6 +962,8 @@ def plot_com_sli_bundle_data(
         ylim = [-5.0, 5.0] if turnback_mode == "exp_minus_ctrl" else [0.0, 15.0]
     elif metric == "weaving":
         ylim = [-0.5, 0.5] if turnback_mode == "exp_minus_ctrl" else [0.0, 0.5]
+    elif metric == "commag":
+        ylim = list(default_sync_bucket_ylim(metric))
 
     if base_bundle is not None:
         ylim = [

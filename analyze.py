@@ -285,6 +285,7 @@ from src.plotting.sli_axis_limits import (
     load_sli_axis_limits,
     warn_if_sli_values_clipped,
 )
+from src.plotting.sync_bucket_axis_limits import default_sync_bucket_ylim
 from src.plotting.turn_directionality_plotter import TurnDirectionalityPlotter
 from src.plotting.turn_prob_dist_plotter import TurnProbabilityByDistancePlotter
 from src.utils.debug_fly_groups import init_fly_group_logging, log_fly_group
@@ -9296,7 +9297,9 @@ def plotRewards(
     elif agarose_dual or turnback_dual:
         ylim = [0, 1]
     elif rrd_mean_dist:
-        ylim = [0, 20]
+        ylim = list(default_sync_bucket_ylim("rrd_mean_dist"))
+    elif commag:
+        ylim = list(default_sync_bucket_ylim("commag"))
     elif tp == "dbr_no_contact":
         ylim = [0, 150]
     elif tp == "max_ctr_d_no_contact":
