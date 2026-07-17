@@ -138,6 +138,41 @@ def test_confidence_intervals_are_drawn_above_point_overlay():
     plt.close(fig)
 
 
+def test_hidden_swarm_outlier_does_not_expand_overlay_ylim():
+    export = replace(
+        _export("Control", [0.2, 0.3, 100.0]),
+        mean=np.asarray([0.3], dtype=float),
+        ci_lo=np.asarray([0.2], dtype=float),
+        ci_hi=np.asarray([0.4], dtype=float),
+    )
+
+    hidden_fig = plot_overlays([export], show_points=False)
+    shown_fig = plot_overlays([export], show_points=True)
+
+    assert hidden_fig.axes[0].get_ylim()[1] < 1.0
+    assert shown_fig.axes[0].get_ylim()[1] > 100.0
+    plt.close(hidden_fig)
+    plt.close(shown_fig)
+
+
+def test_hidden_swarm_outlier_does_not_expand_omnibus_ylim():
+    export = replace(
+        _export("Control", [0.2, 0.3, 100.0]),
+        mean=np.asarray([0.3], dtype=float),
+        ci_lo=np.asarray([0.2], dtype=float),
+        ci_hi=np.asarray([0.4], dtype=float),
+    )
+    entries = [OmnibusLearnerEntry("Top 20% learners", "Ctrl", export)]
+
+    hidden_fig = plot_omnibus_learner_overlays(entries, show_points=False)
+    shown_fig = plot_omnibus_learner_overlays(entries, show_points=True)
+
+    assert hidden_fig.axes[0].get_ylim()[1] < 1.0
+    assert shown_fig.axes[0].get_ylim()[1] > 100.0
+    plt.close(hidden_fig)
+    plt.close(shown_fig)
+
+
 def test_significance_bracket_is_placed_above_swarm_points():
     high = replace(
         _export("High", [0.8, 0.9, 1.0]),

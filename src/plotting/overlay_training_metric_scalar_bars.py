@@ -1296,7 +1296,7 @@ def plot_omnibus_learner_overlays(
         means=means,
         lows=lows,
         highs=highs,
-        samples=samples_by_key.values(),
+        samples=samples_by_key.values() if show_points else None,
         ymax=ymax,
     )
     ax.set_ylim(ylim_bottom, ylim_top)
@@ -1691,7 +1691,7 @@ def plot_overlays(
         means=means_plot,
         lows=lo_plot,
         highs=hi_plot,
-        samples=per_unit_by_group,
+        samples=per_unit_by_group if show_points else None,
         ymax=ymax,
     )
     ax.set_ylim(ylim_bottom, ylim_top)
