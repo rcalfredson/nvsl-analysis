@@ -12,6 +12,10 @@ Additional export notebooks:
   GraphPad Prism-friendly CSV files, and contains the standalone agarose
   percent-time export workflow that is not part of the numbered panel notebook.
 
+For prerequisites, execution toggles, input dependencies, and the related batch
+scripts, see the repository-level
+[`docs/output_workflows.md`](../docs/output_workflows.md) guide.
+
 The intended pattern for each panel is:
 
 1. A short markdown description of the panel and what biological comparison it shows.

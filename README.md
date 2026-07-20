@@ -189,6 +189,13 @@ For more details on optional flags, see the top of `analyze.py` or run `python a
 
 ## Analysis Workflow Catalog
 
+For an overview of all output-producing entry points—including the GraphPad
+notebook and the two batch scripts—see
+[`docs/output_workflows.md`](docs/output_workflows.md). That guide explains the
+required dataset variables, preview and plot-only modes, output locations, and
+the difference between the general analysis matrix and the focused turn
+home-vector workflow.
+
 Most analyses in this repository follow one of four patterns:
 
 - **One-shot plots**: run `analyze.py` with the relevant flag and it writes figures, CSVs, logs, or debug files directly.
