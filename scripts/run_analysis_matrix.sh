@@ -4,6 +4,12 @@ set -euo pipefail
 DATE_TAG="${DATE_TAG:-$(date +%F)}"
 PRINT_ONLY="${PRINT_ONLY:-0}"
 RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY="${RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY:-0}"
+RUN_DUAL_CIRCLE_TURNBACK_ONLY="${RUN_DUAL_CIRCLE_TURNBACK_ONLY:-0}"
+DUAL_CIRCLE_TURNBACK_REUSE_EXISTING_BUNDLES="${DUAL_CIRCLE_TURNBACK_REUSE_EXISTING_BUNDLES:-0}"
+DUAL_CIRCLE_TURNBACK_CROSS_GROUP_TOP_SLI_FRACTION="${DUAL_CIRCLE_TURNBACK_CROSS_GROUP_TOP_SLI_FRACTION:-0.2}"
+DUAL_CIRCLE_TURNBACK_IMG_FORMAT="${DUAL_CIRCLE_TURNBACK_IMG_FORMAT:-png}"
+DUAL_CIRCLE_TURNBACK_IMG_FORMAT="${DUAL_CIRCLE_TURNBACK_IMG_FORMAT#.}"
+DUAL_CIRCLE_TURNBACK_IMG_FORMAT="${DUAL_CIRCLE_TURNBACK_IMG_FORMAT,,}"
 RUN_FLAT_HTL_TURNBACK_PAIRS="${RUN_FLAT_HTL_TURNBACK_PAIRS:-0}"
 RUN_FLAT_HTL_TURNBACK_HOME_VECTOR_VARIANT="${RUN_FLAT_HTL_TURNBACK_HOME_VECTOR_VARIANT:-0}"
 FLAT_HTL_TURNBACK_HOME_VECTOR_ALIGNMENT_THRESHOLD="${FLAT_HTL_TURNBACK_HOME_VECTOR_ALIGNMENT_THRESHOLD:-0}"
@@ -114,12 +120,32 @@ if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_REUSE_EXISTING_BUNDLES" != "0" && "$TURNB
   echo "TURNBACK_HOME_VECTOR_ALIGNMENT_REUSE_EXISTING_BUNDLES must be 0 or 1." >&2
   exit 1
 fi
+if [[ "$DUAL_CIRCLE_TURNBACK_REUSE_EXISTING_BUNDLES" != "0" && "$DUAL_CIRCLE_TURNBACK_REUSE_EXISTING_BUNDLES" != "1" ]]; then
+  echo "DUAL_CIRCLE_TURNBACK_REUSE_EXISTING_BUNDLES must be 0 or 1." >&2
+  exit 1
+fi
+if ! awk -v fraction="$DUAL_CIRCLE_TURNBACK_CROSS_GROUP_TOP_SLI_FRACTION" 'BEGIN { exit !(fraction > 0 && fraction <= 1) }'; then
+  echo "DUAL_CIRCLE_TURNBACK_CROSS_GROUP_TOP_SLI_FRACTION must be greater than 0 and at most 1." >&2
+  exit 1
+fi
+if [[ -z "$DUAL_CIRCLE_TURNBACK_IMG_FORMAT" ]]; then
+  echo "DUAL_CIRCLE_TURNBACK_IMG_FORMAT must not be empty." >&2
+  exit 1
+fi
 if [[ -z "$TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT" ]]; then
   echo "TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT must not be empty." >&2
   exit 1
 fi
 if [[ "$RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY" != "0" && "$RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY" != "1" ]]; then
   echo "RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY must be 0 or 1." >&2
+  exit 1
+fi
+if [[ "$RUN_DUAL_CIRCLE_TURNBACK_ONLY" != "0" && "$RUN_DUAL_CIRCLE_TURNBACK_ONLY" != "1" ]]; then
+  echo "RUN_DUAL_CIRCLE_TURNBACK_ONLY must be 0 or 1." >&2
+  exit 1
+fi
+if [[ "$RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY" == "1" && "$RUN_DUAL_CIRCLE_TURNBACK_ONLY" == "1" ]]; then
+  echo "RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY and RUN_DUAL_CIRCLE_TURNBACK_ONLY cannot both be 1." >&2
   exit 1
 fi
 
@@ -140,6 +166,10 @@ elif [[ "$RUN_FLAT_HTL_TURNBACK_PAIRS" != "0" ]]; then
   exit 1
 elif [[ "$RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY" == "1" ]]; then
   if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_REUSE_EXISTING_BUNDLES" != "1" ]]; then
+    require_dataset_vars "${TURNBACK_GROUP_VARS[@]}"
+  fi
+elif [[ "$RUN_DUAL_CIRCLE_TURNBACK_ONLY" == "1" ]]; then
+  if [[ "$DUAL_CIRCLE_TURNBACK_REUSE_EXISTING_BUNDLES" != "1" ]]; then
     require_dataset_vars "${TURNBACK_GROUP_VARS[@]}"
   fi
 else
@@ -179,6 +209,10 @@ slug_decimal() {
   value="${value//-/m}"
   value="${value//./p}"
   echo "$value"
+}
+
+fraction_percent_slug() {
+  awk -v fraction="$1" 'BEGIN { printf "%.0f", 100 * fraction }'
 }
 
 run_flat_htl_turnback_pairs() {
@@ -225,43 +259,55 @@ run_flat_htl_turnback_pairs() {
   esac
 
   local bundles=()
+  local cross_group_top_pct
+  cross_group_top_pct="$(fraction_percent_slug "$DUAL_CIRCLE_TURNBACK_CROSS_GROUP_TOP_SLI_FRACTION")"
 
   for i in "${!FLAT_HTL_GROUP_VARS[@]}"; do
     local var_name="${FLAT_HTL_GROUP_VARS[$i]}"
-    local dataset="${!var_name}"
+    local dataset="${!var_name:-}"
     local group_slug="${FLAT_HTL_GROUP_SLUGS[$i]}"
     local group_label="${FLAT_HTL_GROUP_LABELS[$i]}"
     local bundle="exports/turnbackPairs_${filter_tag}_${wall_tag}_${group_slug}_flatHtl_T2_p${pairs_label}${variant_suffix}_${DATE_TAG}.npz"
 
     bundles+=("$bundle")
 
-    run_cmd \
-      python analyze.py \
-      -v "$dataset" \
-      -f 0-9 \
-      --rmCC 5 \
-      --export-turnback-excursion-bin-sli-bundle "$bundle" \
-      --turnback-excursion-bin-radius-pairs-mm "$pairs_arg" \
-      --turnback-excursion-bin-min-walking-fraction "$TURNBACK_EXCURSION_BIN_MIN_WALKING_FRACTION" \
-      --turnback-excursion-bin-trainings 2 \
-      --turnback-excursion-bin-skip-first-sync-buckets 1 \
-      --best-worst-trn 2 \
-      --sli-use-training-mean \
-      --sli-select-skip-first-sync-buckets 1 \
-      --sli-select-keep-first-sync-buckets 4 \
-      --export-group-label "$group_label" \
-      "${filter_flags[@]}" \
-      "${wall_flags[@]}" \
-      "${extra_flags[@]}"
+    if [[ "$DUAL_CIRCLE_TURNBACK_REUSE_EXISTING_BUNDLES" == "1" && -f "$bundle" ]]; then
+      printf '\n[%s] Reusing existing dual-circle turnback bundle; analysis skipped: %s\n' "$group_label" "$bundle"
+    else
+      if [[ -z "$dataset" ]]; then
+        echo "Missing required dataset variable for bundle export: $var_name" >&2
+        exit 1
+      fi
+      run_cmd \
+        python analyze.py \
+        -v "$dataset" \
+        -f 0-9 \
+        --rmCC 5 \
+        --export-turnback-excursion-bin-sli-bundle "$bundle" \
+        --turnback-excursion-bin-radius-pairs-mm "$pairs_arg" \
+        --turnback-excursion-bin-min-walking-fraction "$TURNBACK_EXCURSION_BIN_MIN_WALKING_FRACTION" \
+        --turnback-excursion-bin-trainings 2 \
+        --turnback-excursion-bin-skip-first-sync-buckets 1 \
+        --best-worst-trn 2 \
+        --sli-use-training-mean \
+        --sli-select-skip-first-sync-buckets 1 \
+        --sli-select-keep-first-sync-buckets 4 \
+        --export-group-label "$group_label" \
+        "${filter_flags[@]}" \
+        "${wall_flags[@]}" \
+        "${extra_flags[@]}"
+    fi
 
     run_cmd \
       python -m scripts.plot_turnback_excursion_bin_sli_bundles \
       --bundles "$bundle" \
-      --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_${group_slug}_flatHtl_T2_p${pairs_label}${variant_suffix}_top20Bottom50_sliT2Sb2-5_${DATE_TAG}.png" \
+      --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_${group_slug}_flatHtl_T2_p${pairs_label}${variant_suffix}_top20Bottom50_sliT2Sb2-5_${DATE_TAG}.${DUAL_CIRCLE_TURNBACK_IMG_FORMAT}" \
+      --image-format "$DUAL_CIRCLE_TURNBACK_IMG_FORMAT" \
       --sli-extremes both \
       --top-sli-fraction 0.2 \
       --bottom-sli-fraction 0.5 \
       --standalone-extreme-labels \
+      --swarm \
       --stats
   done
 
@@ -271,15 +317,19 @@ run_flat_htl_turnback_pairs() {
   run_cmd \
     python -m scripts.plot_turnback_excursion_bin_sli_bundles \
     --bundles "$bundle_csv" \
-    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatHtl_T2_p${pairs_label}${variant_suffix}_top20_sliT2Sb2-5_${DATE_TAG}.png" \
+    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatHtl_T2_p${pairs_label}${variant_suffix}_top${cross_group_top_pct}_sliT2Sb2-5_${DATE_TAG}.${DUAL_CIRCLE_TURNBACK_IMG_FORMAT}" \
+    --image-format "$DUAL_CIRCLE_TURNBACK_IMG_FORMAT" \
     --sli-extremes top \
-    --top-sli-fraction 0.2 \
+    --top-sli-fraction "$DUAL_CIRCLE_TURNBACK_CROSS_GROUP_TOP_SLI_FRACTION" \
+    --swarm \
     --stats
 
   run_cmd \
     python -m scripts.plot_turnback_excursion_bin_sli_bundles \
     --bundles "$bundle_csv" \
-    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatHtl_T2_p${pairs_label}${variant_suffix}_${DATE_TAG}.png" \
+    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatHtl_T2_p${pairs_label}${variant_suffix}_${DATE_TAG}.${DUAL_CIRCLE_TURNBACK_IMG_FORMAT}" \
+    --image-format "$DUAL_CIRCLE_TURNBACK_IMG_FORMAT" \
+    --swarm \
     --stats
 }
 
@@ -526,41 +576,53 @@ run_turnback_pairs() {
   esac
 
   local bundles=()
+  local cross_group_top_pct
+  cross_group_top_pct="$(fraction_percent_slug "$DUAL_CIRCLE_TURNBACK_CROSS_GROUP_TOP_SLI_FRACTION")"
 
   for i in "${!TURNBACK_GROUP_VARS[@]}"; do
     local var_name="${TURNBACK_GROUP_VARS[$i]}"
-    local dataset="${!var_name}"
+    local dataset="${!var_name:-}"
     local group_slug="${TURNBACK_GROUP_SLUGS[$i]}"
     local group_label="${TURNBACK_GROUP_LABELS[$i]}"
     local bundle="exports/turnbackPairs_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pairs_label}_${DATE_TAG}.npz"
 
     bundles+=("$bundle")
 
-    run_cmd \
-      python analyze.py \
-      -v "$dataset" \
-      -f 0-1 \
-      --rCC 15 \
-      --export-turnback-excursion-bin-sli-bundle "$bundle" \
-      --turnback-excursion-bin-radius-pairs-mm "$pairs_arg" \
-      --turnback-excursion-bin-trainings 2 \
-      --turnback-excursion-bin-skip-first-sync-buckets 1 \
-      --best-worst-trn 2 \
-      --sli-use-training-mean \
-      --sli-select-skip-first-sync-buckets 1 \
-      --sli-select-keep-first-sync-buckets 4 \
-      --export-group-label "$group_label" \
-      "${filter_flags[@]}" \
-      "${wall_flags[@]}"
+    if [[ "$DUAL_CIRCLE_TURNBACK_REUSE_EXISTING_BUNDLES" == "1" && -f "$bundle" ]]; then
+      printf '\n[%s] Reusing existing dual-circle turnback bundle; analysis skipped: %s\n' "$group_label" "$bundle"
+    else
+      if [[ -z "$dataset" ]]; then
+        echo "Missing required dataset variable for bundle export: $var_name" >&2
+        exit 1
+      fi
+      run_cmd \
+        python analyze.py \
+        -v "$dataset" \
+        -f 0-1 \
+        --rCC 15 \
+        --export-turnback-excursion-bin-sli-bundle "$bundle" \
+        --turnback-excursion-bin-radius-pairs-mm "$pairs_arg" \
+        --turnback-excursion-bin-trainings 2 \
+        --turnback-excursion-bin-skip-first-sync-buckets 1 \
+        --best-worst-trn 2 \
+        --sli-use-training-mean \
+        --sli-select-skip-first-sync-buckets 1 \
+        --sli-select-keep-first-sync-buckets 4 \
+        --export-group-label "$group_label" \
+        "${filter_flags[@]}" \
+        "${wall_flags[@]}"
+    fi
 
     run_cmd \
       python -m scripts.plot_turnback_excursion_bin_sli_bundles \
       --bundles "$bundle" \
-      --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pairs_label}_top20Bottom50_sliT2Sb2-5_${DATE_TAG}.png" \
+      --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_${group_slug}_flatLgc_T2_p${pairs_label}_top20Bottom50_sliT2Sb2-5_${DATE_TAG}.${DUAL_CIRCLE_TURNBACK_IMG_FORMAT}" \
+      --image-format "$DUAL_CIRCLE_TURNBACK_IMG_FORMAT" \
       --sli-extremes both \
       --top-sli-fraction 0.2 \
       --bottom-sli-fraction 0.5 \
       --standalone-extreme-labels \
+      --swarm \
       --stats
   done
 
@@ -570,15 +632,19 @@ run_turnback_pairs() {
   run_cmd \
     python -m scripts.plot_turnback_excursion_bin_sli_bundles \
     --bundles "$bundle_csv" \
-    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatLgc_T2_p${pairs_label}_top20_sliT2Sb2-5${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.png" \
+    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatLgc_T2_p${pairs_label}_top${cross_group_top_pct}_sliT2Sb2-5${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.${DUAL_CIRCLE_TURNBACK_IMG_FORMAT}" \
+    --image-format "$DUAL_CIRCLE_TURNBACK_IMG_FORMAT" \
     --sli-extremes top \
-    --top-sli-fraction 0.2 \
+    --top-sli-fraction "$DUAL_CIRCLE_TURNBACK_CROSS_GROUP_TOP_SLI_FRACTION" \
+    --swarm \
     --stats
 
   run_cmd \
     python -m scripts.plot_turnback_excursion_bin_sli_bundles \
     --bundles "$bundle_csv" \
-    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatLgc_T2_p${pairs_label}${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.png" \
+    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatLgc_T2_p${pairs_label}${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.${DUAL_CIRCLE_TURNBACK_IMG_FORMAT}" \
+    --image-format "$DUAL_CIRCLE_TURNBACK_IMG_FORMAT" \
+    --swarm \
     --stats
 }
 
@@ -1167,6 +1233,12 @@ run_post_wall_departure_tortuosity() {
 # Dual-circle turnback ratio for the MBKC comparison.
 # Matches the default 3/5, 8/10, 13/15 mm geometry and the active
 # home-vector pass below: T2 SB5-presence filter, wall-contact included.
+# To regenerate only these plots from an existing dated bundle set, run:
+#   DATE_TAG=YYYY-MM-DD RUN_DUAL_CIRCLE_TURNBACK_ONLY=1 \
+#   DUAL_CIRCLE_TURNBACK_REUSE_EXISTING_BUNDLES=1 scripts/run_analysis_matrix.sh
+# Add DUAL_CIRCLE_TURNBACK_CROSS_GROUP_TOP_SLI_FRACTION=0.9 for a cross-group
+# comparison of the top 90%; within-group top-20% vs bottom-50% plots are unchanged.
+# Set DUAL_CIRCLE_TURNBACK_IMG_FORMAT=pdf for vector output (default: png).
 # ---------------------------------------------------------------------
 
 if [[ "$RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY" != "1" ]]; then
@@ -1175,6 +1247,10 @@ if [[ "$RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY" != "1" ]]; then
     "3:5,8:10,13:15" \
     minEpSb5Filt \
     wall
+fi
+
+if [[ "$RUN_DUAL_CIRCLE_TURNBACK_ONLY" == "1" ]]; then
+  exit 0
 fi
 
 # ---------------------------------------------------------------------

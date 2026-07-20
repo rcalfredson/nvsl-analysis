@@ -68,6 +68,13 @@ def main():
     p.add_argument("--debug", action="store_true")
     p.add_argument("--bar-alpha", type=float, default=0.90)
     p.add_argument(
+        "--swarm",
+        "--show-points",
+        dest="show_points",
+        action="store_true",
+        help="Overlay the per-fly values stored in the input bundles.",
+    )
+    p.add_argument(
         "--standalone-extreme-labels",
         action="store_true",
         help="Use just 'Top/Bottom XX%%' as labels instead of appending to group names.",
@@ -132,6 +139,7 @@ def main():
         stats_paired=args.stats_paired,
         debug=args.debug,
         bar_alpha=args.bar_alpha,
+        show_points=args.show_points,
         opts=opts,
     )
 

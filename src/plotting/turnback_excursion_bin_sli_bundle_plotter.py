@@ -262,6 +262,7 @@ def plot_turnback_excursion_bin_sli_bundles(
     stats_paired: bool = False,
     debug: bool = False,
     bar_alpha: float = 0.90,
+    show_points: bool = False,
     opts=None,
 ):
     if opts is None:
@@ -321,6 +322,7 @@ def plot_turnback_excursion_bin_sli_bundles(
         stats_paired=bool(stats_paired),
         debug=bool(debug),
         bar_alpha=bar_alpha,
+        show_points=bool(show_points),
         opts=opts,
     )
     writeImage(out, format=getattr(opts, "imageFormat", "png"))
