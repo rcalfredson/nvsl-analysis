@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import colors as mcolors
 from matplotlib.collections import LineCollection, PathCollection
 
 from src.plotting.overlay_training_metric_scalar_bars import (
@@ -12,6 +13,7 @@ from src.plotting.overlay_training_metric_scalar_bars import (
     plot_omnibus_learner_overlays,
     plot_overlays,
 )
+from src.plotting.palettes import group_metric_fill_color
 
 
 def _export(group, values):
@@ -285,4 +287,47 @@ def test_clustered_overlay_uses_regions_as_grouped_bar_bins_with_swarms():
         collection.get_offsets().shape[0] == 3
         for collection in point_collections
     )
+
+
+def test_direct_top_bottom_comparison_uses_semantic_learner_colors():
+    top = replace(
+        _export("Top 20% learners", [0.7, 0.8, 0.9]),
+        meta={"metric_palette_family": "turnback_ratio"},
+    )
+    bottom = replace(
+        _export("Bottom 50% learners", [0.1, 0.2, 0.3]),
+        meta={"metric_palette_family": "turnback_ratio"},
+    )
+
+    fig = plot_overlays([top, bottom])
+    facecolors = [mcolors.to_hex(patch.get_facecolor()) for patch in fig.axes[0].patches]
+
+    assert facecolors == [
+        mcolors.to_hex(group_metric_fill_color(1, "turnback_ratio")),
+        mcolors.to_hex(group_metric_fill_color(0, "turnback_ratio")),
+    ]
+    plt.close(fig)
+
+
+def test_cross_group_top_learners_keep_genotype_color_cycle():
+    groups = [
+        replace(
+            _export(f"{label} (top 90% learners)", values),
+            meta={"metric_palette_family": "turnback_ratio"},
+        )
+        for label, values in (
+            ("Ctrl", [0.7, 0.8, 0.9]),
+            ("PFNd>Kir", [0.4, 0.5, 0.6]),
+            ("Antennae removed", [0.1, 0.2, 0.3]),
+        )
+    ]
+
+    fig = plot_overlays(groups)
+    facecolors = [mcolors.to_hex(patch.get_facecolor()) for patch in fig.axes[0].patches]
+
+    assert facecolors == [
+        mcolors.to_hex(group_metric_fill_color(i, "turnback_ratio"))
+        for i in range(3)
+    ]
+    plt.close(fig)
     plt.close(fig)

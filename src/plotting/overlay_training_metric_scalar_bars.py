@@ -617,6 +617,16 @@ def _global_constant_legend_n(xs: list[ExportedTrainingScalarBars]) -> int | Non
     return int(uniq[0])
 
 
+def _is_direct_top_bottom_learner_comparison(
+    xs: list[ExportedTrainingScalarBars],
+) -> bool:
+    """Use learner colors only when both learner extremes share the plot."""
+    labels = [str(x.group).strip().lower() for x in xs]
+    has_top = any("learner" in label and "top" in label for label in labels)
+    has_bottom = any("learner" in label and "bottom" in label for label in labels)
+    return has_top and has_bottom
+
+
 def _all_groups_have_constant_legend_n(
     xs: list[ExportedTrainingScalarBars],
 ) -> list[int] | None:
@@ -1517,6 +1527,7 @@ def plot_overlays(
 
     per_group_legend_ns = None
     global_legend_n = None
+    use_semantic_learner_colors = _is_direct_top_bottom_learner_comparison(xs)
     if stats and stats_paired and paired_n_per_panel is not None:
         global_legend_n = _legend_n_from_paired(paired_n_per_panel, P)
     else:
@@ -1535,11 +1546,12 @@ def plot_overlays(
         if per_group_legend_ns is not None and gi < len(per_group_legend_ns):
             n_leg = per_group_legend_ns[gi]
         label = f"{x.group} (n={n_leg})" if n_leg is not None else f"{x.group}"
+        semantic_color_label = x.group if use_semantic_learner_colors else None
         bar_color = group_metric_fill_color_for_label(
-            x.group, gi, metric_palette_family, palette=palette
+            semantic_color_label, gi, metric_palette_family, palette=palette
         )
         edge_color = group_metric_edge_color_for_label(
-            x.group, gi, metric_palette_family, palette=palette
+            semantic_color_label, gi, metric_palette_family, palette=palette
         )
         ax.bar(
             xg,
