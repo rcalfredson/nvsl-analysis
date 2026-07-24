@@ -271,10 +271,7 @@ METRIC_PALETTES = {
         "#8B5A2B",
         _adjust_lightness("#8B5A2B", 1.35),
     ],
-    "between_reward_return_leg_dist": [
-        MUTED_CATEGORICAL[6],
-        _adjust_lightness(MUTED_CATEGORICAL[6], 1.18),
-    ],
+    "between_reward_return_leg_dist": ["#ff7f00", "#fdbf6f"],
 }
 
 
