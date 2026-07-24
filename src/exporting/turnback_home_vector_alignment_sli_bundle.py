@@ -27,7 +27,7 @@ from src.exporting.wall_contact_episode_filter import (
 from src.utils.parsers import parse_training_selector
 from src.utils.util import meanConfInt
 
-Y_LABEL = "Home-vector heading alignment at re-entry"
+Y_LABEL = "Home-vector heading alignment, cos(θ)"
 BASE_TITLE = "Turnback home-vector heading alignment"
 HEADING_ESTIMATOR_MEAN = "mean"
 HEADING_ESTIMATOR_ADAPTIVE_MEAN_ONE_POINT = "adaptive_mean_one_point"

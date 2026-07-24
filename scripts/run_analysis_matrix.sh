@@ -760,7 +760,7 @@ run_turnback_home_vector_alignment() {
     --input "${TURNBACK_GROUP_LABELS[2]}=${bundles[2]}" \
     --out "exports/turnbackHomeVectorAlignment_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.${TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT}" \
     --title "Home-vector heading alignment at re-entry, ${inner_radius_mm}/${outer_radius_mm} mm" \
-    --ylabel "Home-vector heading alignment at re-entry" \
+    --ylabel "Home-vector heading alignment, cos(θ)" \
     --swarm \
     --stats \
     "${plot_style_flags[@]}"
@@ -911,7 +911,7 @@ run_turnback_home_vector_alignment_subset_impl() {
     --input "${TURNBACK_GROUP_LABELS[2]}=${bundles[2]}" \
     --out "exports/turnbackHomeVectorAlignment_${subset_slug}_${filter_tag}_${wall_tag}_flatLgc_T2_p${pair_label}_sliT2Sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.${TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT}" \
     --title "${subset_title}: home-vector heading alignment at re-entry, ${inner_radius_mm}/${outer_radius_mm} mm" \
-    --ylabel "Home-vector heading alignment at re-entry" \
+    --ylabel "Home-vector heading alignment, cos(θ)" \
     --swarm \
     --stats \
     "${plot_style_flags[@]}"
@@ -964,7 +964,7 @@ plot_combined_turnback_home_vector_alignment() {
     --out "exports/${plot_prefix}${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.${TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT}"
     --title "$title"
     --xlabel "Inner/outer radius pair from reward center (mm)"
-    --ylabel "Home-vector heading alignment at re-entry"
+    --ylabel "Home-vector heading alignment, cos(θ)"
     --clustered-layout
     --swarm
     --stats

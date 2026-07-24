@@ -97,10 +97,10 @@ def test_fraction_overlay_uses_even_ticks_and_wraps_ylabel():
     plt.close(fig)
 
 
-def test_large_alignment_ylabel_wraps_before_vector_export_cutoff():
+def test_large_alignment_ylabel_wraps_after_metric_name():
     fig = plot_overlays(
         [_export("Control", [0.5, 0.6, 0.7])],
-        ylabel="Home-vector heading alignment at re-entry",
+        ylabel="Home-vector heading alignment, cos(θ)",
         opts=SimpleNamespace(
             imageFormat="pdf",
             fontSize=16,
@@ -109,7 +109,7 @@ def test_large_alignment_ylabel_wraps_before_vector_export_cutoff():
     )
     ax = fig.axes[0]
 
-    assert ax.get_ylabel() == "Home-vector heading alignment\nat re-entry"
+    assert ax.get_ylabel() == "Home-vector heading alignment,\ncos(θ)"
     fig.canvas.draw()
     label_bbox = ax.yaxis.get_label().get_window_extent(
         renderer=fig.canvas.get_renderer()
