@@ -66,6 +66,7 @@ from src.utils.common import (
     pick_non_overlapping_y,
     propagate_nans,
     skipMsg,
+    store_auc_entries,
     sync_bucket_endpoint_xlabel,
     ttest_1samp,
     ttest_ind,
@@ -88,6 +89,10 @@ from src.analysis.random_frame_windows import (
 )
 from src.analysis.motion import CircularMotionDetector
 from src.exporting.agarose_sli_bundle import export_agarose_sli_bundle
+from src.exporting.rpid_auc_audit import (
+    DEFAULT_RPID_AUC_AUDIT_CSV,
+    write_rpid_auc_audit_csv,
+)
 from src.exporting.between_reward_maxdist_sli_bundle import (
     build_between_reward_maxdist_sli_bundle,
     export_between_reward_maxdist_sli_bundle,
@@ -5656,6 +5661,19 @@ g.add_argument(
         "Disabled by default except for rewards per distance."
     ),
 )
+g.add_argument(
+    "--audit-rpid-auc",
+    nargs="?",
+    const=DEFAULT_RPID_AUC_AUDIT_CSV,
+    default=None,
+    metavar="CSV",
+    help=(
+        "Write an audit CSV containing the experimental and yoked reward PI "
+        "inputs, bucket-wise differences, trapezoid terms, equations, and "
+        "reconciliation against learning_stats.csv. With no path, writes "
+        f"{DEFAULT_RPID_AUC_AUDIT_CSV}."
+    ),
+)
 g.add_argument("--pltAll", dest="plotAll", action="store_true", help="plot all rewards")
 g.add_argument(
     "--pltTrx",
@@ -9014,7 +9032,13 @@ def plotRewards(
     plot_fs = tuple(f for f in plot_fs if f in fs)
     if not plot_fs:
         plot_fs = tuple(fs)
-    row_to_video_idx = np.arange(a.shape[0])
+    nf = len(fs)
+
+    # CSV AUC values are data products, not statistical plot annotations.
+    # Capture them before optional learner-subset filtering and regardless of
+    # how many comparison groups are being plotted.
+    if save_auc_types and tp in save_auc_types and vas is not None:
+        store_auc_entries(vas, tp, a, nf)
 
     # Normalize SLI fraction metadata for labeling / filenames.
     # New-style side-specific fractions override the legacy shared fraction.
@@ -9030,7 +9054,6 @@ def plotRewards(
     if sli_custom_selection is not None and _tp_supports_sli_defined_subsets(tp):
         selected = np.asarray(sli_custom_selection, dtype=int)
         a = a[selected, :, :]
-        row_to_video_idx = row_to_video_idx[selected]
 
         # Single group: all selected are in group 0
         gis = np.zeros(len(selected), dtype=int)
@@ -9100,14 +9123,12 @@ def plotRewards(
         # Now filter a down to just those flies
         selected = np.asarray(selected, dtype=int)
         a = a[selected, :, :]
-        row_to_video_idx = row_to_video_idx[selected]
         if sli_extremes == "both":
             gis = np.asarray(selected_groups, dtype=int)
         else:
             gis = np.zeros(len(selected), dtype=int)
         ng = len(gls)
 
-    nf = len(fs)
     palette = get_palette(tp)
     nb, (meanC, fly2C) = int(a.shape[2] / nf), FLY_COLS
 
@@ -9816,35 +9837,6 @@ def plotRewards(
                                 tas[btwn] = a_
                             else:
                                 tas[btwn] = util.tupleAdd(tas[btwn], a_)
-                            if save_auc_types and tp in save_auc_types and not btwn:
-                                for g in range(ng):
-                                    vis = np.flatnonzero(gis == g)
-                                    exp_aucs = areaUnderCurve(
-                                        getVals(g, None, btwn, f1=0)
-                                    )
-                                    ctrl_aucs = (
-                                        areaUnderCurve(getVals(g, None, btwn, f1=1))
-                                        if nf > 1 and tp != "rpid"
-                                        else np.full_like(exp_aucs, np.nan)
-                                    )
-                                    for local_idx, row_idx in enumerate(vis):
-                                        original_vid_idx = row_to_video_idx[row_idx]
-                                        va_i = vas[original_vid_idx]
-                                        record = {
-                                            "training": i,
-                                            "exp": exp_aucs[local_idx],
-                                            "ctrl": ctrl_aucs[local_idx],
-                                        }
-
-                                        if sli_extremes == "both":
-                                            record["group"] = (
-                                                "bottom" if g == 0 else "top"
-                                            )
-                                        elif sli_extremes == "top":
-                                            record["group"] = "top"
-                                        elif sli_extremes == "bottom":
-                                            record["group"] = "bottom"
-                                        va_i.saved_auc.setdefault(tp, []).append(record)
                             if auc_to_csv and cond2:
                                 if diff_tp and i == 1:
                                     pass
@@ -13570,6 +13562,24 @@ def postAnalyze(vas):
                 save_auc_types=SAVE_AUC_TYPES,
                 num_trainings=opts.num_trainings,
             )
+            audit_rpid_auc = getattr(opts, "audit_rpid_auc", None)
+            if tp == "rpid" and audit_rpid_auc:
+                audit_rows, audit_mismatches = write_rpid_auc_audit_csv(
+                    vas,
+                    trns,
+                    raw_4,
+                    out_csv=audit_rpid_auc,
+                    sync_bucket_minutes=opts.syncBucketLenMin,
+                )
+                mismatch_msg = (
+                    ""
+                    if audit_mismatches == 0
+                    else f"; WARNING: {audit_mismatches} AUC mismatches"
+                )
+                print(
+                    f"[rpid AUC audit] wrote {audit_rpid_auc} "
+                    f"(rows={audit_rows}{mismatch_msg})"
+                )
             if len(trns) > 1 and all(t.hasSymCtrl() for t in trns[:2]):
                 test_hdr = "first sync bucket, training 1 vs. 2"
                 if tp == "rpid":

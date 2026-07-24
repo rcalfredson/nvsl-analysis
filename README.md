@@ -360,9 +360,26 @@ Below is a short demo to verify the pipeline with *real* data.
        - `__analyze.log`: A log summarizing results per fly.
        - `learning_stats.csv`: Metrics such as walking speed, number of rewards, etc.
        - `imgs/`: A folder with around 48 plots covering various metrics.
+
 3. **Compare outputs to expected**
     - Download the reference outputs from [this Figshare dataset](https://figshare.com/articles/dataset/NVSL_Analysis_Demo_Expected_Outputs/28229126).
     - Compare each file (log, CSV, images) to confirm the results match.
+
+### Auditing reward-PI-difference AUC
+
+Add `--audit-rpid-auc` to a normal analysis command to write
+`exports/rpid_auc_audit.csv`. The audit contains the experimental and yoked
+reward PI inputs, their bucket-wise difference, every trapezoid term, the
+readable AUC equation, and a reconciliation against the value staged for
+`learning_stats.csv`. Pass a path after the option to choose another filename:
+
+```bash
+python analyze.py ... --audit-rpid-auc exports/my_auc_check.csv
+```
+
+The production calculation uses an x-axis spacing of one bucket interval. The
+audit reports the configured sync-bucket duration for context but does not
+multiply the stored AUC by minutes.
 
 ---
 

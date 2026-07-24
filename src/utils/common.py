@@ -208,11 +208,62 @@ def flatten_auc_entries(va, tp):
     row = []
     if tp in va.saved_auc:
         for auc_entry in va.saved_auc[tp]:
-            if tp == "rpid":  # exp - yoked; only one value per training
+            if tp == "rpid" or len(va.flies) == 1:
+                # rpid is already exp - yoked. Other single-fly analyses also
+                # have no control column in learning_stats.csv.
                 row.extend([auc_entry["exp"]])
             else:  # rpd or meddist
                 row.extend([auc_entry["exp"], auc_entry["ctrl"]])
     return [row]
+
+
+def store_auc_entries(vas, tp, values, n_flies):
+    """
+    Store one AUC record per video and training for later CSV export.
+
+    ``values`` is arranged as video x training x (fly role * bucket). Reward
+    PI difference (``rpid``) has already been reduced to one fly-role block;
+    other supported types can contain experimental and yoked-control blocks.
+    Existing records are replaced so optional secondary plots cannot duplicate
+    or substitute the default, all-video CSV values.
+    """
+    values = np.asarray(values)
+    if values.ndim != 3:
+        raise ValueError(f"expected a 3D AUC input array, got shape {values.shape}")
+    if values.shape[0] != len(vas):
+        raise ValueError(
+            "AUC input row count does not match the number of video analyses "
+            f"({values.shape[0]} vs. {len(vas)})"
+        )
+    if n_flies < 1 or values.shape[2] % n_flies:
+        raise ValueError(
+            f"cannot divide {values.shape[2]} AUC columns among {n_flies} fly roles"
+        )
+
+    n_buckets = values.shape[2] // n_flies
+    records_by_video = [[] for _ in vas]
+    for training_idx in range(values.shape[1]):
+        exp_aucs = areaUnderCurve(
+            values[:, training_idx, :n_buckets]
+        )
+        ctrl_aucs = (
+            areaUnderCurve(
+                values[:, training_idx, n_buckets : 2 * n_buckets]
+            )
+            if n_flies > 1 and tp != "rpid"
+            else np.full_like(exp_aucs, np.nan)
+        )
+        for video_idx in range(len(vas)):
+            records_by_video[video_idx].append(
+                {
+                    "training": training_idx,
+                    "exp": exp_aucs[video_idx],
+                    "ctrl": ctrl_aucs[video_idx],
+                }
+            )
+
+    for va, records in zip(vas, records_by_video):
+        va.saved_auc[tp] = records
 
 
 # chamber type
