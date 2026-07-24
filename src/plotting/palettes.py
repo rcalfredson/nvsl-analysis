@@ -263,7 +263,7 @@ PAIRED = (
 METRIC_PALETTES = {
     "sli": ["#1f78b4", "#a6cee3"],
     "rpd": ["#33a02c", "#b2df8a"],
-    "commag": ["#ff7f00", "#fdbf6f"],
+    "commag": ["#33a02c", "#b2df8a"],
     "meddist": ["#6a3d9a", "#cab2d6"],
     "agarose": [NEUTRAL_DARK, NEUTRAL_LIGHT],
     "turnback": [BRIGHT_YELLOW, _adjust_lightness(BRIGHT_YELLOW, 1.12)],
