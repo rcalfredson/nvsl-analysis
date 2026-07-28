@@ -1753,9 +1753,9 @@ class Trajectory:
         self, t, inCRngs, nanRngs, inC_custom, inCPre_custom, bl_3_min
     ):
         for j, inCRng in enumerate(inCRngs):
-            numNaN = np.count_nonzero(~self.nan[nanRngs[j]])
-            if numNaN > 0:
-                pctInOriginalCircle = np.count_nonzero(inCRng == 2) / numNaN
+            valid = ~self.nan[nanRngs[j]]
+            if np.any(valid):
+                pctInOriginalCircle = self._fraction_inside_circle(inCRng, valid)
                 self.pctInC["rwd"].append(pctInOriginalCircle)
 
                 if inC_custom is not None:
@@ -1763,53 +1763,50 @@ class Trajectory:
                         if (
                             j == 0 and inCPre_custom is not None
                         ):  # First 3 minutes of pre-training
-                            pctInCustomCircle = (
-                                np.count_nonzero(inCPre_custom[:bl_3_min] == 2) / numNaN
-                            )
+                            custom_range = inCPre_custom[:bl_3_min]
                         elif (
                             j == 1 and inCPre_custom is not None
                         ):  # Final 10 minutes of pre-training
                             bl_10_min = len(inCRng)  # Length of the last 10 minutes
-                            pctInCustomCircle = (
-                                np.count_nonzero(inCPre_custom[-bl_10_min:] == 2)
-                                / numNaN
-                            )
+                            custom_range = inCPre_custom[-bl_10_min:]
                         elif (
                             j == 2 and inCPre_custom is not None
                         ):  # Entire pre-training period
-                            pctInCustomCircle = (
-                                np.count_nonzero(inCPre_custom == 2) / numNaN
-                            )
+                            custom_range = inCPre_custom
                         else:  # Post-training and custom timeframes
-                            pctInCustomCircle = (
-                                np.count_nonzero(
-                                    inC_custom[
-                                        nanRngs[j].start
-                                        - t.start : nanRngs[j].stop
-                                        - t.start
-                                    ]
-                                    == 2
-                                )
-                                / numNaN
-                            )
+                            custom_range = inC_custom[
+                                nanRngs[j].start
+                                - t.start : nanRngs[j].stop
+                                - t.start
+                            ]
                     else:
                         # Post-training and other periods for non-pre-training
-                        pctInCustomCircle = (
-                            np.count_nonzero(
-                                inC_custom[
-                                    nanRngs[j].start
-                                    - t.start : nanRngs[j].stop
-                                    - t.start
-                                ]
-                                == 2
-                            )
-                            / numNaN
-                        )
+                        custom_range = inC_custom[
+                            nanRngs[j].start
+                            - t.start : nanRngs[j].stop
+                            - t.start
+                        ]
+                    pctInCustomCircle = self._fraction_inside_circle(
+                        custom_range, valid
+                    )
                     self.pctInC["custom"].append(pctInCustomCircle)
             else:
                 self.pctInC["rwd"].append(np.nan)
                 if inC_custom is not None:
                     self.pctInC["custom"].append(np.nan)
+
+    @staticmethod
+    def _fraction_inside_circle(circle_states, valid):
+        circle_states = np.asarray(circle_states)
+        valid = np.asarray(valid, dtype=bool)
+        if circle_states.shape != valid.shape:
+            raise ValueError(
+                "Circle-state and valid-frame masks must have matching shapes."
+            )
+        denominator = np.count_nonzero(valid)
+        if denominator == 0:
+            return np.nan
+        return np.count_nonzero((circle_states == 2) & valid) / denominator
 
     @staticmethod
     def _calcEnEx(inC, start, mode="en"):
@@ -2237,20 +2234,11 @@ class Trajectory:
                     for lbl in extra_masks:
                         extra_masks[lbl] = extra_masks[lbl][offset:]
 
-                if self.opts.pctTimeCircleRad and i == 0:
-                    customRad = self.opts.pctTimeCircleRad
-                    inC_custom = self.calc_in_circle(x, y, cx, cy, customRad)
                 for s in util.trueRegions(self.nan[start : t.postStop]):
                     inC[s] = inC[s.start - 1] if s.start > 0 else False
-                    if self.opts.pctTimeCircleRad and i == 0:
-                        inC_custom[s] = (
-                            inC_custom[s.start - 1] if s.start > 0 else False
-                        )
                 if t.n == 1:
                     inCPre = inC[0 : t.start - self.va.startPre]
                     inC = inC[t.start - self.va.startPre :]
-                    if self.opts.pctTimeCircleRad:
-                        inC_custom = inC_custom[t.start - self.va.startPre :]
                     en = np.hstack(
                         (self._calcEnEx(inCPre, start), self._calcEnEx(inC, t.start))
                     )
