@@ -16,12 +16,14 @@ from scipy.stats import pearsonr
 from src.analysis.correlation_stats import pearson_correlation_summary
 from src.analysis.sli_tools import default_single_bucket_idx
 from src.exporting.speed_sli_bundle import _extract_speed_arrays
+from src.plotting.between_reward_segment_binning import sync_bucket_window
 from src.plotting.palettes import (
     MUTED_CATEGORICAL,
     NEUTRAL_LIGHT,
     NEUTRAL_MID,
     correlation_plot_color,
 )
+from src.plotting.rewards_per_distance_totals import pooled_rewards_per_distance_window
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.axis_size import DEFAULT_PLOT_AXIS_SIZE_INCHES, set_axis_size_inches
 from src.plotting.reward_window_utils import (
@@ -89,6 +91,9 @@ class CorrelationPlotConfig:
     ylim: Optional[Tuple[float, float]] = None
     export_npz_dir: Optional[Path] = None
     export_group_label: Optional[str] = None
+    window_metric_aggregation: str = "pooled"
+    rpd_pooled_validity: str = "window"
+    rpd_pooled_min_rewards: int = 5
 
 
 def _correlation_out_path(out_dir: Path, filename: str, image_format: str) -> Path:
@@ -141,6 +146,9 @@ def _export_scatter_npz(
         "x_label": x_label,
         "y_label": y_label,
         "group": cfg.export_group_label,
+        "window_metric_aggregation": cfg.window_metric_aggregation,
+        "rpd_pooled_validity": cfg.rpd_pooled_validity,
+        "rpd_pooled_min_rewards": cfg.rpd_pooled_min_rewards,
         "r": float(r),
         "p": float(p),
         "n": int(summary.n),
@@ -1443,10 +1451,57 @@ def _ensure_reward_pi_pre(va) -> bool:
     return True
 
 
+def _window_aggregation_mode(opts) -> str:
+    mode = str(
+        getattr(opts, "corr_window_metric_aggregation", "pooled") or "pooled"
+    ).lower()
+    if mode not in ("pooled", "bucketwise"):
+        raise ValueError(f"Unsupported correlation window aggregation: {mode!r}")
+    return mode
+
+
+def _context_bucket_window(ctx: SLIContext) -> tuple[int, int]:
+    if ctx.explicit_bucket_idx is not None:
+        return max(0, int(ctx.explicit_bucket_idx)), 1
+    return (
+        max(0, int(ctx.skip_first_sync_buckets or 0)),
+        max(0, int(ctx.keep_first_sync_buckets or 0)),
+    )
+
+
+def _pooled_rewards_per_distance_for_context(
+    va,
+    *,
+    ctx: SLIContext,
+    f: int,
+    validity_policy: str = "window",
+    min_rewards: int = 5,
+) -> float:
+    training_idx = int(ctx.training_idx)
+    trns = getattr(va, "trns", None) or []
+    if training_idx < 0 or training_idx >= len(trns):
+        return np.nan
+
+    skip_first, keep_first = _context_bucket_window(ctx)
+    result = pooled_rewards_per_distance_window(
+        va,
+        trns[training_idx],
+        t_idx=training_idx,
+        f=f,
+        skip_first=skip_first,
+        keep_first=keep_first,
+        validity_policy=validity_policy,
+        min_rewards=min_rewards,
+    )
+    return np.nan if result is None else float(result.value)
+
+
 def _extract_exp_speed_for_context(
     vas: Sequence,
     opts,
     ctx: SLIContext,
+    *,
+    aggregation: str = "pooled",
 ) -> np.ndarray:
     """
     Return one experimental-fly speed scalar per VideoAnalysis for ctx's
@@ -1470,19 +1525,98 @@ def _extract_exp_speed_for_context(
     if training_idx < 0 or training_idx >= speed_exp.shape[1]:
         return np.full(len(vas), np.nan, dtype=float)
 
-    return np.asarray(
-        [
-            _reduce_sync_bucket_series(
-                speed_exp[vi, training_idx, :],
-                bucket_idx=getattr(ctx, "explicit_bucket_idx", None),
-                average_over_buckets=bool(ctx.average_over_buckets),
-                skip_first_sync_buckets=int(ctx.skip_first_sync_buckets or 0),
-                keep_first_sync_buckets=int(ctx.keep_first_sync_buckets or 0),
-            )
-            for vi in range(speed_exp.shape[0])
-        ],
-        dtype=float,
+    if aggregation == "bucketwise":
+        return np.asarray(
+            [
+                _reduce_sync_bucket_series(
+                    speed_exp[vi, training_idx, :],
+                    bucket_idx=getattr(ctx, "explicit_bucket_idx", None),
+                    average_over_buckets=bool(ctx.average_over_buckets),
+                    skip_first_sync_buckets=int(ctx.skip_first_sync_buckets or 0),
+                    keep_first_sync_buckets=int(ctx.keep_first_sync_buckets or 0),
+                )
+                for vi in range(speed_exp.shape[0])
+            ],
+            dtype=float,
+        )
+
+    speed_n = np.asarray(speed_arrays.get("speedN_exp", []), dtype=float)
+    if speed_n.shape != speed_exp.shape:
+        return np.full(len(vas), np.nan, dtype=float)
+    skip_first, keep_first = _context_bucket_window(ctx)
+    end = speed_exp.shape[2]
+    if keep_first > 0:
+        end = min(end, skip_first + keep_first)
+    if skip_first >= end:
+        return np.full(len(vas), np.nan, dtype=float)
+
+    values = speed_exp[:, training_idx, skip_first:end]
+    weights = speed_n[:, training_idx, skip_first:end]
+    valid = np.isfinite(values) & np.isfinite(weights) & (weights > 0)
+    weighted_sum = np.sum(np.where(valid, values * weights, 0.0), axis=1)
+    total_weight = np.sum(np.where(valid, weights, 0.0), axis=1)
+    return np.divide(
+        weighted_sum,
+        total_weight,
+        out=np.full(weighted_sum.shape, np.nan, dtype=float),
+        where=total_weight > 0,
     )
+
+
+def _pooled_median_distance_for_context(va, ctx: SLIContext) -> float:
+    training_idx = int(ctx.training_idx)
+    trns = getattr(va, "trns", None) or []
+    trx = getattr(va, "trx", None) or []
+    if training_idx < 0 or training_idx >= len(trns) or not trx:
+        return np.nan
+    try:
+        if trx[0].bad():
+            return np.nan
+    except Exception:
+        if getattr(trx[0], "_bad", True):
+            return np.nan
+
+    skip_first, keep_first = _context_bucket_window(ctx)
+    trn = trns[training_idx]
+    fi, df, n_buckets, _complete = sync_bucket_window(
+        va,
+        trn,
+        t_idx=training_idx,
+        f=0,
+        skip_first=skip_first,
+        keep_first=keep_first,
+        use_exclusion_mask=False,
+    )
+    if n_buckets <= 0:
+        return np.nan
+
+    try:
+        cx, cy, _ = trn.circles(0)[0]
+        px_per_mm = float(va.xf.fctr) * float(va.ct.pxPerMmFloor())
+    except Exception:
+        return np.nan
+    if not np.isfinite(px_per_mm) or px_per_mm <= 0:
+        return np.nan
+
+    traj = trx[0]
+    distances = []
+    for j in range(int(n_buckets)):
+        bucket_idx = skip_first + j
+        try:
+            if va.is_excluded_pair(0, training_idx, bucket_idx):
+                continue
+        except Exception:
+            return np.nan
+        start = int(fi + j * df)
+        stop = int(start + df)
+        xs = np.asarray(traj.x[start:stop], dtype=float)
+        ys = np.asarray(traj.y[start:stop], dtype=float)
+        valid = np.isfinite(xs) & np.isfinite(ys)
+        if np.any(valid):
+            distances.append(np.hypot(xs[valid] - cx, ys[valid] - cy))
+    if not distances:
+        return np.nan
+    return float(np.median(np.concatenate(distances)) / px_per_mm)
 
 
 def _rewards_per_minute_for_first_n_calc_rewards(
@@ -2111,8 +2245,11 @@ def plot_cross_fly_correlations(
     """
     Cross-fly correlations:
 
-      1) SLI_final vs reward-per-distance (final bucket of chosen training)
-      2) SLI_final vs median distance to reward during chosen training
+      1) SLI vs reward-per-distance over the selected training/window
+      1b) SLI vs experimental-minus-yoked reward-per-distance
+      1c) SLI vs reward rate
+      1d) Speed vs SLI
+      2) SLI vs median distance to reward over the selected training/window
       3) Pre-training reward PI (exp − yoked) vs SLI_final
       3b) Pre-training floor exploration vs SLI at T1, first sync bucket
       3c) Pre-training floor exploration vs SLI_final
@@ -2132,6 +2269,14 @@ def plot_cross_fly_correlations(
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    window_metric_aggregation = _window_aggregation_mode(opts)
+    rpd_pooled_validity = str(
+        getattr(opts, "rpd_pooled_validity", "window") or "window"
+    )
+    rpd_pooled_min_rewards = max(
+        0,
+        int(getattr(opts, "rpd_pooled_min_rewards", 5) or 0),
+    )
     cfg = CorrelationPlotConfig(
         out_dir=out_dir,
         image_format=getattr(opts, "imageFormat", "png"),
@@ -2143,6 +2288,9 @@ def plot_cross_fly_correlations(
             else Path(getattr(opts, "corr_export_npz_dir"))
         ),
         export_group_label=_corr_export_group_label(opts),
+        window_metric_aggregation=window_metric_aggregation,
+        rpd_pooled_validity=rpd_pooled_validity,
+        rpd_pooled_min_rewards=rpd_pooled_min_rewards,
         axis_size_inches=getattr(
             opts, "standard_plot_axis_size", DEFAULT_PLOT_AXIS_SIZE_INCHES
         ),
@@ -2249,8 +2397,23 @@ def plot_cross_fly_correlations(
     pre_coverage_vals = []
 
     for va in vas:
-        # --- Reward per distance (final bucket of training_idx) ---
-        if _ensure_rewards_per_distance(va):
+        # --- Reward per distance over the selected training/window ---
+        if window_metric_aggregation == "pooled":
+            rpd_val = _pooled_rewards_per_distance_for_context(
+                va,
+                ctx=sli_ctx,
+                f=0,
+                validity_policy=rpd_pooled_validity,
+                min_rewards=rpd_pooled_min_rewards,
+            )
+            rpd_yoked_val = _pooled_rewards_per_distance_for_context(
+                va,
+                ctx=sli_ctx,
+                f=1,
+                validity_policy=rpd_pooled_validity,
+                min_rewards=rpd_pooled_min_rewards,
+            )
+        elif _ensure_rewards_per_distance(va):
             exp_row_idx = 2 * training_idx
             yoked_row_idx = exp_row_idx + 1
             if 0 <= exp_row_idx < len(va.rwdsPerDist):
@@ -2307,17 +2470,27 @@ def plot_cross_fly_correlations(
         else:
             rpt_val = np.nan
 
-        # --- Median distance to reward during training ---
-        _ensure_sync_med_dist(va)
-        if hasattr(va, "syncMedDist") and training_idx < len(va.syncMedDist):
-            med_vec = np.asarray(va.syncMedDist[training_idx].get("exp", []), float)
-            end_k = med_vec.size if keep_k <= 0 else min(med_vec.size, skip_k + keep_k)
-            if med_vec.size and skip_k < end_k:
-                med_train = np.nanmedian(med_vec[skip_k:end_k])
+        # --- Median distance to reward during the selected training/window ---
+        if window_metric_aggregation == "pooled":
+            med_train = _pooled_median_distance_for_context(va, sli_ctx)
+        else:
+            _ensure_sync_med_dist(va)
+            if hasattr(va, "syncMedDist") and training_idx < len(va.syncMedDist):
+                med_vec = np.asarray(
+                    va.syncMedDist[training_idx].get("exp", []),
+                    float,
+                )
+                end_k = (
+                    med_vec.size
+                    if keep_k <= 0
+                    else min(med_vec.size, skip_k + keep_k)
+                )
+                if med_vec.size and skip_k < end_k:
+                    med_train = np.nanmedian(med_vec[skip_k:end_k])
+                else:
+                    med_train = np.nan
             else:
                 med_train = np.nan
-        else:
-            med_train = np.nan
 
         # --- Pre-training reward preference index (exp − yoked) ---
         if _ensure_reward_pi_pre(va):
@@ -2391,7 +2564,12 @@ def plot_cross_fly_correlations(
     rpd_vals = np.asarray(rpd_vals, float)
     rpd_exp_minus_yoked_vals = np.asarray(rpd_exp_minus_yoked_vals, float)
     rpt_vals = np.asarray(rpt_vals, float)
-    speed_vals = _extract_exp_speed_for_context(vas, opts, sli_ctx)
+    speed_vals = _extract_exp_speed_for_context(
+        vas,
+        opts,
+        sli_ctx,
+        aggregation=window_metric_aggregation,
+    )
     med_train_vals = np.asarray(med_train_vals, float)
     pre_pi_diff_vals = np.asarray(pre_pi_diff_vals, float)
     total_reward_vals = np.asarray(total_reward_vals, float)

@@ -19,9 +19,171 @@ from src.utils.constants import RI_START
 @dataclass
 class RewardsPerDistanceTotalsConfig(TrainingMetricScalarBarsConfig):
     value_mode: str = "exp"
+    validity_policy: str = "window"
+    min_rewards: int = 5
     sli_values: Sequence[float] | None = None
     sli_exp_values: Sequence[float] | None = None
     sli_ctrl_values: Sequence[float] | None = None
+
+
+@dataclass(frozen=True)
+class PooledRewardsPerDistanceWindow:
+    value: float
+    rewards: float
+    distance_m: float
+    start_frame: int
+    stop_frame: int
+    n_buckets: int
+
+
+def _count_calc_rewards_in_window(
+    va,
+    trn,
+    *,
+    f: int,
+    ctrl: bool,
+    start: int,
+    stop: int,
+) -> float:
+    try:
+        fi_count = util.none2val(va._idxSync(RI_START, trn, start, stop), stop)
+        return float(
+            va._countOn(
+                max(start, int(fi_count)),
+                stop,
+                calc=True,
+                ctrl=bool(ctrl),
+                f=f,
+            )
+        )
+    except Exception:
+        try:
+            on = np.asarray(
+                va._getOn(trn, calc=True, ctrl=bool(ctrl), f=f),
+                dtype=float,
+            )
+        except Exception:
+            return np.nan
+        on = on[np.isfinite(on)]
+        return float(np.count_nonzero((on >= start) & (on < stop)))
+
+
+def _distance_traveled_m(va, *, f: int, start: int, stop: int) -> float:
+    try:
+        traj = va.trx[f]
+        px_per_mm = float(va.xf.fctr) * float(va.ct.pxPerMmFloor())
+    except Exception:
+        return np.nan
+    if not np.isfinite(px_per_mm) or px_per_mm <= 0 or stop <= start:
+        return np.nan
+    try:
+        dist_px = float(traj.distTrav(int(start), int(stop)))
+    except Exception:
+        return np.nan
+    if not np.isfinite(dist_px):
+        return np.nan
+    return float(dist_px / px_per_mm / 1000.0)
+
+
+def _all_selected_buckets_valid(
+    va,
+    *,
+    f: int,
+    t_idx: int,
+    skip_first: int,
+    n_buckets: int,
+) -> bool:
+    for j in range(int(n_buckets)):
+        b_idx = int(skip_first) + j
+        try:
+            if va.is_excluded_pair(f, t_idx, b_idx):
+                return False
+        except Exception:
+            return False
+    return True
+
+
+def pooled_rewards_per_distance_window(
+    va,
+    trn,
+    *,
+    t_idx: int,
+    f: int,
+    skip_first: int,
+    keep_first: int,
+    validity_policy: str = "window",
+    min_rewards: int = 5,
+) -> PooledRewardsPerDistanceWindow | None:
+    """
+    Calculate one denominator-aware RPD value over a selected sync-bucket window.
+
+    ``window`` validity ignores per-bucket PI masks and requires ``min_rewards``
+    calculated target rewards in the pooled window. ``all-buckets`` reproduces
+    the legacy policy requiring every selected bucket to pass
+    ``is_excluded_pair``; it does not add a pooled reward-count threshold.
+    """
+    policy = str(validity_policy or "window").lower()
+    if policy not in ("window", "all-buckets"):
+        raise ValueError(f"Unsupported pooled RPD validity policy: {policy!r}")
+
+    trx = getattr(va, "trx", None) or []
+    if f < 0 or f >= len(trx):
+        return None
+    try:
+        if trx[f].bad():
+            return None
+    except Exception:
+        if getattr(trx[f], "_bad", True):
+            return None
+
+    fi, df, n_buckets, _complete = sync_bucket_window(
+        va,
+        trn,
+        t_idx=t_idx,
+        f=f,
+        skip_first=max(0, int(skip_first or 0)),
+        keep_first=max(0, int(keep_first or 0)),
+        use_exclusion_mask=False,
+    )
+    if n_buckets <= 0:
+        return None
+    if policy == "all-buckets" and not _all_selected_buckets_valid(
+        va,
+        f=f,
+        t_idx=t_idx,
+        skip_first=max(0, int(skip_first or 0)),
+        n_buckets=n_buckets,
+    ):
+        return None
+
+    start = int(fi)
+    stop = int(fi + n_buckets * df)
+    rewards = _count_calc_rewards_in_window(
+        va,
+        trn,
+        f=f,
+        ctrl=False,
+        start=start,
+        stop=stop,
+    )
+    distance_m = _distance_traveled_m(va, f=f, start=start, stop=stop)
+    if (
+        not np.isfinite(rewards)
+        or not np.isfinite(distance_m)
+        or distance_m <= 0
+    ):
+        return None
+    if policy == "window" and rewards < max(0, int(min_rewards or 0)):
+        return None
+
+    return PooledRewardsPerDistanceWindow(
+        value=float(rewards / distance_m),
+        rewards=float(rewards),
+        distance_m=float(distance_m),
+        start_frame=start,
+        stop_frame=stop,
+        n_buckets=int(n_buckets),
+    )
 
 
 class RewardsPerDistancePerFlyCollector:
@@ -58,46 +220,18 @@ class RewardsPerDistancePerFlyCollector:
     def _count_calc_rewards_in_window(
         va, trn, *, f: int, ctrl: bool, start: int, stop: int
     ) -> float:
-        try:
-            fi_count = util.none2val(va._idxSync(RI_START, trn, start, stop), stop)
-            return float(
-                va._countOn(
-                    max(start, int(fi_count)),
-                    stop,
-                    calc=True,
-                    ctrl=bool(ctrl),
-                    f=f,
-                )
-            )
-        except Exception:
-            try:
-                on = np.asarray(
-                    va._getOn(trn, calc=True, ctrl=bool(ctrl), f=f),
-                    dtype=float,
-                )
-            except Exception:
-                return np.nan
-            on = on[np.isfinite(on)]
-            return float(np.count_nonzero((on >= start) & (on < stop)))
+        return _count_calc_rewards_in_window(
+            va,
+            trn,
+            f=f,
+            ctrl=ctrl,
+            start=start,
+            stop=stop,
+        )
 
     @staticmethod
     def _distance_traveled_m(va, *, f: int, start: int, stop: int) -> float:
-        try:
-            traj = va.trx[f]
-            px_per_mm = float(va.xf.fctr) * float(va.ct.pxPerMmFloor())
-        except Exception:
-            return np.nan
-        if not np.isfinite(px_per_mm) or px_per_mm <= 0:
-            return np.nan
-        if stop <= start:
-            return np.nan
-        try:
-            dist_px = float(traj.distTrav(int(start), int(stop)))
-        except Exception:
-            return np.nan
-        if not np.isfinite(dist_px):
-            return np.nan
-        return float(dist_px / px_per_mm / 1000.0)
+        return _distance_traveled_m(va, f=f, start=start, stop=stop)
 
     @staticmethod
     def _all_selected_buckets_valid(
@@ -108,14 +242,13 @@ class RewardsPerDistancePerFlyCollector:
         skip_first: int,
         n_buckets: int,
     ) -> bool:
-        for j in range(int(n_buckets)):
-            b_idx = int(skip_first) + j
-            try:
-                if va.is_excluded_pair(f, t_idx, b_idx):
-                    return False
-            except Exception:
-                return False
-        return True
+        return _all_selected_buckets_valid(
+            va,
+            f=f,
+            t_idx=t_idx,
+            skip_first=skip_first,
+            n_buckets=n_buckets,
+        )
 
     def _collect_reward_distance_totals_by_training_per_fly(self):
         n_trn = self._n_trainings()
@@ -127,6 +260,10 @@ class RewardsPerDistancePerFlyCollector:
         sli_exp_values = getattr(self.cfg, "sli_exp_values", None)
         sli_ctrl_values = getattr(self.cfg, "sli_ctrl_values", None)
         value_mode = str(getattr(self.cfg, "value_mode", "exp") or "exp")
+        validity_policy = str(
+            getattr(self.cfg, "validity_policy", "window") or "window"
+        )
+        min_rewards = max(0, int(getattr(self.cfg, "min_rewards", 5) or 0))
         if value_mode not in ("exp", "exp_minus_yok"):
             raise ValueError(f"Unsupported RPD total value_mode: {value_mode!r}")
 
@@ -141,43 +278,39 @@ class RewardsPerDistancePerFlyCollector:
             trns = getattr(va, "trns", [])
             for t_idx, trn in enumerate(trns[:n_trn]):
                 f = 0
-                fi, df, n_buckets, _complete = sync_bucket_window(
+                exp_result = pooled_rewards_per_distance_window(
                     va,
                     trn,
                     t_idx=t_idx,
                     f=f,
                     skip_first=skip_first,
                     keep_first=keep_first,
-                    use_exclusion_mask=False,
+                    validity_policy=validity_policy,
+                    min_rewards=min_rewards,
                 )
-                if n_buckets <= 0:
+                if exp_result is None:
                     continue
                 has_yok = getattr(va, "trx", None) is not None and len(va.trx) > 1
-                if value_mode == "exp_minus_yok":
-                    if not has_yok or va.trx[1].bad():
-                        continue
-                    if not self._all_selected_buckets_valid(
+                yok_result = (
+                    pooled_rewards_per_distance_window(
                         va,
+                        trn,
                         f=1,
                         t_idx=t_idx,
                         skip_first=skip_first,
-                        n_buckets=n_buckets,
-                    ):
-                        continue
-                if not self._all_selected_buckets_valid(
-                    va,
-                    f=f,
-                    t_idx=t_idx,
-                    skip_first=skip_first,
-                    n_buckets=n_buckets,
-                ):
+                        keep_first=keep_first,
+                        validity_policy=validity_policy,
+                        min_rewards=min_rewards,
+                    )
+                    if has_yok
+                    else None
+                )
+                if value_mode == "exp_minus_yok" and yok_result is None:
                     continue
 
-                start = int(fi)
-                stop = int(fi + n_buckets * df)
-                n_rewards = self._count_calc_rewards_in_window(
-                    va, trn, f=f, ctrl=False, start=start, stop=stop
-                )
+                start = exp_result.start_frame
+                stop = exp_result.stop_frame
+                n_rewards = exp_result.rewards
                 exp_control_rewards = self._count_calc_rewards_in_window(
                     va, trn, f=0, ctrl=True, start=start, stop=stop
                 )
@@ -187,31 +320,13 @@ class RewardsPerDistancePerFlyCollector:
                 yok_control_rewards = self._count_calc_rewards_in_window(
                     va, trn, f=1, ctrl=True, start=start, stop=stop
                 )
-                dist_m = self._distance_traveled_m(va, f=f, start=start, stop=stop)
-                yok_dist_m = (
-                    self._distance_traveled_m(va, f=1, start=start, stop=stop)
-                    if has_yok
-                    else np.nan
-                )
-                if (
-                    not np.isfinite(n_rewards)
-                    or not np.isfinite(dist_m)
-                    or dist_m <= 0
-                ):
-                    continue
+                dist_m = exp_result.distance_m
+                yok_dist_m = yok_result.distance_m if yok_result is not None else np.nan
 
                 unit_id = self._unit_id(va, f=f)
-                exp_value = float(n_rewards / dist_m)
-                yok_value = (
-                    float(yok_calc_rewards / yok_dist_m)
-                    if np.isfinite(yok_calc_rewards)
-                    and np.isfinite(yok_dist_m)
-                    and yok_dist_m > 0
-                    else np.nan
-                )
+                exp_value = exp_result.value
+                yok_value = yok_result.value if yok_result is not None else np.nan
                 if value_mode == "exp_minus_yok":
-                    if not np.isfinite(yok_value):
-                        continue
                     value = float(exp_value - yok_value)
                 else:
                     value = exp_value
@@ -226,11 +341,13 @@ class RewardsPerDistancePerFlyCollector:
                     "yok_distance_m": float(yok_dist_m),
                     "start_frame": int(start),
                     "stop_frame": int(stop),
-                    "n_buckets": int(n_buckets),
+                    "n_buckets": int(exp_result.n_buckets),
                     "value": value,
                     "exp_value": exp_value,
                     "yok_value": yok_value,
                     "value_mode": value_mode,
+                    "validity_policy": validity_policy,
+                    "min_rewards": min_rewards,
                     "sli": (
                         float(sli_values[va_idx])
                         if sli_values is not None and va_idx < len(sli_values)
@@ -296,6 +413,13 @@ class RewardsPerDistanceTotalsPlotter(
             return data
         data.setdefault("meta", {})["rpd_total_value_mode"] = str(
             getattr(self.cfg, "value_mode", "exp") or "exp"
+        )
+        data["meta"]["rpd_pooled_validity"] = str(
+            getattr(self.cfg, "validity_policy", "window") or "window"
+        )
+        data["meta"]["rpd_pooled_min_rewards"] = max(
+            0,
+            int(getattr(self.cfg, "min_rewards", 5) or 0),
         )
 
         training_info = data.get("meta", {}).get("training_selection", {})

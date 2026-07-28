@@ -693,6 +693,28 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--rpd-pooled-validity",
+    choices=("window", "all-buckets"),
+    default="window",
+    help=(
+        "Validity policy for pooled rewards-per-distance values used by correlation "
+        "and RPD-total plots. 'window' (default) ignores per-bucket PI masks and "
+        "applies --rpd-pooled-min-rewards once to the pooled window. "
+        "'all-buckets' restores the former requirement that every selected bucket "
+        "pass the paired per-bucket exclusion mask."
+    ),
+)
+g.add_argument(
+    "--rpd-pooled-min-rewards",
+    type=int,
+    default=5,
+    metavar="N",
+    help=(
+        "Minimum calculated target rewards required across a pooled RPD window "
+        "when --rpd-pooled-validity=window (default: 5)."
+    ),
+)
+g.add_argument(
     "--move",
     dest="move",
     action="store_true",
@@ -864,6 +886,18 @@ g.add_argument(
     help=(
         "Optional group label stored in --corr-export-npz-dir scatter exports. "
         "If omitted, the first label from --gl is used when available."
+    ),
+)
+g.add_argument(
+    "--corr-window-metric-aggregation",
+    choices=("pooled", "bucketwise"),
+    default="pooled",
+    help=(
+        "Aggregate windowed non-SLI correlation metrics across the selected sync "
+        "buckets by pooling their underlying observations (default). Use "
+        "'bucketwise' to restore the legacy reductions: mean bucket RPD, mean "
+        "bucket speed, and median of bucket medians for distance to reward. "
+        "This option does not change SLI aggregation or axis labels."
     ),
 )
 g.add_argument(
@@ -14337,6 +14371,11 @@ def postAnalyze(vas):
             show_points=bool(getattr(opts, "rpd_total_show_points", False)),
             metric_palette_family="rpd",
             value_mode=getattr(opts, "rpd_total_value_mode", "exp"),
+            validity_policy=getattr(opts, "rpd_pooled_validity", "window"),
+            min_rewards=max(
+                0,
+                int(getattr(opts, "rpd_pooled_min_rewards", 5) or 0),
+            ),
             sli_values=rpd_total_sli_values,
             sli_exp_values=rpd_total_sli_exp_values,
             sli_ctrl_values=rpd_total_sli_ctrl_values,
