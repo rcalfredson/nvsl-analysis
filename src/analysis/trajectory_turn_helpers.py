@@ -1,9 +1,6 @@
 import numpy as np
 
-
-def _angle_delta(a, b):
-    d = abs(b - a)
-    return min(d, 2 * np.pi - d)
+from src.utils.common import signed_circular_angle_delta
 
 
 def _speed_frame_for_velocity_angle(angle_idx):
@@ -91,18 +88,22 @@ def add_circle_turn_fields(trj, va, stats, opts):
                 j_speed, j_speed_idx = _velocity_angle_segment_speed(trj, j)
             if j >= reg.stop:
                 break
-            delta = _angle_delta(trj.velAngles[i], trj.velAngles[j])
+            delta = signed_circular_angle_delta(
+                trj.velAngles[j], trj.velAngles[i]
+            )
             vel_deltas.append(delta)
             event_diag["used_angle_pairs"].append((i, j))
             event_diag["used_speed_frames"].append((speed_idx, j_speed_idx))
             event_diag["vel_angle_deltas"].append(delta)
             i = j
 
-        total = abs(np.sum(vel_deltas))
+        signed_total = np.sum(vel_deltas)
+        total = np.abs(signed_total)
         event_diag["low_speed_frames"] = sorted(set(event_diag["low_speed_frames"]))
         event_diag["low_speed_speed_frames"] = sorted(
             set(event_diag["low_speed_speed_frames"])
         )
+        event_diag["signed_total_vel_angle_delta"] = signed_total
         event_diag["total_vel_angle_delta"] = total
         totals.append(total)
         turn_angle_diagnostics.append(event_diag)
