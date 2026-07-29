@@ -263,7 +263,7 @@ PAIRED = (
 METRIC_PALETTES = {
     "sli": ["#1f78b4", "#a6cee3"],
     "rpd": ["#33a02c", "#b2df8a"],
-    "commag": ["#33a02c", "#b2df8a"],
+    "commag": ["#ff7f00", "#fdbf6f"],
     "meddist": ["#6a3d9a", "#cab2d6"],
     "agarose": [NEUTRAL_DARK, NEUTRAL_LIGHT],
     "turnback": [BRIGHT_YELLOW, _adjust_lightness(BRIGHT_YELLOW, 1.12)],
@@ -271,7 +271,10 @@ METRIC_PALETTES = {
         "#8B5A2B",
         _adjust_lightness("#8B5A2B", 1.35),
     ],
-    "between_reward_return_leg_dist": ["#ff7f00", "#fdbf6f"],
+    "between_reward_return_leg_dist": [
+        MUTED_CATEGORICAL[6],
+        _adjust_lightness(MUTED_CATEGORICAL[6], 1.18),
+    ],
 }
 
 
