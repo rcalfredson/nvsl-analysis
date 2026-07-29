@@ -597,18 +597,18 @@ class Trajectory:
         ys = self.y[t0:t1]
         good = np.isfinite(xs) & np.isfinite(ys)
 
-        in_return = np.zeros(t1 - t0, dtype=bool)
-        in_reward = np.zeros(t1 - t0, dtype=bool)
+        return_states = np.full(t1 - t0, np.nan, dtype=float)
+        reward_states = np.full(t1 - t0, np.nan, dtype=float)
 
         if np.any(good):
-            return_state = self.calc_in_circle(
+            return_states[good] = self.calc_in_circle(
                 xs[good], ys[good], cx, cy, return_r_px, border_width_px=border_width_px
             )
-            reward_state = self.calc_in_circle(
+            reward_states[good] = self.calc_in_circle(
                 xs[good], ys[good], cx, cy, reward_r_px, border_width_px=border_width_px
             )
-            in_return[good] = return_state > 0
-            in_reward[good] = reward_state > 0
+        in_return = self._hysteretic_circle_inside(return_states)
+        in_reward = self._hysteretic_circle_inside(reward_states)
 
         prev_r = in_return[:-1]
         curr_r = in_return[1:]
@@ -920,12 +920,12 @@ class Trajectory:
         good = np.isfinite(xs) & np.isfinite(ys)
 
         def _episodes_for_radii(inner_r_eff_px: float, outer_r_eff_px: float):
-            in_inner = np.zeros(t1 - t0, dtype=bool)
-            in_outer = np.zeros(t1 - t0, dtype=bool)
+            inner_states = np.full(t1 - t0, np.nan, dtype=float)
+            outer_states = np.full(t1 - t0, np.nan, dtype=float)
             dist_px = np.full(t1 - t0, np.nan, dtype=float)
 
             if np.any(good):
-                inner_state = self.calc_in_circle(
+                inner_states[good] = self.calc_in_circle(
                     xs[good],
                     ys[good],
                     cx,
@@ -933,7 +933,7 @@ class Trajectory:
                     inner_r_eff_px,
                     border_width_px=inner_border_px,
                 )
-                outer_state = self.calc_in_circle(
+                outer_states[good] = self.calc_in_circle(
                     xs[good],
                     ys[good],
                     cx,
@@ -941,9 +941,9 @@ class Trajectory:
                     outer_r_eff_px,
                     border_width_px=outer_border_px,
                 )
-                in_inner[good] = inner_state > 0
-                in_outer[good] = outer_state > 0
                 dist_px[good] = np.hypot(xs[good] - float(cx), ys[good] - float(cy))
+            in_inner = self._hysteretic_circle_inside(inner_states)
+            in_outer = self._hysteretic_circle_inside(outer_states)
 
             prev = in_inner[:-1]
             curr = in_inner[1:]
@@ -1451,10 +1451,10 @@ class Trajectory:
         ys = self.y[t0:t1]
         good = np.isfinite(xs) & np.isfinite(ys)
 
-        in_inner = np.zeros(t1 - t0, dtype=bool)
+        inner_states = np.full(t1 - t0, np.nan, dtype=float)
         dist_px = np.full(t1 - t0, np.nan, dtype=float)
         if np.any(good):
-            inner_state = self.calc_in_circle(
+            inner_states[good] = self.calc_in_circle(
                 xs[good],
                 ys[good],
                 cx,
@@ -1462,8 +1462,8 @@ class Trajectory:
                 inner_r_px,
                 border_width_px=inner_border_px,
             )
-            in_inner[good] = inner_state > 0
             dist_px[good] = np.hypot(xs[good] - float(cx), ys[good] - float(cy))
+        in_inner = self._hysteretic_circle_inside(inner_states)
 
         prev = in_inner[:-1]
         curr = in_inner[1:]
@@ -1616,10 +1616,18 @@ class Trajectory:
                 border_width_px=border_width_inner_px,
             )
 
-            in_outer |= outer_state > 0
-            in_inner |= inner_state > 0
-            outer_by_well.append((outer_state > 0).astype(bool))
-            inner_by_well.append((inner_state > 0).astype(bool))
+            finite = np.isfinite(self.x) & np.isfinite(self.y)
+            outer_state = np.asarray(outer_state, dtype=float)
+            inner_state = np.asarray(inner_state, dtype=float)
+            outer_state[~finite] = np.nan
+            inner_state[~finite] = np.nan
+            outer_mask = self._hysteretic_circle_inside(outer_state)
+            inner_mask = self._hysteretic_circle_inside(inner_state)
+
+            in_outer |= outer_mask
+            in_inner |= inner_mask
+            outer_by_well.append(outer_mask)
+            inner_by_well.append(inner_mask)
             well_labels.append(f"well{wi + 1}")
 
         # Find contiguous regions where in_outer is True
@@ -1809,6 +1817,35 @@ class Trajectory:
         return np.count_nonzero((circle_states == 2) & valid) / denominator
 
     @staticmethod
+    def _hysteretic_circle_inside(circle_states):
+        """
+        Convert inside/border/outside circle states to a latched inside mask.
+
+        Stable states are 2 (inside the nominal radius) and 0 (outside the
+        outer edge of the border). State 1 and non-finite samples retain the
+        preceding stable state. Samples before the first stable state remain
+        outside/unknown.
+        """
+        states = np.asarray(circle_states)
+        if states.ndim != 1:
+            raise ValueError("Circle states must be one-dimensional.")
+        if states.size == 0:
+            return np.zeros(0, dtype=bool)
+
+        stable_values = np.full(states.size, -1, dtype=np.int8)
+        stable_values[states == 0] = 0
+        stable_values[states == 2] = 1
+
+        sample_idxs = np.arange(states.size)
+        stable_idxs = np.where(stable_values >= 0, sample_idxs, -1)
+        last_stable_idxs = np.maximum.accumulate(stable_idxs)
+
+        inside = np.zeros(states.size, dtype=bool)
+        known = last_stable_idxs >= 0
+        inside[known] = stable_values[last_stable_idxs[known]] == 1
+        return inside
+
+    @staticmethod
     def _calcEnEx(inC, start, mode="en"):
         """
         Calculates the indices of frames where the fly enters (mode="en") or exits (mode="ex") the reward
@@ -1979,9 +2016,12 @@ class Trajectory:
             for r_mm, r_px in zip(radii_mm, radii_px):
                 inC = self.calc_in_circle(x, y, cx, cy, r_px)
 
-                contact = ~inC
-                contact[np.isnan(contact)] = False
-                regions = util.trueRegions(contact)[1:]
+                contact = ~self._hysteretic_circle_inside(inC)
+                regions = util.trueRegions(contact)
+                if regions and regions[0].start == 0:
+                    # The trajectory was already outside when this analysis
+                    # interval began, so the first region lacks an observed exit.
+                    regions = regions[1:]
                 contact_starts = np.array([r.start for r in regions])
 
                 abs_offset = start  # how many frames we cropped away

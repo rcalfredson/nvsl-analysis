@@ -19,6 +19,32 @@ def test_calc_in_circle_distinguishes_inside_border_and_outside():
     assert states.tolist() == [2, 2, 1, 1, 0]
 
 
+def test_hysteretic_circle_mask_requires_crossing_the_full_border():
+    states = np.array([2, 1, 2, 1, 0, 1, 0, 1, 2])
+
+    inside = Trajectory._hysteretic_circle_inside(states)
+
+    assert inside.tolist() == [
+        True,
+        True,
+        True,
+        True,
+        False,
+        False,
+        False,
+        False,
+        True,
+    ]
+
+
+def test_hysteretic_circle_mask_holds_state_across_missing_samples():
+    states = np.array([2, np.nan, 1, 0, np.nan, 1, 2])
+
+    inside = Trajectory._hysteretic_circle_inside(states)
+
+    assert inside.tolist() == [True, True, True, False, False, False, True]
+
+
 def test_custom_circle_radius_is_converted_from_mm_to_pixels():
     captured = {}
 

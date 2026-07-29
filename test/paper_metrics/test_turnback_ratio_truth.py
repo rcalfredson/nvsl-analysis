@@ -99,6 +99,30 @@ def test_turnback_dual_circle_detects_success_failure_and_excludes_censored_epis
     ]
 
 
+def test_turnback_dual_circle_reentry_requires_crossing_full_inner_border():
+    trj, trn = _trajectory_at_distances(
+        [
+            13.0,  # inside the nominal 14-px inner circle
+            14.5,  # in the 1-px border: still latched inside
+            15.1,  # beyond the border: exit
+            14.5,  # back in the border: still latched outside
+            13.5,  # inside the nominal radius: re-entry
+        ]
+    )
+
+    episodes = trj.reward_turnback_dual_circle_episodes_for_training(
+        trn=trn,
+        inner_delta_mm=4.0,
+        outer_delta_mm=8.0,
+        border_width_mm=1.0,
+    )
+
+    assert [
+        (ep["start"], ep["stop"], ep["turns_back"], ep["end_reason"])
+        for ep in episodes
+    ] == [(2, 4, True, "reenter_inner")]
+
+
 def test_turnback_dual_circle_rejects_invalid_geometry_and_non_circle_training():
     trj, trn = _trajectory_at_distances([13.0, 15.0, 13.0])
 

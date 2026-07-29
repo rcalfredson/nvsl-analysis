@@ -62,7 +62,7 @@ def _video_analysis_stub(**attrs):
 
 def test_agarose_dual_circle_classifies_outer_only_and_inner_contact_episodes():
     trj = _trajectory_at_well_distances(
-        [40.0, 32.0, 33.0, 40.0, 32.0, 20.0, 32.0, 40.0]
+        [41.0, 31.0, 33.0, 41.0, 31.0, 20.0, 31.0, 41.0]
     )
 
     trj.calc_agarose_dual_circle_episodes(delta_mm=1.0)
@@ -71,6 +71,28 @@ def test_agarose_dual_circle_classifies_outer_only_and_inner_contact_episodes():
         (ep["start"], ep["stop"], ep["avoids_inner"], ep["entered_inner_frame"])
         for ep in trj.agarose_dual_circle_episodes
     ] == [(1, 3, True, None), (4, 7, False, 5)]
+
+
+def test_agarose_dual_circle_requires_full_border_crossings():
+    outer_only = _trajectory_at_well_distances([36.0, 35.4, 34.5, 35.4, 36.0])
+
+    outer_only.calc_agarose_dual_circle_episodes(delta_mm=1.0)
+
+    assert [
+        (ep["start"], ep["stop"], ep["avoids_inner"])
+        for ep in outer_only.agarose_dual_circle_episodes
+    ] == [(2, 4, True)]
+
+    enters_inner = _trajectory_at_well_distances(
+        [36.0, 34.0, 28.4, 27.5, 28.4, 34.0, 36.0]
+    )
+
+    enters_inner.calc_agarose_dual_circle_episodes(delta_mm=1.0)
+
+    assert [
+        (ep["start"], ep["stop"], ep["avoids_inner"], ep["entered_inner_frame"])
+        for ep in enters_inner.agarose_dual_circle_episodes
+    ] == [(1, 6, False, 3)]
 
 
 def test_agarose_ratio_uses_avoid_over_total_and_min_total_masks_ratio():
