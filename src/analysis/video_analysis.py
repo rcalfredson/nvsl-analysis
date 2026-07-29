@@ -2935,7 +2935,9 @@ class VideoAnalysis:
                 valid_contact = boundary_contact
 
             if region_label == "agarose":
-                intvl_len = np.sum(~trj.nan[intvl])
+                valid_frames = ~trj.nan[intvl]
+                valid_contact = valid_contact[valid_frames]
+                intvl_len = np.count_nonzero(valid_frames)
             else:
                 intvl_len = intvl.stop - intvl.start
 
