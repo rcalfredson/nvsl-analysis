@@ -220,14 +220,13 @@ def _wrapped_ylabel_text(text: str) -> str:
             "Rewards per\ndistance traveled",
             1,
         )
-    for phrase in (
-        " without wall contact",
-        " between-reward ",
-        " return-leg ",
-    ):
+    if " without wall contact" in text:
+        before, after = text.split(" without wall contact", 1)
+        return f"{before}\nwithout wall contact{after}".rstrip()
+    for phrase in (" between-reward ", " return-leg "):
         if phrase in text:
             before, after = text.split(phrase, 1)
-            return f"{before}\n{phrase.strip()} {after}".rstrip()
+            return f"{before}{phrase.rstrip()}\n{after}".rstrip()
     if " alignment at " in text:
         return text.replace(" alignment at ", " alignment\nat ", 1)
     if ", " in text:

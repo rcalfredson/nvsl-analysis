@@ -97,6 +97,29 @@ def test_fraction_overlay_uses_even_ticks_and_wraps_ylabel():
     plt.close(fig)
 
 
+def test_between_reward_ylabel_wraps_after_scope_and_fits_canvas():
+    fig = plot_overlays(
+        [_export("Control", [5.0, 8.0, 13.0])],
+        ylabel="Mean between-reward tortuosity per fly",
+        opts=SimpleNamespace(
+            imageFormat="pdf",
+            fontSize=16,
+            fontFamily=None,
+        ),
+    )
+    ax = fig.axes[0]
+
+    assert ax.get_ylabel() == "Mean between-reward\ntortuosity per fly"
+    fig.canvas.draw()
+    label_bbox = ax.yaxis.get_label().get_window_extent(
+        renderer=fig.canvas.get_renderer()
+    )
+    assert label_bbox.x0 >= fig.bbox.x0
+    assert label_bbox.y0 >= fig.bbox.y0
+    assert label_bbox.y1 <= fig.bbox.y1
+    plt.close(fig)
+
+
 def test_large_alignment_ylabel_wraps_after_metric_name():
     fig = plot_overlays(
         [_export("Control", [0.5, 0.6, 0.7])],
