@@ -1737,13 +1737,13 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
         per_unit_by_group: list[np.ndarray] | None = None
         per_unit_ids_by_group: list[np.ndarray] | None = None
 
-        do_stats = bool(getattr(opts, "btw_rwd_conditioned_disttrav_stats", False))
+        do_stats = bool(getattr(opts, "btw_rwd_conditioned_disttrav_stats", True))
         do_paired_req = bool(
             getattr(opts, "btw_rwd_conditioned_disttrav_stats_paired", False)
         )
 
         have_per_unit = not any(pu is None for pu in per_unit)
-        if do_stats and have_per_unit:
+        if do_stats and len(results) >= 2 and have_per_unit:
             pu_list = [np.asarray(pu, float) for pu in per_unit]  # type: ignore[arg-type]
 
             ids_by_group = [r.per_unit_ids for r in results]
@@ -1921,7 +1921,7 @@ def plot_btw_rwd_conditioned_disttrav_overlay(
                     pass
 
             # ---------------------------------------------------------------------
-            # --- annotate stats (ANOVA + Holm-corrected post-hoc; paired optional) ---
+            # --- annotate independent Welch/Games-Howell stats (paired optional) ---
             # ---------------------------------------------------------------------
 
             if (

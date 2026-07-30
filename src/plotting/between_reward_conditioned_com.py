@@ -1524,8 +1524,12 @@ def plot_btw_rwd_conditioned_com_overlay(
                     color=".2",
                 )
 
-        do_stats = bool(getattr(opts, "btw_rwd_conditioned_com_stats", False))
-        if do_stats and not any(r.per_unit is None for r in results):
+        do_stats = bool(getattr(opts, "btw_rwd_conditioned_com_stats", True))
+        if (
+            do_stats
+            and len(results) >= 2
+            and not any(r.per_unit is None for r in results)
+        ):
             cfg_stats = StatAnnotConfig(
                 alpha=float(
                     getattr(opts, "btw_rwd_conditioned_com_stats_alpha", 0.05) or 0.05

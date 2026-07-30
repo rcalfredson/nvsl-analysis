@@ -15,6 +15,7 @@ os.environ.setdefault("MPLCONFIGDIR", f"/tmp/matplotlib-{os.environ.get('USER', 
 import numpy as np
 from scipy.stats import ttest_ind, ttest_rel
 
+from src.analysis.posthoc_tests import games_howell_all_pairs, welch_anova
 from src.plotting.overlay_training_metric_scalar_bars import load_export_npz
 
 
@@ -137,6 +138,70 @@ def _between_group_comparison(
     }
 
 
+def _between_group_panel_stats(
+    groups: list[GroupBundle],
+    panel: str,
+) -> list[dict]:
+    samples = [
+        np.asarray(
+            list(_panel_values_by_id(group.export, panel).values()),
+            dtype=float,
+        )
+        for group in groups
+    ]
+    labels = [group.label for group in groups]
+    if len(groups) == 2:
+        return [_between_group_comparison(groups[0], groups[1], panel)]
+
+    omnibus = welch_anova(
+        samples,
+        group_names=labels,
+        min_n_per_group=2,
+    )
+    rows = [
+        {
+            "family": "between_group_omnibus",
+            "comparison": "Welch ANOVA",
+            "group_a": "; ".join(labels),
+            "group_b": "",
+            "panel": panel,
+            "n_a": sum(omnibus.ns),
+            "n_b": "",
+            "mean_a": math.nan,
+            "mean_b": math.nan,
+            "effect": math.nan,
+            "test": "welch_anova",
+            "statistic": omnibus.statistic,
+            "p": omnibus.p_value,
+            "p_holm": omnibus.p_value,
+        }
+    ]
+    for result in games_howell_all_pairs(
+        samples,
+        group_names=labels,
+        min_n_per_group=2,
+    ):
+        rows.append(
+            {
+                "family": "between_group",
+                "comparison": f"{result.group_a} vs {result.group_b}",
+                "group_a": result.group_a,
+                "group_b": result.group_b,
+                "panel": panel,
+                "n_a": result.n_a,
+                "n_b": result.n_b,
+                "mean_a": result.mean_a,
+                "mean_b": result.mean_b,
+                "effect": result.mean_difference_a_minus_b,
+                "test": "games_howell",
+                "statistic": result.statistic,
+                "p": result.p_value,
+                "p_holm": result.p_value_adjusted,
+            }
+        )
+    return rows
+
+
 def _format_float(x: object) -> str:
     try:
         val = float(x)
@@ -219,11 +284,9 @@ def main() -> None:
             rows.append(_paired_panel_comparison(group, args.baseline_panel, panel))
 
     for panel in args.between_panel:
-        for i, group_a in enumerate(groups):
-            for group_b in groups[i + 1 :]:
-                rows.append(_between_group_comparison(group_a, group_b, panel))
+        rows.extend(_between_group_panel_stats(groups, panel))
 
-    for family in sorted({str(row["family"]) for row in rows}):
+    for family in ("within_group",):
         idxs = [i for i, row in enumerate(rows) if row["family"] == family]
         adj = _holm_adjust([float(rows[i]["p"]) for i in idxs])
         for i, p_holm in zip(idxs, adj):

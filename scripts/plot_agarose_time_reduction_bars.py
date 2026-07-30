@@ -392,29 +392,28 @@ def parse_args() -> argparse.Namespace:
         choices=["control", "all"],
         default="control",
         help=(
-            "Post-hoc comparison family for Holm correction and plot stars. "
+            "Post-hoc comparison family for the plot stars. "
             "'control' compares only control-vs-other groups; 'all' compares all pairs."
         ),
     )
     p.add_argument(
         "--posthoc-method",
         choices=["holm-welch", "games-howell"],
-        default="holm-welch",
+        default="games-howell",
         help=(
-            "Post-hoc method for plot stars. 'holm-welch' runs pairwise Welch "
-            "t-tests with Holm correction; 'games-howell' runs Games-Howell tests."
+            "Post-hoc method for plot stars (default: games-howell)."
         ),
     )
     p.add_argument(
         "--stats-alpha",
         type=float,
         default=0.05,
-        help="Alpha threshold for drawing Holm-adjusted post-hoc stars.",
+        help="Alpha threshold for drawing adjusted post-hoc stars.",
     )
     p.add_argument(
         "--no-stats",
         action="store_true",
-        help="Do not draw Holm-adjusted post-hoc stars.",
+        help="Do not draw post-hoc significance stars.",
     )
     p.add_argument(
         "--show-stats-p-value",

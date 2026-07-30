@@ -98,7 +98,7 @@ def test_welch_reduction_test_uses_satterthwaite_df(tmp_path):
     assert result.t_stat == pytest.approx(stats.ttest_ind(xa, xb, equal_var=False).statistic)
 
 
-def test_reduction_anova_control_posthocs_holm_correct_only_control_family(tmp_path):
+def test_reduction_welch_anova_can_retain_legacy_holm_control_family(tmp_path):
     paths = [tmp_path / f"{label}.csv" for label in ["control", "exp1", "exp2"]]
     rows_by_group = [
         [("c1", 1, 12, 1, 1, 8), ("c2", 2, 13, 1, 1, 8), ("c3", 3, 14, 1, 1, 8)],
@@ -117,11 +117,16 @@ def test_reduction_anova_control_posthocs_holm_correct_only_control_family(tmp_p
         for label, path in zip(["Control", "Exp1", "Exp2"], paths)
     ]
 
-    anova, posthoc = reduction_anova_and_posthoc(tests, posthoc_scope="control")
+    anova, posthoc = reduction_anova_and_posthoc(
+        tests,
+        posthoc_scope="control",
+        posthoc_method="holm-welch",
+    )
 
     assert anova is not None
     assert anova.df_between == 2
-    assert anova.df_within == 6
+    assert anova.df_within == pytest.approx(4.0)
+    assert anova.test == "Welch's one-way ANOVA on paired reduction scores"
     assert [(p.group_a, p.group_b) for p in posthoc] == [
         ("Control", "Exp1"),
         ("Control", "Exp2"),
@@ -135,7 +140,7 @@ def test_reduction_anova_control_posthocs_holm_correct_only_control_family(tmp_p
     assert sorted(p.p_value_holm for p in posthoc) == pytest.approx(expected_holm)
 
 
-def test_reduction_anova_games_howell_uses_studentized_range(tmp_path):
+def test_reduction_anova_defaults_to_games_howell(tmp_path):
     paths = [tmp_path / f"{label}.csv" for label in ["control", "exp1", "exp2"]]
     rows_by_group = [
         [("c1", 1, 12, 1, 1, 8), ("c2", 2, 14, 1, 1, 9), ("c3", 3, 15, 1, 1, 10)],
@@ -157,7 +162,6 @@ def test_reduction_anova_games_howell_uses_studentized_range(tmp_path):
     _anova, posthoc = reduction_anova_and_posthoc(
         tests,
         posthoc_scope="all",
-        posthoc_method="games-howell",
     )
 
     first = posthoc[0]

@@ -5,8 +5,8 @@ from types import SimpleNamespace
 
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.stats import f_oneway
 
+from src.analysis.posthoc_tests import welch_anova
 from src.plotting.overlay_training_metric_scalar_bars import (
     ExportedTrainingScalarBars,
     _ensure_xlabel_visible,
@@ -123,16 +123,18 @@ def _anova_text(
             samples.append(vals)
         if len(samples) < 3:
             continue
-        try:
-            f_stat, p_val = f_oneway(*samples)
-        except Exception:
+        result = welch_anova(
+            samples,
+            group_names=[x.group for x in xs],
+            min_n_per_group=min_n_per_group,
+        )
+        if not np.isfinite(result.statistic):
             continue
-        n_total = int(sum(s.size for s in samples))
-        df_between = len(samples) - 1
-        df_within = n_total - len(samples)
-        if not np.isfinite(f_stat) or df_within <= 0:
-            continue
-        line = f"ANOVA F({df_between}, {df_within})={float(f_stat):.2f}, {_fmt_p(float(p_val))}"
+        line = (
+            f"Welch ANOVA F({result.df_numerator:.2f}, "
+            f"{result.df_denominator:.2f})={result.statistic:.2f}, "
+            f"{_fmt_p(result.p_value)}"
+        )
         if P > 1:
             line = f"{xs[0].panel_labels[p]}: {line}"
         lines.append(line)
@@ -187,7 +189,7 @@ def plot_swarm_overlays(
     ymax: float | None = None,
     ymin: float | None = None,
     zero_line: bool = False,
-    stats: bool = False,
+    stats: bool = True,
     stats_alpha: float = 0.05,
     stats_debug: bool = False,
     show_anova: bool = False,

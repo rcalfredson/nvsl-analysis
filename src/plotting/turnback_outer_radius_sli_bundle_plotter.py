@@ -241,7 +241,7 @@ def plot_turnback_outer_radius_sli_bundles(
     standalone_extreme_labels: bool = False,
     title: str | None = None,
     ymax: float | None = None,
-    stats: bool = False,
+    stats: bool = True,
     stats_alpha: float = 0.05,
     stats_paired: bool = False,
     debug: bool = False,

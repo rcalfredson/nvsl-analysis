@@ -197,7 +197,7 @@ def test_hidden_swarm_outlier_does_not_expand_omnibus_ylim():
     plt.close(shown_fig)
 
 
-def test_significance_bracket_is_placed_above_swarm_points():
+def test_statistics_are_enabled_by_default_and_bracket_clears_swarm_points():
     high = replace(
         _export("High", [0.8, 0.9, 1.0]),
         mean=np.asarray([0.3], dtype=float),
@@ -211,7 +211,7 @@ def test_significance_bracket_is_placed_above_swarm_points():
         ci_hi=np.asarray([0.35], dtype=float),
     )
 
-    fig = plot_overlays([high, low], show_points=True, stats=True)
+    fig = plot_overlays([high, low], show_points=True)
     ax = fig.axes[0]
     bracket_lines = [line for line in ax.lines if len(line.get_xdata()) == 4]
 

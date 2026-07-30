@@ -211,7 +211,7 @@ def plot_return_leg_tortuosity_excursion_bin_sli_bundles(
     xlabel: str | None = None,
     ylabel: str | None = None,
     ymax: float | None = None,
-    stats: bool = False,
+    stats: bool = True,
     stats_alpha: float = 0.05,
     stats_paired: bool = False,
     debug: bool = False,

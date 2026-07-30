@@ -3372,8 +3372,12 @@ g.add_argument(
 )
 g.add_argument(
     "--btw-rwd-conditioned-dmax-vs-disttrav-stats",
-    action="store_true",
-    help="Annotate per-bin group comparisons (ANOVA + Holm-corrected post-hoc) on overlay plots.",
+    action=argparse.BooleanOptionalAction,
+    default=True,
+    help=(
+        "Annotate per-bin independent-group comparisons using Welch/Games-Howell "
+        "(default: enabled)."
+    ),
 )
 g.add_argument(
     "--btw-rwd-conditioned-dmax-vs-disttrav-stats-alpha",
@@ -3795,9 +3799,12 @@ g.add_argument(
 )
 g.add_argument(
     "--btw-rwd-conditioned-com-stats",
-    action="store_true",
-    help="Calculate and display one-way ANOVA across groups for "
-    "distance-binned COM plots, with post-hoc pairwise tests.",
+    action=argparse.BooleanOptionalAction,
+    default=True,
+    help=(
+        "Calculate and display Welch/Games-Howell comparisons across groups for "
+        "distance-binned COM plots (default: enabled)."
+    ),
 )
 g.add_argument(
     "--btw-rwd-conditioned-com-stats-alpha",
@@ -4053,9 +4060,12 @@ g.add_argument(
 
 g.add_argument(
     "--btw-rwd-conditioned-disttrav-stats",
-    action="store_true",
-    help="Calculate and display one-way ANOVA across groups for "
-    "distance-traveled plots, with post-hoc pairwise tests.",
+    action=argparse.BooleanOptionalAction,
+    default=True,
+    help=(
+        "Calculate and display Welch/Games-Howell comparisons across groups for "
+        "distance-traveled plots (default: enabled)."
+    ),
 )
 g.add_argument(
     "--btw-rwd-conditioned-disttrav-stats-paired",

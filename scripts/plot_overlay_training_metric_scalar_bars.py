@@ -113,8 +113,16 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument(
         "--stats",
+        dest="stats",
         action="store_true",
-        help="Add per-panel one-way ANOVA + Holm posthoc stars (Welch or paired t-tests depending on --stats-paired).",
+        default=True,
+        help="Add independent-group Welch/Games-Howell statistics (default).",
+    )
+    p.add_argument(
+        "--no-stats",
+        dest="stats",
+        action="store_false",
+        help="Do not add statistical annotations.",
     )
     p.add_argument(
         "--stats-paired",

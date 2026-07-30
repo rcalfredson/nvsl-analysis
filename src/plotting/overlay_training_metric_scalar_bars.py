@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter, MultipleLocator
 from scipy.stats import ttest_ind
 
+from src.analysis.posthoc_tests import games_howell_all_pairs, welch_anova
 from src.plotting.palettes import (
     NEUTRAL_DARK,
     NEUTRAL_MID,
@@ -24,7 +25,6 @@ from src.plotting.stats_bars import (
     annotate_grouped_bars_per_bin,
     draw_sig_bracket,
     format_sig_label,
-    holm_adjust,
 )
 from src.utils.util import meanConfInt
 
@@ -1027,32 +1027,78 @@ def _draw_omnibus_stats(
                     ((learner_a, genotype), (learner_b, genotype), "within genotype")
                 )
 
-    valid: list[tuple[tuple[str, str], tuple[str, str], str, float]] = []
-    for key_a, key_b, family in comparisons:
-        xa = samples_by_key.get(key_a, np.asarray([], dtype=float))
-        xb = samples_by_key.get(key_b, np.asarray([], dtype=float))
-        xa = np.asarray(xa, dtype=float)
-        xb = np.asarray(xb, dtype=float)
-        xa = xa[np.isfinite(xa)]
-        xb = xb[np.isfinite(xb)]
-        p = np.nan
-        if xa.size >= 3 and xb.size >= 3:
-            try:
-                _, p = ttest_ind(xa, xb, equal_var=False, nan_policy="omit")
-            except Exception:
-                p = np.nan
-        valid.append((key_a, key_b, family, float(p)))
+    valid_keys = []
+    valid_samples = []
+    labels_by_key = {}
+    keys_by_label = {}
+    for idx, (key, values) in enumerate(samples_by_key.items()):
+        sample = np.asarray(values, dtype=float)
+        sample = sample[np.isfinite(sample)]
+        if sample.size < 3:
+            continue
+        label = f"group_{idx}"
+        valid_keys.append(key)
+        valid_samples.append(sample)
+        labels_by_key[key] = label
+        keys_by_label[label] = key
 
-    p_adj = holm_adjust([item[3] for item in valid])
+    p_by_pair: dict[frozenset[tuple[str, str]], float] = {}
+    if len(valid_samples) >= 3:
+        omnibus = welch_anova(
+            valid_samples,
+            group_names=[labels_by_key[key] for key in valid_keys],
+            min_n_per_group=3,
+        )
+        results = games_howell_all_pairs(
+            valid_samples,
+            group_names=[labels_by_key[key] for key in valid_keys],
+            alpha=alpha,
+            min_n_per_group=3,
+        )
+        for result in results:
+            key_a = keys_by_label[result.group_a]
+            key_b = keys_by_label[result.group_b]
+            p_by_pair[frozenset((key_a, key_b))] = float(
+                result.p_value_adjusted
+            )
+        if debug:
+            print(
+                "[omnibus_stats] "
+                f"Welch ANOVA F({omnibus.df_numerator:.6g}, "
+                f"{omnibus.df_denominator:.6g})={omnibus.statistic:.6g}, "
+                f"p={omnibus.p_value:.6g}"
+            )
+    elif len(valid_samples) == 2:
+        try:
+            _, p_value = ttest_ind(
+                valid_samples[0],
+                valid_samples[1],
+                equal_var=False,
+                nan_policy="omit",
+            )
+        except Exception:
+            p_value = np.nan
+        p_by_pair[frozenset(valid_keys)] = float(p_value)
+
+    valid = [
+        (
+            key_a,
+            key_b,
+            family,
+            p_by_pair.get(frozenset((key_a, key_b)), np.nan),
+        )
+        for key_a, key_b, family in comparisons
+    ]
     if debug:
-        for (key_a, key_b, family, p_raw), p_holm in zip(valid, p_adj):
+        for key_a, key_b, family, p_adjusted in valid:
             xa = samples_by_key.get(key_a, np.asarray([], dtype=float))
             xb = samples_by_key.get(key_b, np.asarray([], dtype=float))
             print(
                 "[omnibus_stats] "
                 f"{key_a[0]} {key_a[1]} vs {key_b[0]} {key_b[1]} "
-                f"({family}, Welch, n={np.isfinite(xa).sum()}/{np.isfinite(xb).sum()}): "
-                f"raw p={p_raw:.6g}, Holm p={float(p_holm):.6g}"
+                f"({family}, Games-Howell family, "
+                f"n={np.isfinite(xa).sum()}/{np.isfinite(xb).sum()}): "
+                f"p={float(p_adjusted):.6g}"
             )
 
     ylim0, ylim1 = ax.get_ylim()
@@ -1068,16 +1114,16 @@ def _draw_omnibus_stats(
     bar_keys = list(x_by_key)
 
     sig_items = [
-        (key_a, key_b, p_holm)
-        for (key_a, key_b, _family, _p_raw), p_holm in zip(valid, p_adj)
-        if np.isfinite(p_holm) and float(p_holm) < float(alpha)
+        (key_a, key_b, p_adjusted)
+        for key_a, key_b, _family, p_adjusted in valid
+        if np.isfinite(p_adjusted) and float(p_adjusted) < float(alpha)
     ]
     sig_items = sorted(
         sig_items,
         key=lambda item: abs(float(x_by_key[item[0]]) - float(x_by_key[item[1]])),
     )
 
-    for key_a, key_b, p_holm in sig_items:
+    for key_a, key_b, p_adjusted in sig_items:
         if key_a not in x_by_key or key_b not in x_by_key:
             continue
         x1 = float(x_by_key[key_a])
@@ -1095,7 +1141,7 @@ def _draw_omnibus_stats(
             overlaps = not (x2 < existing_x1 or x1 > existing_x2)
             if overlaps and y <= existing_y + step:
                 y = existing_y + step
-        label = format_sig_label(float(p_holm))
+        label = format_sig_label(float(p_adjusted))
         if not label:
             continue
         draw_sig_bracket(
@@ -1131,7 +1177,7 @@ def plot_omnibus_learner_overlays(
     ylabel: str | None = None,
     ymax: float | None = None,
     ytick_step: float | None = None,
-    stats: bool = False,
+    stats: bool = True,
     stats_alpha: float = 0.05,
     debug: bool = False,
     bar_alpha: float = 0.90,
@@ -1307,7 +1353,7 @@ def plot_omnibus_learner_overlays(
         ax.axhline(0.0, color=NEUTRAL_MID, linewidth=0.8, alpha=0.65, zorder=0)
     bracket_tops = None
     base_text_count = len(ax.texts)
-    if stats:
+    if stats and len(entries) >= 2:
         bracket_tops = _draw_omnibus_stats(
             ax,
             samples_by_key=samples_by_key,
@@ -1406,7 +1452,7 @@ def plot_overlays(
     ylabel: str | None = None,
     ymax: float | None = None,
     ytick_step: float | None = None,
-    stats: bool = False,
+    stats: bool = True,
     stats_alpha: float = 0.05,
     stats_paired: bool = False,
     debug: bool = False,
@@ -1704,7 +1750,7 @@ def plot_overlays(
         ax.axhline(0.0, color=NEUTRAL_MID, linewidth=0.8, alpha=0.65, zorder=0)
     base_line_count = len(ax.lines)
 
-    if stats:
+    if stats and len(xs) >= 2:
         cfg_stats = StatAnnotConfig(
             alpha=float(stats_alpha),
             min_n_per_group=3,

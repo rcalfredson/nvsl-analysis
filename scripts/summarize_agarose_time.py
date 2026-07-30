@@ -141,18 +141,17 @@ def main(argv: list[str] | None = None) -> int:
         choices=["control", "all"],
         default="control",
         help=(
-            "Post-hoc comparison family for Holm correction. 'control' compares "
+            "Post-hoc comparison family. 'control' compares "
             "only control-vs-other groups; 'all' compares all pairs."
         ),
     )
     p.add_argument(
         "--posthoc-method",
         choices=["holm-welch", "games-howell"],
-        default="holm-welch",
+        default="games-howell",
         help=(
-            "Post-hoc method for paired reduction scores. 'holm-welch' runs "
-            "pairwise Welch t-tests with Holm correction; 'games-howell' runs "
-            "Games-Howell tests using the studentized range distribution."
+            "Post-hoc method for paired reduction scores (default: "
+            "games-howell)."
         ),
     )
     p.add_argument(

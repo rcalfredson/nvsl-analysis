@@ -4,8 +4,9 @@ from dataclasses import dataclass
 
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import f_oneway, ttest_ind, ttest_rel
+from scipy.stats import ttest_ind, ttest_rel
 
+from src.analysis.posthoc_tests import games_howell_all_pairs, welch_anova
 from src.plotting.palettes import NEUTRAL_DARK
 from src.utils.util import p2stars
 
@@ -95,24 +96,80 @@ def anova_and_posthoc(
     debug: bool = False,
     debug_ctx: str = "",
 ) -> tuple[float, dict[tuple[str, str], float]]:
-    # ANOVA
-    try:
-        clean = [g[np.isfinite(g)] for g in group_samples]
-        clean = [g for g in clean if g.size >= cfg.min_n_per_group]
-        if len(clean) >= 2:
-            _, p_anova = f_oneway(*clean)
-        else:
-            p_anova = np.nan
-    except Exception:
-        p_anova = np.nan
+    clean = [
+        np.asarray(g, dtype=float)[np.isfinite(np.asarray(g, dtype=float))]
+        for g in group_samples
+    ]
+    G = len(clean)
 
-    # Pairwise Welch t-tests
+    # Keep the explicit paired mode for callers that request a repeated-sample
+    # analysis. Games-Howell and Welch's ANOVA apply only to independent groups.
+    if not paired:
+        if G >= 3:
+            omnibus = welch_anova(
+                clean,
+                group_names=group_names,
+                min_n_per_group=cfg.min_n_per_group,
+            )
+            p_omnibus = float(omnibus.p_value)
+            out: dict[tuple[str, str], float] = {}
+            posthoc_results = games_howell_all_pairs(
+                clean,
+                group_names=group_names,
+                alpha=cfg.alpha,
+                min_n_per_group=cfg.min_n_per_group,
+            )
+            for result in posthoc_results:
+                out[(result.group_a, result.group_b)] = float(
+                    result.p_value_adjusted
+                )
+            if debug:
+                prefix = _stats_debug_prefix(debug_ctx)
+                summary = [
+                    f"{name}: n={sample.size}, mean={np.mean(sample):.6g}"
+                    for name, sample in zip(group_names, clean)
+                ]
+                print(f"{prefix} groups: " + "; ".join(summary))
+                print(
+                    f"{prefix} Welch ANOVA F({omnibus.df_numerator:.6g}, "
+                    f"{omnibus.df_denominator:.6g})={omnibus.statistic:.6g}, "
+                    f"p={_fmt_p(omnibus.p_value)}"
+                )
+                for result in posthoc_results:
+                    print(
+                        f"{prefix} {result.group_a} vs {result.group_b} "
+                        f"(Games-Howell, n={result.n_a}/{result.n_b}, "
+                        f"q={result.statistic:.6g}, df={result.df:.6g}): "
+                        f"p={_fmt_p(result.p_value_adjusted)}"
+                    )
+            return p_omnibus, out
+
+        if G == 2:
+            try:
+                _, p = ttest_ind(
+                    clean[0],
+                    clean[1],
+                    equal_var=False,
+                    nan_policy="omit",
+                )
+            except Exception:
+                p = np.nan
+            if debug:
+                prefix = _stats_debug_prefix(debug_ctx)
+                print(
+                    f"{prefix} {group_names[0]} vs {group_names[1]} "
+                    f"(Welch, n={clean[0].size}/{clean[1].size}): "
+                    f"p={_fmt_p(p)}"
+                )
+            return float(p), {(group_names[0], group_names[1]): float(p)}
+
+        return np.nan, {}
+
+    # Explicit paired mode: retain matched t-tests with Holm adjustment.
     pairs: list[tuple[int, int]] = []
     p_raw: list[float] = []
     test_names: list[str] = []
     test_ns: list[tuple[int, int, int | None]] = []
-    G = len(group_samples)
-
     for i in range(G):
         for j in range(i + 1, G):
             p = np.nan
@@ -155,13 +212,6 @@ def anova_and_posthoc(
                                 equal_var=False,
                                 nan_policy="omit",
                             )
-                else:
-                    _, p = ttest_ind(
-                        group_samples[i],
-                        group_samples[j],
-                        equal_var=False,
-                        nan_policy="omit",
-                    )
             except Exception:
                 p = np.nan
             pairs.append((i, j))
@@ -184,7 +234,7 @@ def anova_and_posthoc(
             mean = float(np.nanmean(vf)) if vf.size else np.nan
             summary.append(f"{name}: n={int(vf.size)}, mean={mean:.6g}")
         print(f"{prefix} groups: " + "; ".join(summary))
-        print(f"{prefix} ANOVA p={_fmt_p(p_anova)}")
+        print(f"{prefix} paired comparisons (Holm-adjusted family)")
         for (i, j), pr, pa, test_name, ns in zip(
             pairs, p_raw, p_adj, test_names, test_ns
         ):
@@ -198,7 +248,7 @@ def anova_and_posthoc(
                 f"({test_name}, {n_text}): raw p={_fmt_p(pr)}, "
                 f"Holm p={_fmt_p(pa)}"
             )
-    return float(p_anova), out
+    return np.nan, out
 
 
 def draw_sig_bracket(

@@ -59,9 +59,12 @@ def main():
     p.add_argument("--ymax", type=float, default=None)
     p.add_argument(
         "--stats",
+        dest="stats",
         action="store_true",
-        help="Add per-bin one-way ANOVA + Holm posthoc stars.",
+        default=True,
+        help="Add per-bin independent-group Welch/Games-Howell statistics (default).",
     )
+    p.add_argument("--no-stats", dest="stats", action="store_false")
     p.add_argument("--stats-alpha", type=float, default=0.05)
     p.add_argument(
         "--stats-paired",

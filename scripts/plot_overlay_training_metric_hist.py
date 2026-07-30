@@ -92,7 +92,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--stats",
         action="store_true",
-        help="Add per-bin one-way ANOVA + Holm posthoc stars (Welch or paired t-tests depending on --stats-paired).",
+        help=(
+            "Add per-bin independent-group Welch/Games-Howell statistics "
+            "(or paired tests with --stats-paired)."
+        ),
     )
     p.add_argument(
         "--stats-paired",

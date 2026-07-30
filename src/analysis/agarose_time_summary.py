@@ -12,8 +12,10 @@ import pandas as pd
 from scipy import stats
 
 from src.analysis.posthoc_tests import (
-    games_howell_pair,
+    PairwisePosthocResult,
+    games_howell_all_pairs,
     holm_adjust,
+    welch_anova,
     welch_t_pair,
 )
 
@@ -413,15 +415,8 @@ def _welch_reduction_posthoc(
 
 
 def _games_howell_reduction_posthoc(
-    a: PairedTest, b: PairedTest, *, n_groups: int
+    result: PairwisePosthocResult,
 ) -> ReductionPosthocTest:
-    result = games_howell_pair(
-        a.group,
-        a.reductions,
-        b.group,
-        b.reductions,
-        n_groups=n_groups,
-    )
     return ReductionPosthocTest(
         group_a=result.group_a,
         group_b=result.group_b,
@@ -438,7 +433,7 @@ def _games_howell_reduction_posthoc(
         p_value_holm=result.p_value_adjusted,
         test=(
             "Games-Howell post-hoc test "
-            f"(studentized range; family includes {int(n_groups)} groups)"
+            "(familywise adjustment by the studentized range distribution)"
         ),
     )
 
@@ -448,7 +443,7 @@ def reduction_anova_and_posthoc(
     *,
     control_group: str | None = None,
     posthoc_scope: str = "control",
-    posthoc_method: str = "holm-welch",
+    posthoc_method: str = "games-howell",
     min_n_per_group: int = 2,
 ) -> tuple[ReductionAnova | None, list[ReductionPosthocTest]]:
     """
@@ -466,25 +461,19 @@ def reduction_anova_and_posthoc(
         raise ValueError("posthoc_method must be 'holm-welch' or 'games-howell'")
 
     samples = [_clean_reductions(t) for t in tests]
-    anova_samples = [x for x in samples if x.size >= int(min_n_per_group)]
-    if len(anova_samples) >= 2:
-        f_stat, p_value = stats.f_oneway(*anova_samples)
-        if np.isfinite(f_stat) and f_stat <= 0:
-            f_stat = 0.0
-            p_value = 1.0
-        n_total = int(sum(x.size for x in anova_samples))
-        k = int(len(anova_samples))
+    anova_result = welch_anova(
+        samples,
+        group_names=[test.group for test in tests],
+        min_n_per_group=min_n_per_group,
+    )
+    if len(anova_result.groups) >= 2:
         anova = ReductionAnova(
-            groups=tuple(
-                t.group
-                for t, x in zip(tests, samples)
-                if x.size >= int(min_n_per_group)
-            ),
-            df_between=float(k - 1),
-            df_within=float(n_total - k),
-            f_stat=float(f_stat),
-            p_value=float(p_value),
-            test="One-way ANOVA on paired reduction scores",
+            groups=anova_result.groups,
+            df_between=anova_result.df_numerator,
+            df_within=anova_result.df_denominator,
+            f_stat=anova_result.statistic,
+            p_value=anova_result.p_value,
+            test="Welch's one-way ANOVA on paired reduction scores",
         )
     else:
         anova = ReductionAnova(
@@ -493,7 +482,7 @@ def reduction_anova_and_posthoc(
             df_within=np.nan,
             f_stat=np.nan,
             p_value=np.nan,
-            test="One-way ANOVA on paired reduction scores",
+            test="Welch's one-way ANOVA on paired reduction scores",
         )
 
     if posthoc_scope == "control":
@@ -510,15 +499,20 @@ def reduction_anova_and_posthoc(
         pairs = [(i, j) for i in range(len(tests)) for j in range(i + 1, len(tests))]
 
     if posthoc_method == "games-howell":
-        n_groups = len(anova_samples) if anova_samples else len(tests)
-        posthoc = [
-            _games_howell_reduction_posthoc(
-                tests[i],
-                tests[j],
-                n_groups=n_groups,
-            )
-            for i, j in pairs
-        ]
+        all_results = games_howell_all_pairs(
+            samples,
+            group_names=[test.group for test in tests],
+            min_n_per_group=min_n_per_group,
+        )
+        result_by_pair = {
+            frozenset((result.group_a, result.group_b)): result
+            for result in all_results
+        }
+        posthoc = []
+        for i, j in pairs:
+            result = result_by_pair.get(frozenset((tests[i].group, tests[j].group)))
+            if result is not None:
+                posthoc.append(_games_howell_reduction_posthoc(result))
     else:
         raw_results = [_welch_reduction_posthoc(tests[i], tests[j]) for i, j in pairs]
         p_holm = holm_adjust([r.p_value for r in raw_results])

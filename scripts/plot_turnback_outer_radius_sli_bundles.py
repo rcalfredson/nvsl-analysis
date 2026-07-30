@@ -70,9 +70,12 @@ def main():
     )
     p.add_argument(
         "--stats",
+        dest="stats",
         action="store_true",
-        help="Add per-radius one-way ANOVA + Holm posthoc stars (Welch or paired t-tests depending on --stats-paired).",
+        default=True,
+        help="Add per-radius independent-group Welch/Games-Howell statistics (default).",
     )
+    p.add_argument("--no-stats", dest="stats", action="store_false")
     p.add_argument(
         "--stats-paired",
         action="store_true",

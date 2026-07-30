@@ -78,11 +78,18 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--ymax", type=float, default=None, help="Optional fixed y max.")
     p.add_argument(
         "--stats",
+        dest="stats",
         action="store_true",
+        default=True,
         help=(
-            "Add group significance brackets using the shared independent "
-            "Welch t-test / ANOVA + post-hoc annotation path."
+            "Add independent-group Welch/Games-Howell statistics (default)."
         ),
+    )
+    p.add_argument(
+        "--no-stats",
+        dest="stats",
+        action="store_false",
+        help="Do not add statistical annotations.",
     )
     p.add_argument(
         "--stats-alpha",
@@ -100,7 +107,7 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help=(
             "When --stats is enabled and there are 3+ groups, display the "
-            "omnibus one-way ANOVA result computed from the plotted per-fly values."
+            "omnibus Welch ANOVA result computed from the plotted per-fly values."
         ),
     )
     p.add_argument(

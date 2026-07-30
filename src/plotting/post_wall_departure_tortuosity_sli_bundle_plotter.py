@@ -84,7 +84,7 @@ def plot_post_wall_departure_tortuosity_sli_bundles(
     xlabel: str | None = None,
     ylabel: str | None = None,
     ymax: float | None = None,
-    stats: bool = False,
+    stats: bool = True,
     stats_alpha: float = 0.05,
     stats_paired: bool = False,
     debug: bool = False,

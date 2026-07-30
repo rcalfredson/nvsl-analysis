@@ -575,7 +575,7 @@ def plot_btw_rwd_conditioned_dmax_vs_disttrav_overlay(
     opts,
     customizer: PlotCustomizer,
     log_tag: str = "btw_rwd_dmax_vs_disttrav",
-    do_stats: bool = False,
+    do_stats: bool = True,
     stats_alpha: float = 0.05,
 ) -> None:
     """
@@ -735,7 +735,7 @@ def plot_btw_rwd_conditioned_dmax_vs_disttrav_overlay(
             print(
                 f"[{log_tag}] WARNING: stats requested but some results lack per_unit_y; skipping stats."
             )
-        if do_stats and len(per_unit_by_group) == n_groups:
+        if do_stats and n_groups >= 2 and len(per_unit_by_group) == n_groups:
             cfg_stats = StatAnnotConfig(alpha=float(stats_alpha), nlabel_off_frac=0.04)
             annotate_grouped_bars_per_bin(
                 ax,
