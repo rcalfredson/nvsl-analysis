@@ -7,6 +7,7 @@ import numpy as np
 from src.exporting.graphpad_csv import (
     write_agarose_time_graphpad_csv,
     write_scalar_exports_graphpad_csv,
+    write_turnback_ratio_bundles_graphpad_csv,
 )
 from src.plotting.overlay_training_metric_scalar_bars import load_export_npz
 from src.analysis.agarose_time_summary import DEFAULT_SECTION
@@ -132,3 +133,44 @@ def test_scalar_panel_cli_aliases_select_internal_export_panel(tmp_path):
 
     assert out_new.read_text().splitlines() == ["Ctrl", "3"]
     assert out_old.read_text().splitlines() == ["Ctrl", "3"]
+
+
+def test_turnback_ratio_graphpad_csv_exports_all_fly_values_by_radius_pair(tmp_path):
+    out = tmp_path / "turnback.csv"
+    bundle = {
+        "sli": np.asarray([0.1, 0.9, 0.5]),
+        "video_ids": np.asarray(["a", "b", "c"]),
+        "turnback_excursion_bin_ratio_exp": np.asarray(
+            [[0.1, 0.2], [0.8, np.nan], [0.4, 0.6]]
+        ),
+        "turnback_excursion_bin_ratio_ctrl": np.zeros((3, 2)),
+        "turnback_excursion_bin_pair_inner_deltas_mm": np.asarray([3, 8]),
+        "turnback_excursion_bin_pair_outer_deltas_mm": np.asarray([5, 10]),
+    }
+
+    write_turnback_ratio_bundles_graphpad_csv([("Ctrl", bundle)], out)
+
+    assert out.read_text().splitlines() == [
+        "Ctrl | 3/5 mm,Ctrl | 8/10 mm",
+        "0.1,0.2",
+        "0.8,0.6",
+        "0.4,",
+    ]
+
+
+def test_turnback_ratio_graphpad_csv_selects_top_sli_fraction_per_group(tmp_path):
+    out = tmp_path / "turnback_top.csv"
+    bundle = {
+        "sli": np.asarray([0.1, np.nan, 0.9, 0.5]),
+        "video_ids": np.asarray(["a", "b", "c", "d"]),
+        "turnback_excursion_bin_ratio_exp": np.asarray([[0.1], [0.2], [0.9], [0.5]]),
+        "turnback_excursion_bin_ratio_ctrl": np.zeros((4, 1)),
+        "turnback_excursion_bin_pair_inner_deltas_mm": np.asarray([3]),
+        "turnback_excursion_bin_pair_outer_deltas_mm": np.asarray([5]),
+    }
+
+    write_turnback_ratio_bundles_graphpad_csv(
+        [("Ctrl", bundle)], out, top_sli_fraction=2 / 3
+    )
+
+    assert out.read_text().splitlines() == ["Ctrl", "0.5", "0.9"]

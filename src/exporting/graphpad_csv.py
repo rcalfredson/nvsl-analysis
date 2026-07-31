@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Mapping, Sequence
 
 import numpy as np
+import pandas as pd
 
 from src.analysis.agarose_time_summary import (
     DEFAULT_POST_COL,
@@ -112,6 +113,74 @@ def write_scalar_exports_graphpad_csv(
     panel: int | str | None = None,
 ) -> None:
     headers, columns = scalar_exports_to_graphpad_columns(exports, panel=panel)
+    _write_wide_numeric_csv(out_csv, headers, columns)
+
+
+def turnback_ratio_bundles_to_graphpad_columns(
+    bundles: Sequence[tuple[str, Mapping[str, object]]],
+    *,
+    top_sli_fraction: float | None = None,
+) -> tuple[list[str], list[np.ndarray]]:
+    """Extract per-fly experimental turnback ratios from SLI bundles.
+
+    When ``top_sli_fraction`` is supplied, learner selection is performed
+    independently within each cohort using the bundle's precomputed SLI.  This
+    is the same selection used by the turnback bundle plotting pipeline.
+    """
+    if not bundles:
+        raise ValueError("at least one turnback bundle is required")
+
+    from src.analysis.sli_tools import select_fractional_groups
+
+    selected_by_bundle: list[tuple[str, list[str], np.ndarray]] = []
+    for label, bundle in bundles:
+        n_flies = len(np.asarray(bundle["sli"]).reshape(-1))
+        if top_sli_fraction is None:
+            indices = np.arange(n_flies, dtype=int)
+        else:
+            _, top = select_fractional_groups(
+                pd.Series(np.asarray(bundle["sli"], dtype=float).reshape(-1)),
+                top_fraction=float(top_sli_fraction),
+            )
+            indices = np.asarray([] if top is None else top, dtype=int)
+
+        values = np.asarray(
+            bundle["turnback_excursion_bin_ratio_exp"], dtype=float
+        )
+        inner = np.asarray(
+            bundle["turnback_excursion_bin_pair_inner_deltas_mm"], dtype=float
+        ).reshape(-1)
+        outer = np.asarray(
+            bundle["turnback_excursion_bin_pair_outer_deltas_mm"], dtype=float
+        ).reshape(-1)
+        if values.shape != (n_flies, inner.size) or inner.size != outer.size:
+            raise ValueError(
+                f"turnback bundle {label!r} has inconsistent ratio/radius shapes"
+            )
+        panel_labels = [f"{i:g}/{o:g} mm" for i, o in zip(inner, outer)]
+        selected_by_bundle.append((str(label), panel_labels, values[indices, :]))
+
+    one_panel_each = all(len(labels) == 1 for _, labels, _ in selected_by_bundle)
+    headers: list[str] = []
+    columns: list[np.ndarray] = []
+    for label, panel_labels, values in selected_by_bundle:
+        for panel_idx, panel_label in enumerate(panel_labels):
+            column = np.asarray(values[:, panel_idx], dtype=float).reshape(-1)
+            columns.append(column[np.isfinite(column)])
+            headers.append(label if one_panel_each else f"{label} | {panel_label}")
+    return headers, columns
+
+
+def write_turnback_ratio_bundles_graphpad_csv(
+    bundles: Sequence[tuple[str, Mapping[str, object]]],
+    out_csv: str | Path,
+    *,
+    top_sli_fraction: float | None = None,
+) -> None:
+    headers, columns = turnback_ratio_bundles_to_graphpad_columns(
+        bundles,
+        top_sli_fraction=top_sli_fraction,
+    )
     _write_wide_numeric_csv(out_csv, headers, columns)
 
 

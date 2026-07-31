@@ -17,6 +17,7 @@ from src.analysis.agarose_time_summary import (  # noqa: E402
 from src.exporting.graphpad_csv import (  # noqa: E402
     write_agarose_time_graphpad_csv,
     write_scalar_exports_graphpad_csv,
+    write_turnback_ratio_bundles_graphpad_csv,
 )
 from src.utils.parsers import parse_labeled_path  # noqa: E402
 
@@ -52,6 +53,31 @@ def parse_args() -> argparse.Namespace:
         required=True,
         metavar="LABEL=EXPORT.NPZ",
         help="Repeatable scalar export input. LABEL=PATH and LABEL:PATH are accepted.",
+    )
+
+    turnback = sub.add_parser(
+        "turnback-ratio-npz",
+        help=(
+            "Convert dual-circle turnback SLI bundles into a wide per-fly "
+            "experimental-ratio CSV."
+        ),
+    )
+    turnback.add_argument(
+        "--input",
+        action="append",
+        required=True,
+        metavar="LABEL=BUNDLE.NPZ",
+        help="Repeatable turnback bundle input. LABEL=PATH and LABEL:PATH are accepted.",
+    )
+    turnback.add_argument("--out", required=True, help="Output GraphPad CSV path.")
+    turnback.add_argument(
+        "--top-sli-fraction",
+        type=float,
+        default=None,
+        help=(
+            "Optionally export only the top fraction of finite-SLI learners "
+            "within each group (for example, 0.9 for the top 90%%)."
+        ),
     )
     scalar.add_argument("--out", required=True, help="Output GraphPad CSV path.")
     scalar.add_argument(
@@ -116,6 +142,25 @@ def main() -> int:
             section=args.section,
             pre_col=args.pre_col,
             post_col=args.post_col,
+        )
+        print(f"[graphpad_csv] wrote {args.out}")
+        return 0
+
+    if args.command == "turnback-ratio-npz":
+        from src.analysis.sli_bundle_utils import load_sli_bundle
+
+        if args.top_sli_fraction is not None and not (
+            0 < args.top_sli_fraction <= 1
+        ):
+            raise ValueError("--top-sli-fraction must be greater than 0 and at most 1")
+        bundles = []
+        for spec in args.input:
+            label, path = parse_labeled_path(spec, separators=("=", ":"))
+            bundles.append((label, load_sli_bundle(path)))
+        write_turnback_ratio_bundles_graphpad_csv(
+            bundles,
+            args.out,
+            top_sli_fraction=args.top_sli_fraction,
         )
         print(f"[graphpad_csv] wrote {args.out}")
         return 0
