@@ -203,7 +203,11 @@ from src.plotting.palettes import (
 from src.utils.parsers import parse_distances, parse_training_selector
 from src.plotting.plot import plotAngularVelocity, plotTurnRadiusHist
 from src.plotting.plot_customizer import PlotCustomizer
-from src.plotting.time_series_auc import format_auc_stars
+from src.plotting.time_series_auc import (
+    auc_or_abc_test_values,
+    format_auc_stars,
+    signed_auc_values,
+)
 from src.analysis.sli_tools import (
     compute_sli_per_fly,
     select_fractional_groups,
@@ -9803,8 +9807,8 @@ def plotRewards(
 
                         exp_series = getVals(0, None, False, f1=0)
                         yok_series = getVals(0, None, False, f1=1)
-                        exp_auc = np.abs(areaUnderCurve(exp_series))
-                        yok_auc = np.abs(areaUnderCurve(yok_series))
+                        exp_auc = signed_auc_values(exp_series)
+                        yok_auc = signed_auc_values(yok_series)
                         auc_diff = exp_auc - yok_auc
                         _t_auc, p_auc, n_auc = ttest_1samp(auc_diff, 0)
                         placement_ok = ys_auc is not None
@@ -9875,7 +9879,8 @@ def plotRewards(
                             elif cond1 and cond2:
                                 continue
                             a_ = tuple(
-                                areaUnderCurve(getVals(x, None, btwn)) for x in (0, 1)
+                                signed_auc_values(getVals(x, None, btwn))
+                                for x in (0, 1)
                             )
                             if tas[btwn] is None:
                                 tas[btwn] = a_
@@ -9892,7 +9897,7 @@ def plotRewards(
                                     continue
 
                                 def getA(g):
-                                    return np.abs(
+                                    values = (
                                         (
                                             (
                                                 tas[0][g] + a_[g]
@@ -9902,6 +9907,10 @@ def plotRewards(
                                             if tot
                                             else a_[g]
                                         )
+                                    )
+                                    return auc_or_abc_test_values(
+                                        values,
+                                        between_curves=btwn,
                                     )
 
                                 try:

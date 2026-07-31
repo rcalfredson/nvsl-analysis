@@ -2,10 +2,12 @@ import numpy as np
 import pytest
 
 from src.plotting.time_series_auc import (
+    auc_or_abc_test_values,
     auc_samples,
     compute_auc_test,
     format_auc_label,
     format_auc_stars,
+    signed_auc_values,
 )
 
 
@@ -19,6 +21,30 @@ def test_auc_samples_match_rowwise_trapezoids():
 
     assert samples[0] == pytest.approx([2.0, 2.0])
     assert samples[1] == pytest.approx([4.0])
+
+
+def test_signed_auc_values_preserve_opposite_directions():
+    values = signed_auc_values(
+        np.array(
+            [
+                [-0.3, -0.3],
+                [0.3, 0.3],
+            ]
+        )
+    )
+
+    assert values == pytest.approx([-0.3, 0.3])
+
+
+def test_auc_comparisons_stay_signed_while_abc_remains_absolute():
+    values = np.array([-0.3, 0.3])
+
+    assert auc_or_abc_test_values(
+        values, between_curves=False
+    ) == pytest.approx([-0.3, 0.3])
+    assert auc_or_abc_test_values(
+        values, between_curves=True
+    ) == pytest.approx([0.3, 0.3])
 
 
 def test_compute_auc_test_formats_legacy_style_label():

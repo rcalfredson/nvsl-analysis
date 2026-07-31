@@ -21,6 +21,25 @@ class AUCTestResult:
     test: str
 
 
+def signed_auc_values(series: np.ndarray) -> np.ndarray:
+    """Return one signed trapezoidal AUC per row."""
+    return areaUnderCurve(np.asarray(series, dtype=float))
+
+
+def auc_or_abc_test_values(
+    values: np.ndarray, *, between_curves: bool
+) -> np.ndarray:
+    """
+    Preserve direction for AUC tests while retaining legacy ABC magnitudes.
+
+    ``plotRewards`` historically applied an absolute-value transform to both
+    AUC and area-between-curves (ABC) samples. AUC comparisons are now signed;
+    ABC remains unchanged until its definition is considered separately.
+    """
+    values = np.asarray(values, dtype=float)
+    return np.abs(values) if between_curves else values
+
+
 def auc_samples(series_by_group: Sequence[np.ndarray]) -> list[np.ndarray]:
     samples = []
     for series in series_by_group:
@@ -28,7 +47,7 @@ def auc_samples(series_by_group: Sequence[np.ndarray]) -> list[np.ndarray]:
         if arr.ndim != 2 or arr.shape[0] == 0 or arr.shape[1] == 0:
             samples.append(np.array([], dtype=float))
             continue
-        aucs = areaUnderCurve(arr)
+        aucs = signed_auc_values(arr)
         samples.append(aucs[np.isfinite(aucs)])
     return samples
 
