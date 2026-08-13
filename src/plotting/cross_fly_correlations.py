@@ -2611,10 +2611,12 @@ def plot_cross_fly_correlations(
             if cutoff_suffix is not None and np.isfinite(cutoff_suffix):
                 rpt_suffix = f"{rpt_suffix}__maxtime{cutoff_suffix:g}s"
 
-    rpd_y_label = sli_ctx.metric_axis_label("Rewards per distance", unit="$m^{-1}$")
+    rpd_y_label = sli_ctx.metric_axis_label(
+        "Rewards per distance", unit="$\\mathrm{m}^{-1}$"
+    )
     rpd_diff_y_label = sli_ctx.metric_axis_label(
         "Rewards per distance, exp - yok",
-        unit="$m^{-1}$",
+        unit="$\\mathrm{m}^{-1}$",
     ).replace(
         ", mean over ",
         ",\nmean over ",
@@ -2632,7 +2634,7 @@ def plot_cross_fly_correlations(
     else:
         rpt_y_label = reward_rate_ctx.metric_axis_label(
             "Reward rate",
-            unit="$min^{-1}$",
+            unit="$\\mathrm{min}^{-1}$",
         )
     speed_x_label = sli_ctx.metric_axis_label(
         "Mean speed",
