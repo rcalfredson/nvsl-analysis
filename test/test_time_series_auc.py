@@ -5,6 +5,7 @@ from src.plotting.time_series_auc import (
     auc_or_abc_test_values,
     auc_samples,
     compute_auc_test,
+    compute_single_group_auc_test,
     format_auc_label,
     format_auc_stars,
     signed_auc_values,
@@ -61,6 +62,36 @@ def test_compute_auc_test_formats_legacy_style_label():
     assert format_auc_label(result, include_p_value=True).startswith(
         "AUC (n=3,3): **** (p="
     )
+
+
+def test_single_group_auc_test_uses_paired_exp_yoked_differences():
+    exp = np.array(
+        [[1.0, 2.0, 3.0], [2.0, 3.0, 4.0], [3.0, 4.0, 5.0]]
+    )
+    yoked = np.zeros_like(exp)
+
+    result = compute_single_group_auc_test(exp, reference_series=yoked)
+
+    assert result is not None
+    assert result.ns == (3,)
+    assert result.test == "paired t-test"
+
+
+def test_single_group_auc_test_handles_exp_only_or_precomputed_difference():
+    difference = np.array(
+        [[0.1, 0.2, 0.3], [0.2, 0.3, 0.4], [0.3, 0.4, 0.5]]
+    )
+
+    result = compute_single_group_auc_test(difference)
+
+    assert result is not None
+    assert result.ns == (3,)
+    assert result.test == "one-sample t-test"
+
+
+def test_single_group_auc_test_gracefully_skips_insufficient_data():
+    assert compute_single_group_auc_test(np.array([[0.1, 0.2]])) is None
+    assert compute_single_group_auc_test(np.empty((0, 3))) is None
 
 
 def test_format_auc_stars_can_hide_or_show_p_values():

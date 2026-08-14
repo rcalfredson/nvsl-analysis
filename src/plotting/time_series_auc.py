@@ -9,7 +9,12 @@ from scipy.stats import f_oneway
 
 from src.plotting.p_value_format import format_plot_p_value
 import src.utils.util as util
-from src.utils.common import areaUnderCurve, pick_above_or_expand, ttest_ind
+from src.utils.common import (
+    areaUnderCurve,
+    pick_above_or_expand,
+    ttest_1samp,
+    ttest_ind,
+)
 from src.utils.local_config import load_local_analyze_config, parse_local_bool
 
 SHOW_AUC_P_VALUES_KEY = "SHOW_AUC_P_VALUES"
@@ -71,6 +76,40 @@ def compute_auc_test(
         _f, p = f_oneway(*samples)
         return AUCTestResult(float(p), ns, "one-way ANOVA")
     except Exception:
+        return None
+
+
+def compute_single_group_auc_test(
+    series: np.ndarray,
+    *,
+    reference_series: np.ndarray | None = None,
+    min_n: int = 2,
+) -> AUCTestResult | None:
+    """Test one group's signed AUCs against zero or a paired reference.
+
+    When ``reference_series`` is supplied, the test is performed on the
+    within-video AUC differences.  This is equivalent to a paired t-test and
+    keeps experimental/yoked pairs aligned when either member is missing.
+    Without a reference, the plotted series can be an experimental-only
+    measure or an already-computed experimental-minus-yoked difference.
+    """
+    try:
+        aucs = signed_auc_values(np.asarray(series, dtype=float))
+        test_name = "one-sample t-test"
+        if reference_series is not None:
+            reference_aucs = signed_auc_values(
+                np.asarray(reference_series, dtype=float)
+            )
+            if aucs.shape != reference_aucs.shape:
+                return None
+            aucs = aucs - reference_aucs
+            test_name = "paired t-test"
+
+        _t, p, n = ttest_1samp(aucs, 0, min_n=min_n)
+        if not np.isfinite(p):
+            return None
+        return AUCTestResult(float(p), (int(n),), test_name)
+    except (IndexError, TypeError, ValueError):
         return None
 
 
