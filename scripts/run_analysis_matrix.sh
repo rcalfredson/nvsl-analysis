@@ -36,6 +36,8 @@ TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT="${TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_
 TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT="${TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT,,}"
 TURNBACK_HOME_VECTOR_ALIGNMENT_FONT_FAMILY="${TURNBACK_HOME_VECTOR_ALIGNMENT_FONT_FAMILY:-}"
 TURNBACK_HOME_VECTOR_ALIGNMENT_FS="${TURNBACK_HOME_VECTOR_ALIGNMENT_FS:-}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_PLOT_CONTROL_TOP_BOTTOM="${TURNBACK_HOME_VECTOR_ALIGNMENT_PLOT_CONTROL_TOP_BOTTOM:-0}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_CONTROL_TOP_BOTTOM_SHOW_TITLE="${TURNBACK_HOME_VECTOR_ALIGNMENT_CONTROL_TOP_BOTTOM_SHOW_TITLE:-0}"
 
 GROUP_VARS=(INTACT_CTRL INTACT_PFND AR_CTRL)
 GROUP_SLUGS=(intact_ctrlKir intact_pfnKir ar_ctrlKir)
@@ -118,6 +120,14 @@ esac
 
 if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_REUSE_EXISTING_BUNDLES" != "0" && "$TURNBACK_HOME_VECTOR_ALIGNMENT_REUSE_EXISTING_BUNDLES" != "1" ]]; then
   echo "TURNBACK_HOME_VECTOR_ALIGNMENT_REUSE_EXISTING_BUNDLES must be 0 or 1." >&2
+  exit 1
+fi
+if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_PLOT_CONTROL_TOP_BOTTOM" != "0" && "$TURNBACK_HOME_VECTOR_ALIGNMENT_PLOT_CONTROL_TOP_BOTTOM" != "1" ]]; then
+  echo "TURNBACK_HOME_VECTOR_ALIGNMENT_PLOT_CONTROL_TOP_BOTTOM must be 0 or 1." >&2
+  exit 1
+fi
+if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_CONTROL_TOP_BOTTOM_SHOW_TITLE" != "0" && "$TURNBACK_HOME_VECTOR_ALIGNMENT_CONTROL_TOP_BOTTOM_SHOW_TITLE" != "1" ]]; then
+  echo "TURNBACK_HOME_VECTOR_ALIGNMENT_CONTROL_TOP_BOTTOM_SHOW_TITLE must be 0 or 1." >&2
   exit 1
 fi
 if [[ "$DUAL_CIRCLE_TURNBACK_REUSE_EXISTING_BUNDLES" != "0" && "$DUAL_CIRCLE_TURNBACK_REUSE_EXISTING_BUNDLES" != "1" ]]; then
@@ -989,6 +999,59 @@ plot_combined_turnback_home_vector_alignment() {
   run_cmd "${plot_args[@]}"
 }
 
+plot_control_top_bottom_turnback_home_vector_alignment() {
+  local filter_tag="$1"
+  local wall_tag="$2"
+  local estimator_suffix
+  estimator_suffix="$(turnback_home_vector_alignment_heading_estimator_suffix)"
+  local home_anchor_suffix
+  home_anchor_suffix="$(turnback_home_vector_alignment_home_vector_anchor_suffix)"
+  local sample_cross_suffix
+  sample_cross_suffix="$(turnback_home_vector_alignment_sample_crossing_suffix)"
+  local pair_labels=("3-5" "8-10" "13-15")
+  local region_labels=("3/5 mm" "8/10 mm" "13/15 mm")
+  local plot_style_flags=()
+  turnback_home_vector_alignment_plot_style_flags plot_style_flags
+  local plot_args=(
+    python -m scripts.plot_overlay_training_metric_scalar_bars
+    --out "exports/turnbackHomeVectorAlignment_top20Bottom50_${filter_tag}_${wall_tag}_intact_ctrlKir_flatLgc_T2_p3-5_8-10_13-15_sliT2Sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}_${DATE_TAG}.${TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT}"
+    --xlabel "Inner/outer radius pair from reward center (mm)"
+    --ylabel "Home-vector heading alignment, cos(θ)"
+    --clustered-layout
+    --swarm
+    --stats
+    "${plot_style_flags[@]}"
+  )
+  if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_CONTROL_TOP_BOTTOM_SHOW_TITLE" == "1" ]]; then
+    plot_args+=(--title "Control: home-vector heading alignment at re-entry")
+  fi
+
+  local pair_i subset_slug learner_label key bundle
+  for pair_i in "${!pair_labels[@]}"; do
+    for subset_slug in top20 bottom50; do
+      case "$subset_slug" in
+        top20)
+          learner_label="Top 20% learners"
+          ;;
+        bottom50)
+          learner_label="Bottom 50% learners"
+          ;;
+      esac
+      key="${subset_slug}|${pair_labels[$pair_i]}|0"
+      bundle="${TURNBACK_HOME_VECTOR_ALIGNMENT_BUNDLES[$key]:-}"
+      if [[ -z "$bundle" ]]; then
+        echo "Missing recorded Control turnback home-vector alignment bundle for $key" >&2
+        exit 1
+      fi
+      plot_args+=(
+        --input "${region_labels[$pair_i]}|${learner_label}=${bundle}"
+      )
+    done
+  done
+
+  run_cmd "${plot_args[@]}"
+}
+
 run_return_leg_tortuosity_bins() {
   local bins_label="$1"
   local bins_arg="$2"
@@ -1307,6 +1370,9 @@ for filter_tag in minEpSb5Filt; do
     run_turnback_home_vector_alignment_bottom50 "8-10" 8 10 "$filter_tag" "$wall_tag"
     run_turnback_home_vector_alignment_bottom50 "13-15" 13 15 "$filter_tag" "$wall_tag"
     plot_combined_turnback_home_vector_alignment bottom50 "Bottom 50% SLI" "$filter_tag" "$wall_tag"
+    if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_PLOT_CONTROL_TOP_BOTTOM" == "1" ]]; then
+      plot_control_top_bottom_turnback_home_vector_alignment "$filter_tag" "$wall_tag"
+    fi
   done
 done
 
