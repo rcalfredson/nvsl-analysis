@@ -60,7 +60,7 @@ def test_compute_auc_test_formats_legacy_style_label():
     assert result.ns == (3, 3)
     assert result.test == "Welch t-test"
     assert format_auc_label(result, include_p_value=True).startswith(
-        "AUC (n=3,3): **** (p="
+        "AUC (n=3,3): **** (p = "
     )
 
 
@@ -95,9 +95,9 @@ def test_single_group_auc_test_gracefully_skips_insufficient_data():
 
 
 def test_format_auc_stars_can_hide_or_show_p_values():
-    assert format_auc_stars(0.00321, include_p_value=True) == "** (p=0.00321)"
+    assert format_auc_stars(0.00321, include_p_value=True) == "** (p = 0.00321)"
     assert format_auc_stars(0.00321, include_p_value=False) == "**"
-    assert format_auc_stars(0.42, include_p_value=True) == "ns (p=0.42)"
+    assert format_auc_stars(0.42, include_p_value=True) == "ns (p = 0.42)"
     assert format_auc_stars(1.234e-5, include_p_value=True) == (
-        "**** (" + r"p=$1.23 \times 10^{-5}$" + ")"
+        "**** (" + r"p = $1.23 \times 10^{-5}$" + ")"
     )

@@ -130,7 +130,7 @@ def format_auc_stars(p_value: float, *, include_p_value: bool | None = None) -> 
         include_p_value = auc_p_values_enabled()
     if not include_p_value:
         return stars
-    return f"{stars} (p={format_plot_p_value(p_value)})"
+    return f"{stars} (p = {format_plot_p_value(p_value)})"
 
 
 def format_auc_label(
