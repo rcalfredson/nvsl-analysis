@@ -225,8 +225,13 @@ def group_metric_fill_color_for_label(
     palette: str | list[str] | tuple[str, ...] | None = None,
 ) -> str:
     semantic_index = _semantic_learner_palette_index(label)
-    color_index = index if semantic_index is None else semantic_index
-    return group_metric_fill_color(color_index, metric_family, palette=palette)
+    if semantic_index is not None:
+        # Keep learner-extreme colors stable across metrics: bottom is the
+        # red-toned first family and top is the green-toned second family.
+        return group_metric_fill_color(
+            semantic_index, "turnback_ratio", palette=palette
+        )
+    return group_metric_fill_color(index, metric_family, palette=palette)
 
 
 def group_metric_edge_color_for_label(
@@ -237,8 +242,11 @@ def group_metric_edge_color_for_label(
     palette: str | list[str] | tuple[str, ...] | None = None,
 ) -> str:
     semantic_index = _semantic_learner_palette_index(label)
-    color_index = index if semantic_index is None else semantic_index
-    return group_metric_edge_color(color_index, metric_family, palette=palette)
+    if semantic_index is not None:
+        return group_metric_edge_color(
+            semantic_index, "turnback_ratio", palette=palette
+        )
+    return group_metric_edge_color(index, metric_family, palette=palette)
 
 
 def stacked_group_colors(

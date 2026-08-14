@@ -332,6 +332,26 @@ def test_direct_top_bottom_comparison_uses_semantic_learner_colors():
     plt.close(fig)
 
 
+def test_direct_top_bottom_colors_are_stable_across_metric_families():
+    top = replace(
+        _export("Top 20% learners", [0.7, 0.8, 0.9]),
+        meta={"metric": "turnback_home_vector_alignment"},
+    )
+    bottom = replace(
+        _export("Bottom 50% learners", [0.1, 0.2, 0.3]),
+        meta={"metric": "turnback_home_vector_alignment"},
+    )
+
+    fig = plot_overlays([top, bottom])
+    facecolors = [mcolors.to_hex(patch.get_facecolor()) for patch in fig.axes[0].patches]
+
+    assert facecolors == [
+        mcolors.to_hex(group_metric_fill_color(1, "turnback_ratio")),
+        mcolors.to_hex(group_metric_fill_color(0, "turnback_ratio")),
+    ]
+    plt.close(fig)
+
+
 def test_cross_group_top_learners_keep_genotype_color_cycle():
     groups = [
         replace(
