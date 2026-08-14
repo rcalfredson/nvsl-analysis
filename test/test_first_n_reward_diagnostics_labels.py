@@ -106,5 +106,5 @@ def test_first_n_reward_diagnostics_uses_manuscript_metric_axis_labels():
 def test_fast_strong_correlation_annotation_places_n_in_label():
     assert (
         _format_labeled_corr_with_n(0.741, 2.33e-16, 87, label="All flies")
-        == "All flies (n = 87): r = 0.741, p = 2.33e-16"
+        == r"All flies (n = 87): r = 0.741, p = $2.33 \times 10^{-16}$"
     )

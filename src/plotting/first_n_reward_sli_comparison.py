@@ -15,6 +15,7 @@ from src.plotting.first_n_reward_diagnostics import (
     FirstNRewardDiagnosticsConfig,
     FirstNRewardDiagnosticsPlotter,
 )
+from src.plotting.p_value_format import format_plot_p_value
 import src.utils.util as util
 
 
@@ -248,7 +249,10 @@ class FirstNRewardSLIComparisonPlotter:
         ttest = self._welch_ttest(df)
         if ttest is not None:
             t_stat, p_value = ttest
-            lines.append(f"Welch t-test: t={t_stat:.3f}, p={p_value:.3g}")
+            lines.append(
+                f"Welch t-test: t={t_stat:.3f}, "
+                f"p={format_plot_p_value(p_value)}"
+            )
         else:
             lines.append("Welch t-test: n/a")
         cutoff_note = self._cutoff_note(groups)

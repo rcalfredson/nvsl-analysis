@@ -23,6 +23,7 @@ from src.plotting.palettes import (
     NEUTRAL_MID,
     correlation_plot_color,
 )
+from src.plotting.p_value_format import format_plot_p_value
 from src.plotting.rewards_per_distance_totals import pooled_rewards_per_distance_window
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.axis_size import DEFAULT_PLOT_AXIS_SIZE_INCHES, set_axis_size_inches
@@ -340,14 +341,14 @@ def early_sli_label(*, training_idx: int, skip_first_sync_buckets: int) -> str:
 
 
 def _format_corr_annotation(r: float, p: float, n: int, *, label: str | None = None) -> str:
-    stats = f"n = {int(n)}, r = {r:.3f}, p = {p:.3g}"
+    stats = f"n = {int(n)}, r = {r:.3f}, p = {format_plot_p_value(p)}"
     return f"{label}: {stats}" if label else stats
 
 
 def _format_labeled_corr_with_n(
     r: float, p: float, n: int, *, label: str | None = None
 ) -> str:
-    stats = f"r = {r:.3f}, p = {p:.3g}"
+    stats = f"r = {r:.3f}, p = {format_plot_p_value(p)}"
     return f"{label} (n = {int(n)}): {stats}" if label else f"n = {int(n)}, {stats}"
 
 

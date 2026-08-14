@@ -10,6 +10,7 @@ from scipy.stats import pearsonr
 
 from src.analysis.sli_tools import default_single_bucket_idx
 from src.plotting.palettes import correlation_plot_color_for_metrics
+from src.plotting.p_value_format import format_plot_p_value
 from src.plotting.axis_size import DEFAULT_PLOT_AXIS_SIZE_INCHES, set_axis_size_inches
 from src.plotting.between_reward_segment_binning import video_base
 from src.plotting.reward_window_utils import (
@@ -911,7 +912,7 @@ class FirstNRewardDiagnosticsPlotter:
         if stats is None:
             return f"n = {int(n)}, r = n/a, p = n/a"
         r, p, n = stats
-        return f"n = {int(n)}, r = {r:.3f}, p = {p:.3g}"
+        return f"n = {int(n)}, r = {r:.3f}, p = {format_plot_p_value(p)}"
 
     @staticmethod
     def _add_significant_trend_line(

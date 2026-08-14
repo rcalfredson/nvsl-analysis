@@ -14,6 +14,12 @@ def test_format_sig_label_can_append_p_value():
     assert format_sig_label(0.00321, include_p_value=True) == "**\np=0.00321"
 
 
+def test_format_sig_label_uses_mathtext_exponent_for_small_p_value():
+    assert format_sig_label(1.234e-5, include_p_value=True) == (
+        "****\n" + r"p=$1.23 \times 10^{-5}$"
+    )
+
+
 def test_format_sig_label_preserves_existing_star_only_default():
     assert format_sig_label(0.00321) == "**"
 

@@ -7,6 +7,7 @@ from typing import Sequence
 import numpy as np
 from scipy.stats import f_oneway
 
+from src.plotting.p_value_format import format_plot_p_value
 import src.utils.util as util
 from src.utils.common import areaUnderCurve, pick_above_or_expand, ttest_ind
 from src.utils.local_config import load_local_analyze_config, parse_local_bool
@@ -90,7 +91,7 @@ def format_auc_stars(p_value: float, *, include_p_value: bool | None = None) -> 
         include_p_value = auc_p_values_enabled()
     if not include_p_value:
         return stars
-    return f"{stars} (p={p_value:.3g})"
+    return f"{stars} (p={format_plot_p_value(p_value)})"
 
 
 def format_auc_label(

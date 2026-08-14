@@ -24,15 +24,16 @@ from src.plotting.palettes import (  # noqa: E402
     group_metric_fill_color,
 )
 from src.plotting.plot_customizer import PlotCustomizer  # noqa: E402
+from src.plotting.p_value_format import format_plot_p_value  # noqa: E402
 
 
 def _fmt_p(p: float) -> str:
     if not np.isfinite(p):
         return "p=n/a"
     if p <= 0.0 or p < 1e-300:
-        return "p<1e-300"
+        return f"p<{format_plot_p_value(1e-300, '.0e')}"
     if p < 1e-4:
-        return f"p={p:.1e}"
+        return f"p={format_plot_p_value(p, '.1e')}"
     return f"p={p:.3f}"
 
 

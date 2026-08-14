@@ -8,6 +8,7 @@ from scipy.stats import ttest_ind, ttest_rel
 
 from src.analysis.posthoc_tests import games_howell_all_pairs, welch_anova
 from src.plotting.palettes import NEUTRAL_DARK
+from src.plotting.p_value_format import format_plot_p_value
 from src.utils.util import p2stars
 
 
@@ -303,7 +304,10 @@ def format_sig_label(
         return stars
     if not np.isfinite(p):
         return stars
-    return f"{stars}\n{p_prefix}{p:.{int(p_digits)}g}"
+    return (
+        f"{stars}\n{p_prefix}"
+        f"{format_plot_p_value(p, f'.{int(p_digits)}g')}"
+    )
 
 
 @dataclass(frozen=True)
