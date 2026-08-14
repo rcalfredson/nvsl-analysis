@@ -18,34 +18,55 @@ class SLIAxisLimits:
         return self.mode == "fixed"
 
 
-def load_sli_axis_limits() -> SLIAxisLimits:
-    """Load and validate the shared y-axis policy for time-dependent SLI plots."""
+def load_sli_axis_limits(
+    *,
+    mode: str | None = None,
+    minimum: float | None = None,
+    maximum: float | None = None,
+) -> SLIAxisLimits:
+    """Resolve the shared y-axis policy for time-dependent SLI plots.
+
+    Explicit arguments take precedence over ``.analyze.local.env``. Supplying
+    either limit without a mode implies fixed mode, which makes the two CLI
+    limit flags convenient to use on their own.
+    """
     cfg = load_local_analyze_config()
-    mode = cfg.get("SLI_YLIM_MODE", "dynamic").strip().lower()
+    has_limit_override = minimum is not None or maximum is not None
+    if mode is None:
+        mode = "fixed" if has_limit_override else cfg.get("SLI_YLIM_MODE", "dynamic")
+    mode = str(mode).strip().lower()
     if mode not in ("dynamic", "fixed"):
         raise ValueError(
-            ".analyze.local.env: SLI_YLIM_MODE must be 'dynamic' or 'fixed'"
+            "SLI y-limit mode must be 'dynamic' or 'fixed'"
         )
     if mode == "dynamic":
+        if has_limit_override:
+            raise ValueError(
+                "SLI y-limit bounds cannot be supplied with dynamic mode"
+            )
         return SLIAxisLimits(mode=mode, limits=None)
 
-    missing = [
-        key for key in ("SLI_YLIM_MIN", "SLI_YLIM_MAX") if key not in cfg
-    ]
+    lo_value = minimum if minimum is not None else cfg.get("SLI_YLIM_MIN")
+    hi_value = maximum if maximum is not None else cfg.get("SLI_YLIM_MAX")
+    missing = []
+    if lo_value is None:
+        missing.append("SLI_YLIM_MIN/--sli-ylim-min")
+    if hi_value is None:
+        missing.append("SLI_YLIM_MAX/--sli-ylim-max")
     if missing:
         raise ValueError(
-            ".analyze.local.env: fixed SLI_YLIM_MODE requires " + ", ".join(missing)
+            "fixed SLI y-limit mode requires " + ", ".join(missing)
         )
     try:
-        lo = float(cfg["SLI_YLIM_MIN"])
-        hi = float(cfg["SLI_YLIM_MAX"])
-    except ValueError as exc:
+        lo = float(lo_value)
+        hi = float(hi_value)
+    except (TypeError, ValueError) as exc:
         raise ValueError(
-            ".analyze.local.env: SLI_YLIM_MIN and SLI_YLIM_MAX must be numbers"
+            "SLI y-limit minimum and maximum must be numbers"
         ) from exc
     if not (np.isfinite(lo) and np.isfinite(hi) and hi > lo):
         raise ValueError(
-            ".analyze.local.env: SLI y limits must be finite with MAX > MIN"
+            "SLI y limits must be finite with maximum > minimum"
         )
     return SLIAxisLimits(mode=mode, limits=(lo, hi))
 

@@ -136,6 +136,10 @@ Behavior:
   `SLI_YLIM_MIN` and `SLI_YLIM_MAX` to time-dependent SLI plots produced both by
   `analyze.py` and by the running PI/SLI bundle plotter. A warning is emitted if
   plotted means or confidence limits fall outside the fixed range.
+- The equivalent command-line options are `--sli-ylim-mode`, `--sli-ylim-min`,
+  and `--sli-ylim-max`. Command-line values override the local config, and using
+  either bound implies fixed mode. For example, `--sli-ylim-min=-0.5` with
+  `--sli-ylim-max=2` fixes the range for that invocation only.
 
 ---
 

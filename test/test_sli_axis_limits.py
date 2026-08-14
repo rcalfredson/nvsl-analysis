@@ -26,6 +26,33 @@ def test_sli_axis_limits_load_fixed_values(tmp_path, monkeypatch):
     assert policy.limits == (-0.5, 2.0)
 
 
+def test_cli_sli_limits_override_config_and_imply_fixed(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".analyze.local.env").write_text(
+        "SLI_YLIM_MODE=dynamic\nSLI_YLIM_MIN=-9\nSLI_YLIM_MAX=9\n",
+        encoding="utf-8",
+    )
+    policy = load_sli_axis_limits(minimum=-0.25, maximum=1.5)
+    assert policy.fixed
+    assert policy.limits == (-0.25, 1.5)
+
+
+def test_cli_fixed_mode_can_use_configured_bounds(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".analyze.local.env").write_text(
+        "SLI_YLIM_MODE=dynamic\nSLI_YLIM_MIN=-0.5\nSLI_YLIM_MAX=2\n",
+        encoding="utf-8",
+    )
+    policy = load_sli_axis_limits(mode="fixed")
+    assert policy.limits == (-0.5, 2.0)
+
+
+def test_cli_dynamic_mode_rejects_limit_overrides(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(ValueError, match="dynamic mode"):
+        load_sli_axis_limits(mode="dynamic", minimum=-0.5, maximum=2.0)
+
+
 @pytest.mark.parametrize(
     "text",
     [

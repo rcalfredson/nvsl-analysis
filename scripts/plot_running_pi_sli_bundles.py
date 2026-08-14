@@ -131,6 +131,29 @@ def main():
         default=None,
         help="Override the default font family for plots.",
     )
+    p.add_argument(
+        "--sli-ylim-mode",
+        choices=("dynamic", "fixed"),
+        default=None,
+        help=(
+            "Y-axis policy for SLI plots. Overrides SLI_YLIM_MODE from "
+            ".analyze.local.env; either limit flag implies fixed."
+        ),
+    )
+    p.add_argument(
+        "--sli-ylim-min",
+        type=float,
+        default=None,
+        metavar="MIN",
+        help="Fixed SLI y-axis minimum (overrides SLI_YLIM_MIN).",
+    )
+    p.add_argument(
+        "--sli-ylim-max",
+        type=float,
+        default=None,
+        metavar="MAX",
+        help="Fixed SLI y-axis maximum (overrides SLI_YLIM_MAX).",
+    )
     args = p.parse_args()
 
     shared_frac = getattr(args, "best_worst_fraction", None)
@@ -165,6 +188,9 @@ def main():
         imageFormat=args.image_format,
         fontSize=args.font_size,
         fontFamily=args.font_family,
+        sli_ylim_mode=args.sli_ylim_mode,
+        sli_ylim_min=args.sli_ylim_min,
+        sli_ylim_max=args.sli_ylim_max,
     )
     plot_running_pi_sli_bundles(
         bundles,

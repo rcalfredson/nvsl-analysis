@@ -360,7 +360,15 @@ def plot_running_pi_sli_bundles(
 ):
     if opts is None:
         opts = SimpleNamespace(imageFormat="png", fontSize=None, fontFamily=None)
-    sli_axis = load_sli_axis_limits() if metric == "sli" else None
+    sli_axis = (
+        load_sli_axis_limits(
+            mode=getattr(opts, "sli_ylim_mode", None),
+            minimum=getattr(opts, "sli_ylim_min", None),
+            maximum=getattr(opts, "sli_ylim_max", None),
+        )
+        if metric == "sli"
+        else None
+    )
 
     if sli_top_fraction is None:
         sli_top_fraction = sli_fraction
