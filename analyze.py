@@ -9855,7 +9855,7 @@ def plotRewards(
                                 ax,
                                 0.05 * (xs[-1] + 2 * bl - xs[0]),
                                 ys_auc,
-                                "AUC exp vs yok (n=%d): %s"
+                                "AUC (n=%d): %s"
                                 % (n_auc, format_auc_stars(p_auc)),
                                 size=pch(12, customizer.in_plot_font_size),
                                 base_y=base_y_for_auc,
