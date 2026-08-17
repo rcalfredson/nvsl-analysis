@@ -106,5 +106,5 @@ def test_format_auc_stars_can_hide_or_show_p_values():
     assert format_auc_stars(0.00321, include_p_value=False) == "**"
     assert format_auc_stars(0.42, include_p_value=True) == "ns (p = 0.42)"
     assert format_auc_stars(1.234e-5, include_p_value=True) == (
-        "**** (" + r"p = $1.23 \times 10^{-5}$" + ")"
+        "**** (" + r"p = $\mathregular{1.23 \times 10^{-5}}$" + ")"
     )

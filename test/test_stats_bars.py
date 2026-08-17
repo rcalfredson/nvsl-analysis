@@ -16,7 +16,7 @@ def test_format_sig_label_can_append_p_value():
 
 def test_format_sig_label_uses_mathtext_exponent_for_small_p_value():
     assert format_sig_label(1.234e-5, include_p_value=True) == (
-        "****\n" + r"p=$1.23 \times 10^{-5}$"
+        "****\n" + r"p=$\mathregular{1.23 \times 10^{-5}}$"
     )
 
 

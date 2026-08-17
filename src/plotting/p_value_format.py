@@ -13,7 +13,10 @@ def use_mathtext_exponents(text: str) -> str:
 
     def replace(match: re.Match[str]) -> str:
         exponent = int(match.group("exponent"))
-        return rf'${match.group("mantissa")} \times 10^{{{exponent}}}$'
+        return (
+            rf'$\mathregular{{{match.group("mantissa")} '
+            rf'\times 10^{{{exponent}}}}}$'
+        )
 
     return _E_NOTATION_RE.sub(replace, str(text))
 
