@@ -12,7 +12,7 @@ def test_flexible_overlay_bbox_stays_inside_axes():
     text = ax.text(
         0.03,
         0.97,
-        "AUC (n=50,21): **** (p=1.81e-10)",
+        "AUC (n = 50,21): **** (p = 1.81e-10)",
         transform=ax.transAxes,
         ha="left",
         va="top",

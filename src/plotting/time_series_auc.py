@@ -136,8 +136,25 @@ def format_auc_stars(p_value: float, *, include_p_value: bool | None = None) -> 
 def format_auc_label(
     result: AUCTestResult, *, include_p_value: bool | None = None
 ) -> str:
-    n_text = ",".join(str(n) for n in result.ns)
-    return f"AUC (n= {n_text} ): {format_auc_stars(result.p_value, include_p_value=include_p_value)}"
+    return format_auc_annotation(
+        "AUC",
+        result.ns,
+        result.p_value,
+        include_p_value=include_p_value,
+    )
+
+
+def format_auc_annotation(
+    label: str,
+    ns: Sequence[int],
+    p_value: float,
+    *,
+    include_p_value: bool | None = None,
+) -> str:
+    """Format an AUC/ABC annotation with consistent equals-sign spacing."""
+    n_text = ",".join(str(n) for n in ns)
+    stars = format_auc_stars(p_value, include_p_value=include_p_value)
+    return f"{label} (n = {n_text}): {stars}"
 
 
 def add_auc_label(

@@ -206,6 +206,7 @@ from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.time_series_auc import (
     auc_or_abc_test_values,
     compute_single_group_auc_test,
+    format_auc_annotation,
     format_auc_stars,
     signed_auc_values,
 )
@@ -9776,10 +9777,10 @@ def plotRewards(
                                 ax,
                                 0.05 * (xs[-1] + 2 * bl - xs[0]),
                                 ys_auc,
-                                "AUC (n=%d): %s"
-                                % (
-                                    auc_result.ns[0],
-                                    format_auc_stars(auc_result.p_value),
+                                format_auc_annotation(
+                                    "AUC",
+                                    auc_result.ns,
+                                    auc_result.p_value,
                                 ),
                                 size=pch(12, customizer.in_plot_font_size),
                                 base_y=base_y_for_auc,
@@ -10005,8 +10006,11 @@ def plotRewards(
                                     ax,
                                     0.05 * (xs[-1] + 2 * bl - xs[0]),
                                     ys,
-                                    "%s (n=%d,%d): %s"
-                                    % (nm, tpn[2], tpn[3], format_auc_stars(tpn[1])),
+                                    format_auc_annotation(
+                                        nm,
+                                        (tpn[2], tpn[3]),
+                                        tpn[1],
+                                    ),
                                     size=pch(12, customizer.in_plot_font_size),
                                     base_y=base_y_for_auc,
                                 )
