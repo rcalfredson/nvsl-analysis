@@ -1,12 +1,17 @@
+import textwrap
+import warnings
+
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 import matplotlib.transforms as mtransforms
 import numpy as np
-import textwrap
 
 
-def _tick_decimal_precision(ticks, max_precision=8):
-    """Return fixed-point precision that faithfully represents tick positions."""
+FIXED_Y_MAX_INTERVALS = 6
+FIXED_Y_MAX_DECIMALS = 3
+
+
+def _faithful_tick_precision(ticks, max_precision):
     ticks = np.asarray(ticks, dtype=float)
     ticks = ticks[np.isfinite(ticks)]
     if ticks.size == 0:
@@ -28,31 +33,60 @@ def _tick_decimal_precision(ticks, max_precision=8):
         )
         if np.all(np.abs(rounded - unique_ticks) <= tolerance):
             return precision
+    return None
+
+
+def _tick_decimal_precision(ticks, max_precision=8):
+    """Return fixed-point precision that faithfully represents tick positions."""
+    precision = _faithful_tick_precision(ticks, max_precision)
+    if precision is not None:
+        return precision
     return max_precision
 
 
-def _fixed_endpoint_ticks(limits, max_intervals):
-    """Return uniform ticks including both limits, preferring a nice step."""
+def _fixed_endpoint_ticks(
+    limits,
+    max_intervals=FIXED_Y_MAX_INTERVALS,
+    max_precision=FIXED_Y_MAX_DECIMALS,
+):
+    """Return an exact, endpoint-anchored grid within a precision budget."""
     lower, upper = (float(value) for value in limits)
     max_intervals = max(1, int(max_intervals))
+    max_precision = max(0, int(max_precision))
     span = upper - lower
     if not np.isfinite(span) or span <= 0:
         raise ValueError("fixed axis limits must be finite and increasing")
 
     nice_mantissas = np.asarray([1.0, 2.0, 2.5, 5.0, 10.0])
-    interval_count = max_intervals
-    for candidate_count in range(max_intervals, 0, -1):
-        step = span / candidate_count
-        exponent = np.floor(np.log10(step))
-        mantissa = step / (10.0**exponent)
-        if np.any(np.isclose(mantissa, nice_mantissas, rtol=1e-10, atol=1e-12)):
-            interval_count = candidate_count
-            break
+    endpoint_precision = _faithful_tick_precision((lower, upper), 8)
+    precision_budget = max(
+        max_precision,
+        8 if endpoint_precision is None else endpoint_precision,
+    )
 
-    ticks = np.linspace(lower, upper, interval_count + 1)
-    ticks[0], ticks[-1] = lower, upper
-    ticks[np.abs(ticks) <= span * 1e-12] = 0.0
-    return ticks
+    # Prefer conventional decimal steps, then accept any exactly displayable
+    # grid. In both passes, reduce density instead of rounding labels away
+    # from their true coordinates.
+    for require_nice_step in (True, False):
+        for interval_count in range(max_intervals, 0, -1):
+            step = span / interval_count
+            exponent = np.floor(np.log10(step))
+            mantissa = step / (10.0**exponent)
+            nice_step = np.any(
+                np.isclose(mantissa, nice_mantissas, rtol=1e-10, atol=1e-12)
+            )
+            if require_nice_step and not nice_step:
+                continue
+
+            ticks = np.linspace(lower, upper, interval_count + 1)
+            ticks[0], ticks[-1] = lower, upper
+            ticks[np.abs(ticks) <= span * 1e-12] = 0.0
+            if _faithful_tick_precision(ticks, precision_budget) is not None:
+                return ticks
+
+    # A single interval always preserves the requested endpoints. This is
+    # reachable only for limits requiring more than eight decimal places.
+    return np.asarray([lower, upper], dtype=float)
 
 
 class PlotCustomizer:
@@ -195,15 +229,62 @@ class PlotCustomizer:
 
         ax.yaxis.set_major_formatter(FuncFormatter(_adaptive_fmt))
 
-    def set_fixed_y_axis(self, ax, limits):
-        """Set fixed limits and an endpoint-anchored, uniformly spaced tick grid."""
-        ax.set_ylim(*limits)
-        ticks = _fixed_endpoint_ticks(limits, self._max_y_tick_intervals(ax))
-        ax.set_yticks(ticks)
-        self._set_adaptive_y_tick_formatter(ax, ticks)
-        # Setting ticks may expand an axis if floating-point noise puts an
-        # endpoint microscopically outside it, so restore the limits last.
-        ax.set_ylim(*limits)
+    def set_fixed_y_axes(
+        self,
+        axes,
+        limits,
+        *,
+        max_intervals=FIXED_Y_MAX_INTERVALS,
+        max_precision=FIXED_Y_MAX_DECIMALS,
+    ):
+        """Set deterministic fixed limits, showing ticks on the left column."""
+        axes = list(axes)
+        if not axes:
+            return
+
+        endpoint_precision = _faithful_tick_precision(limits, 8)
+        if endpoint_precision is None or endpoint_precision > max_precision:
+            required = ">8" if endpoint_precision is None else str(endpoint_precision)
+            warnings.warn(
+                "fixed y-axis endpoints require "
+                f"{required} decimal places; exceeding the configured "
+                f"{max_precision}-decimal tick-label budget to preserve them",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        ticks = _fixed_endpoint_ticks(
+            limits,
+            max_intervals=max_intervals,
+            max_precision=max_precision,
+        )
+        left_edge = min(float(ax.get_position().x0) for ax in axes)
+        left_axes = {
+            ax
+            for ax in axes
+            if np.isclose(float(ax.get_position().x0), left_edge, atol=1e-8)
+        }
+
+        for ax in axes:
+            ax.set_ylim(*limits)
+            ax.set_yticks(ticks)
+            self._set_adaptive_y_tick_formatter(ax, ticks)
+            show_ticks = ax in left_axes
+            ax.tick_params(
+                axis="y",
+                which="both",
+                left=show_ticks,
+                labelleft=show_ticks,
+                right=False,
+                labelright=False,
+            )
+            # Setting ticks may expand an axis if floating-point noise puts an
+            # endpoint microscopically outside it, so restore the limits last.
+            ax.set_ylim(*limits)
+
+    def set_fixed_y_axis(self, ax, limits, **kwargs):
+        """Compatibility wrapper for a single fixed-y axis."""
+        self.set_fixed_y_axes([ax], limits, **kwargs)
 
     def adjust_padding_proportionally(
         self,

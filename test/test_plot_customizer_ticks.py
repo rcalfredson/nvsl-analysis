@@ -74,3 +74,46 @@ def test_fixed_y_axis_anchors_ticks_to_both_limits():
         "1.0",
     ]
     plt.close(fig)
+
+
+def test_fixed_ticks_reduce_density_to_stay_within_precision_budget():
+    ticks = _fixed_endpoint_ticks((0.01, 0.98))
+    precision = _tick_decimal_precision(ticks, max_precision=3)
+
+    assert len(ticks) == 6
+    assert precision <= 3
+    np.testing.assert_allclose(
+        [float(f"{tick:.{precision}f}") for tick in ticks],
+        ticks,
+        atol=1e-12,
+    )
+    np.testing.assert_allclose(np.diff(ticks), np.diff(ticks)[0])
+
+
+def test_fixed_tick_grid_does_not_depend_on_axis_height():
+    customizer = PlotCustomizer()
+    figures_and_axes = [plt.subplots(figsize=(5.0, height)) for height in (3.0, 8.0)]
+
+    for _fig, ax in figures_and_axes:
+        customizer.set_fixed_y_axis(ax, (0.01, 0.98))
+
+    np.testing.assert_allclose(
+        figures_and_axes[0][1].get_yticks(),
+        figures_and_axes[1][1].get_yticks(),
+    )
+    for fig, _ax in figures_and_axes:
+        plt.close(fig)
+
+
+def test_fixed_y_ticks_are_visible_only_on_leftmost_column():
+    fig, axes = plt.subplots(2, 2)
+    customizer = PlotCustomizer()
+
+    customizer.set_fixed_y_axes(fig.get_axes(), (-0.2, 1.0))
+    fig.canvas.draw()
+
+    for ax in axes[:, 0]:
+        assert any(label.get_visible() for label in ax.get_yticklabels())
+    for ax in axes[:, 1]:
+        assert not any(label.get_visible() for label in ax.get_yticklabels())
+    plt.close(fig)
