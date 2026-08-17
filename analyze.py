@@ -4650,7 +4650,7 @@ g.add_argument(
 g.add_argument(
     "--com-per-segment-min-meddist-mm",
     type=float,
-    default=1.5,
+    default=0.0,
     help=(
         "Ignore between-reward segments whose median distance to the reward "
         "center is <= this threshold (mm) when computing COM. "

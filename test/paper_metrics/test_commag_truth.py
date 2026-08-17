@@ -148,6 +148,18 @@ def test_commag_segment_filters_nonfinite_coordinates_meddist_and_wall_contact()
     assert skip.why == "wall_contact"
 
 
+def test_commag_zero_meddist_threshold_disables_filter():
+    va = _COMVideo(
+        trx=[_Trajectory(x=[10, 10, 10], y=[20, 20, 20])],
+        on_by_fly={0: [0, 3]},
+    )
+
+    [seg] = _iter_segments(va, per_segment_min_meddist_mm=0.0)
+
+    assert seg.med_d_mm == 0.0
+    assert seg.mag_mm == 0.0
+
+
 def test_by_sync_bucket_com_averages_segment_magnitudes_not_component_mean_vector():
     va = _COMVideo(
         trx=[

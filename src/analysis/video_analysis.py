@@ -322,7 +322,7 @@ class VideoAnalysis:
                 relative_to_reward=True,
                 store_mag=True,
                 per_segment_min_meddist_mm=getattr(
-                    opts, "com_per_segment_min_meddist_mm", 1.5
+                    opts, "com_per_segment_min_meddist_mm", 0.0
                 ),
             )
             self.byReward()
@@ -3940,7 +3940,7 @@ class VideoAnalysis:
                 if yield_skips:
                     yield _make_skip(i, s, e, b_idx, "meddist_nan")
                 continue
-            if med_d <= min_med_px:
+            if min_med_px > 0 and med_d <= min_med_px:
                 if yield_skips:
                     yield _make_skip(i, s, e, b_idx, "meddist_filtered")
                 continue
