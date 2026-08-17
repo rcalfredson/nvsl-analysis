@@ -10462,7 +10462,7 @@ def plotRewards(
             plotted_bounds, sli_axis.limits, context=f"{tp} plot"
         )
         for ax in plt.gcf().get_axes():
-            ax.set_ylim(*sli_axis.limits)
+            customizer.set_fixed_y_axis(ax, sli_axis.limits)
         for ax, texts in flexible_overlay_texts_by_ax.items():
             place_flexible_overlay_texts(ax, texts)
 

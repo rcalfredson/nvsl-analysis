@@ -1,7 +1,58 @@
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 import matplotlib.transforms as mtransforms
+import numpy as np
 import textwrap
+
+
+def _tick_decimal_precision(ticks, max_precision=8):
+    """Return fixed-point precision that faithfully represents tick positions."""
+    ticks = np.asarray(ticks, dtype=float)
+    ticks = ticks[np.isfinite(ticks)]
+    if ticks.size == 0:
+        return 1
+
+    unique_ticks = np.unique(ticks)
+    spacings = np.diff(unique_ticks)
+    positive_spacings = spacings[spacings > 0]
+    spacing = float(np.min(positive_spacings)) if positive_spacings.size else 1.0
+    magnitude = max(1.0, float(np.max(np.abs(unique_ticks))))
+    tolerance = max(
+        spacing * 1e-8,
+        float(np.spacing(magnitude)) * 4.0,
+    )
+
+    for precision in range(max_precision + 1):
+        rounded = np.asarray(
+            [float(f"{tick:.{precision}f}") for tick in unique_ticks]
+        )
+        if np.all(np.abs(rounded - unique_ticks) <= tolerance):
+            return precision
+    return max_precision
+
+
+def _fixed_endpoint_ticks(limits, max_intervals):
+    """Return uniform ticks including both limits, preferring a nice step."""
+    lower, upper = (float(value) for value in limits)
+    max_intervals = max(1, int(max_intervals))
+    span = upper - lower
+    if not np.isfinite(span) or span <= 0:
+        raise ValueError("fixed axis limits must be finite and increasing")
+
+    nice_mantissas = np.asarray([1.0, 2.0, 2.5, 5.0, 10.0])
+    interval_count = max_intervals
+    for candidate_count in range(max_intervals, 0, -1):
+        step = span / candidate_count
+        exponent = np.floor(np.log10(step))
+        mantissa = step / (10.0**exponent)
+        if np.any(np.isclose(mantissa, nice_mantissas, rtol=1e-10, atol=1e-12)):
+            interval_count = candidate_count
+            break
+
+    ticks = np.linspace(lower, upper, interval_count + 1)
+    ticks[0], ticks[-1] = lower, upper
+    ticks[np.abs(ticks) <= span * 1e-12] = 0.0
+    return ticks
 
 
 class PlotCustomizer:
@@ -117,6 +168,42 @@ class PlotCustomizer:
             target_aspect (float): The desired aspect ratio of the plot rectangle.
         """
         ax.set_box_aspect(target_aspect)
+
+    @staticmethod
+    def _max_y_tick_intervals(ax):
+        _, height = (
+            ax.get_window_extent().transformed(
+                ax.figure.dpi_scale_trans.inverted()
+            ).size
+        )
+        fontsize = ax.yaxis.get_label().get_fontsize()
+        label_height_inches = 1.5 * fontsize / 72
+        return max(2, int(height / label_height_inches))
+
+    @staticmethod
+    def _set_adaptive_y_tick_formatter(ax, ticks):
+        if all(abs(tick - round(tick)) < 1e-8 for tick in ticks):
+            ax.yaxis.set_major_formatter(
+                FuncFormatter(lambda x, _: f"{int(x)}")
+            )
+            return
+
+        precision = _tick_decimal_precision(ticks)
+
+        def _adaptive_fmt(x, _, precision=precision):
+            return f"{x:.{precision}f}"
+
+        ax.yaxis.set_major_formatter(FuncFormatter(_adaptive_fmt))
+
+    def set_fixed_y_axis(self, ax, limits):
+        """Set fixed limits and an endpoint-anchored, uniformly spaced tick grid."""
+        ax.set_ylim(*limits)
+        ticks = _fixed_endpoint_ticks(limits, self._max_y_tick_intervals(ax))
+        ax.set_yticks(ticks)
+        self._set_adaptive_y_tick_formatter(ax, ticks)
+        # Setting ticks may expand an axis if floating-point noise puts an
+        # endpoint microscopically outside it, so restore the limits last.
+        ax.set_ylim(*limits)
 
     def adjust_padding_proportionally(
         self,
@@ -248,35 +335,16 @@ class PlotCustomizer:
 
         # --- Step 4: Ensure Y-axis tick spacing is set proportionally based on font size
         for ax in fig.get_axes():
-            _, height = (
-                ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted()).size
-            )
-            fontsize = ax.yaxis.get_label().get_fontsize()
-
-            # Rough heuristic: one label needs about 1.5 x fontsize in points of vertical space
-            label_height_inches = 1.5 * fontsize / 72
-            max_ticks = max(2, int(height / label_height_inches))
+            max_ticks = self._max_y_tick_intervals(ax)
 
             ax.yaxis.set_major_locator(MaxNLocator(nbins=max_ticks, prune=None))
 
             yticks = ax.get_yticks()
             if len(yticks) > 0:
-                if all(abs(t - round(t)) < 1e-8 for t in yticks):
-                    # all integers
-                    ax.yaxis.set_major_formatter(
-                        FuncFormatter(lambda x, _: f"{int(x)}")
-                    )
-                else:
-                    # choose precision adaptively to avoid duplicate labels
-                    def _adaptive_fmt(x, _):
-                        for prec in range(1, 5):
-                            labels = [f"{t:.{prec}f}" for t in yticks]
-                            if len(set(labels)) == len(labels):
-                                return f"{x:.{prec}f}"
-                        # fallback if still duplicates
-                        return f"{x:.5f}"
-
-                    ax.yaxis.set_major_formatter(FuncFormatter(_adaptive_fmt))
+                # Preserve the actual tick coordinates. Checking only for
+                # unique labels can misrepresent 0.15-spaced ticks as
+                # alternating 0.1 and 0.2 increments after rounding.
+                self._set_adaptive_y_tick_formatter(ax, yticks)
 
         # --- Step 5: Add newlines for long axis labels ---
         if wrap_x_axis_labels or wrap_y_axis_labels:

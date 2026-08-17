@@ -704,14 +704,14 @@ def plot_running_pi_sli_bundles(
             txt._final_y_ = float(ys_txt)
             lbls[bj].append(txt)
     ax.set_ylim(ylim[0], ylim[1])
+    customizer.adjust_padding_proportionally()
     if sli_axis is not None and sli_axis.fixed:
         warn_if_sli_values_clipped(
             [v for v in (y_min, y_max) if v is not None],
             sli_axis.limits,
             context="running PI/SLI bundle plot",
         )
-        ax.set_ylim(*sli_axis.limits)
-    customizer.adjust_padding_proportionally()
+        customizer.set_fixed_y_axis(ax, sli_axis.limits)
     writeImage(out_fn, format=getattr(opts, "imageFormat", "png"))
     plt.close()
 
