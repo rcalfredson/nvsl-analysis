@@ -137,7 +137,7 @@ def format_auc_label(
     result: AUCTestResult, *, include_p_value: bool | None = None
 ) -> str:
     n_text = ",".join(str(n) for n in result.ns)
-    return f"AUC (n={n_text}): {format_auc_stars(result.p_value, include_p_value=include_p_value)}"
+    return f"AUC (n= {n_text} ): {format_auc_stars(result.p_value, include_p_value=include_p_value)}"
 
 
 def add_auc_label(
