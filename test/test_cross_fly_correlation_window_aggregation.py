@@ -231,6 +231,12 @@ def test_default_t2_speed_contexts_target_sb5_and_sb1_through_sb5():
     assert mean_speed_ctx.average_over_buckets is True
     assert mean_speed_ctx.skip_first_sync_buckets == 0
     assert mean_speed_ctx.keep_first_sync_buckets == 5
+    assert sb5_speed_ctx.metric_axis_label("Mean speed", unit="mm/s") == (
+        "Mean speed, at T2 SB5 (mm/s)"
+    )
+    assert mean_speed_ctx.metric_axis_label("Mean speed", unit="mm/s") == (
+        "Mean speed, mean over T2 SB1–5 (mm/s)"
+    )
     assert corr._window_context_suffix(final_sli_ctx, prefix="sli") == (
         "sliT2_last_sb5"
     )
@@ -267,3 +273,36 @@ def test_default_t2_speed_contexts_reduce_sb5_and_pooled_sb1_through_sb5():
     assert sb5 == pytest.approx([5.0])
     expected_pooled_mean = (1 * 5 + 2 * 4 + 3 * 3 + 4 * 2 + 5) / 15
     assert mean_sb1_sb5 == pytest.approx([expected_pooled_mean])
+
+
+def test_speed_selection_labels_name_the_sli_window_defining_groups():
+    selection_ctx = SLIContext(
+        training_idx=1,
+        average_over_buckets=True,
+        skip_first_sync_buckets=1,
+        keep_first_sync_buckets=4,
+        total_sync_buckets=6,
+    )
+
+    top_label, bottom_label = corr._speed_selection_group_labels(
+        selection_ctx,
+        top_pct_txt="20%",
+        bottom_pct_txt="50%",
+    )
+
+    assert top_label == "Top 20% by Mean SLI over T2 SB2–5"
+    assert bottom_label == "Bottom 50% by Mean SLI over T2 SB2–5"
+
+    final_bucket_ctx = SLIContext(
+        training_idx=1,
+        average_over_buckets=False,
+        total_sync_buckets=6,
+    )
+    top_label, bottom_label = corr._speed_selection_group_labels(
+        final_bucket_ctx,
+        top_pct_txt="20%",
+        bottom_pct_txt="50%",
+    )
+
+    assert top_label == "Top 20% by SLI at final SB in T2 SB1–5"
+    assert bottom_label == "Bottom 50% by SLI at final SB in T2 SB1–5"
