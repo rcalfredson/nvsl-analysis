@@ -13603,6 +13603,12 @@ def postAnalyze(vas):
                     "these plots can lazily compute metrics that require full reward-entry state."
                 )
             else:
+                sli_t2_sb5_ser = compute_sli_per_fly(
+                    raw_4,
+                    training_idx=1,
+                    bucket_idx=4,
+                    average_over_buckets=False,
+                )
                 plot_cross_fly_correlations(
                     sli_values=sli_ser,
                     vas=vas,
@@ -13613,6 +13619,7 @@ def postAnalyze(vas):
                     plot_customizer=customizer,
                     sli_ctx=sli_ctx,
                     reward_rate_ctx=reward_rate_ctx,
+                    sli_t2_sb5_values=sli_t2_sb5_ser,
                     sli_selected=sli_selected_for_correlations,
                     sli_extremes=sli_extremes_for_correlations,
                 )
