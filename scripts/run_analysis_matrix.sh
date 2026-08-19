@@ -38,6 +38,10 @@ TURNBACK_HOME_VECTOR_ALIGNMENT_FONT_FAMILY="${TURNBACK_HOME_VECTOR_ALIGNMENT_FON
 TURNBACK_HOME_VECTOR_ALIGNMENT_FS="${TURNBACK_HOME_VECTOR_ALIGNMENT_FS:-}"
 TURNBACK_HOME_VECTOR_ALIGNMENT_PLOT_CONTROL_TOP_BOTTOM="${TURNBACK_HOME_VECTOR_ALIGNMENT_PLOT_CONTROL_TOP_BOTTOM:-0}"
 TURNBACK_HOME_VECTOR_ALIGNMENT_CONTROL_TOP_BOTTOM_SHOW_TITLE="${TURNBACK_HOME_VECTOR_ALIGNMENT_CONTROL_TOP_BOTTOM_SHOW_TITLE:-0}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_PLOT_ALL_GROUPS_TOP_BOTTOM="${TURNBACK_HOME_VECTOR_ALIGNMENT_PLOT_ALL_GROUPS_TOP_BOTTOM:-0}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_ALL_GROUPS_TOP_BOTTOM_SHOW_TITLE="${TURNBACK_HOME_VECTOR_ALIGNMENT_ALL_GROUPS_TOP_BOTTOM_SHOW_TITLE:-0}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_FRACTION="${TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_FRACTION:-0.2}"
+TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_FRACTION="${TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_FRACTION:-0.5}"
 
 GROUP_VARS=(INTACT_CTRL INTACT_PFND AR_CTRL)
 GROUP_SLUGS=(intact_ctrlKir intact_pfnKir ar_ctrlKir)
@@ -128,6 +132,29 @@ if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_PLOT_CONTROL_TOP_BOTTOM" != "0" && "$TURN
 fi
 if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_CONTROL_TOP_BOTTOM_SHOW_TITLE" != "0" && "$TURNBACK_HOME_VECTOR_ALIGNMENT_CONTROL_TOP_BOTTOM_SHOW_TITLE" != "1" ]]; then
   echo "TURNBACK_HOME_VECTOR_ALIGNMENT_CONTROL_TOP_BOTTOM_SHOW_TITLE must be 0 or 1." >&2
+  exit 1
+fi
+if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_PLOT_ALL_GROUPS_TOP_BOTTOM" != "0" && "$TURNBACK_HOME_VECTOR_ALIGNMENT_PLOT_ALL_GROUPS_TOP_BOTTOM" != "1" ]]; then
+  echo "TURNBACK_HOME_VECTOR_ALIGNMENT_PLOT_ALL_GROUPS_TOP_BOTTOM must be 0 or 1." >&2
+  exit 1
+fi
+if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_ALL_GROUPS_TOP_BOTTOM_SHOW_TITLE" != "0" && "$TURNBACK_HOME_VECTOR_ALIGNMENT_ALL_GROUPS_TOP_BOTTOM_SHOW_TITLE" != "1" ]]; then
+  echo "TURNBACK_HOME_VECTOR_ALIGNMENT_ALL_GROUPS_TOP_BOTTOM_SHOW_TITLE must be 0 or 1." >&2
+  exit 1
+fi
+if ! awk -v fraction="$TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_FRACTION" 'BEGIN { exit !(fraction > 0 && fraction <= 1) }'; then
+  echo "TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_FRACTION must be greater than 0 and at most 1." >&2
+  exit 1
+fi
+if ! awk -v fraction="$TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_FRACTION" 'BEGIN { exit !(fraction > 0 && fraction <= 1) }'; then
+  echo "TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_FRACTION must be greater than 0 and at most 1." >&2
+  exit 1
+fi
+if ! awk \
+  -v top="$TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_FRACTION" \
+  -v bottom="$TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_FRACTION" \
+  'BEGIN { exit !(top + bottom <= 1) }'; then
+  echo "TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_FRACTION and TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_FRACTION must sum to at most 1." >&2
   exit 1
 fi
 if [[ "$DUAL_CIRCLE_TURNBACK_REUSE_EXISTING_BUNDLES" != "0" && "$DUAL_CIRCLE_TURNBACK_REUSE_EXISTING_BUNDLES" != "1" ]]; then
@@ -224,6 +251,22 @@ slug_decimal() {
 fraction_percent_slug() {
   awk -v fraction="$1" 'BEGIN { printf "%.0f", 100 * fraction }'
 }
+
+fraction_percent_label() {
+  awk -v fraction="$1" 'BEGIN { printf "%g", 100 * fraction }'
+}
+
+learner_fraction_percent_slug() {
+  local percent
+  percent="$(fraction_percent_label "$1")"
+  slug_decimal "$percent"
+}
+
+TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_PERCENT="$(fraction_percent_label "$TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_FRACTION")"
+TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_PERCENT="$(fraction_percent_label "$TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_FRACTION")"
+TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_SLUG="top$(learner_fraction_percent_slug "$TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_FRACTION")"
+TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_SLUG="bottom$(learner_fraction_percent_slug "$TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_FRACTION")"
+TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_BOTTOM_SLUG="${TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_SLUG}Bottom$(learner_fraction_percent_slug "$TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_FRACTION")"
 
 run_flat_htl_turnback_pairs() {
   local pairs_label="$1"
@@ -927,23 +970,23 @@ run_turnback_home_vector_alignment_subset_impl() {
     "${plot_style_flags[@]}"
 }
 
-run_turnback_home_vector_alignment_top20() {
+run_turnback_home_vector_alignment_top_sli() {
   run_turnback_home_vector_alignment_sli_subset \
-    top20 \
-    "Top 20% SLI" \
+    "$TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_SLUG" \
+    "Top ${TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_PERCENT}% SLI" \
     top \
     --top-sli-fraction \
-    0.20 \
+    "$TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_FRACTION" \
     "$@"
 }
 
-run_turnback_home_vector_alignment_bottom50() {
+run_turnback_home_vector_alignment_bottom_sli() {
   run_turnback_home_vector_alignment_sli_subset \
-    bottom50 \
-    "Bottom 50% SLI" \
+    "$TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_SLUG" \
+    "Bottom ${TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_PERCENT}% SLI" \
     bottom \
     --bottom-sli-fraction \
-    0.50 \
+    "$TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_FRACTION" \
     "$@"
 }
 
@@ -1014,7 +1057,7 @@ plot_control_top_bottom_turnback_home_vector_alignment() {
   turnback_home_vector_alignment_plot_style_flags plot_style_flags
   local plot_args=(
     python -m scripts.plot_overlay_training_metric_scalar_bars
-    --out "exports/turnbackHomeVectorAlignment_top20Bottom50_${filter_tag}_${wall_tag}_intact_ctrlKir_flatLgc_T2_p3-5_8-10_13-15_sliT2Sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}_${DATE_TAG}.${TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT}"
+    --out "exports/turnbackHomeVectorAlignment_${TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_BOTTOM_SLUG}_${filter_tag}_${wall_tag}_intact_ctrlKir_flatLgc_T2_p3-5_8-10_13-15_sliT2Sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}_${DATE_TAG}.${TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT}"
     --xlabel "Inner/outer radius pair from reward center (mm)"
     --ylabel "Home-vector heading alignment, cos(θ)"
     --clustered-layout
@@ -1028,13 +1071,15 @@ plot_control_top_bottom_turnback_home_vector_alignment() {
 
   local pair_i subset_slug learner_label key bundle
   for pair_i in "${!pair_labels[@]}"; do
-    for subset_slug in top20 bottom50; do
+    for subset_slug in \
+      "$TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_SLUG" \
+      "$TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_SLUG"; do
       case "$subset_slug" in
-        top20)
-          learner_label="Top 20% learners"
+        "$TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_SLUG")
+          learner_label="Top ${TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_PERCENT}% learners"
           ;;
-        bottom50)
-          learner_label="Bottom 50% learners"
+        "$TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_SLUG")
+          learner_label="Bottom ${TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_PERCENT}% learners"
           ;;
       esac
       key="${subset_slug}|${pair_labels[$pair_i]}|0"
@@ -1046,6 +1091,63 @@ plot_control_top_bottom_turnback_home_vector_alignment() {
       plot_args+=(
         --input "${region_labels[$pair_i]}|${learner_label}=${bundle}"
       )
+    done
+  done
+
+  run_cmd "${plot_args[@]}"
+}
+
+plot_all_groups_top_bottom_turnback_home_vector_alignment() {
+  local filter_tag="$1"
+  local wall_tag="$2"
+  local estimator_suffix
+  estimator_suffix="$(turnback_home_vector_alignment_heading_estimator_suffix)"
+  local home_anchor_suffix
+  home_anchor_suffix="$(turnback_home_vector_alignment_home_vector_anchor_suffix)"
+  local sample_cross_suffix
+  sample_cross_suffix="$(turnback_home_vector_alignment_sample_crossing_suffix)"
+  local pair_labels=("3-5" "8-10" "13-15")
+  local region_labels=("3/5 mm" "8/10 mm" "13/15 mm")
+  local plot_style_flags=()
+  turnback_home_vector_alignment_plot_style_flags plot_style_flags
+  local plot_args=(
+    python -m scripts.plot_overlay_training_metric_scalar_bars
+    --out "exports/turnbackHomeVectorAlignment_${TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_BOTTOM_SLUG}_${filter_tag}_${wall_tag}_allGroups_flatLgc_T2_p3-5_8-10_13-15_sliT2Sb2-5${estimator_suffix}${home_anchor_suffix}${sample_cross_suffix}${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.${TURNBACK_HOME_VECTOR_ALIGNMENT_IMG_FORMAT}"
+    --ylabel "Home-vector heading alignment, cos(θ)"
+    --hierarchical-clustered-layout
+    --swarm
+    --stats
+    "${plot_style_flags[@]}"
+  )
+  if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_ALL_GROUPS_TOP_BOTTOM_SHOW_TITLE" == "1" ]]; then
+    plot_args+=(--title "Home-vector heading alignment: top versus bottom learners")
+  fi
+
+  local pair_i group_i subset_slug learner_label key bundle cluster_label
+  for group_i in "${!TURNBACK_GROUP_LABELS[@]}"; do
+    for pair_i in "${!pair_labels[@]}"; do
+      cluster_label="${TURNBACK_GROUP_LABELS[$group_i]}::${region_labels[$pair_i]}"
+      for subset_slug in \
+        "$TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_SLUG" \
+        "$TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_SLUG"; do
+        case "$subset_slug" in
+          "$TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_SLUG")
+            learner_label="Top ${TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_PERCENT}% learners"
+            ;;
+          "$TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_SLUG")
+            learner_label="Bottom ${TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_PERCENT}% learners"
+            ;;
+        esac
+        key="${subset_slug}|${pair_labels[$pair_i]}|${group_i}"
+        bundle="${TURNBACK_HOME_VECTOR_ALIGNMENT_BUNDLES[$key]:-}"
+        if [[ -z "$bundle" ]]; then
+          echo "Missing turnback home-vector alignment bundle for $key" >&2
+          exit 1
+        fi
+        plot_args+=(
+          --input "${cluster_label}|${learner_label}=${bundle}"
+        )
+      done
     done
   done
 
@@ -1338,7 +1440,9 @@ for filter_tag in minEpSb5Filt; do
 done
 
 # ---------------------------------------------------------------------
-# Top-20% learner subset: turnback home-vector heading alignment
+# Top learner subset: turnback home-vector heading alignment
+# Fraction defaults to 20% and is configurable with
+# TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_FRACTION.
 # SLI ranking: Training 2, sync buckets 2 through 5.
 # Episode geometry: absolute inner/outer radii from reward-circle center,
 # matching turnback-ratio default pairs: 3/5, 8/10, 13/15 mm.
@@ -1348,15 +1452,21 @@ done
 
 for filter_tag in minEpSb5Filt; do
   for wall_tag in wall; do
-    run_turnback_home_vector_alignment_top20 "3-5" 3 5 "$filter_tag" "$wall_tag"
-    run_turnback_home_vector_alignment_top20 "8-10" 8 10 "$filter_tag" "$wall_tag"
-    run_turnback_home_vector_alignment_top20 "13-15" 13 15 "$filter_tag" "$wall_tag"
-    plot_combined_turnback_home_vector_alignment top20 "Top 20% SLI" "$filter_tag" "$wall_tag"
+    run_turnback_home_vector_alignment_top_sli "3-5" 3 5 "$filter_tag" "$wall_tag"
+    run_turnback_home_vector_alignment_top_sli "8-10" 8 10 "$filter_tag" "$wall_tag"
+    run_turnback_home_vector_alignment_top_sli "13-15" 13 15 "$filter_tag" "$wall_tag"
+    plot_combined_turnback_home_vector_alignment \
+      "$TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_SLUG" \
+      "Top ${TURNBACK_HOME_VECTOR_ALIGNMENT_TOP_SLI_PERCENT}% SLI" \
+      "$filter_tag" \
+      "$wall_tag"
   done
 done
 
 # ---------------------------------------------------------------------
-# Bottom-50% learner subset: turnback home-vector heading alignment
+# Bottom learner subset: turnback home-vector heading alignment
+# Fraction defaults to 50% and is configurable with
+# TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_FRACTION.
 # SLI ranking: Training 2, sync buckets 2 through 5.
 # Episode geometry: absolute inner/outer radii from reward-circle center,
 # matching turnback-ratio default pairs: 3/5, 8/10, 13/15 mm.
@@ -1366,12 +1476,19 @@ done
 
 for filter_tag in minEpSb5Filt; do
   for wall_tag in wall; do
-    run_turnback_home_vector_alignment_bottom50 "3-5" 3 5 "$filter_tag" "$wall_tag"
-    run_turnback_home_vector_alignment_bottom50 "8-10" 8 10 "$filter_tag" "$wall_tag"
-    run_turnback_home_vector_alignment_bottom50 "13-15" 13 15 "$filter_tag" "$wall_tag"
-    plot_combined_turnback_home_vector_alignment bottom50 "Bottom 50% SLI" "$filter_tag" "$wall_tag"
+    run_turnback_home_vector_alignment_bottom_sli "3-5" 3 5 "$filter_tag" "$wall_tag"
+    run_turnback_home_vector_alignment_bottom_sli "8-10" 8 10 "$filter_tag" "$wall_tag"
+    run_turnback_home_vector_alignment_bottom_sli "13-15" 13 15 "$filter_tag" "$wall_tag"
+    plot_combined_turnback_home_vector_alignment \
+      "$TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_SLUG" \
+      "Bottom ${TURNBACK_HOME_VECTOR_ALIGNMENT_BOTTOM_SLI_PERCENT}% SLI" \
+      "$filter_tag" \
+      "$wall_tag"
     if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_PLOT_CONTROL_TOP_BOTTOM" == "1" ]]; then
       plot_control_top_bottom_turnback_home_vector_alignment "$filter_tag" "$wall_tag"
+    fi
+    if [[ "$TURNBACK_HOME_VECTOR_ALIGNMENT_PLOT_ALL_GROUPS_TOP_BOTTOM" == "1" ]]; then
+      plot_all_groups_top_bottom_turnback_home_vector_alignment "$filter_tag" "$wall_tag"
     fi
   done
 done

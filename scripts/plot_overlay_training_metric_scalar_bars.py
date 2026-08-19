@@ -41,7 +41,8 @@ def parse_args() -> argparse.Namespace:
         required=True,
         help=(
             "Repeatable: 'GroupLabel=/path/to/export.npz'. With "
-            "--omnibus-learner-layout or --clustered-layout, use "
+            "--omnibus-learner-layout, --clustered-layout, or "
+            "--hierarchical-clustered-layout, use "
             "'ClusterLabel|GroupLabel=/path/to/export.npz'."
         ),
     )
@@ -158,18 +159,112 @@ def parse_args() -> argparse.Namespace:
             "after '|'. Input order determines cluster and group order."
         ),
     )
+    p.add_argument(
+        "--hierarchical-clustered-layout",
+        action="store_true",
+        help=(
+            "Like --clustered-layout, but cluster labels must use "
+            "'Supergroup::TickLabel'. Repeated contiguous supergroups are "
+            "shown as labeled brackets above their compact x-axis ticks."
+        ),
+    )
     return p.parse_args()
+
+
+def _hierarchical_cluster_spec(
+    panel_labels: list[str],
+) -> tuple[list[str], list[tuple[str, int, int]]]:
+    tick_labels: list[str] = []
+    spans: list[tuple[str, int, int]] = []
+    seen_supergroups: set[str] = set()
+    current_supergroup: str | None = None
+    current_start = 0
+
+    for panel_i, raw_label in enumerate(panel_labels):
+        if "::" not in raw_label:
+            raise SystemExit(
+                "hierarchical clustered labels must use "
+                f"'Supergroup::TickLabel' (got: {raw_label!r})"
+            )
+        supergroup, tick_label = (part.strip() for part in raw_label.split("::", 1))
+        if not supergroup or not tick_label:
+            raise SystemExit(
+                "hierarchical clustered labels require non-empty supergroup "
+                f"and tick labels (got: {raw_label!r})"
+            )
+        tick_labels.append(tick_label)
+
+        if supergroup == current_supergroup:
+            continue
+        if current_supergroup is not None:
+            spans.append((current_supergroup, current_start, panel_i - 1))
+            seen_supergroups.add(current_supergroup)
+        if supergroup in seen_supergroups:
+            raise SystemExit(
+                "hierarchical clustered inputs for each supergroup must be "
+                f"contiguous (repeated non-contiguous group: {supergroup!r})"
+            )
+        current_supergroup = supergroup
+        current_start = panel_i
+
+    if current_supergroup is not None:
+        spans.append((current_supergroup, current_start, len(panel_labels) - 1))
+    return tick_labels, spans
+
+
+def _apply_hierarchical_cluster_style(
+    fig: plt.Figure,
+    *,
+    tick_labels: list[str],
+    spans: list[tuple[str, int, int]],
+    has_title: bool,
+) -> None:
+    ax = fig.axes[0]
+    ax.set_xticks(list(range(len(tick_labels))))
+    ax.set_xticklabels(tick_labels, rotation=0, ha="center")
+    ax.set_xlabel(None)
+
+    # Reserve a clean band above the axes for the outer-group brackets. The
+    # significance brackets remain inside the plotting area below this band.
+    fig.subplots_adjust(top=min(fig.subplotpars.top, 0.76 if has_title else 0.82))
+    transform = ax.get_xaxis_transform()
+    for label, start, stop in spans:
+        left = float(start) - 0.43
+        right = float(stop) + 0.43
+        ax.plot(
+            [left, left, right, right],
+            [1.015, 1.045, 1.045, 1.015],
+            color="0.2",
+            linewidth=0.9,
+            transform=transform,
+            clip_on=False,
+            zorder=10,
+        )
+        ax.text(
+            0.5 * (left + right),
+            1.06,
+            label,
+            ha="center",
+            va="bottom",
+            transform=transform,
+            clip_on=False,
+            zorder=10,
+        )
 
 
 def main() -> None:
     args = parse_args()
 
-    if args.omnibus_learner_layout and args.clustered_layout:
-        raise SystemExit(
-            "Use only one of --omnibus-learner-layout and --clustered-layout."
-        )
+    if args.omnibus_learner_layout and (
+        args.clustered_layout or args.hierarchical_clustered_layout
+    ):
+        raise SystemExit("Use only one clustered-layout mode.")
+    if args.clustered_layout and args.hierarchical_clustered_layout:
+        raise SystemExit("Use only one clustered-layout mode.")
     clustered_layout = bool(
-        args.omnibus_learner_layout or args.clustered_layout
+        args.omnibus_learner_layout
+        or args.clustered_layout
+        or args.hierarchical_clustered_layout
     )
 
     xs = []
@@ -206,8 +301,14 @@ def main() -> None:
         else:
             xs.append(load_export_npz(label, path))
 
-    if args.clustered_layout:
+    hierarchical_tick_labels: list[str] = []
+    hierarchical_spans: list[tuple[str, int, int]] = []
+    if args.clustered_layout or args.hierarchical_clustered_layout:
         xs = clustered_training_scalar_exports(omnibus_entries)
+    if args.hierarchical_clustered_layout:
+        hierarchical_tick_labels, hierarchical_spans = _hierarchical_cluster_spec(
+            xs[0].panel_labels
+        )
 
     if args.baseline_delta_panel:
         if clustered_layout:
@@ -266,6 +367,13 @@ def main() -> None:
             debug=args.stats_debug,
             show_points=args.show_points,
             opts=opts,
+        )
+    if args.hierarchical_clustered_layout:
+        _apply_hierarchical_cluster_style(
+            fig,
+            tick_labels=hierarchical_tick_labels,
+            spans=hierarchical_spans,
+            has_title=bool(title),
         )
     _savefig(args.out, args.image_format)
     plt.close(fig)
