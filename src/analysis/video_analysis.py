@@ -2936,8 +2936,24 @@ class VideoAnalysis:
 
             if region_label == "agarose":
                 valid_frames = ~trj.nan[intvl]
-                valid_contact = valid_contact[valid_frames]
-                intvl_len = np.count_nonzero(valid_frames)
+                lost_frame_policy = getattr(
+                    getattr(self, "opts", None),
+                    "agarose_time_lost_frame_policy",
+                    "corrected",
+                )
+                if lost_frame_policy == "corrected":
+                    valid_contact = valid_contact[valid_frames]
+                    intvl_len = np.count_nonzero(valid_frames)
+                elif lost_frame_policy == "legacy":
+                    intvl_len = np.count_nonzero(valid_frames)
+                elif lost_frame_policy == "interpolated-inclusive":
+                    intvl_len = valid_frames.size
+                else:
+                    raise ValueError(
+                        "agarose_time_lost_frame_policy must be 'corrected', "
+                        "'legacy', or 'interpolated-inclusive', got "
+                        f"{lost_frame_policy!r}"
+                    )
             else:
                 intvl_len = intvl.stop - intvl.start
 

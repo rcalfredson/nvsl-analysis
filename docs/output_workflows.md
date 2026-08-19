@@ -14,6 +14,7 @@ Windows.
 | --- | --- | --- |
 | [`notebooks/paper_figure_panels.ipynb`](../notebooks/paper_figure_panels.ipynb) | Main, numbered paper-panel workflow | Panel `.npz` bundles and figures |
 | [`notebooks/graphpad_exports.ipynb`](../notebooks/graphpad_exports.ipynb) | GraphPad Prism-friendly per-fly tables | CSV files under `exports/` |
+| [`scripts/trace_agarose_time_pvalues.py`](../scripts/trace_agarose_time_pvalues.py) | Factorial trace of lost-frame numerator and pairwise-test choices | Policy-by-test p-value trace and detailed multiple-comparisons audit CSVs; see [`agarose_time_pvalue_trace.md`](agarose_time_pvalue_trace.md) |
 | [`scripts/run_analysis_matrix.sh`](../scripts/run_analysis_matrix.sh) | Curated multi-analysis batch for turnback, home-vector, and tortuosity analyses | Dated bundles and plots under `exports/`; optional debug galleries under `imgs/` |
 | [`scripts/run_turn_home_vector_alignment_analysis.sh`](../scripts/run_turn_home_vector_alignment_analysis.sh) | Focused, configurable turn home-vector alignment analysis | Bundles, plots, and statistics under `exports/turn_home_vector_alignment/` by default |
 
