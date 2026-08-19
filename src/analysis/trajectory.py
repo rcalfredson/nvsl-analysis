@@ -1576,7 +1576,11 @@ class Trajectory:
         # Convert padding from mm → px
         px_per_mm = self.va.ct.pxPerMmFloor() * self.va.xf.fctr
         outer_radius_px = inner_radius_px + delta_mm * px_per_mm
-        border_width_inner_px = 0.1 * px_per_mm
+        # Hysteresis on the outer boundary prevents tracking noise from splitting
+        # one approach into several short episodes.  The inner boundary only
+        # classifies an existing episode as contact/avoidance, so use the nominal
+        # agarose radius directly there.
+        outer_border_width_px = 0.1 * px_per_mm
 
         if debug:
             print(
@@ -1604,7 +1608,7 @@ class Trajectory:
                 cx,
                 cy,
                 outer_radius_px,
-                border_width_px=border_width_inner_px,
+                border_width_px=outer_border_width_px,
             )
             # Inner circle (agarose itself)
             inner_state = self.calc_in_circle(
@@ -1613,7 +1617,7 @@ class Trajectory:
                 cx,
                 cy,
                 inner_radius_px,
-                border_width_px=border_width_inner_px,
+                border_width_px=0.0,
             )
 
             finite = np.isfinite(self.x) & np.isfinite(self.y)

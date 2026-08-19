@@ -73,7 +73,7 @@ def test_agarose_dual_circle_classifies_outer_only_and_inner_contact_episodes():
     ] == [(1, 3, True, None), (4, 7, False, 5)]
 
 
-def test_agarose_dual_circle_requires_full_border_crossings():
+def test_agarose_dual_circle_outer_requires_full_border_crossings():
     outer_only = _trajectory_at_well_distances([36.0, 35.4, 34.5, 35.4, 36.0])
 
     outer_only.calc_agarose_dual_circle_episodes(delta_mm=1.0)
@@ -93,6 +93,25 @@ def test_agarose_dual_circle_requires_full_border_crossings():
         (ep["start"], ep["stop"], ep["avoids_inner"], ep["entered_inner_frame"])
         for ep in enters_inner.agarose_dual_circle_episodes
     ] == [(1, 6, False, 3)]
+
+
+def test_agarose_dual_circle_uses_border_only_for_outer_circle(monkeypatch):
+    border_widths = []
+    original_calc_in_circle = Trajectory.calc_in_circle
+
+    def recording_calc_in_circle(self, *args, **kwargs):
+        border_widths.append(kwargs["border_width_px"])
+        return original_calc_in_circle(self, *args, **kwargs)
+
+    monkeypatch.setattr(Trajectory, "calc_in_circle", recording_calc_in_circle)
+    trj = _trajectory_at_well_distances([41.0, 34.0, 27.5, 34.0, 41.0])
+
+    trj.calc_agarose_dual_circle_episodes(delta_mm=1.0)
+
+    expected_outer_width = 0.1 * CT.large.pxPerMmFloor()
+    assert border_widths
+    np.testing.assert_allclose(border_widths[::2], expected_outer_width)
+    np.testing.assert_allclose(border_widths[1::2], 0.0)
 
 
 def test_agarose_ratio_uses_avoid_over_total_and_min_total_masks_ratio():
