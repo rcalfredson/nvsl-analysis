@@ -95,7 +95,7 @@ def test_commag_segment_is_distance_of_mean_segment_position_from_reward_center(
     np.testing.assert_allclose(seg.mag_mm, np.sqrt(5.0))
 
 
-def test_commag_segment_assignment_uses_between_reward_start_frame():
+def test_commag_segment_assignment_for_bucket_aligned_segments():
     va = _COMVideo(
         trx=[_Trajectory(x=np.arange(9), y=np.full(9, 20.0))],
         on_by_fly={0: [0, 5, 8]},
@@ -106,6 +106,43 @@ def test_commag_segment_assignment_uses_between_reward_start_frame():
     segments = _iter_segments(va, complete=[True, True])
 
     assert [(seg.s, seg.e, seg.b_idx) for seg in segments] == [(0, 5, 0), (5, 8, 1)]
+
+
+def test_commag_segment_assignment_uses_greatest_frame_overlap():
+    va = _COMVideo(
+        trx=[_Trajectory(x=np.arange(9), y=np.full(9, 20.0))],
+        on_by_fly={0: [3, 9]},
+        df=5,
+        n_buckets=2,
+    )
+
+    [seg] = _iter_segments(va, complete=[True, True])
+
+    assert seg.b_idx == 1
+
+
+def test_commag_segment_assignment_breaks_overlap_ties_toward_earlier_bucket():
+    va = _COMVideo(
+        trx=[_Trajectory(x=np.arange(7), y=np.full(7, 20.0))],
+        on_by_fly={0: [3, 7]},
+        df=5,
+        n_buckets=2,
+    )
+
+    [seg] = _iter_segments(va, complete=[True, True])
+
+    assert seg.b_idx == 0
+
+
+def test_commag_segment_assignment_drops_segment_won_by_out_of_range_bucket():
+    va = _COMVideo(
+        trx=[_Trajectory(x=np.arange(15), y=np.full(15, 20.0))],
+        on_by_fly={0: [8, 15]},
+        df=5,
+        n_buckets=2,
+    )
+
+    assert _iter_segments(va, complete=[True, True]) == []
 
 
 def test_commag_endpoint_exclusion_removes_both_reward_endpoint_frames():

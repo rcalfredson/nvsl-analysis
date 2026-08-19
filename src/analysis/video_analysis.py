@@ -3787,8 +3787,9 @@ class VideoAnalysis:
         """
         Yield per-between-reward-segment COM vectors (in mm) assigned to sync buckets.
 
-        Bucketing is based on the *start frame* of the segment:
-            b_idx = int((s - fi) // df)
+        Bucketing is based on the sync bucket with the greatest frame overlap
+        with the segment interval used for the measurement. Exact ties are
+        assigned to the earlier bucket.
 
         Filters (matching the sync-bucket COM calculation):
           - segment must contain at least 1 frame after endpoint handling
@@ -3850,12 +3851,6 @@ class VideoAnalysis:
             s = int(on[i])
             e = int(on[i + 1])
 
-            b_idx = int((s - fi) // df)
-            if b_idx < 0 or b_idx >= n_buckets:
-                continue
-            if not complete[b_idx]:
-                continue
-
             # Choose segment frame interval
             # default: [s, e) (includes start reward frame, excludes end reward frame)
             # symmetric mode: (s, e) implemented as [s+1, e-1)
@@ -3864,6 +3859,9 @@ class VideoAnalysis:
 
             # too short (need at least 1 frame after endpoint handling)
             if e_seg <= s_seg:
+                b_idx = int((s - fi) // df)
+                if b_idx < 0 or b_idx >= n_buckets or not complete[b_idx]:
+                    continue
                 if yield_skips:
                     why = (
                         "too_short_excl_endpoints"
@@ -3871,6 +3869,29 @@ class VideoAnalysis:
                         else "too_short"
                     )
                     yield _make_skip(i, s, e, b_idx, why)
+                continue
+
+            # Assign to the bucket containing the greatest number of segment
+            # frames. Iterating in ascending order and replacing only on a
+            # strictly greater overlap makes exact ties go to the earlier bucket.
+            first_b_idx = int((s_seg - fi) // df)
+            last_b_idx = int(((e_seg - 1) - fi) // df)
+            b_idx = first_b_idx
+            greatest_overlap = -1
+            for candidate in range(first_b_idx, last_b_idx + 1):
+                bucket_start = fi + candidate * df
+                bucket_stop = bucket_start + df
+                overlap = max(
+                    0,
+                    min(e_seg, bucket_stop) - max(s_seg, bucket_start),
+                )
+                if overlap > greatest_overlap:
+                    b_idx = candidate
+                    greatest_overlap = overlap
+
+            if b_idx < 0 or b_idx >= n_buckets:
+                continue
+            if not complete[b_idx]:
                 continue
 
             # wall-contact filter
