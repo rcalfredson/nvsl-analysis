@@ -5303,6 +5303,14 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--agarose-wall-facing-entry-only",
+    action="store_true",
+    help=(
+        "restrict physical and virtual agarose dual-circle ratios to episodes "
+        "entering through the outward, wall-facing semicircle"
+    ),
+)
+g.add_argument(
     "--agarose-dual-circle-min-total",
     type=int,
     default=None,

@@ -590,6 +590,9 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
         "agarose_farthest_from_reward_only": np.array(
             bool(getattr(opts, "agarose_farthest_from_reward_only", False))
         ),
+        "agarose_wall_facing_entry_only": np.array(
+            bool(getattr(opts, "agarose_wall_facing_entry_only", False))
+        ),
         **exp_target_sync_bucket_filter_payload(
             vas_ok,
             opts,

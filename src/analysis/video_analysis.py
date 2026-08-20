@@ -2071,6 +2071,7 @@ class VideoAnalysis:
         center_rotation_deg=0.0,
         result_prefix="agarose",
         farthest_from_reward_only=None,
+        wall_facing_entry_only=None,
     ):
         """
         Compute agarose-avoidance metric based on dual concentric circles around
@@ -2104,6 +2105,10 @@ class VideoAnalysis:
         if farthest_from_reward_only is None:
             farthest_from_reward_only = bool(
                 getattr(self.opts, "agarose_farthest_from_reward_only", False)
+            )
+        if wall_facing_entry_only is None:
+            wall_facing_entry_only = bool(
+                getattr(self.opts, "agarose_wall_facing_entry_only", False)
             )
         counts_attr = f"{result_prefix}_dual_circle_counts"
         pre_counts_attr = f"{result_prefix}_dual_circle_pre_counts"
@@ -2147,20 +2152,25 @@ class VideoAnalysis:
                 self,
                 pre_counts_attr,
                 self._calcAgaroseDualCirclePreCounts(
-                    per_fly_episodes, per_fly_allowed_labels
+                    per_fly_episodes,
+                    per_fly_allowed_labels,
+                    wall_facing_entry_only=wall_facing_entry_only,
                 ),
             )
             setattr(
                 self,
                 training_pre_counts_attr,
                 self._calcAgaroseDualCircleTrainingPreCounts(
-                    per_fly_episodes, per_fly_allowed_labels
+                    per_fly_episodes,
+                    per_fly_allowed_labels,
+                    wall_facing_entry_only=wall_facing_entry_only,
                 ),
             )
             setattr(self, geometry_attr, {
                 "center_rotation_deg": float(center_rotation_deg),
                 "outer_delta_mm": float(delta_mm),
                 "farthest_from_reward_only": bool(farthest_from_reward_only),
+                "wall_facing_entry_only": bool(wall_facing_entry_only),
             })
             return
 
@@ -2195,7 +2205,10 @@ class VideoAnalysis:
                 if t_idx is None:
                     continue
                 if not self._agaroseEpisodeUsesAllowedSite(
-                    ep, per_fly_allowed_labels[fi], t_idx
+                    ep,
+                    per_fly_allowed_labels[fi],
+                    t_idx,
+                    wall_facing_entry_only=wall_facing_entry_only,
                 ):
                     continue
                 total_counts[t_idx, fi, b_idx] += 1
@@ -2217,22 +2230,27 @@ class VideoAnalysis:
             self,
             pre_counts_attr,
             self._calcAgaroseDualCirclePreCounts(
-                per_fly_episodes, per_fly_allowed_labels
+                per_fly_episodes,
+                per_fly_allowed_labels,
+                wall_facing_entry_only=wall_facing_entry_only,
             ),
         )
         setattr(
             self,
             training_pre_counts_attr,
             self._calcAgaroseDualCircleTrainingPreCounts(
-                per_fly_episodes, per_fly_allowed_labels
+                per_fly_episodes,
+                per_fly_allowed_labels,
+                wall_facing_entry_only=wall_facing_entry_only,
             ),
         )
         setattr(self, geometry_attr, {
             "center_rotation_deg": float(center_rotation_deg),
             "outer_delta_mm": float(delta_mm),
             "farthest_from_reward_only": bool(farthest_from_reward_only),
+            "wall_facing_entry_only": bool(wall_facing_entry_only),
         })
-        if getattr(self.opts, "agarose_dual_circle_debug_csv", None):
+        if self._agaroseDualCircleDebugRequested():
             setattr(
                 self,
                 f"{result_prefix}_dual_circle_debug_rows",
@@ -2245,8 +2263,16 @@ class VideoAnalysis:
                         if result_prefix == "agarose"
                         else "virtual_control"
                     ),
+                    per_fly_allowed_labels=per_fly_allowed_labels,
+                    wall_facing_entry_only=wall_facing_entry_only,
                 ),
             )
+
+    def _agaroseDualCircleDebugRequested(self):
+        return bool(
+            getattr(self.opts, "agarose_dual_circle_debug_csv", None)
+            or getattr(self.opts, "agarose_dual_circle_debug_images_dir", None)
+        )
 
     def _agaroseFarthestRewardSiteLabels(self, trj, fi, tie_tolerance_mm=0.25):
         """Return the farthest-site label set for each training of one fly."""
@@ -2275,7 +2301,15 @@ class VideoAnalysis:
         return labels_by_training
 
     @staticmethod
-    def _agaroseEpisodeUsesAllowedSite(ep, labels_by_training, training_idx):
+    def _agaroseEpisodeUsesAllowedSite(
+        ep,
+        labels_by_training,
+        training_idx,
+        *,
+        wall_facing_entry_only=False,
+    ):
+        if wall_facing_entry_only and not bool(ep.get("wall_facing_entry", False)):
+            return False
         if labels_by_training is None:
             return True
         if training_idx < 0 or training_idx >= len(labels_by_training):
@@ -2286,7 +2320,11 @@ class VideoAnalysis:
         )
 
     def _calcAgaroseDualCirclePreCounts(
-        self, per_fly_episodes, per_fly_allowed_labels=None
+        self,
+        per_fly_episodes,
+        per_fly_allowed_labels=None,
+        *,
+        wall_facing_entry_only=False,
     ):
         """
         Aggregate the dual-circle agarose avoidance ratio over the final 10 minutes
@@ -2343,6 +2381,7 @@ class VideoAnalysis:
                     if per_fly_allowed_labels is None
                     else per_fly_allowed_labels[fi],
                     0,
+                    wall_facing_entry_only=wall_facing_entry_only,
                 ):
                     total_counts[fi] += 1
                     if ep["avoids_inner"]:
@@ -2361,7 +2400,11 @@ class VideoAnalysis:
         }
 
     def _calcAgaroseDualCircleTrainingPreCounts(
-        self, per_fly_episodes, per_fly_allowed_labels=None
+        self,
+        per_fly_episodes,
+        per_fly_allowed_labels=None,
+        *,
+        wall_facing_entry_only=False,
     ):
         """
         Aggregate dual-circle agarose avoidance over the final 10 minutes
@@ -2419,6 +2462,7 @@ class VideoAnalysis:
                         if per_fly_allowed_labels is None
                         else per_fly_allowed_labels[fi],
                         t_idx,
+                        wall_facing_entry_only=wall_facing_entry_only,
                     ):
                         total_counts[t_idx, fi] += 1
                         if ep["avoids_inner"]:
@@ -2482,6 +2526,8 @@ class VideoAnalysis:
         *,
         center_rotation_deg=0.0,
         geometry="physical_agarose",
+        per_fly_allowed_labels=None,
+        wall_facing_entry_only=False,
     ):
         rows = []
         global_pre = self._agaroseDualCircleGlobalPreWindow()
@@ -2510,6 +2556,26 @@ class VideoAnalysis:
                         training_pre_idx = int(t_idx)
                         break
 
+                active_training_idx = (
+                    sync_t_idx if sync_t_idx is not None else training_pre_idx
+                )
+                if active_training_idx is None and in_global_pre:
+                    active_training_idx = 0
+                allowed_labels = (
+                    None
+                    if per_fly_allowed_labels is None
+                    else per_fly_allowed_labels[fi]
+                )
+                included_by_active_filters = (
+                    active_training_idx is not None
+                    and self._agaroseEpisodeUsesAllowedSite(
+                        ep,
+                        allowed_labels,
+                        active_training_idx,
+                        wall_facing_entry_only=wall_facing_entry_only,
+                    )
+                )
+
                 rows.append(
                     {
                         "video": self.fn,
@@ -2533,6 +2599,13 @@ class VideoAnalysis:
                         "inner_well_labels": "|".join(ep.get("inner_well_labels", ())),
                         "all_outer_well_labels": "|".join(ep.get("all_outer_well_labels", ())),
                         "all_inner_well_labels": "|".join(ep.get("all_inner_well_labels", ())),
+                        "entry_wall_alignment": ep.get("entry_wall_alignment", np.nan),
+                        "wall_facing_entry": bool(
+                            ep.get("wall_facing_entry", False)
+                        ),
+                        "included_by_active_filters": bool(
+                            included_by_active_filters
+                        ),
                         "global_pre_last10m": bool(in_global_pre),
                         "training_pre_idx_1based": ""
                         if training_pre_idx is None

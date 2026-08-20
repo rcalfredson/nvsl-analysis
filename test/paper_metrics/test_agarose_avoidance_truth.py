@@ -2,6 +2,7 @@ import sys
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 from src.analysis.trajectory import Trajectory
 from src.analysis.video_analysis import VideoAnalysis
@@ -71,6 +72,31 @@ def test_agarose_dual_circle_classifies_outer_only_and_inner_contact_episodes():
         (ep["start"], ep["stop"], ep["avoids_inner"], ep["entered_inner_frame"])
         for ep in trj.agarose_dual_circle_episodes
     ] == [(1, 3, True, None), (4, 7, False, 5)]
+    assert [
+        ep["wall_facing_entry"] for ep in trj.agarose_dual_circle_episodes
+    ] == [False, False]
+    assert all(
+        ep["entry_wall_alignment"] < 0
+        for ep in trj.agarose_dual_circle_episodes
+    )
+
+
+def test_agarose_entry_alignment_identifies_outward_wall_facing_semicircle():
+    xf = _IdentityXformer()
+    _radius, centers = CT.large.arenaWells(xf, 0)
+    cx, cy = centers[0]
+    trj = object.__new__(Trajectory)
+    trj.x = cx - np.asarray([41.0, 31.0, 33.0, 41.0])
+    trj.y = np.full_like(trj.x, cy)
+    trj.f = 0
+    trj.va = SimpleNamespace(ct=CT.large, xf=xf, trxf={0: None})
+
+    trj.calc_agarose_dual_circle_episodes(delta_mm=1.0)
+
+    assert len(trj.agarose_dual_circle_episodes) == 1
+    episode = trj.agarose_dual_circle_episodes[0]
+    assert episode["wall_facing_entry"] is True
+    assert episode["entry_wall_alignment"] == pytest.approx(1.0)
 
 
 def test_agarose_dual_circle_outer_requires_full_border_crossings():
@@ -214,6 +240,46 @@ def test_agarose_episode_assignment_uses_episode_start_frame_for_sync_bucket():
     np.testing.assert_allclose(counts["ratio"], [[[1.0, 0.0]], [[1.0, np.nan]]])
 
 
+def test_wall_facing_option_filters_sync_counts_before_ratio():
+    exp = _TrajectoryEpisodes(
+        [
+            {
+                "start": 1,
+                "stop": 3,
+                "avoids_inner": True,
+                "wall_facing_entry": True,
+            },
+            {
+                "start": 2,
+                "stop": 4,
+                "avoids_inner": False,
+                "wall_facing_entry": False,
+            },
+        ]
+    )
+    va = _video_analysis_stub(
+        ct=CT.large,
+        opts=SimpleNamespace(
+            agarose_outer_delta_mm=1.0,
+            agarose_wall_facing_entry_only=True,
+            min_agarose_episodes=1,
+            agarose_dual_circle_debug_csv=None,
+        ),
+        sync_bucket_ranges=[[(0, 5)]],
+        trx=[exp],
+        trns=[_Training(start=10, stop=20, name="T1")],
+        startPre=0,
+        _min2f=lambda minutes: int(minutes),
+        _f2min=lambda frames: float(frames),
+    )
+
+    VideoAnalysis.analyzeAgaroseDualCircleAvoidance(va)
+
+    np.testing.assert_array_equal(va.agarose_dual_circle_counts["total"], [[[1]]])
+    np.testing.assert_array_equal(va.agarose_dual_circle_counts["avoid"], [[[1]]])
+    np.testing.assert_allclose(va.agarose_dual_circle_counts["ratio"], [[[1.0]]])
+
+
 def test_virtual_agarose_analysis_uses_separate_paired_result_attributes():
     exp = _TrajectoryEpisodes(
         [{"start": 1, "stop": 4, "avoids_inner": True}]
@@ -245,6 +311,7 @@ def test_virtual_agarose_analysis_uses_separate_paired_result_attributes():
         "center_rotation_deg": 45.0,
         "outer_delta_mm": 1.0,
         "farthest_from_reward_only": False,
+        "wall_facing_entry_only": False,
     }
 
 
@@ -283,6 +350,18 @@ def test_farthest_reward_episode_filter_uses_training_specific_labels():
     assert not VideoAnalysis._agaroseEpisodeUsesAllowedSite(top, labels, 0)
     assert VideoAnalysis._agaroseEpisodeUsesAllowedSite(top, labels, 1)
     assert VideoAnalysis._agaroseEpisodeUsesAllowedSite(left, None, 0)
+
+
+def test_wall_facing_entry_filter_is_independent_of_site_subset():
+    inward = {"start_well_labels": ("well1",), "wall_facing_entry": False}
+    outward = {"start_well_labels": ("well1",), "wall_facing_entry": True}
+
+    assert not VideoAnalysis._agaroseEpisodeUsesAllowedSite(
+        inward, None, 0, wall_facing_entry_only=True
+    )
+    assert VideoAnalysis._agaroseEpisodeUsesAllowedSite(
+        outward, None, 0, wall_facing_entry_only=True
+    )
 
 
 def test_agarose_pre_windows_use_episode_start_frame():
@@ -393,6 +472,7 @@ def test_agarose_bundle_export_records_defaults_and_min_total_metadata(
             bundle["agarose_virtual_total_exp"], [[[2, 1]]]
         )
         assert float(bundle["agarose_virtual_rotation_deg"]) == 45.0
+        assert not bool(bundle["agarose_wall_facing_entry_only"])
         assert int(bundle["episode_filter_agarose_sync_exp_excluded_count"]) == 1
         np.testing.assert_array_equal(
             bundle["episode_filter_agarose_sync_exp_episode_counts"], [2, 1]

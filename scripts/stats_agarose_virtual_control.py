@@ -218,6 +218,9 @@ def main() -> int:
         farthest_only = bool(
             np.asarray(bundle.get("agarose_farthest_from_reward_only", False)).item()
         )
+        wall_facing_only = bool(
+            np.asarray(bundle.get("agarose_wall_facing_entry_only", False)).item()
+        )
 
     print(
         f"Selection: mode={args.mode}, training={training_idx + 1}, "
@@ -229,6 +232,7 @@ def main() -> int:
         )
         + f", virtual_rotation={rotation:g} deg, "
         + ("sites=farthest-from-reward" if farthest_only else "sites=all")
+        + (", entries=wall-facing" if wall_facing_only else ", entries=all")
     )
     print(f"Paired fly/video observations: {stats['n']}")
     print(f"Physical mean: {stats['actual_mean']:.6g}")

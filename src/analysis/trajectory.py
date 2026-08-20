@@ -1574,6 +1574,9 @@ class Trajectory:
 
         inner_radius_px, centers = wells  # radius (px), iterable of (cx, cy)
         inner_radius_px = float(inner_radius_px)
+        floor_tl, floor_br = self.va.ct.floor(self.va.xf, f=self.va.trxf[self.f])
+        arena_cx = 0.5 * (float(floor_tl[0]) + float(floor_br[0]))
+        arena_cy = 0.5 * (float(floor_tl[1]) + float(floor_br[1]))
 
         # A non-zero rotation defines a spatial negative control.  Rotate the
         # complete four-site geometry rigidly around the arena center so every
@@ -1584,9 +1587,6 @@ class Trajectory:
         if not np.isfinite(center_rotation_deg):
             raise ValueError("center_rotation_deg must be finite")
         if center_rotation_deg % 360.0:
-            floor_tl, floor_br = self.va.ct.floor(self.va.xf, f=self.va.trxf[self.f])
-            arena_cx = 0.5 * (float(floor_tl[0]) + float(floor_br[0]))
-            arena_cy = 0.5 * (float(floor_tl[1]) + float(floor_br[1]))
             theta = math.radians(center_rotation_deg)
             cos_t, sin_t = math.cos(theta), math.sin(theta)
             centers = tuple(
@@ -1690,6 +1690,33 @@ class Trajectory:
                 for lab, outer_mask in zip(well_labels, outer_by_well)
                 if np.any(outer_mask[start:stop])
             )
+            entry_x, entry_y = float(self.x[start]), float(self.y[start])
+            entry_wall_alignments = []
+            for lab, (cx, cy), outer_mask in zip(
+                well_labels, centers, outer_by_well
+            ):
+                if not outer_mask[start]:
+                    continue
+                entry_vec = np.asarray((entry_x - cx, entry_y - cy), dtype=float)
+                outward_vec = np.asarray(
+                    (float(cx) - arena_cx, float(cy) - arena_cy), dtype=float
+                )
+                denom = float(np.linalg.norm(entry_vec) * np.linalg.norm(outward_vec))
+                alignment = (
+                    float(np.dot(entry_vec, outward_vec) / denom)
+                    if denom > 0
+                    else np.nan
+                )
+                entry_wall_alignments.append((lab, alignment))
+            finite_alignments = [
+                score for _lab, score in entry_wall_alignments if np.isfinite(score)
+            ]
+            entry_wall_alignment = (
+                float(max(finite_alignments)) if finite_alignments else np.nan
+            )
+            wall_facing_entry = bool(
+                np.isfinite(entry_wall_alignment) and entry_wall_alignment > 0.0
+            )
             entered_inner_frame = None
             if has_inner:
                 inner_idxs = np.flatnonzero(in_inner[start:stop])
@@ -1706,6 +1733,9 @@ class Trajectory:
                     "inner_well_labels": inner_well_labels,
                     "all_outer_well_labels": outer_well_labels,
                     "all_inner_well_labels": inner_well_labels,
+                    "entry_wall_alignment": entry_wall_alignment,
+                    "entry_wall_alignments": tuple(entry_wall_alignments),
+                    "wall_facing_entry": wall_facing_entry,
                 }
             )
 

@@ -97,6 +97,28 @@ The plotting command also reads this metadata automatically: with two subset
 bundles, it labels the summary as a farthest-from-reward comparison and limits
 the chamber schematic to the retained physical and virtual sites.
 
+### Wall-facing entry subset
+
+Add `--agarose-wall-facing-entry-only` to retain episodes whose first point
+inside the outer circle lies on its outward-facing semicircle. For entry point
+`p`, site center `c`, and chamber-floor center `a`, the criterion is
+`dot(p - c, c - a) > 0`. It is evaluated identically for physical and rotated
+virtual sites and therefore handles mirrored chambers without hard-coded
+directions. The normalized dot product is retained in episode debug output as
+`entry_wall_alignment` for later angular-margin sensitivity checks.
+
+For an initial all-site analysis, use the wall-facing option without
+`--agarose-farthest-from-reward-only`:
+
+```bash
+python analyze.py \
+  -v "/path/to/videos/*.avi" -f "0-1" --rCC 15 \
+  --agarose-dual-circle \
+  --agarose-virtual-control \
+  --agarose-wall-facing-entry-only \
+  --export-agarose-sli-bundle exports/group_agarose_control_wall_entry.npz
+```
+
 ## Slide-ready visualizations
 
 The two completed chamber analyses can be plotted together as paired bar/swarm
