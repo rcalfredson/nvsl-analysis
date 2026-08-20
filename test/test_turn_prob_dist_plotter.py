@@ -57,3 +57,29 @@ def test_bundle_plot_format_defaults_to_output_extension():
 def test_bundle_plot_rejects_extension_format_mismatch():
     with pytest.raises(ValueError, match="does not match"):
         _resolve_image_format("plot.pdf", "png")
+
+
+def test_turn_probability_y_limits_default_to_zero_and_auto():
+    plotter = TurnProbabilityByDistancePlotter(
+        [_va(0, [(1.0, (0.2, 0.3), (0.4, 0.5))])],
+        opts=SimpleNamespace(),
+    )
+    assert plotter.ymin == 0
+    assert plotter.ymax is None
+
+
+def test_turn_probability_y_limits_can_be_fixed():
+    plotter = TurnProbabilityByDistancePlotter(
+        [_va(0, [(1.0, (0.2, 0.3), (0.4, 0.5))])],
+        opts=SimpleNamespace(turn_prob_dist_ymin=0, turn_prob_dist_ymax=0.55),
+    )
+    assert plotter.ymin == 0
+    assert plotter.ymax == pytest.approx(0.55)
+
+
+def test_turn_probability_y_limits_must_increase():
+    with pytest.raises(ValueError, match="maximum must exceed"):
+        TurnProbabilityByDistancePlotter(
+            [_va(0, [(1.0, (0.2, 0.3), (0.4, 0.5))])],
+            opts=SimpleNamespace(turn_prob_dist_ymin=0.55, turn_prob_dist_ymax=0.55),
+        )

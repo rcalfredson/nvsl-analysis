@@ -5221,6 +5221,18 @@ g.add_argument(
     help="Optional y-axis label override for turn-probability-by-distance plots.",
 )
 g.add_argument(
+    "--turn-prob-dist-ymin",
+    type=float,
+    default=None,
+    help="Optional lower y-axis limit (default: 0).",
+)
+g.add_argument(
+    "--turn-prob-dist-ymax",
+    type=float,
+    default=None,
+    help="Optional upper y-axis limit (default: determined from the data).",
+)
+g.add_argument(
     "--use-union-filter",
     dest="use_union_filter",
     action="store_true",

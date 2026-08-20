@@ -19,6 +19,12 @@ class TurnProbabilityByDistancePlotter:
         self.gls = gls
         self.opts = opts
         self.use_union_filter = getattr(self.opts, "use_union_filter", False)
+        self.ymin = getattr(self.opts, "turn_prob_dist_ymin", None)
+        self.ymax = getattr(self.opts, "turn_prob_dist_ymax", None)
+        if self.ymin is None:
+            self.ymin = 0
+        if self.ymax is not None and self.ymax <= self.ymin:
+            raise ValueError("turn-probability y-axis maximum must exceed its minimum")
         self.plot_customizer = plot_customizer or PlotCustomizer()
         self.distances = list(va_instances[0].turn_prob_by_distance.keys())
         self.timeframes = ["pre_trn", "t1_start", "t2_end", "t3_end"]
@@ -512,21 +518,24 @@ class TurnProbabilityByDistancePlotter:
                 ax.plot(distances, mean, label=label, marker="o", color=ec)
                 ax.fill_between(distances, low, high, alpha=0.2, color=fc)
 
-            dist_ref_pt = (
-                "reward circle"
+            default_xlabel = (
+                "Boundary radius (mm)"
                 if self.opts.contact_geometry == "circular"
-                else "chamber"
+                else "Distance from chamber center (mm)"
             )
-            xlabel = getattr(self.opts, "turn_prob_dist_xlabel", None) or (
-                f"Distance from {dist_ref_pt} center (mm)"
+            xlabel = (
+                getattr(self.opts, "turn_prob_dist_xlabel", None) or default_xlabel
             )
-            ylabel = getattr(self.opts, "turn_prob_dist_ylabel", None) or "Turn probability"
+            ylabel = (
+                getattr(self.opts, "turn_prob_dist_ylabel", None)
+                or "Sharp-turn probability"
+            )
             ax.set_xlabel(
                 xlabel,
             )
             ax.set_ylabel(ylabel)
             ax.grid(False)
-            ax.set_ylim(bottom=0)
+            ax.set_ylim(bottom=self.ymin, top=self.ymax)
 
             legend_inside = True
 

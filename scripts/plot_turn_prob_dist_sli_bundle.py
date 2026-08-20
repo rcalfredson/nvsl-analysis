@@ -121,6 +121,22 @@ def main():
         help="Optional y-axis label override.",
     )
     p.add_argument(
+        "--ymin",
+        "--turn-prob-dist-ymin",
+        dest="ymin",
+        type=float,
+        default=None,
+        help="Optional lower y-axis limit (default: 0).",
+    )
+    p.add_argument(
+        "--ymax",
+        "--turn-prob-dist-ymax",
+        dest="ymax",
+        type=float,
+        default=None,
+        help="Optional upper y-axis limit (default: determined from the data).",
+    )
+    p.add_argument(
         "--image-format",
         "--imgFormat",
         dest="image_format",
@@ -144,6 +160,8 @@ def main():
         fontFamily=args.font_family,
         turn_prob_dist_xlabel=args.xlabel,
         turn_prob_dist_ylabel=args.ylabel,
+        turn_prob_dist_ymin=args.ymin,
+        turn_prob_dist_ymax=args.ymax,
         use_union_filter=bool(
             np.asarray(bundle.get("use_union_filter", False)).reshape(())
         ),
