@@ -1,6 +1,7 @@
 # standard libraries
 import enum
 import itertools
+import math
 
 # third-party libraries
 import cv2
@@ -136,6 +137,146 @@ class Training:
                 (xm, ym), (xM, yM) = self.ct.floor(self.xf, f=self.va.ef)
                 bw = {CT.regular: -12, CT.htl: 15, CT.large: 35}[self.ct]
                 cv2.line(img, (xm - bw, y), (xM + bw, y), col)
+
+    @staticmethod
+    def annotateAgaroseVirtualControlGeometry(
+        img,
+        *,
+        reward_circle,
+        physical_centers,
+        arena_center,
+        inner_radius_px,
+        outer_radius_px,
+        rotation_deg=45.0,
+        physical_indices=None,
+        virtual_indices=None,
+        reward_color=(255, 255, 255),
+        physical_color=(0, 94, 213),
+        virtual_color=(178, 114, 0),
+    ):
+        """Draw reward and physical/virtual agarose dual-circle geometry.
+
+        Colors are OpenCV BGR values. Outer circles are dashed; inner circles
+        are solid. The returned geometry is useful to plotting scripts and
+        tests that need the exact virtual centers used for annotation.
+        """
+
+        def _pt(xy):
+            return tuple(util.intR(v) for v in xy)
+
+        def _dashed_circle(center, radius, color, thickness=1):
+            for start_deg in range(0, 360, 20):
+                cv2.ellipse(
+                    img,
+                    _pt(center),
+                    (util.intR(radius), util.intR(radius)),
+                    0,
+                    start_deg,
+                    start_deg + 11,
+                    color,
+                    thickness,
+                    lineType=cv2.LINE_AA,
+                )
+
+        arena_cx, arena_cy = (float(v) for v in arena_center)
+        theta = math.radians(float(rotation_deg))
+        cos_t, sin_t = math.cos(theta), math.sin(theta)
+        physical_centers = tuple(
+            (float(cx), float(cy)) for cx, cy in physical_centers
+        )
+        virtual_centers = tuple(
+            (
+                arena_cx
+                + cos_t * (cx - arena_cx)
+                - sin_t * (cy - arena_cy),
+                arena_cy
+                + sin_t * (cx - arena_cx)
+                + cos_t * (cy - arena_cy),
+            )
+            for cx, cy in physical_centers
+        )
+        if physical_indices is None:
+            physical_indices = tuple(range(len(physical_centers)))
+        else:
+            physical_indices = tuple(int(idx) for idx in physical_indices)
+        if virtual_indices is None:
+            virtual_indices = tuple(range(len(virtual_centers)))
+        else:
+            virtual_indices = tuple(int(idx) for idx in virtual_indices)
+        if any(idx < 0 or idx >= len(physical_centers) for idx in physical_indices):
+            raise IndexError("physical agarose-site index is out of range")
+        if any(idx < 0 or idx >= len(virtual_centers) for idx in virtual_indices):
+            raise IndexError("virtual agarose-site index is out of range")
+
+        reward_cx, reward_cy, reward_r = reward_circle
+        cv2.circle(
+            img,
+            _pt((reward_cx, reward_cy)),
+            util.intR(reward_r),
+            reward_color,
+            3,
+            lineType=cv2.LINE_AA,
+        )
+        for centers, indices, color in (
+            (physical_centers, physical_indices, physical_color),
+            (virtual_centers, virtual_indices, virtual_color),
+        ):
+            for idx in indices:
+                center = centers[idx]
+                _dashed_circle(center, outer_radius_px, color)
+                cv2.circle(
+                    img,
+                    _pt(center),
+                    util.intR(inner_radius_px),
+                    color,
+                    2,
+                    lineType=cv2.LINE_AA,
+                )
+
+        return {
+            "physical_centers": physical_centers,
+            "virtual_centers": virtual_centers,
+            "physical_indices": physical_indices,
+            "virtual_indices": virtual_indices,
+            "arena_center": (arena_cx, arena_cy),
+            "inner_radius_px": float(inner_radius_px),
+            "outer_radius_px": float(outer_radius_px),
+            "rotation_deg": float(rotation_deg),
+        }
+
+    def annotateAgaroseVirtualControl(
+        self,
+        img,
+        *,
+        f=0,
+        delta_mm=0.5,
+        rotation_deg=45.0,
+    ):
+        """Annotate one training frame with the dual-circle control geometry."""
+        if self.ct not in (CT.large, CT.large2):
+            raise ValueError("agarose virtual-control annotation requires a large chamber")
+        reward_circles = self.circles(f)
+        if not reward_circles:
+            raise ValueError("training has no reward circle to annotate")
+        inner_radius_px, physical_centers = self.ct.arenaWells(
+            self.xf, self.va.trxf[f]
+        )
+        floor_tl, floor_br = self.ct.floor(self.xf, f=self.va.trxf[f])
+        arena_center = tuple(
+            0.5 * (float(a) + float(b)) for a, b in zip(floor_tl, floor_br)
+        )
+        outer_radius_px = float(inner_radius_px) + float(delta_mm) * (
+            self.ct.pxPerMmFloor() * self.xf.fctr
+        )
+        return self.annotateAgaroseVirtualControlGeometry(
+            img,
+            reward_circle=reward_circles[0],
+            physical_centers=physical_centers,
+            arena_center=arena_center,
+            inner_radius_px=inner_radius_px,
+            outer_radius_px=outer_radius_px,
+            rotation_deg=rotation_deg,
+        )
 
     # returns the training for the given frame index, None for non-training
     @staticmethod
