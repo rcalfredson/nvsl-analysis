@@ -5265,6 +5265,32 @@ g.add_argument(
     help="extra radius (in mm) added around agarose wells to define outer circle",
 )
 g.add_argument(
+    "--agarose-virtual-control",
+    action="store_true",
+    help=(
+        "also compute a spatial negative-control dual-circle ratio using the same "
+        "four-circle geometry rigidly rotated between the physical agarose wells"
+    ),
+)
+g.add_argument(
+    "--agarose-virtual-rotation-deg",
+    type=float,
+    default=45.0,
+    help=(
+        "rotation of virtual dual-circle centers around the arena center; 45 degrees "
+        "maximizes separation from the four physical wells (default: 45)"
+    ),
+)
+g.add_argument(
+    "--agarose-farthest-from-reward-only",
+    action="store_true",
+    help=(
+        "restrict physical and virtual agarose dual-circle ratios to the site(s) "
+        "farthest from the applicable reward-circle center; symmetry ties within "
+        "0.25 mm are retained"
+    ),
+)
+g.add_argument(
     "--agarose-dual-circle-min-total",
     type=int,
     default=None,

@@ -114,6 +114,38 @@ def test_agarose_dual_circle_uses_border_only_for_outer_circle(monkeypatch):
     np.testing.assert_allclose(border_widths[1::2], 0.0)
 
 
+def test_agarose_virtual_control_rotates_sites_without_changing_radial_distance():
+    trj = _trajectory_at_well_distances([100.0, 100.0])
+    physical_radius, physical_centers = CT.large.arenaWells(
+        trj.va.xf, trj.va.trxf[trj.f]
+    )
+    floor_tl, floor_br = CT.large.floor(trj.va.xf, f=trj.va.trxf[trj.f])
+    arena_center = 0.5 * (np.asarray(floor_tl) + np.asarray(floor_br))
+
+    trj.calc_agarose_dual_circle_episodes(
+        delta_mm=1.0, center_rotation_deg=45.0
+    )
+
+    virtual_centers = np.asarray(
+        trj.agarose_dual_circle_geometry["centers_px"], dtype=float
+    )
+    physical_centers = np.asarray(physical_centers, dtype=float)
+    np.testing.assert_allclose(
+        np.linalg.norm(virtual_centers - arena_center, axis=1),
+        np.linalg.norm(physical_centers - arena_center, axis=1),
+    )
+    np.testing.assert_allclose(
+        trj.agarose_dual_circle_geometry["inner_radius_px"], physical_radius
+    )
+    # No rotated site lies on a physical agarose center.
+    assert np.min(
+        np.linalg.norm(
+            virtual_centers[:, np.newaxis, :] - physical_centers[np.newaxis, :, :],
+            axis=2,
+        )
+    ) > physical_radius
+
+
 def test_agarose_ratio_uses_avoid_over_total_and_min_total_masks_ratio():
     exp = _TrajectoryEpisodes(
         [
@@ -180,6 +212,77 @@ def test_agarose_episode_assignment_uses_episode_start_frame_for_sync_bucket():
     np.testing.assert_array_equal(counts["avoid"], [[[1, 0]], [[1, 0]]])
     np.testing.assert_array_equal(counts["total"], [[[1, 1]], [[1, 0]]])
     np.testing.assert_allclose(counts["ratio"], [[[1.0, 0.0]], [[1.0, np.nan]]])
+
+
+def test_virtual_agarose_analysis_uses_separate_paired_result_attributes():
+    exp = _TrajectoryEpisodes(
+        [{"start": 1, "stop": 4, "avoids_inner": True}]
+    )
+    va = _video_analysis_stub(
+        ct=CT.large,
+        opts=SimpleNamespace(
+            agarose_outer_delta_mm=1.0,
+            min_agarose_episodes=1,
+            agarose_dual_circle_debug_csv=None,
+        ),
+        sync_bucket_ranges=[[(0, 5)]],
+        trx=[exp],
+        trns=[_Training(start=10, stop=20, name="T1")],
+        startPre=0,
+        _min2f=lambda minutes: int(minutes),
+        _f2min=lambda frames: float(frames),
+    )
+
+    VideoAnalysis.analyzeAgaroseDualCircleAvoidance(
+        va, center_rotation_deg=45.0, result_prefix="agarose_virtual"
+    )
+
+    np.testing.assert_allclose(
+        va.agarose_virtual_dual_circle_counts["ratio"], [[[1.0]]]
+    )
+    assert exp.calls == [{"delta_mm": 1.0, "center_rotation_deg": 45.0}]
+    assert va.agarose_virtual_dual_circle_geometry == {
+        "center_rotation_deg": 45.0,
+        "outer_delta_mm": 1.0,
+        "farthest_from_reward_only": False,
+    }
+
+
+def test_farthest_reward_site_selection_retains_physical_tie_and_one_virtual_site():
+    reward = (3.0, -3.0, 2.0)
+    va = _video_analysis_stub(
+        ct=CT.large2,
+        xf=SimpleNamespace(fctr=1.0),
+        trns=[SimpleNamespace(circles=lambda _fi: [reward])],
+    )
+    trj = SimpleNamespace(
+        agarose_dual_circle_geometry={
+            "center_rotation_deg": 0.0,
+            "centers_px": ((-10, 0), (0, -10), (10, 0), (0, 10)),
+        }
+    )
+
+    physical = VideoAnalysis._agaroseFarthestRewardSiteLabels(va, trj, 0)
+    assert physical == [{"well1", "well4"}]
+
+    d = 10.0 / np.sqrt(2.0)
+    trj.agarose_dual_circle_geometry = {
+        "center_rotation_deg": 45.0,
+        "centers_px": ((-d, -d), (d, -d), (d, d), (-d, d)),
+    }
+    virtual = VideoAnalysis._agaroseFarthestRewardSiteLabels(va, trj, 0)
+    assert virtual == [{"virtual_site4"}]
+
+
+def test_farthest_reward_episode_filter_uses_training_specific_labels():
+    labels = [{"well1", "well4"}, {"well2"}]
+    left = {"start_well_labels": ("well1",)}
+    top = {"start_well_labels": ("well2",)}
+
+    assert VideoAnalysis._agaroseEpisodeUsesAllowedSite(left, labels, 0)
+    assert not VideoAnalysis._agaroseEpisodeUsesAllowedSite(top, labels, 0)
+    assert VideoAnalysis._agaroseEpisodeUsesAllowedSite(top, labels, 1)
+    assert VideoAnalysis._agaroseEpisodeUsesAllowedSite(left, None, 0)
 
 
 def test_agarose_pre_windows_use_episode_start_frame():
@@ -253,6 +356,11 @@ def test_agarose_bundle_export_records_defaults_and_min_total_metadata(
         noyc=False,
         trns=[_Training(start=0, stop=10, name="T1")],
         agarose_dual_circle_counts={"ratio": ratio, "total": total, "avoid": avoid},
+        agarose_virtual_dual_circle_counts={
+            "ratio": 1.0 - ratio,
+            "total": total,
+            "avoid": total - avoid,
+        },
         _numRewardsMsg=lambda *_args, **_kwargs: 5,
         _syncBucket=lambda _trn, _df: (0, 2, None),
     )
@@ -278,6 +386,13 @@ def test_agarose_bundle_export_records_defaults_and_min_total_metadata(
         assert int(bundle["episode_filter_agarose_sync_exp_min_episodes"]) == 2
         assert int(bundle["episode_filter_agarose_sync_exp_unit_count"]) == 2
         assert int(bundle["episode_filter_agarose_sync_exp_included_count"]) == 1
+        np.testing.assert_allclose(
+            bundle["agarose_virtual_ratio_exp"], [[[0.0, np.nan]]], equal_nan=True
+        )
+        np.testing.assert_array_equal(
+            bundle["agarose_virtual_total_exp"], [[[2, 1]]]
+        )
+        assert float(bundle["agarose_virtual_rotation_deg"]) == 45.0
         assert int(bundle["episode_filter_agarose_sync_exp_excluded_count"]) == 1
         np.testing.assert_array_equal(
             bundle["episode_filter_agarose_sync_exp_episode_counts"], [2, 1]

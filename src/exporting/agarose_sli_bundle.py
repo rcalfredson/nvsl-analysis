@@ -25,7 +25,9 @@ def _dbg(opts, msg: str) -> None:
         print(msg)
 
 
-def _extract_agarose_arrays(vas, opts=None):
+def _extract_agarose_arrays(
+    vas, opts=None, *, counts_attr="agarose_dual_circle_counts"
+):
     """
     Returns:
       ratio_exp: (n_videos, n_trn, n_sb) float
@@ -54,7 +56,7 @@ def _extract_agarose_arrays(vas, opts=None):
     except Exception as e:
         # Fallback: infer from any available computed ratio array
         for va in vas:
-            d = getattr(va, "agarose_dual_circle_counts", None)
+            d = getattr(va, counts_attr, None)
             if isinstance(d, dict) and d.get("ratio", None) is not None:
                 arr = np.asarray(d["ratio"])
                 if arr.ndim == 3:
@@ -79,7 +81,7 @@ def _extract_agarose_arrays(vas, opts=None):
     avoid_ctrl = np.zeros((n_videos, n_trn, n_sb), dtype=int)
 
     for vi, va in enumerate(vas):
-        d = getattr(va, "agarose_dual_circle_counts", None)
+        d = getattr(va, counts_attr, None)
         vid = getattr(va, "fn", f"va_{vi}")
 
         if not isinstance(d, dict) or d.get("ratio", None) is None:
@@ -178,7 +180,9 @@ def _extract_agarose_arrays(vas, opts=None):
     return ratio_exp, ratio_ctrl, total_exp, total_ctrl, avoid_exp, avoid_ctrl
 
 
-def _extract_agarose_pre_arrays(vas, opts=None):
+def _extract_agarose_pre_arrays(
+    vas, opts=None, *, counts_attr="agarose_dual_circle_pre_counts"
+):
     """
     Returns:
       ratio_exp: (n_videos,) float
@@ -199,7 +203,7 @@ def _extract_agarose_pre_arrays(vas, opts=None):
     window_min = np.nan
 
     for vi, va in enumerate(vas):
-        d = getattr(va, "agarose_dual_circle_pre_counts", None)
+        d = getattr(va, counts_attr, None)
         vid = getattr(va, "fn", f"va_{vi}")
         if not isinstance(d, dict) or d.get("ratio", None) is None:
             _dbg(
@@ -248,7 +252,12 @@ def _extract_agarose_pre_arrays(vas, opts=None):
     return ratio_exp, ratio_ctrl, total_exp, total_ctrl, avoid_exp, avoid_ctrl, window_min
 
 
-def _extract_agarose_training_pre_arrays(vas, opts=None):
+def _extract_agarose_training_pre_arrays(
+    vas,
+    opts=None,
+    *,
+    counts_attr="agarose_dual_circle_training_pre_counts",
+):
     """
     Returns:
       ratio_exp: (n_videos, n_trn) float
@@ -270,7 +279,7 @@ def _extract_agarose_training_pre_arrays(vas, opts=None):
     window_min = np.full(n_trn, np.nan, dtype=float)
 
     for vi, va in enumerate(vas):
-        d = getattr(va, "agarose_dual_circle_training_pre_counts", None)
+        d = getattr(va, counts_attr, None)
         vid = getattr(va, "fn", f"va_{vi}")
         if not isinstance(d, dict) or d.get("ratio", None) is None:
             _dbg(
@@ -474,6 +483,98 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
             ),
         }
 
+    # When requested, keep the spatial-control measurement in the same bundle
+    # as the physical-well measurement.  This preserves video-wise pairing for
+    # the intended actual-versus-virtual validity test.
+    virtual_payload = {}
+    if any(
+        hasattr(va, "agarose_virtual_dual_circle_counts") for va in vas_ok
+    ):
+        (
+            virtual_ratio_exp,
+            virtual_ratio_ctrl,
+            virtual_total_exp,
+            virtual_total_ctrl,
+            virtual_avoid_exp,
+            virtual_avoid_ctrl,
+        ) = _extract_agarose_arrays(
+            vas_ok,
+            opts,
+            counts_attr="agarose_virtual_dual_circle_counts",
+        )
+        virtual_ratio_exp = mask_by_exp_target_sync_bucket_filter(
+            virtual_ratio_exp, target_sync_bucket_eligible
+        )
+        virtual_payload = {
+            "agarose_virtual_ratio_exp": virtual_ratio_exp,
+            "agarose_virtual_ratio_ctrl": virtual_ratio_ctrl,
+            "agarose_virtual_total_exp": virtual_total_exp,
+            "agarose_virtual_total_ctrl": virtual_total_ctrl,
+            "agarose_virtual_avoid_exp": virtual_avoid_exp,
+            "agarose_virtual_avoid_ctrl": virtual_avoid_ctrl,
+            "agarose_virtual_rotation_deg": np.array(
+                float(getattr(opts, "agarose_virtual_rotation_deg", 45.0)),
+                dtype=float,
+            ),
+            **episode_filter_accounting_payload(
+                "episode_filter_agarose_virtual_sync_exp",
+                virtual_total_exp,
+                min_agarose_episodes,
+            ),
+            **episode_filter_accounting_payload(
+                "episode_filter_agarose_virtual_sync_ctrl",
+                virtual_total_ctrl,
+                min_agarose_episodes,
+            ),
+        }
+        if bool(getattr(opts, "agarose_sli_include_pre", False)):
+            (
+                vpre_ratio_exp,
+                vpre_ratio_ctrl,
+                vpre_total_exp,
+                vpre_total_ctrl,
+                vpre_avoid_exp,
+                vpre_avoid_ctrl,
+                _vpre_window_min,
+            ) = _extract_agarose_pre_arrays(
+                vas_ok,
+                opts,
+                counts_attr="agarose_virtual_dual_circle_pre_counts",
+            )
+            (
+                vtpre_ratio_exp,
+                vtpre_ratio_ctrl,
+                vtpre_total_exp,
+                vtpre_total_ctrl,
+                vtpre_avoid_exp,
+                vtpre_avoid_ctrl,
+                _vtpre_window_min,
+            ) = _extract_agarose_training_pre_arrays(
+                vas_ok,
+                opts,
+                counts_attr="agarose_virtual_dual_circle_training_pre_counts",
+            )
+            virtual_payload.update(
+                {
+                    "agarose_virtual_pre_ratio_exp": mask_by_exp_target_sync_bucket_filter(
+                        vpre_ratio_exp, target_sync_bucket_eligible
+                    ),
+                    "agarose_virtual_pre_ratio_ctrl": vpre_ratio_ctrl,
+                    "agarose_virtual_pre_total_exp": vpre_total_exp,
+                    "agarose_virtual_pre_total_ctrl": vpre_total_ctrl,
+                    "agarose_virtual_pre_avoid_exp": vpre_avoid_exp,
+                    "agarose_virtual_pre_avoid_ctrl": vpre_avoid_ctrl,
+                    "agarose_virtual_training_pre_ratio_exp": mask_by_exp_target_sync_bucket_filter(
+                        vtpre_ratio_exp, target_sync_bucket_eligible
+                    ),
+                    "agarose_virtual_training_pre_ratio_ctrl": vtpre_ratio_ctrl,
+                    "agarose_virtual_training_pre_total_exp": vtpre_total_exp,
+                    "agarose_virtual_training_pre_total_ctrl": vtpre_total_ctrl,
+                    "agarose_virtual_training_pre_avoid_exp": vtpre_avoid_exp,
+                    "agarose_virtual_training_pre_avoid_ctrl": vtpre_avoid_ctrl,
+                }
+            )
+
     payload = {
         "sli": sli,
         "sli_ts": sli_ts,
@@ -483,8 +584,12 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
         "agarose_total_ctrl": total_ctrl,
         "agarose_avoid_exp": avoid_exp,
         "agarose_avoid_ctrl": avoid_ctrl,
+        **virtual_payload,
         "min_agarose_episodes": np.array(min_agarose_episodes, dtype=int),
         "agarose_dual_circle_min_total": np.array(min_agarose_episodes, dtype=int),
+        "agarose_farthest_from_reward_only": np.array(
+            bool(getattr(opts, "agarose_farthest_from_reward_only", False))
+        ),
         **exp_target_sync_bucket_filter_payload(
             vas_ok,
             opts,

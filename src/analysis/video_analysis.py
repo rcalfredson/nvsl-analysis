@@ -390,11 +390,27 @@ class VideoAnalysis:
                             )
                         ),
                     )
-            if getattr(opts, "agarose_dual_circle", False) and self.ct in (
+            if (
+                getattr(opts, "agarose_dual_circle", False)
+                or getattr(opts, "agarose_virtual_control", False)
+            ) and self.ct in (
                 CT.large,
                 CT.large2,
             ):
                 self.analyzeAgaroseDualCircleAvoidance()
+                if getattr(opts, "agarose_virtual_control", False):
+                    self.analyzeAgaroseDualCircleAvoidance(
+                        center_rotation_deg=float(
+                            getattr(opts, "agarose_virtual_rotation_deg", 45.0)
+                        ),
+                        result_prefix="agarose_virtual",
+                    )
+                    if getattr(opts, "agarose_dual_circle_debug_csv", None):
+                        self.agarose_dual_circle_debug_rows = list(
+                            getattr(self, "agarose_dual_circle_debug_rows", [])
+                        ) + list(
+                            getattr(self, "agarose_virtual_dual_circle_debug_rows", [])
+                        )
             if getattr(opts, "wall", None):
                 self.bySyncBucketWallContactPct()
             if getattr(opts, "reward_lv", False):
@@ -2048,7 +2064,14 @@ class VideoAnalysis:
             "ratio": ratio,
         }
 
-    def analyzeAgaroseDualCircleAvoidance(self, delta_mm=None):
+    def analyzeAgaroseDualCircleAvoidance(
+        self,
+        delta_mm=None,
+        *,
+        center_rotation_deg=0.0,
+        result_prefix="agarose",
+        farthest_from_reward_only=None,
+    ):
         """
         Compute agarose-avoidance metric based on dual concentric circles around
         agarose wells, aggregated by sync bucket.
@@ -2063,7 +2086,8 @@ class VideoAnalysis:
         Ratios are reported as NaN when the denominator is below the configured
         outer entry/re-exit episode threshold.
 
-        Results are stored in:
+        Results are stored in ``<result_prefix>_dual_circle_counts``.  With the
+        default prefix this is:
             self.agarose_dual_circle_counts = {
                 "avoid":  np.ndarray,  # shape (n_trn, n_flies, n_sb)
                 "total":  np.ndarray,  # same shape
@@ -2077,6 +2101,14 @@ class VideoAnalysis:
         # Allow override but fall back to an option or default
         if delta_mm is None:
             delta_mm = getattr(self.opts, "agarose_outer_delta_mm", 0.5)
+        if farthest_from_reward_only is None:
+            farthest_from_reward_only = bool(
+                getattr(self.opts, "agarose_farthest_from_reward_only", False)
+            )
+        counts_attr = f"{result_prefix}_dual_circle_counts"
+        pre_counts_attr = f"{result_prefix}_dual_circle_pre_counts"
+        training_pre_counts_attr = f"{result_prefix}_dual_circle_training_pre_counts"
+        geometry_attr = f"{result_prefix}_dual_circle_geometry"
         min_total = min_episode_count_for_type(
             self.opts, EPISODE_TYPE_OUTER_ENTRY_REEXIT
         )
@@ -2094,33 +2126,63 @@ class VideoAnalysis:
 
         if max_nb == 0:
             per_fly_episodes = [[] for _ in range(n_flies)]
+            per_fly_allowed_labels = [None for _ in range(n_flies)]
             for fi, trj in enumerate(self.trx):
                 if getattr(trj, "_bad", False):
                     continue
-                trj.calc_agarose_dual_circle_episodes(delta_mm=delta_mm)
+                trj.calc_agarose_dual_circle_episodes(
+                    delta_mm=delta_mm, center_rotation_deg=center_rotation_deg
+                )
                 per_fly_episodes[fi] = getattr(trj, "agarose_dual_circle_episodes", [])
-            self.agarose_dual_circle_counts = {
+                if farthest_from_reward_only:
+                    per_fly_allowed_labels[fi] = (
+                        self._agaroseFarthestRewardSiteLabels(trj, fi)
+                    )
+            setattr(self, counts_attr, {
                 "avoid": np.zeros((n_trn, n_flies, 0), dtype=int),
                 "total": np.zeros((n_trn, n_flies, 0), dtype=int),
                 "ratio": np.zeros((n_trn, n_flies, 0), dtype=float),
-            }
-            self.agarose_dual_circle_pre_counts = self._calcAgaroseDualCirclePreCounts(
-                per_fly_episodes
+            })
+            setattr(
+                self,
+                pre_counts_attr,
+                self._calcAgaroseDualCirclePreCounts(
+                    per_fly_episodes, per_fly_allowed_labels
+                ),
             )
+            setattr(
+                self,
+                training_pre_counts_attr,
+                self._calcAgaroseDualCircleTrainingPreCounts(
+                    per_fly_episodes, per_fly_allowed_labels
+                ),
+            )
+            setattr(self, geometry_attr, {
+                "center_rotation_deg": float(center_rotation_deg),
+                "outer_delta_mm": float(delta_mm),
+                "farthest_from_reward_only": bool(farthest_from_reward_only),
+            })
             return
 
         avoid_counts = np.zeros((n_trn, n_flies, max_nb), dtype=int)
         total_counts = np.zeros((n_trn, n_flies, max_nb), dtype=int)
         per_fly_episodes = [[] for _ in range(n_flies)]
+        per_fly_allowed_labels = [None for _ in range(n_flies)]
 
         # 1) Per-fly episode detection
         for fi, trj in enumerate(self.trx):
             if getattr(trj, "_bad", False):
                 continue
-            trj.calc_agarose_dual_circle_episodes(delta_mm=delta_mm)
+            trj.calc_agarose_dual_circle_episodes(
+                delta_mm=delta_mm, center_rotation_deg=center_rotation_deg
+            )
 
             episodes = getattr(trj, "agarose_dual_circle_episodes", [])
             per_fly_episodes[fi] = episodes
+            if farthest_from_reward_only:
+                per_fly_allowed_labels[fi] = self._agaroseFarthestRewardSiteLabels(
+                    trj, fi
+                )
             if not episodes:
                 continue
 
@@ -2129,22 +2191,16 @@ class VideoAnalysis:
                 entry = ep["start"]  # use first frame of the episode
                 avoids_inner = ep["avoids_inner"]
 
-                # Find which training & bucket this entry belongs to
-                for t_idx, bucket_ranges in enumerate(sync_ranges):
-                    if not bucket_ranges:
-                        continue
-                    for b_idx, (sb_start, sb_stop) in enumerate(bucket_ranges):
-                        if sb_start <= entry < sb_stop:
-                            total_counts[t_idx, fi, b_idx] += 1
-                            if avoids_inner:
-                                avoid_counts[t_idx, fi, b_idx] += 1
-                            # Once placed, stop searching for this episode
-                            break
-                    else:
-                        # entry not in any bucket of this training
-                        continue
-                    # already assigned; go to next episode
-                    break
+                t_idx, b_idx = self._agaroseDualCircleSyncAssignment(entry)
+                if t_idx is None:
+                    continue
+                if not self._agaroseEpisodeUsesAllowedSite(
+                    ep, per_fly_allowed_labels[fi], t_idx
+                ):
+                    continue
+                total_counts[t_idx, fi, b_idx] += 1
+                if avoids_inner:
+                    avoid_counts[t_idx, fi, b_idx] += 1
 
         # 3) Compute ratios with safe division
         ratio = np.full_like(avoid_counts, np.nan, dtype=float)
@@ -2152,23 +2208,86 @@ class VideoAnalysis:
         if min_total > 0:
             ratio[total_counts < min_total] = np.nan
 
-        self.agarose_dual_circle_counts = {
+        setattr(self, counts_attr, {
             "avoid": avoid_counts,
             "total": total_counts,
             "ratio": ratio,
-        }
-        self.agarose_dual_circle_pre_counts = self._calcAgaroseDualCirclePreCounts(
-            per_fly_episodes
+        })
+        setattr(
+            self,
+            pre_counts_attr,
+            self._calcAgaroseDualCirclePreCounts(
+                per_fly_episodes, per_fly_allowed_labels
+            ),
         )
-        self.agarose_dual_circle_training_pre_counts = (
-            self._calcAgaroseDualCircleTrainingPreCounts(per_fly_episodes)
+        setattr(
+            self,
+            training_pre_counts_attr,
+            self._calcAgaroseDualCircleTrainingPreCounts(
+                per_fly_episodes, per_fly_allowed_labels
+            ),
         )
+        setattr(self, geometry_attr, {
+            "center_rotation_deg": float(center_rotation_deg),
+            "outer_delta_mm": float(delta_mm),
+            "farthest_from_reward_only": bool(farthest_from_reward_only),
+        })
         if getattr(self.opts, "agarose_dual_circle_debug_csv", None):
-            self.agarose_dual_circle_debug_rows = self._buildAgaroseDualCircleDebugRows(
-                per_fly_episodes, delta_mm=delta_mm
+            setattr(
+                self,
+                f"{result_prefix}_dual_circle_debug_rows",
+                self._buildAgaroseDualCircleDebugRows(
+                    per_fly_episodes,
+                    delta_mm=delta_mm,
+                    center_rotation_deg=center_rotation_deg,
+                    geometry=(
+                        "physical_agarose"
+                        if result_prefix == "agarose"
+                        else "virtual_control"
+                    ),
+                ),
             )
 
-    def _calcAgaroseDualCirclePreCounts(self, per_fly_episodes):
+    def _agaroseFarthestRewardSiteLabels(self, trj, fi, tie_tolerance_mm=0.25):
+        """Return the farthest-site label set for each training of one fly."""
+        geometry = getattr(trj, "agarose_dual_circle_geometry", {})
+        centers = np.asarray(geometry.get("centers_px", ()), dtype=float)
+        if centers.ndim != 2 or centers.shape[1:] != (2,) or centers.shape[0] == 0:
+            return [set() for _ in self.trns]
+        rotation = float(geometry.get("center_rotation_deg", 0.0))
+        label_prefix = "well" if rotation % 360.0 == 0 else "virtual_site"
+        tolerance_px = float(tie_tolerance_mm) * (
+            self.ct.pxPerMmFloor() * self.xf.fctr
+        )
+        labels_by_training = []
+        for trn in self.trns:
+            reward_circles = trn.circles(fi)
+            if not reward_circles:
+                labels_by_training.append(set())
+                continue
+            reward_center = np.asarray(reward_circles[0][:2], dtype=float)
+            distances = np.linalg.norm(centers - reward_center, axis=1)
+            max_distance = float(np.max(distances))
+            selected = np.flatnonzero(distances >= max_distance - tolerance_px)
+            labels_by_training.append(
+                {f"{label_prefix}{int(idx) + 1}" for idx in selected}
+            )
+        return labels_by_training
+
+    @staticmethod
+    def _agaroseEpisodeUsesAllowedSite(ep, labels_by_training, training_idx):
+        if labels_by_training is None:
+            return True
+        if training_idx < 0 or training_idx >= len(labels_by_training):
+            return False
+        return bool(
+            set(ep.get("start_well_labels", ()))
+            & set(labels_by_training[training_idx])
+        )
+
+    def _calcAgaroseDualCirclePreCounts(
+        self, per_fly_episodes, per_fly_allowed_labels=None
+    ):
         """
         Aggregate the dual-circle agarose avoidance ratio over the final 10 minutes
         of pre-training, keyed by episode entry frame just like the sync-bucket
@@ -2218,7 +2337,13 @@ class VideoAnalysis:
                 continue
             for ep in episodes:
                 entry = ep["start"]
-                if pre_start <= entry < pre_stop:
+                if pre_start <= entry < pre_stop and self._agaroseEpisodeUsesAllowedSite(
+                    ep,
+                    None
+                    if per_fly_allowed_labels is None
+                    else per_fly_allowed_labels[fi],
+                    0,
+                ):
                     total_counts[fi] += 1
                     if ep["avoids_inner"]:
                         avoid_counts[fi] += 1
@@ -2235,7 +2360,9 @@ class VideoAnalysis:
             "window_min": np.array(actual_window_min, dtype=float),
         }
 
-    def _calcAgaroseDualCircleTrainingPreCounts(self, per_fly_episodes):
+    def _calcAgaroseDualCircleTrainingPreCounts(
+        self, per_fly_episodes, per_fly_allowed_labels=None
+    ):
         """
         Aggregate dual-circle agarose avoidance over the final 10 minutes
         immediately preceding each training.
@@ -2286,7 +2413,13 @@ class VideoAnalysis:
                     continue
                 for ep in episodes:
                     entry = ep["start"]
-                    if window_start <= entry < window_stop:
+                    if window_start <= entry < window_stop and self._agaroseEpisodeUsesAllowedSite(
+                        ep,
+                        None
+                        if per_fly_allowed_labels is None
+                        else per_fly_allowed_labels[fi],
+                        t_idx,
+                    ):
                         total_counts[t_idx, fi] += 1
                         if ep["avoids_inner"]:
                             avoid_counts[t_idx, fi] += 1
@@ -2342,7 +2475,14 @@ class VideoAnalysis:
                     return int(t_idx), int(b_idx)
         return None, None
 
-    def _buildAgaroseDualCircleDebugRows(self, per_fly_episodes, delta_mm):
+    def _buildAgaroseDualCircleDebugRows(
+        self,
+        per_fly_episodes,
+        delta_mm,
+        *,
+        center_rotation_deg=0.0,
+        geometry="physical_agarose",
+    ):
         rows = []
         global_pre = self._agaroseDualCircleGlobalPreWindow()
         training_pre_windows = self._agaroseDualCircleTrainingPreWindows()
@@ -2373,6 +2513,8 @@ class VideoAnalysis:
                 rows.append(
                     {
                         "video": self.fn,
+                        "geometry": geometry,
+                        "center_rotation_deg": float(center_rotation_deg),
                         "va_fly": self.f,
                         "trx_idx": int(fi),
                         "absolute_fly": int(abs_fly),

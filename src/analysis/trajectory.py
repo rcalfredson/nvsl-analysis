@@ -1538,7 +1538,9 @@ class Trajectory:
 
         return episodes
 
-    def calc_agarose_dual_circle_episodes(self, delta_mm=0.5, debug=False):
+    def calc_agarose_dual_circle_episodes(
+        self, delta_mm=0.5, debug=False, center_rotation_deg=0.0
+    ):
         """
         Identify 'dual-circle' agarose avoidance episodes for this fly.
 
@@ -1572,6 +1574,36 @@ class Trajectory:
 
         inner_radius_px, centers = wells  # radius (px), iterable of (cx, cy)
         inner_radius_px = float(inner_radius_px)
+
+        # A non-zero rotation defines a spatial negative control.  Rotate the
+        # complete four-site geometry rigidly around the arena center so every
+        # virtual site retains the same center-relative distance and circle
+        # radii as its corresponding physical agarose well.  For the cardinal
+        # four-well layout, 45 degrees places the sites midway between wells.
+        center_rotation_deg = float(center_rotation_deg)
+        if not np.isfinite(center_rotation_deg):
+            raise ValueError("center_rotation_deg must be finite")
+        if center_rotation_deg % 360.0:
+            floor_tl, floor_br = self.va.ct.floor(self.va.xf, f=self.va.trxf[self.f])
+            arena_cx = 0.5 * (float(floor_tl[0]) + float(floor_br[0]))
+            arena_cy = 0.5 * (float(floor_tl[1]) + float(floor_br[1]))
+            theta = math.radians(center_rotation_deg)
+            cos_t, sin_t = math.cos(theta), math.sin(theta)
+            centers = tuple(
+                (
+                    arena_cx + cos_t * (float(cx) - arena_cx) - sin_t * (float(cy) - arena_cy),
+                    arena_cy + sin_t * (float(cx) - arena_cx) + cos_t * (float(cy) - arena_cy),
+                )
+                for cx, cy in centers
+            )
+        else:
+            centers = tuple(centers)
+
+        self.agarose_dual_circle_geometry = {
+            "center_rotation_deg": center_rotation_deg,
+            "centers_px": centers,
+            "inner_radius_px": inner_radius_px,
+        }
 
         # Convert padding from mm → px
         px_per_mm = self.va.ct.pxPerMmFloor() * self.va.xf.fctr
@@ -1632,7 +1664,8 @@ class Trajectory:
             in_inner |= inner_mask
             outer_by_well.append(outer_mask)
             inner_by_well.append(inner_mask)
-            well_labels.append(f"well{wi + 1}")
+            label_prefix = "well" if center_rotation_deg % 360.0 == 0 else "virtual_site"
+            well_labels.append(f"{label_prefix}{wi + 1}")
 
         # Find contiguous regions where in_outer is True
         outer_regions = util.trueRegions(in_outer)
