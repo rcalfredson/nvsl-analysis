@@ -119,6 +119,30 @@ python analyze.py \
   --export-agarose-sli-bundle exports/group_agarose_control_wall_entry.npz
 ```
 
+To inspect the actual episodes accepted by this filter, request an annotated
+image gallery from the same analysis run:
+
+```bash
+python analyze.py \
+  -v "/path/to/videos/*.avi" -f "0-1" --rCC 15 \
+  --agarose-dual-circle \
+  --agarose-virtual-control \
+  --agarose-wall-facing-entry-only \
+  --agarose-dual-circle-debug-images-dir imgs/agarose_wall_entry_debug \
+  --agarose-dual-circle-debug-max-images 12 \
+  --agarose-dual-circle-debug-training-index 2 \
+  --agarose-dual-circle-debug-sync-bucket-start-index 2 \
+  --agarose-dual-circle-debug-sync-bucket-end-index 5
+```
+
+Each image shows both circle sets with light outlines, the local trajectory,
+the selected episode segment, the entry vector `p - c`, the wall direction
+`c - a`, and the normalized alignment score. The translucent semicircle is the
+wall-facing half accepted by the filter. The gallery samples the experimental
+fly and balances physical/virtual geometry and avoidance/contact outcome where
+examples are available. Add `--agarose-dual-circle-debug-csv <path>` to save
+the complete episode table as well.
+
 ## Slide-ready visualizations
 
 The two completed chamber analyses can be plotted together as paired bar/swarm

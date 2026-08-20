@@ -164,7 +164,10 @@ from src.exporting.exit_events_from_csv import (
     export_exit_event_images_from_csv,
     ExitEventImageConfig,
 )
-from src.utils.agarose_debug import save_agarose_dual_circle_debug_table
+from src.utils.agarose_debug import (
+    save_agarose_dual_circle_debug_images,
+    save_agarose_dual_circle_debug_table,
+)
 from src.plotting.between_reward_conditioned_maxdist_vs_disttrav import (
     BetweenRewardConditionedMaxDistVsDistTravConfig,
     BetweenRewardConditionedMaxDistVsDistTravPlotter,
@@ -7586,6 +7589,41 @@ g.add_argument(
         "Seconds of context to include before/after each agarose dual-circle episode "
         "in the debug CSV frame suggestions (default: %(default)s)."
     ),
+)
+g.add_argument(
+    "--agarose-dual-circle-debug-images-dir",
+    default=None,
+    help=(
+        "Optional directory for annotated examples of actual dual-circle episodes, "
+        "including the trajectory and entry vector used by the wall-facing filter."
+    ),
+)
+g.add_argument(
+    "--agarose-dual-circle-debug-max-images",
+    type=int,
+    default=12,
+    help="Maximum number of annotated dual-circle episode images (default: %(default)s).",
+)
+g.add_argument(
+    "--agarose-dual-circle-debug-training-index",
+    type=int,
+    default=None,
+    help=(
+        "Optional one-based training index used to select debug images from sync "
+        "buckets (for example, 2 for training 2)."
+    ),
+)
+g.add_argument(
+    "--agarose-dual-circle-debug-sync-bucket-start-index",
+    type=int,
+    default=None,
+    help="Optional one-based first sync bucket to include in debug images.",
+)
+g.add_argument(
+    "--agarose-dual-circle-debug-sync-bucket-end-index",
+    type=int,
+    default=None,
+    help="Optional one-based last sync bucket to include in debug images (inclusive).",
 )
 g.add_argument("--timeit", action="store_true", help="log stats of processing times")
 
@@ -17187,6 +17225,19 @@ def analyze():
         if getattr(opts, "agarose_dual_circle_debug_csv", None):
             save_agarose_dual_circle_debug_table(
                 vas, opts.agarose_dual_circle_debug_csv
+            )
+        if getattr(opts, "agarose_dual_circle_debug_images_dir", None):
+            save_agarose_dual_circle_debug_images(
+                vas,
+                opts.agarose_dual_circle_debug_images_dir,
+                max_images=opts.agarose_dual_circle_debug_max_images,
+                training_index=opts.agarose_dual_circle_debug_training_index,
+                sync_bucket_start_index=(
+                    opts.agarose_dual_circle_debug_sync_bucket_start_index
+                ),
+                sync_bucket_end_index=(
+                    opts.agarose_dual_circle_debug_sync_bucket_end_index
+                ),
             )
 
         if opts.wall:

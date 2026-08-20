@@ -11,6 +11,7 @@ from src.exporting.agarose_sli_bundle import (
     export_agarose_sli_bundle,
 )
 from src.utils.common import CT
+from src.utils.agarose_debug import _debug_image_candidates
 
 
 class _IdentityXformer:
@@ -59,6 +60,48 @@ def _video_analysis_stub(**attrs):
     for name, value in attrs.items():
         setattr(va, name, value)
     return va
+
+
+def test_agarose_debug_image_candidates_follow_active_window_and_balance_geometry():
+    def row(geometry, avoids, bucket, *, included=True, role="exp"):
+        return {
+            "geometry": geometry,
+            "avoids_inner": avoids,
+            "fly_role": role,
+            "included_by_active_filters": included,
+            "sync_training_idx_1based": 2,
+            "sync_bucket_idx_1based": bucket,
+        }
+
+    va = SimpleNamespace(
+        agarose_dual_circle_debug_rows=[
+            row("physical_agarose", False, 1),
+            row("physical_agarose", False, 2),
+            row("physical_agarose", True, 3),
+            row("virtual_control", False, 4),
+            row("virtual_control", True, 5),
+            row("virtual_control", True, 3, included=False),
+            row("virtual_control", True, 3, role="ctrl"),
+        ]
+    )
+
+    selected = _debug_image_candidates(
+        [va],
+        training_index=2,
+        sync_bucket_start_index=2,
+        sync_bucket_end_index=5,
+    )
+
+    assert [candidate[1]["sync_bucket_idx_1based"] for candidate in selected] == [
+        2,
+        3,
+        4,
+        5,
+    ]
+    assert {candidate[1]["geometry"] for candidate in selected} == {
+        "physical_agarose",
+        "virtual_control",
+    }
 
 
 def test_agarose_dual_circle_classifies_outer_only_and_inner_contact_episodes():

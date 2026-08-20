@@ -405,7 +405,7 @@ class VideoAnalysis:
                         ),
                         result_prefix="agarose_virtual",
                     )
-                    if getattr(opts, "agarose_dual_circle_debug_csv", None):
+                    if self._agaroseDualCircleDebugRequested():
                         self.agarose_dual_circle_debug_rows = list(
                             getattr(self, "agarose_dual_circle_debug_rows", [])
                         ) + list(
@@ -951,6 +951,7 @@ class VideoAnalysis:
             "first_n_reward_sli_comparison",
             "exit_events_csv",
             "agarose_dual_circle_debug_csv",
+            "agarose_dual_circle_debug_images_dir",
             "export_wall_contacts_per_sync_bkt_npz",
             "export_wall_contacts_per_reward_interval_npz",
         )
