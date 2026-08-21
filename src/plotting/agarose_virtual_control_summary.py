@@ -64,7 +64,7 @@ def load_chamber_placement_values(
 def _p_text(p_value):
     if not np.isfinite(p_value):
         return "p=n/a"
-    if p_value < 1e-4:
+    if p_value < 1e-3:
         return f"p={p_value:.1e}"
     return f"p={p_value:.3f}"
 
