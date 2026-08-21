@@ -8,6 +8,7 @@ from typing import Any
 import numpy as np
 from scipy.stats import sem, t, ttest_ind, ttest_rel
 
+from src.analysis.multiple_comparisons import holm_adjust
 from src.analysis.sli_bundle_utils import load_sli_bundle
 
 
@@ -321,34 +322,6 @@ def interaction_test_on_deltas(a: BundleSelection, b: BundleSelection) -> dict[s
         "delta_b": summarize_vector(xb),
         "mean_difference": float(np.nanmean(xa) - np.nanmean(xb)),
     }
-
-
-def holm_adjust(pvals: list[float]) -> list[float]:
-    p = np.asarray(pvals, dtype=float)
-    if p.size == 0:
-        return []
-
-    out = np.full_like(p, np.nan)
-    finite_mask = np.isfinite(p)
-    if not np.any(finite_mask):
-        return out.tolist()
-
-    pf = np.clip(p[finite_mask], 0.0, 1.0)
-    m = pf.size
-    order = np.argsort(pf)
-    p_sorted = pf[order]
-
-    adj_sorted = np.empty_like(p_sorted)
-    running_max = 0.0
-    for i, pv in enumerate(p_sorted):
-        adj = float((m - i) * pv)
-        running_max = max(running_max, adj)
-        adj_sorted[i] = min(1.0, running_max)
-
-    adj_f = np.empty_like(adj_sorted)
-    adj_f[order] = adj_sorted
-    out[finite_mask] = adj_f
-    return out.tolist()
 
 
 def read_bundle_manifest(path: str) -> list[BundleManifestEntry]:

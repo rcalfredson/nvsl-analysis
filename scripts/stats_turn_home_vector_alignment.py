@@ -15,6 +15,7 @@ os.environ.setdefault("MPLCONFIGDIR", f"/tmp/matplotlib-{os.environ.get('USER', 
 import numpy as np
 from scipy.stats import ttest_ind, ttest_rel
 
+from src.analysis.multiple_comparisons import holm_adjust
 from src.analysis.posthoc_tests import games_howell_all_pairs, welch_anova
 from src.plotting.overlay_training_metric_scalar_bars import load_export_npz
 
@@ -62,22 +63,6 @@ def _mean(x: list[float]) -> float:
     vals = np.asarray(x, dtype=float)
     vals = vals[np.isfinite(vals)]
     return float(np.mean(vals)) if vals.size else math.nan
-
-
-def _holm_adjust(pvals: list[float]) -> list[float]:
-    finite = [(i, float(p)) for i, p in enumerate(pvals) if np.isfinite(p)]
-    adjusted = [math.nan] * len(pvals)
-    m = len(finite)
-    if m == 0:
-        return adjusted
-    ordered = sorted(finite, key=lambda item: item[1])
-    prev = 0.0
-    for rank, (orig_i, p) in enumerate(ordered):
-        adj = min((m - rank) * p, 1.0)
-        adj = max(adj, prev)
-        adjusted[orig_i] = adj
-        prev = adj
-    return adjusted
 
 
 def _paired_panel_comparison(group: GroupBundle, baseline: str, target: str) -> dict:
@@ -288,7 +273,7 @@ def main() -> None:
 
     for family in ("within_group",):
         idxs = [i for i, row in enumerate(rows) if row["family"] == family]
-        adj = _holm_adjust([float(rows[i]["p"]) for i in idxs])
+        adj = holm_adjust([float(rows[i]["p"]) for i in idxs])
         for i, p_holm in zip(idxs, adj):
             rows[i]["p_holm"] = p_holm
 

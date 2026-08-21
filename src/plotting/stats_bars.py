@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import ttest_ind, ttest_rel
 
+from src.analysis.multiple_comparisons import holm_adjust
 from src.analysis.posthoc_tests import games_howell_all_pairs, welch_anova
 from src.plotting.palettes import NEUTRAL_DARK
 from src.plotting.p_value_format import format_plot_p_value
@@ -28,52 +29,6 @@ def _match_by_id(
     xa = np.asarray([da[k] for k in common], float)
     xb = np.asarray([db[k] for k in common], float)
     return xa, xb
-
-
-def holm_adjust(pvals: list[float]) -> list[float]:
-    """
-    Holm–Bonferroni adjustment.
-
-    - Adjusts only finite p-values.
-    - Preserves NaN positions as-is, and converts
-      inf → NaN.
-    """
-    p = np.asarray(pvals, dtype=float)
-    if p.size == 0:
-        return []
-
-    out = np.full_like(p, np.nan)  # default to NaN; we'll fill finite slots
-
-    finite_mask = np.isfinite(p)
-    if not np.any(finite_mask):
-        # all NaN/inf -> preserve as NaN (or you could copy infs, but NaN is usually best)
-        return out.tolist()
-
-    pf = p[finite_mask]
-
-    # Optional: clamp tiny numerical negatives and >1 values into [0, 1]
-    # (helpful if upstream occasionally produces -0.0 or 1.0000000002)
-    pf = np.clip(pf, 0.0, 1.0)
-
-    m = pf.size
-    order = np.argsort(pf)
-    p_sorted = pf[order]
-
-    adj_sorted = np.empty_like(p_sorted)
-    running_max = 0.0
-    for i, pv in enumerate(p_sorted):
-        factor = m - i
-        adj = float(factor * pv)
-        if adj > running_max:
-            running_max = adj
-        adj_sorted[i] = min(1.0, running_max)
-
-    # unsort back to the finite subset, then scatter back into full output
-    adj_f = np.empty_like(adj_sorted)
-    adj_f[order] = adj_sorted
-    out[finite_mask] = adj_f
-
-    return out.tolist()
 
 
 def _fmt_p(p_value: float) -> str:

@@ -43,30 +43,6 @@ def clean_sample(values) -> np.ndarray:
     return x[np.isfinite(x)]
 
 
-def holm_adjust(pvals: list[float]) -> list[float]:
-    p = np.asarray(pvals, dtype=float)
-    if p.size == 0:
-        return []
-    out = np.full_like(p, np.nan)
-    finite = np.isfinite(p)
-    if not np.any(finite):
-        return out.tolist()
-
-    pf = np.clip(p[finite], 0.0, 1.0)
-    order = np.argsort(pf)
-    p_sorted = pf[order]
-    adj_sorted = np.empty_like(p_sorted)
-    running_max = 0.0
-    m = int(p_sorted.size)
-    for idx, pv in enumerate(p_sorted):
-        running_max = max(running_max, float((m - idx) * pv))
-        adj_sorted[idx] = min(1.0, running_max)
-    adj = np.empty_like(adj_sorted)
-    adj[order] = adj_sorted
-    out[finite] = adj
-    return out.tolist()
-
-
 def welch_anova(
     group_samples,
     *,

@@ -24,9 +24,9 @@ from src.analysis.agarose_time_summary import (  # noqa: E402
     parse_group,
     reduction_anova_and_posthoc,
 )
+from src.analysis.multiple_comparisons import holm_adjust  # noqa: E402
 from src.analysis.posthoc_tests import (  # noqa: E402
     games_howell_all_pairs,
-    holm_adjust,
     welch_anova,
     welch_t_pair,
 )

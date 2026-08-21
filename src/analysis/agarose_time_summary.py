@@ -11,10 +11,10 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from src.analysis.multiple_comparisons import holm_adjust
 from src.analysis.posthoc_tests import (
     PairwisePosthocResult,
     games_howell_all_pairs,
-    holm_adjust,
     welch_anova,
     welch_t_pair,
 )
