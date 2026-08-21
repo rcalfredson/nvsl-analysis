@@ -217,6 +217,20 @@ def test_window_aggregation_defaults_to_pooled_and_supports_legacy_mode():
     )
 
 
+def test_public_correlation_scatter_rejects_unaligned_vectors():
+    with pytest.raises(ValueError, match="aligned one-dimensional arrays"):
+        corr.plot_correlation_scatter(
+            x=np.asarray([1.0, 2.0]),
+            y=np.asarray([1.0]),
+            title="test",
+            x_label="x",
+            y_label="y",
+            cfg=None,
+            filename="test",
+            customizer=None,
+        )
+
+
 def test_default_t2_speed_contexts_target_sb5_and_sb1_through_sb5():
     final_sli_ctx, speed_plots = corr._default_t2_speed_vs_final_sli_contexts()
     sb5_speed_ctx, _sb5_title = speed_plots[0]

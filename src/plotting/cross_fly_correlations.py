@@ -1398,7 +1398,7 @@ def plot_selected_group_scatter(
     plt.close(fig)
 
 
-def _scatter_with_corr(
+def plot_correlation_scatter(
     *,
     x: np.ndarray,
     y: np.ndarray,
@@ -1409,16 +1409,25 @@ def _scatter_with_corr(
     filename: str,
     customizer: PlotCustomizer,
 ):
-    # Filter out NaN pairs
+    """Plot and export one generic Pearson correlation scatter.
+
+    The inputs need only be aligned one-dimensional numeric vectors; unlike
+    :func:`plot_cross_fly_correlations`, no ``VideoAnalysis`` objects are needed.
+    """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    if x.shape != y.shape or x.ndim != 1:
+        raise ValueError("correlation x and y must be aligned one-dimensional arrays")
+    summary = pearson_correlation_summary(x, y)
     mask = np.isfinite(x) & np.isfinite(y)
-    if np.sum(mask) < 3:
+    if summary.n < 3 or not np.isfinite(summary.r) or not np.isfinite(summary.p):
         print(f"[correlations] WARNING: not enough valid data for {filename}")
-        return
+        return summary
 
     x_f = x[mask]
     y_f = y[mask]
 
-    r, p = pearsonr(x_f, y_f)
+    r, p = summary.r, summary.p
 
     fig, ax = plt.subplots(figsize=cfg.figsize)
     ax.scatter(x_f, y_f, color=cfg.dot_color, alpha=cfg.alpha)
@@ -1452,6 +1461,12 @@ def _scatter_with_corr(
         p=float(p),
     )
     plt.close(fig)
+    return summary
+
+
+def _scatter_with_corr(**kwargs):
+    """Backward-compatible private alias for the public scatter helper."""
+    return plot_correlation_scatter(**kwargs)
 
 
 def _ensure_rewards_per_distance(va) -> bool:

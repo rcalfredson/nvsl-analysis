@@ -89,6 +89,10 @@ from src.analysis.random_frame_windows import (
 )
 from src.analysis.motion import CircularMotionDetector
 from src.exporting.agarose_sli_bundle import export_agarose_sli_bundle
+from src.exporting.cross_experiment_correlation import (
+    export_closed_loop_sli_csv,
+    export_open_loop_preference_csv,
+)
 from src.exporting.rpid_auc_audit import (
     DEFAULT_RPID_AUC_AUDIT_CSV,
     write_rpid_auc_audit_csv,
@@ -924,6 +928,26 @@ g.add_argument(
     help=(
         "Optional group label stored in --corr-export-npz-dir scatter exports. "
         "If omitted, the first label from --gl is used when available."
+    ),
+)
+g.add_argument(
+    "--cross-experiment-sli-export",
+    type=str,
+    default=None,
+    metavar="CSV",
+    help=(
+        "Write one keyed row per closed-loop exp+yoked pair containing final "
+        "SLI at T2 sync bucket 5 for later matching to open-loop experiments."
+    ),
+)
+g.add_argument(
+    "--cross-experiment-open-loop-export",
+    type=str,
+    default=None,
+    metavar="CSV",
+    help=(
+        "Write one keyed row per physical fly containing the existing open-loop "
+        "pre/on/off positional PI values for cross-experiment correlations."
     ),
 )
 g.add_argument(
@@ -13062,6 +13086,11 @@ def _export_post_analyze_bundles(vas, gls) -> int:
 
 
 def postAnalyze(vas):
+    if getattr(opts, "cross_experiment_open_loop_export", None):
+        export_open_loop_preference_csv(
+            vas, opts.cross_experiment_open_loop_export
+        )
+
     if len(vas) <= 1:
         _generate_behavior_state_plots(vas)
         _generate_between_reward_plots(vas)
@@ -13220,6 +13249,7 @@ def postAnalyze(vas):
     sli_ctrl_component_ser = None
     sli_total_sync_buckets = None
     reward_pi_first_bucket = None
+    cross_experiment_sli_exported = False
     sli_training_idx = getattr(opts, "best_worst_trn", 1) - 1
     use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
     skip_k = _effective_skip_first_sync_buckets_opts_only(opts)
@@ -13463,6 +13493,16 @@ def postAnalyze(vas):
             )
 
             if tp == "rpid":
+                if (
+                    getattr(opts, "cross_experiment_sli_export", None)
+                    and not cross_experiment_sli_exported
+                ):
+                    export_closed_loop_sli_csv(
+                        vas,
+                        raw_4,
+                        opts.cross_experiment_sli_export,
+                    )
+                    cross_experiment_sli_exported = True
                 if sli_ser is None:
                     sli_total_sync_buckets = int(nb)
                     sel_bucket_idx = _resolve_sli_select_bucket_idx(
