@@ -7451,7 +7451,11 @@ g.add_argument(
     "--export-agarose-sli-bundle",
     type=str,
     default=None,
-    help="Write an .npz bundle with agarose dual-circle avoidance ratio + SLI for multi-group overlays.",
+    help=(
+        "Write an .npz bundle with experimental and yoked-control agarose "
+        "dual-circle avoidance ratios + SLI for multi-group overlays. The "
+        "yoked arrays are always included when present."
+    ),
 )
 g.add_argument(
     "--agarose-sli-debug",

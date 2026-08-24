@@ -86,6 +86,66 @@ def _sample_size_label_kwargs(metric):
     }
 
 
+def _resolve_metric_condition(metric_condition, *, compare_ctrl=False):
+    """Map the yoked-comparison convenience flag to an exp-minus-yoked series."""
+    if not compare_ctrl:
+        return metric_condition
+    if metric_condition not in ("exp", "exp_minus_ctrl"):
+        raise ValueError(
+            "--compare-yoked cannot be combined with --metric-condition ctrl."
+        )
+    return "exp_minus_ctrl"
+
+
+AGAROSE_PLACEMENT_MODES = ("physical", "virtual", "physical_minus_virtual")
+
+
+def _agarose_placement_keys(role, placement_mode, *, pre=False):
+    if placement_mode not in AGAROSE_PLACEMENT_MODES:
+        raise ValueError(
+            f"agarose placement mode must be one of {AGAROSE_PLACEMENT_MODES}, "
+            f"got {placement_mode!r}"
+        )
+    infix = "pre_" if pre else ""
+    physical = f"agarose_{infix}ratio_{role}"
+    virtual = f"agarose_virtual_{infix}ratio_{role}"
+    if placement_mode == "physical":
+        return (physical,)
+    if placement_mode == "virtual":
+        return (virtual,)
+    return physical, virtual
+
+
+def _agarose_placement_series(
+    bundle, metric_condition, placement_mode, *, pre=False
+):
+    """Return physical, virtual, or paired physical-minus-virtual agarose values."""
+
+    def _role_series(role):
+        keys = _agarose_placement_keys(role, placement_mode, pre=pre)
+        arrays = [np.asarray(bundle[key], dtype=float) for key in keys]
+        return arrays[0] if len(arrays) == 1 else arrays[0] - arrays[1]
+
+    if metric_condition == "exp":
+        return _role_series("exp")
+    if metric_condition == "ctrl":
+        return _role_series("ctrl")
+    if metric_condition == "exp_minus_ctrl":
+        return _role_series("exp") - _role_series("ctrl")
+    raise ValueError(f"Unknown mode={metric_condition!r} for metric=agarose")
+
+
+def _agarose_required_keys(metric_condition, placement_mode, *, pre=False):
+    roles = ("exp", "ctrl") if metric_condition == "exp_minus_ctrl" else (
+        metric_condition,
+    )
+    return [
+        key
+        for role in roles
+        for key in _agarose_placement_keys(role, placement_mode, pre=pre)
+    ]
+
+
 def _bundle_metric_palette(metric):
     if metric == "commag":
         return get_palette("commag")
@@ -412,6 +472,7 @@ def plot_com_sli_bundle_data(
     labels=None,
     num_trainings=None,
     include_ctrl=False,
+    compare_ctrl=False,
     sli_extremes=None,  # None | "top" | "bottom" | "both"
     sli_fraction=None,  # legacy shared fraction
     sli_top_fraction=None,  # Optional[float]
@@ -419,6 +480,7 @@ def plot_com_sli_bundle_data(
     opts=None,
     metric="commag",
     metric_condition="exp",  # exp | ctrl | exp_minus_ctrl
+    agarose_placement_mode="physical",
     turnback_mode=None,  # deprecated alias for metric_condition
     delta_vs_bundle=None,  # baseline bundle dict; if set, plot (bundle - baseline)
     delta_label=None,  # label prefix in delta mode
@@ -438,11 +500,27 @@ def plot_com_sli_bundle_data(
     - Each bundle is a “group” (regular / antennae-removed / PFN-silenced, etc).
     - Lines are mean over videos; shaded region is CI.
     - Optionally filter within each bundle by SLI percentile.
+    - ``compare_ctrl`` selects the per-video experimental-minus-yoked series.
+    - Agarose bundles can plot physical sites, rotated virtual sites, or their
+      paired physical-minus-virtual placement contrast.
     - Optional top-of-figure description labels are hidden by default.
     """
     if turnback_mode is not None:
         metric_condition = turnback_mode
+
+    if compare_ctrl and include_pre:
+        raise ValueError(
+            "--compare-yoked and --include-pre select different baselines and cannot be combined."
+        )
+    metric_condition = _resolve_metric_condition(
+        metric_condition, compare_ctrl=compare_ctrl
+    )
     turnback_mode = metric_condition
+
+    if metric != "agarose" and agarose_placement_mode != "physical":
+        raise ValueError(
+            "--agarose-placement-mode is supported only with --metric agarose."
+        )
 
     if opts is None:
         # minimal opts object for PlotCustomizer + writeImage usage
@@ -586,28 +664,15 @@ def plot_com_sli_bundle_data(
                 f"Unknown turnback_mode={turnback_mode!r} for metric=weaving"
             )
     elif metric == "agarose":
-        if turnback_mode == "exp":
-            series_key = "agarose_ratio_exp"
-            need_keys = ["agarose_ratio_exp"]
-            include_ctrl = requested_include_ctrl
-        elif turnback_mode == "ctrl":
-            series_key = "agarose_ratio_ctrl"
-            need_keys = ["agarose_ratio_ctrl"]
-        elif turnback_mode == "exp_minus_ctrl":
-            series_key = "agarose_ratio_exp"
-            need_keys = ["agarose_ratio_exp", "agarose_ratio_ctrl"]
-        else:
-            raise ValueError(f"Unknown mode={turnback_mode!r} for metric=agarose")
+        need_keys = _agarose_required_keys(
+            turnback_mode, agarose_placement_mode
+        )
+        series_key = need_keys[0]
+        include_ctrl = requested_include_ctrl if turnback_mode == "exp" else False
         if include_pre:
-            if turnback_mode == "exp":
-                need_keys = need_keys + ["agarose_pre_ratio_exp"]
-            elif turnback_mode == "ctrl":
-                need_keys = need_keys + ["agarose_pre_ratio_ctrl"]
-            else:
-                need_keys = need_keys + [
-                    "agarose_pre_ratio_exp",
-                    "agarose_pre_ratio_ctrl",
-                ]
+            need_keys += _agarose_required_keys(
+                turnback_mode, agarose_placement_mode, pre=True
+            )
     elif metric == "wallpct":
         series_key = "wallpct_exp"
         need_keys = ["wallpct_exp"]
@@ -689,6 +754,9 @@ def plot_com_sli_bundle_data(
         raise ValueError("--include-pre is currently supported only for metric='agarose'.")
 
     ctrl_key = _ctrl_overlay_key(metric) if include_ctrl else None
+    if include_ctrl and metric == "agarose":
+        ctrl_keys = _agarose_required_keys("ctrl", agarose_placement_mode)
+        ctrl_key = ctrl_keys[0]
     if include_ctrl and ctrl_key is None:
         warnings.warn(
             f"--include-ctrl is not supported for metric={metric!r}; ignoring it."
@@ -700,9 +768,14 @@ def plot_com_sli_bundle_data(
         )
         include_ctrl = False
     elif include_ctrl:
-        need_keys = need_keys + [ctrl_key]
+        if metric == "agarose":
+            need_keys += ctrl_keys
+        else:
+            need_keys = need_keys + [ctrl_key]
         if metric == "agarose" and include_pre:
-            need_keys = need_keys + ["agarose_pre_ratio_ctrl"]
+            need_keys += _agarose_required_keys(
+                "ctrl", agarose_placement_mode, pre=True
+            )
 
     def _series_for_bundle(b):
         """
@@ -735,10 +808,10 @@ def plot_com_sli_bundle_data(
             exp_arr = np.asarray(b["weaving_ratio_exp"], dtype=float)
             ctrl_arr = np.asarray(b["weaving_ratio_ctrl"], dtype=float)
             return exp_arr - ctrl_arr
-        if metric == "agarose" and turnback_mode == "exp_minus_ctrl":
-            exp_arr = np.asarray(b["agarose_ratio_exp"], dtype=float)
-            ctrl_arr = np.asarray(b["agarose_ratio_ctrl"], dtype=float)
-            return exp_arr - ctrl_arr
+        if metric == "agarose":
+            return _agarose_placement_series(
+                b, turnback_mode, agarose_placement_mode
+            )
         if metric == "reward_lgturn_pathlen" and turnback_mode == "exp_minus_ctrl":
             exp_arr = np.asarray(b["reward_lgturn_pathlen_exp"], dtype=float)
             ctrl_arr = np.asarray(b["reward_lgturn_pathlen_ctrl"], dtype=float)
@@ -772,13 +845,9 @@ def plot_com_sli_bundle_data(
     def _pre_series_for_bundle(b):
         if metric != "agarose" or not include_pre:
             return None
-        if turnback_mode == "exp":
-            return np.asarray(b["agarose_pre_ratio_exp"], dtype=float)
-        if turnback_mode == "ctrl":
-            return np.asarray(b["agarose_pre_ratio_ctrl"], dtype=float)
-        exp_arr = np.asarray(b["agarose_pre_ratio_exp"], dtype=float)
-        ctrl_arr = np.asarray(b["agarose_pre_ratio_ctrl"], dtype=float)
-        return exp_arr - ctrl_arr
+        return _agarose_placement_series(
+            b, turnback_mode, agarose_placement_mode, pre=True
+        )
 
     def _series_for_bundle_delta(b):
         """
@@ -944,7 +1013,12 @@ def plot_com_sli_bundle_data(
         ylim = [-0.5, 0.5] if turnback_mode == "exp_minus_ctrl" else [0.0, 0.5]
     elif metric == "agarose":
         # ratio is 0..1; exp-minus-ctrl can go negative
-        ylim = [-0.5, 0.5] if turnback_mode == "exp_minus_ctrl" else [0.0, 1.0]
+        ylim = (
+            [-0.5, 0.5]
+            if turnback_mode == "exp_minus_ctrl"
+            or agarose_placement_mode == "physical_minus_virtual"
+            else [0.0, 1.0]
+        )
     elif metric == "lgturn_startdist":
         ylim = [0.0, 6.0]
     elif metric == "reward_lv":
@@ -1189,7 +1263,13 @@ def plot_com_sli_bundle_data(
                 if ctrl_key is None:
                     continue
 
-                ctrl_arr = np.asarray(b[ctrl_key], dtype=float)
+                ctrl_arr = (
+                    _agarose_placement_series(
+                        b, "ctrl", agarose_placement_mode
+                    )
+                    if metric == "agarose"
+                    else np.asarray(b[ctrl_key], dtype=float)
+                )
                 if ctrl_arr.shape[0] != len(b["sli"]):
                     print(
                         f"[plot] WARNING: {b['path']} {ctrl_key} shape mismatch; skipping ctrl overlay"
@@ -1199,8 +1279,8 @@ def plot_com_sli_bundle_data(
                 mci_c = _mean_ci_over_videos(ctrl)
                 plot_mci_c = mci_c
                 if panel_has_pre:
-                    pre_ctrl_vals = np.asarray(
-                        b["agarose_pre_ratio_ctrl"], dtype=float
+                    pre_ctrl_vals = _agarose_placement_series(
+                        b, "ctrl", agarose_placement_mode, pre=True
                     )[sel_idx]
                     pre_mci_c = np.asarray(
                         util.meanConfInt(pre_ctrl_vals), dtype=float
@@ -1270,7 +1350,19 @@ def plot_com_sli_bundle_data(
             elif turnback_mode == "ctrl":
                 y_label += "\n(yok)"
         elif metric == "agarose":
-            if turnback_mode == "exp_minus_ctrl":
+            if agarose_placement_mode == "physical_minus_virtual":
+                y_label = "Agarose avoidance (physical - 45° virtual)"
+                if turnback_mode == "exp_minus_ctrl":
+                    y_label += "\n(exp - yok)"
+                elif turnback_mode == "ctrl":
+                    y_label += "\n(yok)"
+            elif agarose_placement_mode == "virtual":
+                y_label = "45° virtual-position avoidance ratio"
+                if turnback_mode == "exp_minus_ctrl":
+                    y_label += "\n(exp - yok)"
+                elif turnback_mode == "ctrl":
+                    y_label += "\n(yok)"
+            elif turnback_mode == "exp_minus_ctrl":
                 y_label = "Agarose avoidance (exp - yok)"
             elif turnback_mode == "ctrl":
                 y_label = "Agarose avoidance (yok)"
@@ -1733,6 +1825,7 @@ def plot_com_sli_bundles(
     labels=None,
     num_trainings=None,
     include_ctrl=False,
+    compare_ctrl=False,
     sli_extremes=None,
     sli_fraction=None,
     sli_top_fraction=None,
@@ -1740,6 +1833,7 @@ def plot_com_sli_bundles(
     opts=None,
     metric="commag",
     metric_condition="exp",
+    agarose_placement_mode="physical",
     turnback_mode=None,
     delta_vs_path=None,
     delta_label=None,
@@ -1764,6 +1858,7 @@ def plot_com_sli_bundles(
         labels=labels,
         num_trainings=num_trainings,
         include_ctrl=include_ctrl,
+        compare_ctrl=compare_ctrl,
         sli_extremes=sli_extremes,
         sli_fraction=sli_fraction,
         sli_top_fraction=sli_top_fraction,
@@ -1771,6 +1866,7 @@ def plot_com_sli_bundles(
         opts=opts,
         metric=metric,
         metric_condition=metric_condition,
+        agarose_placement_mode=agarose_placement_mode,
         delta_vs_bundle=delta_vs_bundle,
         delta_label=delta_label,
         xlabel=xlabel,

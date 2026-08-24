@@ -44,6 +44,16 @@ def main():
         ),
     )
     p.add_argument(
+        "--agarose-placement-mode",
+        default="physical",
+        choices=["physical", "virtual", "physical_minus_virtual"],
+        help=(
+            "For --metric agarose, plot cardinal physical sites, 45-degree "
+            "rotated virtual sites, or the paired physical-minus-virtual "
+            "placement contrast (default: physical)."
+        ),
+    )
+    p.add_argument(
         "--delta-vs",
         default=None,
         help=(
@@ -93,6 +103,17 @@ def main():
         "--include-ctrl",
         action="store_true",
         help="Overlay ctrl curves (same linestyle as group, different color).",
+    )
+    p.add_argument(
+        "--compare-ctrl",
+        "--compare-yoked",
+        dest="compare_ctrl",
+        action="store_true",
+        help=(
+            "Plot the per-video experimental-minus-yoked subtraction. This is a "
+            "convenience alias for --metric-condition exp_minus_ctrl and selects "
+            "yoked rather than pre-training as the baseline."
+        ),
     )
     p.add_argument(
         "--show-legend",
@@ -211,6 +232,7 @@ def main():
         labels=labels,
         num_trainings=args.num_trainings,
         include_ctrl=args.include_ctrl,
+        compare_ctrl=args.compare_ctrl,
         sli_extremes=args.sli_extremes,
         sli_fraction=shared_frac,
         sli_top_fraction=top_frac,
@@ -218,6 +240,7 @@ def main():
         opts=opts,
         metric=args.metric,
         metric_condition=args.metric_condition,
+        agarose_placement_mode=args.agarose_placement_mode,
         delta_vs_path=args.delta_vs,
         delta_label=delta_label,
         xlabel=args.xlabel,
