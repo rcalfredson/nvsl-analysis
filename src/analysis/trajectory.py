@@ -1539,7 +1539,11 @@ class Trajectory:
         return episodes
 
     def calc_agarose_dual_circle_episodes(
-        self, delta_mm=0.5, debug=False, center_rotation_deg=0.0
+        self,
+        delta_mm=0.5,
+        debug=False,
+        center_rotation_deg=0.0,
+        center_outward_shift_mm=0.0,
     ):
         """
         Identify 'dual-circle' agarose avoidance episodes for this fly.
@@ -1599,14 +1603,31 @@ class Trajectory:
         else:
             centers = tuple(centers)
 
+        px_per_mm = self.va.ct.pxPerMmFloor() * self.va.xf.fctr
+        center_outward_shift_mm = float(center_outward_shift_mm)
+        if not np.isfinite(center_outward_shift_mm) or center_outward_shift_mm < 0:
+            raise ValueError("center_outward_shift_mm must be finite and nonnegative")
+        if center_outward_shift_mm:
+            center_array = np.asarray(centers, dtype=float)
+            arena_center = np.asarray((arena_cx, arena_cy), dtype=float)
+            radial_vectors = center_array - arena_center
+            radial_norms = np.linalg.norm(radial_vectors, axis=1)
+            if np.any(radial_norms <= 0):
+                raise ValueError(
+                    "cannot radially shift a dual-circle center at the arena center"
+                )
+            shift_px = center_outward_shift_mm * px_per_mm
+            center_array += shift_px * radial_vectors / radial_norms[:, np.newaxis]
+            centers = tuple(map(tuple, center_array))
+
         self.agarose_dual_circle_geometry = {
             "center_rotation_deg": center_rotation_deg,
+            "center_outward_shift_mm": center_outward_shift_mm,
             "centers_px": centers,
             "inner_radius_px": inner_radius_px,
         }
 
         # Convert padding from mm → px
-        px_per_mm = self.va.ct.pxPerMmFloor() * self.va.xf.fctr
         outer_radius_px = inner_radius_px + delta_mm * px_per_mm
         # Hysteresis on the outer boundary prevents tracking noise from splitting
         # one approach into several short episodes.  The inner boundary only
@@ -1736,6 +1757,7 @@ class Trajectory:
                     "entry_wall_alignment": entry_wall_alignment,
                     "entry_wall_alignments": tuple(entry_wall_alignments),
                     "wall_facing_entry": wall_facing_entry,
+                    "entry_point": (entry_x, entry_y),
                 }
             )
 

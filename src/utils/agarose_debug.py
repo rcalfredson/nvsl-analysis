@@ -137,6 +137,17 @@ def _render_agarose_dual_circle_debug_image(va, row, out_path):
     virtual_centers = _rotate_centers(
         physical_centers, arena_center, float(row.get("center_rotation_deg", 45.0))
     )
+    center_shift_px = float(
+        row.get("agarose_center_outward_shift_mm", 0.0)
+    ) * (va.ct.pxPerMmFloor() * va.xf.fctr)
+    if center_shift_px:
+        def _shift_outward(centers):
+            radial = centers - arena_center
+            norms = np.linalg.norm(radial, axis=1)
+            return centers + center_shift_px * radial / norms[:, np.newaxis]
+
+        physical_centers = _shift_outward(physical_centers)
+        virtual_centers = _shift_outward(virtual_centers)
     active_centers = (
         physical_centers
         if row.get("geometry") == "physical_agarose"
@@ -198,13 +209,19 @@ def _render_agarose_dual_circle_debug_image(va, row, out_path):
                 )
             )
 
-    training_value = row.get("sync_training_idx_1based")
+    training_value = (
+        row.get("sync_training_idx_1based")
+        or row.get("training_pre_idx_1based")
+        or (1 if row.get("global_pre_last10m") else None)
+    )
+    reward_center = None
     if training_value != "" and training_value is not None:
         training_idx = int(training_value) - 1
         if 0 <= training_idx < len(va.trns):
             reward_circles = va.trns[training_idx].circles(trj_idx)
             if reward_circles:
                 reward_x, reward_y, reward_radius = reward_circles[0]
+                reward_center = np.asarray((reward_x, reward_y), dtype=float)
                 ax.add_patch(
                     Circle(
                         (reward_x, reward_y),
@@ -224,7 +241,13 @@ def _render_agarose_dual_circle_debug_image(va, row, out_path):
                     ha="center",
                 )
 
-    outward = site_center - arena_center
+    reference_name = str(row.get("wall_facing_reference", "arena"))
+    reference_center = (
+        reward_center
+        if reference_name == "reward" and reward_center is not None
+        else arena_center
+    )
+    outward = site_center - reference_center
     outward_unit = outward / np.linalg.norm(outward)
     outward_angle = math.degrees(math.atan2(outward_unit[1], outward_unit[0]))
     active_color = "#2b8cbe" if active_name == "physical" else "#e67e22"
@@ -307,7 +330,8 @@ def _render_agarose_dual_circle_debug_image(va, row, out_path):
     ax.text(
         outward_tip[0],
         outward_tip[1],
-        r"  wall direction $(c-a)$",
+        r"  outward direction "
+        + (r"$(c-r)$" if reference_name == "reward" else r"$(c-a)$"),
         color="#238b45",
         fontsize=7.5,
     )

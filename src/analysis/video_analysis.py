@@ -2073,6 +2073,8 @@ class VideoAnalysis:
         result_prefix="agarose",
         farthest_from_reward_only=None,
         wall_facing_entry_only=None,
+        center_outward_shift_mm=None,
+        wall_facing_reference=None,
     ):
         """
         Compute agarose-avoidance metric based on dual concentric circles around
@@ -2111,6 +2113,23 @@ class VideoAnalysis:
             wall_facing_entry_only = bool(
                 getattr(self.opts, "agarose_wall_facing_entry_only", False)
             )
+        if center_outward_shift_mm is None:
+            center_outward_shift_mm = float(
+                getattr(self.opts, "agarose_dual_circle_center_shift_mm", 0.0)
+            )
+        center_outward_shift_mm = float(center_outward_shift_mm)
+        if not np.isfinite(center_outward_shift_mm) or center_outward_shift_mm < 0:
+            raise ValueError(
+                "center_outward_shift_mm must be finite and nonnegative"
+            )
+        if wall_facing_reference is None:
+            wall_facing_reference = str(
+                getattr(self.opts, "agarose_wall_facing_reference", "arena")
+            )
+        if wall_facing_reference not in ("arena", "reward"):
+            raise ValueError(
+                "wall_facing_reference must be either 'arena' or 'reward'"
+            )
         counts_attr = f"{result_prefix}_dual_circle_counts"
         pre_counts_attr = f"{result_prefix}_dual_circle_pre_counts"
         training_pre_counts_attr = f"{result_prefix}_dual_circle_training_pre_counts"
@@ -2137,7 +2156,9 @@ class VideoAnalysis:
                 if getattr(trj, "_bad", False):
                     continue
                 trj.calc_agarose_dual_circle_episodes(
-                    delta_mm=delta_mm, center_rotation_deg=center_rotation_deg
+                    delta_mm=delta_mm,
+                    center_rotation_deg=center_rotation_deg,
+                    center_outward_shift_mm=center_outward_shift_mm,
                 )
                 per_fly_episodes[fi] = getattr(trj, "agarose_dual_circle_episodes", [])
                 if farthest_from_reward_only:
@@ -2156,6 +2177,7 @@ class VideoAnalysis:
                     per_fly_episodes,
                     per_fly_allowed_labels,
                     wall_facing_entry_only=wall_facing_entry_only,
+                    wall_facing_reference=wall_facing_reference,
                 ),
             )
             setattr(
@@ -2165,13 +2187,16 @@ class VideoAnalysis:
                     per_fly_episodes,
                     per_fly_allowed_labels,
                     wall_facing_entry_only=wall_facing_entry_only,
+                    wall_facing_reference=wall_facing_reference,
                 ),
             )
             setattr(self, geometry_attr, {
                 "center_rotation_deg": float(center_rotation_deg),
                 "outer_delta_mm": float(delta_mm),
+                "center_outward_shift_mm": float(center_outward_shift_mm),
                 "farthest_from_reward_only": bool(farthest_from_reward_only),
                 "wall_facing_entry_only": bool(wall_facing_entry_only),
+                "wall_facing_reference": wall_facing_reference,
             })
             return
 
@@ -2185,7 +2210,9 @@ class VideoAnalysis:
             if getattr(trj, "_bad", False):
                 continue
             trj.calc_agarose_dual_circle_episodes(
-                delta_mm=delta_mm, center_rotation_deg=center_rotation_deg
+                delta_mm=delta_mm,
+                center_rotation_deg=center_rotation_deg,
+                center_outward_shift_mm=center_outward_shift_mm,
             )
 
             episodes = getattr(trj, "agarose_dual_circle_episodes", [])
@@ -2210,6 +2237,13 @@ class VideoAnalysis:
                     per_fly_allowed_labels[fi],
                     t_idx,
                     wall_facing_entry_only=wall_facing_entry_only,
+                    wall_facing_entry=self._agaroseEpisodeWallFacingEntry(
+                        ep,
+                        trj,
+                        fi,
+                        t_idx,
+                        reference=wall_facing_reference,
+                    )[1],
                 ):
                     continue
                 total_counts[t_idx, fi, b_idx] += 1
@@ -2234,6 +2268,7 @@ class VideoAnalysis:
                 per_fly_episodes,
                 per_fly_allowed_labels,
                 wall_facing_entry_only=wall_facing_entry_only,
+                wall_facing_reference=wall_facing_reference,
             ),
         )
         setattr(
@@ -2243,13 +2278,16 @@ class VideoAnalysis:
                 per_fly_episodes,
                 per_fly_allowed_labels,
                 wall_facing_entry_only=wall_facing_entry_only,
+                wall_facing_reference=wall_facing_reference,
             ),
         )
         setattr(self, geometry_attr, {
             "center_rotation_deg": float(center_rotation_deg),
             "outer_delta_mm": float(delta_mm),
+            "center_outward_shift_mm": float(center_outward_shift_mm),
             "farthest_from_reward_only": bool(farthest_from_reward_only),
             "wall_facing_entry_only": bool(wall_facing_entry_only),
+            "wall_facing_reference": wall_facing_reference,
         })
         if self._agaroseDualCircleDebugRequested():
             setattr(
@@ -2266,6 +2304,8 @@ class VideoAnalysis:
                     ),
                     per_fly_allowed_labels=per_fly_allowed_labels,
                     wall_facing_entry_only=wall_facing_entry_only,
+                    wall_facing_reference=wall_facing_reference,
+                    center_outward_shift_mm=center_outward_shift_mm,
                 ),
             )
 
@@ -2301,6 +2341,57 @@ class VideoAnalysis:
             )
         return labels_by_training
 
+    def _agaroseEpisodeWallFacingEntry(
+        self, ep, trj, fi, training_idx, *, reference="arena"
+    ):
+        """Return the entry alignment and outward-half classification."""
+        if reference == "arena":
+            alignment = float(ep.get("entry_wall_alignment", np.nan))
+            return alignment, bool(ep.get("wall_facing_entry", False))
+        if reference != "reward":
+            raise ValueError("reference must be either 'arena' or 'reward'")
+        if training_idx < 0 or training_idx >= len(self.trns):
+            return np.nan, False
+
+        reward_circles = self.trns[training_idx].circles(fi)
+        if not reward_circles:
+            return np.nan, False
+        reference_center = np.asarray(reward_circles[0][:2], dtype=float)
+        entry_point = np.asarray(ep.get("entry_point", (np.nan, np.nan)), dtype=float)
+        geometry = getattr(trj, "agarose_dual_circle_geometry", {})
+        centers = np.asarray(geometry.get("centers_px", ()), dtype=float)
+        if (
+            entry_point.shape != (2,)
+            or not np.all(np.isfinite(entry_point))
+            or not np.all(np.isfinite(reference_center))
+            or centers.ndim != 2
+            or centers.shape[1:] != (2,)
+        ):
+            return np.nan, False
+
+        rotation = float(geometry.get("center_rotation_deg", 0.0))
+        label_prefix = "well" if rotation % 360.0 == 0 else "virtual_site"
+        center_by_label = {
+            f"{label_prefix}{idx + 1}": center
+            for idx, center in enumerate(centers)
+        }
+        alignments = []
+        for label in ep.get("start_well_labels", ()):
+            center = center_by_label.get(label)
+            if center is None:
+                continue
+            entry_vec = entry_point - center
+            outward_vec = center - reference_center
+            denominator = float(
+                np.linalg.norm(entry_vec) * np.linalg.norm(outward_vec)
+            )
+            if denominator > 0:
+                alignments.append(
+                    float(np.dot(entry_vec, outward_vec) / denominator)
+                )
+        alignment = float(max(alignments)) if alignments else np.nan
+        return alignment, bool(np.isfinite(alignment) and alignment > 0.0)
+
     @staticmethod
     def _agaroseEpisodeUsesAllowedSite(
         ep,
@@ -2308,8 +2399,11 @@ class VideoAnalysis:
         training_idx,
         *,
         wall_facing_entry_only=False,
+        wall_facing_entry=None,
     ):
-        if wall_facing_entry_only and not bool(ep.get("wall_facing_entry", False)):
+        if wall_facing_entry is None:
+            wall_facing_entry = bool(ep.get("wall_facing_entry", False))
+        if wall_facing_entry_only and not bool(wall_facing_entry):
             return False
         if labels_by_training is None:
             return True
@@ -2326,6 +2420,7 @@ class VideoAnalysis:
         per_fly_allowed_labels=None,
         *,
         wall_facing_entry_only=False,
+        wall_facing_reference="arena",
     ):
         """
         Aggregate the dual-circle agarose avoidance ratio over the final 10 minutes
@@ -2383,6 +2478,13 @@ class VideoAnalysis:
                     else per_fly_allowed_labels[fi],
                     0,
                     wall_facing_entry_only=wall_facing_entry_only,
+                    wall_facing_entry=self._agaroseEpisodeWallFacingEntry(
+                        ep,
+                        self.trx[fi],
+                        fi,
+                        0,
+                        reference=wall_facing_reference,
+                    )[1],
                 ):
                     total_counts[fi] += 1
                     if ep["avoids_inner"]:
@@ -2406,6 +2508,7 @@ class VideoAnalysis:
         per_fly_allowed_labels=None,
         *,
         wall_facing_entry_only=False,
+        wall_facing_reference="arena",
     ):
         """
         Aggregate dual-circle agarose avoidance over the final 10 minutes
@@ -2464,6 +2567,13 @@ class VideoAnalysis:
                         else per_fly_allowed_labels[fi],
                         t_idx,
                         wall_facing_entry_only=wall_facing_entry_only,
+                        wall_facing_entry=self._agaroseEpisodeWallFacingEntry(
+                            ep,
+                            self.trx[fi],
+                            fi,
+                            t_idx,
+                            reference=wall_facing_reference,
+                        )[1],
                     ):
                         total_counts[t_idx, fi] += 1
                         if ep["avoids_inner"]:
@@ -2529,6 +2639,8 @@ class VideoAnalysis:
         geometry="physical_agarose",
         per_fly_allowed_labels=None,
         wall_facing_entry_only=False,
+        wall_facing_reference="arena",
+        center_outward_shift_mm=0.0,
     ):
         rows = []
         global_pre = self._agaroseDualCircleGlobalPreWindow()
@@ -2567,6 +2679,17 @@ class VideoAnalysis:
                     if per_fly_allowed_labels is None
                     else per_fly_allowed_labels[fi]
                 )
+                entry_wall_alignment, wall_facing_entry = (
+                    self._agaroseEpisodeWallFacingEntry(
+                        ep,
+                        trj,
+                        fi,
+                        active_training_idx,
+                        reference=wall_facing_reference,
+                    )
+                    if active_training_idx is not None
+                    else (np.nan, False)
+                )
                 included_by_active_filters = (
                     active_training_idx is not None
                     and self._agaroseEpisodeUsesAllowedSite(
@@ -2574,6 +2697,7 @@ class VideoAnalysis:
                         allowed_labels,
                         active_training_idx,
                         wall_facing_entry_only=wall_facing_entry_only,
+                        wall_facing_entry=wall_facing_entry,
                     )
                 )
 
@@ -2600,10 +2724,9 @@ class VideoAnalysis:
                         "inner_well_labels": "|".join(ep.get("inner_well_labels", ())),
                         "all_outer_well_labels": "|".join(ep.get("all_outer_well_labels", ())),
                         "all_inner_well_labels": "|".join(ep.get("all_inner_well_labels", ())),
-                        "entry_wall_alignment": ep.get("entry_wall_alignment", np.nan),
-                        "wall_facing_entry": bool(
-                            ep.get("wall_facing_entry", False)
-                        ),
+                        "entry_wall_alignment": entry_wall_alignment,
+                        "wall_facing_entry": bool(wall_facing_entry),
+                        "wall_facing_reference": wall_facing_reference,
                         "included_by_active_filters": bool(
                             included_by_active_filters
                         ),
@@ -2626,6 +2749,9 @@ class VideoAnalysis:
                         "debug_context_start_frame": int(max(0, entry - context_frames)),
                         "debug_context_stop_frame": int(min(self.nf, stop + context_frames)),
                         "agarose_outer_delta_mm": float(delta_mm),
+                        "agarose_center_outward_shift_mm": float(
+                            center_outward_shift_mm
+                        ),
                     }
                 )
         return rows

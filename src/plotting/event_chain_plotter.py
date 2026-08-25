@@ -2328,6 +2328,19 @@ class EventChainPlotter:
         except Exception:
             pass
 
+        center_shift_mm = float(
+            getattr(opts, "agarose_dual_circle_center_shift_mm", 0.0) or 0.0
+        )
+        if center_shift_mm:
+            radial_x = cx - chamber_center_x
+            radial_y = cy - chamber_center_y
+            radial_norm = np.hypot(radial_x, radial_y)
+            if not np.isfinite(radial_norm) or radial_norm <= 0:
+                return None
+            center_shift_px = center_shift_mm * px_per_mm
+            cx += center_shift_px * radial_x / radial_norm
+            cy += center_shift_px * radial_y / radial_norm
+
         return {
             "cx": cx,
             "cy": cy,

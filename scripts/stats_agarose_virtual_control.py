@@ -221,7 +221,22 @@ def main() -> int:
         wall_facing_only = bool(
             np.asarray(bundle.get("agarose_wall_facing_entry_only", False)).item()
         )
+        center_shift_mm = float(
+            np.asarray(
+                bundle.get("agarose_dual_circle_center_shift_mm", 0.0)
+            ).item()
+        )
+        wall_reference = str(
+            np.asarray(bundle.get("agarose_wall_facing_reference", "arena")).item()
+        )
 
+    entry_selection = "entries=all"
+    if wall_facing_only:
+        entry_selection = (
+            "entries=reward-away"
+            if wall_reference == "reward"
+            else "entries=arena-outward"
+        )
     print(
         f"Selection: mode={args.mode}, training={training_idx + 1}, "
         "sync_bucket="
@@ -232,7 +247,9 @@ def main() -> int:
         )
         + f", virtual_rotation={rotation:g} deg, "
         + ("sites=farthest-from-reward" if farthest_only else "sites=all")
-        + (", entries=wall-facing" if wall_facing_only else ", entries=all")
+        + f", {entry_selection}"
+        + f", center_shift={center_shift_mm:g} mm"
+        + f", wall_reference={wall_reference}"
     )
     print(f"Paired fly/video observations: {stats['n']}")
     print(f"Physical mean: {stats['actual_mean']:.6g}")

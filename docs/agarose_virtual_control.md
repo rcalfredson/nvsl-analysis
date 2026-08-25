@@ -143,6 +143,43 @@ fly and balances physical/virtual geometry and avoidance/contact outcome where
 examples are available. Add `--agarose-dual-circle-debug-csv <path>` to save
 the complete episode table as well.
 
+### Shifted, reward-referenced entry variant
+
+Two optional settings define a close variant of the wall-facing-entry metric:
+
+- `--agarose-dual-circle-center-shift-mm 1` translates every inner/outer
+  circle pair 1 mm farther from the chamber-floor center without changing
+  either radius.
+- `--agarose-wall-facing-reference reward` defines the retained half using the
+  applicable training's reward-circle center rather than the chamber-floor
+  center.
+
+With entry point `p`, shifted site center `c`, and reward center `r`, the latter
+criterion is `dot(p - c, c - r) > 0`. It therefore selects the reward-away half
+of each outer circle. The reward center is resolved separately for each fly and
+training; the experiment-wide pre period uses training 1's reward center, while
+each training-specific pre period uses that training's center.
+
+For the 1 mm outer-radius increment used by the paper analysis, run this variant
+with:
+
+```bash
+python analyze.py \
+  -v "/path/to/videos/*.avi" -f "0-1" --rCC 15 \
+  --agarose-dual-circle \
+  --agarose-outer-delta-mm 1 \
+  --agarose-wall-facing-entry-only \
+  --agarose-dual-circle-center-shift-mm 1 \
+  --agarose-wall-facing-reference reward \
+  --export-agarose-sli-bundle exports/group_agarose_shift1_rewardref.npz
+```
+
+The bundle records the shift and reference point as
+`agarose_dual_circle_center_shift_mm` and
+`agarose_wall_facing_reference`. The debug gallery and spatial-control
+schematic read the same settings, so their circle centers and entry divider
+match the analyzed geometry.
+
 ## Slide-ready visualizations
 
 The two completed chamber analyses can be plotted together as paired bar/swarm

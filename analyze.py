@@ -5304,6 +5304,15 @@ g.add_argument(
     help="extra radius (in mm) added around agarose wells to define outer circle",
 )
 g.add_argument(
+    "--agarose-dual-circle-center-shift-mm",
+    type=float,
+    default=0.0,
+    help=(
+        "radially shift each agarose dual-circle center outward from the chamber-floor "
+        "center by this distance in mm (default: 0)"
+    ),
+)
+g.add_argument(
     "--agarose-virtual-control",
     action="store_true",
     help=(
@@ -5335,6 +5344,15 @@ g.add_argument(
     help=(
         "restrict physical and virtual agarose dual-circle ratios to episodes "
         "entering through the outward, wall-facing semicircle"
+    ),
+)
+g.add_argument(
+    "--agarose-wall-facing-reference",
+    choices=("arena", "reward"),
+    default="arena",
+    help=(
+        "reference point used to define the outward entry vector: the chamber-floor "
+        "center or the applicable training's reward-circle center (default: arena)"
     ),
 )
 g.add_argument(

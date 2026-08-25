@@ -147,6 +147,7 @@ def save_geometry_annotation(
     protocol_index=0,
     training_index_1based=2,
     outer_delta_mm=0.5,
+    center_outward_shift_mm=0.0,
     farthest_from_reward_only=False,
     dpi=220,
 ):
@@ -158,17 +159,26 @@ def save_geometry_annotation(
         training_index_1based=training_index_1based,
         outer_delta_mm=outer_delta_mm,
     )
+    physical_centers = np.asarray(geometry["physical_centers"], dtype=float)
+    center_shift_px = float(center_outward_shift_mm) * geometry["px_per_mm"]
+    if center_shift_px:
+        arena_center = np.asarray(geometry["arena_center"], dtype=float)
+        radial = physical_centers - arena_center
+        radial_norm = np.linalg.norm(radial, axis=1, keepdims=True)
+        if np.any(radial_norm <= 0):
+            raise ValueError("cannot shift a dual-circle center at the arena center")
+        physical_centers = physical_centers + center_shift_px * radial / radial_norm
     physical_indices = virtual_indices = None
     if farthest_from_reward_only:
         reward_center = geometry["reward_circle"][:2]
         tie_tolerance_px = 0.25 * geometry["px_per_mm"]
         physical_indices = _farthest_center_indices(
-            geometry["physical_centers"],
+            physical_centers,
             reward_center,
             tie_tolerance_px=tie_tolerance_px,
         )
         virtual_centers = _rotated_centers(
-            geometry["physical_centers"],
+            physical_centers,
             geometry["arena_center"],
             rotation_deg,
         )
@@ -180,7 +190,7 @@ def save_geometry_annotation(
     Training.annotateAgaroseVirtualControlGeometry(
         frame,
         reward_circle=geometry["reward_circle"],
-        physical_centers=geometry["physical_centers"],
+        physical_centers=physical_centers,
         arena_center=geometry["arena_center"],
         inner_radius_px=geometry["inner_radius_px"],
         outer_radius_px=geometry["outer_radius_px"],
@@ -228,13 +238,30 @@ def save_geometry_annotation(
     return str(out_path)
 
 
-def _bundle_farthest_site_flag(bundle_path):
+def _bundle_variant_metadata(bundle_path):
     with np.load(bundle_path, allow_pickle=True) as bundle:
-        return bool(
-            np.asarray(
-                bundle.get("agarose_farthest_from_reward_only", False)
-            ).item()
-        )
+        return {
+            "farthest_only": bool(
+                np.asarray(
+                    bundle.get("agarose_farthest_from_reward_only", False)
+                ).item()
+            ),
+            "wall_facing_only": bool(
+                np.asarray(
+                    bundle.get("agarose_wall_facing_entry_only", False)
+                ).item()
+            ),
+            "wall_reference": str(
+                np.asarray(
+                    bundle.get("agarose_wall_facing_reference", "arena")
+                ).item()
+            ),
+            "center_shift_mm": float(
+                np.asarray(
+                    bundle.get("agarose_dual_circle_center_shift_mm", 0.0)
+                ).item()
+            ),
+        }
 
 
 def main():
@@ -263,13 +290,13 @@ def main():
     parser.add_argument("--agarose-outer-delta-mm", type=float, default=0.5)
     args = parser.parse_args()
 
-    agarose_farthest_only = _bundle_farthest_site_flag(args.agarose_bundle)
-    flat_farthest_only = _bundle_farthest_site_flag(args.flat_bundle)
-    if agarose_farthest_only != flat_farthest_only:
+    agarose_variant = _bundle_variant_metadata(args.agarose_bundle)
+    flat_variant = _bundle_variant_metadata(args.flat_bundle)
+    if agarose_variant != flat_variant:
         raise ValueError(
-            "agarose and flat bundles use different agarose site-selection modes"
+            "agarose and flat bundles use different dual-circle metric variants"
         )
-    farthest_only = agarose_farthest_only
+    farthest_only = agarose_variant["farthest_only"]
 
     common = dict(
         mode=args.mode,
@@ -313,6 +340,7 @@ def main():
             protocol_index=args.background_protocol_index,
             training_index_1based=args.training_index,
             outer_delta_mm=args.agarose_outer_delta_mm,
+            center_outward_shift_mm=agarose_variant["center_shift_mm"],
             farthest_from_reward_only=farthest_only,
         )
         print(f"[agarose-virtual-control] wrote {geometry_out}")

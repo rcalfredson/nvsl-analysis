@@ -215,6 +215,79 @@ def test_agarose_virtual_control_rotates_sites_without_changing_radial_distance(
     ) > physical_radius
 
 
+def test_agarose_dual_circle_center_shift_moves_both_boundaries_outward():
+    trj = _trajectory_at_well_distances([100.0, 100.0])
+    physical_radius, physical_centers = CT.large.arenaWells(
+        trj.va.xf, trj.va.trxf[trj.f]
+    )
+    floor_tl, floor_br = CT.large.floor(trj.va.xf, f=trj.va.trxf[trj.f])
+    arena_center = 0.5 * (np.asarray(floor_tl) + np.asarray(floor_br))
+
+    trj.calc_agarose_dual_circle_episodes(
+        delta_mm=1.0, center_outward_shift_mm=1.0
+    )
+
+    shifted = np.asarray(
+        trj.agarose_dual_circle_geometry["centers_px"], dtype=float
+    )
+    physical_centers = np.asarray(physical_centers, dtype=float)
+    radial_increase = (
+        np.linalg.norm(shifted - arena_center, axis=1)
+        - np.linalg.norm(physical_centers - arena_center, axis=1)
+    )
+    np.testing.assert_allclose(radial_increase, CT.large.pxPerMmFloor())
+    np.testing.assert_allclose(
+        trj.agarose_dual_circle_geometry["inner_radius_px"], physical_radius
+    )
+    assert trj.agarose_dual_circle_geometry["center_outward_shift_mm"] == 1.0
+
+
+def test_agarose_analysis_rejects_negative_center_shift_before_processing():
+    va = _video_analysis_stub(
+        ct=CT.large,
+        opts=SimpleNamespace(agarose_dual_circle_center_shift_mm=-1.0),
+        sync_bucket_ranges=[],
+        trx=[],
+        trns=[],
+    )
+
+    with pytest.raises(ValueError, match="finite and nonnegative"):
+        VideoAnalysis.analyzeAgaroseDualCircleAvoidance(va)
+
+
+def test_reward_reference_entry_alignment_is_training_specific():
+    va = _video_analysis_stub(
+        trns=[
+            SimpleNamespace(circles=lambda _fi: [(0.0, 0.0, 2.0)]),
+            SimpleNamespace(circles=lambda _fi: [(20.0, 0.0, 2.0)]),
+        ]
+    )
+    trj = SimpleNamespace(
+        agarose_dual_circle_geometry={
+            "center_rotation_deg": 0.0,
+            "centers_px": ((10.0, 0.0),),
+        }
+    )
+    episode = {
+        "entry_point": (11.0, 0.0),
+        "start_well_labels": ("well1",),
+        "entry_wall_alignment": 1.0,
+        "wall_facing_entry": True,
+    }
+
+    t1_alignment, t1_wall_facing = VideoAnalysis._agaroseEpisodeWallFacingEntry(
+        va, episode, trj, 0, 0, reference="reward"
+    )
+    t2_alignment, t2_wall_facing = VideoAnalysis._agaroseEpisodeWallFacingEntry(
+        va, episode, trj, 0, 1, reference="reward"
+    )
+
+    assert t1_alignment == pytest.approx(1.0)
+    assert t1_wall_facing is True
+    assert t2_alignment == pytest.approx(-1.0)
+    assert t2_wall_facing is False
+
+
 def test_agarose_ratio_uses_avoid_over_total_and_min_total_masks_ratio():
     exp = _TrajectoryEpisodes(
         [
@@ -323,6 +396,67 @@ def test_wall_facing_option_filters_sync_counts_before_ratio():
     np.testing.assert_allclose(va.agarose_dual_circle_counts["ratio"], [[[1.0]]])
 
 
+def test_reward_referenced_wall_filter_uses_each_training_reward_center():
+    exp = _TrajectoryEpisodes(
+        [
+            {
+                "start": 1,
+                "stop": 3,
+                "avoids_inner": True,
+                "entry_point": (11.0, 0.0),
+                "start_well_labels": ("well1",),
+            },
+            {
+                "start": 6,
+                "stop": 8,
+                "avoids_inner": True,
+                "entry_point": (11.0, 0.0),
+                "start_well_labels": ("well1",),
+            },
+        ]
+    )
+    exp.agarose_dual_circle_geometry = {
+        "center_rotation_deg": 0.0,
+        "centers_px": ((10.0, 0.0),),
+    }
+    va = _video_analysis_stub(
+        ct=CT.large,
+        opts=SimpleNamespace(
+            agarose_outer_delta_mm=1.0,
+            agarose_wall_facing_entry_only=True,
+            agarose_wall_facing_reference="reward",
+            min_agarose_episodes=1,
+            agarose_dual_circle_debug_csv=None,
+        ),
+        sync_bucket_ranges=[[(0, 5)], [(5, 10)]],
+        trx=[exp],
+        trns=[
+            SimpleNamespace(
+                start=10,
+                stop=20,
+                circles=lambda _fi: [(0.0, 0.0, 2.0)],
+            ),
+            SimpleNamespace(
+                start=30,
+                stop=40,
+                circles=lambda _fi: [(20.0, 0.0, 2.0)],
+            ),
+        ],
+        startPre=0,
+        _min2f=lambda minutes: int(minutes),
+        _f2min=lambda frames: float(frames),
+    )
+
+    VideoAnalysis.analyzeAgaroseDualCircleAvoidance(va)
+
+    np.testing.assert_array_equal(
+        va.agarose_dual_circle_counts["total"], [[[1]], [[0]]]
+    )
+    np.testing.assert_array_equal(
+        va.agarose_dual_circle_counts["avoid"], [[[1]], [[0]]]
+    )
+
+
 def test_virtual_agarose_analysis_uses_separate_paired_result_attributes():
     exp = _TrajectoryEpisodes(
         [{"start": 1, "stop": 4, "avoids_inner": True}]
@@ -349,12 +483,20 @@ def test_virtual_agarose_analysis_uses_separate_paired_result_attributes():
     np.testing.assert_allclose(
         va.agarose_virtual_dual_circle_counts["ratio"], [[[1.0]]]
     )
-    assert exp.calls == [{"delta_mm": 1.0, "center_rotation_deg": 45.0}]
+    assert exp.calls == [
+        {
+            "delta_mm": 1.0,
+            "center_rotation_deg": 45.0,
+            "center_outward_shift_mm": 0.0,
+        }
+    ]
     assert va.agarose_virtual_dual_circle_geometry == {
         "center_rotation_deg": 45.0,
         "outer_delta_mm": 1.0,
+        "center_outward_shift_mm": 0.0,
         "farthest_from_reward_only": False,
         "wall_facing_entry_only": False,
+        "wall_facing_reference": "arena",
     }
 
 
@@ -516,6 +658,8 @@ def test_agarose_bundle_export_records_defaults_and_min_total_metadata(
         )
         assert float(bundle["agarose_virtual_rotation_deg"]) == 45.0
         assert not bool(bundle["agarose_wall_facing_entry_only"])
+        assert float(bundle["agarose_dual_circle_center_shift_mm"]) == 0.0
+        assert str(bundle["agarose_wall_facing_reference"].item()) == "arena"
         assert int(bundle["episode_filter_agarose_sync_exp_excluded_count"]) == 1
         np.testing.assert_array_equal(
             bundle["episode_filter_agarose_sync_exp_episode_counts"], [2, 1]

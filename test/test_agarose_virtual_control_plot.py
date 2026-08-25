@@ -6,10 +6,37 @@ from src.plotting.agarose_virtual_control_summary import (
     plot_agarose_virtual_control_summary,
 )
 from scripts.plot_agarose_virtual_control import (
+    _bundle_variant_metadata,
     _farthest_center_indices,
     _large_chamber_geometry_from_protocol,
     _rotated_centers,
 )
+
+
+def test_bundle_variant_metadata_reads_new_settings_and_legacy_defaults(tmp_path):
+    current = tmp_path / "current.npz"
+    legacy = tmp_path / "legacy.npz"
+    np.savez(
+        current,
+        agarose_farthest_from_reward_only=np.array(False),
+        agarose_wall_facing_entry_only=np.array(True),
+        agarose_wall_facing_reference=np.array("reward", dtype=object),
+        agarose_dual_circle_center_shift_mm=np.array(1.0),
+    )
+    np.savez(legacy, agarose_ratio_exp=np.asarray([0.5]))
+
+    assert _bundle_variant_metadata(current) == {
+        "farthest_only": False,
+        "wall_facing_only": True,
+        "wall_reference": "reward",
+        "center_shift_mm": 1.0,
+    }
+    assert _bundle_variant_metadata(legacy) == {
+        "farthest_only": False,
+        "wall_facing_only": False,
+        "wall_reference": "arena",
+        "center_shift_mm": 0.0,
+    }
 
 
 def test_geometry_annotation_preserves_center_distance_and_draws():
