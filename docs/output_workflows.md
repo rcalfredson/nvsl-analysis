@@ -75,12 +75,12 @@ The columns are organized into four blocks:
 1. matched antennae-intact control and antennae-removed control in
    flat/agarose HTL;
 2. matched Ctrl>Kir and PFNd>Kir in flat/agarose HTL;
-3. matched antennae-glued Ctrl>Kir and antennae-glued PFNd>Kir in
+3. matched antennae-removed Ctrl>Kir and antennae-removed PFNd>Kir in
    flat/agarose HTL; and
 4. Ctrl>Kir, antennae-removed Ctrl>Kir, PFNd>Kir, and antennae-removed
    PFNd>Kir in flat/agarose large chambers.
 
-The antenna-glued cohorts are labeled explicitly in the CSV. Unequal cohort
+The antennae-removed cohorts are labeled explicitly in the CSV. Unequal cohort
 sizes are represented by blank trailing cells.
 
 The default metric window is training 2, sync buckets 2-5, with the pooled
@@ -90,9 +90,9 @@ window validity policy and a five-reward minimum. Override it with
 `RPD_POOLED_MIN_REWARDS`.
 
 The HTL antenna-removal and PFNd comparisons use their own matched controls.
-The separate antenna-glued Ctrl>Kir and antenna-glued PFNd>Kir lists are also
-included rather than being described as antennae removed. The large-chamber
-block includes the combined antennae-removed PFNd>Kir group.
+The separate antennae-removed Ctrl>Kir and antennae-removed PFNd>Kir lists from
+the 2024 HTL experiments are included. The large-chamber block includes the
+combined antennae-removed PFNd>Kir group.
 
 To see the exact selectable dataset slugs, NPZ paths, and CSV labels:
 
@@ -110,7 +110,7 @@ immediately before each analysis command, followed by the fully resolved
 Refresh only named NPZs with a comma-separated slug list:
 
 ```bash
-REFRESH_DATASETS=pfnd_flat_htl,antenna_glued_pfnd_flat_htl WRITE_CSV=0 scripts/run_rpd_exp_minus_yok_chamber_graphpad.sh
+REFRESH_DATASETS=pfnd_flat_htl,antenna_removed_pfnd_flat_htl WRITE_CSV=0 scripts/run_rpd_exp_minus_yok_chamber_graphpad.sh
 ```
 
 With `WRITE_CSV=1` (the default), the script rebuilds the complete CSV after
@@ -123,8 +123,10 @@ variable listed at the top of the script.
 The runner recognizes NPZ filenames produced by the earlier 12-column version
 and reuses them when their cohort mapping is unchanged. Refreshed bundles are
 written under the current canonical slug. This compatibility applies only to
-genuinely equivalent cohorts; newly added sensory-control and combined
-antennae-removed PFNd>Kir cohorts still require their own exports.
+genuinely equivalent cohorts. The HTL antennae-removed Ctrl>Kir and PFNd>Kir
+slugs deliberately have no fallback to the former antennae-glued filenames, so
+glued NPZs cannot be reused for those columns. Newly added sensory-control and
+combined antennae-removed PFNd>Kir cohorts also require their own exports.
 
 For manual conversion of compatible NPZs, the validated adapter is:
 

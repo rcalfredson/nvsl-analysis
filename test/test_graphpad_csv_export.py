@@ -184,15 +184,24 @@ def test_rpd_chamber_runner_resolves_twenty_matched_video_lists_in_preview():
     assert csv_commands[0].count("--input") == 20
     assert "2024-03-04/c3\\[12\\]_\\*" in analysis_commands[0]
     assert "2024-03-1\\[19\\]/c3\\[12\\]_\\*" in analysis_commands[2]
-    assert "2023-02-19/c41_\\*" in analysis_commands[8]
-    assert "2023-02-19/c42_\\*" in analysis_commands[10]
+    # The four intact Ctrl>Kir/PFNd>Kir lists match new_experiment_lists.txt.
+    assert "2023-02-19/c3\\[12\\]_\\*" in analysis_commands[4]
+    assert "2023-02-2\\[02\\]/c6\\[12\\]_\\*" in analysis_commands[5]
+    assert "2023-02-2\\[02\\]/c4\\[12\\]_\\*" in analysis_commands[6]
+    assert "2023-02-19/c62_\\*" in analysis_commands[7]
+    # The former glued slots now resolve the four 2024 antennae-removed lists.
+    assert "2024-02-1\\[5678\\]/c3\\[12\\]_\\*" in analysis_commands[8]
+    assert "2024-02-1\\[78\\]/c5\\[12\\]_\\*" in analysis_commands[9]
+    assert "2024-02-1\\[56789\\]/c4\\[12\\]_\\*" in analysis_commands[10]
+    assert "2024-02-17/c6\\[12\\]_\\*" in analysis_commands[11]
     assert "2025-07-1\\[24\\]/afternoon/c3\\[12\\]_\\*" in analysis_commands[18]
     assert "2025-07-1\\[25\\]/afternoon/c5\\[12\\]_\\*" in analysis_commands[19]
-    assert "Antennae-glued\\ PFNd\\>Kir" in csv_commands[0]
+    assert "Antennae-removed\\ PFNd\\>Kir" in csv_commands[0]
+    assert "Antennae-glued" not in csv_commands[0]
     assert "Antennae\\ removed\\ PFNd\\>Kir" in csv_commands[0]
     assert any(
-        "[rpd_dataset] antenna_glued_pfnd_flat_htl | "
-        "Antennae-glued PFNd>Kir | flat HTL | source:"
+        "[rpd_dataset] antenna_removed_pfnd_flat_htl | "
+        "Antennae-removed PFNd>Kir | flat HTL | source:"
         in line
         for line in commands
     )
@@ -240,13 +249,17 @@ def test_rpd_chamber_runner_dataset_list_reflects_video_override():
             REUSE_EXISTING_NPZ="0",
             REFRESH_DATASETS="all",
             LIST_DATASETS="1",
-            RPD_FLAT_HTL_SENSORY_CTRL="/tmp/custom_video_*",
+            RPD_FLAT_HTL_AR_KIR_CTRL="/tmp/custom_removed_ctrl_video_*",
         ),
     )
 
-    fields = result.stdout.splitlines()[1].split("\t")
-    assert fields[0] == "sensory_ctrl_flat_htl"
-    assert fields[5] == "/tmp/custom_video_*"
+    fields = next(
+        line
+        for line in result.stdout.splitlines()
+        if line.startswith("antenna_removed_ctrl_flat_htl\t")
+    ).split("\t")
+    assert fields[0] == "antenna_removed_ctrl_flat_htl"
+    assert fields[5] == "/tmp/custom_removed_ctrl_video_*"
 
 
 def test_rpd_chamber_runner_can_refresh_one_named_npz_without_csv():
@@ -259,7 +272,7 @@ def test_rpd_chamber_runner_can_refresh_one_named_npz_without_csv():
             PRINT_ONLY="1",
             PYTHON_BIN=sys.executable,
             REUSE_EXISTING_NPZ="0",
-            REFRESH_DATASETS="antenna_glued_pfnd_flat_htl",
+            REFRESH_DATASETS="antenna_removed_pfnd_flat_htl",
             WRITE_CSV="0",
             LIST_DATASETS="0",
         ),
@@ -270,8 +283,46 @@ def test_rpd_chamber_runner_can_refresh_one_named_npz_without_csv():
         line for line in commands if "--rpd-total-export" in line
     ]
     assert len(analysis_commands) == 1
-    assert "antenna_glued_pfnd_flat_htl.npz" in analysis_commands[0]
-    assert "2023-02-19/c42_\\*" in analysis_commands[0]
+    assert "antenna_removed_pfnd_flat_htl.npz" in analysis_commands[0]
+    assert "2024-02-1\\[56789\\]/c4\\[12\\]_\\*" in analysis_commands[0]
+
+
+def test_rpd_chamber_runner_never_reuses_old_glued_bundles_for_removed_cohorts(
+    tmp_path,
+):
+    cohort_pairs = [
+        ("antenna_glued_ctrl_flat_htl", "antenna_removed_ctrl_flat_htl"),
+        ("antenna_glued_ctrl_agarose_htl", "antenna_removed_ctrl_agarose_htl"),
+        ("antenna_glued_pfnd_flat_htl", "antenna_removed_pfnd_flat_htl"),
+        ("antenna_glued_pfnd_agarose_htl", "antenna_removed_pfnd_agarose_htl"),
+    ]
+    for glued_slug, _ in cohort_pairs:
+        (tmp_path / f"{glued_slug}.npz").write_bytes(b"wrong cohort")
+    result = subprocess.run(
+        ["bash", "scripts/run_rpd_exp_minus_yok_chamber_graphpad.sh"],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=_rpd_runner_env(
+            PRINT_ONLY="1",
+            PYTHON_BIN=sys.executable,
+            REUSE_EXISTING_NPZ="0",
+            REFRESH_DATASETS="none",
+            WRITE_CSV="1",
+            LIST_DATASETS="0",
+            OUT_DIR=str(tmp_path),
+            OUT_CSV=str(tmp_path / "out.csv"),
+        ),
+    )
+
+    csv_command = next(
+        line
+        for line in result.stdout.splitlines()
+        if "rpd-exp-minus-yok-npz" in line
+    )
+    for glued_slug, removed_slug in cohort_pairs:
+        assert str(tmp_path / f"{glued_slug}.npz") not in csv_command
+        assert str(tmp_path / f"{removed_slug}.npz") in csv_command
 
 
 def test_rpd_chamber_runner_reuses_equivalent_legacy_bundle_name(tmp_path):

@@ -22,8 +22,8 @@ DATASET_VARS=(
   RPD_FLAT_HTL_AR_CTRL RPD_AGAROSE_HTL_AR_CTRL
   RPD_FLAT_HTL_PFND_CTRL RPD_AGAROSE_HTL_PFND_CTRL
   RPD_FLAT_HTL_PFND RPD_AGAROSE_HTL_PFND
-  RPD_FLAT_HTL_AG_CTRL RPD_AGAROSE_HTL_AG_CTRL
-  RPD_FLAT_HTL_AG_PFND RPD_AGAROSE_HTL_AG_PFND
+  RPD_FLAT_HTL_AR_KIR_CTRL RPD_AGAROSE_HTL_AR_KIR_CTRL
+  RPD_FLAT_HTL_AR_PFND RPD_AGAROSE_HTL_AR_PFND
   RPD_FLAT_LARGE_CTRL RPD_AGAROSE_LARGE_CTRL
   RPD_FLAT_LARGE_AR_CTRL RPD_AGAROSE_LARGE_AR_CTRL
   RPD_FLAT_LARGE_PFND RPD_AGAROSE_LARGE_PFND
@@ -34,8 +34,8 @@ DATASET_SLUGS=(
   ar_ctrl_flat_htl ar_ctrl_agarose_htl
   pfn_ctrl_flat_htl pfn_ctrl_agarose_htl
   pfnd_flat_htl pfnd_agarose_htl
-  antenna_glued_ctrl_flat_htl antenna_glued_ctrl_agarose_htl
-  antenna_glued_pfnd_flat_htl antenna_glued_pfnd_agarose_htl
+  antenna_removed_ctrl_flat_htl antenna_removed_ctrl_agarose_htl
+  antenna_removed_pfnd_flat_htl antenna_removed_pfnd_agarose_htl
   ctrl_flat_large ctrl_agarose_large
   ar_ctrl_flat_large ar_ctrl_agarose_large
   pfnd_flat_large pfnd_agarose_large
@@ -58,8 +58,8 @@ DATASET_LABELS=(
   "Antennae-removed control | flat HTL" "Antennae-removed control | agarose HTL"
   "Ctrl>Kir (PFNd-matched) | flat HTL" "Ctrl>Kir (PFNd-matched) | agarose HTL"
   "PFNd>Kir | flat HTL" "PFNd>Kir | agarose HTL"
-  "Antennae-glued Ctrl>Kir | flat HTL" "Antennae-glued Ctrl>Kir | agarose HTL"
-  "Antennae-glued PFNd>Kir | flat HTL" "Antennae-glued PFNd>Kir | agarose HTL"
+  "Antennae-removed Ctrl>Kir | flat HTL" "Antennae-removed Ctrl>Kir | agarose HTL"
+  "Antennae-removed PFNd>Kir | flat HTL" "Antennae-removed PFNd>Kir | agarose HTL"
   "Ctrl>Kir | flat large" "Ctrl>Kir | agarose large"
   "Antennae removed Ctrl>Kir | flat large" "Antennae removed Ctrl>Kir | agarose large"
   "PFNd>Kir | flat large" "PFNd>Kir | agarose large"
@@ -72,10 +72,10 @@ DATASET_HEADERS=(
   "Summary for PFNd (16D01)>Kir (normal and antenna glued) and 26E07>Kir-flat"
   "Summary for PFNd (16D01)>Kir (normal and antenna glued) and 26E07>Kir-flat"
   "Summary for PFNd (16D01)>Kir (normal and antenna glued) and 26E07>Kir-flat"
-  "Summary for PFNd (16D01)>Kir (normal and antenna glued) and 26E07>Kir-flat"
-  "Summary for PFNd (16D01)>Kir (normal and antenna glued) and 26E07>Kir-flat"
-  "Summary for PFNd (16D01)>Kir (normal and antenna glued) and 26E07>Kir-flat"
-  "Summary for PFNd (16D01)>Kir (normal and antenna glued) and 26E07>Kir-flat"
+  "Summary for antennae-removed Ctrl>Kir and PFNd>Kir HTL"
+  "Summary for antennae-removed Ctrl>Kir and PFNd>Kir HTL"
+  "Summary for antennae-removed Ctrl>Kir and PFNd>Kir HTL"
+  "Summary for antennae-removed Ctrl>Kir and PFNd>Kir HTL"
   "Ctrl group: UAS>>CsC (X); ctrl-lexA/otd-flp; 0273Gal4/lexAop>>Kir"
   "Ctrl group: UAS>>CsC (X); ctrl-lexA/otd-flp; 0273Gal4/lexAop>>Kir"
   "Ctrl group: UAS>>CsC (X); ctrl-lexA/otd-flp; 0273Gal4/lexAop>>Kir"
@@ -90,8 +90,8 @@ DATASET_SUBHEADERS=(
   "Flat-Antenna removed" "Agarose-AR"
   "ctrl>Kir-flat 2023-02" "ctrl>Kir-agarose"
   "16D01>Kir-flat" "16D01>Kir-agarose"
-  "ctrl>Kir, antenna glued-flat" "ctrl>Kir, antenna glued-agarose"
-  "16D01>Kir, antenna glued-flat" "16D01>Kir, antenna glued-agarose"
+  "Ctrl>Kir Flat-AR" "Ctrl>Kir Agarose-AR"
+  "PFNd>Kir Flat-AR" "PFNd>Kir Agarose-AR"
   "Flat-lower chamber reward circle shrink in T2, T3, closer to the center  10d old flies"
   "Agarose-lower chamber reward circle shrink in T2, T3, closer to the center  10d old flies"
   "Flat AR-lower chamber reward circle shrink in T2, T3, closer to the center  10d old flies"
