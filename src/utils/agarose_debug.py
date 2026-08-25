@@ -70,7 +70,13 @@ def _debug_image_candidates(
         for row in getattr(va, "agarose_dual_circle_debug_rows", ()) or ():
             if row.get("fly_role") != "exp":
                 continue
-            if not bool(row.get("included_by_active_filters", True)):
+            reward_arc_filter = bool(
+                row.get("exclude_reward_facing_arc_entries", False)
+            )
+            if (
+                not bool(row.get("included_by_active_filters", True))
+                and not reward_arc_filter
+            ):
                 continue
             if training_index is not None:
                 if row.get("sync_training_idx_1based") != int(training_index):
@@ -89,7 +95,19 @@ def _debug_image_candidates(
     groups = {}
     for candidate in candidates:
         row = candidate[1]
-        key = (row.get("geometry"), bool(row.get("avoids_inner")))
+        reward_arc_class = (
+            bool(row.get("reward_arc_entry_rejected", False))
+            if row.get("exclude_reward_facing_arc_entries", False)
+            else None
+        )
+        key = (
+            row.get("geometry"),
+            bool(row.get("avoids_inner")),
+            reward_arc_class,
+            row.get("start_well_labels")
+            if row.get("exclude_reward_facing_arc_entries", False)
+            else None,
+        )
         groups.setdefault(key, []).append(candidate)
     ordered = []
     keys = sorted(groups, key=lambda key: (str(key[0]), key[1]))
@@ -133,33 +151,37 @@ def _render_agarose_dual_circle_debug_image(va, row, out_path):
     floor_br = np.asarray(floor_br, dtype=float)
     arena_center = 0.5 * (floor_tl + floor_br)
     inner_radius, physical_centers = va.ct.arenaWells(va.xf, abs_fly)
-    physical_centers = np.asarray(physical_centers, dtype=float)
-    virtual_centers = _rotate_centers(
-        physical_centers, arena_center, float(row.get("center_rotation_deg", 45.0))
+    nominal_physical_centers = np.asarray(physical_centers, dtype=float)
+    nominal_virtual_centers = _rotate_centers(
+        nominal_physical_centers,
+        arena_center,
+        float(row.get("center_rotation_deg", 45.0)),
     )
-    center_shift_px = float(
-        row.get("agarose_center_outward_shift_mm", 0.0)
-    ) * (va.ct.pxPerMmFloor() * va.xf.fctr)
-    if center_shift_px:
-        def _shift_outward(centers):
-            radial = centers - arena_center
-            norms = np.linalg.norm(radial, axis=1)
-            return centers + center_shift_px * radial / norms[:, np.newaxis]
-
-        physical_centers = _shift_outward(physical_centers)
-        virtual_centers = _shift_outward(virtual_centers)
+    physical_centers = nominal_physical_centers.copy()
+    virtual_centers = nominal_virtual_centers.copy()
     active_centers = (
         physical_centers
         if row.get("geometry") == "physical_agarose"
         else virtual_centers
     )
+    active_nominal_centers = (
+        nominal_physical_centers
+        if row.get("geometry") == "physical_agarose"
+        else nominal_virtual_centers
+    )
     site_idx = _episode_site_index(row)
     if site_idx is None or not 0 <= site_idx < len(active_centers):
         return False
     site_center = active_centers[site_idx]
-    outer_radius = float(inner_radius) + float(row["agarose_outer_delta_mm"]) * (
-        va.ct.pxPerMmFloor() * va.xf.fctr
-    )
+    nominal_site_center = active_nominal_centers[site_idx]
+    px_per_mm = va.ct.pxPerMmFloor() * va.xf.fctr
+    nominal_agarose_radius = float(inner_radius)
+    inner_radius = nominal_agarose_radius + float(
+        row.get("agarose_inner_radius_offset_mm", 0.0)
+    ) * px_per_mm
+    outer_radius = nominal_agarose_radius + float(
+        row["agarose_outer_delta_mm"]
+    ) * px_per_mm
 
     x = np.asarray(np.ma.filled(trj.x, np.nan), dtype=float)
     y = np.asarray(np.ma.filled(trj.y, np.nan), dtype=float)
@@ -187,6 +209,17 @@ def _render_agarose_dual_circle_debug_image(va, row, out_path):
     for centers, color, name in geometry_styles:
         alpha = 0.34 if name == active_name else 0.16
         for center in centers:
+            ax.add_patch(
+                Circle(
+                    center,
+                    nominal_agarose_radius,
+                    fill=False,
+                    color=color,
+                    lw=0.55,
+                    ls=":",
+                    alpha=alpha,
+                )
+            )
             ax.add_patch(
                 Circle(
                     center,
@@ -241,35 +274,127 @@ def _render_agarose_dual_circle_debug_image(va, row, out_path):
                     ha="center",
                 )
 
+    reward_arc_filter = bool(
+        row.get("exclude_reward_facing_arc_entries", False)
+    )
     reference_name = str(row.get("wall_facing_reference", "arena"))
     reference_center = (
         reward_center
         if reference_name == "reward" and reward_center is not None
         else arena_center
     )
-    outward = site_center - reference_center
-    outward_unit = outward / np.linalg.norm(outward)
-    outward_angle = math.degrees(math.atan2(outward_unit[1], outward_unit[0]))
     active_color = "#2b8cbe" if active_name == "physical" else "#e67e22"
-    ax.add_patch(
-        Wedge(
-            site_center,
-            outer_radius,
-            outward_angle - 90,
-            outward_angle + 90,
+    if reward_arc_filter and reward_center is not None:
+        gate_radius = float(row.get("reward_arc_gate_radius_px", np.nan))
+        if np.isfinite(gate_radius) and gate_radius >= 0:
+            ax.add_patch(
+                Circle(
+                    reward_center,
+                    gate_radius,
+                    fill=False,
+                    color="#cb181d",
+                    lw=0.8,
+                    ls=":",
+                    alpha=0.65,
+                )
+            )
+        for idx, (arc_center, nominal_center) in enumerate(
+            zip(active_centers, active_nominal_centers)
+        ):
+            center_to_reward = float(
+                np.linalg.norm(arc_center - reward_center)
+            )
+            site_gate_radius = float(
+                np.linalg.norm(nominal_center - reward_center)
+                - nominal_agarose_radius
+            )
+            if center_to_reward <= 0 or site_gate_radius < 0:
+                continue
+            cosine_limit = (
+                center_to_reward**2
+                + outer_radius**2
+                - site_gate_radius**2
+            ) / (2.0 * center_to_reward * outer_radius)
+            if cosine_limit >= 1.0:
+                site_arc_width_deg = 0.0
+            elif cosine_limit <= -1.0:
+                site_arc_width_deg = 360.0
+            else:
+                site_arc_width_deg = math.degrees(
+                    2.0 * math.acos(float(cosine_limit))
+                )
+            if site_arc_width_deg <= 0:
+                continue
+            toward_reward = reward_center - arc_center
+            toward_reward_angle = math.degrees(
+                math.atan2(toward_reward[1], toward_reward[0])
+            )
+            half_width = 0.5 * min(360.0, site_arc_width_deg)
+            ax.add_patch(
+                Wedge(
+                    arc_center,
+                    outer_radius,
+                    toward_reward_angle - half_width,
+                    toward_reward_angle + half_width,
+                    color="#ef3b2c",
+                    alpha=0.16 if idx == site_idx else 0.07,
+                    lw=0,
+                )
+            )
+            if idx != site_idx:
+                continue
+            for boundary_angle in (
+                toward_reward_angle - half_width,
+                toward_reward_angle + half_width,
+            ):
+                theta = math.radians(boundary_angle)
+                endpoint = arc_center + outer_radius * np.asarray(
+                    (math.cos(theta), math.sin(theta))
+                )
+                ax.plot(
+                    (arc_center[0], endpoint[0]),
+                    (arc_center[1], endpoint[1]),
+                    color="#cb181d",
+                    lw=0.7,
+                    alpha=0.55,
+                )
+        ax.scatter(
+            *nominal_site_center,
+            s=12,
+            facecolor="none",
+            edgecolor="#cb181d",
+            lw=0.7,
+            zorder=5,
+        )
+    else:
+        outward = site_center - reference_center
+        outward_unit = outward / np.linalg.norm(outward)
+        outward_angle = math.degrees(math.atan2(outward_unit[1], outward_unit[0]))
+        ax.add_patch(
+            Wedge(
+                site_center,
+                outer_radius,
+                outward_angle - 90,
+                outward_angle + 90,
+                color=active_color,
+                alpha=0.09,
+                lw=0,
+            )
+        )
+        perpendicular = np.asarray((-outward_unit[1], outward_unit[0]))
+        divider = np.vstack(
+            (
+                site_center - outer_radius * perpendicular,
+                site_center + outer_radius * perpendicular,
+            )
+        )
+        ax.plot(
+            divider[:, 0],
+            divider[:, 1],
             color=active_color,
-            alpha=0.09,
-            lw=0,
+            lw=0.7,
+            alpha=0.5,
         )
-    )
-    perpendicular = np.asarray((-outward_unit[1], outward_unit[0]))
-    divider = np.vstack(
-        (
-            site_center - outer_radius * perpendicular,
-            site_center + outer_radius * perpendicular,
-        )
-    )
-    ax.plot(divider[:, 0], divider[:, 1], color=active_color, lw=0.7, alpha=0.5)
 
     ax.plot(
         x[context_start:context_stop],
@@ -295,6 +420,30 @@ def _render_agarose_dual_circle_debug_image(va, row, out_path):
         lw=0.6,
         zorder=5,
     )
+    boundary_point = np.asarray(
+        (
+            float(row.get("entry_boundary_x", np.nan)),
+            float(row.get("entry_boundary_y", np.nan)),
+        )
+    )
+    if reward_arc_filter and np.all(np.isfinite(boundary_point)):
+        ax.scatter(
+            *boundary_point,
+            s=34,
+            marker="x",
+            color="#00bfc4",
+            lw=1.3,
+            zorder=7,
+            label="outer-boundary crossing",
+        )
+        if entry > 0 and np.isfinite(x[entry - 1]) and np.isfinite(y[entry - 1]):
+            ax.plot(
+                (x[entry - 1], entry_point[0]),
+                (y[entry - 1], entry_point[1]),
+                color="#00bfc4",
+                lw=1.0,
+                alpha=0.8,
+            )
     ax.scatter(
         *site_center,
         s=16,
@@ -320,31 +469,45 @@ def _render_agarose_dual_circle_debug_image(va, row, out_path):
         fontsize=9,
         weight="bold",
     )
-    outward_tip = site_center + 0.8 * outer_radius * outward_unit
-    ax.annotate(
-        "",
-        xy=outward_tip,
-        xytext=site_center,
-        arrowprops=dict(arrowstyle="->", color="#238b45", lw=1.0, ls="--"),
-    )
-    ax.text(
-        outward_tip[0],
-        outward_tip[1],
-        r"  outward direction "
-        + (r"$(c-r)$" if reference_name == "reward" else r"$(c-a)$"),
-        color="#238b45",
-        fontsize=7.5,
-    )
+    if not reward_arc_filter:
+        outward_tip = site_center + 0.8 * outer_radius * outward_unit
+        ax.annotate(
+            "",
+            xy=outward_tip,
+            xytext=site_center,
+            arrowprops=dict(
+                arrowstyle="->", color="#238b45", lw=1.0, ls="--"
+            ),
+        )
+        ax.text(
+            outward_tip[0],
+            outward_tip[1],
+            r"  outward direction "
+            + (r"$(c-r)$" if reference_name == "reward" else r"$(c-a)$"),
+            color="#238b45",
+            fontsize=7.5,
+        )
 
     training = row.get("sync_training_idx_1based") or "pre"
     bucket = row.get("sync_bucket_idx_1based") or "–"
     outcome = "AVOID" if row.get("avoids_inner") else "CONTACT"
-    alignment = float(row.get("entry_wall_alignment", np.nan))
+    if reward_arc_filter:
+        arc_width = float(row.get("reward_arc_width_deg", np.nan))
+        rejected = bool(row.get("reward_arc_entry_rejected", False))
+        title_detail = (
+            f"reward-facing arc={arc_width:.1f}° · "
+            f"entry rejected={rejected}"
+        )
+    else:
+        alignment = float(row.get("entry_wall_alignment", np.nan))
+        title_detail = (
+            f"wall-facing={bool(row.get('wall_facing_entry'))} · "
+            f"alignment $\\cos\\theta$={alignment:.3f}"
+        )
     ax.set_title(
         f"{active_name.capitalize()} site {site_idx + 1} · {outcome} · "
-        f"wall-facing={bool(row.get('wall_facing_entry'))}\n"
-        f"alignment $\\cos\\theta$ = {alignment:.3f} · "
-        f"training {training}, bucket {bucket} · entry frame {entry}",
+        f"{title_detail}\ntraining {training}, bucket {bucket} · "
+        f"entry frame {entry}",
         fontsize=10,
     )
     ax.legend(loc="lower right", framealpha=0.75, fontsize=7.5)
@@ -364,7 +527,7 @@ def save_agarose_dual_circle_debug_images(
     sync_bucket_start_index=None,
     sync_bucket_end_index=None,
 ) -> list[Path]:
-    """Write a balanced gallery of real episodes used by the active filters."""
+    """Write a balanced gallery of retained and diagnostically relevant episodes."""
     max_images = max(0, int(max_images))
     out_dir = Path(out_dir)
     written = []
@@ -378,8 +541,16 @@ def save_agarose_dual_circle_debug_images(
             break
         geometry = "physical" if row["geometry"] == "physical_agarose" else "virtual"
         outcome = "avoid" if row.get("avoids_inner") else "contact"
+        arc_status = ""
+        if row.get("exclude_reward_facing_arc_entries", False):
+            arc_status = (
+                "_arc-reject"
+                if row.get("reward_arc_entry_rejected", False)
+                else "_arc-keep"
+            )
         filename = (
-            f"{len(written) + 1:02d}_{geometry}_{outcome}_fly{row['absolute_fly']}"
+            f"{len(written) + 1:02d}_{geometry}_{outcome}{arc_status}"
+            f"_fly{row['absolute_fly']}"
             f"_frame{row['episode_start_frame']}.png"
         )
         out_path = out_dir / filename

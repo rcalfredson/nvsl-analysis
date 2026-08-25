@@ -2277,12 +2277,15 @@ class EventChainPlotter:
         if wells is None or len(wells) != 2:
             return None
 
-        inner_radius_px, centers = wells
+        nominal_agarose_radius_px, centers = wells
         try:
-            inner_radius_px = float(inner_radius_px)
+            nominal_agarose_radius_px = float(nominal_agarose_radius_px)
         except Exception:
             return None
-        if not np.isfinite(inner_radius_px) or inner_radius_px <= 0:
+        if (
+            not np.isfinite(nominal_agarose_radius_px)
+            or nominal_agarose_radius_px <= 0
+        ):
             return None
 
         centers = tuple(centers or ())
@@ -2304,9 +2307,18 @@ class EventChainPlotter:
             return None
 
         opts = getattr(self.va, "opts", None)
+        inner_offset_mm = float(
+            getattr(opts, "agarose_inner_radius_offset_mm", 0.0) or 0.0
+        )
         outer_delta_mm = float(getattr(opts, "agarose_outer_delta_mm", 0.5) or 0.5)
         border_width_px = 0.1 * float(px_per_mm)
-        outer_r_px = inner_radius_px + float(outer_delta_mm) * float(px_per_mm)
+        inner_radius_px = (
+            nominal_agarose_radius_px + inner_offset_mm * float(px_per_mm)
+        )
+        outer_r_px = (
+            nominal_agarose_radius_px
+            + float(outer_delta_mm) * float(px_per_mm)
+        )
         if not np.isfinite(outer_r_px) or outer_r_px <= inner_radius_px:
             return None
 
@@ -2328,23 +2340,10 @@ class EventChainPlotter:
         except Exception:
             pass
 
-        center_shift_mm = float(
-            getattr(opts, "agarose_dual_circle_center_shift_mm", 0.0) or 0.0
-        )
-        if center_shift_mm:
-            radial_x = cx - chamber_center_x
-            radial_y = cy - chamber_center_y
-            radial_norm = np.hypot(radial_x, radial_y)
-            if not np.isfinite(radial_norm) or radial_norm <= 0:
-                return None
-            center_shift_px = center_shift_mm * px_per_mm
-            cx += center_shift_px * radial_x / radial_norm
-            cy += center_shift_px * radial_y / radial_norm
-
         return {
             "cx": cx,
             "cy": cy,
-            "reward_r_px": float(inner_radius_px),
+            "reward_r_px": float(nominal_agarose_radius_px),
             "inner_r_px": float(inner_radius_px),
             "outer_r_px": float(outer_r_px),
             "border_width_px": float(max(0.0, border_width_px)),

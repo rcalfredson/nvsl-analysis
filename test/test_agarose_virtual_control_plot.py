@@ -21,7 +21,9 @@ def test_bundle_variant_metadata_reads_new_settings_and_legacy_defaults(tmp_path
         agarose_farthest_from_reward_only=np.array(False),
         agarose_wall_facing_entry_only=np.array(True),
         agarose_wall_facing_reference=np.array("reward", dtype=object),
-        agarose_dual_circle_center_shift_mm=np.array(1.0),
+        agarose_inner_radius_offset_mm=np.array(1.0),
+        agarose_outer_radius_offset_mm=np.array(2.0),
+        agarose_exclude_reward_facing_arc_entries=np.array(True),
     )
     np.savez(legacy, agarose_ratio_exp=np.asarray([0.5]))
 
@@ -29,13 +31,17 @@ def test_bundle_variant_metadata_reads_new_settings_and_legacy_defaults(tmp_path
         "farthest_only": False,
         "wall_facing_only": True,
         "wall_reference": "reward",
-        "center_shift_mm": 1.0,
+        "inner_offset_mm": 1.0,
+        "outer_offset_mm": 2.0,
+        "exclude_reward_arc": True,
     }
     assert _bundle_variant_metadata(legacy) == {
         "farthest_only": False,
         "wall_facing_only": False,
         "wall_reference": "arena",
-        "center_shift_mm": 0.0,
+        "inner_offset_mm": 0.0,
+        "outer_offset_mm": 0.5,
+        "exclude_reward_arc": False,
     }
 
 
@@ -143,5 +149,17 @@ def test_background_geometry_uses_floor_center_not_offset_reward(monkeypatch):
     assert geometry["arena_center"] == (196.5, 171.5)
     assert geometry["floor_bounds"] == (49.0, 24.0, 344.0, 319.0)
     assert geometry["inner_radius_px"] == 4.0 * 7.56
+    assert geometry["nominal_agarose_radius_px"] == 4.0 * 7.56
     assert geometry["reward_circle"] == (221.0, 147.0, 10.0)
     assert geometry["arena_center"] != geometry["reward_circle"][:2]
+
+    offset_geometry = _large_chamber_geometry_from_protocol(
+        "representative.avi",
+        frame=np.zeros((720, 720, 3), dtype=np.uint8),
+        protocol_index=0,
+        training_index_1based=2,
+        inner_offset_mm=1.0,
+        outer_delta_mm=2.0,
+    )
+    assert offset_geometry["inner_radius_px"] == 5.0 * 7.56
+    assert offset_geometry["outer_radius_px"] == 6.0 * 7.56

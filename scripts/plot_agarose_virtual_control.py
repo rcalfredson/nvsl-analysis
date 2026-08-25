@@ -55,6 +55,7 @@ def _large_chamber_geometry_from_protocol(
     frame,
     protocol_index=0,
     training_index_1based=2,
+    inner_offset_mm=0.0,
     outer_delta_mm=0.5,
 ):
     data_path = Path(video_path).with_suffix(".data")
@@ -90,16 +91,22 @@ def _large_chamber_geometry_from_protocol(
     xf = Xformer(template_match, chamber_type, frame, fy=False)
     floor_tl, floor_br = list(chamber_type.floor(xf, f=protocol_index))
     arena_cx, arena_cy = np.mean((floor_tl, floor_br), axis=0)
-    inner_radius_px, physical_centers = chamber_type.arenaWells(
+    nominal_agarose_radius_px, physical_centers = chamber_type.arenaWells(
         xf, protocol_index
     )
     px_per_mm = chamber_type.pxPerMmFloor() * xf.fctr
-    outer_radius_px = float(inner_radius_px) + float(outer_delta_mm) * px_per_mm
+    inner_radius_px = (
+        float(nominal_agarose_radius_px) + float(inner_offset_mm) * px_per_mm
+    )
+    outer_radius_px = (
+        float(nominal_agarose_radius_px) + float(outer_delta_mm) * px_per_mm
+    )
     return {
         "reward_circle": (reward_cx, reward_cy, reward_r),
         "chamber_type": chamber_type,
         "arena_center": (arena_cx, arena_cy),
         "physical_centers": physical_centers,
+        "nominal_agarose_radius_px": nominal_agarose_radius_px,
         "inner_radius_px": inner_radius_px,
         "outer_radius_px": outer_radius_px,
         "px_per_mm": px_per_mm,
@@ -146,8 +153,8 @@ def save_geometry_annotation(
     average_frames=30,
     protocol_index=0,
     training_index_1based=2,
+    inner_offset_mm=0.0,
     outer_delta_mm=0.5,
-    center_outward_shift_mm=0.0,
     farthest_from_reward_only=False,
     dpi=220,
 ):
@@ -157,17 +164,10 @@ def save_geometry_annotation(
         frame=frame,
         protocol_index=protocol_index,
         training_index_1based=training_index_1based,
+        inner_offset_mm=inner_offset_mm,
         outer_delta_mm=outer_delta_mm,
     )
     physical_centers = np.asarray(geometry["physical_centers"], dtype=float)
-    center_shift_px = float(center_outward_shift_mm) * geometry["px_per_mm"]
-    if center_shift_px:
-        arena_center = np.asarray(geometry["arena_center"], dtype=float)
-        radial = physical_centers - arena_center
-        radial_norm = np.linalg.norm(radial, axis=1, keepdims=True)
-        if np.any(radial_norm <= 0):
-            raise ValueError("cannot shift a dual-circle center at the arena center")
-        physical_centers = physical_centers + center_shift_px * radial / radial_norm
     physical_indices = virtual_indices = None
     if farthest_from_reward_only:
         reward_center = geometry["reward_circle"][:2]
@@ -256,9 +256,21 @@ def _bundle_variant_metadata(bundle_path):
                     bundle.get("agarose_wall_facing_reference", "arena")
                 ).item()
             ),
-            "center_shift_mm": float(
+            "inner_offset_mm": float(
                 np.asarray(
-                    bundle.get("agarose_dual_circle_center_shift_mm", 0.0)
+                    bundle.get("agarose_inner_radius_offset_mm", 0.0)
+                ).item()
+            ),
+            "outer_offset_mm": float(
+                np.asarray(
+                    bundle.get("agarose_outer_radius_offset_mm", 0.5)
+                ).item()
+            ),
+            "exclude_reward_arc": bool(
+                np.asarray(
+                    bundle.get(
+                        "agarose_exclude_reward_facing_arc_entries", False
+                    )
                 ).item()
             ),
         }
@@ -287,7 +299,6 @@ def main():
     parser.add_argument("--background-average-frames", type=int, default=30)
     parser.add_argument("--background-protocol-index", type=int, default=0)
     parser.add_argument("--virtual-rotation-deg", type=float, default=45.0)
-    parser.add_argument("--agarose-outer-delta-mm", type=float, default=0.5)
     args = parser.parse_args()
 
     agarose_variant = _bundle_variant_metadata(args.agarose_bundle)
@@ -339,8 +350,8 @@ def main():
             average_frames=args.background_average_frames,
             protocol_index=args.background_protocol_index,
             training_index_1based=args.training_index,
-            outer_delta_mm=args.agarose_outer_delta_mm,
-            center_outward_shift_mm=agarose_variant["center_shift_mm"],
+            inner_offset_mm=agarose_variant["inner_offset_mm"],
+            outer_delta_mm=agarose_variant["outer_offset_mm"],
             farthest_from_reward_only=farthest_only,
         )
         print(f"[agarose-virtual-control] wrote {geometry_out}")

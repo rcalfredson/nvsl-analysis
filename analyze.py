@@ -5301,15 +5301,18 @@ g.add_argument(
     "--agarose-outer-delta-mm",
     type=float,
     default=0.5,
-    help="extra radius (in mm) added around agarose wells to define outer circle",
+    help=(
+        "radial offset in mm from the nominal agarose boundary to the outer "
+        "analysis circle (default: 0.5)"
+    ),
 )
 g.add_argument(
-    "--agarose-dual-circle-center-shift-mm",
+    "--agarose-inner-radius-offset-mm",
     type=float,
     default=0.0,
     help=(
-        "radially shift each agarose dual-circle center outward from the chamber-floor "
-        "center by this distance in mm (default: 0)"
+        "radial offset in mm from the nominal agarose boundary to the inner "
+        "analysis circle; circle centers remain concentric (default: 0)"
     ),
 )
 g.add_argument(
@@ -5353,6 +5356,15 @@ g.add_argument(
     help=(
         "reference point used to define the outward entry vector: the chamber-floor "
         "center or the applicable training's reward-circle center (default: arena)"
+    ),
+)
+g.add_argument(
+    "--agarose-exclude-reward-facing-arc-entries",
+    action="store_true",
+    help=(
+        "exclude dual-circle episodes whose outer-boundary crossing lies on the "
+        "arc inside a reward-centered circle expanded to the nearest edge of the "
+        "nominal agarose area"
     ),
 )
 g.add_argument(

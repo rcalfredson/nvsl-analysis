@@ -143,42 +143,90 @@ fly and balances physical/virtual geometry and avoidance/contact outcome where
 examples are available. Add `--agarose-dual-circle-debug-csv <path>` to save
 the complete episode table as well.
 
-### Shifted, reward-referenced entry variant
+### Concentric radius offsets and reward reference
 
-Two optional settings define a close variant of the wall-facing-entry metric:
+The analysis circles remain concentric with each nominal agarose area. Their
+sizes can be controlled independently:
 
-- `--agarose-dual-circle-center-shift-mm 1` translates every inner/outer
-  circle pair 1 mm farther from the chamber-floor center without changing
-  either radius.
+- `--agarose-inner-radius-offset-mm` sets the inner-circle radius relative to
+  the nominal agarose radius.
+- `--agarose-outer-delta-mm` sets the outer-circle radius relative to that same
+  nominal radius, rather than relative to the analysis inner circle.
+
+The outer offset must be greater than the inner offset. For example, an inner
+circle 1 mm beyond the agarose boundary and an outer circle 2 mm beyond it use
+`--agarose-inner-radius-offset-mm 1 --agarose-outer-delta-mm 2`.
+
+Separately:
+
 - `--agarose-wall-facing-reference reward` defines the retained half using the
   applicable training's reward-circle center rather than the chamber-floor
   center.
 
-With entry point `p`, shifted site center `c`, and reward center `r`, the latter
+With entry point `p`, site center `c`, and reward center `r`, the latter
 criterion is `dot(p - c, c - r) > 0`. It therefore selects the reward-away half
 of each outer circle. The reward center is resolved separately for each fly and
 training; the experiment-wide pre period uses training 1's reward center, while
 each training-specific pre period uses that training's center.
 
-For the 1 mm outer-radius increment used by the paper analysis, run this variant
-with:
+Run the reward-referenced semicircle variant with 1 mm and 2 mm concentric
+offsets using:
 
 ```bash
 python analyze.py \
   -v "/path/to/videos/*.avi" -f "0-1" --rCC 15 \
   --agarose-dual-circle \
-  --agarose-outer-delta-mm 1 \
+  --agarose-inner-radius-offset-mm 1 \
+  --agarose-outer-delta-mm 2 \
   --agarose-wall-facing-entry-only \
-  --agarose-dual-circle-center-shift-mm 1 \
   --agarose-wall-facing-reference reward \
-  --export-agarose-sli-bundle exports/group_agarose_shift1_rewardref.npz
+  --export-agarose-sli-bundle exports/group_agarose_radius1-2_rewardref.npz
 ```
 
-The bundle records the shift and reference point as
-`agarose_dual_circle_center_shift_mm` and
-`agarose_wall_facing_reference`. The debug gallery and spatial-control
-schematic read the same settings, so their circle centers and entry divider
-match the analyzed geometry.
+The bundle records both offsets and the reference point. The debug gallery and
+spatial-control schematic read the same settings, so their radii and entry
+divider match the analyzed geometry.
+
+### Reward-facing intersection-arc exclusion
+
+`--agarose-exclude-reward-facing-arc-entries` replaces the semicircle filter
+with a narrower, geometry-defined exclusion. For each site, the analysis grows
+a circle around the applicable reward center until it reaches the nearest edge
+of the nominal agarose area. The portion of the analysis outer circle lying
+inside that reward-centered circle is the rejected entry arc; entries elsewhere
+on the outer circle are retained.
+
+The nominal agarose center and radius determine the reward-centered circle
+regardless of the analysis inner-circle offset. Flat chambers use the same
+nominal agarose geometry, and virtual sites use the corresponding rotated
+nominal geometry.
+
+The boundary crossing is normally calculated from the intersection of the
+segment joining the last pre-entry position to the first inside position with
+the outer circle. A radial projection of the first inside position is used only
+when that segment intersection is unavailable. This makes the filter depend on
+where the trajectory crossed the circumference rather than tracking-step depth
+inside the circle.
+
+The semicircle and intersection-arc filters are mutually exclusive. To test the
+new arc filter with inner and outer offsets of 1 mm and 2 mm:
+
+```bash
+python analyze.py \
+  -v "/path/to/videos/*.avi" -f "0-1" --rCC 15 \
+  --agarose-dual-circle \
+  --agarose-inner-radius-offset-mm 1 \
+  --agarose-outer-delta-mm 2 \
+  --agarose-exclude-reward-facing-arc-entries \
+  --export-agarose-sli-bundle exports/group_agarose_reward_arc.npz
+```
+
+The debug CSV records the arc width in degrees, the expanded reward-circle
+radius, the boundary-crossing coordinates and method, and whether the entry was
+rejected. Debug galleries balance retained and rejected entries where both are
+available. They shade the rejected arc, draw the expanded reward-centered
+circle, outline the nominal agarose boundary, and mark the inferred boundary
+crossing. This makes narrow or empty exclusion arcs directly visible.
 
 ## Slide-ready visualizations
 

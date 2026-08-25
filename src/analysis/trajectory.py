@@ -1543,15 +1543,15 @@ class Trajectory:
         delta_mm=0.5,
         debug=False,
         center_rotation_deg=0.0,
-        center_outward_shift_mm=0.0,
+        inner_radius_offset_mm=0.0,
     ):
         """
         Identify 'dual-circle' agarose avoidance episodes for this fly.
 
         An episode is defined as a contiguous period when the fly is inside an
         outer circle concentric with an agarose well. It is classified as
-        'avoidance' if the fly never enters the inner (agarose) circle during
-        that episode.
+        'avoidance' if the fly never enters the concentric inner analysis circle
+        during that episode.
 
         Results are stored in:
             self.agarose_dual_circle_episodes: list of dicts with keys
@@ -1576,8 +1576,8 @@ class Trajectory:
                 print(f"{flyDesc(self.f)}: arenaWells returned None")
             return
 
-        inner_radius_px, centers = wells  # radius (px), iterable of (cx, cy)
-        inner_radius_px = float(inner_radius_px)
+        nominal_agarose_radius_px, centers = wells
+        nominal_agarose_radius_px = float(nominal_agarose_radius_px)
         floor_tl, floor_br = self.va.ct.floor(self.va.xf, f=self.va.trxf[self.f])
         arena_cx = 0.5 * (float(floor_tl[0]) + float(floor_br[0]))
         arena_cy = 0.5 * (float(floor_tl[1]) + float(floor_br[1]))
@@ -1603,36 +1603,36 @@ class Trajectory:
         else:
             centers = tuple(centers)
 
+        nominal_centers = tuple(
+            (float(cx), float(cy)) for cx, cy in centers
+        )
         px_per_mm = self.va.ct.pxPerMmFloor() * self.va.xf.fctr
-        center_outward_shift_mm = float(center_outward_shift_mm)
-        if not np.isfinite(center_outward_shift_mm) or center_outward_shift_mm < 0:
-            raise ValueError("center_outward_shift_mm must be finite and nonnegative")
-        if center_outward_shift_mm:
-            center_array = np.asarray(centers, dtype=float)
-            arena_center = np.asarray((arena_cx, arena_cy), dtype=float)
-            radial_vectors = center_array - arena_center
-            radial_norms = np.linalg.norm(radial_vectors, axis=1)
-            if np.any(radial_norms <= 0):
-                raise ValueError(
-                    "cannot radially shift a dual-circle center at the arena center"
-                )
-            shift_px = center_outward_shift_mm * px_per_mm
-            center_array += shift_px * radial_vectors / radial_norms[:, np.newaxis]
-            centers = tuple(map(tuple, center_array))
-
+        inner_radius_offset_mm = float(inner_radius_offset_mm)
+        delta_mm = float(delta_mm)
+        if not np.isfinite(inner_radius_offset_mm) or inner_radius_offset_mm < 0:
+            raise ValueError("inner_radius_offset_mm must be finite and nonnegative")
+        if not np.isfinite(delta_mm) or delta_mm <= inner_radius_offset_mm:
+            raise ValueError(
+                "delta_mm must be finite and greater than inner_radius_offset_mm"
+            )
+        inner_radius_px = (
+            nominal_agarose_radius_px + inner_radius_offset_mm * px_per_mm
+        )
+        outer_radius_px = nominal_agarose_radius_px + delta_mm * px_per_mm
         self.agarose_dual_circle_geometry = {
             "center_rotation_deg": center_rotation_deg,
-            "center_outward_shift_mm": center_outward_shift_mm,
+            "inner_radius_offset_mm": inner_radius_offset_mm,
+            "outer_radius_offset_mm": delta_mm,
+            "nominal_centers_px": nominal_centers,
             "centers_px": centers,
+            "nominal_agarose_radius_px": nominal_agarose_radius_px,
             "inner_radius_px": inner_radius_px,
+            "outer_radius_px": outer_radius_px,
         }
-
-        # Convert padding from mm → px
-        outer_radius_px = inner_radius_px + delta_mm * px_per_mm
         # Hysteresis on the outer boundary prevents tracking noise from splitting
         # one approach into several short episodes.  The inner boundary only
-        # classifies an existing episode as contact/avoidance, so use the nominal
-        # agarose radius directly there.
+        # classifies an existing episode as contact/avoidance, so it does not use
+        # boundary hysteresis.
         outer_border_width_px = 0.1 * px_per_mm
 
         if debug:
@@ -1663,7 +1663,7 @@ class Trajectory:
                 outer_radius_px,
                 border_width_px=outer_border_width_px,
             )
-            # Inner circle (agarose itself)
+            # Inner analysis circle (optionally offset from the agarose boundary)
             inner_state = self.calc_in_circle(
                 self.x,
                 self.y,
@@ -1712,6 +1712,56 @@ class Trajectory:
                 if np.any(outer_mask[start:stop])
             )
             entry_x, entry_y = float(self.x[start]), float(self.y[start])
+            entry_outer_intersections = []
+            for lab, (cx, cy), outer_mask in zip(
+                well_labels, centers, outer_by_well
+            ):
+                if not outer_mask[start]:
+                    continue
+                center = np.asarray((cx, cy), dtype=float)
+                post_entry = np.asarray((entry_x, entry_y), dtype=float)
+                boundary_point = None
+                boundary_method = "radial_projection"
+                if start > 0:
+                    pre_entry = np.asarray(
+                        (float(self.x[start - 1]), float(self.y[start - 1])),
+                        dtype=float,
+                    )
+                    if np.all(np.isfinite(pre_entry)):
+                        segment = post_entry - pre_entry
+                        qa = float(np.dot(segment, segment))
+                        qb = 2.0 * float(np.dot(pre_entry - center, segment))
+                        qc = float(
+                            np.dot(pre_entry - center, pre_entry - center)
+                            - outer_radius_px**2
+                        )
+                        discriminant = qb**2 - 4.0 * qa * qc
+                        if qa > 0 and discriminant >= 0:
+                            sqrt_disc = math.sqrt(max(0.0, discriminant))
+                            roots = (
+                                (-qb - sqrt_disc) / (2.0 * qa),
+                                (-qb + sqrt_disc) / (2.0 * qa),
+                            )
+                            valid_roots = [
+                                root for root in roots if 0.0 <= root <= 1.0
+                            ]
+                            if valid_roots:
+                                boundary_point = pre_entry + min(valid_roots) * segment
+                                boundary_method = "segment_intersection"
+                if boundary_point is None:
+                    radial = post_entry - center
+                    radial_norm = float(np.linalg.norm(radial))
+                    if radial_norm > 0:
+                        boundary_point = center + outer_radius_px * radial / radial_norm
+                if boundary_point is not None:
+                    entry_outer_intersections.append(
+                        (
+                            lab,
+                            float(boundary_point[0]),
+                            float(boundary_point[1]),
+                            boundary_method,
+                        )
+                    )
             entry_wall_alignments = []
             for lab, (cx, cy), outer_mask in zip(
                 well_labels, centers, outer_by_well
@@ -1758,6 +1808,7 @@ class Trajectory:
                     "entry_wall_alignments": tuple(entry_wall_alignments),
                     "wall_facing_entry": wall_facing_entry,
                     "entry_point": (entry_x, entry_y),
+                    "entry_outer_intersections": tuple(entry_outer_intersections),
                 }
             )
 

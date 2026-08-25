@@ -593,13 +593,26 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
         "agarose_wall_facing_entry_only": np.array(
             bool(getattr(opts, "agarose_wall_facing_entry_only", False))
         ),
-        "agarose_dual_circle_center_shift_mm": np.array(
-            float(getattr(opts, "agarose_dual_circle_center_shift_mm", 0.0)),
+        "agarose_inner_radius_offset_mm": np.array(
+            float(getattr(opts, "agarose_inner_radius_offset_mm", 0.0)),
+            dtype=float,
+        ),
+        "agarose_outer_radius_offset_mm": np.array(
+            float(getattr(opts, "agarose_outer_delta_mm", 0.5)),
             dtype=float,
         ),
         "agarose_wall_facing_reference": np.array(
             str(getattr(opts, "agarose_wall_facing_reference", "arena")),
             dtype=object,
+        ),
+        "agarose_exclude_reward_facing_arc_entries": np.array(
+            bool(
+                getattr(
+                    opts,
+                    "agarose_exclude_reward_facing_arc_entries",
+                    False,
+                )
+            )
         ),
         **exp_target_sync_bucket_filter_payload(
             vas_ok,
