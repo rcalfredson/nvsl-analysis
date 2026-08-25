@@ -116,6 +116,36 @@ def write_scalar_exports_graphpad_csv(
     _write_wide_numeric_csv(out_csv, headers, columns)
 
 
+def rpd_exp_minus_yok_exports_to_graphpad_columns(
+    exports: Sequence["ExportedTrainingScalarBars"],
+    *,
+    panel: int | str | None = None,
+) -> tuple[list[str], list[np.ndarray]]:
+    """Adapt validated pooled RPD exp-minus-yoked exports for GraphPad."""
+    for export in exports:
+        value_mode = str(export.meta.get("rpd_total_value_mode", ""))
+        if value_mode != "exp_minus_yok":
+            raise ValueError(
+                f"RPD export {export.group!r} has value mode {value_mode!r}; "
+                "expected 'exp_minus_yok'. Re-run analyze.py with "
+                "--rpd-total-value-mode exp_minus_yok."
+            )
+    return scalar_exports_to_graphpad_columns(exports, panel=panel)
+
+
+def write_rpd_exp_minus_yok_exports_graphpad_csv(
+    exports: Sequence["ExportedTrainingScalarBars"],
+    out_csv: str | Path,
+    *,
+    panel: int | str | None = None,
+) -> None:
+    headers, columns = rpd_exp_minus_yok_exports_to_graphpad_columns(
+        exports,
+        panel=panel,
+    )
+    _write_wide_numeric_csv(out_csv, headers, columns)
+
+
 def turnback_ratio_bundles_to_graphpad_columns(
     bundles: Sequence[tuple[str, Mapping[str, object]]],
     *,

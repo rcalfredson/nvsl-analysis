@@ -14,6 +14,7 @@ Windows.
 | --- | --- | --- |
 | [`notebooks/paper_figure_panels.ipynb`](../notebooks/paper_figure_panels.ipynb) | Main, numbered paper-panel workflow | Panel `.npz` bundles and figures |
 | [`notebooks/graphpad_exports.ipynb`](../notebooks/graphpad_exports.ipynb) | GraphPad Prism-friendly per-fly tables | CSV files under `exports/` |
+| [`scripts/run_rpd_exp_minus_yok_chamber_graphpad.sh`](../scripts/run_rpd_exp_minus_yok_chamber_graphpad.sh) | Rewards-per-distance experimental-minus-yoked tables for matched HTL and large-chamber cohorts | 20-column GraphPad CSV and intermediate scalar NPZs |
 | [`scripts/trace_agarose_time_pvalues.py`](../scripts/trace_agarose_time_pvalues.py) | Factorial trace of lost-frame numerator and pairwise-test choices | Policy-by-test p-value trace and detailed multiple-comparisons audit CSVs; see [`agarose_time_pvalue_trace.md`](agarose_time_pvalue_trace.md) |
 | [`scripts/run_analysis_matrix.sh`](../scripts/run_analysis_matrix.sh) | Curated multi-analysis batch for turnback, home-vector, and tortuosity analyses | Dated bundles and plots under `exports/`; optional debug galleries under `imgs/` |
 | [`scripts/run_turn_home_vector_alignment_analysis.sh`](../scripts/run_turn_home_vector_alignment_analysis.sh) | Focused, configurable turn home-vector alignment analysis | Bundles, plots, and statistics under `exports/turn_home_vector_alignment/` by default |
@@ -51,6 +52,92 @@ change `pre last 10m - T3 post last 10m`.
 The final CSVs are written to `exports/`. All execution toggles default to
 `False`, so opening and running the notebook does not start an analysis until a
 toggle is explicitly enabled.
+
+### Rewards per distance, experimental minus yoked, across chambers
+
+`scripts/run_rpd_exp_minus_yok_chamber_graphpad.sh` is the focused end-to-end
+workflow for the matched HTL and large-chamber comparisons. It finds 20 video
+lists by their section and cohort labels in `video_lists.log`, runs the existing
+pooled rewards-per-distance scalar export in `exp_minus_yok` mode, and combines
+the resulting per-fly NPZ files into one 20-column GraphPad CSV.
+
+Preview the resolved commands before starting the analysis, then run them:
+
+```bash
+PRINT_ONLY=1 scripts/run_rpd_exp_minus_yok_chamber_graphpad.sh
+scripts/run_rpd_exp_minus_yok_chamber_graphpad.sh
+```
+
+The default output is
+`exports/rpd_exp_minus_yok_chambers/rpd_exp_minus_yok_by_group_and_chamber.csv`.
+The columns are organized into four blocks:
+
+1. matched antennae-intact control and antennae-removed control in
+   flat/agarose HTL;
+2. matched Ctrl>Kir and PFNd>Kir in flat/agarose HTL;
+3. matched antennae-glued Ctrl>Kir and antennae-glued PFNd>Kir in
+   flat/agarose HTL; and
+4. Ctrl>Kir, antennae-removed Ctrl>Kir, PFNd>Kir, and antennae-removed
+   PFNd>Kir in flat/agarose large chambers.
+
+The antenna-glued cohorts are labeled explicitly in the CSV. Unequal cohort
+sizes are represented by blank trailing cells.
+
+The default metric window is training 2, sync buckets 2-5, with the pooled
+window validity policy and a five-reward minimum. Override it with
+`RPD_TRAININGS`, `RPD_SKIP_FIRST_SYNC_BUCKETS`,
+`RPD_KEEP_FIRST_SYNC_BUCKETS`, `RPD_POOLED_VALIDITY`, or
+`RPD_POOLED_MIN_REWARDS`.
+
+The HTL antenna-removal and PFNd comparisons use their own matched controls.
+The separate antenna-glued Ctrl>Kir and antenna-glued PFNd>Kir lists are also
+included rather than being described as antennae removed. The large-chamber
+block includes the combined antennae-removed PFNd>Kir group.
+
+To see the exact selectable dataset slugs, NPZ paths, and CSV labels:
+
+```bash
+LIST_DATASETS=1 scripts/run_rpd_exp_minus_yok_chamber_graphpad.sh
+```
+
+This listing also includes the matching section and cohort labels from
+`video_lists.log`, plus the exact resolved `-v` video-list argument. If an
+`RPD_<...>` environment-variable override is set, the listing shows that
+override. Normal and preview runs print a corresponding `[rpd_dataset]` line
+immediately before each analysis command, followed by the fully resolved
+`-v` argument.
+
+Refresh only named NPZs with a comma-separated slug list:
+
+```bash
+REFRESH_DATASETS=pfnd_flat_htl,antenna_glued_pfnd_flat_htl WRITE_CSV=0 scripts/run_rpd_exp_minus_yok_chamber_graphpad.sh
+```
+
+With `WRITE_CSV=1` (the default), the script rebuilds the complete CSV after
+the requested refresh and reports any other required NPZs that do not yet
+exist. Use `REFRESH_DATASETS=none` for a CSV-only rebuild. The older
+`REUSE_EXISTING_NPZ=1` setting remains an alias for that CSV-only behavior.
+Any resolved video list can also be supplied using its `RPD_<...>` environment
+variable listed at the top of the script.
+
+The runner recognizes NPZ filenames produced by the earlier 12-column version
+and reuses them when their cohort mapping is unchanged. Refreshed bundles are
+written under the current canonical slug. This compatibility applies only to
+genuinely equivalent cohorts; newly added sensory-control and combined
+antennae-removed PFNd>Kir cohorts still require their own exports.
+
+For manual conversion of compatible NPZs, the validated adapter is:
+
+```bash
+python scripts/export_graphpad_csv.py rpd-exp-minus-yok-npz \
+  --input 'Ctrl>Kir | flat large=exports/ctrl_flat_large.npz' \
+  --input 'PFNd>Kir | flat large=exports/pfnd_flat_large.npz' \
+  --panel 1 \
+  --out exports/rpd_graphpad.csv
+```
+
+Unlike the generic `scalar-npz` adapter, this command rejects exports whose
+metadata does not identify `--rpd-total-value-mode exp_minus_yok`.
 
 ## Analysis matrix script
 

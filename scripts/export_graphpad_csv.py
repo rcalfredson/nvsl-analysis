@@ -16,6 +16,7 @@ from src.analysis.agarose_time_summary import (  # noqa: E402
 )
 from src.exporting.graphpad_csv import (  # noqa: E402
     write_agarose_time_graphpad_csv,
+    write_rpd_exp_minus_yok_exports_graphpad_csv,
     write_scalar_exports_graphpad_csv,
     write_turnback_ratio_bundles_graphpad_csv,
 )
@@ -53,6 +54,31 @@ def parse_args() -> argparse.Namespace:
         required=True,
         metavar="LABEL=EXPORT.NPZ",
         help="Repeatable scalar export input. LABEL=PATH and LABEL:PATH are accepted.",
+    )
+
+    rpd = sub.add_parser(
+        "rpd-exp-minus-yok-npz",
+        help=(
+            "Convert pooled rewards-per-distance exp-minus-yoked NPZ exports "
+            "into a wide per-fly CSV, validating the metric mode first."
+        ),
+    )
+    rpd.add_argument(
+        "--input",
+        action="append",
+        required=True,
+        metavar="LABEL=EXPORT.NPZ",
+        help="Repeatable pooled RPD scalar export input.",
+    )
+    rpd.add_argument("--out", required=True, help="Output GraphPad CSV path.")
+    rpd.add_argument(
+        "--panel",
+        type=_parse_panel,
+        default=None,
+        help=(
+            "Optional internal training panel: a 1-based index or exact label. "
+            "By default, all panels are exported."
+        ),
     )
 
     turnback = sub.add_parser(
@@ -129,6 +155,21 @@ def main() -> int:
             label, path = parse_labeled_path(spec, separators=("=", ":"))
             exports.append(load_export_npz(label, path))
         write_scalar_exports_graphpad_csv(exports, args.out, panel=args.scalar_panel)
+        print(f"[graphpad_csv] wrote {args.out}")
+        return 0
+
+    if args.command == "rpd-exp-minus-yok-npz":
+        from src.plotting.overlay_training_metric_scalar_bars import load_export_npz
+
+        exports = []
+        for spec in args.input:
+            label, path = parse_labeled_path(spec, separators=("=", ":"))
+            exports.append(load_export_npz(label, path))
+        write_rpd_exp_minus_yok_exports_graphpad_csv(
+            exports,
+            args.out,
+            panel=args.panel,
+        )
         print(f"[graphpad_csv] wrote {args.out}")
         return 0
 
