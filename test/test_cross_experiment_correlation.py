@@ -57,6 +57,22 @@ def test_closed_export_uses_exp_minus_yoked_at_t2_sb5():
     assert row["yoked_subject_key"] == "2024-08-08::c41::f10"
 
 
+def test_closed_export_uses_mean_exp_minus_mean_yoked_over_t2_sb2_to_sb5():
+    raw = np.zeros((1, 2, 2, 6), dtype=float)
+    raw[0, 1, 0, 1:5] = [0.2, 0.4, np.nan, 0.8]
+    raw[0, 1, 1, 1:5] = [-0.2, 0.0, 0.2, 0.4]
+
+    row = build_closed_loop_sli_rows([_closed_va()], raw)[0]
+
+    assert row["exp_reward_pi_t2_sb2_sb5_mean"] == pytest.approx(
+        np.mean([0.2, 0.4, 0.8])
+    )
+    assert row["yoked_reward_pi_t2_sb2_sb5_mean"] == pytest.approx(0.1)
+    assert row["sli_t2_sb2_sb5_mean"] == pytest.approx(
+        np.mean([0.2, 0.4, 0.8]) - 0.1
+    )
+
+
 def test_open_export_preserves_positional_pi_scale_and_period_order():
     row = build_open_loop_preference_rows([_open_va()])[0]
 
@@ -84,6 +100,8 @@ def test_join_uses_experimental_fly_and_audits_yoked_open_record():
     ]
     assert audit[0]["included_led_on"] is True
     assert audit[0]["included_led_off"] is True
+    assert audit[0]["included_mean_sli_led_on"] is True
+    assert audit[0]["included_mean_sli_led_off"] is True
     assert audit[0]["closed_exp_subject_key"] == "2024-08-08::c41::f0"
     assert audit[0]["open_loop_subject_key"] == "2024-08-08::c41::f0"
     assert audit[0]["open_loop_fly_id"] == 0

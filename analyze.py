@@ -937,7 +937,8 @@ g.add_argument(
     metavar="CSV",
     help=(
         "Write one keyed row per closed-loop exp+yoked pair containing final "
-        "SLI at T2 sync bucket 5 for later matching to open-loop experiments."
+        "SLI at T2 sync bucket 5 and mean SLI over T2 sync buckets 2-5 for "
+        "later matching to open-loop experiments."
     ),
 )
 g.add_argument(

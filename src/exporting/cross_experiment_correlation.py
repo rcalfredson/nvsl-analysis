@@ -28,8 +28,11 @@ CLOSED_FIELDS = (
     "sli_training",
     "sli_sync_bucket",
     "sli_t2_sb5",
+    "sli_t2_sb2_sb5_mean",
     "exp_reward_pi_t2_sb5",
     "yoked_reward_pi_t2_sb5",
+    "exp_reward_pi_t2_sb2_sb5_mean",
+    "yoked_reward_pi_t2_sb2_sb5_mean",
 )
 
 OPEN_FIELDS = (
@@ -65,13 +68,17 @@ AUDIT_FIELDS = (
     "match_rule",
     "match_validated",
     "sli_t2_sb5",
+    "sli_t2_sb2_sb5_mean",
     "preference_pi_led_on",
     "preference_pi_led_off",
     "finite_sli",
+    "finite_mean_sli",
     "finite_led_on",
     "finite_led_off",
     "included_led_on",
     "included_led_off",
+    "included_mean_sli_led_on",
+    "included_mean_sli_led_off",
 )
 
 
@@ -120,7 +127,7 @@ def build_closed_loop_sli_rows(
     training_idx: int = 1,
     sync_bucket_idx: int = 4,
 ) -> list[dict[str, object]]:
-    """Build one T2/SB5 SLI row per closed-loop exp+yoked pair."""
+    """Build one final and mean T2 SLI row per closed-loop exp+yoked pair."""
     values = np.asarray(raw_reward_pi, dtype=float)
     if values.ndim != 4 or values.shape[0] != len(vas):
         raise ValueError(
@@ -129,7 +136,7 @@ def build_closed_loop_sli_rows(
         )
     if values.shape[1] <= training_idx or values.shape[2] < 2:
         raise ValueError("closed-loop export requires T2 experimental+yoked reward PI")
-    if values.shape[3] <= sync_bucket_idx:
+    if values.shape[3] <= max(sync_bucket_idx, 4):
         raise ValueError("closed-loop export requires sync bucket 5 in T2")
 
     rows: list[dict[str, object]] = []
@@ -145,6 +152,8 @@ def build_closed_loop_sli_rows(
         exp_fly_id, yoked_fly_id = physical_ids
         exp_value = float(values[idx, training_idx, 0, sync_bucket_idx])
         yoked_value = float(values[idx, training_idx, 1, sync_bucket_idx])
+        exp_mean = float(np.nanmean(values[idx, training_idx, 0, 1:5]))
+        yoked_mean = float(np.nanmean(values[idx, training_idx, 1, 1:5]))
         rows.append(
             {
                 "recording_date": recording_date,
@@ -162,8 +171,11 @@ def build_closed_loop_sli_rows(
                 "sli_training": training_idx + 1,
                 "sli_sync_bucket": sync_bucket_idx + 1,
                 "sli_t2_sb5": exp_value - yoked_value,
+                "sli_t2_sb2_sb5_mean": exp_mean - yoked_mean,
                 "exp_reward_pi_t2_sb5": exp_value,
                 "yoked_reward_pi_t2_sb5": yoked_value,
+                "exp_reward_pi_t2_sb2_sb5_mean": exp_mean,
+                "yoked_reward_pi_t2_sb2_sb5_mean": yoked_mean,
             }
         )
     return rows
@@ -318,11 +330,14 @@ def join_closed_to_experimental_open_loop(
         )
         matched.append(joined)
         finite_sli = _is_finite(joined.get("sli_t2_sb5"))
+        finite_mean_sli = _is_finite(joined.get("sli_t2_sb2_sb5_mean"))
         finite_led_on = _is_finite(joined.get("preference_pi_led_on"))
         finite_led_off = _is_finite(joined.get("preference_pi_led_off"))
         invalid = []
         if not finite_sli:
             invalid.append("nonfinite SLI")
+        if not finite_mean_sli:
+            invalid.append("nonfinite mean SLI")
         if not finite_led_on:
             invalid.append("nonfinite LED-on PI")
         if not finite_led_off:
@@ -333,10 +348,13 @@ def join_closed_to_experimental_open_loop(
                 "status": "matched",
                 "detail": "; ".join(invalid),
                 "finite_sli": finite_sli,
+                "finite_mean_sli": finite_mean_sli,
                 "finite_led_on": finite_led_on,
                 "finite_led_off": finite_led_off,
                 "included_led_on": finite_sli and finite_led_on,
                 "included_led_off": finite_sli and finite_led_off,
+                "included_mean_sli_led_on": finite_mean_sli and finite_led_on,
+                "included_mean_sli_led_off": finite_mean_sli and finite_led_off,
             }
         )
 

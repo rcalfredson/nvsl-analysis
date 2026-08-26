@@ -70,7 +70,8 @@ def _print_match_debug(audit: list[dict[str, object]]) -> None:
                 f"yoked={row.get('yoked_fly_id', '')}\n"
                 f"  open:   {Path(str(row.get('open_loop_video', ''))).name}, "
                 f"fly={row.get('open_loop_fly_id', '')}\n"
-                f"  SLI={_debug_value(row.get('sli_t2_sb5'))}, "
+                f"  final SLI={_debug_value(row.get('sli_t2_sb5'))}, "
+                f"mean SLI={_debug_value(row.get('sli_t2_sb2_sb5_mean'))}, "
                 f"PI-off={_debug_value(row.get('preference_pi_led_off'))}, "
                 f"PI-on={_debug_value(row.get('preference_pi_led_on'))}"
             )
@@ -160,9 +161,6 @@ def run(args: argparse.Namespace) -> None:
     if not matched:
         raise ValueError("no closed-loop pairs matched experimental open-loop flies")
 
-    final_sli = np.asarray(
-        [float(row["sli_t2_sb5"]) for row in matched], dtype=float
-    )
     customizer = PlotCustomizer()
     if args.font_size is not None:
         customizer.update_font_size(args.font_size)
@@ -176,53 +174,69 @@ def run(args: argparse.Namespace) -> None:
         export_group_label=args.group_label,
     )
 
-    plot_specs = (
+    preference_specs = (
         (
             "led_off",
             "preference_pi_led_off",
-            "Final SLI and open-loop LED-off positional PI",
-            "Open-loop positional PI,\nLED off (exp)",
+            "open-loop LED-off positional PI",
         ),
         (
             "led_on",
             "preference_pi_led_on",
-            "Final SLI and open-loop LED-on positional PI",
-            "Open-loop positional PI,\nLED on (exp)",
+            "open-loop LED-on positional PI",
+        ),
+    )
+    sli_specs = (
+        (
+            "final_sli",
+            "sli_t2_sb5",
+            "Final SLI at T2 SB5",
+            "corr_final_sli_vs_openloop_pi",
+        ),
+        (
+            "mean_sli",
+            "sli_t2_sb2_sb5_mean",
+            "Mean SLI over T2 SB2–5",
+            "corr_mean_sli_t2_sb2_sb5_vs_openloop_pi",
         ),
     )
     stats_rows: list[dict[str, object]] = []
-    y_label = "Final SLI at T2 SB5 (exp - yoked)"
-    for plot_key, column, title, x_label in plot_specs:
-        positional_pi = np.asarray(
-            [float(row[column]) for row in matched], dtype=float
-        )
-        filename = f"corr_final_sli_vs_openloop_pi_{plot_key}"
-        cfg = CorrelationPlotConfig(
-            **cfg_base,
-            dot_color=correlation_plot_color(
-                "openloop_positional_pi_vs_final_sli"
-            ),
-        )
-        summary = plot_correlation_scatter(
-            x=positional_pi,
-            y=final_sli,
-            title=title,
-            x_label=x_label,
-            y_label=y_label,
-            cfg=cfg,
-            filename=filename,
-            customizer=customizer,
-        )
-        stats_rows.append(
-            {
-                "metric": plot_key,
-                "x_label": x_label,
-                "y_label": y_label,
-                "r": summary.r,
-                "p": summary.p,
-                "n": summary.n,
-            }
-        )
+    x_label = "Light preference"
+    for sli_key, sli_column, y_label, filename_prefix in sli_specs:
+        sli = np.asarray([float(row[sli_column]) for row in matched], dtype=float)
+        for preference_key, preference_column, preference_title in preference_specs:
+            positional_pi = np.asarray(
+                [float(row[preference_column]) for row in matched], dtype=float
+            )
+            filename = f"{filename_prefix}_{preference_key}"
+            cfg = CorrelationPlotConfig(
+                **cfg_base,
+                dot_color=correlation_plot_color("openloop_positional_pi_vs_sli"),
+            )
+            summary = plot_correlation_scatter(
+                x=positional_pi,
+                y=sli,
+                title=f"{y_label} and {preference_title}",
+                x_label=x_label,
+                y_label=y_label,
+                cfg=cfg,
+                filename=filename,
+                customizer=customizer,
+            )
+            stats_rows.append(
+                {
+                    "metric": (
+                        preference_key
+                        if sli_key == "final_sli"
+                        else f"{sli_key}_{preference_key}"
+                    ),
+                    "x_label": x_label,
+                    "y_label": y_label,
+                    "r": summary.r,
+                    "p": summary.p,
+                    "n": summary.n,
+                }
+            )
 
     stats_path = out_dir / "correlation_stats.csv"
     _write_stats(stats_path, stats_rows)
@@ -232,8 +246,8 @@ def run(args: argparse.Namespace) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Match closed-loop T2/SB5 SLI pairs to the same experimental flies' "
-            "open-loop LED-on/off positional PI values."
+            "Match closed-loop final and T2/SB2-SB5 mean SLI to the same "
+            "experimental flies' open-loop LED-on/off positional PI values."
         )
     )
     parser.add_argument("--closed", required=True, help="Closed-loop SLI CSV export.")

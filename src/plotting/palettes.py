@@ -296,7 +296,7 @@ CORRELATION_PLOT_COLORS = {
     "first_n_reward_rate_vs_sli": ACCENT_VIOLET,
     "median_distance_vs_sli": ACCENT_GREEN,
     "baseline_pi_vs_sli": ACCENT_GOLD,
-    "openloop_positional_pi_vs_final_sli": MUTED_CATEGORICAL[5],
+    "openloop_positional_pi_vs_sli": MUTED_CATEGORICAL[5],
     "pre_training_exploration_vs_sli": ACCENT_SKY,
     "early_sli_vs_total_rewards": ACCENT_WINE,
     "first_n_reward_timing_vs_sli": ACCENT_PINK,
