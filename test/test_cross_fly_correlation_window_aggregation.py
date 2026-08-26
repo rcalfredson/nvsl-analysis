@@ -349,3 +349,41 @@ def test_extract_exp_pre_training_speed_uses_t1_exp_final_ten_min_value():
 
     assert values[:2] == pytest.approx([1.25, 2.5])
     assert np.isnan(values[2])
+
+
+def test_extract_exp_full_pre_training_speed_uses_start_pre_through_pre_pulse():
+    trajectory = SimpleNamespace(
+        sp=np.arange(250, dtype=float),
+        onBottomPre=np.ones(250, dtype=bool),
+        pxPerMmFloor=2.0,
+    )
+    va = SimpleNamespace(
+        flies=(0, 1),
+        startPre=20,
+        trns=[SimpleNamespace(start=220)],
+        on=np.array([200]),
+        trx=[trajectory],
+    )
+
+    values = corr._extract_exp_full_pre_training_speed([va])
+
+    assert values == pytest.approx([np.mean(np.arange(20, 200)) / 2.0])
+
+
+def test_extract_exp_full_pre_training_speed_requires_100_bottom_frames():
+    trajectory = SimpleNamespace(
+        sp=np.ones(150, dtype=float),
+        onBottomPre=np.r_[np.ones(99, dtype=bool), np.zeros(51, dtype=bool)],
+        pxPerMmFloor=1.0,
+    )
+    va = SimpleNamespace(
+        flies=(0, 1),
+        startPre=0,
+        trns=[SimpleNamespace(start=150)],
+        on=np.array([], dtype=int),
+        trx=[trajectory],
+    )
+
+    values = corr._extract_exp_full_pre_training_speed([va])
+
+    assert np.isnan(values[0])

@@ -1677,6 +1677,40 @@ def _extract_exp_pre_training_speed(vas: Sequence) -> np.ndarray:
     return np.asarray(values, dtype=float)
 
 
+def _extract_exp_full_pre_training_speed(vas: Sequence) -> np.ndarray:
+    """Calculate experimental-fly mean bottom speed over the entire T1 pre-period.
+
+    This uses the same speed samples and bottom-of-chamber mask as
+    ``VideoAnalysis.speed()``, but starts at ``startPre`` instead of retaining
+    only its final 10-minute summary.  As in that method, a pre-period pulse (if
+    present) marks the end of the speed window; otherwise T1 start is used.
+    """
+    values = []
+    for va in vas:
+        value = np.nan
+        try:
+            if 0 not in tuple(getattr(va, "flies", ())):
+                values.append(value)
+                continue
+            start = int(va.startPre)
+            stop = int(va.trns[0].start)
+            pre_pulses = np.asarray(va.on, dtype=int)
+            pre_pulses = pre_pulses[(pre_pulses >= start) & (pre_pulses < stop)]
+            if pre_pulses.size:
+                stop = int(pre_pulses[-1])
+
+            traj = va.trx[0]
+            speed = np.asarray(traj.sp[start:stop], dtype=float)
+            on_bottom = np.asarray(traj.onBottomPre[start:stop], dtype=bool)
+            speed = speed[on_bottom] / float(traj.pxPerMmFloor)
+            if speed.size >= 100:
+                value = float(np.mean(speed))
+        except (AttributeError, IndexError, TypeError, ValueError, ZeroDivisionError):
+            value = np.nan
+        values.append(value)
+    return np.asarray(values, dtype=float)
+
+
 def _pooled_median_distance_for_context(va, ctx: SLIContext) -> float:
     training_idx = int(ctx.training_idx)
     trns = getattr(va, "trns", None) or []
@@ -2367,6 +2401,7 @@ def plot_cross_fly_correlations(
       1d) Speed at T2 SB5 vs SLI at T2 SB5
       1e) Mean speed over T2 SB1-SB5 vs SLI at T2 SB5
       1f) Final-10-min pre-training speed vs mean SLI over T2 SB2-SB5
+      1g) Full-pre-period speed vs SLI at T2 SB5
       2) SLI vs median distance to reward over the selected training/window
       3) Pre-training reward PI (exp − yoked) vs SLI_final
       3b) Pre-training floor exploration vs SLI at T1, first sync bucket
@@ -3014,6 +3049,25 @@ def plot_cross_fly_correlations(
             filename=(
                 "corr_pre_training_speed_vs_sli_"
                 f"{mean_sli_suffix}__speed_preT1_last10min"
+            ),
+            customizer=customizer,
+        )
+
+    # --- Plot 1g: entire pre-training speed vs final T2 SB5 SLI ---
+    if sli_t2_sb5_vals is not None:
+        final_sli_ctx, _ = _default_t2_speed_vs_final_sli_contexts()
+        full_pre_training_speed_vals = _extract_exp_full_pre_training_speed(vas)
+        final_sli_suffix = _window_context_suffix(final_sli_ctx, prefix="sli")
+        _scatter_with_corr(
+            x=full_pre_training_speed_vals,
+            y=sli_t2_sb5_vals,
+            title="Full pre-training speed and final T2 SLI",
+            x_label="Mean speed during entire pre-training period (mm/s)",
+            y_label=final_sli_ctx.axis_label(),
+            cfg=_cfg_with_plot_color(cfg, "speed_vs_sli"),
+            filename=(
+                "corr_pre_training_speed_vs_sli_"
+                f"{final_sli_suffix}__speed_preT1_full"
             ),
             customizer=customizer,
         )
