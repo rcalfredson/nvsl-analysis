@@ -1300,16 +1300,16 @@ g.add_argument(
 g.add_argument(
     "--agarose-time-lost-frame-policy",
     choices=("corrected", "legacy", "interpolated-inclusive"),
-    default="corrected",
+    default="interpolated-inclusive",
     help=(
         "How lost/interpolated frames contribute to percent-time-on-agarose "
-        "summaries. 'corrected' excludes them from both numerator and denominator "
-        "(default). 'legacy' reproduces the pre-4712b27 behavior by allowing "
+        "summaries. 'interpolated-inclusive' includes interpolated classifications "
+        "in the numerator and interpolated frames in the denominator (default). "
+        "'corrected' excludes them from both numerator and denominator. "
+        "'legacy' reproduces the pre-4712b27 behavior by allowing "
         "interpolated contact classifications into the numerator while still "
-        "excluding those frames from the denominator. 'interpolated-inclusive' "
-        "includes interpolated classifications in the numerator and interpolated "
-        "frames in the denominator. Non-default policies are intended for "
-        "sensitivity analyses."
+        "excluding those frames from the denominator. The other policies are "
+        "intended for sensitivity analyses."
     ),
 )
 g.add_argument(

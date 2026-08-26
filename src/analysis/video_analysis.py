@@ -3493,7 +3493,7 @@ class VideoAnalysis:
                 lost_frame_policy = getattr(
                     getattr(self, "opts", None),
                     "agarose_time_lost_frame_policy",
-                    "corrected",
+                    "interpolated-inclusive",
                 )
                 if lost_frame_policy == "corrected":
                     valid_contact = valid_contact[valid_frames]

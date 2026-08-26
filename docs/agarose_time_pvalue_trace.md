@@ -7,24 +7,25 @@ comparison:
 2. whether the group comparison uses control-family Welch tests with
    Holm–Bonferroni adjustment or Welch's one-way ANOVA followed by Games–Howell.
 
-The production default remains the corrected calculation. To reproduce the
-historical numerator behavior, rerun each upstream `analyze.py --agarose`
-command with:
+The production default includes interpolated frames consistently in both the
+numerator and denominator. To reproduce the historical numerator behavior,
+rerun each upstream `analyze.py --agarose` command with:
 
 ```text
 --agarose-time-lost-frame-policy legacy
 ```
 
-To include interpolated frames consistently in both the numerator and
-denominator, use:
+To exclude interpolated frames from both the numerator and denominator, use:
 
 ```text
---agarose-time-lost-frame-policy interpolated-inclusive
+--agarose-time-lost-frame-policy corrected
 ```
 
-Write those runs to new `learning_stats.*.legacy.csv` paths. Do not overwrite
-the corrected files. The command recorded at the top of each output CSV then
-serves as provenance for the frame policy.
+Write each policy to a distinct path such as `learning_stats.*.legacy.csv`,
+`learning_stats.*.corrected.csv`, or
+`learning_stats.*.interpolated_inclusive.csv`; do not overwrite another
+policy's files. The command recorded at the top of each output CSV then serves
+as provenance for the frame policy.
 
 After all three groups have been generated under the policies being compared,
 run the tracer. The legacy and corrected policies are required; the
