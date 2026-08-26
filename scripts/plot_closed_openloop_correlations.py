@@ -201,7 +201,7 @@ def run(args: argparse.Namespace) -> None:
         ),
     )
     stats_rows: list[dict[str, object]] = []
-    x_label = "Light preference"
+    x_label = "Reward preference"
     for sli_key, sli_column, y_label, filename_prefix in sli_specs:
         sli = np.asarray([float(row[sli_column]) for row in matched], dtype=float)
         for preference_key, preference_column, preference_title in preference_specs:
