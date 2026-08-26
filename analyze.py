@@ -13783,6 +13783,13 @@ def postAnalyze(vas):
                     bucket_idx=4,
                     average_over_buckets=False,
                 )
+                sli_t2_sb2_sb5_mean_ser = compute_sli_per_fly(
+                    raw_4,
+                    training_idx=1,
+                    average_over_buckets=True,
+                    skip_first_sync_buckets=1,
+                    keep_first_sync_buckets=4,
+                )
                 plot_cross_fly_correlations(
                     sli_values=sli_ser,
                     vas=vas,
@@ -13794,6 +13801,7 @@ def postAnalyze(vas):
                     sli_ctx=sli_ctx,
                     reward_rate_ctx=reward_rate_ctx,
                     sli_t2_sb5_values=sli_t2_sb5_ser,
+                    sli_t2_sb2_sb5_mean_values=sli_t2_sb2_sb5_mean_ser,
                     sli_selected=sli_selected_for_correlations,
                     sli_extremes=sli_extremes_for_correlations,
                 )

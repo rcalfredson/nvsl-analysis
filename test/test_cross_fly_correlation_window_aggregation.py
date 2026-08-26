@@ -320,3 +320,32 @@ def test_speed_selection_labels_name_the_sli_window_defining_groups():
 
     assert top_label == "Top 20% by SLI at final SB in T2 SB1–5"
     assert bottom_label == "Bottom 50% by SLI at final SB in T2 SB1–5"
+
+
+def test_pre_training_speed_mean_sli_context_targets_t2_sb2_through_sb5():
+    ctx = corr._default_pre_training_speed_vs_mean_t2_sli_context()
+
+    assert ctx.training_idx == 1
+    assert ctx.average_over_buckets is True
+    assert ctx.skip_first_sync_buckets == 1
+    assert ctx.keep_first_sync_buckets == 4
+    assert ctx.axis_label() == "Mean SLI over T2 SB2–5"
+    assert corr._window_context_suffix(ctx, prefix="sli") == (
+        "sliT2_mean_skip1_keep4"
+    )
+
+
+def test_extract_exp_pre_training_speed_uses_t1_exp_final_ten_min_value():
+    vas = [
+        SimpleNamespace(
+            flies=(0, 1),
+            speed=[(1.25, 2.0), (9.0, 8.0), (3.0, 4.0), (7.0, 6.0)],
+        ),
+        SimpleNamespace(flies=(0, 1), speed=[(2.5, 3.0), (8.0, 7.0)]),
+        SimpleNamespace(flies=(1,), speed=[(5.0, 6.0)]),
+    ]
+
+    values = corr._extract_exp_pre_training_speed(vas)
+
+    assert values[:2] == pytest.approx([1.25, 2.5])
+    assert np.isnan(values[2])

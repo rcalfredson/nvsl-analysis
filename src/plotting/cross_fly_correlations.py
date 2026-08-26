@@ -41,6 +41,7 @@ BBOX_STYLE = dict(
 )
 STATS_BOX_MIN_FONTSIZE = 12.0
 TREND_LINE_P_THRESHOLD = 0.05
+PRE_TRAINING_SPEED_WINDOW_MIN = 10
 
 
 _layout_logger = logging.getLogger("cross_fly_corr_layout")
@@ -331,6 +332,17 @@ def _default_t2_speed_vs_final_sli_contexts() -> tuple[
             ),
             "Mean T2 speed (SB1-SB5) and final SLI",
         ),
+    )
+
+
+def _default_pre_training_speed_vs_mean_t2_sli_context() -> SLIContext:
+    """Return the fixed SLI window used with final-10-min pre-training speed."""
+    return SLIContext(
+        training_idx=1,
+        average_over_buckets=True,
+        skip_first_sync_buckets=1,
+        keep_first_sync_buckets=4,
+        total_sync_buckets=5,
     )
 
 
@@ -1642,6 +1654,29 @@ def _reduce_exp_speed_for_context(
     )
 
 
+def _extract_exp_pre_training_speed(vas: Sequence) -> np.ndarray:
+    """Extract experimental-fly speed from the final 10 minutes before T1.
+
+    ``VideoAnalysis.speed()`` stores one ``(pre, training)`` pair for each fly
+    in each training.  The first training's experimental-fly row therefore
+    contains the experiment-wide pre-training speed at index 0.
+    """
+    values = []
+    for va in vas:
+        value = np.nan
+        try:
+            flies = list(getattr(va, "flies", (0,)))
+            exp_row_idx = flies.index(0)
+            speed_rows = getattr(va, "speed", ())
+            exp_t1 = np.asarray(speed_rows[exp_row_idx], dtype=float).reshape(-1)
+            if exp_t1.size:
+                value = float(exp_t1[0])
+        except (AttributeError, IndexError, TypeError, ValueError):
+            value = np.nan
+        values.append(value)
+    return np.asarray(values, dtype=float)
+
+
 def _pooled_median_distance_for_context(va, ctx: SLIContext) -> float:
     training_idx = int(ctx.training_idx)
     trns = getattr(va, "trns", None) or []
@@ -2319,6 +2354,7 @@ def plot_cross_fly_correlations(
     sli_ctx: SLIContext | None = None,
     reward_rate_ctx: SLIContext | None = None,
     sli_t2_sb5_values: Sequence[float] | None = None,
+    sli_t2_sb2_sb5_mean_values: Sequence[float] | None = None,
     sli_selected: tuple[Sequence[int], Sequence[int]] | None = None,
     sli_extremes: str | None = None,
 ):
@@ -2330,6 +2366,7 @@ def plot_cross_fly_correlations(
       1c) SLI vs reward rate
       1d) Speed at T2 SB5 vs SLI at T2 SB5
       1e) Mean speed over T2 SB1-SB5 vs SLI at T2 SB5
+      1f) Final-10-min pre-training speed vs mean SLI over T2 SB2-SB5
       2) SLI vs median distance to reward over the selected training/window
       3) Pre-training reward PI (exp − yoked) vs SLI_final
       3b) Pre-training floor exploration vs SLI at T1, first sync bucket
@@ -2415,6 +2452,19 @@ def plot_cross_fly_correlations(
                 "skipping fixed T2 speed vs final-SLI plots"
             )
             sli_t2_sb5_vals = None
+
+    sli_t2_sb2_sb5_mean_vals = None
+    if sli_t2_sb2_sb5_mean_values is not None:
+        sli_t2_sb2_sb5_mean_vals = np.asarray(
+            sli_t2_sb2_sb5_mean_values, dtype=float
+        )
+        if sli_t2_sb2_sb5_mean_vals.shape != (len(vas),):
+            print(
+                "[correlations] WARNING: sli_t2_sb2_sb5_mean_values must contain "
+                f"one value per VideoAnalysis ({len(vas)} expected); skipping "
+                "pre-training speed vs mean-SLI plot"
+            )
+            sli_t2_sb2_sb5_mean_vals = None
 
     reward_pi_training_vals = None
     if reward_pi_first_bucket is not None:
@@ -2945,6 +2995,28 @@ def plot_cross_fly_correlations(
                     include_all_corr=True,
                     image_format=cfg.image_format,
                 )
+
+    # --- Plot 1f: final-10-min pre-training speed vs mean T2 SB2-SB5 SLI ---
+    if sli_t2_sb2_sb5_mean_vals is not None:
+        mean_sli_ctx = _default_pre_training_speed_vs_mean_t2_sli_context()
+        pre_training_speed_vals = _extract_exp_pre_training_speed(vas)
+        mean_sli_suffix = _window_context_suffix(mean_sli_ctx, prefix="sli")
+        _scatter_with_corr(
+            x=pre_training_speed_vals,
+            y=sli_t2_sb2_sb5_mean_vals,
+            title="Pre-training speed and mean T2 SLI",
+            x_label=(
+                f"Mean speed during final {PRE_TRAINING_SPEED_WINDOW_MIN} min "
+                "of pre-training (mm/s)"
+            ),
+            y_label=mean_sli_ctx.axis_label(),
+            cfg=_cfg_with_plot_color(cfg, "speed_vs_sli"),
+            filename=(
+                "corr_pre_training_speed_vs_sli_"
+                f"{mean_sli_suffix}__speed_preT1_last10min"
+            ),
+            customizer=customizer,
+        )
 
     # --- Plot 2: SLI_final vs median training distance ---
     _scatter_with_corr(
