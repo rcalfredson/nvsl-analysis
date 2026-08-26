@@ -160,7 +160,9 @@ def run(args: argparse.Namespace) -> None:
     if not matched:
         raise ValueError("no closed-loop pairs matched experimental open-loop flies")
 
-    x = np.asarray([float(row["sli_t2_sb5"]) for row in matched], dtype=float)
+    final_sli = np.asarray(
+        [float(row["sli_t2_sb5"]) for row in matched], dtype=float
+    )
     customizer = PlotCustomizer()
     if args.font_size is not None:
         customizer.update_font_size(args.font_size)
@@ -189,17 +191,21 @@ def run(args: argparse.Namespace) -> None:
         ),
     )
     stats_rows: list[dict[str, object]] = []
-    x_label = "Final SLI at T2 SB5 (exp - yoked)"
-    for plot_key, column, title, y_label in plot_specs:
-        y = np.asarray([float(row[column]) for row in matched], dtype=float)
+    y_label = "Final SLI at T2 SB5 (exp - yoked)"
+    for plot_key, column, title, x_label in plot_specs:
+        positional_pi = np.asarray(
+            [float(row[column]) for row in matched], dtype=float
+        )
         filename = f"corr_final_sli_vs_openloop_pi_{plot_key}"
         cfg = CorrelationPlotConfig(
             **cfg_base,
-            dot_color=correlation_plot_color(filename),
+            dot_color=correlation_plot_color(
+                "openloop_positional_pi_vs_final_sli"
+            ),
         )
         summary = plot_correlation_scatter(
-            x=x,
-            y=y,
+            x=positional_pi,
+            y=final_sli,
             title=title,
             x_label=x_label,
             y_label=y_label,
