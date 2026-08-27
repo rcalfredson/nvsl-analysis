@@ -505,6 +505,9 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
         virtual_ratio_exp = mask_by_exp_target_sync_bucket_filter(
             virtual_ratio_exp, target_sync_bucket_eligible
         )
+        virtual_method = str(
+            getattr(opts, "agarose_virtual_control_method", "arena-rotation")
+        )
         virtual_payload = {
             "agarose_virtual_ratio_exp": virtual_ratio_exp,
             "agarose_virtual_ratio_ctrl": virtual_ratio_ctrl,
@@ -513,7 +516,29 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
             "agarose_virtual_avoid_exp": virtual_avoid_exp,
             "agarose_virtual_avoid_ctrl": virtual_avoid_ctrl,
             "agarose_virtual_rotation_deg": np.array(
-                float(getattr(opts, "agarose_virtual_rotation_deg", 45.0)),
+                float(getattr(opts, "agarose_virtual_rotation_deg", 45.0))
+                if virtual_method == "arena-rotation"
+                else np.nan,
+                dtype=float,
+            ),
+            "agarose_virtual_control_method": np.array(
+                virtual_method, dtype=object
+            ),
+            "agarose_reward_control_seed": np.array(
+                int(getattr(opts, "agarose_reward_control_seed", 101)), dtype=int
+            ),
+            "agarose_reward_control_buffer_mm": np.array(
+                float(getattr(opts, "agarose_reward_audit_buffer_mm", 1.0)),
+                dtype=float,
+            ),
+            "agarose_reward_control_max_outside_area_fraction": np.array(
+                float(
+                    getattr(
+                        opts,
+                        "agarose_reward_audit_max_outside_area_frac",
+                        0.25,
+                    )
+                ),
                 dtype=float,
             ),
             **episode_filter_accounting_payload(

@@ -91,6 +91,10 @@ from src.analysis.behavior_states import (
     analyze_trajectory_behavior_states,
     behavior_state_config_from_opts,
 )
+from src.analysis.agarose_reward_geometry_audit import (
+    audit_site_candidates,
+    select_maximin_complete_draw,
+)
 from src.analysis.ellipse_to_boundary_dist import (
     TrjDataContainer,
     VaDataContainer,
@@ -400,12 +404,27 @@ class VideoAnalysis:
             ):
                 self.analyzeAgaroseDualCircleAvoidance()
                 if getattr(opts, "agarose_virtual_control", False):
-                    self.analyzeAgaroseDualCircleAvoidance(
-                        center_rotation_deg=float(
-                            getattr(opts, "agarose_virtual_rotation_deg", 45.0)
-                        ),
-                        result_prefix="agarose_virtual",
+                    virtual_method = str(
+                        getattr(
+                            opts,
+                            "agarose_virtual_control_method",
+                            "reward-analytical",
+                        )
                     )
+                    if virtual_method == "reward-analytical":
+                        self.analyzeAgaroseRewardMatchedVirtualControl()
+                    elif virtual_method == "arena-rotation":
+                        self.analyzeAgaroseDualCircleAvoidance(
+                            center_rotation_deg=float(
+                                getattr(opts, "agarose_virtual_rotation_deg", 45.0)
+                            ),
+                            result_prefix="agarose_virtual",
+                        )
+                    else:
+                        raise ValueError(
+                            "agarose_virtual_control_method must be "
+                            "'reward-analytical' or 'arena-rotation'"
+                        )
                     if self._agaroseDualCircleDebugRequested():
                         self.agarose_dual_circle_debug_rows = list(
                             getattr(self, "agarose_dual_circle_debug_rows", [])
@@ -2358,6 +2377,238 @@ class VideoAnalysis:
                     ),
                 ),
             )
+
+    def analyzeAgaroseRewardMatchedVirtualControl(self, delta_mm=None):
+        """Compute the sitewise analytical reward-matched virtual control."""
+        if self.ct not in (CT.large, CT.large2):
+            return
+        if any(
+            bool(getattr(self.opts, option, False))
+            for option in (
+                "agarose_farthest_from_reward_only",
+                "agarose_wall_facing_entry_only",
+                "agarose_exclude_reward_facing_arc_entries",
+            )
+        ):
+            raise ValueError(
+                "reward-analytical agarose virtual control does not yet support "
+                "the farthest-site or entry-arc subset filters"
+            )
+        if delta_mm is None:
+            delta_mm = float(getattr(self.opts, "agarose_outer_delta_mm", 0.5))
+        inner_offset_mm = float(
+            getattr(self.opts, "agarose_inner_radius_offset_mm", 0.0)
+        )
+        buffer_mm = float(
+            getattr(self.opts, "agarose_reward_audit_buffer_mm", 1.0)
+        )
+        max_outside_fraction = float(
+            getattr(
+                self.opts, "agarose_reward_audit_max_outside_area_frac", 0.25
+            )
+        )
+        seed = int(getattr(self.opts, "agarose_reward_control_seed", 101))
+        sync_ranges = getattr(self, "sync_bucket_ranges", None)
+        if sync_ranges is None:
+            raise RuntimeError(
+                "sync_bucket_ranges is not defined. Make sure bySyncBucket() "
+                "has been called before the agarose virtual control."
+            )
+        n_trn = len(sync_ranges)
+        n_flies = len(self.trx)
+        max_nb = max((len(ranges) for ranges in sync_ranges), default=0)
+        avoid = np.zeros((n_trn, n_flies, max_nb), dtype=int)
+        total = np.zeros((n_trn, n_flies, max_nb), dtype=int)
+        training_pre_avoid = np.zeros((n_trn, n_flies), dtype=int)
+        training_pre_total = np.zeros((n_trn, n_flies), dtype=int)
+        global_pre_avoid = np.zeros(n_flies, dtype=int)
+        global_pre_total = np.zeros(n_flies, dtype=int)
+        training_pre_windows = self._agaroseDualCircleTrainingPreWindows()
+        global_pre_window = self._agaroseDualCircleGlobalPreWindow()
+        selections = [[None for _ in range(n_flies)] for _ in range(n_trn)]
+        all_episodes = [[] for _ in range(n_flies)]
+
+        for fi, trj in enumerate(self.trx):
+            if getattr(trj, "_bad", False):
+                continue
+            transform_fly = self.trxf[fi]
+            nominal_radius_px, physical_centers = self.ct.arenaWells(
+                self.xf, transform_fly
+            )
+            nominal_radius_px = float(nominal_radius_px)
+            physical_centers = tuple(
+                (float(center[0]), float(center[1])) for center in physical_centers
+            )
+            px_per_mm = float(self.ct.pxPerMmFloor() * self.xf.fctr)
+            outer_radius_px = nominal_radius_px + float(delta_mm) * px_per_mm
+            floor_tl, floor_br = list(self.ct.floor(self.xf, f=transform_fly))
+            floor_bounds = (
+                float(floor_tl[0]),
+                float(floor_tl[1]),
+                float(floor_br[0]),
+                float(floor_br[1]),
+            )
+
+            for t_idx, trn in enumerate(self.trns[:n_trn]):
+                reward_circles = trn.circles(fi)
+                if not reward_circles:
+                    continue
+                reward_center = tuple(float(value) for value in reward_circles[0][:2])
+                candidates_by_site = []
+                for site_idx in range(len(physical_centers)):
+                    rows = audit_site_candidates(
+                        physical_centers=physical_centers,
+                        physical_site_index=site_idx,
+                        reward_center=reward_center,
+                        floor_bounds=floor_bounds,
+                        nominal_radius_px=nominal_radius_px,
+                        outer_radius_px=outer_radius_px,
+                        px_per_mm=px_per_mm,
+                        agarose_buffer_mm=buffer_mm,
+                        max_outside_area_fraction=max_outside_fraction,
+                        candidate_method="analytical",
+                    )
+                    candidates_by_site.append(
+                        [row for row in rows if row["passes_primary_geometry"]]
+                    )
+                selected = select_maximin_complete_draw(
+                    candidates_by_site, outer_radius_px, seed=seed
+                )
+                if selected is None:
+                    continue
+                selections[t_idx][fi] = selected
+
+                bucket_ranges = sync_ranges[t_idx]
+                pre_window = (
+                    training_pre_windows[t_idx]
+                    if t_idx < len(training_pre_windows)
+                    else None
+                )
+                starts = [start for start, _stop in bucket_ranges]
+                if pre_window is not None:
+                    starts.append(pre_window[0])
+                if not starts:
+                    continue
+                detection_start = max(0, min(starts) - 1)
+                detection_stop = min(
+                    len(trj.x),
+                    int(getattr(trn, "postStop", getattr(trn, "stop", len(trj.x)))),
+                )
+                if detection_start >= detection_stop:
+                    continue
+
+                for site_idx, row in selected.items():
+                    center = (
+                        float(row["candidate_x_px"]),
+                        float(row["candidate_y_px"]),
+                    )
+                    trj.calc_agarose_dual_circle_episodes(
+                        delta_mm=delta_mm,
+                        inner_radius_offset_mm=inner_offset_mm,
+                        centers_override=(center,),
+                        site_labels=(f"virtual_site{site_idx + 1}",),
+                        frame_range=(detection_start, detection_stop),
+                    )
+                    episodes = list(
+                        getattr(trj, "agarose_dual_circle_episodes", [])
+                    )
+                    for episode in episodes:
+                        episode["training_idx"] = int(t_idx)
+                        episode["virtual_source_site"] = int(site_idx) + 1
+                        episode["virtual_candidate_angle_deg"] = float(
+                            row["angle_deg"]
+                        )
+                        episode["virtual_min_agarose_gap_mm"] = float(
+                            row["min_physical_agarose_gap_mm"]
+                        )
+                    all_episodes[fi].extend(episodes)
+
+                    for episode in episodes:
+                        entry = int(episode["start"])
+                        for b_idx, (bucket_start, bucket_stop) in enumerate(
+                            bucket_ranges
+                        ):
+                            if bucket_start <= entry < bucket_stop:
+                                total[t_idx, fi, b_idx] += 1
+                                if episode["avoids_inner"]:
+                                    avoid[t_idx, fi, b_idx] += 1
+                                break
+                        if pre_window is not None and pre_window[0] <= entry < pre_window[1]:
+                            training_pre_total[t_idx, fi] += 1
+                            if episode["avoids_inner"]:
+                                training_pre_avoid[t_idx, fi] += 1
+                        if (
+                            t_idx == 0
+                            and global_pre_window is not None
+                            and global_pre_window[0] <= entry < global_pre_window[1]
+                        ):
+                            global_pre_total[fi] += 1
+                            if episode["avoids_inner"]:
+                                global_pre_avoid[fi] += 1
+
+        min_total = min_episode_count_for_type(
+            self.opts, EPISODE_TYPE_OUTER_ENTRY_REEXIT
+        )
+
+        def ratios(numerator, denominator):
+            result = np.full(denominator.shape, np.nan, dtype=float)
+            np.divide(numerator, denominator, out=result, where=denominator > 0)
+            if min_total > 0:
+                result[denominator < min_total] = np.nan
+            return result
+
+        self.agarose_virtual_dual_circle_counts = {
+            "avoid": avoid,
+            "total": total,
+            "ratio": ratios(avoid, total),
+        }
+        global_start = np.nan if global_pre_window is None else global_pre_window[0]
+        global_stop = np.nan if global_pre_window is None else global_pre_window[1]
+        self.agarose_virtual_dual_circle_pre_counts = {
+            "avoid": global_pre_avoid,
+            "total": global_pre_total,
+            "ratio": ratios(global_pre_avoid, global_pre_total),
+            "start_frame": np.asarray(global_start, dtype=float),
+            "stop_frame": np.asarray(global_stop, dtype=float),
+            "window_min": np.asarray(
+                np.nan
+                if global_pre_window is None
+                else self._f2min(global_stop - global_start),
+                dtype=float,
+            ),
+        }
+        pre_starts = np.asarray(
+            [np.nan if window is None else window[0] for window in training_pre_windows],
+            dtype=float,
+        )
+        pre_stops = np.asarray(
+            [np.nan if window is None else window[1] for window in training_pre_windows],
+            dtype=float,
+        )
+        self.agarose_virtual_dual_circle_training_pre_counts = {
+            "avoid": training_pre_avoid,
+            "total": training_pre_total,
+            "ratio": ratios(training_pre_avoid, training_pre_total),
+            "start_frame": pre_starts,
+            "stop_frame": pre_stops,
+            "window_min": np.asarray(
+                [
+                    np.nan if window is None else self._f2min(window[1] - window[0])
+                    for window in training_pre_windows
+                ],
+                dtype=float,
+            ),
+        }
+        self.agarose_virtual_dual_circle_geometry = {
+            "method": "reward_analytical_maximin",
+            "outer_delta_mm": float(delta_mm),
+            "inner_radius_offset_mm": inner_offset_mm,
+            "agarose_buffer_mm": buffer_mm,
+            "max_outside_area_fraction": max_outside_fraction,
+            "seed": seed,
+            "selections": selections,
+        }
+        self.agarose_virtual_dual_circle_episodes = all_episodes
 
     def _agaroseDualCircleDebugRequested(self):
         return bool(

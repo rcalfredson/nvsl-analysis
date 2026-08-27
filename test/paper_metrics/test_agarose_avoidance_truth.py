@@ -255,6 +255,26 @@ def test_agarose_virtual_control_rotates_sites_without_changing_radial_distance(
     ) > physical_radius
 
 
+def test_agarose_dual_circle_accepts_explicit_site_and_frame_window():
+    trj = _trajectory_at_well_distances(
+        [41.0, 31.0, 33.0, 41.0, 31.0, 33.0, 41.0]
+    )
+    _radius, centers = CT.large.arenaWells(trj.va.xf, trj.va.trxf[trj.f])
+
+    trj.calc_agarose_dual_circle_episodes(
+        delta_mm=1.0,
+        centers_override=(centers[0],),
+        site_labels=("virtual_site1",),
+        frame_range=(3, 7),
+    )
+
+    assert [
+        (ep["start"], ep["stop"], ep["start_well_labels"])
+        for ep in trj.agarose_dual_circle_episodes
+    ] == [(4, 6, ("virtual_site1",))]
+    assert trj.agarose_dual_circle_geometry["centers_px"] == (centers[0],)
+
+
 def test_agarose_dual_circle_radius_offsets_preserve_concentric_centers():
     trj = _trajectory_at_well_distances([100.0, 100.0])
     physical_radius, physical_centers = CT.large.arenaWells(
@@ -678,6 +698,61 @@ def test_virtual_agarose_analysis_uses_separate_paired_result_attributes():
         "wall_facing_reference": "arena",
         "exclude_reward_facing_arc_entries": False,
     }
+
+
+def test_reward_analytical_virtual_control_pools_one_selected_site_per_source():
+    class RewardTraining(_Training):
+        postStop = 10
+
+        def circles(self, _fly):
+            return [(170.0, 70.0, 10.0)]
+
+    exp = _TrajectoryEpisodes(
+        [{"start": 2, "stop": 4, "avoids_inner": True}]
+    )
+    exp.x = np.zeros(10)
+    va = _video_analysis_stub(
+        ct=CT.large,
+        xf=_IdentityXformer(),
+        trxf={0: None},
+        opts=SimpleNamespace(
+            agarose_outer_delta_mm=0.5,
+            agarose_inner_radius_offset_mm=0.0,
+            agarose_reward_audit_buffer_mm=1.0,
+            agarose_reward_audit_max_outside_area_frac=0.25,
+            agarose_reward_control_seed=101,
+            min_agarose_episodes=1,
+        ),
+        sync_bucket_ranges=[[(0, 5)]],
+        trx=[exp],
+        trns=[RewardTraining(start=5, stop=8, name="T1")],
+        startPre=0,
+        _min2f=lambda minutes: int(minutes),
+        _f2min=lambda frames: float(frames),
+    )
+
+    VideoAnalysis.analyzeAgaroseRewardMatchedVirtualControl(va)
+
+    assert len(exp.calls) == 4
+    assert all(len(call["centers_override"]) == 1 for call in exp.calls)
+    assert {call["site_labels"][0] for call in exp.calls} == {
+        "virtual_site1",
+        "virtual_site2",
+        "virtual_site3",
+        "virtual_site4",
+    }
+    np.testing.assert_array_equal(
+        va.agarose_virtual_dual_circle_counts["total"], [[[4]]]
+    )
+    np.testing.assert_array_equal(
+        va.agarose_virtual_dual_circle_counts["avoid"], [[[4]]]
+    )
+    np.testing.assert_allclose(
+        va.agarose_virtual_dual_circle_counts["ratio"], [[[1.0]]]
+    )
+    assert va.agarose_virtual_dual_circle_geometry["method"] == (
+        "reward_analytical_maximin"
+    )
 
 
 def test_farthest_reward_site_selection_retains_physical_tie_and_one_virtual_site():

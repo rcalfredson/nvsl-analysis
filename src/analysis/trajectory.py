@@ -1544,6 +1544,9 @@ class Trajectory:
         debug=False,
         center_rotation_deg=0.0,
         inner_radius_offset_mm=0.0,
+        centers_override=None,
+        site_labels=None,
+        frame_range=None,
     ):
         """
         Identify 'dual-circle' agarose avoidance episodes for this fly.
@@ -1576,7 +1579,7 @@ class Trajectory:
                 print(f"{flyDesc(self.f)}: arenaWells returned None")
             return
 
-        nominal_agarose_radius_px, centers = wells
+        nominal_agarose_radius_px, physical_centers = wells
         nominal_agarose_radius_px = float(nominal_agarose_radius_px)
         floor_tl, floor_br = self.va.ct.floor(self.va.xf, f=self.va.trxf[self.f])
         arena_cx = 0.5 * (float(floor_tl[0]) + float(floor_br[0]))
@@ -1590,7 +1593,11 @@ class Trajectory:
         center_rotation_deg = float(center_rotation_deg)
         if not np.isfinite(center_rotation_deg):
             raise ValueError("center_rotation_deg must be finite")
-        if center_rotation_deg % 360.0:
+        if centers_override is not None:
+            centers = tuple(
+                (float(center[0]), float(center[1])) for center in centers_override
+            )
+        elif center_rotation_deg % 360.0:
             theta = math.radians(center_rotation_deg)
             cos_t, sin_t = math.cos(theta), math.sin(theta)
             centers = tuple(
@@ -1598,10 +1605,24 @@ class Trajectory:
                     arena_cx + cos_t * (float(cx) - arena_cx) - sin_t * (float(cy) - arena_cy),
                     arena_cy + sin_t * (float(cx) - arena_cx) + cos_t * (float(cy) - arena_cy),
                 )
-                for cx, cy in centers
+                for cx, cy in physical_centers
             )
         else:
-            centers = tuple(centers)
+            centers = tuple(physical_centers)
+
+        if site_labels is None:
+            label_prefix = (
+                "virtual_site"
+                if centers_override is not None or center_rotation_deg % 360.0
+                else "well"
+            )
+            site_labels = tuple(
+                f"{label_prefix}{idx + 1}" for idx in range(len(centers))
+            )
+        else:
+            site_labels = tuple(str(label) for label in site_labels)
+            if len(site_labels) != len(centers):
+                raise ValueError("site_labels must have one label per center")
 
         nominal_centers = tuple(
             (float(cx), float(cy)) for cx, cy in centers
@@ -1628,6 +1649,7 @@ class Trajectory:
             "nominal_agarose_radius_px": nominal_agarose_radius_px,
             "inner_radius_px": inner_radius_px,
             "outer_radius_px": outer_radius_px,
+            "site_labels": site_labels,
         }
         # Hysteresis on the outer boundary prevents tracking noise from splitting
         # one approach into several short episodes.  The inner boundary only
@@ -1649,6 +1671,15 @@ class Trajectory:
         outer_by_well = []
         inner_by_well = []
         well_labels = []
+        active_frames = None
+        if frame_range is not None:
+            frame_start, frame_stop = (int(value) for value in frame_range)
+            if frame_start < 0 or frame_stop > n_frames or frame_start >= frame_stop:
+                raise ValueError(
+                    "frame_range must be a nonempty interval within the trajectory"
+                )
+            active_frames = np.zeros(n_frames, dtype=bool)
+            active_frames[frame_start:frame_stop] = True
 
         # Combine across all wells by OR-ing
         for wi, (cx, cy) in enumerate(centers):
@@ -1680,13 +1711,15 @@ class Trajectory:
             inner_state[~finite] = np.nan
             outer_mask = self._hysteretic_circle_inside(outer_state)
             inner_mask = self._hysteretic_circle_inside(inner_state)
+            if active_frames is not None:
+                outer_mask &= active_frames
+                inner_mask &= active_frames
 
             in_outer |= outer_mask
             in_inner |= inner_mask
             outer_by_well.append(outer_mask)
             inner_by_well.append(inner_mask)
-            label_prefix = "well" if center_rotation_deg % 360.0 == 0 else "virtual_site"
-            well_labels.append(f"{label_prefix}{wi + 1}")
+            well_labels.append(site_labels[wi])
 
         # Find contiguous regions where in_outer is True
         outer_regions = util.trueRegions(in_outer)

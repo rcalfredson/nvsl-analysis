@@ -215,6 +215,11 @@ def main() -> int:
             bundle.get("video_ids", np.arange(actual.size)), dtype=object
         )
         rotation = float(np.asarray(bundle["agarose_virtual_rotation_deg"]).item())
+        virtual_method = str(
+            np.asarray(
+                bundle.get("agarose_virtual_control_method", "arena-rotation")
+            ).item()
+        )
         farthest_only = bool(
             np.asarray(bundle.get("agarose_farthest_from_reward_only", False)).item()
         )
@@ -259,7 +264,11 @@ def main() -> int:
             if start_idx == end_idx
             else f"{start_idx + 1}-{end_idx + 1}"
         )
-        + f", virtual_rotation={rotation:g} deg, "
+        + (
+            f", virtual_method={virtual_method}, "
+            if virtual_method != "arena-rotation"
+            else f", virtual_rotation={rotation:g} deg, "
+        )
         + ("sites=farthest-from-reward" if farthest_only else "sites=all")
         + f", {entry_selection}"
         + f", inner_offset={inner_offset_mm:g} mm"

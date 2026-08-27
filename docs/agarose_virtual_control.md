@@ -4,14 +4,23 @@ The `--agarose-virtual-control` option adds a spatial negative control to the
 existing `--agarose-dual-circle` analysis. It does not replace the physical-well
 measurement.
 
-For each fly, the analysis rigidly rotates the four agarose-well centers around
-the transformed arena center. The default rotation is 45 degrees, which places
-each virtual site midway between adjacent physical wells. Inner radius, outer
-padding, angular symmetry, and distance from the arena center are unchanged. In
-these experiments the reward circle is offset from that center, so a rotation
-does not preserve each site's distance from the reward circle. Episodes and
-avoidance outcomes are then calculated with exactly the same code used for the
-physical sites.
+The default method is a sitewise, reward-centered analytical control. For every
+fly and training, each physical agarose center is rotated around that training's
+reward center, preserving its exact reward-center distance. Candidate positions
+are the analytical intersections with physical-well neighbor bisectors. A
+complete null draw contains one eligible virtual location for each of the four
+physical sites; the selected draw maximizes its smallest physical-agarose gap,
+then its total gap. Candidate rotations are not treated as independent
+biological replicates. Episodes from the four selected sites are pooled and
+avoidance outcomes are calculated with the same dual-circle detector used for
+the physical sites.
+
+The eligibility rules require a virtual center inside the chamber floor, no
+more than 25% of its outer-circle area outside the floor, at least 1 mm between
+its outer circle and every physical agarose area, and no overlap among the four
+selected virtual outer circles. These settings can be changed with
+`--agarose-reward-audit-max-outside-area-frac` and
+`--agarose-reward-audit-buffer-mm`.
 
 Example:
 
@@ -25,9 +34,9 @@ python analyze.py \
 
 The bundle retains the existing `agarose_*` arrays and adds paired arrays named
 `agarose_virtual_ratio_*`, `agarose_virtual_total_*`, and
-`agarose_virtual_avoid_*`. It also records `agarose_virtual_rotation_deg`. When
-`--agarose-sli-include-pre` is used, corresponding virtual pre-training arrays
-are included.
+`agarose_virtual_avoid_*`. It also records the placement method, seed, buffer,
+and outside-area limit. When `--agarose-sli-include-pre` is used, corresponding
+virtual pre-training arrays are included.
 
 The primary validity contrast is physical minus virtual avoidance ratio within
 the same video, fly role, training, and sync bucket. A positive contrast supports
@@ -64,9 +73,9 @@ sum of all episodes across the selected buckets. They are not unweighted means
 of the bucket-level ratios. The minimum-episode threshold is applied to that
 pooled denominator.
 
-Use `--agarose-virtual-rotation-deg` to run a rotation sensitivity analysis.
-Angles other than 45 degrees preserve radial distance but generally provide less
-separation from the physical wells.
+To reproduce the legacy chamber-centered rotation, add
+`--agarose-virtual-control-method arena-rotation`. In that mode,
+`--agarose-virtual-rotation-deg` selects the angle (45 degrees by default).
 
 ### Farthest-from-reward site subset
 

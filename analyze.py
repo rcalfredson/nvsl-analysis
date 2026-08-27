@@ -5326,6 +5326,21 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--agarose-virtual-control-method",
+    choices=("reward-analytical", "arena-rotation"),
+    default="reward-analytical",
+    help=(
+        "virtual-site placement method: analytical reward-matched maximin sites "
+        "or the legacy rigid arena-centered rotation (default: reward-analytical)"
+    ),
+)
+g.add_argument(
+    "--agarose-reward-control-seed",
+    type=int,
+    default=101,
+    help="deterministic tie-break seed for analytical maximin draws (default: 101)",
+)
+g.add_argument(
     "--agarose-virtual-rotation-deg",
     type=float,
     default=45.0,
