@@ -24,10 +24,14 @@ def test_bundle_variant_metadata_reads_new_settings_and_legacy_defaults(tmp_path
         agarose_inner_radius_offset_mm=np.array(1.0),
         agarose_outer_radius_offset_mm=np.array(2.0),
         agarose_exclude_reward_facing_arc_entries=np.array(True),
+        agarose_virtual_control_method=np.array(
+            "reward-analytical", dtype=object
+        ),
     )
     np.savez(legacy, agarose_ratio_exp=np.asarray([0.5]))
 
     assert _bundle_variant_metadata(current) == {
+        "virtual_method": "reward-analytical",
         "farthest_only": False,
         "wall_facing_only": True,
         "wall_reference": "reward",
@@ -36,6 +40,7 @@ def test_bundle_variant_metadata_reads_new_settings_and_legacy_defaults(tmp_path
         "exclude_reward_arc": True,
     }
     assert _bundle_variant_metadata(legacy) == {
+        "virtual_method": "arena-rotation",
         "farthest_only": False,
         "wall_facing_only": False,
         "wall_reference": "arena",
@@ -111,7 +116,11 @@ def test_summary_plot_writes_slide_ready_figure(tmp_path):
     out = tmp_path / "summary.png"
 
     result = plot_agarose_virtual_control_summary(
-        agarose, flat, out_path=out
+        agarose,
+        flat,
+        out_path=out,
+        virtual_label="Reward-matched virtual positions",
+        effect_title="Reward-matched orientation effect by chamber",
     )
 
     assert out.exists()

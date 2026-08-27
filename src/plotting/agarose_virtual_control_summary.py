@@ -101,6 +101,8 @@ def plot_agarose_virtual_control_summary(
     *,
     out_path,
     title=None,
+    virtual_label="45° virtual positions",
+    effect_title="Orientation effect by chamber",
     image_format="png",
     dpi=220,
 ):
@@ -187,7 +189,7 @@ def plot_agarose_virtual_control_summary(
     ax.legend(
         handles=[
             Line2D([0], [0], color=colors[0], lw=7, label="Physical positions"),
-            Line2D([0], [0], color=colors[1], lw=7, label="45° virtual positions"),
+            Line2D([0], [0], color=colors[1], lw=7, label=str(virtual_label)),
         ],
         frameon=False,
         loc="upper right",
@@ -234,7 +236,7 @@ def plot_agarose_virtual_control_summary(
         [f"{x.label}\n(n={x.physical.size})" for x in chambers]
     )
     ax.set_ylabel("Physical − virtual avoidance ratio")
-    ax.set_title("Orientation effect by chamber")
+    ax.set_title(str(effect_title))
 
     for ax in axes:
         ax.grid(axis="y", alpha=0.18, zorder=0)

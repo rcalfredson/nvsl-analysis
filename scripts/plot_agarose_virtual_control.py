@@ -241,6 +241,13 @@ def save_geometry_annotation(
 def _bundle_variant_metadata(bundle_path):
     with np.load(bundle_path, allow_pickle=True) as bundle:
         return {
+            "virtual_method": str(
+                np.asarray(
+                    bundle.get(
+                        "agarose_virtual_control_method", "arena-rotation"
+                    )
+                ).item()
+            ),
             "farthest_only": bool(
                 np.asarray(
                     bundle.get("agarose_farthest_from_reward_only", False)
@@ -308,6 +315,23 @@ def main():
             "agarose and flat bundles use different dual-circle metric variants"
         )
     farthest_only = agarose_variant["farthest_only"]
+    virtual_method = agarose_variant["virtual_method"]
+    if virtual_method == "reward-analytical":
+        virtual_label = "Reward-matched virtual positions"
+        effect_title = "Reward-matched orientation effect by chamber"
+        default_title = (
+            "Farthest-from-reward reward-matched dual-circle comparison"
+            if farthest_only
+            else "All-site reward-matched dual-circle comparison"
+        )
+    else:
+        virtual_label = f"{args.virtual_rotation_deg:g}° virtual positions"
+        effect_title = "Orientation effect by chamber"
+        default_title = (
+            "Farthest-from-reward dual-circle comparison"
+            if farthest_only
+            else None
+        )
 
     common = dict(
         mode=args.mode,
@@ -326,14 +350,12 @@ def main():
         agarose,
         flat,
         out_path=args.out,
+        virtual_label=virtual_label,
+        effect_title=effect_title,
         title=(
             args.title
             if args.title is not None
-            else (
-                "Farthest-from-reward dual-circle comparison"
-                if farthest_only
-                else None
-            )
+            else default_title
         ),
     )
     print(
