@@ -87,6 +87,7 @@ from src.utils.constants import (
 from src.analysis.random_frame_windows import (
     sample_non_overlapping_frame_windows_from_domains,
 )
+from src.analysis.agarose_reward_geometry_audit import export_geometry_audit_csv
 from src.analysis.motion import CircularMotionDetector
 from src.exporting.agarose_sli_bundle import export_agarose_sli_bundle
 from src.exporting.cross_experiment_correlation import (
@@ -5331,6 +5332,46 @@ g.add_argument(
     help=(
         "rotation of virtual dual-circle centers around the arena center; 45 degrees "
         "maximizes separation from the four physical wells (default: 45)"
+    ),
+)
+g.add_argument(
+    "--export-agarose-reward-geometry-audit-csv",
+    help=(
+        "write a geometry-only CSV audit of sitewise reward-centered virtual "
+        "agarose candidates, plus a sibling *_summary.csv file"
+    ),
+)
+g.add_argument(
+    "--agarose-reward-audit-angle-step-deg",
+    type=float,
+    default=5.0,
+    help="angular grid spacing for the reward-centered geometry audit (default: 5)",
+)
+g.add_argument(
+    "--agarose-reward-audit-candidate-method",
+    choices=("analytical", "grid"),
+    default="analytical",
+    help=(
+        "generate reward-centered candidates analytically on agarose-neighbor "
+        "bisectors, or retain the iterative angular grid (default: analytical)"
+    ),
+)
+g.add_argument(
+    "--agarose-reward-audit-buffer-mm",
+    type=float,
+    default=1.0,
+    help=(
+        "minimum surface gap between a virtual outer circle and physical "
+        "agarose boundaries in the geometry audit (default: 1)"
+    ),
+)
+g.add_argument(
+    "--agarose-reward-audit-max-outside-area-frac",
+    type=float,
+    default=0.25,
+    help=(
+        "maximum fraction of a virtual outer circle allowed outside the chamber "
+        "floor in the reward-centered geometry audit (default: 0.25)"
     ),
 )
 g.add_argument(
@@ -17284,6 +17325,13 @@ def analyze():
             post_start = timeit.default_timer()
         va0 = vas[0]
         postAnalyze(vas)
+
+        if getattr(opts, "export_agarose_reward_geometry_audit_csv", None):
+            export_geometry_audit_csv(
+                vas,
+                opts,
+                opts.export_agarose_reward_geometry_audit_csv,
+            )
 
         if getattr(opts, "exit_events_csv", None):
             cfg = ExitEventImageConfig(

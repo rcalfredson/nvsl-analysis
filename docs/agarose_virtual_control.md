@@ -250,3 +250,84 @@ The bar heights are video-level means and whiskers are 95% confidence intervals.
 Open circles show individual videos. Lines in the placement panel connect the
 physical and virtual ratios from the same video. The second panel displays those
 paired differences and labels the between-chamber Welch interaction contrast.
+
+## Reward-centered sitewise geometry audit
+
+Before calculating a reward-centered spatial null, use the geometry-only audit
+to check whether each physical site has usable sitewise rotations. The audit does
+not inspect trajectories or avoidance outcomes:
+
+```bash
+python analyze.py \
+  -v "/path/to/videos/*.avi" -f "0-1" \
+  --export-agarose-reward-geometry-audit-csv \
+    exports/agarose_reward_geometry_candidates.csv
+```
+
+Candidates are generated analytically by default. For each physical site's
+reward-centered rotation ring, the audit finds exact intersections with the
+perpendicular bisectors of pairs of physical agarose wells and retains an
+intersection only when that pair is nearest at the candidate position. Thus,
+each virtual center has exactly the corresponding physical site's reward-center
+distance and is equidistant from its two neighboring agarose wells. Use
+`--agarose-reward-audit-candidate-method grid` to retain the earlier iterative
+5-degree grid for comparison.
+
+A candidate passes the hard geometry rule when its center is on the chamber
+floor and its outer analysis circle is at least 1 mm from every nominal physical
+agarose boundary. The primary wall rule additionally requires at least 75% of
+the virtual outer-circle area to lie inside the chamber floor. Wall-clearance
+tiers are retained as diagnostics rather than primary eligibility requirements.
+
+Wall proximity diagnostics use the nearest two signed outer-circle clearances.
+A negative clearance means that the analysis circle crosses the nominal floor
+boundary; modest truncation is allowed by the primary area rule.
+
+The detailed CSV records every candidate and all rejection fields. A sibling
+file ending in `_summary.csv` reports candidate and 30-degree-sector coverage
+for three initial wall-matching tiers:
+
+- strict: nearest-wall difference at most 0.5 mm and second-wall difference at
+  most 1 mm;
+- moderate: at most 1 mm and 2 mm;
+- relaxed: at most 2 mm and 3 mm.
+
+The summary also reports whether the tier can form a complete four-site draw
+whose virtual outer circles do not overlap. Counts stop at 10,000 and are marked
+as capped; they are feasibility diagnostics, not biological sample sizes.
+Nearest-wall-only candidate and complete-draw counts are included beside the
+two-wall results. These diagnose cases where exact reward matching can reproduce
+distance to the closest wall but cannot also reproduce corner proximity.
+Hard-geometry-only complete-draw counts show whether the reward-distance and
+1 mm agarose-buffer rules are feasible before either wall constraint is applied.
+The `primary_*` fields apply the center, buffer, 25% outside-area, and
+within-draw nonoverlap rules that are intended for candidate sampling.
+
+Use `--agarose-reward-audit-angle-step-deg` and
+`--agarose-reward-audit-buffer-mm` to audit other grid spacings or physical-
+agarose safety gaps. Use
+`--agarose-reward-audit-max-outside-area-frac` to change the area limit. The
+analysis radii come from
+`--agarose-inner-radius-offset-mm` and `--agarose-outer-delta-mm`.
+
+Visualize a configuration before calculating any behavioral metric with:
+
+```bash
+python scripts/plot_agarose_reward_geometry_audit.py \
+  --candidates exports/agarose_reward_geometry_candidates.csv \
+  --config-index 1 \
+  --out imgs/agarose_reward_geometry_audit_config1.png
+```
+
+The left panel shows all candidate centers: primary-eligible positions are
+colored by their source physical site and rejected positions are faint gray.
+The right panel shows the default maximin, mutually nonoverlapping four-site
+draw. It first maximizes the smallest physical-agarose gap among the four
+virtual circles and then maximizes total clearance. Each outer-circle footprint,
+rotation angle, and percentage outside the floor is labeled. Physical agarose
+wells, physical outer-analysis circles, and the applicable reward circle appear
+in both panels.
+
+Use `--list-configs` to print the available video/fly/training configurations.
+Use `--draw-selection random` to inspect other valid draws; changing `--seed`
+then selects another draw without using trajectory or outcome data.
