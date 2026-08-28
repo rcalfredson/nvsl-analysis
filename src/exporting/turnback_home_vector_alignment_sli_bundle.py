@@ -15,6 +15,10 @@ from src.analysis.episode_filters import (
     episode_filter_accounting_payload,
     min_episode_count_for_type,
 )
+from src.analysis.sync_bucket_presence_filters import (
+    exp_target_sync_bucket_eligibility_mask,
+    exp_target_sync_bucket_filter_payload,
+)
 from src.exporting.com_sli_bundle import _safe_group_label
 from src.exporting.turnback_excursion_bin_sli_bundle import (
     _frame_in_windows,
@@ -1114,6 +1118,7 @@ def _collect_per_fly_values(
     skip_first,
     keep_first,
     last_sync_buckets: int,
+    target_sync_bucket_eligible=None,
 ):
     min_episodes = min_episode_count_for_type(opts, EPISODE_TYPE_INNER_EXIT_REENTRY)
 
@@ -1210,8 +1215,22 @@ def _collect_per_fly_values(
     per_unit_values = []
     per_unit_episode_counts = []
 
+    if target_sync_bucket_eligible is None:
+        target_sync_bucket_eligible = np.ones(len(vas), dtype=bool)
+    else:
+        target_sync_bucket_eligible = np.asarray(
+            target_sync_bucket_eligible, dtype=bool
+        ).reshape(-1)
+        if target_sync_bucket_eligible.size != len(vas):
+            raise ValueError(
+                "target sync-bucket eligibility mask length must match the "
+                "number of VideoAnalysis instances"
+            )
+
     for vi, va in enumerate(vas):
         if getattr(va, "_skipped", False):
+            continue
+        if not target_sync_bucket_eligible[vi]:
             continue
 
         for fly_idx, trj in enumerate(getattr(va, "trx", [])):
@@ -2551,6 +2570,9 @@ def export_turnback_home_vector_alignment_sli_bundle(vas, opts, gls, out_fn):
 
     selected_trainings = _selected_training_indices(vas_ok, opts)
     skip_first, keep_first, last_sync_buckets = _effective_windowing(opts)
+    target_sync_bucket_eligible = exp_target_sync_bucket_eligibility_mask(
+        vas_ok, opts
+    )
 
     ids, values, episode_counts, metric_meta = _collect_per_fly_values(
         vas_ok,
@@ -2559,6 +2581,7 @@ def export_turnback_home_vector_alignment_sli_bundle(vas, opts, gls, out_fn):
         skip_first=skip_first,
         keep_first=keep_first,
         last_sync_buckets=last_sync_buckets,
+        target_sync_bucket_eligible=target_sync_bucket_eligible,
     )
 
     mean, ci_lo, ci_hi, n_units = _mean_ci(values, ci_conf=0.95)
@@ -2644,6 +2667,11 @@ def export_turnback_home_vector_alignment_sli_bundle(vas, opts, gls, out_fn):
             episode_counts,
             int(metric_meta["min_turnback_episodes"]),
             observed=np.ones_like(episode_counts, dtype=bool),
+        ),
+        **exp_target_sync_bucket_filter_payload(
+            vas_ok,
+            opts,
+            prefix="exp_target_sync_bucket_filter",
         ),
     }
 

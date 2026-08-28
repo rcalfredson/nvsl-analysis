@@ -120,6 +120,11 @@ def _default_opts(**overrides):
         sli_select_skip_first_sync_buckets=None,
         sli_select_keep_first_sync_buckets=None,
         sli_select_bucket=None,
+        require_exp_target_sync_bucket=False,
+        require_exp_pi_threshold_bucket=False,
+        exp_target_sync_bucket_filter_training=2,
+        exp_target_sync_bucket_filter_sync_bucket=5,
+        piTh=0,
     )
     opts.update(overrides)
     return SimpleNamespace(**opts)
@@ -704,6 +709,89 @@ def test_export_min_episode_filter_excludes_low_count_fly(tmp_path):
         assert bundle["per_unit_ids_panel"][0].size == 0
         np.testing.assert_array_equal(bundle["n_units_panel"], [0])
         assert np.isnan(bundle["mean"][0])
+
+
+def test_export_target_sync_bucket_filter_excludes_missing_t2_sb5_fly(tmp_path):
+    event_frames = [110, 114, 118, 122, 126]
+    episodes = [_episode(frame) for frame in event_frames]
+    coords = {
+        sample_frame: xy
+        for event_frame in event_frames
+        for sample_frame, xy in (
+            (event_frame - 1, (12.0, 0.0)),
+            (event_frame, (10.0, 0.0)),
+            (event_frame + 1, (8.0, 0.0)),
+        )
+    }
+    va = _make_export_va(
+        episodes=episodes,
+        coords=coords,
+        sync_bucket_ranges=[
+            [],
+            [(100, 106), (106, 112), (112, 118), (118, 124)],
+        ],
+    )
+    opts = _default_opts(
+        min_turnback_episodes=5,
+        require_exp_target_sync_bucket=True,
+    )
+    out = tmp_path / "home_vector_alignment_missing_t2_sb5.npz"
+
+    export_turnback_home_vector_alignment_sli_bundle(
+        [va], opts, gls=None, out_fn=str(out)
+    )
+
+    with np.load(out, allow_pickle=True) as bundle:
+        assert bundle["per_unit_values_panel"][0].size == 0
+        assert bundle["per_unit_ids_panel"][0].size == 0
+        np.testing.assert_array_equal(bundle["n_units_panel"], [0])
+        np.testing.assert_array_equal(
+            bundle["exp_target_sync_bucket_filter_eligible"], [False]
+        )
+        np.testing.assert_array_equal(
+            bundle["exp_target_sync_bucket_filter_reason"],
+            ["target_sync_bucket_missing"],
+        )
+
+
+def test_export_target_sync_bucket_filter_keeps_defined_t2_sb5_fly(tmp_path):
+    event_frames = [110, 114, 118, 122, 126]
+    episodes = [_episode(frame) for frame in event_frames]
+    coords = {
+        sample_frame: xy
+        for event_frame in event_frames
+        for sample_frame, xy in (
+            (event_frame - 1, (12.0, 0.0)),
+            (event_frame, (10.0, 0.0)),
+            (event_frame + 1, (8.0, 0.0)),
+        )
+    }
+    va = _make_export_va(
+        episodes=episodes,
+        coords=coords,
+        sync_bucket_ranges=[
+            [],
+            [(100, 106), (106, 112), (112, 118), (118, 124), (124, 130)],
+        ],
+    )
+    opts = _default_opts(
+        min_turnback_episodes=5,
+        require_exp_target_sync_bucket=True,
+    )
+    out = tmp_path / "home_vector_alignment_with_t2_sb5.npz"
+
+    export_turnback_home_vector_alignment_sli_bundle(
+        [va], opts, gls=None, out_fn=str(out)
+    )
+
+    with np.load(out, allow_pickle=True) as bundle:
+        np.testing.assert_array_equal(bundle["n_units_panel"], [1])
+        np.testing.assert_array_equal(
+            bundle["exp_target_sync_bucket_filter_eligible"], [True]
+        )
+        np.testing.assert_array_equal(
+            bundle["exp_target_sync_bucket_filter_reason"], ["passes"]
+        )
 
 
 def test_export_records_top_sli_subset_metadata(tmp_path):
