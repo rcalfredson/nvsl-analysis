@@ -5,6 +5,7 @@ from src.plotting.com_sli_bundle_plotter import (
     _agarose_placement_series,
     _resolve_metric_condition,
     _sample_size_label_kwargs,
+    _select_sli_extremes,
 )
 
 
@@ -59,3 +60,16 @@ def test_agarose_placement_delta_can_also_use_exp_minus_yoked():
     )
 
     np.testing.assert_allclose(values, [[[0.1]]])
+
+
+def test_both_sli_extremes_select_top_before_bottom():
+    indices, labels, group_ids = _select_sli_extremes(
+        np.array([-2.0, -1.0, 1.0, 2.0]),
+        top_fraction=0.5,
+        bottom_fraction=0.5,
+        which="both",
+    )
+
+    np.testing.assert_array_equal(indices, [2, 3, 0, 1])
+    assert labels == ["Top 50% learners", "Bottom 50% learners"]
+    np.testing.assert_array_equal(group_ids, [0, 0, 1, 1])

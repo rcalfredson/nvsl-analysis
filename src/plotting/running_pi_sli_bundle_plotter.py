@@ -16,7 +16,7 @@ from src.analysis.sli_bundle_utils import (
     load_sli_bundle,
 )
 from src.analysis.sli_tools import select_fractional_groups
-from src.plotting.sli_label_utils import pct_label
+from src.plotting.sli_label_utils import pct_label, sli_extreme_plot_specs
 from src.plotting.sli_axis_limits import (
     load_sli_axis_limits,
     warn_if_sli_values_clipped,
@@ -437,8 +437,13 @@ def plot_running_pi_sli_bundles(
         )
         if sli_extremes == "both":
             subset_specs = [
-                ("bottom", np.asarray(idx["bottom"], dtype=int), "--"),
-                ("top", np.asarray(idx["top"], dtype=int), "-"),
+                (which, np.asarray(indices, dtype=int), linestyle)
+                for which, indices, _, linestyle in sli_extreme_plot_specs(
+                    top=idx["top"],
+                    bottom=idx["bottom"],
+                    top_fraction=sli_top_fraction,
+                    bottom_fraction=sli_bottom_fraction,
+                )
             ]
         else:
             subset_specs = [(None, np.asarray(idx, dtype=int), "-")]

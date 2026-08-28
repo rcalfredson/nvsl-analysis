@@ -299,7 +299,7 @@ from src.plotting.first_n_reward_sli_comparison import (
     FirstNRewardSLIComparisonConfig,
     FirstNRewardSLIComparisonPlotter,
 )
-from src.plotting.sli_label_utils import pct_label
+from src.plotting.sli_label_utils import pct_label, sli_extreme_plot_specs
 from src.plotting.sli_axis_limits import (
     load_sli_axis_limits,
     warn_if_sli_values_clipped,
@@ -9350,6 +9350,15 @@ def plotRewards(
     if sli_top_fraction is None and sli_bottom_fraction is None and sli_extremes:
         sli_top_fraction = 0.1
         sli_bottom_fraction = 0.1
+    sli_both_linestyles = [
+        spec[3]
+        for spec in sli_extreme_plot_specs(
+            top=None,
+            bottom=None,
+            top_fraction=sli_top_fraction,
+            bottom_fraction=sli_bottom_fraction,
+        )
+    ]
 
     # --- Apply custom SLI-based subset, if requested ---
     if sli_custom_selection is not None and _tp_supports_sli_defined_subsets(tp):
@@ -9412,12 +9421,19 @@ def plotRewards(
             selected_groups = [0] * len(selected)
             gls = [pct_label("Top", sli_top_fraction)]
         elif sli_extremes == "both":
-            selected = bottom + top
-            selected_groups = ([0] * len(bottom)) + ([1] * len(top))
-            gls = [
-                pct_label("Bottom", sli_bottom_fraction),
-                pct_label("Top", sli_top_fraction),
+            extreme_specs = sli_extreme_plot_specs(
+                top=top,
+                bottom=bottom,
+                top_fraction=sli_top_fraction,
+                bottom_fraction=sli_bottom_fraction,
+            )
+            selected = [idx for _, indices, _, _ in extreme_specs for idx in indices]
+            selected_groups = [
+                group_idx
+                for group_idx, (_, indices, _, _) in enumerate(extreme_specs)
+                for _ in indices
             ]
+            gls = [label for _, _, label, _ in extreme_specs]
         if tp == "rpid" and sli_extremes and getattr(opts, "log_fly_grps", False):
             log_fly_group("SLI_BOTTOM_LEARNERS", bottom, vas)
             log_fly_group("SLI_TOP_LEARNERS", top, vas)
@@ -9827,7 +9843,11 @@ def plotRewards(
                     for j in range(3):
                         ys = mci[j, :]
                         fin = np.isfinite(ys)
-                        linestyles = ["-", "--", ":"]
+                        linestyles = (
+                            sli_both_linestyles
+                            if sli_extremes == "both"
+                            else ["-", "--", ":"]
+                        )
                         if j == 0 or not fillBtw:
                             (line,) = plt.plot(
                                 xs[fin],

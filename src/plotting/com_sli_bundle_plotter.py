@@ -26,7 +26,7 @@ from src.utils.common import (
     pick_non_overlapping_y,
 )
 from src.plotting.plot_customizer import PlotCustomizer
-from src.plotting.sli_label_utils import pct_label
+from src.plotting.sli_label_utils import pct_label, sli_extreme_plot_specs
 from src.plotting.time_series_auc import add_auc_label, compute_auc_test
 from src.plotting.annotation_layout import resolve_annotation_text_overlaps
 from src.plotting.sync_bucket_axis_limits import default_sync_bucket_ylim
@@ -253,12 +253,15 @@ def _select_sli_extremes(
     finite = np.isfinite(sli)
     if not finite.any():
         if which == "both":
+            specs = sli_extreme_plot_specs(
+                top=[],
+                bottom=[],
+                top_fraction=top_fraction,
+                bottom_fraction=bottom_fraction,
+            )
             return (
                 np.array([], dtype=int),
-                [
-                    pct_label("Bottom", bottom_fraction),
-                    pct_label("Top", top_fraction),
-                ],
+                [label for _, _, label, _ in specs],
                 np.array([], dtype=int),
             )
         return np.array([], dtype=int), None, np.array([], dtype=int)
@@ -301,12 +304,24 @@ def _select_sli_extremes(
         return idx, None, np.zeros(len(idx), dtype=int)
 
     if which == "both":
-        idx = np.array(bottom + top, dtype=int)
-        gid = np.array([0] * len(bottom) + [1] * len(top), dtype=int)
-        labels = [
-            pct_label("Bottom", bottom_fraction),
-            pct_label("Top", top_fraction),
-        ]
+        specs = sli_extreme_plot_specs(
+            top=top,
+            bottom=bottom,
+            top_fraction=top_fraction,
+            bottom_fraction=bottom_fraction,
+        )
+        idx = np.array(
+            [item for _, indices, _, _ in specs for item in indices], dtype=int
+        )
+        gid = np.array(
+            [
+                group_idx
+                for group_idx, (_, indices, _, _) in enumerate(specs)
+                for _ in indices
+            ],
+            dtype=int,
+        )
+        labels = [label for _, _, label, _ in specs]
         return idx, labels, gid
 
     raise ValueError(f"Unknown which={which!r}")
@@ -1140,7 +1155,15 @@ def plot_com_sli_bundle_data(
                 continue
 
             if sli_extremes == "both":
-                for sub_gid, sub_label in enumerate(both_labels):
+                extreme_specs = sli_extreme_plot_specs(
+                    top=None,
+                    bottom=None,
+                    top_fraction=sli_top_fraction,
+                    bottom_fraction=sli_bottom_fraction,
+                )
+                for sub_gid, (_, _, sub_label, linestyle) in enumerate(
+                    extreme_specs
+                ):
                     sub_idx = sel_idx[gid == sub_gid]
                     if sub_idx.size == 0:
                         continue
@@ -1149,7 +1172,7 @@ def plot_com_sli_bundle_data(
                             "bundle": b,
                             "sel_idx": sub_idx,
                             "label": sub_label,
-                            "style_idx": sub_gid,
+                            "linestyle": linestyle,
                         }
                     )
             else:
@@ -1158,7 +1181,7 @@ def plot_com_sli_bundle_data(
                         "bundle": b,
                         "sel_idx": sel_idx,
                         "label": group_labels[gi],
-                        "style_idx": gi,
+                        "linestyle": linestyles[gi % len(linestyles)],
                     }
                 )
 
@@ -1177,7 +1200,6 @@ def plot_com_sli_bundle_data(
             b = pg["bundle"]
             sel_idx = pg["sel_idx"]
             label = pg["label"]
-            style_idx = pg["style_idx"]
 
             if sel_idx.size == 0:
                 continue
@@ -1221,7 +1243,7 @@ def plot_com_sli_bundle_data(
                 series_by_group_for_auc[gi] = auc_series
             ys = plot_mci[0, :]
             fin = np.isfinite(ys)
-            ls = linestyles[style_idx % len(linestyles)]
+            ls = pg["linestyle"]
             (line,) = plt.plot(
                 panel_xs[fin],
                 ys[fin],
