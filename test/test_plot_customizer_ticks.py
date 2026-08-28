@@ -44,6 +44,19 @@ def test_adjusted_y_tick_labels_match_their_coordinates():
     plt.close(fig)
 
 
+def test_explicit_legend_line_break_is_preserved():
+    fig, ax = plt.subplots(figsize=(3.0, 3.0))
+    ax.plot([0, 1], [0, 1], label="Control genotype\nwith treatment")
+    legend = ax.legend()
+    customizer = PlotCustomizer()
+
+    customizer.adjust_padding_proportionally()
+    fig.canvas.draw()
+
+    assert legend.get_texts()[0].get_text() == "Control genotype\nwith treatment"
+    plt.close(fig)
+
+
 def test_fixed_endpoint_ticks_include_limits_with_nice_uniform_spacing():
     ticks = _fixed_endpoint_ticks((-0.2, 1.0), max_intervals=8)
 

@@ -1,6 +1,45 @@
 import argparse
 
 
+def decode_label_newlines(value: str) -> str:
+    r"""Decode explicit ``\n`` escapes while preserving escaped ``\\n`` text.
+
+    Backslashes that do not precede ``n`` are left untouched. Runs of
+    backslashes follow the usual escaping rule: pairs produce literal
+    backslashes, while an unpaired backslash immediately before ``n`` produces
+    a newline.
+    """
+    text = str(value)
+    decoded: list[str] = []
+    idx = 0
+
+    while idx < len(text):
+        if text[idx] != "\\":
+            decoded.append(text[idx])
+            idx += 1
+            continue
+
+        run_end = idx
+        while run_end < len(text) and text[run_end] == "\\":
+            run_end += 1
+        backslash_count = run_end - idx
+
+        if run_end < len(text) and text[run_end] == "n":
+            decoded.append("\\" * (backslash_count // 2))
+            decoded.append("\n" if backslash_count % 2 else "n")
+            idx = run_end + 1
+        else:
+            decoded.append("\\" * backslash_count)
+            idx = run_end
+
+    return "".join(decoded)
+
+
+def normalize_multiline_label(value: str) -> str:
+    """Normalize whitespace within label lines without removing line breaks."""
+    return "\n".join(" ".join(line.split()) for line in str(value).split("\n"))
+
+
 def parse_labeled_path(
     spec: str,
     *,

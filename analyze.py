@@ -208,7 +208,12 @@ from src.plotting.palettes import (
     FLY_COLS,
     get_palette,
 )
-from src.utils.parsers import parse_distances, parse_training_selector
+from src.utils.parsers import (
+    decode_label_newlines,
+    normalize_multiline_label,
+    parse_distances,
+    parse_training_selector,
+)
 from src.plotting.plot import plotAngularVelocity, plotTurnRadiusHist
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.time_series_auc import (
@@ -679,7 +684,11 @@ p.add_argument(
     dest="groupLabels",
     default=None,
     metavar="N",
-    help="labels for video groups (bar-separated)",
+    type=decode_label_newlines,
+    help=(
+        "labels for video groups (bar-separated); in POSIX single-quoted labels, "
+        "use \\n for an explicit line break and \\\\n to display a literal \\n"
+    ),
 )
 p.add_argument(
     "--aem",
@@ -9209,7 +9218,7 @@ def drawLegend(tp, ng, nf, nrp, gls, customizer):
     """
     kwargs = {}
     if gls:
-        gls = [" ".join(str(gl).split()) for gl in gls]
+        gls = [normalize_multiline_label(gl) for gl in gls]
     prop_dict = {"style": "italic"}
     if ng == 1 and nf == 2 and not P:
         # Single group with exp vs yok: show both explicitly
