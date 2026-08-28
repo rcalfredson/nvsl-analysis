@@ -29,7 +29,10 @@ from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.sli_label_utils import pct_label, sli_extreme_plot_specs
 from src.plotting.time_series_auc import add_auc_label, compute_auc_test
 from src.plotting.annotation_layout import resolve_annotation_text_overlaps
-from src.plotting.sync_bucket_axis_limits import default_sync_bucket_ylim
+from src.plotting.sync_bucket_axis_limits import (
+    apply_sync_bucket_ytick_spacing,
+    default_sync_bucket_ylim,
+)
 
 
 def _format_sli_training_mean_window(skip_first_sync_buckets, keep_first_sync_buckets):
@@ -503,6 +506,7 @@ def plot_com_sli_bundle_data(
     ylabel=None,
     delta_ylabel=None,
     ymax=None,
+    y_tick_spacing=None,
     delta_allow_unpaired=False,
     include_pre=False,
     show_legend=False,
@@ -545,6 +549,9 @@ def plot_com_sli_bundle_data(
             fontSize=None,
             fontFamily=None,
         )
+
+    if y_tick_spacing is None:
+        y_tick_spacing = getattr(opts, "sync_bucket_y_tick_spacing", None)
 
     def _parse_num_trainings_limit(num_trainings_value):
         if num_trainings_value is None:
@@ -1832,6 +1839,8 @@ def plot_com_sli_bundle_data(
             ),
         )
 
+    apply_sync_bucket_ytick_spacing(fig.get_axes(), y_tick_spacing)
+
     # save
     base, ext = os.path.splitext(out_fn)
     if ext == "":
@@ -1863,6 +1872,7 @@ def plot_com_sli_bundles(
     ylabel=None,
     delta_ylabel=None,
     ymax=None,
+    y_tick_spacing=None,
     delta_allow_unpaired=False,
     include_pre=False,
     show_legend=False,
@@ -1895,6 +1905,7 @@ def plot_com_sli_bundles(
         ylabel=ylabel,
         delta_ylabel=delta_ylabel,
         ymax=ymax,
+        y_tick_spacing=y_tick_spacing,
         delta_allow_unpaired=delta_allow_unpaired,
         include_pre=include_pre,
         show_legend=show_legend,

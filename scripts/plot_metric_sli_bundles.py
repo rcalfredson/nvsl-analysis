@@ -4,6 +4,7 @@ import os
 from types import SimpleNamespace
 
 from src.plotting.metric_sli_bundle_plotter import plot_metric_sli_bundles
+from src.utils.parsers import positive_finite_float
 
 
 def main():
@@ -81,6 +82,18 @@ def main():
         type=float,
         default=None,
         help="Optional y-axis maximum override for the plotted metric.",
+    )
+    p.add_argument(
+        "--y-tick-spacing",
+        "--sync-bucket-y-tick-spacing",
+        dest="y_tick_spacing",
+        type=positive_finite_float,
+        default=None,
+        metavar="F",
+        help=(
+            "Override the major y-tick spacing for the sync-bucket time series. "
+            "Axes that would require more than 100 ticks retain automatic spacing."
+        ),
     )
     p.add_argument(
         "--delta-allow-unpaired",
@@ -247,6 +260,7 @@ def main():
         ylabel=args.ylabel,
         delta_ylabel=args.delta_ylabel,
         ymax=args.ymax,
+        y_tick_spacing=args.y_tick_spacing,
         delta_allow_unpaired=args.delta_allow_unpaired,
         include_pre=args.include_pre,
         show_legend=args.show_legend,

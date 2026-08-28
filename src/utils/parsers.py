@@ -1,4 +1,16 @@
 import argparse
+import math
+
+
+def positive_finite_float(value: str) -> float:
+    """Parse a finite floating-point command-line value greater than zero."""
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError("must be a number") from exc
+    if not math.isfinite(parsed) or parsed <= 0:
+        raise argparse.ArgumentTypeError("must be a positive finite number")
+    return parsed
 
 
 def decode_label_newlines(value: str) -> str:
