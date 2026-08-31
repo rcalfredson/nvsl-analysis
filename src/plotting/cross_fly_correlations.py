@@ -40,7 +40,6 @@ BBOX_STYLE = dict(
 )
 STATS_BOX_MIN_FONTSIZE = 12.0
 TREND_LINE_P_THRESHOLD = 0.05
-PRE_TRAINING_SPEED_WINDOW_MIN = 10
 CORRELATION_REFERENCE_FONT_SIZE = 16.0
 
 
@@ -3442,12 +3441,9 @@ def plot_cross_fly_correlations(
             x=pre_training_speed_vals,
             y=sli_t2_sb2_sb5_mean_vals,
             title="Pre-training speed and mean T2 SLI",
-            x_label=(
-                f"Mean speed during final {PRE_TRAINING_SPEED_WINDOW_MIN} min "
-                "of pre-training (mm/s)"
-            ),
+            x_label="Locomotion speed",
             y_label=mean_sli_ctx.axis_label(),
-            cfg=_cfg_with_plot_color(cfg, "speed_vs_sli"),
+            cfg=_cfg_with_plot_color(cfg, "pre_training_speed_vs_mean_t2_sli"),
             filename=(
                 "corr_pre_training_speed_vs_sli_"
                 f"{mean_sli_suffix}__speed_preT1_last10min"
