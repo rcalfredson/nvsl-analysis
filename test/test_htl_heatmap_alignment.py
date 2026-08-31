@@ -67,7 +67,9 @@ class _FakeTraining:
 
 def _make_heatmap_window_va(bucket):
     va = VideoAnalysis.__new__(VideoAnalysis)
-    va.opts = SimpleNamespace(hm_sync_bucket=bucket, syncBucketLenMin=10)
+    va.opts = SimpleNamespace(
+        hm_sync_bucket=bucket, syncBucketLenMin=10, hm_pre_minutes=10
+    )
     va._min2f = lambda minutes: 100
     va._syncBucket = lambda training, df: (150, 9, np.array([149]))
     return va
@@ -96,3 +98,63 @@ def test_heatmap_training_frame_range_requires_positive_bucket():
 
     with pytest.raises(ValueError, match="--hm-sync-bucket must be >= 1"):
         va._heatmapTrainingFrameRange(_FakeTraining())
+
+
+def test_heatmap_pre_training_frame_range_uses_trailing_fixed_window():
+    va = _make_heatmap_window_va(None)
+    va.trns = [_FakeTraining()]
+    va.startPre = 0
+
+    assert va._heatmapPreTrainingFrameRange() == (0, 100)
+
+
+def test_heatmap_pre_training_frame_range_rejects_incomplete_window():
+    va = _make_heatmap_window_va(None)
+    va.trns = [_FakeTraining()]
+    va.startPre = 1
+
+    assert va._heatmapPreTrainingFrameRange() is None
+
+
+def test_heatmap_pre_training_frame_range_requires_training_metadata():
+    va = _make_heatmap_window_va(None)
+    va.trns = []
+
+    assert va._heatmapPreTrainingFrameRange() is None
+
+
+def test_heatmap_periods_share_histogram_calculation_and_post_masking():
+    va = VideoAnalysis.__new__(VideoAnalysis)
+    va.heatmapOOB = False
+    va._heatmapCoords = lambda trx, f, fi, la: [
+        np.array([0.25, 0.75, 1.25, 1.75]),
+        np.array([0.25, 0.75, 1.25, 1.75]),
+    ]
+    va._debugHeatmapAlignment = lambda **kwargs: None
+    trx = SimpleNamespace(walking=np.ones(4, dtype=bool))
+    kwargs = dict(
+        trx=trx,
+        t=_FakeTraining(),
+        f=0,
+        fi=0,
+        la=4,
+        xym=np.array([0.0, 0.0]),
+        xyM=np.array([2.0, 2.0]),
+        bins=[2, 2],
+        rng=np.array([[0.0, 2.0], [0.0, 2.0]]),
+    )
+
+    pre_map, pre_length, _ = va._calculateHeatmapForFrameRange(
+        **kwargs, period="pre"
+    )
+    training_map, _, _ = va._calculateHeatmapForFrameRange(
+        **kwargs, period="training"
+    )
+    post_map, post_length, _ = va._calculateHeatmapForFrameRange(
+        **kwargs, period="post", fiRi=2
+    )
+
+    assert pre_length == post_length == 4
+    np.testing.assert_array_equal(pre_map, training_map)
+    assert np.sum(pre_map) == 4
+    assert np.sum(post_map) == 2

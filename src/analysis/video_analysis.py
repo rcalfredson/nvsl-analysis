@@ -8269,7 +8269,19 @@ class VideoAnalysis:
             return None
         return fi, la
 
-    def _debugHeatmapAlignment(self, *, trx, t, f, fi, la, xym, xyM, xy, fiRi=None, pst=False):
+    def _heatmapPreTrainingFrameRange(self):
+        """Return the fixed trailing pre-training heatmap window, if complete."""
+        if not self.trns or not hasattr(self, "startPre"):
+            return None
+        la = int(self.trns[0].start)
+        fi = la - self._min2f(self.opts.hm_pre_minutes)
+        if fi < self.startPre:
+            return None
+        return fi, la
+
+    def _debugHeatmapAlignment(
+        self, *, trx, t, f, fi, la, xym, xyM, xy, fiRi=None, period="training"
+    ):
         if not (getattr(self.opts, "hm_align_debug", False) and self.ct is CT.htl):
             return
 
@@ -8279,7 +8291,7 @@ class VideoAnalysis:
 
         walking = np.asarray(trx.walking[fi:la], dtype=bool)
         keep = finite & walking
-        if pst and fiRi is not None and fiRi > fi:
+        if period == "post" and fiRi is not None and fiRi > fi:
             keep[: fiRi - fi] = False
         x_walk = xy[0][keep]
         y_walk = xy[1][keep]
@@ -8294,7 +8306,7 @@ class VideoAnalysis:
             )
 
         circle_msg = "none"
-        if not pst and t.circles(f):
+        if period == "training" and t.circles(f):
             cx, cy, r = t.circles(f)[0]
             cxy = self.xf.f2t(cx, cy, f=self.trxf[f])
             local_cxy = util.tupleSub(cxy, xym)
@@ -8317,7 +8329,7 @@ class VideoAnalysis:
                 f,
                 self.trxf[f],
                 t.sname(),
-                "post" if pst else "main",
+                period,
                 fi,
                 la,
                 xym[0],
@@ -8333,11 +8345,69 @@ class VideoAnalysis:
             )
         )
 
+    def _calculateHeatmapForFrameRange(
+        self, *, trx, t, f, fi, la, xym, xyM, bins, rng, period, fiRi=None
+    ):
+        """Calculate one heatmap using the common pre/training/post pipeline."""
+        xy = self._heatmapCoords(trx, f, fi, la)
+        self._debugHeatmapAlignment(
+            trx=trx,
+            t=t,
+            f=f,
+            fi=fi,
+            la=la,
+            xym=xym,
+            xyM=xyM,
+            xy=xy,
+            fiRi=fiRi,
+            period=period,
+        )
+        for a, m, M in zip(xy, xym, xyM):
+            finite = a[np.isfinite(a)]
+            if finite.size and not (m < np.min(finite) and np.max(finite) < M):
+                self.heatmapOOB = True
+            if period == "post" and fiRi is not None:
+                a[0 : fiRi - fi] = np.nan
+        xy = [a[trx.walking[fi:la]] for a in xy]
+        assert np.array_equal(np.isnan(xy[0]), np.isnan(xy[1]))
+        xy = [a[~np.isnan(a)] for a in xy]
+        # Due to interpolation, there should be no NaNs due to lost flies.
+        mp = np.histogram2d(xy[0], xy[1], bins=bins, range=rng)[0]
+        return mp.T, la - fi, xym
+
     # calculate maps for heatmaps
     def calcHm(self):
         self.heatmap, self.heatmapPost = [[], []], [[], []]  # index: fly, training
+        self.heatmapPre = [None, None]  # index: fly
         self.heatmapOOB = False
+        periods = set(getattr(self.opts, "hm_periods", ("training", "post")))
         startPost = RI_START_POST if self.circle else ST.fixed
+
+        if "pre" in periods:
+            t = self.trns[0]
+            frame_range = self._heatmapPreTrainingFrameRange()
+            for f in self.flies:
+                xym, xyM = self._heatmapBounds(f)
+                trx = self.trx[f]
+                if trx.bad() or frame_range is None:
+                    self.heatmapPre[f] = (None, None, xym)
+                    continue
+                bins = [int(el) for el in (xyM - xym) / HEATMAP_DIV]
+                rng = np.vstack((xym, xyM)).T
+                fi, la = frame_range
+                self.heatmapPre[f] = self._calculateHeatmapForFrameRange(
+                    trx=trx,
+                    t=t,
+                    f=f,
+                    fi=fi,
+                    la=la,
+                    xym=xym,
+                    xyM=xyM,
+                    bins=bins,
+                    rng=rng,
+                    period="pre",
+                )
+
         for i, t in enumerate(self.trns):
             for f in self.flies:
                 xym, xyM = self._heatmapBounds(f)
@@ -8346,6 +8416,10 @@ class VideoAnalysis:
                 ).T
                 trx = self.trx[f]
                 for j, hm in enumerate((self.heatmap, self.heatmapPost)):
+                    period = "post" if j else "training"
+                    if period not in periods:
+                        hm[f].append((None, None, xym))
+                        continue
                     if j == 0:
                         frame_range = self._heatmapTrainingFrameRange(t)
                         skip = frame_range is None
@@ -8367,30 +8441,21 @@ class VideoAnalysis:
                     if trx.bad() or skip:
                         hm[f].append((None, None, xym))
                         continue
-                    xy = self._heatmapCoords(trx, f, fi, la)
-                    self._debugHeatmapAlignment(
-                        trx=trx,
-                        t=t,
-                        f=f,
-                        fi=fi,
-                        la=la,
-                        xym=xym,
-                        xyM=xyM,
-                        xy=xy,
-                        fiRi=fiRi if j else None,
-                        pst=bool(j),
+                    hm[f].append(
+                        self._calculateHeatmapForFrameRange(
+                            trx=trx,
+                            t=t,
+                            f=f,
+                            fi=fi,
+                            la=la,
+                            xym=xym,
+                            xyM=xyM,
+                            fiRi=fiRi if j else None,
+                            period=period,
+                            bins=bins,
+                            rng=rng,
+                        )
                     )
-                    for a, m, M in zip(xy, xym, xyM):
-                        if not (m < np.nanmin(a) and np.nanmax(a) < M):
-                            self.heatmapOOB = True
-                        if j:
-                            a[0 : fiRi - fi] = np.nan
-                    xy = [a[trx.walking[fi:la]] for a in xy]
-                    assert np.array_equal(np.isnan(xy[0]), np.isnan(xy[1]))
-                    xy = [a[~np.isnan(a)] for a in xy]
-                    # due to interpolation, there should be no NaNs due to lost flies
-                    mp = np.histogram2d(xy[0], xy[1], bins=bins, range=rng)[0]
-                    hm[f].append((mp.T, la - fi, xym))
 
     # - - -
 

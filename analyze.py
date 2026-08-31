@@ -470,15 +470,36 @@ def _parse_float_csv_or_edge_groups_or_none(
 
 def _parse_hm_bounds_arg(
     s: str | None, flag_name: str
-) -> tuple[float | None, float | None]:
+) -> tuple[float | None, float | None, float | None]:
+    """Return heatmap bounds in pre, training, post order."""
     vals = _parse_float_csv(s)
     if not vals:
-        return (None, None)
+        return (None, None, None)
     if len(vals) == 1:
-        return (vals[0], vals[0])
+        return (vals[0], vals[0], vals[0])
     if len(vals) == 2:
-        return (vals[0], vals[1])
-    raise ValueError(f"{flag_name} expects 'v' or 'v1,v2', got: {s!r}")
+        return (vals[0], vals[0], vals[1])
+    if len(vals) == 3:
+        return vals[0], vals[1], vals[2]
+    raise ValueError(
+        f"{flag_name} expects 'v', 'main,post', or 'pre,main,post', got: {s!r}"
+    )
+
+
+def _parse_heatmap_periods(s: str) -> tuple[str, ...]:
+    allowed = ("pre", "training", "post")
+    values = tuple(
+        dict.fromkeys(p.strip().lower() for p in str(s).split(",") if p.strip())
+    )
+    if not values:
+        raise argparse.ArgumentTypeError("--hm-periods must select at least one period")
+    invalid = [p for p in values if p not in allowed]
+    if invalid:
+        raise argparse.ArgumentTypeError(
+            "--hm-periods accepts only pre, training, and post; "
+            f"got: {', '.join(invalid)}"
+        )
+    return tuple(p for p in allowed if p in values)
 
 
 def _parse_axis_limits_arg(
@@ -6020,14 +6041,36 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--hm-periods",
+    type=_parse_heatmap_periods,
+    default=("training", "post"),
+    metavar="PERIODS",
+    help=(
+        "Comma-separated heatmap periods chosen from pre,training,post. "
+        "The default is training,post; use 'pre' for a standalone pre-training "
+        "heatmap or 'pre,training,post' for all three."
+    ),
+)
+g.add_argument(
+    "--hm-pre-minutes",
+    type=positive_finite_float,
+    default=10.0,
+    metavar="F",
+    help=(
+        "Length of the trailing pre-training window used when --hm-periods "
+        "includes pre (default: %(default)s min). The window ends at T1 start; "
+        "videos without a complete window are excluded."
+    ),
+)
+g.add_argument(
     "--pltHmVmax",
     dest="hm_vmax",
     type=str,
     default=None,
     help=(
         "Override heatmap colorbar vmax. "
-        "Provide one value to apply to both rows, or two as 'main,post'. "
-        "Example: --pltHmVmax 0.03,0.01"
+        "Provide one value for all rows, two as 'main,post' (pre inherits main), "
+        "or three as 'pre,main,post'. Example: --pltHmVmax 0.03,0.01"
     ),
 )
 g.add_argument(
@@ -6037,8 +6080,8 @@ g.add_argument(
     default=None,
     help=(
         "Override heatmap colorbar vmin (log floor). "
-        "Provide one value to apply to both rows, or two as 'main,post'. "
-        "Example: --pltHmVmin 1e-4,2e-4"
+        "Provide one value for all rows, two as 'main,post' (pre inherits main), "
+        "or three as 'pre,main,post'. Example: --pltHmVmin 1e-4,2e-4"
     ),
 )
 g.add_argument(
@@ -10907,22 +10950,25 @@ def plotHeatmaps(vas):
     va0, alpha = vas[0], 1 if opts.bg is None else opts.bg
     trns, lin, flies = va0.trns, opts.hm == OP_LIN, va0.flies
     hm_sync_bucket = getattr(opts, "hm_sync_bucket", None)
+    periods = tuple(getattr(opts, "hm_periods", ("training", "post")))
     if P and F2T:
         trns = trns[:2]
     train_indices = _resolve_heatmap_training_indices(trns, opts.num_trainings)
     trns = [trns[i] for i in train_indices]
-    imgs, nc, nsc = [], len(trns), 2 if va0.ct is CT.regular else 1
+    has_training_panels = any(period != "pre" for period in periods)
+    nc = max(1, len(trns) if has_training_panels else 1)
+    imgs, nsc = [], 2 if va0.ct is CT.regular else 1
     nsr, nf = 1 if va0.noyc else 3 - nsc, len(flies)
     if va0.ct is CT.regular:
-        fig = plt.figure(figsize=(4 * nc, 6))
+        fig = plt.figure(figsize=(4 * nc, 3 * len(periods)))
     elif va0.ct is CT.htl:
-        fig = plt.figure(figsize=(3.1 * nc, 6 * nsr))
+        fig = plt.figure(figsize=(3.1 * nc, 3 * len(periods) * nsr))
     elif va0.ct is CT.large:
-        fig = plt.figure(figsize=(3.1 * nc, 6 * nsr))
+        fig = plt.figure(figsize=(3.1 * nc, 3 * len(periods) * nsr))
     elif va0.ct is CT.large2:
-        fig = plt.figure(figsize=(3.1 * nc, 6 * nsr))
+        fig = plt.figure(figsize=(3.1 * nc, 3 * len(periods) * nsr))
     gs = mpl.gridspec.GridSpec(
-        2,
+        len(periods),
         nc + 1,
         wspace=0.2,
         hspace=0.2 / nsr,
@@ -10932,70 +10978,89 @@ def plotHeatmaps(vas):
         left=0.05,
         right=0.95,
     )
-    cbar_ax = []
 
-    # Optional per-row vmax override: (main_row, post_row)
     try:
-        hm_vmax_main, hm_vmax_post = _parse_hm_bounds_arg(
+        hm_vmax_pre, hm_vmax_main, hm_vmax_post = _parse_hm_bounds_arg(
             getattr(opts, "hm_vmax", None), "--pltHmVmax"
         )
     except Exception as e:
         raise ValueError(f"Invalid --pltHmVmax: {e}") from e
 
     try:
-        hm_vmin_main, hm_vmin_post = _parse_hm_bounds_arg(
+        hm_vmin_pre, hm_vmin_main, hm_vmin_post = _parse_hm_bounds_arg(
             getattr(opts, "hm_vmin", None), "--pltHmVmin"
         )
     except Exception as e:
         raise ValueError(f"Invalid --pltHmVmin: {e}") from e
 
-    for pst in (0, 1):
+    vmax_overrides = {
+        "pre": hm_vmax_pre,
+        "training": hm_vmax_main,
+        "post": hm_vmax_post,
+    }
+    vmin_overrides = {
+        "pre": hm_vmin_pre,
+        "training": hm_vmin_main,
+        "post": hm_vmin_post,
+    }
 
-        def hm(va):
-            return va.heatmapPost if pst else va.heatmap
+    def hm(va, period, f, i_src=None):
+        if period == "pre":
+            return va.heatmapPre[f]
+        maps = va.heatmapPost if period == "post" else va.heatmap
+        return maps[f][i_src]
 
-        cbar_ax.append(fig.add_subplot(gs[pst, nc]))
+    for row_idx, period in enumerate(periods):
+        panels = (
+            [(None, va0.trns[0])]
+            if period == "pre"
+            else list(zip(train_indices, trns))
+        )
+        cbar_ax = fig.add_subplot(gs[row_idx, nc])
         mpms, nfs, vmins = [], [], []
-        for i_src, f in itertools.product(train_indices, flies):
-            mps, ls = [], []
-            for va in vas:
-                mp, l = hm(va)[f][i_src][:2]
-                if mp is not None and np.sum(mp) > 0:
-                    mps.append(mp / l if prob else mp)
-                    ls.append(l)
-            if not mps:
-                bucket_msg = (
-                    f" sync bucket {hm_sync_bucket}"
-                    if not pst and hm_sync_bucket is not None
-                    else ""
-                )
-                raise ValueError(
-                    "No usable heatmap data for "
-                    f"{trns[train_indices.index(i_src)].name()}{bucket_msg}, "
-                    f"fly {f + 1}, row={'post' if pst else 'main'}"
-                )
-            assert np.all(np.abs(np.diff(ls)) <= 2)  # about equal numbers of frames
-            mpm = np.mean(mps, axis=0)
-            mpms.append(mpm)
-            nfs.append(len(mps))
-            vmins.append(np.amin(mpm[mpm > 0]))
-        # vmin, vmax = np.amin(vmins), np.amax(mpms)
+        for i_src, t in panels:
+            for f in flies:
+                mps = []
+                for va in vas:
+                    mp, length = hm(va, period, f, i_src)[:2]
+                    if mp is not None and np.sum(mp) > 0:
+                        mps.append(mp / length if prob else mp)
+                if not mps:
+                    if period == "pre":
+                        panel_desc = (
+                            f"final {util.formatFloat(opts.hm_pre_minutes, 1)} min "
+                            "of pre-training"
+                        )
+                    elif period == "training":
+                        bucket_msg = (
+                            f" sync bucket {hm_sync_bucket}"
+                            if hm_sync_bucket is not None
+                            else ""
+                        )
+                        panel_desc = f"{t.name()}{bucket_msg}"
+                    else:
+                        panel_desc = f"post-training after {t.name()}"
+                    raise ValueError(
+                        f"No usable heatmap data for {panel_desc}, fly {f + 1}, "
+                        f"row={'main' if period == 'training' else period}"
+                    )
+                mpm = np.mean(mps, axis=0)
+                mpms.append(mpm)
+                nfs.append(len(mps))
+                vmins.append(np.amin(mpm[mpm > 0]))
+
         vmin = np.amin(vmins)
         vmax_computed = float(np.amax(mpms))
-
-        vmax_override = hm_vmax_post if pst else hm_vmax_main
+        vmax_override = vmax_overrides[period]
         vmax_used = float(vmax_override) if vmax_override is not None else vmax_computed
-
-        # Emit what we found/used to allow maxima to be collected across groups.
-        row_name = "post" if pst else "main"
+        row_name = "main" if period == "training" else period
 
         if lin:
             vmin1_default = 0.0
         else:
             vmin1_default = vmin / (vmax_used / vmin) ** 0.05
 
-        # override vmin1 if provided (per row)
-        vmin1_override = hm_vmin_post if pst else hm_vmin_main
+        vmin1_override = vmin_overrides[period]
         vmin1_used = (
             float(vmin1_override) if vmin1_override is not None else vmin1_default
         )
@@ -11010,34 +11075,40 @@ def plotHeatmaps(vas):
             f"vmin_used={vmin1_used:.6g} vmax_used={vmax_used:.6g} "
             f"(vmin_default={vmin1_default:.6g} vmax_computed={vmax_computed:.6g})"
         )
-        for i, (i_src, t) in enumerate(zip(train_indices, trns)):
+        for panel_idx, (i_src, t) in enumerate(panels):
             imgs1 = []
             gs1 = mpl.gridspec.GridSpecFromSubplotSpec(
                 nsr,
                 nsc,
-                subplot_spec=gs[pst, i],
+                subplot_spec=gs[row_idx, panel_idx],
                 wspace=0.06 if nsc > 1 else 0.0,
                 hspace=0.045 if nsr > 1 else 0.0,
             )
-            ttl = pcap(
-                "post %s min%s"
-                % (
-                    util.formatFloat(opts.rpiPostBucketLenMin, 1),
-                    "" if POST_SYNC is ST.fixed else " sync",
+            if period == "pre":
+                ttl = pcap(
+                    "pre %s min" % util.formatFloat(opts.hm_pre_minutes, 1)
                 )
-                if pst
-                else (
+            elif period == "post":
+                ttl = pcap(
+                    "post %s min%s"
+                    % (
+                        util.formatFloat(opts.rpiPostBucketLenMin, 1),
+                        "" if POST_SYNC is ST.fixed else " sync",
+                    )
+                )
+            else:
+                ttl = pcap(
                     f"{t.sname().upper()} SB{hm_sync_bucket}"
                     if hm_sync_bucket is not None
                     else t.name()
                 )
-            )
             for f in flies:
-                mp = mpms[i * nf + f]
+                map_idx = panel_idx * nf + f
+                mp = mpms[map_idx]
                 if not lin:
                     mp = np.maximum(mp, vmin1_used)
                 if f == 0:
-                    ttln = "n=%d" % nfs[i * nf + f]
+                    ttln = "n=%d" % nfs[map_idx]
                 img = cv2.resize(
                     util.heatmap(mp, xform=None if lin else np.log),
                     (0, 0),
@@ -11061,7 +11132,7 @@ def plotHeatmaps(vas):
                             if lin
                             else mpl.colors.LogNorm(vmin=vmin1_used, vmax=vmax_used)
                         ),
-                        cbar=i == 0 and f == 0,
+                        cbar=panel_idx == 0 and f == 0,
                         cbar_kws=(
                             None
                             if lin
@@ -11072,7 +11143,7 @@ def plotHeatmaps(vas):
                                 ),
                             )
                         ),
-                        cbar_ax=None if i or f else cbar_ax[pst],
+                        cbar_ax=None if panel_idx or f else cbar_ax,
                     )
                 else:
                     ai = ax.imshow(
@@ -11093,7 +11164,7 @@ def plotHeatmaps(vas):
                     )
                     ax.set(xticks=[], yticks=[], aspect="equal")
                     ax.axis("off")
-                    if i == 0 and f == 0:
+                    if panel_idx == 0 and f == 0:
                         kws = (
                             {}
                             if lin
@@ -11104,11 +11175,11 @@ def plotHeatmaps(vas):
                                 ),
                             )
                         )
-                        cb = ax.figure.colorbar(ai, cbar_ax[pst], ax, **kws)
+                        cb = ax.figure.colorbar(ai, cbar_ax, ax, **kws)
                         cb.outline.set_linewidth(0)
                         cb.solids.set_alpha(1)
                         cb.solids.set_cmap(util.alphaBlend(cmap, alpha))
-                xym = hm(va0)[f][i_src][2]
+                xym = hm(va0, period, f, i_src)[2]
                 if opts.bg is not None:  # add chamber background
                     wh = util.tupleMul(mp.shape[::-1], HEATMAP_DIV)
                     tl, br = (va0.xf.t2f(*xy) for xy in (xym, util.tupleAdd(xym, wh)))
@@ -11121,10 +11192,10 @@ def plotHeatmaps(vas):
                         zorder=-1,
                     )
                 if f == 0:
-                    plt.title(ttl, loc="left")
+                    ax.set_title(ttl, loc="left")
                 if (f == 0) == (nsc == 1):
-                    plt.title(ttln, loc="right", size="medium")
-                if not pst and f == 0 and t.circles(f):
+                    ax.set_title(ttln, loc="right", size="medium")
+                if period == "training" and f == 0 and t.circles(f):
                     cx, cy, r = t.circles(f)[0]
                     if va0.ct is CT.htl:
                         cxy = util.tupleSub(va0.xf.f2t(cx, cy, f=va0.trxf[f]), xym)
@@ -11142,6 +11213,7 @@ def plotHeatmaps(vas):
                     )
                 imgs1.append(img)
             imgs.append((util.combineImgs(imgs1, nc=nsc, d=5)[0], ttl + " (%s)" % ttln))
+        imgs.extend([(None, "")] * (nc - len(panels)))
     img = util.combineImgs(imgs, nc=nc)[0]
     writeImage(HEATMAPS_IMG_FILE % "", img)
     writeImage(HEATMAPS_IMG_FILE % 2, format=opts.imageFormat)
