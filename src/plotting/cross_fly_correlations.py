@@ -33,7 +33,7 @@ from src.plotting.reward_window_utils import (
     selected_windows_for_va,
 )
 from src.utils.common import writeImage
-from src.utils.debug_fly_groups import log_fly_group
+from src.utils.debug_fly_groups import log_fly_group, write_sorted_fly_list
 
 BBOX_STYLE = dict(
     facecolor="white", alpha=0.80, edgecolor="none", boxstyle="round,pad=0.25"
@@ -3153,6 +3153,16 @@ def plot_cross_fly_correlations(
     pre_pi_diff_vals = np.asarray(pre_pi_diff_vals, float)
     total_reward_vals = np.asarray(total_reward_vals, float)
     pre_coverage_vals = np.asarray(pre_coverage_vals, float)
+
+    cohort_debug_dir = getattr(opts, "dump_sli_cohorts", None)
+    if cohort_debug_dir:
+        # This is the same pairwise finite mask used by
+        # pearson_correlation_summary() for plot 1 below.
+        write_sorted_fly_list(
+            Path(cohort_debug_dir) / "rpd_vs_sli_correlation_flies.txt",
+            np.isfinite(sli_vals) & np.isfinite(rpd_vals),
+            vas,
+        )
 
     # --- Fast/strong learner summary (for plots 5b/5c and fast/strong scatter) ---
     summary = None

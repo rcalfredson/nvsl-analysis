@@ -316,7 +316,11 @@ from src.plotting.sync_bucket_axis_limits import (
 )
 from src.plotting.turn_directionality_plotter import TurnDirectionalityPlotter
 from src.plotting.turn_prob_dist_plotter import TurnProbabilityByDistancePlotter
-from src.utils.debug_fly_groups import init_fly_group_logging, log_fly_group
+from src.utils.debug_fly_groups import (
+    init_fly_group_logging,
+    log_fly_group,
+    write_sorted_fly_list,
+)
 from src.utils.post_analyze import (
     report_turnback_sensitivity,
 )
@@ -7646,6 +7650,19 @@ g.add_argument(
     '"strong" or "fast" learners, top/bottom SLI percentiles, etc.',
 )
 g.add_argument(
+    "--dump-sli-cohorts",
+    nargs="?",
+    const="logs/sli_cohorts",
+    default=None,
+    metavar="DIR",
+    help=(
+        "Write three sorted fly lists for debugging SLI sample-size differences: "
+        "finite T2 SB5 SLI, finite T2 SLI AUC, and the exact finite pairs in the "
+        "rewards-per-distance vs SLI correlation. With no DIR, writes under "
+        "logs/sli_cohorts."
+    ),
+)
+g.add_argument(
     "--dump-large-turn-exits",
     action="store_true",
     help=(
@@ -13395,6 +13412,7 @@ def postAnalyze(vas):
     sli_total_sync_buckets = None
     reward_pi_first_bucket = None
     cross_experiment_sli_exported = False
+    sli_core_cohorts_dumped = False
     sli_training_idx = getattr(opts, "best_worst_trn", 1) - 1
     use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
     skip_k = _effective_skip_first_sync_buckets_opts_only(opts)
@@ -13636,6 +13654,34 @@ def postAnalyze(vas):
                     for i in range(a.shape[0])
                 ]
             )
+
+            if (
+                tp == "rpid"
+                and getattr(opts, "dump_sli_cohorts", None)
+                and not sli_core_cohorts_dumped
+            ):
+                cohort_dir = Path(opts.dump_sli_cohorts)
+                t2_sb5_mask = (
+                    np.isfinite(a[:, 1, 4])
+                    if a.shape[1] > 1 and a.shape[2] > 4
+                    else np.zeros(len(vas), dtype=bool)
+                )
+                t2_auc_mask = (
+                    np.isfinite(signed_auc_values(a[:, 1, :]))
+                    if a.shape[1] > 1 and a.shape[2] > 0
+                    else np.zeros(len(vas), dtype=bool)
+                )
+                write_sorted_fly_list(
+                    cohort_dir / "training2_sync_bucket5_sli_flies.txt",
+                    t2_sb5_mask,
+                    vas,
+                )
+                write_sorted_fly_list(
+                    cohort_dir / "training2_sli_auc_flies.txt",
+                    t2_auc_mask,
+                    vas,
+                )
+                sli_core_cohorts_dumped = True
 
             if tp == "rpid":
                 if (
