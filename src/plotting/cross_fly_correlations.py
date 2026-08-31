@@ -35,13 +35,13 @@ from src.plotting.reward_window_utils import (
 from src.utils.common import writeImage
 from src.utils.debug_fly_groups import log_fly_group
 
-
 BBOX_STYLE = dict(
     facecolor="white", alpha=0.80, edgecolor="none", boxstyle="round,pad=0.25"
 )
 STATS_BOX_MIN_FONTSIZE = 12.0
 TREND_LINE_P_THRESHOLD = 0.05
 PRE_TRAINING_SPEED_WINDOW_MIN = 10
+CORRELATION_REFERENCE_FONT_SIZE = 16.0
 
 
 _layout_logger = logging.getLogger("cross_fly_corr_layout")
@@ -103,7 +103,9 @@ def _correlation_out_path(out_dir: Path, filename: str, image_format: str) -> Pa
     return out_dir / f"{filename}.{ext}"
 
 
-def _cfg_with_plot_color(cfg: CorrelationPlotConfig, plot_key: str) -> CorrelationPlotConfig:
+def _cfg_with_plot_color(
+    cfg: CorrelationPlotConfig, plot_key: str
+) -> CorrelationPlotConfig:
     return replace(
         cfg,
         dot_color=correlation_plot_color(plot_key, fallback=cfg.dot_color),
@@ -303,9 +305,9 @@ def _window_context_suffix(ctx: SLIContext, *, prefix: str) -> str:
     return "_".join(parts)
 
 
-def _default_t2_speed_vs_final_sli_contexts() -> tuple[
-    SLIContext, tuple[tuple[SLIContext, str], ...]
-]:
+def _default_t2_speed_vs_final_sli_contexts() -> (
+    tuple[SLIContext, tuple[tuple[SLIContext, str], ...]]
+):
     """Fixed contexts for the default speed comparisons against T2 SB5 SLI."""
     final_sli_ctx = SLIContext(
         training_idx=1,
@@ -385,7 +387,9 @@ def _first_n_reward_rate_label(
     if max_time_to_nth_s is not None and np.isfinite(float(max_time_to_nth_s)):
         cutoff_txt = f", <= {float(max_time_to_nth_s):g}s"
     basis_txt = (
-        "first-to-nth span" if str(time_basis) == "first_to_nth" else "window start to nth"
+        "first-to-nth span"
+        if str(time_basis) == "first_to_nth"
+        else "window start to nth"
     )
     return (
         f"rewards per minute\n"
@@ -398,7 +402,9 @@ def early_sli_label(*, training_idx: int, skip_first_sync_buckets: int) -> str:
     return SLIContext(training_idx=training_idx, explicit_bucket_idx=k).axis_label()
 
 
-def _format_corr_annotation(r: float, p: float, n: int, *, label: str | None = None) -> str:
+def _format_corr_annotation(
+    r: float, p: float, n: int, *, label: str | None = None
+) -> str:
     stats = f"n = {int(n)}, r = {r:.3f}, p = {format_plot_p_value(p)}"
     return f"{label}: {stats}" if label else stats
 
@@ -493,7 +499,9 @@ def _add_significant_trend_line(
     return True
 
 
-def _shrink_clipped_ylabels(fig, *, min_scale: float = 0.72, pad_px: float = 2.0) -> bool:
+def _shrink_clipped_ylabels(
+    fig, *, min_scale: float = 0.72, pad_px: float = 2.0
+) -> bool:
     """
     Reduce oversized Y-axis labels only when their rendered bbox is clipped.
     """
@@ -618,6 +626,19 @@ def _finalize_correlation_layout(
     set_axis_size_inches(fig.axes[0], axis_size_inches)
 
 
+def _correlation_axis_size_for_font(
+    customizer: PlotCustomizer,
+    *,
+    base_size=DEFAULT_PLOT_AXIS_SIZE_INCHES,
+) -> tuple[float, float]:
+    """Scale a correlation plot's data axes from the font-16 baseline."""
+    font_size = float(
+        getattr(customizer, "font_size", CORRELATION_REFERENCE_FONT_SIZE)
+    )
+    scale = max(1.0, font_size / CORRELATION_REFERENCE_FONT_SIZE)
+    return float(base_size[0]) * scale, float(base_size[1]) * scale
+
+
 def _place_legend_without_point_overlap(
     ax,
     handles,
@@ -647,7 +668,9 @@ def _place_legend_without_point_overlap(
 
     n_entries = len(handles)
     if n_entries > 3:
-        base_fontsize = legend.get_texts()[0].get_fontsize() if legend.get_texts() else 10
+        base_fontsize = (
+            legend.get_texts()[0].get_fontsize() if legend.get_texts() else 10
+        )
         if n_entries == 4:
             scale = 0.75
         else:
@@ -701,7 +724,8 @@ def _place_legend_without_point_overlap(
         fig.canvas.draw()
         legend_bbox_raw = legend.get_window_extent(renderer=renderer)
         legend_bbox = legend_bbox_raw.expanded(
-            (legend_bbox_raw.width + 2 * marker_pad_px) / max(legend_bbox_raw.width, 1.0),
+            (legend_bbox_raw.width + 2 * marker_pad_px)
+            / max(legend_bbox_raw.width, 1.0),
             (legend_bbox_raw.height + 2 * marker_pad_px)
             / max(legend_bbox_raw.height, 1.0),
         )
@@ -806,7 +830,9 @@ def _add_smart_stats_box(
             *(tick.get_size() for tick in ax.get_xticklabels()),
             *(tick.get_size() for tick in ax.get_yticklabels()),
         ]
-        reference_size = max(float(size) for size in reference_sizes if size is not None)
+        reference_size = max(
+            float(size) for size in reference_sizes if size is not None
+        )
         fontsize = max(STATS_BOX_MIN_FONTSIZE, 0.90 * reference_size)
 
     if x_f.size == 0:
@@ -929,18 +955,19 @@ def _add_smart_stats_box(
                 bbox=BBOX_STYLE,
             )
             fig.canvas.draw()
-            stats_bbox = text_artist.get_bbox_patch().get_window_extent(renderer=renderer)
-            intersects_legend = (
-                legend_bbox is not None
-                and not (
-                    stats_bbox.x1 < legend_bbox.x0
-                    or stats_bbox.x0 > legend_bbox.x1
-                    or stats_bbox.y1 < legend_bbox.y0
-                    or stats_bbox.y0 > legend_bbox.y1
-                )
+            stats_bbox = text_artist.get_bbox_patch().get_window_extent(
+                renderer=renderer
+            )
+            intersects_legend = legend_bbox is not None and not (
+                stats_bbox.x1 < legend_bbox.x0
+                or stats_bbox.x0 > legend_bbox.x1
+                or stats_bbox.y1 < legend_bbox.y0
+                or stats_bbox.y0 > legend_bbox.y1
             )
             stats_pts_axes = ax.transAxes.inverted().transform(
-                np.array([[stats_bbox.x0, stats_bbox.y0], [stats_bbox.x1, stats_bbox.y1]])
+                np.array(
+                    [[stats_bbox.x0, stats_bbox.y0], [stats_bbox.x1, stats_bbox.y1]]
+                )
             )
             stats_axes_bbox = (
                 float(np.min(stats_pts_axes[:, 0])),
@@ -1024,7 +1051,9 @@ def _add_smart_stats_box(
             fig.canvas.draw()
             patch_bbox = probe.get_bbox_patch().get_window_extent(renderer=renderer)
             patch_pts_axes = ax.transAxes.inverted().transform(
-                np.array([[patch_bbox.x0, patch_bbox.y0], [patch_bbox.x1, patch_bbox.y1]])
+                np.array(
+                    [[patch_bbox.x0, patch_bbox.y0], [patch_bbox.x1, patch_bbox.y1]]
+                )
             )
             patch_axes_bbox = (
                 float(np.min(patch_pts_axes[:, 0])),
@@ -1078,14 +1107,11 @@ def _add_smart_stats_box(
         )
         fig.canvas.draw()
         stats_bbox = text_artist.get_bbox_patch().get_window_extent(renderer=renderer)
-        intersects_legend = (
-            legend_bbox is not None
-            and not (
-                stats_bbox.x1 < legend_bbox.x0
-                or stats_bbox.x0 > legend_bbox.x1
-                or stats_bbox.y1 < legend_bbox.y0
-                or stats_bbox.y0 > legend_bbox.y1
-            )
+        intersects_legend = legend_bbox is not None and not (
+            stats_bbox.x1 < legend_bbox.x0
+            or stats_bbox.x0 > legend_bbox.x1
+            or stats_bbox.y1 < legend_bbox.y0
+            or stats_bbox.y0 > legend_bbox.y1
         )
         stats_pts_axes = ax.transAxes.inverted().transform(
             np.array([[stats_bbox.x0, stats_bbox.y0], [stats_bbox.x1, stats_bbox.y1]])
@@ -1134,18 +1160,17 @@ def _add_smart_stats_box(
     )
     fig.canvas.draw()
     stats_bbox = text_artist.get_bbox_patch().get_window_extent(renderer=renderer)
-    intersects_legend = (
-        legend_bbox is not None
-        and not (
-            stats_bbox.x1 < legend_bbox.x0
-            or stats_bbox.x0 > legend_bbox.x1
-            or stats_bbox.y1 < legend_bbox.y0
-            or stats_bbox.y0 > legend_bbox.y1
-        )
+    intersects_legend = legend_bbox is not None and not (
+        stats_bbox.x1 < legend_bbox.x0
+        or stats_bbox.x0 > legend_bbox.x1
+        or stats_bbox.y1 < legend_bbox.y0
+        or stats_bbox.y0 > legend_bbox.y1
     )
     vertical_gap_px = None
     if legend_bbox is not None:
-        vertical_gap_px = max(stats_bbox.y0 - legend_bbox.y1, legend_bbox.y0 - stats_bbox.y1)
+        vertical_gap_px = max(
+            stats_bbox.y0 - legend_bbox.y1, legend_bbox.y0 - stats_bbox.y1
+        )
     stats_pts_axes = ax.transAxes.inverted().transform(
         np.array([[stats_bbox.x0, stats_bbox.y0], [stats_bbox.x1, stats_bbox.y1]])
     )
@@ -1165,6 +1190,376 @@ def _add_smart_stats_box(
         f"vertical_gap_px={vertical_gap_px} intersects_legend={intersects_legend}"
     )
     return text_artist
+
+
+def _place_correlation_overlays(
+    ax,
+    legend_handles,
+    stats_text: str,
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    scatter_artist=None,
+    max_headroom_frac: float = 0.25,
+):
+    """
+    Jointly place a correlation legend and stats box.
+
+    Placement is evaluated after the axes have reached their final physical size. Internal candidates must avoid scatter markers, plotted lines, each other, and the axes boundary. Added y headroom is always measured from the original y range and is capped by max_headroom_frac.
+
+    If no internal layout is collision-free, both overlays are placed outside the right side of the axes.
+    """
+    fig = ax.figure
+
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    finite = np.isfinite(x) & np.isfinite(y)
+    x_f = x[finite]
+    y_f = y[finite]
+
+    # This is the immutable baseline. Every trial is derived from it rather
+    # than from the y-limit left behind by the previous trial.
+    base_y0, base_y1 = ax.get_ylim()
+    base_y_span = float(base_y1 - base_y0)
+    if not np.isfinite(base_y_span) or base_y_span <= 0:
+        base_y_span = max(float(np.ptp(y_f)) if y_f.size else 0.0, 1.0)
+        base_y1 = base_y0 + base_y_span
+
+    reference_sizes = [
+        ax.xaxis.label.get_size(),
+        ax.yaxis.label.get_size(),
+        *(tick.get_size() for tick in ax.get_xticklabels()),
+        *(tick.get_size() for tick in ax.get_yticklabels()),
+    ]
+    reference_size = max(float(size) for size in reference_sizes if size is not None)
+
+    def _unique_font_sizes(*values):
+        sizes = []
+        for value in values:
+            value = float(value)
+            if not any(np.isclose(value, previous) for previous in sizes):
+                sizes.append(value)
+        return tuple(sizes)
+
+    # Try larger text first. The minimum of 12 keeps annotations readable.
+    legend_font_sizes = _unique_font_sizes(
+        max(0.75 * reference_size, 12.0), max(0.65 * reference_size, 12.0), 12.0
+    )
+    stats_font_sizes = _unique_font_sizes(
+        max(0.90 * reference_size, STATS_BOX_MIN_FONTSIZE),
+        max(0.80 * reference_size, STATS_BOX_MIN_FONTSIZE),
+        max(0.70 * reference_size, STATS_BOX_MIN_FONTSIZE),
+        STATS_BOX_MIN_FONTSIZE,
+    )
+
+    # Search the smallest headroom first.
+    headroom_fracs = tuple(np.linspace(0.0, float(max_headroom_frac), 6))
+
+    legend_locations = (
+        "upper right",
+        "upper left",
+        "lower right",
+        "lower left",
+        "center right",
+        "center left",
+        "upper center",
+        "lower center",
+    )
+
+    stats_candidates = (
+        dict(x=0.03, y=0.97, ha="left", va="top"),
+        dict(x=0.97, y=0.97, ha="right", va="top"),
+        dict(x=0.03, y=0.03, ha="left", va="bottom"),
+        dict(x=0.97, y=0.03, ha="right", va="bottom"),
+    )
+
+    marker_pad_px = 2.0
+    if scatter_artist is not None:
+        try:
+            sizes = np.asarray(scatter_artist.get_sizes(), dtype=float)
+            finite_sizes = sizes[np.isfinite(sizes) & (sizes > 0)]
+
+            if finite_sizes.size:
+                # Scatter sizes are specified in points squared. Use a
+                # conservative marker radius plus a small visual margin.
+                marker_radius_px = (
+                    0.5 * np.sqrt(float(np.max(finite_sizes))) * fig.dpi / 72.0
+                )
+                marker_pad_px = max(marker_pad_px, marker_radius_px + 2.0)
+        except (AttributeError, TypeError, ValueError):
+            pass
+
+    def _expanded_bbox(bbox, pad_px):
+        width = max(float(bbox.width), 1.0)
+        height = max(float(bbox.height), 1.0)
+        return bbox.expanded(
+            (width + 2.0 * pad_px) / width,
+            (height + 2.0 * pad_px) / height,
+        )
+
+    def _bbox_overlap(first, second):
+        return not (
+            first.x1 < second.x0
+            or first.x0 > second.x1
+            or first.y1 < second.y0
+            or first.y0 > second.y1
+        )
+
+    def _bbox_inside(inner, outer, pad_px=1.0):
+        return (
+            inner.x0 >= outer.x0 + pad_px
+            and inner.x1 <= outer.x1 - pad_px
+            and inner.y0 >= outer.y0 + pad_px
+            and inner.y1 <= outer.y1 - pad_px
+        )
+
+    def _count_point_overlap(bbox, points_display, pad_px):
+        if points_display.size == 0:
+            return 0
+
+        padded_bbox = _expanded_bbox(bbox, pad_px)
+        inside = (
+            (points_display[:, 0] >= padded_bbox.x0)
+            & (points_display[:, 0] <= padded_bbox.x1)
+            & (points_display[:, 1] >= padded_bbox.y0)
+            & (points_display[:, 1] <= padded_bbox.y1)
+        )
+        return int(np.sum(inside))
+
+    def _line_samples_display(max_step_px=2.0):
+        """
+        Return densely sampled display-coordinate points for visible lines.
+
+        The interpolation keeps the maximum distance between samples small,
+        making bbox/line intersection checks reliable for straight trend
+        lines without requiring a full segment-rectangle intersection
+        implementation.
+        """
+        sampled = []
+
+        for line in ax.lines:
+            if not line.get_visible():
+                continue
+
+            try:
+                vertices = line.get_path().transformed(line.get_transform()).vertices
+            except (AttributeError, TypeError, ValueError):
+                continue
+            vertices = np.asarray(vertices, dtype=float)
+            if vertices.ndim != 2 or vertices.shape[1] != 2:
+                continue
+
+            finite_vertices = np.all(np.isfinite(vertices), axis=1)
+            vertices = vertices[finite_vertices]
+            if vertices.size == 0:
+                continue
+
+            if len(vertices) == 1:
+                sampled.append(vertices)
+                continue
+
+            for start, end in zip(vertices[:-1], vertices[1:]):
+                distance = float(np.linalg.norm(end - start))
+                n_samples = max(2, int(np.ceil(distance / max_step_px)) + 1)
+                sampled.append(np.linspace(start, end, n_samples, endpoint=True))
+
+        if not sampled:
+            return np.empty((0, 2), dtype=float)
+
+        return np.vstack(sampled)
+
+    def _overlay_is_clear(
+        bbox,
+        *,
+        points_display,
+        line_points_display,
+        axes_bbox,
+        point_pad_px,
+    ):
+        if not _bbox_inside(bbox, axes_bbox):
+            return False
+
+        if _count_point_overlap(bbox, points_display, point_pad_px):
+            return False
+
+        if _count_point_overlap(bbox, line_points_display, 2.5):
+            return False
+
+        return True
+
+    # Search interval arrangements. Smaller headroom wins because it is the
+    # outermost loop. Within a headroom level, larger fonts win.
+    for headroom_frac in headroom_fracs:
+        candidate_top = base_y1 + headroom_frac * base_y_span
+        ax.set_ylim(base_y0, candidate_top)
+        fig.canvas.draw()
+
+        renderer = fig.canvas.get_renderer()
+        axes_bbox = ax.get_window_extent(renderer=renderer)
+        if x_f.size:
+            points_display = ax.transData.transform(np.column_stack([x_f, y_f]))
+        else:
+            points_display = np.empty((0, 2), dtype=float)
+
+        line_points_display = _line_samples_display()
+
+        for legend_fontsize in legend_font_sizes:
+            # Preserve the current single-column appearance when possible,
+            # but allow two columns to reduce vertical height.
+            for legend_ncol in (1, 2):
+                for legend_loc in legend_locations:
+                    legend = ax.legend(
+                        handles=legend_handles,
+                        loc=legend_loc,
+                        ncol=legend_ncol,
+                        frameon=True,
+                        fontsize=legend_fontsize,
+                    )
+                    fig.canvas.draw()
+
+                    renderer = fig.canvas.get_renderer()
+                    legend_bbox = legend.get_window_extent(renderer=renderer)
+
+                    if not _overlay_is_clear(
+                        legend_bbox,
+                        points_display=points_display,
+                        line_points_display=line_points_display,
+                        axes_bbox=axes_bbox,
+                        point_pad_px=marker_pad_px,
+                    ):
+                        legend.remove()
+                        continue
+
+                    for stats_fontsize in stats_font_sizes:
+                        for candidate in stats_candidates:
+                            stats_artist = ax.text(
+                                candidate["x"],
+                                candidate["y"],
+                                stats_text,
+                                transform=ax.transAxes,
+                                ha=candidate["ha"],
+                                va=candidate["va"],
+                                fontsize=stats_fontsize,
+                                zorder=5,
+                                bbox=BBOX_STYLE,
+                            )
+                            fig.canvas.draw()
+
+                            renderer = fig.canvas.get_renderer()
+                            stats_bbox = (
+                                stats_artist.get_bbox_patch().get_window_extent(
+                                    renderer=renderer
+                                )
+                            )
+
+                            stats_clear = _overlay_is_clear(
+                                stats_bbox,
+                                points_display=points_display,
+                                line_points_display=line_points_display,
+                                axes_bbox=axes_bbox,
+                                point_pad_px=marker_pad_px,
+                            )
+                            overlays_separate = not _bbox_overlap(
+                                legend_bbox, stats_bbox
+                            )
+
+                            if stats_clear and overlays_separate:
+                                # One final draw and bbox check guards against
+                                # any renderer-dependent geometry changes.
+                                fig.canvas.draw()
+                                renderer = fig.canvas.get_renderer()
+                                final_legend_bbox = legend.get_window_extent(
+                                    renderer=renderer
+                                )
+                                final_stats_bbox = (
+                                    stats_artist.get_bbox_patch().get_window_extent(
+                                        renderer=renderer
+                                    )
+                                )
+
+                                final_valid = (
+                                    _overlay_is_clear(
+                                        final_legend_bbox,
+                                        points_display=points_display,
+                                        line_points_display=line_points_display,
+                                        axes_bbox=axes_bbox,
+                                        point_pad_px=marker_pad_px,
+                                    )
+                                    and _overlay_is_clear(
+                                        final_stats_bbox,
+                                        points_display=points_display,
+                                        line_points_display=line_points_display,
+                                        axes_bbox=axes_bbox,
+                                        point_pad_px=marker_pad_px,
+                                    )
+                                    and not _bbox_overlap(
+                                        final_legend_bbox, final_stats_bbox
+                                    )
+                                )
+
+                                if final_valid:
+                                    _log_correlation_layout(
+                                        f"title={ax.get_title()!r} "
+                                        f"mode=joint_internal "
+                                        f"headroom_frac={headroom_frac:.3f} "
+                                        f"legend_loc={legend_loc!r} "
+                                        f"legend_ncol={legend_ncol} "
+                                        f"legend_fontsize="
+                                        f"{legend_fontsize:.2f} "
+                                        f"stats_candidate={candidate} "
+                                        f"stats_fontsize="
+                                        f"{stats_fontsize:.2f}"
+                                    )
+                                    return legend, stats_artist
+                            stats_artist.remove()
+                    legend.remove()
+
+    # No collision-free internal layout exists within the allowed headroom.
+    # Restore the original data range and place both overlays outside the
+    # right side of the axes. bbox_inches="tight" will preserve them.
+    ax.set_ylim(base_y0, base_y1)
+
+    legend = ax.legend(
+        handles=legend_handles,
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1.0),
+        borderaxespad=0.0,
+        ncol=1,
+        frameon=True,
+        fontsize=legend_font_sizes[0],
+    )
+    fig.canvas.draw()
+
+    renderer = fig.canvas.get_renderer()
+    legend_bbox = legend.get_window_extent(renderer=renderer)
+    legend_axes_points = ax.transAxes.inverted().transform(
+        np.array([[legend_bbox.x0, legend_bbox.y0], [legend_bbox.x1, legend_bbox.y1]])
+    )
+    legend_bottom_axes = float(np.min(legend_axes_points[:, 1]))
+
+    stats_artist = ax.text(
+        1.02,
+        legend_bottom_axes - 0.04,
+        stats_text,
+        transform=ax.transAxes,
+        ha="left",
+        va="top",
+        fontsize=stats_font_sizes[0],
+        zorder=5,
+        clip_on=False,
+        bbox=BBOX_STYLE,
+    )
+    fig.canvas.draw()
+
+    _log_correlation_layout(
+        f"title={ax.get_title()!r} "
+        f"mode=joint_external "
+        f"headroom_frac=0 "
+        f"legend_fontsize={legend_font_sizes[0]:.2f} "
+        f"stats_fontsize={stats_font_sizes[0]:.2f}"
+    )
+
+    return legend, stats_artist
 
 
 def _normalize_selected_groups(
@@ -1315,9 +1710,7 @@ def plot_selected_group_scatter(
     if include_all_corr:
         if corr_all is not None:
             r_a, p_a, n_a = corr_all
-            lines.append(
-                _format_corr_annotation(r_a, p_a, n_a, label="All (finite)")
-            )
+            lines.append(_format_corr_annotation(r_a, p_a, n_a, label="All (finite)"))
         else:
             lines.append("All (finite): r = n/a")
 
@@ -1331,9 +1724,7 @@ def plot_selected_group_scatter(
     if mode in ("both", "bottom"):
         if corr_bottom is not None:
             r_b, p_b, n_b = corr_bottom
-            lines.append(
-                _format_corr_annotation(r_b, p_b, n_b, label=bottom_label)
-            )
+            lines.append(_format_corr_annotation(r_b, p_b, n_b, label=bottom_label))
         else:
             lines.append(f"{bottom_label}: r = n/a")
 
@@ -2112,16 +2503,12 @@ def plot_fast_vs_strong_scatter(
     lines = []
     if corr_all is not None:
         r_a, p_a, n_a = corr_all
-        lines.append(
-            _format_labeled_corr_with_n(r_a, p_a, n_a, label="All flies")
-        )
+        lines.append(_format_labeled_corr_with_n(r_a, p_a, n_a, label="All flies"))
     else:
         lines.append(_format_labeled_corr_na_with_n(n_all, label="All flies"))
     if corr_fast_incl_overlap is not None:
         r_f, p_f, n_f = corr_fast_incl_overlap
-        lines.append(
-            _format_labeled_corr_with_n(r_f, p_f, n_f, label="Fast learners")
-        )
+        lines.append(_format_labeled_corr_with_n(r_f, p_f, n_f, label="Fast learners"))
     else:
         lines.append(
             _format_labeled_corr_na_with_n(
@@ -2202,13 +2589,32 @@ def plot_fast_vs_strong_scatter(
             label="Other flies",
         ),
     ]
-    _place_legend_without_point_overlap(
-        ax, handles, x_f, y_f, scatter_artist=scatter_artist, frameon=True
+    # Finish all figure and axes resizing before measuring overlay geometry.
+    base_axis_size = getattr(
+        customizer,
+        "standard_plot_axis_size",
+        DEFAULT_PLOT_AXIS_SIZE_INCHES,
     )
-    _add_smart_stats_box(ax, "\n".join(lines), x_f, y_f)
+    scaled_axis_size = _correlation_axis_size_for_font(
+        customizer,
+        base_size=base_axis_size,
+    )
+    _finalize_correlation_layout(
+        fig,
+        customizer,
+        rect=(0, 0, 1, 0.96),
+        axis_size_inches=scaled_axis_size,
+    )
 
-    # Optional proportional padding
-    _finalize_correlation_layout(fig, customizer, rect=(0, 0, 1, 0.96))
+    _place_correlation_overlays(
+        ax,
+        handles,
+        "\n".join(lines),
+        x_f,
+        y_f,
+        scatter_artist=scatter_artist,
+        max_headroom_frac=0.25,
+    )
     out_path = _correlation_out_path(out_dir, "scatter_fast_vs_strong", image_format)
     writeImage(str(out_path), format=image_format)
     plt.close(fig)
@@ -2490,9 +2896,7 @@ def plot_cross_fly_correlations(
 
     sli_t2_sb2_sb5_mean_vals = None
     if sli_t2_sb2_sb5_mean_values is not None:
-        sli_t2_sb2_sb5_mean_vals = np.asarray(
-            sli_t2_sb2_sb5_mean_values, dtype=float
-        )
+        sli_t2_sb2_sb5_mean_vals = np.asarray(sli_t2_sb2_sb5_mean_values, dtype=float)
         if sli_t2_sb2_sb5_mean_vals.shape != (len(vas),):
             print(
                 "[correlations] WARNING: sli_t2_sb2_sb5_mean_values must contain "
@@ -2543,7 +2947,9 @@ def plot_cross_fly_correlations(
     keep_k = int(getattr(sli_ctx, "keep_first_sync_buckets", 0) or 0)
     keep_k = max(0, keep_k)
     sli_bucket_idx = getattr(sli_ctx, "explicit_bucket_idx", None)
-    reward_training_idx = int(getattr(reward_rate_ctx, "training_idx", training_idx) or 0)
+    reward_training_idx = int(
+        getattr(reward_rate_ctx, "training_idx", training_idx) or 0
+    )
     reward_avg = bool(getattr(reward_rate_ctx, "average_over_buckets", False))
     reward_skip_k = int(getattr(reward_rate_ctx, "skip_first_sync_buckets", 0) or 0)
     reward_skip_k = max(0, reward_skip_k)
@@ -2658,9 +3064,7 @@ def plot_cross_fly_correlations(
                     float,
                 )
                 end_k = (
-                    med_vec.size
-                    if keep_k <= 0
-                    else min(med_vec.size, skip_k + keep_k)
+                    med_vec.size if keep_k <= 0 else min(med_vec.size, skip_k + keep_k)
                 )
                 if med_vec.size and skip_k < end_k:
                     med_train = np.nanmedian(med_vec[skip_k:end_k])
@@ -2789,15 +3193,19 @@ def plot_cross_fly_correlations(
     rpd_y_label = sli_ctx.metric_axis_label(
         "Rewards per distance", unit="$\\mathrm{m}^{-1}$"
     )
-    rpd_diff_y_label = sli_ctx.metric_axis_label(
-        "Rewards per distance, exp - yok",
-        unit="$\\mathrm{m}^{-1}$",
-    ).replace(
-        ", mean over ",
-        ",\nmean over ",
-    ).replace(
-        ", at ",
-        ",\nat ",
+    rpd_diff_y_label = (
+        sli_ctx.metric_axis_label(
+            "Rewards per distance, exp - yok",
+            unit="$\\mathrm{m}^{-1}$",
+        )
+        .replace(
+            ", mean over ",
+            ",\nmean over ",
+        )
+        .replace(
+            ", at ",
+            ",\nat ",
+        )
     )
     if reward_first_n > 0:
         rpt_y_label = _first_n_reward_rate_label(
@@ -2963,9 +3371,7 @@ def plot_cross_fly_correlations(
 
     # --- Plots 1d/1e: fixed T2 speed windows vs final SLI (T2 SB5) ---
     if sli_t2_sb5_vals is not None:
-        final_sli_ctx, fixed_speed_plots = (
-            _default_t2_speed_vs_final_sli_contexts()
-        )
+        final_sli_ctx, fixed_speed_plots = _default_t2_speed_vs_final_sli_contexts()
         for speed_ctx, title in fixed_speed_plots:
             fixed_speed_vals = _reduce_exp_speed_for_context(
                 speed_arrays,
@@ -2977,9 +3383,7 @@ def plot_cross_fly_correlations(
                 f"{_window_context_suffix(final_sli_ctx, prefix='sli')}__"
                 f"{_window_context_suffix(speed_ctx, prefix='speed')}"
             )
-            fixed_speed_x_label = speed_ctx.metric_axis_label(
-                "Mean speed", unit="mm/s"
-            )
+            fixed_speed_x_label = speed_ctx.metric_axis_label("Mean speed", unit="mm/s")
             final_sli_y_label = final_sli_ctx.axis_label()
             _scatter_with_corr(
                 x=fixed_speed_vals,
@@ -3018,9 +3422,7 @@ def plot_cross_fly_correlations(
                     title=f"{title} ({selection_title})",
                     x_label=fixed_speed_x_label,
                     y_label=final_sli_y_label,
-                    filename=(
-                        f"corr_speed_vs_sli_{fixed_suffix}_{selection_suffix}"
-                    ),
+                    filename=(f"corr_speed_vs_sli_{fixed_suffix}_{selection_suffix}"),
                     out_dir=out_dir,
                     customizer=customizer,
                     top_label=speed_top_sel_label,
@@ -3106,9 +3508,7 @@ def plot_cross_fly_correlations(
                 corr_pre_floor_exploration_vs_sli_xlabel_override
                 or pre_period_exploration_xlabel
             ),
-            y_label=str(
-                corr_pre_floor_exploration_vs_sli_ylabel_override or early_lbl
-            ),
+            y_label=str(corr_pre_floor_exploration_vs_sli_ylabel_override or early_lbl),
             cfg=_cfg_with_plot_color(cfg, "pre_training_exploration_vs_sli"),
             filename="corr_pre_floor_exploration_vs_sli_T1_first",
             customizer=customizer,
@@ -3183,9 +3583,7 @@ def plot_cross_fly_correlations(
 
     if selected_mode is not None:
         if selected_mode == "top":
-            title_3c_sel = (
-                f"{pre_period_exploration_title} (top SLI-selected learners)"
-            )
+            title_3c_sel = f"{pre_period_exploration_title} (top SLI-selected learners)"
             filename_3c_sel = "corr_pre_floor_exploration_vs_sli_final_top_selected"
         elif selected_mode == "bottom":
             title_3c_sel = (
