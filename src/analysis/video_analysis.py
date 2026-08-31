@@ -8249,6 +8249,26 @@ class VideoAnalysis:
             return [a[fi:la] for a in self.xf.f2t(trx.x, trx.y, f=self.trxf[f])]
         return self.mirror([a[fi:la] for a in self.xf.f2t(trx.x, trx.y)])
 
+    def _heatmapTrainingFrameRange(self, t):
+        """Return the requested training heatmap window, or None if unavailable."""
+        bucket = getattr(self.opts, "hm_sync_bucket", None)
+        if bucket is None:
+            return t.start, t.stop
+        if bucket < 1:
+            raise ValueError("--hm-sync-bucket must be >= 1")
+
+        df = self._min2f(self.opts.syncBucketLenMin)
+        sync_start, _, _ = self._syncBucket(t, df)
+        if sync_start is None or not np.isfinite(sync_start):
+            return None
+
+        fi = int(sync_start + (bucket - 1) * df)
+        la = fi + df
+        # Match the other sync-bucket analyses: only complete buckets count.
+        if la > t.stop:
+            return None
+        return fi, la
+
     def _debugHeatmapAlignment(self, *, trx, t, f, fi, la, xym, xyM, xy, fiRi=None, pst=False):
         if not (getattr(self.opts, "hm_align_debug", False) and self.ct is CT.htl):
             return
@@ -8327,7 +8347,10 @@ class VideoAnalysis:
                 trx = self.trx[f]
                 for j, hm in enumerate((self.heatmap, self.heatmapPost)):
                     if j == 0:
-                        fi, la, skip = t.start, t.stop, False
+                        frame_range = self._heatmapTrainingFrameRange(t)
+                        skip = frame_range is None
+                        if not skip:
+                            fi, la = frame_range
                     else:
                         # note: should there be limit how late fi can be?
                         fi = util.none2val(self._postSyncBucket(t, skip=0))

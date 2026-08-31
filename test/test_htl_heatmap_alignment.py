@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 
@@ -56,3 +58,41 @@ def test_htl_heatmap_coords_recover_canonical_local_points_across_grid_positions
         cx_frame, cy_frame = va.xf.t2f(*CT.htl.center(), f=abs_fly)
         cx_local, cy_local = va.xf.f2t(cx_frame, cy_frame, f=abs_fly)
         np.testing.assert_allclose((cx_local, cy_local), CT.htl.center(), atol=1e-6)
+
+
+class _FakeTraining:
+    start = 100
+    stop = 1000
+
+
+def _make_heatmap_window_va(bucket):
+    va = VideoAnalysis.__new__(VideoAnalysis)
+    va.opts = SimpleNamespace(hm_sync_bucket=bucket, syncBucketLenMin=10)
+    va._min2f = lambda minutes: 100
+    va._syncBucket = lambda training, df: (150, 9, np.array([149]))
+    return va
+
+
+def test_heatmap_training_frame_range_defaults_to_full_training():
+    va = _make_heatmap_window_va(None)
+
+    assert va._heatmapTrainingFrameRange(_FakeTraining()) == (100, 1000)
+
+
+def test_heatmap_training_frame_range_selects_one_based_sync_bucket():
+    va = _make_heatmap_window_va(5)
+
+    assert va._heatmapTrainingFrameRange(_FakeTraining()) == (550, 650)
+
+
+def test_heatmap_training_frame_range_rejects_incomplete_bucket():
+    va = _make_heatmap_window_va(9)
+
+    assert va._heatmapTrainingFrameRange(_FakeTraining()) is None
+
+
+def test_heatmap_training_frame_range_requires_positive_bucket():
+    va = _make_heatmap_window_va(0)
+
+    with pytest.raises(ValueError, match="--hm-sync-bucket must be >= 1"):
+        va._heatmapTrainingFrameRange(_FakeTraining())

@@ -257,6 +257,7 @@ These metrics can be run directly from `analyze.py`; outputs are usually written
 | --- | --- | --- | --- |
 | Standard learning/reward summaries | default command, often with `--rpd` | `learning_stats.csv`, reward and reward-per-distance plots | Good first pass for a new experiment. |
 | SLI/reward PI by sync bucket | `--rpd`; optional `--best-worst-sli` | `imgs/rewards_per_dist...`, SLI-bracketed reward plots | `--best-worst-sli` also enables top/bottom SLI overlays for supported reward metrics. |
+| Averaged trajectory heatmaps | `--pltHm`; optional `--num-trainings 2 --hm-sync-bucket 5` | `imgs/heatmaps.png`, `imgs/heatmaps2.png` | Without a bucket selector, each main-row map uses the full training. The example restricts it to T2 SB5; maps are normalized per video and averaged across valid flies/videos by fly role. |
 | Walking speed, stopped fraction, rewards/min | default post-analysis metrics | log summaries and standard plots | These are part of the core per-training summary path. |
 | Circular motion, angular velocity, turn radius | `--circle` | angular velocity and turn-radius figures | Use with circular-motion analyses; `--jab` selects the JAABA classifier. |
 | Turn events by area | `--turn circle`, `--turn agarose`, or `--turn boundary` | turn plots and turn statistics | Area-specific turn detection. |
@@ -278,6 +279,18 @@ These metrics can be run directly from `analyze.py`; outputs are usually written
 | Reward count histogram | `--reward-count-hist` | `imgs/rwd_count_hist.png` | Add `--reward-count-export-hist` for script-based overlays. |
 | Reward total bars | `--reward-count-total-bars` | `imgs/rwd_totals.png` | Add `--reward-count-total-export` for script-based overlays and stats. |
 | Wall-contact PMF/totals | `--wall`, `--wall-contacts-pmf-*`, `--wall-contacts-per-reward-interval-total-bars` | wall-contact plots, optional NPZ exports | Use `--wall-contacts-per-reward-interval-total-metric wall_contact_trajectory_length` for mean full path length of wall-contact between-reward trajectories. |
+
+For example, to plot the averaged T2 SB5 occupancy heatmap for a cohort:
+
+```bash
+python analyze.py -v '/path/to/cohort/*.avi' -f 0-1 \
+  --pltHm --num-trainings 2 --hm-sync-bucket 5
+```
+
+The sync-bucket index is one-based and uses the duration configured by `--sb`
+(10 minutes by default). Only complete requested buckets contribute. The existing
+post-training row remains based on `--rpib`; `--hm-sync-bucket` changes only the
+training row.
 
 ### Analyze Import-Overlay Workflows
 

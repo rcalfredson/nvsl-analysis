@@ -6008,6 +6008,18 @@ g.add_argument(
     % OPTS_HM,
 )
 g.add_argument(
+    "--hm-sync-bucket",
+    type=int,
+    default=None,
+    metavar="N",
+    help=(
+        "Restrict each selected training heatmap to one 1-based sync bucket. "
+        "Combine with --num-trainings to select the training; for example, "
+        "--num-trainings 2 --hm-sync-bucket 5 plots T2 SB5. The post-training "
+        "heatmap row is unchanged. Default: use the full training."
+    ),
+)
+g.add_argument(
     "--pltHmVmax",
     dest="hm_vmax",
     type=str,
@@ -10894,6 +10906,7 @@ def plotHeatmaps(vas):
     usesb = False  # Seaborn heatmaps have lines for alpha < 1
     va0, alpha = vas[0], 1 if opts.bg is None else opts.bg
     trns, lin, flies = va0.trns, opts.hm == OP_LIN, va0.flies
+    hm_sync_bucket = getattr(opts, "hm_sync_bucket", None)
     if P and F2T:
         trns = trns[:2]
     train_indices = _resolve_heatmap_training_indices(trns, opts.num_trainings)
@@ -10950,6 +10963,17 @@ def plotHeatmaps(vas):
                 if mp is not None and np.sum(mp) > 0:
                     mps.append(mp / l if prob else mp)
                     ls.append(l)
+            if not mps:
+                bucket_msg = (
+                    f" sync bucket {hm_sync_bucket}"
+                    if not pst and hm_sync_bucket is not None
+                    else ""
+                )
+                raise ValueError(
+                    "No usable heatmap data for "
+                    f"{trns[train_indices.index(i_src)].name()}{bucket_msg}, "
+                    f"fly {f + 1}, row={'post' if pst else 'main'}"
+                )
             assert np.all(np.abs(np.diff(ls)) <= 2)  # about equal numbers of frames
             mpm = np.mean(mps, axis=0)
             mpms.append(mpm)
@@ -11002,7 +11026,11 @@ def plotHeatmaps(vas):
                     "" if POST_SYNC is ST.fixed else " sync",
                 )
                 if pst
-                else t.name()
+                else (
+                    f"{t.sname().upper()} SB{hm_sync_bucket}"
+                    if hm_sync_bucket is not None
+                    else t.name()
+                )
             )
             for f in flies:
                 mp = mpms[i * nf + f]
