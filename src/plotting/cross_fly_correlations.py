@@ -348,6 +348,26 @@ def _default_pre_training_speed_vs_mean_t2_sli_context() -> SLIContext:
     )
 
 
+def _default_t1_vs_t2_mean_sli_contexts() -> tuple[SLIContext, SLIContext]:
+    """Return the fixed T1/T2 SLI windows used for the across-training comparison."""
+    return (
+        SLIContext(
+            training_idx=0,
+            average_over_buckets=True,
+            skip_first_sync_buckets=1,
+            keep_first_sync_buckets=4,
+            total_sync_buckets=5,
+        ),
+        SLIContext(
+            training_idx=1,
+            average_over_buckets=True,
+            skip_first_sync_buckets=1,
+            keep_first_sync_buckets=4,
+            total_sync_buckets=5,
+        ),
+    )
+
+
 def _speed_selection_group_labels(
     sli_ctx: SLIContext,
     *,
@@ -3433,6 +3453,7 @@ def plot_cross_fly_correlations(
     sli_ctx: SLIContext | None = None,
     reward_rate_ctx: SLIContext | None = None,
     sli_t2_sb5_values: Sequence[float] | None = None,
+    sli_t1_sb2_sb5_mean_values: Sequence[float] | None = None,
     sli_t2_sb2_sb5_mean_values: Sequence[float] | None = None,
     sli_selected: tuple[Sequence[int], Sequence[int]] | None = None,
     sli_extremes: str | None = None,
@@ -3447,6 +3468,7 @@ def plot_cross_fly_correlations(
       1e) Mean speed over T2 SB1-SB5 vs SLI at T2 SB5
       1f) Final-10-min pre-training speed vs mean SLI over T2 SB2-SB5
       1g) Full-pre-period speed vs SLI at T2 SB5
+      1h) Mean SLI over T1 SB2-SB5 vs mean SLI over T2 SB2-SB5
       2) SLI vs median distance to reward over the selected training/window
       3) Pre-training reward PI (exp − yoked) vs SLI_final
       3b) Pre-training floor exploration vs SLI at T1, first sync bucket
@@ -3533,6 +3555,19 @@ def plot_cross_fly_correlations(
             )
             sli_t2_sb5_vals = None
 
+    sli_t1_sb2_sb5_mean_vals = None
+    if sli_t1_sb2_sb5_mean_values is not None:
+        sli_t1_sb2_sb5_mean_vals = np.asarray(
+            sli_t1_sb2_sb5_mean_values, dtype=float
+        )
+        if sli_t1_sb2_sb5_mean_vals.shape != (len(vas),):
+            print(
+                "[correlations] WARNING: sli_t1_sb2_sb5_mean_values must contain "
+                f"one value per VideoAnalysis ({len(vas)} expected); skipping "
+                "fixed T1-vs-T2 mean-SLI plot"
+            )
+            sli_t1_sb2_sb5_mean_vals = None
+
     sli_t2_sb2_sb5_mean_vals = None
     if sli_t2_sb2_sb5_mean_values is not None:
         sli_t2_sb2_sb5_mean_vals = np.asarray(sli_t2_sb2_sb5_mean_values, dtype=float)
@@ -3540,7 +3575,7 @@ def plot_cross_fly_correlations(
             print(
                 "[correlations] WARNING: sli_t2_sb2_sb5_mean_values must contain "
                 f"one value per VideoAnalysis ({len(vas)} expected); skipping "
-                "pre-training speed vs mean-SLI plot"
+                "fixed plots requiring mean T2 SB2-SB5 SLI"
             )
             sli_t2_sb2_sb5_mean_vals = None
 
@@ -4117,6 +4152,27 @@ def plot_cross_fly_correlations(
                 "corr_pre_training_speed_vs_sli_"
                 f"{final_sli_suffix}__speed_preT1_full"
             ),
+            customizer=customizer,
+        )
+
+    # --- Plot 1h: mean T1 SB2-SB5 SLI vs mean T2 SB2-SB5 SLI ---
+    if (
+        sli_t1_sb2_sb5_mean_vals is not None
+        and sli_t2_sb2_sb5_mean_vals is not None
+    ):
+        t1_mean_sli_ctx, t2_mean_sli_ctx = _default_t1_vs_t2_mean_sli_contexts()
+        fixed_suffix = (
+            f"{_window_context_suffix(t1_mean_sli_ctx, prefix='sli')}__"
+            f"{_window_context_suffix(t2_mean_sli_ctx, prefix='sli')}"
+        )
+        _scatter_with_corr(
+            x=sli_t1_sb2_sb5_mean_vals,
+            y=sli_t2_sb2_sb5_mean_vals,
+            title="Mean T1 SLI vs mean T2 SLI",
+            x_label=t1_mean_sli_ctx.axis_label(),
+            y_label=t2_mean_sli_ctx.axis_label(),
+            cfg=_cfg_with_plot_color(cfg, "sli_vs_sli"),
+            filename=f"corr_sli_vs_sli_{fixed_suffix}",
             customizer=customizer,
         )
 
