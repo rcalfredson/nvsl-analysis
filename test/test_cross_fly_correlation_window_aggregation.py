@@ -231,6 +231,26 @@ def test_public_correlation_scatter_rejects_unaligned_vectors():
         )
 
 
+def test_t1_vs_t2_mean_sli_plot_uses_shared_limits_and_keeps_axis_size(tmp_path):
+    cfg = corr.CorrelationPlotConfig(
+        out_dir=tmp_path,
+        xlim=(-10.0, 10.0),
+        ylim=(-20.0, 20.0),
+        axis_size_inches=(4.5, 3.375),
+    )
+
+    standardized = corr._t1_vs_t2_mean_sli_plot_config(cfg)
+
+    assert standardized.xlim == corr.T1_T2_MEAN_SLI_AXIS_LIMITS
+    assert standardized.ylim == corr.T1_T2_MEAN_SLI_AXIS_LIMITS
+    assert standardized.xticks == corr.T1_T2_MEAN_SLI_AXIS_TICKS
+    assert standardized.yticks == corr.T1_T2_MEAN_SLI_AXIS_TICKS
+    assert standardized.axis_size_inches == (4.5, 3.375)
+    assert cfg.xlim == (-10.0, 10.0)
+    assert cfg.ylim == (-20.0, 20.0)
+    assert cfg.axis_size_inches == (4.5, 3.375)
+
+
 def test_default_t2_speed_contexts_target_sb5_and_sb1_through_sb5():
     final_sli_ctx, speed_plots = corr._default_t2_speed_vs_final_sli_contexts()
     sb5_speed_ctx, _sb5_title = speed_plots[0]

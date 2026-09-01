@@ -91,11 +91,30 @@ class CorrelationPlotConfig:
     axis_size_inches: tuple[float, float] = DEFAULT_PLOT_AXIS_SIZE_INCHES
     xlim: Optional[Tuple[float, float]] = None
     ylim: Optional[Tuple[float, float]] = None
+    xticks: Optional[Tuple[float, ...]] = None
+    yticks: Optional[Tuple[float, ...]] = None
     export_npz_dir: Optional[Path] = None
     export_group_label: Optional[str] = None
     window_metric_aggregation: str = "pooled"
     rpd_pooled_validity: str = "window"
     rpd_pooled_min_rewards: int = 5
+
+
+T1_T2_MEAN_SLI_AXIS_LIMITS = (-1.0, 2.1)
+T1_T2_MEAN_SLI_AXIS_TICKS = (-1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0)
+
+
+def _t1_vs_t2_mean_sli_plot_config(
+    cfg: CorrelationPlotConfig,
+) -> CorrelationPlotConfig:
+    """Use one shared numeric scale for the across-training SLI comparison."""
+    return replace(
+        cfg,
+        xlim=T1_T2_MEAN_SLI_AXIS_LIMITS,
+        ylim=T1_T2_MEAN_SLI_AXIS_LIMITS,
+        xticks=T1_T2_MEAN_SLI_AXIS_TICKS,
+        yticks=T1_T2_MEAN_SLI_AXIS_TICKS,
+    )
 
 
 def _correlation_out_path(out_dir: Path, filename: str, image_format: str) -> Path:
@@ -2462,6 +2481,10 @@ def plot_correlation_scatter(
         ax.set_xlim(cfg.xlim)
     if cfg.ylim is not None:
         ax.set_ylim(cfg.ylim)
+    if cfg.xticks is not None:
+        ax.set_xticks(cfg.xticks)
+    if cfg.yticks is not None:
+        ax.set_yticks(cfg.yticks)
 
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
@@ -4171,7 +4194,9 @@ def plot_cross_fly_correlations(
             title="Mean T1 SLI vs mean T2 SLI",
             x_label=t1_mean_sli_ctx.axis_label(),
             y_label=t2_mean_sli_ctx.axis_label(),
-            cfg=_cfg_with_plot_color(cfg, "sli_vs_sli"),
+            cfg=_t1_vs_t2_mean_sli_plot_config(
+                _cfg_with_plot_color(cfg, "sli_vs_sli")
+            ),
             filename=f"corr_sli_vs_sli_{fixed_suffix}",
             customizer=customizer,
         )
