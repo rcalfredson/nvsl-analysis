@@ -270,7 +270,7 @@ cpdef runBoundaryContactAnalyses(trj, va, offsets, thresholds, opts):
 
                     # Edge mode  ────────────────────────────────────────────────────────────────
                     boundary_dist_calc.ellipse_ref_pt = "edge"
-                    edge_wc = detect_well_contacts_edge_or_center(
+                    edge_wc, edge_wc_interpolated = detect_well_contacts_edge_or_center(
                         boundary_dist_calc.x, boundary_dist_calc.y,
                         trj.theta,                              # degrees
                         boundary_dist_calc.semimaj_ax,          # width/2
@@ -279,12 +279,16 @@ cpdef runBoundaryContactAnalyses(trj, va, offsets, thresholds, opts):
                         wells,
                         well_rad,
                         ref_mode="edge",
+                        return_interpolated=True,
                     )
                     boundary_dist_calc.update_return_data_for_boundary_contact_stats(edge_wc, False)
+                    boundary_dist_calc.return_data["boundary_event_stats"]["agarose"]["tb"]["edge"][
+                        "interpolated_boundary_contact"
+                    ] = edge_wc_interpolated == 1
 
                     # Center mode  ──────────────────────────────────────────────────────────────
                     boundary_dist_calc.ellipse_ref_pt = "ctr"
-                    ctr_wc = detect_well_contacts_edge_or_center(
+                    ctr_wc, ctr_wc_interpolated = detect_well_contacts_edge_or_center(
                         boundary_dist_calc.x,
                         boundary_dist_calc.y,
                         trj.theta,
@@ -293,9 +297,13 @@ cpdef runBoundaryContactAnalyses(trj, va, offsets, thresholds, opts):
                         trj.nan,
                         wells,
                         well_rad,
-                        ref_mode="center"
+                        ref_mode="center",
+                        return_interpolated=True,
                     )
                     boundary_dist_calc.update_return_data_for_boundary_contact_stats(ctr_wc, False)
+                    boundary_dist_calc.return_data["boundary_event_stats"]["agarose"]["tb"]["ctr"][
+                        "interpolated_boundary_contact"
+                    ] = ctr_wc_interpolated == 1
             for pt in ellipse_ref_pts:
                 findTurns(
                     va, opts, boundary_dist_calc, bnd_tp, boundary_combos[0], ellipse_ref_pt=pt

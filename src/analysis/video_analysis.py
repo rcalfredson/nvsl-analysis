@@ -95,6 +95,7 @@ from src.analysis.agarose_reward_geometry_audit import (
     audit_site_candidates,
     select_maximin_complete_draw,
 )
+from src.analysis.agarose_frame_policy import agarose_percentage_masks
 from src.analysis.ellipse_to_boundary_dist import (
     TrjDataContainer,
     VaDataContainer,
@@ -582,6 +583,7 @@ class VideoAnalysis:
             "ellipse_and_boundary_pts",
             "bounds",
             "original_boundary_contact",
+            "interpolated_boundary_contact",
             "boundary_contact",
             "near_contact",
             "boundary_contact_regions",
@@ -3725,9 +3727,8 @@ class VideoAnalysis:
             self.regionPercentagesCsv[region_label] = {"ctr": [], "edge": []}
 
         def pct_for_interval(trj, tp, intvl):
-            boundary_contact = trj.boundary_event_stats[region_label]["tb"][tp][
-                "original_boundary_contact"
-            ][intvl]
+            region_stats = trj.boundary_event_stats[region_label]["tb"][tp]
+            boundary_contact = region_stats["original_boundary_contact"][intvl]
 
             if region_label != "agarose":
                 wall_contact = trj.boundary_event_stats["wall"]["all"]["opp_edge"][
@@ -3740,25 +3741,21 @@ class VideoAnalysis:
                 valid_contact = boundary_contact
 
             if region_label == "agarose":
-                valid_frames = ~trj.nan[intvl]
                 lost_frame_policy = getattr(
                     getattr(self, "opts", None),
                     "agarose_time_lost_frame_policy",
                     "interpolated-inclusive",
                 )
-                if lost_frame_policy == "corrected":
-                    valid_contact = valid_contact[valid_frames]
-                    intvl_len = np.count_nonzero(valid_frames)
-                elif lost_frame_policy == "legacy":
-                    intvl_len = np.count_nonzero(valid_frames)
-                elif lost_frame_policy == "interpolated-inclusive":
-                    intvl_len = valid_frames.size
-                else:
-                    raise ValueError(
-                        "agarose_time_lost_frame_policy must be 'corrected', "
-                        "'legacy', or 'interpolated-inclusive', got "
-                        f"{lost_frame_policy!r}"
-                    )
+                valid_contact, denominator_mask = agarose_percentage_masks(
+                    valid_contact,
+                    region_stats.get(
+                        "interpolated_boundary_contact",
+                        region_stats["original_boundary_contact"],
+                    )[intvl],
+                    trj.nan[intvl],
+                    lost_frame_policy,
+                )
+                intvl_len = np.count_nonzero(denominator_mask)
             else:
                 intvl_len = intvl.stop - intvl.start
 

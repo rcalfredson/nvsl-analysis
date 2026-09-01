@@ -10,6 +10,7 @@
 import numpy as np
 import scipy.io as sio
 
+from src.analysis.agarose_frame_policy import agarose_percentage_masks
 from src.utils.common import *
 from src.utils.util import *
 
@@ -285,6 +286,8 @@ class DataCombiner:
         inclPreAndPost=False,
         postOffsets=None,
         asPct=False,
+        predictions=None,
+        denominator_masks=None,
     ):
         """
         calculates averages by sync bucket for analysis data stored per video frame;
@@ -300,16 +303,23 @@ class DataCombiner:
           - inclPreAndPost: whether to analyze pre- and post-training data
           - postOffsets: number of frames to trim from the start (i.e. ignore)
                          when analyzing post-training
+          - predictions: optional preselected per-frame numerator masks
+          - denominator_masks: optional per-frame masks defining eligible frames;
+                               when supplied, calculate a proportion explicitly
         """
         if not silent:
             assert len(header) > 0
             print("\n%% frames %s:" % header)
-        self.predictions = []
-        for trj in self.va.trx:
-            if trj.bad():
-                self.predictions.append([])
-                continue
-            self.predictions.append(deep_access(trj, attr, key))
+        self.denominator_masks = denominator_masks
+        if predictions is not None:
+            self.predictions = predictions
+        else:
+            self.predictions = []
+            for trj in self.va.trx:
+                if trj.bad():
+                    self.predictions.append([])
+                    continue
+                self.predictions.append(deep_access(trj, attr, key))
         SB, pre, post, postBB = [
             "%s%s" % (sv_name, sect) for sect in ("SB", "Pre", "Post", "PostByBucket")
         ]
@@ -388,7 +398,16 @@ class DataCombiner:
           - results: array to which to append results
         """
         pSlice = self.predictions[fIdx][fi:la]
-        results.append(np.nanmean(pSlice) * (100 if asPct else 1))
+        if self.denominator_masks is None:
+            value = np.nanmean(pSlice)
+        else:
+            denominator = np.count_nonzero(self.denominator_masks[fIdx][fi:la])
+            value = (
+                np.nan
+                if denominator == 0
+                else np.count_nonzero(pSlice) / denominator
+            )
+        results.append(value * (100 if asPct else 1))
 
     def addPostResultsByBucket(self, fIdx, startPost, attrName):
         """
@@ -578,6 +597,33 @@ class DataCombiner:
             if newline:
                 print("")
 
+        predictions = denominator_masks = None
+        if region_label == "agarose":
+            # Occupancy percentages may classify interpolated frames, but the
+            # episode-derived visit lists above deliberately retain the ordinary
+            # event-contact mask.
+            policy = getattr(
+                getattr(self.va, "opts", None),
+                "agarose_time_lost_frame_policy",
+                "interpolated-inclusive",
+            )
+            predictions, denominator_masks = [], []
+            for trj in self.va.trx:
+                if trj.bad():
+                    predictions.append([])
+                    denominator_masks.append([])
+                    continue
+                stats = trj.boundary_event_stats[region_label]["tb"][tp]
+                contact = stats["boundary_contact"]
+                interpolated_contact = stats.get(
+                    "interpolated_boundary_contact", contact
+                )
+                numerator, denominator = agarose_percentage_masks(
+                    contact, interpolated_contact, trj.nan, policy
+                )
+                predictions.append(numerator)
+                denominator_masks.append(denominator)
+
         self.combineResults(
             "boundary_event_stats",
             "%s.tb.%s.%s" % (region_label, tp, "boundary_contact"),
@@ -586,6 +632,8 @@ class DataCombiner:
             inclPreAndPost=True,
             postOffsets=postOffsets,
             asPct=True,
+            predictions=predictions,
+            denominator_masks=denominator_masks,
         )
         sv_name = self.regionContactByTp(region_label, tp)["sv_name"]
         sb = getattr(self.va, "%sSB" % sv_name)

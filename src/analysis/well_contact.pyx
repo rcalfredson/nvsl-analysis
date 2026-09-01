@@ -19,22 +19,34 @@ def detect_well_contacts_edge_or_center(
         cnp.ndarray[BOOL_t, ndim=1] lost,
         tuple wells,            # [(cx, cy), ...] from arenaWells
         double well_radius,
-        str ref_mode="edge"):
+        str ref_mode="edge",
+        bint return_interpolated=False):
     """
-    Returns a bool array `well_contact` (1 = inside/overlap) per frame.
-    Frames with NaN x are copied through as NaN.
+    Return a per-frame contact array (1 = inside/overlap).
+
+    By default, lost frames and frames without an interpolated center are
+    returned as NaN.  ``return_interpolated=True`` additionally returns a
+    contact array that classifies lost frames from their interpolated center
+    coordinates.  The primary array retains the ordinary event-detection
+    behavior, including hysteresis state that skips lost frames.
     """
     cdef Py_ssize_t n = x.shape[0]
     cdef cnp.ndarray[DTYPE_t, ndim=1] well_contact = np.empty(n, dtype=np.float64)
+    cdef cnp.ndarray[DTYPE_t, ndim=1] interpolated_contact = np.empty(
+        n if return_interpolated else 0, dtype=np.float64
+    )
 
     cdef Py_ssize_t i, j
     cdef double xe, ye, a, b, theta
     cdef double cx, cy
-    cdef cython.bint in_contact, enter_hit, exit_hold
+    cdef cython.bint in_contact, interpolated_in_contact, enter_hit, exit_hold
     cdef double r_enter, r_exit, r_enter2, r_exit2
+    cdef double last_a = np.nan
+    cdef double last_b = np.nan
 
     # initialize hysteresis thresholds
     in_contact = False
+    interpolated_in_contact = False
     r_enter = well_radius
     r_exit = well_radius + 1.0
     r_enter2 = r_enter * r_enter
@@ -43,12 +55,31 @@ def detect_well_contacts_edge_or_center(
     for i in range(n):
         xe = x[i]
         ye = y[i]
-        if lost[i] or np.isnan(xe):           # lost frame → propagate NaN
+        if np.isnan(xe) or np.isnan(ye):
+            well_contact[i] = np.nan
+            if return_interpolated:
+                interpolated_contact[i] = np.nan
+            continue
+        if lost[i] and not return_interpolated:
             well_contact[i] = np.nan
             continue
         theta = _deg_to_rad_world(rot_angles_deg[i])
         a = semimaj_ax[i]          # width/2 in ellipse frame
         b = semimin_ax[i]          # height/2 in ellipse frame
+
+        # Body dimensions are not part of Trajectory._interpolate().  When an
+        # edge-based lost frame lacks a valid fitted ellipse, retain the most
+        # recent valid axes while using the interpolated center and angle.
+        if math.isfinite(a) and a > 0 and math.isfinite(b) and b > 0:
+            last_a = a
+            last_b = b
+        elif return_interpolated and lost[i] and math.isfinite(last_a) and math.isfinite(last_b):
+            a = last_a
+            b = last_b
+        elif return_interpolated and lost[i] and ref_mode != "center":
+            well_contact[i] = np.nan
+            interpolated_contact[i] = np.nan
+            continue
 
         enter_hit = False
         exit_hold = False
@@ -75,12 +106,27 @@ def detect_well_contacts_edge_or_center(
                     xe, ye, a, b, theta, cx, cy, r_exit, i
                 ):
                     exit_hold = True
-        # hysteresis update
+        # The inclusive summary has its own hysteresis state so classifying a
+        # lost frame cannot alter the ordinary event-contact array.
+        if return_interpolated:
+            if interpolated_in_contact:
+                interpolated_in_contact = exit_hold
+            else:
+                interpolated_in_contact = enter_hit
+            interpolated_contact[i] = interpolated_in_contact
+
+        if lost[i]:
+            well_contact[i] = np.nan
+            continue
+
+        # ordinary event-detection hysteresis update
         if in_contact:
             in_contact = exit_hold
         else:
             in_contact = enter_hit
         well_contact[i] = in_contact
+    if return_interpolated:
+        return well_contact, interpolated_contact
     return well_contact
 
 cdef inline double _deg_to_rad_world(double rot_angle_deg):
