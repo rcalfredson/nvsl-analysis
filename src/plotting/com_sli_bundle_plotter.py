@@ -25,7 +25,11 @@ from src.utils.common import (
     ttest_ind,
     pick_non_overlapping_y,
 )
-from src.plotting.plot_customizer import PlotCustomizer
+from src.plotting.plot_customizer import (
+    PlotCustomizer,
+    apply_adaptive_legend_axes_edge_inset,
+    compact_legend_spacing,
+)
 from src.plotting.sli_label_utils import pct_label, sli_extreme_plot_specs
 from src.plotting.time_series_auc import add_auc_label, compute_auc_test
 from src.plotting.annotation_layout import resolve_annotation_text_overlaps
@@ -426,6 +430,7 @@ def _place_interior_legend_min_overlap(
     best_score = None
     for loc in candidate_locs:
         leg = ax.legend(handles=handles, labels=labels, loc=loc, **legend_kwargs)
+        apply_adaptive_legend_axes_edge_inset(ax, leg)
         score = _artist_overlap_score(ax, leg)
         leg.remove()
         if best_score is None or score < best_score:
@@ -434,12 +439,14 @@ def _place_interior_legend_min_overlap(
 
     if best_loc is None:
         return None
-    return ax.legend(
+    legend = ax.legend(
         handles=handles,
         labels=labels,
         loc=best_loc,
         **legend_kwargs,
     )
+    apply_adaptive_legend_axes_edge_inset(ax, legend)
+    return legend
 
 
 def _final_text_y(text):
@@ -1740,7 +1747,7 @@ def plot_com_sli_bundle_data(
                         group_tops.append(float(np.nanmax(m)))
                 y_anchor = max(group_tops) if group_tops else ylim[1]
                 x_span = float(ctx["panel_xs"][-1] - ctx["panel_xs"][0])
-                x_auc = float(ctx["panel_xs"][0] -0.05 * x_span)
+                x_auc = float(ctx["panel_xs"][0] -0.1 * x_span)
                 txt = add_auc_label(
                     ax,
                     x=x_auc,
@@ -1834,8 +1841,11 @@ def plot_com_sli_bundle_data(
                 facecolor="white",
                 framealpha=0.92,
                 edgecolor="0.8",
-                handlelength=3.2,
                 prop={"style": "italic"},
+                **compact_legend_spacing(
+                    customizer.in_plot_font_size,
+                    handlelength=3.2,
+                ),
             ),
         )
 

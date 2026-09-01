@@ -216,7 +216,11 @@ from src.utils.parsers import (
     positive_finite_float,
 )
 from src.plotting.plot import plotAngularVelocity, plotTurnRadiusHist
-from src.plotting.plot_customizer import PlotCustomizer
+from src.plotting.plot_customizer import (
+    PlotCustomizer,
+    apply_adaptive_legend_axes_edge_inset,
+    compact_legend_spacing,
+)
 from src.plotting.time_series_auc import (
     auc_or_abc_test_values,
     compute_single_group_auc_test,
@@ -9305,7 +9309,7 @@ def drawLegend(tp, ng, nf, nrp, gls, customizer):
     - tp ng, nf, nrp, gls: As previously defined.
     - customizer: Plot customizer with font size attributes.
     """
-    kwargs = {}
+    kwargs = compact_legend_spacing(customizer.in_plot_font_size)
     if gls:
         gls = [normalize_multiline_label(gl) for gl in gls]
     prop_dict = {"style": "italic"}
@@ -10791,6 +10795,9 @@ def plotRewards(
             wrap_legend_labels=False,
             wrap_x_axis_labels=wrap_x_axis_labels,
         )
+
+    if legend is not None:
+        apply_adaptive_legend_axes_edge_inset(legend.axes, legend)
 
     if sli_axis is not None and sli_axis.fixed:
         plotted_bounds = [v for v in (mci_min, mci_max) if v is not None]

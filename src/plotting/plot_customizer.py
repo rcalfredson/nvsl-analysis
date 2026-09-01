@@ -2,6 +2,7 @@ import textwrap
 import warnings
 
 import matplotlib.pyplot as plt
+from matplotlib.font_manager import FontProperties
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 import matplotlib.transforms as mtransforms
 import numpy as np
@@ -9,6 +10,92 @@ import numpy as np
 
 FIXED_Y_MAX_INTERVALS = 6
 FIXED_Y_MAX_DECIMALS = 3
+
+LEGEND_HANDLE_MAX_POINTS = 30.0
+LEGEND_HANDLE_TEXT_PAD_MAX_POINTS = 5.0
+LEGEND_BORDER_PAD_MAX_POINTS = 4.0
+LEGEND_BORDER_AXES_PAD_MAX_POINTS = 2.0
+LARGE_FONT_LEGEND_MIN_POINTS = 18.0
+LEGEND_BORDER_AXES_PAD_RELAXED_POINTS = 6.0
+
+
+def compact_legend_spacing(font_size, *, handlelength=None):
+    """Keep legend chrome from growing excessively with large fonts.
+
+    Matplotlib expresses legend spacing in multiples of the legend font size.
+    Preserve the configured/default spacing at ordinary sizes, but cap each
+    dimension at a readable physical size for large-font plots.
+    """
+    font_size_points = float(
+        FontProperties(size=font_size).get_size_in_points()
+    )
+    if not np.isfinite(font_size_points) or font_size_points <= 0:
+        raise ValueError("legend font size must be positive and finite")
+
+    base_handlelength = float(
+        plt.rcParams["legend.handlelength"]
+        if handlelength is None
+        else handlelength
+    )
+
+    if font_size_points < LARGE_FONT_LEGEND_MIN_POINTS:
+        return {
+            "handlelength": base_handlelength,
+            "handletextpad": float(plt.rcParams["legend.handletextpad"]),
+            "borderpad": float(plt.rcParams["legend.borderpad"]),
+            "borderaxespad": float(plt.rcParams["legend.borderaxespad"]),
+        }
+
+    def _capped(rc_key, max_points):
+        return min(float(plt.rcParams[rc_key]), max_points / font_size_points)
+
+    return {
+        "handlelength": min(
+            base_handlelength,
+            LEGEND_HANDLE_MAX_POINTS / font_size_points,
+        ),
+        "handletextpad": _capped(
+            "legend.handletextpad", LEGEND_HANDLE_TEXT_PAD_MAX_POINTS
+        ),
+        "borderpad": _capped("legend.borderpad", LEGEND_BORDER_PAD_MAX_POINTS),
+        "borderaxespad": _capped(
+            "legend.borderaxespad", LEGEND_BORDER_AXES_PAD_MAX_POINTS
+        ),
+    }
+
+
+def apply_adaptive_legend_axes_edge_inset(ax, legend):
+    """Relax a large-font legend's axes-edge inset when its width permits.
+
+    The available horizontal slack is split between the two sides conceptually,
+    then clamped to a 2--6 point range. Short legends therefore retain a
+    comfortable inset, while legends that nearly fill (or exceed) an axes use
+    the tight inset needed to maximize usable width.
+
+    Returns the chosen physical inset in points.
+    """
+    font_size_points = float(legend.prop.get_size_in_points())
+    if not np.isfinite(font_size_points) or font_size_points <= 0:
+        raise ValueError("legend font size must be positive and finite")
+
+    if font_size_points < LARGE_FONT_LEGEND_MIN_POINTS:
+        return float(legend.borderaxespad) * font_size_points
+
+    fig = ax.figure
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    axes_width_px = float(ax.get_window_extent(renderer=renderer).width)
+    legend_width_px = float(legend.get_window_extent(renderer=renderer).width)
+    slack_points = (axes_width_px - legend_width_px) * 72.0 / float(fig.dpi)
+    inset_points = float(
+        np.clip(
+            0.5 * slack_points,
+            LEGEND_BORDER_AXES_PAD_MAX_POINTS,
+            LEGEND_BORDER_AXES_PAD_RELAXED_POINTS,
+        )
+    )
+    legend.borderaxespad = inset_points / font_size_points
+    return inset_points
 
 
 def _faithful_tick_precision(ticks, max_precision):

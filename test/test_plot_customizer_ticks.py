@@ -7,9 +7,62 @@ import numpy as np
 
 from src.plotting.plot_customizer import (
     PlotCustomizer,
+    apply_adaptive_legend_axes_edge_inset,
+    compact_legend_spacing,
     _fixed_endpoint_ticks,
     _tick_decimal_precision,
 )
+
+
+def test_compact_legend_spacing_preserves_ordinary_font_defaults():
+    spacing = compact_legend_spacing(7, handlelength=3.2)
+
+    assert spacing == {
+        "handlelength": 3.2,
+        "handletextpad": plt.rcParams["legend.handletextpad"],
+        "borderpad": plt.rcParams["legend.borderpad"],
+        "borderaxespad": plt.rcParams["legend.borderaxespad"],
+    }
+
+
+def test_compact_legend_spacing_caps_large_font_dimensions_in_points():
+    font_size = 24
+    spacing = compact_legend_spacing(font_size, handlelength=3.2)
+
+    assert spacing["handlelength"] * font_size == 30
+    assert spacing["handletextpad"] * font_size == 5
+    assert spacing["borderpad"] * font_size == 4
+    assert spacing["borderaxespad"] * font_size == 2
+
+
+def test_adaptive_legend_inset_is_tight_for_long_large_font_legend():
+    fig, ax = plt.subplots(figsize=(4.0, 2.0))
+    ax.plot([0, 1], [0, 1], label="A very long legend label that exceeds the axes")
+    legend = ax.legend(
+        prop={"size": 24},
+        **compact_legend_spacing(24),
+    )
+
+    inset_points = apply_adaptive_legend_axes_edge_inset(ax, legend)
+
+    assert inset_points == 2
+    assert legend.borderaxespad * 24 == 2
+    plt.close(fig)
+
+
+def test_adaptive_legend_inset_is_relaxed_for_short_large_font_legend():
+    fig, ax = plt.subplots(figsize=(4.0, 2.0))
+    ax.plot([0, 1], [0, 1], label="Short")
+    legend = ax.legend(
+        prop={"size": 24},
+        **compact_legend_spacing(24),
+    )
+
+    inset_points = apply_adaptive_legend_axes_edge_inset(ax, legend)
+
+    assert inset_points == 6
+    assert legend.borderaxespad * 24 == 6
+    plt.close(fig)
 
 
 def test_tick_decimal_precision_preserves_point_fifteen_spacing():
