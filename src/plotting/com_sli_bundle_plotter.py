@@ -1449,7 +1449,7 @@ def plot_com_sli_bundle_data(
         if panel_has_pre:
             ax.axvline(bl / 2.0, color="0.5", linestyle=":", linewidth=1)
             ax.set_xticks(panel_xs)
-            ax.set_xticklabels(["Pre period"] + [f"{x:g}" for x in xs])
+            ax.set_xticklabels(["Pre\nperiod"] + [f"{x:g}" for x in xs])
             plt.xlim(-0.5 * bl, xs[-1])
         else:
             plt.xlim(0, xs[-1])
@@ -1740,7 +1740,7 @@ def plot_com_sli_bundle_data(
                         group_tops.append(float(np.nanmax(m)))
                 y_anchor = max(group_tops) if group_tops else ylim[1]
                 x_span = float(ctx["panel_xs"][-1] - ctx["panel_xs"][0])
-                x_auc = float(ctx["panel_xs"][0] + 0.05 * x_span)
+                x_auc = float(ctx["panel_xs"][0] -0.05 * x_span)
                 txt = add_auc_label(
                     ax,
                     x=x_auc,
