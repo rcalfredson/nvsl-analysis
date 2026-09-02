@@ -94,10 +94,15 @@ def _write_turnback_ratio_bundle(path, *, ratio, unchecked=None):
     np.savez_compressed(path, **payload)
 
 
-def _write_agarose_bundle(path, *, ratio, unchecked=None):
+def _write_agarose_bundle(
+    path, *, ratio, unchecked=None, boundary_policy="hysteretic"
+):
     payload = {
         "agarose_avoid_ctrl": np.asarray([[[1, 0]]], dtype=int),
         "agarose_avoid_exp": np.asarray([[[2, 1]]], dtype=int),
+        "agarose_dual_circle_boundary_policy": np.asarray(
+            boundary_policy, dtype=object
+        ),
         "agarose_pre_avoid_ctrl": np.asarray([1], dtype=int),
         "agarose_pre_avoid_exp": np.asarray([1], dtype=int),
         "agarose_pre_label": np.asarray("pre last 10m", dtype=object),
@@ -231,6 +236,14 @@ def test_npz_digest_can_be_limited_to_agarose_regression_keys(tmp_path):
         == digest_npz(b, keys=AGAROSE_SLI_REGRESSION_KEYS)["sha256"]
     )
     assert digest_npz(a)["sha256"] != digest_npz(b)["sha256"]
+
+    _write_agarose_bundle(
+        b, ratio=[[[1.0, 0.5]]], boundary_policy="legacy"
+    )
+    assert (
+        digest_npz(a, keys=AGAROSE_SLI_REGRESSION_KEYS)["sha256"]
+        != digest_npz(b, keys=AGAROSE_SLI_REGRESSION_KEYS)["sha256"]
+    )
 
 
 def test_npz_digest_can_be_limited_to_commag_regression_keys(tmp_path):

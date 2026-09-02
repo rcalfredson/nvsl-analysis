@@ -166,6 +166,14 @@ The outer offset must be greater than the inner offset. For example, an inner
 circle 1 mm beyond the agarose boundary and an outer circle 2 mm beyond it use
 `--agarose-inner-radius-offset-mm 1 --agarose-outer-delta-mm 2`.
 
+By default, `--agarose-dual-circle-boundary-policy hysteretic` applies a 0.1 mm
+hysteresis band only to the outer circle so small tracking oscillations do not
+split one approach into multiple episodes. Use
+`--agarose-dual-circle-boundary-policy legacy` to reproduce the detector state
+before July 29, 2026: both circles have a 0.1 mm border that counts directly as
+inside, with no latched hysteresis state. The selected policy is recorded in
+agarose SLI bundles as `agarose_dual_circle_boundary_policy`.
+
 Separately:
 
 - `--agarose-wall-facing-reference reward` defines the retained half using the

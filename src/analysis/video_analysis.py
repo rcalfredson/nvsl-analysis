@@ -96,6 +96,10 @@ from src.analysis.agarose_reward_geometry_audit import (
     select_maximin_complete_draw,
 )
 from src.analysis.agarose_frame_policy import agarose_percentage_masks
+from src.analysis.agarose_boundary_policy import (
+    AGAROSE_BOUNDARY_POLICY_HYSTERETIC,
+    normalize_agarose_boundary_policy,
+)
 from src.analysis.ellipse_to_boundary_dist import (
     TrjDataContainer,
     VaDataContainer,
@@ -2098,6 +2102,7 @@ class VideoAnalysis:
         inner_radius_offset_mm=None,
         wall_facing_reference=None,
         exclude_reward_facing_arc_entries=None,
+        boundary_policy=None,
     ):
         """
         Compute agarose-avoidance metric based on dual concentric circles around
@@ -2142,6 +2147,13 @@ class VideoAnalysis:
             )
         inner_radius_offset_mm = float(inner_radius_offset_mm)
         delta_mm = float(delta_mm)
+        if boundary_policy is None:
+            boundary_policy = getattr(
+                self.opts,
+                "agarose_dual_circle_boundary_policy",
+                AGAROSE_BOUNDARY_POLICY_HYSTERETIC,
+            )
+        boundary_policy = normalize_agarose_boundary_policy(boundary_policy)
         if not np.isfinite(inner_radius_offset_mm) or inner_radius_offset_mm < 0:
             raise ValueError(
                 "inner_radius_offset_mm must be finite and nonnegative"
@@ -2201,6 +2213,7 @@ class VideoAnalysis:
                     delta_mm=delta_mm,
                     center_rotation_deg=center_rotation_deg,
                     inner_radius_offset_mm=inner_radius_offset_mm,
+                    boundary_policy=boundary_policy,
                 )
                 per_fly_episodes[fi] = getattr(trj, "agarose_dual_circle_episodes", [])
                 if farthest_from_reward_only:
@@ -2242,6 +2255,7 @@ class VideoAnalysis:
                 "center_rotation_deg": float(center_rotation_deg),
                 "outer_delta_mm": float(delta_mm),
                 "inner_radius_offset_mm": float(inner_radius_offset_mm),
+                "boundary_policy": boundary_policy,
                 "farthest_from_reward_only": bool(farthest_from_reward_only),
                 "wall_facing_entry_only": bool(wall_facing_entry_only),
                 "wall_facing_reference": wall_facing_reference,
@@ -2264,6 +2278,7 @@ class VideoAnalysis:
                 delta_mm=delta_mm,
                 center_rotation_deg=center_rotation_deg,
                 inner_radius_offset_mm=inner_radius_offset_mm,
+                boundary_policy=boundary_policy,
             )
 
             episodes = getattr(trj, "agarose_dual_circle_episodes", [])
@@ -2350,6 +2365,7 @@ class VideoAnalysis:
             "center_rotation_deg": float(center_rotation_deg),
             "outer_delta_mm": float(delta_mm),
             "inner_radius_offset_mm": float(inner_radius_offset_mm),
+            "boundary_policy": boundary_policy,
             "farthest_from_reward_only": bool(farthest_from_reward_only),
             "wall_facing_entry_only": bool(wall_facing_entry_only),
             "wall_facing_reference": wall_facing_reference,
@@ -2510,6 +2526,13 @@ class VideoAnalysis:
                         centers_override=(center,),
                         site_labels=(f"virtual_site{site_idx + 1}",),
                         frame_range=(detection_start, detection_stop),
+                        boundary_policy=normalize_agarose_boundary_policy(
+                            getattr(
+                                self.opts,
+                                "agarose_dual_circle_boundary_policy",
+                                AGAROSE_BOUNDARY_POLICY_HYSTERETIC,
+                            )
+                        ),
                     )
                     episodes = list(
                         getattr(trj, "agarose_dual_circle_episodes", [])
@@ -2605,6 +2628,13 @@ class VideoAnalysis:
             "method": "reward_analytical_maximin",
             "outer_delta_mm": float(delta_mm),
             "inner_radius_offset_mm": inner_offset_mm,
+            "boundary_policy": normalize_agarose_boundary_policy(
+                getattr(
+                    self.opts,
+                    "agarose_dual_circle_boundary_policy",
+                    AGAROSE_BOUNDARY_POLICY_HYSTERETIC,
+                )
+            ),
             "agarose_buffer_mm": buffer_mm,
             "max_outside_area_fraction": max_outside_fraction,
             "seed": seed,

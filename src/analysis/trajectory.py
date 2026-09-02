@@ -8,6 +8,11 @@ import numpy as np
 
 # custom modules and constants
 from src.analysis.boundary_contact import EllipseToBoundaryDistCalculator
+from src.analysis.agarose_boundary_policy import (
+    AGAROSE_BOUNDARY_POLICY_HYSTERETIC,
+    AGAROSE_BOUNDARY_POLICY_LEGACY,
+    normalize_agarose_boundary_policy,
+)
 from src.utils.common import CT, Xformer, cVsA, flyDesc, writeImage
 from src.utils.common_cython import resolveAngles180To360
 from src.utils.constants import BORDER_WIDTH, _RDP_PKG
@@ -1547,6 +1552,7 @@ class Trajectory:
         centers_override=None,
         site_labels=None,
         frame_range=None,
+        boundary_policy=AGAROSE_BOUNDARY_POLICY_HYSTERETIC,
     ):
         """
         Identify 'dual-circle' agarose avoidance episodes for this fly.
@@ -1554,7 +1560,9 @@ class Trajectory:
         An episode is defined as a contiguous period when the fly is inside an
         outer circle concentric with an agarose well. It is classified as
         'avoidance' if the fly never enters the concentric inner analysis circle
-        during that episode.
+        during that episode. ``boundary_policy='legacy'`` reproduces the
+        pre-2026-07-29 classification: the 0.1 mm border on both circles counts
+        as inside and no boundary state is latched.
 
         Results are stored in:
             self.agarose_dual_circle_episodes: list of dicts with keys
@@ -1630,6 +1638,7 @@ class Trajectory:
         px_per_mm = self.va.ct.pxPerMmFloor() * self.va.xf.fctr
         inner_radius_offset_mm = float(inner_radius_offset_mm)
         delta_mm = float(delta_mm)
+        boundary_policy = normalize_agarose_boundary_policy(boundary_policy)
         if not np.isfinite(inner_radius_offset_mm) or inner_radius_offset_mm < 0:
             raise ValueError("inner_radius_offset_mm must be finite and nonnegative")
         if not np.isfinite(delta_mm) or delta_mm <= inner_radius_offset_mm:
@@ -1650,12 +1659,18 @@ class Trajectory:
             "inner_radius_px": inner_radius_px,
             "outer_radius_px": outer_radius_px,
             "site_labels": site_labels,
+            "boundary_policy": boundary_policy,
         }
-        # Hysteresis on the outer boundary prevents tracking noise from splitting
-        # one approach into several short episodes.  The inner boundary only
-        # classifies an existing episode as contact/avoidance, so it does not use
-        # boundary hysteresis.
-        outer_border_width_px = 0.1 * px_per_mm
+        # Under the current policy, outer-boundary hysteresis prevents tracking
+        # noise from splitting one approach into several short episodes.  The
+        # inner boundary only classifies an existing episode as contact/avoidance,
+        # so that policy keeps the inner boundary sharp.
+        border_width_px = 0.1 * px_per_mm
+        inner_border_width_px = (
+            border_width_px
+            if boundary_policy == AGAROSE_BOUNDARY_POLICY_LEGACY
+            else 0.0
+        )
 
         if debug:
             print(
@@ -1692,7 +1707,7 @@ class Trajectory:
                 cx,
                 cy,
                 outer_radius_px,
-                border_width_px=outer_border_width_px,
+                border_width_px=border_width_px,
             )
             # Inner analysis circle (optionally offset from the agarose boundary)
             inner_state = self.calc_in_circle(
@@ -1701,16 +1716,23 @@ class Trajectory:
                 cx,
                 cy,
                 inner_radius_px,
-                border_width_px=0.0,
+                border_width_px=inner_border_width_px,
             )
 
-            finite = np.isfinite(self.x) & np.isfinite(self.y)
-            outer_state = np.asarray(outer_state, dtype=float)
-            inner_state = np.asarray(inner_state, dtype=float)
-            outer_state[~finite] = np.nan
-            inner_state[~finite] = np.nan
-            outer_mask = self._hysteretic_circle_inside(outer_state)
-            inner_mask = self._hysteretic_circle_inside(inner_state)
+            if boundary_policy == AGAROSE_BOUNDARY_POLICY_LEGACY:
+                # This intentionally retains the exact pre-2026-07-29 behavior:
+                # border samples count as inside and lost samples classify as
+                # outside because calc_in_circle returns state 0 for NaN inputs.
+                outer_mask = np.asarray(outer_state) > 0
+                inner_mask = np.asarray(inner_state) > 0
+            else:
+                finite = np.isfinite(self.x) & np.isfinite(self.y)
+                outer_state = np.asarray(outer_state, dtype=float)
+                inner_state = np.asarray(inner_state, dtype=float)
+                outer_state[~finite] = np.nan
+                inner_state[~finite] = np.nan
+                outer_mask = self._hysteretic_circle_inside(outer_state)
+                inner_mask = self._hysteretic_circle_inside(inner_state)
             if active_frames is not None:
                 outer_mask &= active_frames
                 inner_mask &= active_frames

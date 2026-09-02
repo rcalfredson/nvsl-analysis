@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from src.analysis.agarose_boundary_policy import normalize_agarose_boundary_policy
+
 REQ_BUNDLE_KEYS = [
     "sli",
     "group_label",
@@ -755,6 +757,14 @@ def validate_agarose_sli_bundle(bundle: dict, *, path: str | None = None) -> Non
     )
     if min_total < 0:
         raise ValueError(f"Bundle {where} has negative min_agarose_episodes")
+
+    if "agarose_dual_circle_boundary_policy" in bundle:
+        try:
+            normalize_agarose_boundary_policy(
+                as_scalar(bundle["agarose_dual_circle_boundary_policy"])
+            )
+        except ValueError as exc:
+            raise ValueError(f"Bundle {where} has invalid boundary policy") from exc
 
     n_videos = expected_shape[0]
     target_sync_bucket_eligible = _exp_target_sync_bucket_eligible(

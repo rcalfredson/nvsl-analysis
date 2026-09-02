@@ -220,6 +220,61 @@ def test_agarose_dual_circle_uses_border_only_for_outer_circle(monkeypatch):
     np.testing.assert_allclose(border_widths[1::2], 0.0)
 
 
+def test_agarose_dual_circle_legacy_policy_reproduces_pre_hysteresis_borders(
+    monkeypatch,
+):
+    border_widths = []
+    original_calc_in_circle = Trajectory.calc_in_circle
+
+    def recording_calc_in_circle(self, *args, **kwargs):
+        border_widths.append(kwargs["border_width_px"])
+        return original_calc_in_circle(self, *args, **kwargs)
+
+    monkeypatch.setattr(Trajectory, "calc_in_circle", recording_calc_in_circle)
+    trj = _trajectory_at_well_distances([36.0, 35.4, 34.5, 35.4, 36.0])
+
+    trj.calc_agarose_dual_circle_episodes(
+        delta_mm=1.0, boundary_policy="legacy"
+    )
+
+    expected_width = 0.1 * CT.large.pxPerMmFloor()
+    np.testing.assert_allclose(border_widths, expected_width)
+    assert [
+        (ep["start"], ep["stop"], ep["avoids_inner"])
+        for ep in trj.agarose_dual_circle_episodes
+    ] == [(1, 4, True)]
+    assert trj.agarose_dual_circle_geometry["boundary_policy"] == "legacy"
+
+
+def test_agarose_dual_circle_rejects_unknown_boundary_policy():
+    trj = _trajectory_at_well_distances([41.0, 34.0, 41.0])
+
+    with pytest.raises(ValueError, match="boundary policy must be one of"):
+        trj.calc_agarose_dual_circle_episodes(boundary_policy="unknown")
+
+
+def test_agarose_dual_circle_legacy_policy_preserves_lost_frame_splitting():
+    distances = [36.0, 34.0, np.nan, 34.0, 36.0]
+    legacy = _trajectory_at_well_distances(distances)
+    current = _trajectory_at_well_distances(distances)
+
+    legacy.calc_agarose_dual_circle_episodes(
+        delta_mm=1.0, boundary_policy="legacy"
+    )
+    current.calc_agarose_dual_circle_episodes(
+        delta_mm=1.0, boundary_policy="hysteretic"
+    )
+
+    assert [
+        (episode["start"], episode["stop"])
+        for episode in legacy.agarose_dual_circle_episodes
+    ] == [(1, 2), (3, 4)]
+    assert [
+        (episode["start"], episode["stop"])
+        for episode in current.agarose_dual_circle_episodes
+    ] == [(1, 4)]
+
+
 def test_agarose_virtual_control_rotates_sites_without_changing_radial_distance():
     trj = _trajectory_at_well_distances([100.0, 100.0])
     physical_radius, physical_centers = CT.large.arenaWells(
@@ -438,6 +493,7 @@ def test_agarose_ratio_uses_avoid_over_total_and_min_total_masks_ratio():
             min_agarose_episodes=2,
             agarose_dual_circle_min_total=1,
             agarose_dual_circle_debug_csv=None,
+            agarose_dual_circle_boundary_policy="legacy",
         ),
         sync_bucket_ranges=[[(0, 5), (5, 10)]],
         trx=[exp],
@@ -454,6 +510,7 @@ def test_agarose_ratio_uses_avoid_over_total_and_min_total_masks_ratio():
     np.testing.assert_array_equal(counts["total"], [[[1, 2]]])
     np.testing.assert_allclose(counts["ratio"], [[[np.nan, 0.5]]])
     assert exp.calls[0]["delta_mm"] == 1.0
+    assert exp.calls[0]["boundary_policy"] == "legacy"
 
 
 def test_agarose_episode_assignment_uses_episode_start_frame_for_sync_bucket():
@@ -687,12 +744,14 @@ def test_virtual_agarose_analysis_uses_separate_paired_result_attributes():
             "delta_mm": 1.0,
             "center_rotation_deg": 45.0,
             "inner_radius_offset_mm": 0.0,
+            "boundary_policy": "hysteretic",
         }
     ]
     assert va.agarose_virtual_dual_circle_geometry == {
         "center_rotation_deg": 45.0,
         "outer_delta_mm": 1.0,
         "inner_radius_offset_mm": 0.0,
+        "boundary_policy": "hysteretic",
         "farthest_from_reward_only": False,
         "wall_facing_entry_only": False,
         "wall_facing_reference": "arena",
@@ -915,6 +974,10 @@ def test_agarose_bundle_export_records_defaults_and_min_total_metadata(
         assert not bool(bundle["agarose_wall_facing_entry_only"])
         assert float(bundle["agarose_inner_radius_offset_mm"]) == 0.0
         assert float(bundle["agarose_outer_radius_offset_mm"]) == 0.5
+        assert (
+            str(bundle["agarose_dual_circle_boundary_policy"].item())
+            == "hysteretic"
+        )
         assert str(bundle["agarose_wall_facing_reference"].item()) == "arena"
         assert not bool(bundle["agarose_exclude_reward_facing_arc_entries"])
         assert int(bundle["episode_filter_agarose_sync_exp_excluded_count"]) == 1

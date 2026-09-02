@@ -626,6 +626,10 @@ def export_agarose_sli_bundle(vas, opts, gls, out_fn):
             float(getattr(opts, "agarose_outer_delta_mm", 0.5)),
             dtype=float,
         ),
+        "agarose_dual_circle_boundary_policy": np.array(
+            str(getattr(opts, "agarose_dual_circle_boundary_policy", "hysteretic")),
+            dtype=object,
+        ),
         "agarose_wall_facing_reference": np.array(
             str(getattr(opts, "agarose_wall_facing_reference", "arena")),
             dtype=object,

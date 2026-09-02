@@ -5360,6 +5360,17 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--agarose-dual-circle-boundary-policy",
+    choices=("hysteretic", "legacy"),
+    default="hysteretic",
+    help=(
+        "circle-boundary classification policy: 'hysteretic' uses the current "
+        "outer-only 0.1 mm Schmitt band; 'legacy' reproduces the pre-2026-07-29 "
+        "behavior by treating both circles' 0.1 mm bands as inside (default: "
+        "hysteretic)"
+    ),
+)
+g.add_argument(
     "--agarose-virtual-control",
     action="store_true",
     help=(

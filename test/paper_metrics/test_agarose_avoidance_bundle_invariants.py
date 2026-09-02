@@ -26,6 +26,9 @@ def _bundle(**overrides):
         "sli_select_keep_first_sync_buckets": np.array(0, dtype=int),
         "min_agarose_episodes": np.array(2, dtype=int),
         "agarose_dual_circle_min_total": np.array(2, dtype=int),
+        "agarose_dual_circle_boundary_policy": np.array(
+            "hysteretic", dtype=object
+        ),
         "agarose_ratio_exp": np.asarray(
             [
                 [[1.0, 0.5, np.nan], [0.0, 2.0 / 3.0, np.nan]],
@@ -83,6 +86,23 @@ def test_validate_agarose_bundle_accepts_legacy_min_total_metadata():
     del bundle["min_agarose_episodes"]
 
     validate_agarose_sli_bundle(bundle)
+
+
+def test_validate_agarose_bundle_accepts_legacy_boundary_policy():
+    validate_agarose_sli_bundle(
+        _bundle(agarose_dual_circle_boundary_policy=np.array("legacy", dtype=object))
+    )
+
+
+def test_validate_agarose_bundle_rejects_unknown_boundary_policy():
+    with pytest.raises(ValueError, match="invalid boundary policy"):
+        validate_agarose_sli_bundle(
+            _bundle(
+                agarose_dual_circle_boundary_policy=np.array(
+                    "unknown", dtype=object
+                )
+            )
+        )
 
 
 def test_validate_agarose_bundle_allows_target_sync_bucket_filtered_exp_ratios():

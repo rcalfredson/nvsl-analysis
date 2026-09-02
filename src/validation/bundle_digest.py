@@ -191,6 +191,7 @@ TURNBACK_RATIO_REGRESSION_KEYS = (
 AGAROSE_SLI_REGRESSION_KEYS = (
     "agarose_avoid_ctrl",
     "agarose_avoid_exp",
+    "agarose_dual_circle_boundary_policy",
     "agarose_pre_avoid_ctrl",
     "agarose_pre_avoid_exp",
     "agarose_pre_label",
