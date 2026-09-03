@@ -117,3 +117,39 @@ def test_fraction_inside_circle_rejects_misaligned_masks():
             np.array([2, 1]),
             np.array([True]),
         )
+
+
+def test_pre_circle_ranges_align_when_pre_period_is_shorter_than_fixed_windows():
+    trajectory = SimpleNamespace(
+        va=SimpleNamespace(startPre=3),
+        nan=np.zeros(10, dtype=bool),
+        pctInC={"rwd": [], "custom": []},
+        _fraction_inside_circle=Trajectory._fraction_inside_circle,
+    )
+    training = SimpleNamespace(n=1, start=5, stop=9)
+    in_circle = np.arange(10)
+    in_circle_pre = np.array([2, 1])
+
+    circle_ranges, valid_ranges = Trajectory._append_pct_circle_pre_ranges(
+        trajectory,
+        training,
+        in_circle,
+        in_circle_pre,
+        bl_3_min=3,
+        bl_10_min=10,
+    )
+
+    assert [len(values) for values in circle_ranges] == [2, 2, 4]
+    assert valid_ranges == [slice(3, 5), slice(3, 5), slice(5, 9)]
+
+    Trajectory._calculate_circle_percentages_for_ranges(
+        trajectory,
+        training,
+        circle_ranges,
+        valid_ranges,
+        inC_custom=None,
+        inCPre_custom=None,
+        bl_3_min=3,
+    )
+
+    assert trajectory.pctInC["rwd"] == pytest.approx([0.5, 0.5, 0.25])

@@ -1905,13 +1905,21 @@ class Trajectory:
         nanRngs = [slice(t.start, t.stop)]
 
         if t.n == 1 and inCPre is not None:
-            # First 3 minutes of pre-training
-            inCRngs.insert(0, inCPre[:bl_3_min])
-            nanRngs.insert(0, slice(self.va.startPre, self.va.startPre + bl_3_min))
+            pre_len = len(inCPre)
 
-            # Final 10 minutes of pre-training
-            inCRngs.insert(1, inCPre[-bl_10_min:])
-            nanRngs.insert(1, slice(t.start - bl_10_min, t.start))
+            # First available portion of pre-training, capped at 3 minutes.
+            # Use the same effective length for the validity-mask slice so
+            # recordings with a shorter pre period remain aligned.
+            first_len = min(bl_3_min, pre_len)
+            inCRngs.insert(0, inCPre[:first_len])
+            nanRngs.insert(
+                0, slice(self.va.startPre, self.va.startPre + first_len)
+            )
+
+            # Final available portion of pre-training, capped at 10 minutes.
+            last_len = min(bl_10_min, pre_len)
+            inCRngs.insert(1, inCPre[pre_len - last_len :])
+            nanRngs.insert(1, slice(t.start - last_len, t.start))
 
         return inCRngs, nanRngs
 
