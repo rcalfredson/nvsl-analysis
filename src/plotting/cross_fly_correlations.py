@@ -42,6 +42,7 @@ BBOX_STYLE = dict(
 STATS_BOX_MIN_FONTSIZE = 12.0
 TREND_LINE_P_THRESHOLD = 0.05
 CORRELATION_REFERENCE_FONT_SIZE = 16.0
+CORRELATION_LAYOUT_MAX_TRIALS = 48
 
 
 _layout_logger = logging.getLogger("cross_fly_corr_layout")
@@ -1264,6 +1265,7 @@ def _place_correlation_overlays(
     split_corner_max_right_frac: float = 0.20,
     split_corner_max_lower_frac: float = 0.20,
     annotation_band_max_headroom_frac: float = 0.90,
+    max_layout_trials: int = CORRELATION_LAYOUT_MAX_TRIALS,
 ):
     """
     Jointly place a correlation legend and stats box.
@@ -1276,7 +1278,9 @@ def _place_correlation_overlays(
     stacked annotation-band placement may use up to
     annotation_band_max_headroom_frac. Compact wording is available only at
     configured font sizes greater than or equal to
-    compact_labels_min_font_size.
+    compact_labels_min_font_size. Renderer-backed candidate trials are capped
+    by max_layout_trials, and physically oversized statistics boxes bypass the
+    internal search entirely.
 
     If no internal layout is collision-free, both overlays are placed outside
     the right side of the axes.
@@ -1507,6 +1511,58 @@ def _place_correlation_overlays(
     rejection_hits = Counter()
     closest_candidate = None
     closest_candidates_by_layout = {}
+    layout_trials = 0
+    search_budget_exhausted = False
+
+    def _reserve_layout_trial():
+        """Bound expensive renderer-backed placement attempts."""
+        nonlocal layout_trials, search_budget_exhausted
+        if layout_trials >= max(0, int(max_layout_trials)):
+            search_budget_exhausted = True
+            return False
+        layout_trials += 1
+        return True
+
+    stats_size_cache = {}
+
+    def _stats_box_can_fit_axes(text, fontsize, *, compact_box=False):
+        """Reject text boxes that cannot fit at any in-axes position.
+
+        Axis-limit changes move data in display coordinates but do not change
+        the axes' physical dimensions, so this measurement is reusable across
+        every headroom/padding candidate in a font tier.
+        """
+        cache_key = (str(text), float(fontsize), bool(compact_box))
+        cached = stats_size_cache.get(cache_key)
+        if cached is None:
+            bbox_style = (
+                {**BBOX_STYLE, "boxstyle": "round,pad=0.15"}
+                if compact_box
+                else BBOX_STYLE
+            )
+            probe = ax.text(
+                0.5,
+                0.5,
+                text,
+                transform=ax.transAxes,
+                ha="center",
+                va="center",
+                fontsize=fontsize,
+                linespacing=1.0 if compact_box else None,
+                alpha=0.0,
+                bbox=bbox_style,
+            )
+            fig.canvas.draw()
+            renderer = fig.canvas.get_renderer()
+            probe_bbox = probe.get_bbox_patch().get_window_extent(renderer=renderer)
+            cached = (float(probe_bbox.width), float(probe_bbox.height))
+            stats_size_cache[cache_key] = cached
+            probe.remove()
+
+        renderer = fig.canvas.get_renderer()
+        axes_bbox = ax.get_window_extent(renderer=renderer)
+        width, height = cached
+        return width <= axes_bbox.width - 2.0 and height <= axes_bbox.height - 2.0
 
     def _overlay_rejections(
         bbox,
@@ -1652,8 +1708,17 @@ def _place_correlation_overlays(
     # full annotation wording when possible, then try its compact equivalent.
     font_tiers = tuple(zip(legend_font_sizes, stats_font_sizes))
     for font_tier, (legend_fontsize, stats_fontsize) in enumerate(font_tiers):
+        if search_budget_exhausted:
+            break
         for stats_format, candidate_stats_text in stats_text_variants:
+            if search_budget_exhausted:
+                break
+            if not _stats_box_can_fit_axes(candidate_stats_text, stats_fontsize):
+                _record_rejections("stats", {"preflight_too_large": 1})
+                continue
             for headroom_frac in headroom_fracs:
+                if search_budget_exhausted:
+                    break
                 candidate_top = base_y1 + headroom_frac * base_y_span
                 ax.set_ylim(base_y0, candidate_top)
                 fig.canvas.draw()
@@ -1672,7 +1737,11 @@ def _place_correlation_overlays(
                 # Preserve the current single-column appearance when possible,
                 # but allow two columns to reduce vertical height.
                 for legend_ncol in (1, 2):
+                    if search_budget_exhausted:
+                        break
                     for legend_loc in legend_locations:
+                        if not _reserve_layout_trial():
+                            break
                         legend = ax.legend(
                             handles=legend_handles,
                             loc=legend_loc,
@@ -1698,6 +1767,8 @@ def _place_correlation_overlays(
                             continue
 
                         for candidate in stats_candidates:
+                            if not _reserve_layout_trial():
+                                break
                             stats_artist = ax.text(
                                 candidate["x"],
                                 candidate["y"],
@@ -1847,8 +1918,19 @@ def _place_correlation_overlays(
     for font_tier, (legend_fontsize, stats_fontsize) in enumerate(
         split_font_tiers
     ):
+        if search_budget_exhausted:
+            break
         for stats_format, candidate_stats_text in split_stats_variants:
+            if search_budget_exhausted:
+                break
+            if not _stats_box_can_fit_axes(
+                candidate_stats_text, stats_fontsize, compact_box=True
+            ):
+                _record_rejections("stats", {"preflight_too_large": 1})
+                continue
             for headroom_frac, right_frac, lower_frac in split_padding_candidates:
+                if search_budget_exhausted:
+                    break
                 candidate_right = base_x1 + right_frac * base_x_span
                 candidate_bottom = base_y0 - lower_frac * base_y_span
                 candidate_top = base_y1 + headroom_frac * base_y_span
@@ -1881,8 +1963,13 @@ def _place_correlation_overlays(
                         "boxstyle": "round,pad=0.15",
                     },
                 )
+                if not _reserve_layout_trial():
+                    stats_artist.remove()
+                    break
 
                 for legend_ncol in (1, 2):
+                    if not _reserve_layout_trial():
+                        break
                     legend = ax.legend(
                         handles=legend_handles,
                         labels=compact_legend_labels,
@@ -2001,8 +2088,19 @@ def _place_correlation_overlays(
     band_gap_points = 6.0
 
     for font_tier, (legend_fontsize, stats_fontsize) in enumerate(font_tiers):
+        if search_budget_exhausted:
+            break
         for stats_format, candidate_stats_text in band_stats_variants:
+            if search_budget_exhausted:
+                break
+            if not _stats_box_can_fit_axes(
+                candidate_stats_text, stats_fontsize, compact_box=True
+            ):
+                _record_rejections("stats", {"preflight_too_large": 1})
+                continue
             for headroom_frac in band_headroom_fracs:
+                if not _reserve_layout_trial():
+                    break
                 candidate_top = base_y1 + headroom_frac * base_y_span
                 ax.set_xlim(base_x0, base_x1)
                 ax.set_ylim(base_y0, candidate_top)
@@ -2196,6 +2294,8 @@ def _place_correlation_overlays(
         f"headroom_frac=0 "
         f"legend_fontsize={legend_font_sizes[0]:.2f} "
         f"stats_fontsize={stats_font_sizes[0]:.2f} "
+        f"layout_trials={layout_trials} "
+        f"search_budget_exhausted={search_budget_exhausted} "
         f"rejections={_format_rejection_summary()} "
         f"closest_candidate={_format_closest_candidate()}"
     )
