@@ -6,9 +6,11 @@ from matplotlib.ticker import AutoLocator
 import numpy as np
 
 from src.plotting.sync_bucket_axis_limits import (
+    apply_sync_bucket_xticks,
     apply_sync_bucket_ytick_spacing,
     default_sync_bucket_ylim,
 )
+from src.plotting.plot_customizer import PlotCustomizer
 from src.utils.parsers import positive_finite_float
 
 
@@ -22,6 +24,27 @@ from src.utils.parsers import positive_finite_float
 )
 def test_shared_sync_bucket_axis_limits(metric, expected):
     assert default_sync_bucket_ylim(metric) == expected
+
+
+@pytest.mark.parametrize(
+    "bucket_positions",
+    [
+        np.arange(10.0, 121.0, 10.0),
+        np.arange(-9.0, 31.0, 3.0),
+        np.arange(15.0, 91.0, 15.0),
+    ],
+)
+def test_sync_bucket_xticks_stay_at_data_points_with_large_fonts(bucket_positions):
+    fig, ax = plt.subplots()
+    ax.plot(bucket_positions, np.arange(bucket_positions.size))
+    apply_sync_bucket_xticks(ax, bucket_positions)
+
+    customizer = PlotCustomizer()
+    customizer.update_font_size(24)
+    customizer.adjust_padding_proportionally()
+
+    np.testing.assert_allclose(ax.get_xticks(), bucket_positions)
+    plt.close(fig)
 
 
 def test_explicit_ytick_spacing_preserves_limits_and_sets_interval():

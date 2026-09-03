@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
+
 from matplotlib.ticker import MultipleLocator, ScalarFormatter
 
 
@@ -20,6 +22,16 @@ _DEFAULT_YLIMS = {
 def default_sync_bucket_ylim(metric: str) -> tuple[float, float]:
     """Return the shared absolute-value y range for a sync-bucket metric."""
     return _DEFAULT_YLIMS[metric]
+
+
+def apply_sync_bucket_xticks(ax, bucket_positions) -> None:
+    """Anchor major x ticks to every plotted sync-bucket position."""
+    positions = np.asarray(bucket_positions, dtype=float)
+    if positions.ndim != 1 or positions.size == 0:
+        raise ValueError("bucket positions must be a non-empty one-dimensional array")
+    if not np.all(np.isfinite(positions)):
+        raise ValueError("bucket positions must be finite")
+    ax.set_xticks(positions)
 
 
 def apply_sync_bucket_ytick_spacing(axes, spacing: float | None) -> None:

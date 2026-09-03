@@ -315,6 +315,7 @@ from src.plotting.sli_axis_limits import (
     warn_if_sli_values_clipped,
 )
 from src.plotting.sync_bucket_axis_limits import (
+    apply_sync_bucket_xticks,
     apply_sync_bucket_ytick_spacing,
     default_sync_bucket_ylim,
 )
@@ -10594,6 +10595,7 @@ def plotRewards(
                 else:
                     plt.xlim(0, xs[-1])
                     plt.ylim(*ylim)
+                apply_sync_bucket_xticks(ax, xs)
             if i == 0 and f == 0 and not psc:
                 legend = drawLegend(tp, ng, len(plot_fs), nrp, gls, customizer)
 

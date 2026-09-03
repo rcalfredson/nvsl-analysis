@@ -34,6 +34,7 @@ from src.plotting.sli_label_utils import pct_label, sli_extreme_plot_specs
 from src.plotting.time_series_auc import add_auc_label, compute_auc_test
 from src.plotting.annotation_layout import resolve_annotation_text_overlaps
 from src.plotting.sync_bucket_axis_limits import (
+    apply_sync_bucket_xticks,
     apply_sync_bucket_ytick_spacing,
     default_sync_bucket_ylim,
 )
@@ -1455,11 +1456,12 @@ def plot_com_sli_bundle_data(
             plt.axhline(color="k")
         if panel_has_pre:
             ax.axvline(bl / 2.0, color="0.5", linestyle=":", linewidth=1)
-            ax.set_xticks(panel_xs)
+            apply_sync_bucket_xticks(ax, panel_xs)
             ax.set_xticklabels(["Pre\nperiod"] + [f"{x:g}" for x in xs])
             plt.xlim(-0.5 * bl, xs[-1])
         else:
             plt.xlim(0, xs[-1])
+            apply_sync_bucket_xticks(ax, xs)
 
         panel_annotation_contexts.append(
             {

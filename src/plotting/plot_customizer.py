@@ -3,7 +3,7 @@ import warnings
 
 import matplotlib.pyplot as plt
 from matplotlib.font_manager import FontProperties
-from matplotlib.ticker import FuncFormatter, MaxNLocator
+from matplotlib.ticker import FixedLocator, FuncFormatter, MaxNLocator
 import matplotlib.transforms as mtransforms
 import numpy as np
 
@@ -491,8 +491,12 @@ class PlotCustomizer:
         if new_w > w or new_h > h:
             fig.set_size_inches(new_w, new_h, forward=True)
 
-        # --- Step 3: Ensure X-axis tick spacing is not greater than 10
+        # --- Step 3: Ensure automatic X-axis tick spacing is not greater than 10.
+        # Explicit tick grids encode data positions (for example, sync-bucket
+        # endpoints), so they must not be replaced during large-font layout.
         for ax in fig.get_axes():
+            if isinstance(ax.xaxis.get_major_locator(), FixedLocator):
+                continue
             xlim = ax.get_xlim()
             xticks = ax.get_xticks()
             if len(xticks) >= 2:
