@@ -19,7 +19,7 @@ cd "$REPO_ROOT"
 DATE_TAG="${DATE_TAG:-$(date +%F)}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
 PRINT_ONLY="${PRINT_ONLY:-0}"
-SOURCE_PDF="imgs/heatmap2.pdf"
+SOURCE_PDF="imgs/heatmaps2.pdf"
 
 RECIPES=(
   flat_htl_training
