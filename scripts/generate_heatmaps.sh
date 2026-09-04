@@ -63,7 +63,10 @@ run_heatmap() {
   shift 3
 
   local target_pdf="imgs/${artifact_stem}_${DATE_TAG}.pdf"
-  local command=("$PYTHON_BIN" analyze.py -v "$videos" "$@")
+  local command=(
+    "$PYTHON_BIN" analyze.py -v "$videos" "$@"
+    --fontFamily Arial --fs 20
+  )
 
   printf '\n[%s]\n' "$recipe"
   print_command "${command[@]}"
@@ -87,74 +90,74 @@ run_recipe() {
     flat_htl_training)
       run_heatmap "$1" heatmaps2_t2sb5_flat_htl "$FLAT_HTL_VIDEOS" \
         -f 0-9 --rmCC 5 --pltHm --num-trainings 2 --hm-sync-bucket 5 \
-        --hm-periods training --imgFormat pdf --fs 20 \
+        --hm-periods training --imgFormat pdf \
         --pltHmVmin 1e-6 --pltHmVmax 1e-3
       ;;
     agarose_htl_training)
       run_heatmap "$1" heatmaps2_t2sb5_agarose_htl "$AGAROSE_HTL_VIDEOS" \
         -f 0-9 --rmCC 5 --pltHm --num-trainings 2 --hm-sync-bucket 5 \
-        --hm-periods training --imgFormat pdf --fs 20 \
+        --hm-periods training --imgFormat pdf \
         --pltHmVmin 1e-6 --pltHmVmax 1e-3
       ;;
     flat_htl_pre)
       run_heatmap "$1" heatmaps2_pre_flat_htl "$FLAT_HTL_VIDEOS" \
         -f 0-9 --rmCC 5 --pltHm --hm-periods pre --hm-pre-minutes 10 \
-        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf --fs 20
+        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf
       ;;
     agarose_htl_pre)
       run_heatmap "$1" heatmaps2_pre_agarose_htl "$AGAROSE_HTL_VIDEOS" \
         -f 0-9 --rmCC 5 --pltHm --hm-periods pre --hm-pre-minutes 10 \
-        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf --fs 20
+        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf
       ;;
     ctrl_kir_training)
       run_heatmap "$1" fig4_hm_ctrlKir_flatLgc_T2 "$CTRL_KIR_VIDEOS" \
         -f 0-1 --rCC 15 --pltHm --hm-periods training --num-trainings 2 \
-        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf --fs 20
+        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf
       ;;
     ctrl_kir_post)
       run_heatmap "$1" fig4_hm_ctrlKir_flatLgc_T2Post "$CTRL_KIR_VIDEOS" \
         -f 0-1 --rCC 15 --pltHm --hm-periods post --num-trainings 2 --rpib 3 \
-        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf --fs 20
+        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf
       ;;
     ar_training)
       run_heatmap "$1" figExt15_hm_ar_flatLgc_T2 "$AR_VIDEOS" \
         -f 0-1 --rCC 15 --pltHm --hm-periods training --num-trainings 2 \
-        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf --fs 20
+        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf
       ;;
     ar_post)
       run_heatmap "$1" figExt15_hm_ar_flatLgc_T2Post "$AR_VIDEOS" \
         -f 0-1 --rCC 15 --pltHm --hm-periods post --num-trainings 2 --rpib 3 \
-        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf --fs 20
+        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf
       ;;
     pfnd_kir_training)
       run_heatmap "$1" figExt15_hm_PFNdKir_flatLgc_T2 "$PFND_KIR_VIDEOS" \
         -f 0-1 --rCC 15 --pltHm --hm-periods training --num-trainings 2 \
-        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf --fs 20
+        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf
       ;;
     pfnd_kir_post)
       run_heatmap "$1" figExt15_hm_PFNdKir_flatLgc_T2Post "$PFND_KIR_VIDEOS" \
         -f 0-1 --rCC 15 --pltHm --hm-periods post --num-trainings 2 --rpib 3 \
-        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf --fs 20
+        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf
       ;;
     mbkc_kir_training)
       run_heatmap "$1" figExt15_hm_mbkcKir_flatLgc_T2 "$MBKC_KIR_VIDEOS" \
         -f 0-1 --rCC 15 --pltHm --hm-periods training --num-trainings 2 \
-        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf --fs 20
+        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf
       ;;
     mbkc_kir_post)
       run_heatmap "$1" figExt15_hm_mbkcKir_flatLgc_T2Post "$MBKC_KIR_VIDEOS" \
         -f 0-1 --rCC 15 --pltHm --hm-periods post --num-trainings 2 --rpib 3 \
-        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf --fs 20
+        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf
       ;;
     epg_kir_training)
       run_heatmap "$1" figExt15_hm_epgKir_flatLgc_T2 "$EPG_KIR_VIDEOS" \
         -f 0-1 --rCC 15 --pltHm --hm-periods training --num-trainings 2 \
-        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf --fs 20
+        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf
       ;;
     epg_kir_post)
       run_heatmap "$1" figExt15_hm_epgKir_flatLgc_T2Post "$EPG_KIR_VIDEOS" \
         -f 0-1 --rCC 15 --pltHm --hm-periods post --num-trainings 2 --rpib 3 \
-        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf --fs 20
+        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf
       ;;
     *)
       printf 'Unknown recipe: %s\n\n' "$1" >&2
