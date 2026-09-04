@@ -3,6 +3,9 @@ from __future__ import annotations
 import numpy as np
 
 
+ANNOTATION_STACK_GAP_POINTS = 4.0
+
+
 _OVERLAY_CANDIDATES = (
     (0.03, 0.97, "left", "top"),
     (0.97, 0.97, "right", "top"),
@@ -133,6 +136,55 @@ def _move_text_by_display_dy(ax, text, dy_px: float) -> float:
     return float(y_new)
 
 
+def _position_linked_annotation_stacks(ax, texts) -> None:
+    """Use one compact physical gap around each sample-size label."""
+    fig = ax.figure
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    gap_px = ANNOTATION_STACK_GAP_POINTS * fig.dpi / 72.0
+
+    for sample_size in texts:
+        data_y = getattr(sample_size, "_data_point_y_", None)
+        if data_y is None or not np.isfinite(data_y):
+            continue
+
+        sample_bbox = sample_size.get_window_extent(renderer=renderer)
+        sample_x, _sample_y = sample_size.get_position()
+        _data_x_px, data_y_px = ax.transData.transform(
+            (float(sample_x), float(data_y))
+        )
+        marker_size_points = float(
+            getattr(sample_size, "_data_marker_size_points_", 0.0)
+        )
+        marker_top_px = data_y_px + 0.5 * marker_size_points * fig.dpi / 72.0
+        target_sample_bottom_px = marker_top_px + gap_px
+        _move_text_by_display_dy(
+            ax,
+            sample_size,
+            target_sample_bottom_px - float(sample_bbox.y0),
+        )
+
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+
+    for stars in texts:
+        sample_size = getattr(stars, "_sample_size_text_", None)
+        if sample_size is None or not sample_size.get_visible():
+            continue
+
+        sample_bbox = sample_size.get_window_extent(renderer=renderer)
+        stars_bbox = stars.get_window_extent(renderer=renderer)
+        target_stars_bottom_px = float(sample_bbox.y1) + gap_px
+        _move_text_by_display_dy(
+            ax,
+            stars,
+            target_stars_bottom_px - float(stars_bbox.y0),
+        )
+
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+
+
 def _expand_ylim_if_text_exceeds_top(ax, text, bbox, ylim, *, pad_px: float) -> None:
     fig = ax.figure
     renderer = fig.canvas.get_renderer()
@@ -155,17 +207,22 @@ def resolve_annotation_text_overlaps(ax, texts, ylim, *, pad_px=None, max_iter=1
     Resolve annotation collisions using rendered text extents.
 
     First-pass annotation placement often works in data coordinates, which can
-    under-estimate text height when plot font size is increased. This helper
-    measures actual display-space text boxes and shifts later annotations upward
-    only when their padded boxes collide. ``ylim`` is mutated if extra headroom
-    is needed.
+    under-estimate text height when plot font size is increased. Linked
+    sample-size/significance stacks are first given equal visible gaps above and
+    below the sample-size label. This helper then measures actual display-space
+    text boxes and shifts later annotations upward only when their padded boxes
+    collide. ``ylim`` is mutated if extra headroom is needed.
     """
     texts = [t for t in texts if t is not None and t.get_visible()]
-    if len(texts) < 2:
+    if not texts:
         return
 
     fig = ax.figure
     fig.canvas.draw()
+    _position_linked_annotation_stacks(ax, texts)
+    if len(texts) < 2:
+        return
+
     if pad_px is None:
         max_font_px = max(float(t.get_fontsize()) * fig.dpi / 72.0 for t in texts)
         pad_px = max(3.0, 0.22 * max_font_px)
@@ -188,7 +245,9 @@ def resolve_annotation_text_overlaps(ax, texts, ylim, *, pad_px=None, max_iter=1
         placed = []
         for bbox, text in ordered:
             needed_shift_px = 0.0
-            for prev_bbox in placed:
+            for prev_bbox, prev_text in placed:
+                if getattr(text, "_sample_size_text_", None) is prev_text:
+                    continue
                 if not bbox.overlaps(prev_bbox):
                     continue
                 overlap_px = prev_bbox.y1 - bbox.y0
@@ -211,7 +270,7 @@ def resolve_annotation_text_overlaps(ax, texts, ylim, *, pad_px=None, max_iter=1
                     pad_px=pad_px,
                 )
 
-            placed.append(bbox)
+            placed.append((bbox, text))
 
         if not moved:
             break

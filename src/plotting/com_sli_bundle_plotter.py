@@ -1590,6 +1590,8 @@ def plot_com_sli_bundle_data(
                 )
                 txt._y_ = float(info["anchor_y"])
                 txt._final_y_ = float(y_n)
+                txt._data_point_y_ = float(info["anchor_y"])
+                txt._data_marker_size_points_ = 3.0
                 lbls[bucket_idx].append(txt)
                 annotation_texts.append(txt)
 
@@ -1660,6 +1662,11 @@ def plot_com_sli_bundle_data(
                 )
                 txt._y_ = float(anchor_y)
                 txt._final_y_ = float(ys_star)
+                sample_size_texts = [
+                    text for text in txts_here if hasattr(text, "_data_point_y_")
+                ]
+                if len(sample_size_texts) == 1:
+                    txt._sample_size_text_ = sample_size_texts[0]
                 lbls[bj].append(txt)
                 annotation_texts.append(txt)
 
@@ -1725,6 +1732,11 @@ def plot_com_sli_bundle_data(
                 )
                 txt._y_ = float(anchor_y)
                 txt._final_y_ = float(ys_star)
+                sample_size_texts = [
+                    text for text in txts_here if hasattr(text, "_data_point_y_")
+                ]
+                if len(sample_size_texts) == 1:
+                    txt._sample_size_text_ = sample_size_texts[0]
                 lbls[bj].append(txt)
                 annotation_texts.append(txt)
 

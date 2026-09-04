@@ -10054,6 +10054,8 @@ def plotRewards(
                                 txt._y_ = group_geom_y
                                 txt._final_y_ = y_pos
                                 txt._group_idx_ = int(g)
+                                txt._data_point_y_ = float(group_geom_y)
+                                txt._data_marker_size_points_ = 3.0
                                 lbls[key].append(txt)
                                 _track_annotation_text(ax, txt)
                                 stack_top = _relayout_bucket_n_labels(
@@ -10237,6 +10239,13 @@ def plotRewards(
                         txt._final_y_ = ys
                         txt._firstSm_ = False
                         txt._ontp_ = True
+                        sample_size_texts = [
+                            text
+                            for text in txts_here
+                            if hasattr(text, "_data_point_y_")
+                        ]
+                        if len(sample_size_texts) == 1:
+                            txt._sample_size_text_ = sample_size_texts[0]
                         key = util.join("|", (i, j))
                         lbls[key].append(txt)
                         _track_annotation_text(ax, txt)
