@@ -3,7 +3,10 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from src.plotting.annotation_layout import place_flexible_overlay_texts
+from src.plotting.annotation_layout import (
+    keep_text_box_inside_axes,
+    place_flexible_overlay_texts,
+)
 
 
 def test_flexible_overlay_bbox_stays_inside_axes():
@@ -52,4 +55,28 @@ def test_flexible_overlay_avoids_legend_corner():
     assert not text.get_window_extent(renderer=renderer).overlaps(
         ax.get_legend().get_window_extent(renderer=renderer)
     )
+    plt.close(fig)
+
+
+def test_text_box_constraint_clears_visible_spine_inner_edge():
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.spines["top"].set_linewidth(8.0)
+    text = ax.text(
+        0.02,
+        0.99,
+        "n = 87, r = 0.514, p = 3.63e-7",
+        transform=ax.transAxes,
+        ha="left",
+        va="top",
+        bbox={"facecolor": "white", "alpha": 0.8, "boxstyle": "round,pad=0.25"},
+    )
+
+    assert keep_text_box_inside_axes(ax, text)
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    axes_bbox = ax.get_window_extent(renderer=renderer)
+    patch_bbox = text.get_bbox_patch().get_window_extent(renderer=renderer)
+    half_spine_width_px = 0.5 * 8.0 * fig.dpi / 72.0
+
+    assert patch_bbox.y1 <= axes_bbox.y1 - half_spine_width_px - 0.5
     plt.close(fig)

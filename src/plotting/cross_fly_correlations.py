@@ -28,6 +28,7 @@ from src.plotting.p_value_format import format_plot_p_value
 from src.plotting.rewards_per_distance_totals import pooled_rewards_per_distance_window
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.axis_size import DEFAULT_PLOT_AXIS_SIZE_INCHES, set_axis_size_inches
+from src.plotting.annotation_layout import keep_text_box_inside_axes
 from src.plotting.reward_window_utils import (
     cumulative_window_seconds_for_frame,
     frames_in_windows,
@@ -678,7 +679,11 @@ def _finalize_correlation_layout(
         axis_size_inches = getattr(
             customizer, "standard_plot_axis_size", DEFAULT_PLOT_AXIS_SIZE_INCHES
         )
-    set_axis_size_inches(fig.axes[0], axis_size_inches)
+    ax = fig.axes[0]
+    set_axis_size_inches(ax, axis_size_inches)
+    for text in ax.texts:
+        if getattr(text, "_keep_inside_axes_after_layout", False):
+            keep_text_box_inside_axes(ax, text)
 
 
 def _correlation_axis_size_for_font(
@@ -870,9 +875,11 @@ def _add_smart_stats_box(
     """
     Place a stats textbox where it obscures as few points as possible.
 
-    The function first tries the four plot corners. If each candidate would
-    still cover a substantial fraction of points, it adds upper y headroom and
-    moves the textbox into that empty band above the scatter cloud.
+    The function first tries the four plot corners. If the box is physically
+    too large, it tries the existing reduced-font tiers and, only when needed,
+    a wrapped form of long labeled results. If each fitting corner would still
+    cover a substantial fraction of points, it adds upper y headroom and moves
+    the textbox into that empty band above the scatter cloud.
     """
     x = np.asarray(x, float)
     y = np.asarray(y, float)
@@ -891,8 +898,10 @@ def _add_smart_stats_box(
         )
         fontsize = max(STATS_BOX_MIN_FONTSIZE, 0.90 * reference_size)
 
+    fig = ax.figure
+
     if x_f.size == 0:
-        return ax.text(
+        text_artist = ax.text(
             0.05,
             0.95,
             text,
@@ -903,8 +912,9 @@ def _add_smart_stats_box(
             zorder=5,
             bbox=BBOX_STYLE,
         )
+        keep_text_box_inside_axes(ax, text_artist)
+        return text_artist
 
-    fig = ax.figure
     probe = ax.text(
         0.05,
         0.95,
@@ -966,36 +976,87 @@ def _add_smart_stats_box(
     best_patch_bbox = None
     best_raw_overlap = None
 
-    for candidate in candidates:
-        probe.set_position((candidate["x"], candidate["y"]))
-        probe.set_ha(candidate["ha"])
-        probe.set_va(candidate["va"])
-        fig.canvas.draw()
-        patch_bbox = probe.get_bbox_patch().get_window_extent(renderer=renderer)
-        inside = (
-            (pts_display[:, 0] >= patch_bbox.x0)
-            & (pts_display[:, 0] <= patch_bbox.x1)
-            & (pts_display[:, 1] >= patch_bbox.y0)
-            & (pts_display[:, 1] <= patch_bbox.y1)
+    # Preserve the requested size whenever it can physically fit. If it
+    # cannot, find the largest existing fallback tier that can fit before
+    # applying the normal corner/overlap scoring. This prevents an oversized
+    # box from leaving every best-candidate value unset.
+    candidate_font_sizes = [float(fontsize)]
+    for scale in (0.95, 0.90, 0.85, 0.80, 0.75, 0.70, 0.65, 0.60):
+        candidate_fontsize = max(
+            STATS_BOX_MIN_FONTSIZE, float(fontsize) * scale
         )
-        raw_overlap = float(np.mean(inside))
-        overlap = raw_overlap
-        if legend_bbox is not None:
-            overlaps_legend = not (
-                patch_bbox.x1 < legend_bbox.x0
-                or patch_bbox.x0 > legend_bbox.x1
-                or patch_bbox.y1 < legend_bbox.y0
-                or patch_bbox.y0 > legend_bbox.y1
-            )
-            if overlaps_legend:
-                overlap = 1.0 + overlap
-        if best_overlap is None or overlap < best_overlap:
-            best_overlap = overlap
-            best_candidate = candidate
-            best_patch_bbox = patch_bbox
-            best_raw_overlap = raw_overlap
+        if not any(
+            np.isclose(candidate_fontsize, previous)
+            for previous in candidate_font_sizes
+        ):
+            candidate_font_sizes.append(float(candidate_fontsize))
+    if not any(
+        np.isclose(STATS_BOX_MIN_FONTSIZE, previous)
+        for previous in candidate_font_sizes
+    ):
+        candidate_font_sizes.append(float(STATS_BOX_MIN_FONTSIZE))
+
+    wrapped_text = "\n".join(
+        line.replace(" (", "\n(").replace(": ", ":\n", 1)
+        for line in str(text).splitlines()
+    )
+    text_variants = (str(text),)
+    if wrapped_text != text:
+        text_variants += (wrapped_text,)
+
+    fitting_tier_found = False
+    for candidate_text in text_variants:
+        probe.set_text(candidate_text)
+        for candidate_fontsize in candidate_font_sizes:
+            probe.set_fontsize(candidate_fontsize)
+            font_tier_fits = False
+            for candidate in candidates:
+                probe.set_position((candidate["x"], candidate["y"]))
+                probe.set_ha(candidate["ha"])
+                probe.set_va(candidate["va"])
+                if not keep_text_box_inside_axes(ax, probe):
+                    continue
+                font_tier_fits = True
+                patch_bbox = probe.get_bbox_patch().get_window_extent(
+                    renderer=renderer
+                )
+                inside = (
+                    (pts_display[:, 0] >= patch_bbox.x0)
+                    & (pts_display[:, 0] <= patch_bbox.x1)
+                    & (pts_display[:, 1] >= patch_bbox.y0)
+                    & (pts_display[:, 1] <= patch_bbox.y1)
+                )
+                raw_overlap = float(np.mean(inside))
+                overlap = raw_overlap
+                if legend_bbox is not None:
+                    overlaps_legend = not (
+                        patch_bbox.x1 < legend_bbox.x0
+                        or patch_bbox.x0 > legend_bbox.x1
+                        or patch_bbox.y1 < legend_bbox.y0
+                        or patch_bbox.y0 > legend_bbox.y1
+                    )
+                    if overlaps_legend:
+                        overlap = 1.0 + overlap
+                if best_overlap is None or overlap < best_overlap:
+                    best_overlap = overlap
+                    best_candidate = candidate
+                    best_patch_bbox = patch_bbox
+                    best_raw_overlap = raw_overlap
+            if font_tier_fits:
+                text = candidate_text
+                fontsize = candidate_fontsize
+                fitting_tier_found = True
+                break
+        if fitting_tier_found:
+            break
 
     probe.remove()
+
+    if not fitting_tier_found:
+        raise RuntimeError(
+            "correlation statistics box cannot fit inside the plotting area "
+            f"at the minimum font size of {STATS_BOX_MIN_FONTSIZE:g} points"
+        )
 
     if best_candidate is not None and best_overlap is not None:
         if best_overlap <= max_overlap_frac:
@@ -1010,7 +1071,7 @@ def _add_smart_stats_box(
                 zorder=5,
                 bbox=BBOX_STYLE,
             )
-            fig.canvas.draw()
+            keep_text_box_inside_axes(ax, text_artist)
             stats_bbox = text_artist.get_bbox_patch().get_window_extent(
                 renderer=renderer
             )
@@ -1104,7 +1165,11 @@ def _add_smart_stats_box(
         for scale in (0.95, 0.90, 0.85, 0.80, 0.75, 0.70, 0.65, 0.60):
             candidate_fontsize = max(min_fontsize, float(fontsize) * scale)
             probe.set_fontsize(candidate_fontsize)
-            fig.canvas.draw()
+            probe.set_position(
+                (fallback_candidate["x"], fallback_candidate["y"])
+            )
+            if not keep_text_box_inside_axes(ax, probe):
+                continue
             patch_bbox = probe.get_bbox_patch().get_window_extent(renderer=renderer)
             patch_pts_axes = ax.transAxes.inverted().transform(
                 np.array(
@@ -1161,7 +1226,7 @@ def _add_smart_stats_box(
             zorder=5,
             bbox=BBOX_STYLE,
         )
-        fig.canvas.draw()
+        keep_text_box_inside_axes(ax, text_artist)
         stats_bbox = text_artist.get_bbox_patch().get_window_extent(renderer=renderer)
         intersects_legend = legend_bbox is not None and not (
             stats_bbox.x1 < legend_bbox.x0
@@ -1214,7 +1279,7 @@ def _add_smart_stats_box(
         zorder=5,
         bbox=BBOX_STYLE,
     )
-    fig.canvas.draw()
+    keep_text_box_inside_axes(ax, text_artist)
     stats_bbox = text_artist.get_bbox_patch().get_window_extent(renderer=renderer)
     intersects_legend = legend_bbox is not None and not (
         stats_bbox.x1 < legend_bbox.x0

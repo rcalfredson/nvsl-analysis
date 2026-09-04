@@ -27,6 +27,61 @@ def _bbox_overlap_area(a, b) -> float:
     return width * height
 
 
+def keep_text_box_inside_axes(ax, text, *, pad_px: float = 1.0) -> bool:
+    """Nudge a rendered text patch inside the visible inner axes boundary.
+
+    Matplotlib's axes extent follows each spine's centerline, so the safe
+    inset includes the inward half of every visible spine plus ``pad_px``.
+    The text is translated only as far as necessary and its alignment,
+    transform, font, and wording are left unchanged. ``False`` is returned
+    when the rendered box is physically too large to fit.
+    """
+    fig = ax.figure
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    axes_bbox = ax.get_window_extent(renderer=renderer)
+    patch = text.get_bbox_patch()
+    text_bbox = (
+        patch.get_window_extent(renderer=renderer)
+        if patch is not None
+        else text.get_window_extent(renderer=renderer)
+    )
+
+    def _edge_inset_px(spine_name):
+        spine = ax.spines.get(spine_name)
+        half_spine_width_px = 0.0
+        if spine is not None and spine.get_visible():
+            half_spine_width_px = (
+                0.5 * float(spine.get_linewidth()) * fig.dpi / 72.0
+            )
+        return float(pad_px) + half_spine_width_px
+
+    left_inset = _edge_inset_px("left")
+    right_inset = _edge_inset_px("right")
+    bottom_inset = _edge_inset_px("bottom")
+    top_inset = _edge_inset_px("top")
+    available_width = float(axes_bbox.width) - left_inset - right_inset
+    available_height = float(axes_bbox.height) - bottom_inset - top_inset
+    if text_bbox.width > available_width or text_bbox.height > available_height:
+        return False
+
+    dx_px = max(0.0, axes_bbox.x0 + left_inset - text_bbox.x0)
+    dx_px -= max(0.0, text_bbox.x1 - (axes_bbox.x1 - right_inset))
+    dy_px = max(0.0, axes_bbox.y0 + bottom_inset - text_bbox.y0)
+    dy_px -= max(0.0, text_bbox.y1 - (axes_bbox.y1 - top_inset))
+    if dx_px or dy_px:
+        transform = text.get_transform()
+        position_display = transform.transform(text.get_position())
+        text.set_position(
+            transform.inverted().transform(
+                position_display + np.array([dx_px, dy_px], dtype=float)
+            )
+        )
+        fig.canvas.draw()
+    text._keep_inside_axes_after_layout = True
+    return True
+
+
 def _artist_display_bboxes(ax, renderer):
     bboxes = []
     for line in ax.lines:
