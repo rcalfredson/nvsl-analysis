@@ -10245,8 +10245,8 @@ def plotRewards(
                             for text in txts_here
                             if hasattr(text, "_data_point_y_")
                         ]
-                        if len(sample_size_texts) == 1:
-                            txt._sample_size_text_ = sample_size_texts[0]
+                        if sample_size_texts:
+                            txt._sample_size_texts_ = tuple(sample_size_texts)
                         key = util.join("|", (i, j))
                         lbls[key].append(txt)
                         _track_annotation_text(ax, txt)

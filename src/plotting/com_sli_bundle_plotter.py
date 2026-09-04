@@ -1665,8 +1665,8 @@ def plot_com_sli_bundle_data(
                 sample_size_texts = [
                     text for text in txts_here if hasattr(text, "_data_point_y_")
                 ]
-                if len(sample_size_texts) == 1:
-                    txt._sample_size_text_ = sample_size_texts[0]
+                if sample_size_texts:
+                    txt._sample_size_texts_ = tuple(sample_size_texts)
                 lbls[bj].append(txt)
                 annotation_texts.append(txt)
 
@@ -1735,8 +1735,8 @@ def plot_com_sli_bundle_data(
                 sample_size_texts = [
                     text for text in txts_here if hasattr(text, "_data_point_y_")
                 ]
-                if len(sample_size_texts) == 1:
-                    txt._sample_size_text_ = sample_size_texts[0]
+                if sample_size_texts:
+                    txt._sample_size_texts_ = tuple(sample_size_texts)
                 lbls[bj].append(txt)
                 annotation_texts.append(txt)
 

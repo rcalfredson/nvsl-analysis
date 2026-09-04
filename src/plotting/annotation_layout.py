@@ -4,6 +4,7 @@ import numpy as np
 
 
 ANNOTATION_STACK_GAP_POINTS = 4.0
+SIGNIFICANCE_GAP_RATIO = 0.5
 
 
 _OVERLAY_CANDIDATES = (
@@ -136,8 +137,51 @@ def _move_text_by_display_dy(ax, text, dy_px: float) -> float:
     return float(y_new)
 
 
+def _linked_sample_size_texts(stars):
+    sample_sizes = getattr(stars, "_sample_size_texts_", None)
+    if sample_sizes is None:
+        sample_size = getattr(stars, "_sample_size_text_", None)
+        sample_sizes = () if sample_size is None else (sample_size,)
+    return tuple(
+        sample_size
+        for sample_size in sample_sizes
+        if sample_size is not None and sample_size.get_visible()
+    )
+
+
+def _position_linked_significance_texts(ax, texts, gap_px: float) -> None:
+    fig = ax.figure
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+
+    for stars in texts:
+        sample_sizes = _linked_sample_size_texts(stars)
+        if not sample_sizes:
+            continue
+
+        top_sample = max(
+            sample_sizes,
+            key=lambda sample_size: float(
+                sample_size.get_window_extent(renderer=renderer).y1
+            ),
+        )
+        sample_bbox = top_sample.get_window_extent(renderer=renderer)
+        stars_bbox = stars.get_window_extent(renderer=renderer)
+        target_stars_bottom_px = (
+            float(sample_bbox.y1) + SIGNIFICANCE_GAP_RATIO * gap_px
+        )
+        _move_text_by_display_dy(
+            ax,
+            stars,
+            target_stars_bottom_px - float(stars_bbox.y0),
+        )
+
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+
+
 def _position_linked_annotation_stacks(ax, texts) -> None:
-    """Use one compact physical gap around each sample-size label."""
+    """Use compact physical gaps for linked marker/count/star stacks."""
     fig = ax.figure
     fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
@@ -167,22 +211,7 @@ def _position_linked_annotation_stacks(ax, texts) -> None:
         fig.canvas.draw()
         renderer = fig.canvas.get_renderer()
 
-    for stars in texts:
-        sample_size = getattr(stars, "_sample_size_text_", None)
-        if sample_size is None or not sample_size.get_visible():
-            continue
-
-        sample_bbox = sample_size.get_window_extent(renderer=renderer)
-        stars_bbox = stars.get_window_extent(renderer=renderer)
-        target_stars_bottom_px = float(sample_bbox.y1) + gap_px
-        _move_text_by_display_dy(
-            ax,
-            stars,
-            target_stars_bottom_px - float(stars_bbox.y0),
-        )
-
-        fig.canvas.draw()
-        renderer = fig.canvas.get_renderer()
+    _position_linked_significance_texts(ax, texts, gap_px)
 
 
 def _expand_ylim_if_text_exceeds_top(ax, text, bbox, ylim, *, pad_px: float) -> None:
@@ -208,10 +237,11 @@ def resolve_annotation_text_overlaps(ax, texts, ylim, *, pad_px=None, max_iter=1
 
     First-pass annotation placement often works in data coordinates, which can
     under-estimate text height when plot font size is increased. Linked
-    sample-size/significance stacks are first given equal visible gaps above and
-    below the sample-size label. This helper then measures actual display-space
-    text boxes and shifts later annotations upward only when their padded boxes
-    collide. ``ylim`` is mutated if extra headroom is needed.
+    sample-size/significance stacks are first given compact visible gaps, with
+    the sample-to-significance gap half the marker-to-sample gap. This helper
+    then measures actual display-space text boxes and shifts later annotations
+    upward only when their padded boxes collide. ``ylim`` is mutated if extra
+    headroom is needed.
     """
     texts = [t for t in texts if t is not None and t.get_visible()]
     if not texts:
@@ -228,6 +258,8 @@ def resolve_annotation_text_overlaps(ax, texts, ylim, *, pad_px=None, max_iter=1
         pad_px = max(3.0, 0.22 * max_font_px)
 
     for _ in range(int(max_iter)):
+        gap_px = ANNOTATION_STACK_GAP_POINTS * fig.dpi / 72.0
+        _position_linked_significance_texts(ax, texts, gap_px)
         fig.canvas.draw()
         renderer = fig.canvas.get_renderer()
         ordered = sorted(
@@ -246,7 +278,10 @@ def resolve_annotation_text_overlaps(ax, texts, ylim, *, pad_px=None, max_iter=1
         for bbox, text in ordered:
             needed_shift_px = 0.0
             for prev_bbox, prev_text in placed:
-                if getattr(text, "_sample_size_text_", None) is prev_text:
+                if any(
+                    sample_size is prev_text
+                    for sample_size in _linked_sample_size_texts(text)
+                ):
                     continue
                 if not bbox.overlaps(prev_bbox):
                     continue
