@@ -300,6 +300,7 @@ from src.plotting.annotation_layout import (
     resolve_annotation_text_overlaps,
 )
 from src.plotting.axis_size import DEFAULT_PLOT_AXIS_SIZE_INCHES
+from src.plotting.heatmap_style import apply_heatmap_text_layout
 from src.plotting.reward_raster_plotter import RewardRasterConfig, RewardRasterPlotter
 from src.plotting.first_n_reward_diagnostics import (
     FirstNRewardDiagnosticsConfig,
@@ -11002,6 +11003,7 @@ def plotHeatmaps(vas):
     usesb = False  # Seaborn heatmaps have lines for alpha < 1
     va0, alpha = vas[0], 1 if opts.bg is None else opts.bg
     trns, lin, flies = va0.trns, opts.hm == OP_LIN, va0.flies
+    heatmap_text_size = float(pch(12, opts.fontSize))
     hm_sync_bucket = getattr(opts, "hm_sync_bucket", None)
     hm_head_minutes = getattr(opts, "hm_sync_bucket_head_minutes", None)
     hm_tail_minutes = getattr(opts, "hm_sync_bucket_tail_minutes", None)
@@ -11080,6 +11082,7 @@ def plotHeatmaps(vas):
             else list(zip(train_indices, trns))
         )
         cbar_ax = fig.add_subplot(gs[row_idx, nc])
+        row_heatmap_axes, row_title_pairs = [], []
         mpms, nfs, vmins = [], [], []
         for i_src, t in panels:
             for f in flies:
@@ -11242,6 +11245,7 @@ def plotHeatmaps(vas):
                         cb.outline.set_linewidth(0)
                         cb.solids.set_alpha(1)
                         cb.solids.set_cmap(util.alphaBlend(cmap, alpha))
+                row_heatmap_axes.append(ax)
                 xym = hm(va0, period, f, i_src)[2]
                 if opts.bg is not None:  # add chamber background
                     wh = util.tupleMul(mp.shape[::-1], HEATMAP_DIV)
@@ -11254,10 +11258,13 @@ def plotHeatmaps(vas):
                         vmax=255,
                         zorder=-1,
                     )
+                header_title = None
+                sample_size_title = None
                 if f == 0:
-                    ax.set_title(ttl, loc="left")
+                    header_title = ax.set_title(ttl, loc="left")
                 if (f == 0) == (nsc == 1):
-                    ax.set_title(ttln, loc="right", size="medium")
+                    sample_size_title = ax.set_title(ttln, loc="right")
+                row_title_pairs.append((header_title, sample_size_title))
                 if period == "training" and f == 0 and t.circles(f):
                     cx, cy, r = t.circles(f)[0]
                     if va0.ct is CT.htl:
@@ -11276,6 +11283,12 @@ def plotHeatmaps(vas):
                     )
                 imgs1.append(img)
             imgs.append((util.combineImgs(imgs1, nc=nsc, d=5)[0], ttl + " (%s)" % ttln))
+        apply_heatmap_text_layout(
+            row_heatmap_axes,
+            row_title_pairs,
+            cbar_ax,
+            heatmap_text_size,
+        )
         imgs.extend([(None, "")] * (nc - len(panels)))
     img = util.combineImgs(imgs, nc=nc)[0]
     writeImage(HEATMAPS_IMG_FILE % "", img)
