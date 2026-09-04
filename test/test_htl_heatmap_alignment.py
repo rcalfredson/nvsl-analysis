@@ -65,12 +65,16 @@ class _FakeTraining:
     stop = 1000
 
 
-def _make_heatmap_window_va(bucket):
+def _make_heatmap_window_va(bucket, *, head_minutes=None, tail_minutes=None):
     va = VideoAnalysis.__new__(VideoAnalysis)
     va.opts = SimpleNamespace(
-        hm_sync_bucket=bucket, syncBucketLenMin=10, hm_pre_minutes=10
+        hm_sync_bucket=bucket,
+        hm_sync_bucket_head_minutes=head_minutes,
+        hm_sync_bucket_tail_minutes=tail_minutes,
+        syncBucketLenMin=10,
+        hm_pre_minutes=10,
     )
-    va._min2f = lambda minutes: 100
+    va._min2f = lambda minutes: int(minutes * 10)
     va._syncBucket = lambda training, df: (150, 9, np.array([149]))
     return va
 
@@ -85,6 +89,32 @@ def test_heatmap_training_frame_range_selects_one_based_sync_bucket():
     va = _make_heatmap_window_va(5)
 
     assert va._heatmapTrainingFrameRange(_FakeTraining()) == (550, 650)
+
+
+def test_heatmap_training_frame_range_selects_bucket_head():
+    va = _make_heatmap_window_va(5, head_minutes=5)
+
+    assert va._heatmapTrainingFrameRange(_FakeTraining()) == (550, 600)
+
+
+def test_heatmap_training_frame_range_selects_bucket_tail():
+    va = _make_heatmap_window_va(5, tail_minutes=5)
+
+    assert va._heatmapTrainingFrameRange(_FakeTraining()) == (600, 650)
+
+
+def test_heatmap_bucket_portion_requires_bucket_selection():
+    va = _make_heatmap_window_va(None, tail_minutes=5)
+
+    with pytest.raises(ValueError, match="require --hm-sync-bucket"):
+        va._heatmapTrainingFrameRange(_FakeTraining())
+
+
+def test_heatmap_bucket_portion_cannot_exceed_bucket_duration():
+    va = _make_heatmap_window_va(5, head_minutes=11)
+
+    with pytest.raises(ValueError, match="must not exceed --sb"):
+        va._heatmapTrainingFrameRange(_FakeTraining())
 
 
 def test_heatmap_training_frame_range_rejects_incomplete_bucket():

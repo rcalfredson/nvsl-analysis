@@ -8279,10 +8279,23 @@ class VideoAnalysis:
     def _heatmapTrainingFrameRange(self, t):
         """Return the requested training heatmap window, or None if unavailable."""
         bucket = getattr(self.opts, "hm_sync_bucket", None)
+        head_minutes = getattr(self.opts, "hm_sync_bucket_head_minutes", None)
+        tail_minutes = getattr(self.opts, "hm_sync_bucket_tail_minutes", None)
+        portion_minutes = head_minutes if head_minutes is not None else tail_minutes
         if bucket is None:
+            if portion_minutes is not None:
+                raise ValueError(
+                    "--hm-sync-bucket-head-minutes and "
+                    "--hm-sync-bucket-tail-minutes require --hm-sync-bucket"
+                )
             return t.start, t.stop
         if bucket < 1:
             raise ValueError("--hm-sync-bucket must be >= 1")
+        if portion_minutes is not None and portion_minutes > self.opts.syncBucketLenMin:
+            raise ValueError(
+                "Heatmap sync-bucket portion must not exceed --sb "
+                f"({self.opts.syncBucketLenMin:g} min)"
+            )
 
         df = self._min2f(self.opts.syncBucketLenMin)
         sync_start, _, _ = self._syncBucket(t, df)
@@ -8294,6 +8307,12 @@ class VideoAnalysis:
         # Match the other sync-bucket analyses: only complete buckets count.
         if la > t.stop:
             return None
+        if portion_minutes is not None:
+            portion_frames = self._min2f(portion_minutes)
+            if head_minutes is not None:
+                la = fi + portion_frames
+            else:
+                fi = la - portion_frames
         return fi, la
 
     def _heatmapPreTrainingFrameRange(self):

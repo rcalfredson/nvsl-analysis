@@ -297,6 +297,21 @@ row remains based on `--rpib`. Only complete requested windows contribute.
 standalone pre-training figure. Pre-training panels do not draw a reward circle
 because no reward location is active during that period.
 
+To retain the original sync-bucket numbering while plotting only the beginning
+or end of a selected bucket, add `--hm-sync-bucket-head-minutes F` or
+`--hm-sync-bucket-tail-minutes F`. For example, the last five minutes of T2 SB5
+can be selected with:
+
+```bash
+python analyze.py -v '/path/to/cohort/*.avi' -f 0-1 \
+  --pltHm --hm-periods training --num-trainings 2 \
+  --hm-sync-bucket 5 --hm-sync-bucket-tail-minutes 5
+```
+
+The requested portion must not exceed the `--sb` duration. Head and tail
+selection are mutually exclusive, and plot titles retain the original bucket
+identity (for example, `T2 SB5, last 5 min`).
+
 One `--pltHmVmin` or `--pltHmVmax` value applies to every selected period. Two
 values retain the historical `main,post` interpretation, with pre inheriting the
 main value. Three values are interpreted as `pre,main,post`.

@@ -6056,6 +6056,29 @@ g.add_argument(
         "heatmap row is unchanged. Default: use the full training."
     ),
 )
+hm_sync_bucket_portion = g.add_mutually_exclusive_group()
+hm_sync_bucket_portion.add_argument(
+    "--hm-sync-bucket-head-minutes",
+    type=positive_finite_float,
+    default=None,
+    metavar="F",
+    help=(
+        "Restrict the selected --hm-sync-bucket to its first F minutes while "
+        "retaining the original sync-bucket numbering and duration. Requires "
+        "--hm-sync-bucket and cannot exceed --sb."
+    ),
+)
+hm_sync_bucket_portion.add_argument(
+    "--hm-sync-bucket-tail-minutes",
+    type=positive_finite_float,
+    default=None,
+    metavar="F",
+    help=(
+        "Restrict the selected --hm-sync-bucket to its last F minutes while "
+        "retaining the original sync-bucket numbering and duration. Requires "
+        "--hm-sync-bucket and cannot exceed --sb."
+    ),
+)
 g.add_argument(
     "--hm-periods",
     type=_parse_heatmap_periods,
@@ -10970,6 +10993,16 @@ def plotHeatmaps(vas):
     va0, alpha = vas[0], 1 if opts.bg is None else opts.bg
     trns, lin, flies = va0.trns, opts.hm == OP_LIN, va0.flies
     hm_sync_bucket = getattr(opts, "hm_sync_bucket", None)
+    hm_head_minutes = getattr(opts, "hm_sync_bucket_head_minutes", None)
+    hm_tail_minutes = getattr(opts, "hm_sync_bucket_tail_minutes", None)
+    if hm_head_minutes is not None:
+        hm_bucket_portion = (
+            f", first {util.formatFloat(hm_head_minutes, 1)} min"
+        )
+    elif hm_tail_minutes is not None:
+        hm_bucket_portion = f", last {util.formatFloat(hm_tail_minutes, 1)} min"
+    else:
+        hm_bucket_portion = ""
     periods = tuple(getattr(opts, "hm_periods", ("training", "post")))
     if P and F2T:
         trns = trns[:2]
@@ -11053,7 +11086,7 @@ def plotHeatmaps(vas):
                         )
                     elif period == "training":
                         bucket_msg = (
-                            f" sync bucket {hm_sync_bucket}"
+                            f" sync bucket {hm_sync_bucket}{hm_bucket_portion}"
                             if hm_sync_bucket is not None
                             else ""
                         )
@@ -11118,7 +11151,7 @@ def plotHeatmaps(vas):
                 )
             else:
                 ttl = pcap(
-                    f"{t.sname().upper()} SB{hm_sync_bucket}"
+                    f"{t.sname().upper()} SB{hm_sync_bucket}{hm_bucket_portion}"
                     if hm_sync_bucket is not None
                     else t.name()
                 )
