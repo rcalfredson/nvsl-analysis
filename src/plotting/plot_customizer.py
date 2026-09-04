@@ -378,6 +378,7 @@ class PlotCustomizer:
         aspect_ratio=0.75,
         wspace=0.08,
         base_hspace=0.35,
+        compact_horizontal_spacing=False,
         wrap_legend_labels=True,
         wrap_axis_labels=True,
         wrap_x_axis_labels=None,
@@ -397,6 +398,9 @@ class PlotCustomizer:
             Horizontal spacing between subplots, as a fraction of axis width.
         base_hspace : float
             Baseline vertical spacing between subplot rows.
+        compact_horizontal_spacing : bool
+            Anchor aspect-constrained panels toward the center of each row so
+            unused GridSpec cell width does not inflate inter-panel gaps.
         wrap_axis_labels : bool
             Whether to insert newlines into long axis labels at larger font sizes.
         wrap_x_axis_labels : bool
@@ -622,3 +626,24 @@ class PlotCustomizer:
             wspace=scaled_wspace,
             hspace=base_hspace,
         )
+
+        if compact_horizontal_spacing:
+            rows = {}
+            for ax in axes:
+                try:
+                    subplot_spec = ax.get_subplotspec()
+                except AttributeError:
+                    continue
+                row_key = (
+                    int(subplot_spec.rowspan.start),
+                    int(subplot_spec.rowspan.stop),
+                )
+                rows.setdefault(row_key, []).append((subplot_spec, ax))
+
+            for row_axes in rows.values():
+                row_axes.sort(key=lambda item: int(item[0].colspan.start))
+                if len(row_axes) < 2:
+                    continue
+                last_idx = len(row_axes) - 1
+                for idx, (_subplot_spec, ax) in enumerate(row_axes):
+                    ax.set_anchor((1.0 - idx / last_idx, 0.5))

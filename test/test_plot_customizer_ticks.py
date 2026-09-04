@@ -4,6 +4,7 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pytest
 
 from src.plotting.plot_customizer import (
     PlotCustomizer,
@@ -108,6 +109,33 @@ def test_explicit_legend_line_break_is_preserved():
 
     assert legend.get_texts()[0].get_text() == "Control genotype\nwith treatment"
     plt.close(fig)
+
+
+@pytest.mark.parametrize("font_size", [14, 26])
+def test_compact_horizontal_spacing_keeps_two_and_three_panel_gaps_similar(
+    font_size,
+):
+    gaps = {}
+    for num_panels, width in ((2, 15.0), (3, 20.0)):
+        with plt.rc_context():
+            customizer = PlotCustomizer()
+            customizer.update_font_size(font_size)
+            fig, axes = plt.subplots(1, num_panels, figsize=(width, 5.0), dpi=100)
+            customizer.adjust_padding_proportionally(
+                compact_horizontal_spacing=True,
+            )
+            fig.canvas.draw()
+            renderer = fig.canvas.get_renderer()
+            boxes = [ax.get_window_extent(renderer=renderer) for ax in axes]
+            gaps[num_panels] = [
+                boxes[idx + 1].x0 - boxes[idx].x1
+                for idx in range(num_panels - 1)
+            ]
+            plt.close(fig)
+
+    assert max(gaps[2]) < 50.0
+    assert max(gaps[3]) < 50.0
+    assert gaps[2][0] == pytest.approx(gaps[3][0], abs=7.0)
 
 
 def test_fixed_endpoint_ticks_include_limits_with_nice_uniform_spacing():

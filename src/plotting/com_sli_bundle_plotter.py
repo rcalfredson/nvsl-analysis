@@ -1838,6 +1838,7 @@ def plot_com_sli_bundle_data(
             pass
         customizer.adjust_padding_proportionally(
             wspace=getattr(opts, "wspace", 0.35),
+            compact_horizontal_spacing=nc > 1,
             wrap_legend_labels=False,
             wrap_x_axis_labels=wrap_x_axis_labels,
         )

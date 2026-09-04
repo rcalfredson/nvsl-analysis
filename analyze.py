@@ -10837,6 +10837,7 @@ def plotRewards(
         except (TypeError, ValueError):
             pass
         customizer.adjust_padding_proportionally(
+            compact_horizontal_spacing=nc > 1,
             wrap_legend_labels=False,
             wrap_x_axis_labels=wrap_x_axis_labels,
         )
