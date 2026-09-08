@@ -7314,8 +7314,6 @@ class VideoAnalysis:
                     postVals.append(rpip[0:2])
             postVals = util.concat(postVals)
             pis.append([self.rewardPIPre[f], rpis[0][0]] + postVals)
-            if np.all(np.isnan(pis[f])):
-                self.trx[0].bad(True)
             for tIdx, valsIdx in ((1, 4), (2, 7)):
                 if tIdx + 1 > len(self.trns):
                     continue
