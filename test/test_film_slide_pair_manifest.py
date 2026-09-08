@@ -142,3 +142,89 @@ def test_unknown_cohort_is_rejected(tmp_path):
     )
     assert result.returncode == 2
     assert "Unknown cohort" in result.stderr
+
+
+def run_render(tmp_path, *arguments):
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    calls = tmp_path / "calls.jsonl"
+    copies = tmp_path / "copies.jsonl"
+    fake_python = fake_bin / "python"
+    fake_python.write_text(
+        """#!/usr/bin/env python3
+import json
+import os
+import sys
+with open(os.environ['FILM_TEST_CALLS'], 'a') as stream:
+    stream.write(json.dumps(sys.argv[1:]) + '\\n')
+"""
+    )
+    fake_python.chmod(0o755)
+    fake_cp = fake_bin / "cp"
+    fake_cp.write_text(
+        """#!/usr/bin/env python3
+import json
+import os
+import sys
+with open(os.environ['FILM_TEST_COPIES'], 'a') as stream:
+    stream.write(json.dumps(sys.argv[1:]) + '\\n')
+"""
+    )
+    fake_cp.chmod(0o755)
+    output = tmp_path / "output"
+    result = subprocess.run(
+        ["bash", str(SCRIPT), *arguments],
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "FILM_PYTHON": str(fake_python),
+            "FILM_PAIR_DIR": str(output),
+            "FILM_TEST_CALLS": str(calls),
+            "FILM_TEST_COPIES": str(copies),
+        },
+    )
+    invocations = [json.loads(line) for line in calls.read_text().splitlines()]
+    destinations = [json.loads(line)[-1] for line in copies.read_text().splitlines()]
+    return result, invocations, destinations
+
+
+def test_linear_render_uses_linear_mode_and_distinct_filenames(tmp_path):
+    result, invocations, destinations = run_render(
+        tmp_path, "mock-slide", "render", "linear"
+    )
+    assert result.returncode == 0, result.stderr
+    assert len(invocations) == 2
+    assert all(args[args.index("--pltHm") + 1] == "I" for args in invocations)
+    assert destinations == [
+        str(tmp_path / "output/T2_SB5_last5min_paired_linear.pdf"),
+        str(tmp_path / "output/T2_SB5_last5min_paired_linear.png"),
+        str(tmp_path / "output/T1_SB1_first5min_paired_linear.pdf"),
+        str(tmp_path / "output/T1_SB1_first5min_paired_linear.png"),
+    ]
+
+
+def test_log_render_remains_default_and_preserves_existing_filenames(tmp_path):
+    result, invocations, destinations = run_render(tmp_path, "film-slide", "render")
+    assert result.returncode == 0, result.stderr
+    assert len(invocations) == 2
+    assert all(args[args.index("--pltHm") + 1].startswith("--")
+               for args in invocations)
+    assert destinations == [
+        str(tmp_path / "output/T2_SB5_last5min_paired.pdf"),
+        str(tmp_path / "output/T2_SB5_last5min_paired.png"),
+        str(tmp_path / "output/T1_SB1_first5min_paired.pdf"),
+        str(tmp_path / "output/T1_SB1_first5min_paired.png"),
+    ]
+
+
+def test_scale_argument_is_rejected_outside_render(tmp_path):
+    result = subprocess.run(
+        ["bash", str(SCRIPT), "film-slide", "export", "linear"],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "FILM_PAIR_DIR": str(tmp_path)},
+    )
+    assert result.returncode == 2
+    assert "applies only to the render stage" in result.stderr

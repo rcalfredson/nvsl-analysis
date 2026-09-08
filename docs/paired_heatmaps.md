@@ -98,6 +98,19 @@ For the after command use `--hm-pair-side after` and
 manifest and two reports. Copy/rename each run's usual heatmap output before
 running the other side, as for ordinary heatmaps.
 
+The helper's render stage uses logarithmic color scaling by default. Pass
+`linear` after the render stage to additionally produce a linear-scale version:
+
+```bash
+bash scripts/run_film_slide_paired_heatmaps.sh film-slide render linear
+```
+
+Linear figures receive a `_linear` filename suffix, such as
+`T2_SB5_last5min_paired_linear.pdf`, and therefore do not overwrite the default
+log-scale figures. The pairing reports and audits are shared because scale does
+not change cohort eligibility. The older `... render` command and the explicit
+`... render log` form both retain the existing filenames.
+
 Each render verifies its selected training, bucket, head/tail duration, bucket
 length, recording/fly identities, eligibility, and heatmap count digests against
 its saved report. It fails if they differ. Reports are snapshots: regenerate

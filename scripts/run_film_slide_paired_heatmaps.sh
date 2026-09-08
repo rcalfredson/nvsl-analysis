@@ -9,10 +9,12 @@ case "${1:-}" in
         # Backward-compatible form: a stage alone means the standard film slide.
         film_cohort=film-slide
         film_action=$1
+        film_scale=${2:-log}
         ;;
     *)
         film_cohort=${1:-}
         film_action=${2:-}
+        film_scale=${3:-log}
         ;;
 esac
 
@@ -41,6 +43,25 @@ esac
 
 film_python=${FILM_PYTHON:-python}
 film_out=${FILM_PAIR_DIR:-$film_default_out}
+case "$film_scale" in
+    log)
+        heatmap_mode=(--pltHm)
+        heatmap_filename_suffix=
+        ;;
+    linear)
+        heatmap_mode=(--pltHm I)
+        heatmap_filename_suffix=_linear
+        ;;
+    *)
+        echo "Unknown heatmap scale: $film_scale" >&2
+        echo "Choose log or linear. The default is log." >&2
+        exit 2
+        ;;
+esac
+if [[ "$film_action" != render && "$film_scale" != log ]]; then
+    echo "The heatmap scale argument applies only to the render stage." >&2
+    exit 2
+fi
 film_root='/media/Synology4/Yang Chen'
 before_patterns=()
 after_patterns=()
@@ -55,7 +76,7 @@ for date_pattern in "${date_patterns[@]}"; do
 done
 before_videos=$(IFS=,; echo "${before_patterns[*]}")
 after_videos=$(IFS=,; echo "${after_patterns[*]}")
-common=(-f 0-1 --rCC 15 --pltHm --hm-periods training --sb 10
+common=(-f 0-1 --rCC 15 --hm-periods training --sb 10
         --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf
         --fontFamily Arial --fs 20)
 before_window=(--num-trainings 2 --hm-sync-bucket 5 --hm-sync-bucket-tail-minutes 5)
@@ -67,9 +88,9 @@ pairing=(--hm-pair-manifest "$film_out/pairs.csv"
 case "$film_action" in
     export)
         mkdir -p -- "$film_out"
-        "$film_python" analyze.py -v "$before_videos" "${common[@]}" "${before_window[@]}" \
+        "$film_python" analyze.py -v "$before_videos" "${common[@]}" "${heatmap_mode[@]}" "${before_window[@]}" \
             --hm-pair-export "$film_out/before.json"
-        "$film_python" analyze.py -v "$after_videos" "${common[@]}" "${after_window[@]}" \
+        "$film_python" analyze.py -v "$after_videos" "${common[@]}" "${heatmap_mode[@]}" "${after_window[@]}" \
             --hm-pair-export "$film_out/after.json"
         ;;
     manifest)
@@ -128,17 +149,17 @@ print("Ineligible pairs remain in this manifest so the render audits can explain
 PY
         ;;
     render)
-        "$film_python" analyze.py -v "$before_videos" "${common[@]}" "${before_window[@]}" \
+        "$film_python" analyze.py -v "$before_videos" "${common[@]}" "${heatmap_mode[@]}" "${before_window[@]}" \
             "${pairing[@]}" --hm-pair-side before --hm-pair-audit "$film_out/before_audit.csv"
-        cp -- imgs/heatmaps2.pdf "$film_out/T2_SB5_last5min_paired.pdf"
-        cp -- imgs/heatmaps.png "$film_out/T2_SB5_last5min_paired.png"
-        "$film_python" analyze.py -v "$after_videos" "${common[@]}" "${after_window[@]}" \
+        cp -- imgs/heatmaps2.pdf "$film_out/T2_SB5_last5min_paired${heatmap_filename_suffix}.pdf"
+        cp -- imgs/heatmaps.png "$film_out/T2_SB5_last5min_paired${heatmap_filename_suffix}.png"
+        "$film_python" analyze.py -v "$after_videos" "${common[@]}" "${heatmap_mode[@]}" "${after_window[@]}" \
             "${pairing[@]}" --hm-pair-side after --hm-pair-audit "$film_out/after_audit.csv"
-        cp -- imgs/heatmaps2.pdf "$film_out/T1_SB1_first5min_paired.pdf"
-        cp -- imgs/heatmaps.png "$film_out/T1_SB1_first5min_paired.png"
+        cp -- imgs/heatmaps2.pdf "$film_out/T1_SB1_first5min_paired${heatmap_filename_suffix}.pdf"
+        cp -- imgs/heatmaps.png "$film_out/T1_SB1_first5min_paired${heatmap_filename_suffix}.png"
         ;;
     *)
-        echo "Usage: bash scripts/run_film_slide_paired_heatmaps.sh COHORT {export|manifest|render}" >&2
+        echo "Usage: bash scripts/run_film_slide_paired_heatmaps.sh COHORT {export|manifest|render} [log|linear]" >&2
         echo "Cohorts: film-slide, mock-slide, antennae-removed" >&2
         echo "Backward compatible: omit COHORT to use film-slide." >&2
         echo "Optional: FILM_PYTHON=/path/to/python FILM_PAIR_DIR=exports/film_slide_paired" >&2
