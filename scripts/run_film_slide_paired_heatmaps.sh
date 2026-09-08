@@ -46,10 +46,12 @@ film_out=${FILM_PAIR_DIR:-$film_default_out}
 case "$film_scale" in
     log)
         heatmap_mode=(--pltHm)
+        heatmap_bounds=(--pltHmVmin 1e-6 --pltHmVmax 1e-3)
         heatmap_filename_suffix=
         ;;
     linear)
         heatmap_mode=(--pltHm I)
+        heatmap_bounds=(--pltHmVmin 0 --pltHmVmax 4e-4)
         heatmap_filename_suffix=_linear
         ;;
     *)
@@ -77,7 +79,7 @@ done
 before_videos=$(IFS=,; echo "${before_patterns[*]}")
 after_videos=$(IFS=,; echo "${after_patterns[*]}")
 common=(-f 0-1 --rCC 15 --hm-periods training --sb 10
-        --pltHmVmin 1e-6 --pltHmVmax 1e-3 --imgFormat pdf
+        "${heatmap_bounds[@]}" --imgFormat pdf
         --fontFamily Arial --fs 20)
 before_window=(--num-trainings 2 --hm-sync-bucket 5 --hm-sync-bucket-tail-minutes 5)
 after_window=(--num-trainings 1 --hm-sync-bucket 1 --hm-sync-bucket-head-minutes 5)

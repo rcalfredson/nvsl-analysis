@@ -197,6 +197,8 @@ def test_linear_render_uses_linear_mode_and_distinct_filenames(tmp_path):
     assert result.returncode == 0, result.stderr
     assert len(invocations) == 2
     assert all(args[args.index("--pltHm") + 1] == "I" for args in invocations)
+    assert all(args[args.index("--pltHmVmin") + 1] == "0" for args in invocations)
+    assert all(args[args.index("--pltHmVmax") + 1] == "4e-4" for args in invocations)
     assert destinations == [
         str(tmp_path / "output/T2_SB5_last5min_paired_linear.pdf"),
         str(tmp_path / "output/T2_SB5_last5min_paired_linear.png"),
@@ -210,6 +212,10 @@ def test_log_render_remains_default_and_preserves_existing_filenames(tmp_path):
     assert result.returncode == 0, result.stderr
     assert len(invocations) == 2
     assert all(args[args.index("--pltHm") + 1].startswith("--")
+               for args in invocations)
+    assert all(args[args.index("--pltHmVmin") + 1] == "1e-6"
+               for args in invocations)
+    assert all(args[args.index("--pltHmVmax") + 1] == "1e-3"
                for args in invocations)
     assert destinations == [
         str(tmp_path / "output/T2_SB5_last5min_paired.pdf"),

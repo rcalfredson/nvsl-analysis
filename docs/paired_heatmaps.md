@@ -111,6 +111,11 @@ log-scale figures. The pairing reports and audits are shared because scale does
 not change cohort eligibility. The older `... render` command and the explicit
 `... render log` form both retain the existing filenames.
 
+The helper uses `0` to `4e-4` for linear renders so lower-density spatial
+structure occupies more of the color scale. Logarithmic renders retain their
+existing `1e-6` to `1e-3` bounds. Each mode uses the same bounds for both
+timeframes and every cohort so the resulting heatmaps remain comparable.
+
 Each render verifies its selected training, bucket, head/tail duration, bucket
 length, recording/fly identities, eligibility, and heatmap count digests against
 its saved report. It fails if they differ. Reports are snapshots: regenerate
