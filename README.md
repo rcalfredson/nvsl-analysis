@@ -312,6 +312,14 @@ The requested portion must not exceed the `--sb` duration. Head and tail
 selection are mutually exclusive, and plot titles retain the original bucket
 identity (for example, `T2 SB5, last 5 min`).
 
+For paired heatmaps across separate recordings, see the
+[paired heatmap workflow](docs/paired_heatmaps.md). Its helper supports the
+standard film-slide, mock-slide, and antennae-removed cohorts with separate
+output directories. Export eligibility from each side with `--hm-pair-export`,
+then render both sides using the same explicit `--hm-pair-manifest` and
+eligibility reports. The shared sample requires usable full buckets and heatmap
+windows on both sides; it does not apply the reward PI entry threshold.
+
 One `--pltHmVmin` or `--pltHmVmax` value applies to every selected period. Two
 values retain the historical `main,post` interpretation, with pre inheriting the
 main value. Three values are interpreted as `pre,main,post`.

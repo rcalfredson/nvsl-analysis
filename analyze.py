@@ -88,6 +88,10 @@ from src.analysis.random_frame_windows import (
     sample_non_overlapping_frame_windows_from_domains,
 )
 from src.analysis.agarose_reward_geometry_audit import export_geometry_audit_csv
+from src.analysis.heatmap_pairing import (
+    prepare_paired_heatmaps,
+    skipped_eligibility_record,
+)
 from src.analysis.motion import CircularMotionDetector
 from src.exporting.agarose_sli_bundle import export_agarose_sli_bundle
 from src.exporting.cross_experiment_correlation import (
@@ -6057,6 +6061,15 @@ g.add_argument(
         "heatmap row is unchanged. Default: use the full training."
     ),
 )
+g.add_argument("--hm-pair-export", metavar="JSON",
+               help="Export experimental-fly heatmap eligibility instead of plotting heatmaps.")
+g.add_argument("--hm-pair-manifest", metavar="CSV",
+               help="Explicit before/after recording and fly pairs for training heatmaps.")
+g.add_argument("--hm-pair-side", choices=("before", "after"))
+g.add_argument("--hm-pair-before-report", metavar="JSON")
+g.add_argument("--hm-pair-after-report", metavar="JSON")
+g.add_argument("--hm-pair-audit", metavar="CSV",
+               help="Required output inclusion/exclusion report for paired heatmaps.")
 hm_sync_bucket_portion = g.add_mutually_exclusive_group()
 hm_sync_bucket_portion.add_argument(
     "--hm-sync-bucket-head-minutes",
@@ -7957,6 +7970,11 @@ def _normalize_com_options(opts, argv=None):
 
 
 opts = p.parse_args()
+if any(getattr(opts, name, None) for name in (
+    "hm_pair_export", "hm_pair_manifest", "hm_pair_side", "hm_pair_before_report",
+    "hm_pair_after_report", "hm_pair_audit",
+)) and not opts.hm:
+    p.error("Heatmap pairing options require --pltHm")
 _normalize_com_options(opts)
 if opts.timeit:
     start_t = timeit.default_timer()
@@ -10996,7 +11014,12 @@ def plotRdpStats(vas, gls, tpTa=True):
 
 # plot heatmaps
 def plotHeatmaps(vas):
+    pairing_active = bool(
+        getattr(opts, "hm_pair_export", None) or getattr(opts, "hm_pair_manifest", None)
+    )
     if max(va.gidx for va in vas) > 0:
+        if pairing_active:
+            raise ValueError("Heatmap pairing requires a single video group per run")
         return
     prob = True  # show probabilities (preferred)
     cmap = util.mplColormap()  # alternatives: inferno, gray, etc.
@@ -11019,6 +11042,14 @@ def plotHeatmaps(vas):
     if P and F2T:
         trns = trns[:2]
     train_indices = _resolve_heatmap_training_indices(trns, opts.num_trainings)
+    vas, eligibility_only = prepare_paired_heatmaps(vas, opts, train_indices)
+    if eligibility_only:
+        return
+    if pairing_active:
+        # Pair selection is based on the experimental fly, but the retained
+        # recordings still render their experimental and yoked-control maps.
+        va0 = vas[0]
+        trns = va0.trns
     trns = [trns[i] for i in train_indices]
     has_training_panels = any(period != "pre" for period in periods)
     nc = max(1, len(trns) if has_training_panels else 1)
@@ -17610,6 +17641,10 @@ def analyze():
         return
     cns = [int(util.firstGroup(CAM_NUM, util.basename(fn))) for fn in fns]
     vas, va = [], None
+    pairing_active = bool(opts.hm_pair_export or opts.hm_pair_manifest)
+    opts._hm_pair_skipped_records = []
+    if pairing_active and ng > 1:
+        raise ValueError("Heatmap pairing requires a single video group per run")
     for i, fn in enumerate([fn for (cn, fn) in sorted(zip(cns, fns))]):
         for gidx in range(ng):
             for f in fn2fs[fn][gidx]:
@@ -17618,6 +17653,22 @@ def analyze():
                 va = VideoAnalysis(fn, gidx, opts, f)
                 if not va.skipped():
                     vas.append(va)
+                elif pairing_active:
+                    opts._hm_pair_skipped_records.append(
+                        skipped_eligibility_record(va, fn, f)
+                    )
+
+    if not vas and pairing_active:
+        # No successful analysis reaches plotHeatmaps in this case. Still export
+        # attempted identities, or write the all-excluded pairing audit.
+        if opts.num_trainings is not None:
+            train_indices = [i - 1 for i in parse_training_selector(opts.num_trainings)]
+        else:
+            train_indices = list(range(len(getattr(va, "trns", ()))))
+        if any(i < 0 for i in train_indices):
+            raise ValueError("Heatmap training indices must be >= 1")
+        prepare_paired_heatmaps([], opts, train_indices)
+        return
 
     if vas:
         if opts.timeit:
