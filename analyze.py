@@ -1163,7 +1163,8 @@ g.add_argument(
     dest="pctTimeCircleRad",
     type=float,
     help="measure the percentage of time the fly spends within a circle"
-    " of the specified radius (in mm), concentric with the reward circle.",
+    " of the specified radius (in mm), concentric with the reward circle;"
+    " interpolated positions are included.",
 )
 g.add_argument(
     "--pref-circle-slide",
@@ -1175,7 +1176,8 @@ g.add_argument(
     help=(
         "Measure %% time the fly spends in two circles: "
         "one concentric with the reward circle and one shifted 2 cm downward. "
-        "Radius is given in cm (default 1 cm)."
+        "Radius is given in cm (default 1 cm). Interpolated positions are "
+        "included in the percentages."
     ),
 )
 g.add_argument(

@@ -88,14 +88,16 @@ def test_fraction_inside_circle_excludes_invalid_frames_from_both_terms():
     assert 0 <= fraction <= 1
 
 
-def test_legacy_custom_and_reward_ranges_exclude_interpolated_missing_frames():
+def test_custom_and_reward_ranges_include_finite_interpolated_positions():
     trajectory = SimpleNamespace(
         nan=np.array([False, True, False, False]),
+        x=np.array([0.0, 1.0, np.nan, 3.0]),
+        y=np.array([0.0, 1.0, np.nan, 3.0]),
         pctInC={"rwd": [], "custom": []},
         _fraction_inside_circle=Trajectory._fraction_inside_circle,
     )
     training = SimpleNamespace(n=2, start=0)
-    interpolated_states = np.array([2, 2, 1, 2])
+    interpolated_states = np.array([2, 2, 2, 0])
 
     Trajectory._calculate_circle_percentages_for_ranges(
         trajectory,
@@ -119,10 +121,79 @@ def test_fraction_inside_circle_rejects_misaligned_masks():
         )
 
 
+@pytest.mark.parametrize("label", ["slideConc", "slideShift", "custom"])
+def test_circle_sync_buckets_include_finite_interpolated_positions(label):
+    trajectory = SimpleNamespace(
+        f=0,
+        pctInC_SB={},
+        nan=np.array([False, True, True, False]),
+        x=np.array([0.0, 1.0, np.nan, 3.0]),
+        y=np.array([0.0, 1.0, np.nan, 3.0]),
+        va=SimpleNamespace(
+            _numRewardsMsg=lambda *_args, **_kwargs: 4,
+            _syncBucket=lambda _training, _frames: (0, 1, None),
+        ),
+    )
+    training = SimpleNamespace(start=0, stop=4)
+    circle_states = np.array([2, 2, 0, 0])
+
+    Trajectory._percent_per_sync_bucket(
+        trajectory, training, circle_states, label
+    )
+
+    assert trajectory.pctInC_SB[label][0] == pytest.approx([100 * 2 / 3])
+
+
+def test_reward_occupancy_uses_interpolated_geometry_without_creating_entries():
+    captured = {}
+    circle_states = iter(
+        [
+            np.array([0, 2, 0]),
+            np.array([0, 0, 0]),
+        ]
+    )
+    training = SimpleNamespace(
+        n=1,
+        start=0,
+        stop=3,
+        postStop=3,
+        circles=lambda _fly: ((0, 0, 1), (0, 0, 1)),
+    )
+    trajectory = SimpleNamespace(
+        va=SimpleNamespace(circle=True, trns=[training], startPre=0),
+        opts=SimpleNamespace(cTurnAnlyz=False, showRewardMismatch=False),
+        f=0,
+        x=np.array([0.0, 1.0, 2.0]),
+        y=np.array([0.0, 1.0, 2.0]),
+        nan=np.array([False, True, False]),
+        _bad=False,
+        xy=lambda start, stop: (
+            trajectory.x[start:stop],
+            trajectory.y[start:stop],
+        ),
+        calc_in_circle=lambda *_args: next(circle_states).copy(),
+        _circle_masks=lambda *_args: {},
+        _calcEnEx=lambda states, start, mode="en": Trajectory._calcEnEx(
+            states, start, mode
+        ),
+        _calcPercentInCircle=lambda _training, states, _pre: captured.update(
+            occupancy=states.copy()
+        ),
+        _checkRewards=lambda *_args: None,
+    )
+
+    Trajectory._calcRewards(trajectory)
+
+    assert captured["occupancy"].tolist() == [0, 2, 0]
+    assert trajectory.en[0].size == 0
+
+
 def test_pre_circle_ranges_align_when_pre_period_is_shorter_than_fixed_windows():
     trajectory = SimpleNamespace(
         va=SimpleNamespace(startPre=3),
         nan=np.zeros(10, dtype=bool),
+        x=np.arange(10, dtype=float),
+        y=np.arange(10, dtype=float),
         pctInC={"rwd": [], "custom": []},
         _fraction_inside_circle=Trajectory._fraction_inside_circle,
     )

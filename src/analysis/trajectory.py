@@ -1964,7 +1964,10 @@ class Trajectory:
         self, t, inCRngs, nanRngs, inC_custom, inCPre_custom, bl_3_min
     ):
         for j, inCRng in enumerate(inCRngs):
-            valid = ~self.nan[nanRngs[j]]
+            frame_range = nanRngs[j]
+            valid = np.isfinite(self.x[frame_range]) & np.isfinite(
+                self.y[frame_range]
+            )
             if np.any(valid):
                 pctInOriginalCircle = self._fraction_inside_circle(inCRng, valid)
                 self.pctInC["rwd"].append(pctInOriginalCircle)
@@ -2385,6 +2388,9 @@ class Trajectory:
         Append one list[float|nan] (len = n_buckets) to self.pctInC_SB[lbl]
         containing %-time inside *mask* for each sync bucket of this training.
         Yoked controls (self.f == 1) are filled with NaNs.
+
+        Frames with finite interpolated x/y positions are included. Frames whose
+        positions remain unresolved are excluded.
         """
         # Initialise container if first time we see this label
         if lbl not in self.pctInC_SB:
@@ -2413,7 +2419,9 @@ class Trajectory:
 
         while fi + df <= fi_last:
             seg = mask[fi - trn.start : fi + df - trn.start]
-            valid = ~self.nan[fi : fi + df]
+            valid = np.isfinite(self.x[fi : fi + df]) & np.isfinite(
+                self.y[fi : fi + df]
+            )
             denom = np.sum(valid)
             pct_vals.append(
                 np.nan if denom == 0 else 100 * np.sum((seg == 2) & valid) / denom
@@ -2465,6 +2473,7 @@ class Trajectory:
             x, y = self.xy(start, t.postStop)
             for i, (cx, cy, r) in enumerate(t.circles(self.f)):
                 inC = self.calc_in_circle(x, y, cx, cy, r)
+                occupancy_inC = inC.copy()
 
                 # ------------------------------------------------------
                 # Build any extra circle masks (custom / slide)
@@ -2480,8 +2489,11 @@ class Trajectory:
                 for s in util.trueRegions(self.nan[start : t.postStop]):
                     inC[s] = inC[s.start - 1] if s.start > 0 else False
                 if t.n == 1:
-                    inCPre = inC[0 : t.start - self.va.startPre]
-                    inC = inC[t.start - self.va.startPre :]
+                    offset = t.start - self.va.startPre
+                    inCPre = inC[:offset]
+                    inC = inC[offset:]
+                    occupancy_inCPre = occupancy_inC[:offset]
+                    occupancy_inC = occupancy_inC[offset:]
                     en = np.hstack(
                         (self._calcEnEx(inCPre, start), self._calcEnEx(inC, t.start))
                     )
@@ -2504,7 +2516,11 @@ class Trajectory:
 
                 if i == 0:
                     if not self._bad:
-                        self._calcPercentInCircle(t, inC, inCPre if t.n == 1 else None)
+                        self._calcPercentInCircle(
+                            t,
+                            occupancy_inC,
+                            occupancy_inCPre if t.n == 1 else None,
+                        )
 
                         for lbl, msk in extra_masks.items():
                             self._percent_per_sync_bucket(t, msk, lbl)
