@@ -10560,7 +10560,7 @@ def plotRewards(
                         r_no_contact=CONTACTLESS_RWDS_LABEL,
                         rpid="SLI",
                         rpipd="SLI",
-                        rpd="RPD $(\\mathrm{m}^{-1})$",
+                        rpd="RPD (m$^{-1}$)",
                         rpd_exp_min_yok="rewards per distance $(\\mathrm{m}^{-1})$\n$(\\text{exp} - \\text{yok})$",
                         agarose_dual_circle="dual-circle agarose avoidance ratio",
                         agarose_dual_circle_exp_min_yok="dual-circle agarose avoidance ratio\n$(\\text{exp} - \\text{yok})$",

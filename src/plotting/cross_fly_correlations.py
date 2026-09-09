@@ -38,7 +38,7 @@ from src.utils.common import writeImage
 from src.utils.debug_fly_groups import log_fly_group, write_sorted_fly_list
 
 BBOX_STYLE = dict(
-    facecolor="white", alpha=0.80, edgecolor="none", boxstyle="round,pad=0.25"
+    facecolor="white", alpha=0.65, edgecolor="none", boxstyle="round,pad=0.25"
 )
 STATS_BOX_MIN_FONTSIZE = 12.0
 TREND_LINE_P_THRESHOLD = 0.05
@@ -2444,6 +2444,7 @@ def plot_selected_group_scatter(
     ylim: tuple[float, float] | None = None,
     include_all_corr: bool = False,
     image_format: str = "png",
+    y_zero_reference: bool = False,
 ):
     """
     Plot all points, highlighting selected top/bottom SLI groups and reporting
@@ -2499,6 +2500,8 @@ def plot_selected_group_scatter(
         ax.set_xlim(xlim)
     if ylim is not None:
         ax.set_ylim(ylim)
+    if y_zero_reference:
+        _show_signed_y_values(ax, y_f)
 
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
@@ -2620,6 +2623,16 @@ def plot_selected_group_scatter(
     plt.close(fig)
 
 
+def _show_signed_y_values(ax, values):
+    """Include every signed observation and zero, even with supplied limits."""
+    low, high = ax.get_ylim()
+    span = max(float(np.ptp(values)), abs(float(np.max(values))), 1.0)
+    pad = 0.05 * span
+    ax.set_ylim(min(low, float(np.min(values)) - pad, -pad),
+                max(high, float(np.max(values)) + pad, pad))
+    ax.axhline(0, color="0.5", linewidth=0.7, zorder=0)
+
+
 def plot_correlation_scatter(
     *,
     x: np.ndarray,
@@ -2630,6 +2643,7 @@ def plot_correlation_scatter(
     cfg: CorrelationPlotConfig,
     filename: str,
     customizer: PlotCustomizer,
+    y_zero_reference: bool = False,
 ):
     """Plot and export one generic Pearson correlation scatter.
 
@@ -2663,6 +2677,8 @@ def plot_correlation_scatter(
         ax.set_xticks(cfg.xticks)
     if cfg.yticks is not None:
         ax.set_yticks(cfg.yticks)
+    if y_zero_reference:
+        _show_signed_y_values(ax, y_f)
 
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
@@ -4076,12 +4092,12 @@ def plot_cross_fly_correlations(
                 rpt_suffix = f"{rpt_suffix}__maxtime{cutoff_suffix:g}s"
 
     rpd_y_label = sli_ctx.metric_axis_label(
-        "Rewards per distance", unit="$\\mathrm{m}^{-1}$",
+        "Rewards per distance", unit="m$^{-1}$",
         aggregation=window_metric_aggregation,
     )
     rpd_diff_y_label = sli_ctx.metric_axis_label(
         "Yoked-subtracted RPD",
-        unit="$\\mathrm{m}^{-1}$",
+        unit="m$^{-1}$",
         aggregation=window_metric_aggregation,
         multiline=True,
     )
@@ -4095,7 +4111,7 @@ def plot_cross_fly_correlations(
     else:
         rpt_y_label = reward_rate_ctx.metric_axis_label(
             "Reward rate",
-            unit="$\\mathrm{min}^{-1}$",
+            unit="min$^{-1}$",
         )
     pre_period_exploration_title = "Pre-period exploration and SLI"
     pre_period_exploration_xlabel = (
@@ -4158,6 +4174,7 @@ def plot_cross_fly_correlations(
         ),
         filename=f"corr_rpd_exp_minus_yoked_vs_sli_{rpd_suffix}",
         customizer=customizer,
+        y_zero_reference=True,
     )
     if selected_mode is not None:
         if selected_mode == "top":
@@ -4195,6 +4212,7 @@ def plot_cross_fly_correlations(
             x_label=x_label_sli,
             y_label=rpd_diff_y_label,
             filename=filename_1b_sel,
+            y_zero_reference=True,
             out_dir=out_dir,
             customizer=customizer,
             top_label=top_sel_label,

@@ -250,7 +250,7 @@ class PlotCustomizer:
 
     def update_font_family(self, new_font_family):
         """
-        Updates the font family used in the plot if the new font family is different from the default.
+        Match ordinary text and mathtext to the requested plot font family.
 
         Parameters:
             new_font_family (str): The new font family to use in the plot.
@@ -258,6 +258,16 @@ class PlotCustomizer:
         if new_font_family and new_font_family != self.font_family_default:
             plt.rcParams.update({"font.family": new_font_family})
             self.font_family_customized = True
+        if new_font_family:
+            # Use the selected font for math exponents as well as normal text.
+            # Mathtext still positions/scales superscripts and supplies fallback
+            # glyphs when the selected font lacks a mathematical symbol.
+            plt.rcParams.update({
+                "mathtext.fontset": "custom",
+                "mathtext.rm": new_font_family,
+                "mathtext.it": f"{new_font_family}:italic",
+                "mathtext.bf": f"{new_font_family}:bold",
+            })
 
     @property
     def customized(self):
