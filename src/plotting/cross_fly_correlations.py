@@ -99,7 +99,7 @@ class CorrelationPlotConfig:
     export_group_label: Optional[str] = None
     window_metric_aggregation: str = "pooled"
     rpd_pooled_validity: str = "window"
-    rpd_pooled_min_rewards: int = 5
+    rpd_pooled_min_rewards: int = 0
 
 
 T1_T2_MEAN_SLI_AXIS_LIMITS = (-1.0, 2.1)
@@ -2750,7 +2750,7 @@ def _pooled_rewards_per_distance_for_context(
     ctx: SLIContext,
     f: int,
     validity_policy: str = "window",
-    min_rewards: int = 5,
+    min_rewards: int = 0,
 ) -> float:
     training_idx = int(ctx.training_idx)
     trns = getattr(va, "trns", None) or []
@@ -3683,7 +3683,7 @@ def plot_cross_fly_correlations(
     )
     rpd_pooled_min_rewards = max(
         0,
-        int(getattr(opts, "rpd_pooled_min_rewards", 5) or 0),
+        int(getattr(opts, "rpd_pooled_min_rewards", 0) or 0),
     )
     cfg = CorrelationPlotConfig(
         out_dir=out_dir,

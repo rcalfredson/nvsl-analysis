@@ -8,6 +8,7 @@ from src.plotting.cross_fly_correlations import SLIContext
 from src.plotting.rewards_per_distance_totals import (
     RewardsPerDistanceTotalsConfig,
     RewardsPerDistanceTotalsPlotter,
+    pooled_rewards_per_distance_window,
 )
 
 
@@ -112,9 +113,10 @@ def test_window_rpd_uses_pooled_reward_minimum_not_per_bucket_masks():
     assert np.isnan(all_buckets_value)
 
 
-def test_window_rpd_rejects_fewer_than_five_pooled_rewards():
+@pytest.mark.parametrize("reward_frames", [[], [1, 2, 11, 12]])
+def test_window_rpd_retains_low_counts_by_default_and_honors_explicit_minimum(reward_frames):
     trajectory = _Trajectory(np.ones(20))
-    va = _VideoAnalysis(trajectory, reward_frames=[1, 2, 11, 12])
+    va = _VideoAnalysis(trajectory, reward_frames=reward_frames, excluded_buckets=[0])
     ctx = SLIContext(
         training_idx=0,
         average_over_buckets=True,
@@ -127,7 +129,44 @@ def test_window_rpd_rejects_fewer_than_five_pooled_rewards():
         f=0,
     )
 
-    assert np.isnan(value)
+    assert value == pytest.approx(len(reward_frames) / 0.02)
+    assert np.isnan(corr._pooled_rewards_per_distance_for_context(
+        va, ctx=ctx, f=0, min_rewards=5,
+    ))
+
+
+@pytest.mark.parametrize("distance", [0.0, -1.0, np.nan, np.inf])
+def test_zero_reward_pooled_rpd_still_requires_valid_positive_distance(distance):
+    va = _VideoAnalysis(_Trajectory([distance] * 20))
+    assert pooled_rewards_per_distance_window(
+        va, va.trns[0], t_idx=0, f=0, skip_first=0, keep_first=2,
+    ) is None
+
+
+def test_all_buckets_policy_does_not_add_explicit_pooled_count_threshold():
+    va = _VideoAnalysis(_Trajectory(np.ones(20)))
+    result = pooled_rewards_per_distance_window(
+        va, va.trns[0], t_idx=0, f=0, skip_first=0, keep_first=2,
+        validity_policy="all-buckets", min_rewards=5,
+    )
+    assert result.value == 0.0
+
+
+@pytest.mark.parametrize("yoked_distance, expected", [(1.0, [100.0]), (0.0, [])])
+def test_rpd_total_difference_accepts_zero_reward_yoked_only_with_valid_distance(
+    yoked_distance, expected,
+):
+    va = _VideoAnalysis(_Trajectory(np.ones(20)), excluded_buckets=[0, 1])
+    va.trx.append(_Trajectory([yoked_distance] * 20))
+    va._countOn = lambda start, stop, *, calc, ctrl, f: 2 if f == 0 and not ctrl else 0
+    cfg = RewardsPerDistanceTotalsConfig(
+        out_file="", trainings=(1,), keep_first_sync_buckets=2,
+        value_mode="exp_minus_yok",
+    )
+    data = RewardsPerDistanceTotalsPlotter(
+        vas=[va], opts=SimpleNamespace(), gls=None, customizer=None, cfg=cfg,
+    ).compute_scalar_panels()
+    assert data["mean"] == pytest.approx(expected)
 
 
 def test_rpd_total_collector_uses_the_same_window_validity_policy():

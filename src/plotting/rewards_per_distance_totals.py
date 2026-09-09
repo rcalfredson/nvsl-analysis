@@ -20,7 +20,7 @@ from src.utils.constants import RI_START
 class RewardsPerDistanceTotalsConfig(TrainingMetricScalarBarsConfig):
     value_mode: str = "exp"
     validity_policy: str = "window"
-    min_rewards: int = 5
+    min_rewards: int = 0
     sli_values: Sequence[float] | None = None
     sli_exp_values: Sequence[float] | None = None
     sli_ctrl_values: Sequence[float] | None = None
@@ -112,13 +112,15 @@ def pooled_rewards_per_distance_window(
     skip_first: int,
     keep_first: int,
     validity_policy: str = "window",
-    min_rewards: int = 5,
+    min_rewards: int = 0,
 ) -> PooledRewardsPerDistanceWindow | None:
     """
     Calculate one denominator-aware RPD value over a selected sync-bucket window.
 
     ``window`` validity ignores per-bucket PI masks and requires ``min_rewards``
-    calculated target rewards in the pooled window. ``all-buckets`` reproduces
+    calculated target rewards in the pooled window (default 0: no count filter).
+    Zero rewards over valid positive distance produces zero RPD.
+    ``all-buckets`` reproduces
     the legacy policy requiring every selected bucket to pass
     ``is_excluded_pair``; it does not add a pooled reward-count threshold.
     """
@@ -263,7 +265,7 @@ class RewardsPerDistancePerFlyCollector:
         validity_policy = str(
             getattr(self.cfg, "validity_policy", "window") or "window"
         )
-        min_rewards = max(0, int(getattr(self.cfg, "min_rewards", 5) or 0))
+        min_rewards = max(0, int(getattr(self.cfg, "min_rewards", 0) or 0))
         if value_mode not in ("exp", "exp_minus_yok"):
             raise ValueError(f"Unsupported RPD total value_mode: {value_mode!r}")
 
@@ -419,7 +421,7 @@ class RewardsPerDistanceTotalsPlotter(
         )
         data["meta"]["rpd_pooled_min_rewards"] = max(
             0,
-            int(getattr(self.cfg, "min_rewards", 5) or 0),
+            int(getattr(self.cfg, "min_rewards", 0) or 0),
         )
 
         training_info = data.get("meta", {}).get("training_selection", {})

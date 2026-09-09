@@ -769,11 +769,13 @@ g.add_argument(
 g.add_argument(
     "--rpd-pooled-min-rewards",
     type=int,
-    default=5,
+    default=0,
     metavar="N",
     help=(
         "Minimum calculated target rewards required across a pooled RPD window "
-        "when --rpd-pooled-validity=window (default: 5)."
+        "when --rpd-pooled-validity=window (default: 0, no reward-count filter). "
+        "Zero rewards over valid positive distance produces zero RPD. "
+        "Use 5 to reproduce the former pooled reward minimum."
     ),
 )
 g.add_argument(
@@ -15006,7 +15008,7 @@ def postAnalyze(vas):
             validity_policy=getattr(opts, "rpd_pooled_validity", "window"),
             min_rewards=max(
                 0,
-                int(getattr(opts, "rpd_pooled_min_rewards", 5) or 0),
+                int(getattr(opts, "rpd_pooled_min_rewards", 0) or 0),
             ),
             sli_values=rpd_total_sli_values,
             sli_exp_values=rpd_total_sli_exp_values,
