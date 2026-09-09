@@ -256,6 +256,30 @@ def test_window_aggregation_defaults_to_pooled_and_supports_legacy_mode():
     )
 
 
+@pytest.mark.parametrize("metric", ["Yoked-subtracted RPD", "Mean speed"])
+def test_metric_window_label_reflects_aggregation(metric):
+    ctx = SLIContext(
+        training_idx=1, average_over_buckets=True,
+        skip_first_sync_buckets=1, keep_first_sync_buckets=4,
+    )
+    assert ctx.metric_axis_label(metric, unit="m⁻¹", aggregation="pooled") == (
+        f"{metric} for T2 SB2–5 (m⁻¹)"
+    )
+    assert ctx.metric_axis_label(
+        metric, aggregation="pooled", multiline=True,
+    ) == f"{metric}\nfor T2 SB2–5"
+    assert ctx.metric_axis_label(metric, aggregation="bucketwise") == (
+        f"{metric}, mean over T2 SB2–5"
+    )
+    assert ctx.axis_label() == "Mean SLI over T2 SB2–5"
+
+
+@pytest.mark.parametrize("aggregation", ["pooled", "bucketwise"])
+def test_metric_single_bucket_label_keeps_at(aggregation):
+    ctx = SLIContext(training_idx=1, explicit_bucket_idx=4)
+    assert ctx.metric_axis_label("RPD", aggregation=aggregation) == "RPD, at T2 SB5"
+
+
 def test_public_correlation_scatter_rejects_unaligned_vectors():
     with pytest.raises(ValueError, match="aligned one-dimensional arrays"):
         corr.plot_correlation_scatter(

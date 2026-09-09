@@ -269,18 +269,31 @@ class SLIContext:
             return f"SLI at final SB of T{self.training_idx + 1}"
         return f"SLI at final SB in {window_txt}"
 
-    def metric_axis_label(self, metric_name: str, *, unit: str | None = None) -> str:
+    def metric_axis_label(
+        self, metric_name: str, *, unit: str | None = None,
+        aggregation: str = "bucketwise", multiline: bool = False,
+    ) -> str:
+        """Label pooled windows as 'for' and bucket averages as 'mean over'."""
+        if aggregation not in ("pooled", "bucketwise"):
+            raise ValueError(f"Unsupported metric aggregation: {aggregation!r}")
         window_txt = self._axis_window_text()
         start_sb, end_sb = self._window_bounds()
         if self.average_over_buckets:
-            window_phrase = f"mean over {window_txt}"
+            window_phrase = (
+                f"for {window_txt}" if aggregation == "pooled"
+                else f"mean over {window_txt}"
+            )
         elif start_sb == end_sb:
             window_phrase = f"at {window_txt}"
         elif end_sb is None and start_sb == 1:
             window_phrase = f"at final SB of T{self.training_idx + 1}"
         else:
             window_phrase = f"at final SB in {window_txt}"
-        label = f"{metric_name}, {window_phrase}"
+        pooled_window = self.average_over_buckets and aggregation == "pooled"
+        separator = ("\n" if multiline else " ") if pooled_window else (
+            ",\n" if multiline else ", "
+        )
+        label = f"{metric_name}{separator}{window_phrase}"
         if unit:
             label = f"{label} ({unit})"
         return label
@@ -4063,21 +4076,14 @@ def plot_cross_fly_correlations(
                 rpt_suffix = f"{rpt_suffix}__maxtime{cutoff_suffix:g}s"
 
     rpd_y_label = sli_ctx.metric_axis_label(
-        "Rewards per distance", unit="$\\mathrm{m}^{-1}$"
+        "Rewards per distance", unit="$\\mathrm{m}^{-1}$",
+        aggregation=window_metric_aggregation,
     )
-    rpd_diff_y_label = (
-        sli_ctx.metric_axis_label(
-            "Rewards per distance, exp - yok",
-            unit="$\\mathrm{m}^{-1}$",
-        )
-        .replace(
-            ", mean over ",
-            ",\nmean over ",
-        )
-        .replace(
-            ", at ",
-            ",\nat ",
-        )
+    rpd_diff_y_label = sli_ctx.metric_axis_label(
+        "Yoked-subtracted RPD",
+        unit="$\\mathrm{m}^{-1}$",
+        aggregation=window_metric_aggregation,
+        multiline=True,
     )
     if reward_first_n > 0:
         rpt_y_label = _first_n_reward_rate_label(
@@ -4143,7 +4149,7 @@ def plot_cross_fly_correlations(
     _scatter_with_corr(
         x=sli_vals,
         y=rpd_exp_minus_yoked_vals,
-        title="Δ rewards per distance vs SLI",
+        title="Yoked-subtracted RPD vs SLI",
         x_label=x_label_sli,
         y_label=rpd_diff_y_label,
         cfg=_cfg_with_plot_color(
@@ -4255,7 +4261,9 @@ def plot_cross_fly_correlations(
                 f"{_window_context_suffix(final_sli_ctx, prefix='sli')}__"
                 f"{_window_context_suffix(speed_ctx, prefix='speed')}"
             )
-            fixed_speed_x_label = speed_ctx.metric_axis_label("Mean speed", unit="mm/s")
+            fixed_speed_x_label = speed_ctx.metric_axis_label(
+                "Mean speed", unit="mm/s", aggregation=window_metric_aggregation,
+            )
             final_sli_y_label = final_sli_ctx.axis_label()
             _scatter_with_corr(
                 x=fixed_speed_vals,
