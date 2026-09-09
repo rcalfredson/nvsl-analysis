@@ -253,6 +253,18 @@ python analyze.py \
 
 These metrics can be run directly from `analyze.py`; outputs are usually written under `imgs/` plus any CSV/NPZ paths named by the flag.
 
+The default post-analysis rewards-per-minute log summary is followed by training-wide
+rewards-per-distance summaries (m⁻¹), for experimental flies and experimental-minus-yoked
+pairs. No additional flag is required. Both use the RPM interval: the first synchronized
+reward through training end, including the final partial bucket. Each fly contributes
+total calculated target rewards divided by total traveled distance; the reported mean,
+95% Student-t confidence interval (`±` half-width), and sample size are calculated across
+flies, or across within-pair differences. Zero rewards are retained when distance is finite
+and positive. Missing/invalid trajectories or windows are excluded, and subtraction requires
+both flies to be valid. These training-wide summaries do not use PI masks or the
+`--rpd-pooled-*` / sync-bucket window options for pooled plots. A sample size of one has
+an undefined confidence interval (`±nan`); zero valid samples produce `nan ±nan (0)`.
+
 | Metric or view | Main `analyze.py` flags | Typical output | Notes |
 | --- | --- | --- | --- |
 | Standard learning/reward summaries | default command, often with `--rpd` | `learning_stats.csv`, reward and reward-per-distance plots | Good first pass for a new experiment. |

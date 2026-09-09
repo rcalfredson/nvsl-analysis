@@ -88,6 +88,7 @@ from src.analysis.random_frame_windows import (
     sample_non_overlapping_frame_windows_from_domains,
 )
 from src.analysis.agarose_reward_geometry_audit import export_geometry_audit_csv
+from src.analysis.training_rpd_summary import report_training_rewards_per_distance
 from src.analysis.heatmap_pairing import (
     prepare_paired_heatmaps,
     skipped_eligibility_record,
@@ -14436,6 +14437,8 @@ def postAnalyze(vas):
                             ", ".join(txt),
                         )
                     )
+            if tp == "rpm":
+                report_training_rewards_per_distance(vas, trns, gis, gls)
         # handle "type codes" included in postAnalyze() for checkValues()
         elif tp == None:
             pass
