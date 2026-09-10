@@ -121,8 +121,11 @@ ENABLE_DEFAULT_BETWEEN_REWARD_SLI_PLOTS=false
 EXPORT_BUNDLE_EXIT_EARLY=true
 SHOW_AUC_P_VALUES=false
 SLI_YLIM_MODE=fixed
-SLI_YLIM_MIN=-0.5
-SLI_YLIM_MAX=2
+SLI_YLIM_MIN=-0.2
+SLI_YLIM_MAX=1
+SLI_EXTREMES_YLIM_MODE=fixed
+SLI_EXTREMES_YLIM_MIN=-0.2
+SLI_EXTREMES_YLIM_MAX=2.1
 ```
 
 Accepted boolean values are `1`, `true`, `yes`, `on`, `0`, `false`, `no`, and `off`.
@@ -136,10 +139,16 @@ Behavior:
   `SLI_YLIM_MIN` and `SLI_YLIM_MAX` to time-dependent SLI plots produced both by
   `analyze.py` and by the running PI/SLI bundle plotter. A warning is emitted if
   plotted means or confidence limits fall outside the fixed range.
+- `SLI_EXTREMES_YLIM_MODE`, `SLI_EXTREMES_YLIM_MIN`, and
+  `SLI_EXTREMES_YLIM_MAX` optionally set a different range for `analyze.py`
+  plots of top/bottom SLI-selected groups. When absent, those plots use the
+  general SLI policy.
 - The equivalent command-line options are `--sli-ylim-mode`, `--sli-ylim-min`,
   and `--sli-ylim-max`. Command-line values override the local config, and using
   either bound implies fixed mode. For example, `--sli-ylim-min=-0.5` with
   `--sli-ylim-max=2` fixes the range for that invocation only.
+  Selected-group equivalents are `--sli-extremes-ylim-mode`,
+  `--sli-extremes-ylim-min`, and `--sli-extremes-ylim-max`.
 
 ---
 

@@ -1,8 +1,10 @@
 import warnings
+from types import SimpleNamespace
 
 import pytest
 
 from src.plotting.sli_axis_limits import (
+    load_plot_sli_axis_limits,
     load_sli_axis_limits,
     warn_if_sli_values_clipped,
 )
@@ -35,6 +37,78 @@ def test_cli_sli_limits_override_config_and_imply_fixed(tmp_path, monkeypatch):
     policy = load_sli_axis_limits(minimum=-0.25, maximum=1.5)
     assert policy.fixed
     assert policy.limits == (-0.25, 1.5)
+
+
+def test_selected_sli_limits_override_general_config(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".analyze.local.env").write_text(
+        "SLI_YLIM_MODE=fixed\nSLI_YLIM_MIN=-0.2\nSLI_YLIM_MAX=1\n"
+        "SLI_EXTREMES_YLIM_MODE=fixed\n"
+        "SLI_EXTREMES_YLIM_MIN=-0.2\nSLI_EXTREMES_YLIM_MAX=2.1\n",
+        encoding="utf-8",
+    )
+    policy = load_sli_axis_limits(
+        config_prefix="SLI_EXTREMES_YLIM",
+        fallback_config_prefix="SLI_YLIM",
+    )
+    assert policy.fixed
+    assert policy.limits == (-0.2, 2.1)
+
+
+def test_selected_sli_policy_falls_back_to_general_config(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".analyze.local.env").write_text(
+        "SLI_YLIM_MODE=fixed\nSLI_YLIM_MIN=-0.2\nSLI_YLIM_MAX=1\n",
+        encoding="utf-8",
+    )
+    policy = load_sli_axis_limits(
+        config_prefix="SLI_EXTREMES_YLIM",
+        fallback_config_prefix="SLI_YLIM",
+    )
+    assert policy.fixed
+    assert policy.limits == (-0.2, 1.0)
+
+
+def test_selected_cli_limits_override_selected_config(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".analyze.local.env").write_text(
+        "SLI_EXTREMES_YLIM_MODE=fixed\n"
+        "SLI_EXTREMES_YLIM_MIN=-0.2\nSLI_EXTREMES_YLIM_MAX=2.1\n",
+        encoding="utf-8",
+    )
+    policy = load_sli_axis_limits(
+        minimum=-0.5,
+        maximum=3,
+        config_prefix="SLI_EXTREMES_YLIM",
+        fallback_config_prefix="SLI_YLIM",
+    )
+    assert policy.limits == (-0.5, 3.0)
+
+
+def test_plot_scope_selects_general_or_extremes_policy(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".analyze.local.env").write_text(
+        "SLI_YLIM_MODE=fixed\nSLI_YLIM_MIN=-0.2\nSLI_YLIM_MAX=1\n"
+        "SLI_EXTREMES_YLIM_MODE=fixed\n"
+        "SLI_EXTREMES_YLIM_MIN=-0.2\nSLI_EXTREMES_YLIM_MAX=2.1\n",
+        encoding="utf-8",
+    )
+    opts = SimpleNamespace(
+        sli_ylim_mode=None,
+        sli_ylim_min=None,
+        sli_ylim_max=None,
+        sli_extremes_ylim_mode=None,
+        sli_extremes_ylim_min=None,
+        sli_extremes_ylim_max=None,
+    )
+    assert load_plot_sli_axis_limits(opts, selected_groups=False).limits == (
+        -0.2,
+        1.0,
+    )
+    assert load_plot_sli_axis_limits(opts, selected_groups=True).limits == (
+        -0.2,
+        2.1,
+    )
 
 
 def test_cli_fixed_mode_can_use_configured_bounds(tmp_path, monkeypatch):

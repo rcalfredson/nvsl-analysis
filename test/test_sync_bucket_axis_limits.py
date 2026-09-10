@@ -62,6 +62,25 @@ def test_explicit_ytick_spacing_preserves_limits_and_sets_interval():
     plt.close(fig)
 
 
+@pytest.mark.parametrize(
+    ("limits", "expected_spacing"),
+    [((-0.2, 1.0), 0.2), ((-0.2, 2.1), 0.5)],
+)
+def test_automatic_ytick_spacing_for_sli_ranges(limits, expected_spacing):
+    fig, ax = plt.subplots()
+    ax.set_ylim(*limits)
+
+    apply_sync_bucket_ytick_spacing([ax], None)
+
+    visible_ticks = ax.get_yticks()
+    visible_ticks = visible_ticks[
+        (visible_ticks >= limits[0]) & (visible_ticks <= limits[1])
+    ]
+    np.testing.assert_allclose(np.diff(visible_ticks), expected_spacing)
+    assert ax.get_ylim() == limits
+    plt.close(fig)
+
+
 def test_explicit_ytick_spacing_keeps_automatic_locator_for_large_range():
     fig, ax = plt.subplots()
     ax.set_ylim(0.0, 1600.0)

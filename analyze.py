@@ -318,7 +318,7 @@ from src.plotting.first_n_reward_sli_comparison import (
 )
 from src.plotting.sli_label_utils import pct_label, sli_extreme_plot_specs
 from src.plotting.sli_axis_limits import (
-    load_sli_axis_limits,
+    load_plot_sli_axis_limits,
     warn_if_sli_values_clipped,
 )
 from src.plotting.sync_bucket_axis_limits import (
@@ -901,6 +901,29 @@ g.add_argument(
         "Fixed upper y-axis limit for time-dependent SLI plots. Overrides "
         "SLI_YLIM_MAX from .analyze.local.env."
     ),
+)
+g.add_argument(
+    "--sli-extremes-ylim-mode",
+    choices=("dynamic", "fixed"),
+    default=None,
+    help=(
+        "Y-axis policy for top/bottom SLI-selected time plots. Falls back to "
+        "the general SLI policy when no selected-group override is configured."
+    ),
+)
+g.add_argument(
+    "--sli-extremes-ylim-min",
+    type=float,
+    default=None,
+    metavar="MIN",
+    help="Fixed lower y-axis limit for top/bottom SLI-selected time plots.",
+)
+g.add_argument(
+    "--sli-extremes-ylim-max",
+    type=float,
+    default=None,
+    metavar="MAX",
+    help="Fixed upper y-axis limit for top/bottom SLI-selected time plots.",
 )
 g.add_argument(
     "--sli-pos",
@@ -9458,11 +9481,7 @@ def plotRewards(
     rpi, rpip = tp in ("rpi", "rpip"), tp in ("rpip", "rpipd")
     r_diff = tp in ("rpid", "rpipd")
     sli_axis = (
-        load_sli_axis_limits(
-            mode=getattr(opts, "sli_ylim_mode", None),
-            minimum=getattr(opts, "sli_ylim_min", None),
-            maximum=getattr(opts, "sli_ylim_max", None),
-        )
+        load_plot_sli_axis_limits(opts, selected_groups=bool(sli_extremes))
         if r_diff
         else None
     )

@@ -18,11 +18,44 @@ class SLIAxisLimits:
         return self.mode == "fixed"
 
 
+def load_plot_sli_axis_limits(opts, *, selected_groups: bool) -> SLIAxisLimits:
+    """Resolve general or top/bottom-selected SLI limits for ``plotRewards``."""
+    selected_args = (
+        getattr(opts, "sli_extremes_ylim_mode", None),
+        getattr(opts, "sli_extremes_ylim_min", None),
+        getattr(opts, "sli_extremes_ylim_max", None),
+    )
+    use_selected_args = selected_groups and any(
+        value is not None for value in selected_args
+    )
+    return load_sli_axis_limits(
+        mode=(
+            selected_args[0]
+            if use_selected_args
+            else getattr(opts, "sli_ylim_mode", None)
+        ),
+        minimum=(
+            selected_args[1]
+            if use_selected_args
+            else getattr(opts, "sli_ylim_min", None)
+        ),
+        maximum=(
+            selected_args[2]
+            if use_selected_args
+            else getattr(opts, "sli_ylim_max", None)
+        ),
+        config_prefix="SLI_EXTREMES_YLIM" if selected_groups else "SLI_YLIM",
+        fallback_config_prefix="SLI_YLIM" if selected_groups else None,
+    )
+
+
 def load_sli_axis_limits(
     *,
     mode: str | None = None,
     minimum: float | None = None,
     maximum: float | None = None,
+    config_prefix: str = "SLI_YLIM",
+    fallback_config_prefix: str | None = None,
 ) -> SLIAxisLimits:
     """Resolve the shared y-axis policy for time-dependent SLI plots.
 
@@ -31,9 +64,16 @@ def load_sli_axis_limits(
     limit flags convenient to use on their own.
     """
     cfg = load_local_analyze_config()
+
+    def _config_value(suffix):
+        value = cfg.get(f"{config_prefix}_{suffix}")
+        if value is None and fallback_config_prefix is not None:
+            value = cfg.get(f"{fallback_config_prefix}_{suffix}")
+        return value
+
     has_limit_override = minimum is not None or maximum is not None
     if mode is None:
-        mode = "fixed" if has_limit_override else cfg.get("SLI_YLIM_MODE", "dynamic")
+        mode = "fixed" if has_limit_override else (_config_value("MODE") or "dynamic")
     mode = str(mode).strip().lower()
     if mode not in ("dynamic", "fixed"):
         raise ValueError(
@@ -46,13 +86,13 @@ def load_sli_axis_limits(
             )
         return SLIAxisLimits(mode=mode, limits=None)
 
-    lo_value = minimum if minimum is not None else cfg.get("SLI_YLIM_MIN")
-    hi_value = maximum if maximum is not None else cfg.get("SLI_YLIM_MAX")
+    lo_value = minimum if minimum is not None else _config_value("MIN")
+    hi_value = maximum if maximum is not None else _config_value("MAX")
     missing = []
     if lo_value is None:
-        missing.append("SLI_YLIM_MIN/--sli-ylim-min")
+        missing.append(f"{config_prefix}_MIN/y-limit minimum")
     if hi_value is None:
-        missing.append("SLI_YLIM_MAX/--sli-ylim-max")
+        missing.append(f"{config_prefix}_MAX/y-limit maximum")
     if missing:
         raise ValueError(
             "fixed SLI y-limit mode requires " + ", ".join(missing)

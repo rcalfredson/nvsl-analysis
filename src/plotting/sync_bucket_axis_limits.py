@@ -9,7 +9,7 @@ import numpy as np
 from matplotlib.ticker import MultipleLocator, ScalarFormatter
 
 MAX_EXPLICIT_Y_TICKS = 100
-DEFAULT_TARGET_Y_TICK_INTERVALS = 5
+DEFAULT_TARGET_Y_TICK_INTERVALS = 6
 MIN_AUTO_Y_TICK_SPACING = 0.1
 
 
