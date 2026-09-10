@@ -95,11 +95,11 @@ def test_first_n_reward_diagnostics_uses_manuscript_metric_axis_labels():
     assert plotter._metric_label("sli") == "SLI for T1 SB1"
     assert (
         plotter._metric_label("selected_reward_rate_to_nth_per_min")
-        == "reward rate during first 10 rewards"
+        == "Reward rate during first 10 rewards (min$^{-1}$)"
     )
     assert (
         plotter._metric_label("selected_reward_rate_to_nth_per_m")
-        == "reward per distance traveled first 10 rewards"
+        == "Reward per distance traveled first 10 rewards"
     )
 
 
