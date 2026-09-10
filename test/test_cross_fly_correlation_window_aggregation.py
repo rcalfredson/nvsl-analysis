@@ -81,6 +81,16 @@ def test_pooled_rpd_uses_total_rewards_over_total_distance():
     assert pooled != pytest.approx(bucketwise_mean)
 
 
+@pytest.mark.parametrize("explicit_bucket, expected", [(None, 1.0), (1, 2.0)])
+def test_pooled_reward_rate_context_selects_analysis_window(explicit_bucket, expected):
+    va = _VideoAnalysis(_Trajectory(np.ones(20)), reward_frames=[11, 12],
+                        excluded_buckets=[0, 1])
+    va.fps = 1 / 6  # Each ten-frame bucket is one minute.
+    ctx = SLIContext(training_idx=0, average_over_buckets=True,
+                     keep_first_sync_buckets=2, explicit_bucket_idx=explicit_bucket)
+    assert corr._pooled_rewards_per_minute_for_context(va, ctx=ctx) == expected
+
+
 def test_window_rpd_uses_pooled_reward_minimum_not_per_bucket_masks():
     trajectory = _Trajectory(np.ones(20))
     va = _VideoAnalysis(

@@ -251,6 +251,15 @@ python analyze.py \
 
 ### One-Shot Workflows
 
+Multi-bucket reward-rate correlations use total calculated target-circle entries
+divided by the full selected window duration in minutes (for example, T2 SB2–5).
+They ignore per-bucket PI masks and retain zero-reward buckets. Missing requested
+buckets or an invalid experimental trajectory invalidate the rate; a finite SLI
+is still required for inclusion in the correlation. Labels use “Reward rate for
+T2 SB2–5 (min⁻¹)” with the actual selected window. This calculation is independent
+of `--corr-window-metric-aggregation`; single-bucket, first-N-reward, per-bucket
+plot, and training-wide RPM calculations retain their existing behavior.
+
 These metrics can be run directly from `analyze.py`; outputs are usually written under `imgs/` plus any CSV/NPZ paths named by the flag.
 
 The default post-analysis rewards-per-minute log summary is followed by training-wide

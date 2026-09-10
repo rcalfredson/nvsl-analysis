@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
 
 from src.analysis.correlation_stats import pearson_correlation_summary
+from src.analysis.reward_rate import pooled_rewards_per_minute
 from src.analysis.sli_tools import default_single_bucket_idx
 from src.exporting.speed_sli_bundle import _extract_speed_arrays
 from src.plotting.between_reward_segment_binning import sync_bucket_window
@@ -2997,6 +2998,16 @@ def _pooled_median_distance_for_context(va, ctx: SLIContext) -> float:
     return float(np.median(np.concatenate(distances)) / px_per_mm)
 
 
+def _pooled_rewards_per_minute_for_context(va, *, ctx: SLIContext) -> float:
+    """Translate the plotting context into an analysis window."""
+    skip, keep = _context_bucket_window(ctx)
+    return pooled_rewards_per_minute(
+        va,
+        training_idx=ctx.training_idx,
+        skip_first_sync_buckets=skip,
+        keep_first_sync_buckets=keep,
+    )
+
 def _rewards_per_minute_for_first_n_calc_rewards(
     va,
     *,
@@ -3928,6 +3939,8 @@ def plot_cross_fly_correlations(
                 max_time_to_nth_s=reward_max_time_to_nth_s,
                 time_basis=reward_first_n_time_basis,
             )
+        elif reward_avg and reward_bucket_idx is None:
+            rpt_val = _pooled_rewards_per_minute_for_context(va, ctx=reward_rate_ctx)
         elif _ensure_rewards_per_minute_by_sync_bucket(va):
             row_idx = 2 * reward_training_idx  # exp row
             if 0 <= row_idx < len(va.rwdsPerMinBySyncBucket):
@@ -4112,6 +4125,7 @@ def plot_cross_fly_correlations(
         rpt_y_label = reward_rate_ctx.metric_axis_label(
             "Reward rate",
             unit="min$^{-1}$",
+            aggregation="pooled" if reward_avg and reward_bucket_idx is None else "bucketwise",
         )
     pre_period_exploration_title = "Pre-period exploration and SLI"
     pre_period_exploration_xlabel = (
