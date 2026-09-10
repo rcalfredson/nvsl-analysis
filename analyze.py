@@ -10539,7 +10539,7 @@ def plotRewards(
                 plt.title(
                     maybe_sentence_case(pcap(_subplot_title(t, f)))
                 )
-                xlabel_text = sync_bucket_endpoint_xlabel(bl)
+                xlabel_text = sync_bucket_endpoint_xlabel(bl, post=post)
                 if opts.plot_rewards_xlabel is not None:
                     xlabel_text = str(opts.plot_rewards_xlabel)
                 plt.xlabel(maybe_sentence_case(pcap(xlabel_text)))

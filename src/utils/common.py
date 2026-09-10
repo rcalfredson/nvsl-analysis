@@ -527,16 +527,18 @@ def skipMsg(mins):
     return "(first %s min of each bucket skipped)" % util.formatFloat(mins, 1)
 
 
-def sync_bucket_endpoint_xlabel(bucket_len_min):
+def sync_bucket_endpoint_xlabel(bucket_len_min, *, post=False):
+    """Label training sync buckets or post-period buckets without changing timing."""
+    endpoint = "bucket endpoint (min)" if post else "sync-bucket endpoint (min)"
     if bucket_len_min is None:
-        return "sync-bucket endpoint (min)"
+        return endpoint
     try:
         bl = float(bucket_len_min)
     except (TypeError, ValueError):
-        return "sync-bucket endpoint (min)"
+        return endpoint
     if not np.isfinite(bl):
-        return "sync-bucket endpoint (min)"
-    return "%s-min sync-bucket endpoint (min)" % util.formatFloat(bl, 1)
+        return endpoint
+    return "%s-min %s" % (util.formatFloat(bl, 1), endpoint)
 
 
 # - - - signal processing
