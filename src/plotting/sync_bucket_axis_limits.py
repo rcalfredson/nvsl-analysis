@@ -8,8 +8,9 @@ import numpy as np
 
 from matplotlib.ticker import MultipleLocator, ScalarFormatter
 
-
 MAX_EXPLICIT_Y_TICKS = 100
+DEFAULT_TARGET_Y_TICK_INTERVALS = 5
+MIN_AUTO_Y_TICK_SPACING = 0.1
 
 
 _DEFAULT_YLIMS = {
@@ -34,29 +35,57 @@ def apply_sync_bucket_xticks(ax, bucket_positions) -> None:
     ax.set_xticks(positions)
 
 
+def _auto_sync_bucket_ytick_spacing(limits) -> float:
+    """Choose a readable major-y-tick interval no finer than one tenth."""
+    span = abs(float(limits[1]) - float(limits[0]))
+    raw_spacing = max(
+        span / DEFAULT_TARGET_Y_TICK_INTERVALS,
+        MIN_AUTO_Y_TICK_SPACING,
+    )
+
+    exponent = math.floor(math.log10(raw_spacing))
+    scale = 10.0**exponent
+    normalized = raw_spacing / scale
+
+    if normalized <= 1.0:
+        nice = 1.0
+    elif normalized <= 2.0:
+        nice = 2.0
+    elif normalized <= 5.0:
+        nice = 5.0
+    else:
+        nice = 10.0
+
+    return max(nice * scale, MIN_AUTO_Y_TICK_SPACING)
+
+
 def apply_sync_bucket_ytick_spacing(axes, spacing: float | None) -> None:
-    """Apply a safe major-y-tick interval without changing axis limits.
+    """Apply readable major-y-tick intervals without changing axis limits.
 
-    Axes for which the interval would generate more than
-    ``MAX_EXPLICIT_Y_TICKS`` retain their existing automatic locator. This
-    prevents one interval intended for a compact metric such as SLI from
-    producing thousands of ticks on another plot generated in the same run.
+    When ``spacing`` is None, choose a conventional 1/2/5-based interval
+    automatically, with 0.1 as the finest permitted interval. Explicit
+    spacing values are honored as requested.
+
+    Axes for which a requested explicit interval would generate more than
+    ``MAX_EXPLICIT_Y_TICKS`` retain their existing automatic locator.
     """
-    if spacing is None:
-        return
-
-    spacing = float(spacing)
-    if not math.isfinite(spacing) or spacing <= 0:
-        raise ValueError("y-tick spacing must be a positive finite number")
+    if spacing is not None:
+        spacing = float(spacing)
+        if not math.isfinite(spacing) or spacing <= 0:
+            raise ValueError("y-tick spacing must be a positive finite number")
 
     for ax in axes:
         limits = ax.get_ylim()
-        estimated_tick_count = math.ceil(abs(limits[1] - limits[0]) / spacing) + 3
+        axis_spacing = (
+            _auto_sync_bucket_ytick_spacing(limits) if spacing is None else spacing
+        )
+        estimated_tick_count = math.ceil(abs(limits[1] - limits[0]) / axis_spacing) + 3
         if estimated_tick_count > MAX_EXPLICIT_Y_TICKS:
             continue
-        ax.yaxis.set_major_locator(MultipleLocator(spacing))
+
+        ax.yaxis.set_major_locator(MultipleLocator(axis_spacing))
         # A prior PlotCustomizer pass may have installed an integer-only
-        # formatter. Restore Matplotlib's adaptive numeric formatting so, for
-        # example, a requested 0.3 interval is displayed faithfully.
+        # formatter. Restore Matplotlib's adaptive numeric formatting so
+        # fractional tick intervals are displayed faithfully.
         ax.yaxis.set_major_formatter(ScalarFormatter())
         ax.set_ylim(*limits)
