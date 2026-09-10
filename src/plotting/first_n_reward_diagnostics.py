@@ -1136,12 +1136,18 @@ class FirstNRewardDiagnosticsPlotter:
             )
         ax.set_title(title)
         fig.tight_layout()
+        set_axis_size_inches(ax, self.cfg.axis_size_inches)
+        # Axis sizing can narrow the finished canvas enough to clip a label
+        # that fit during the initial layout pass. Check again at the final
+        # physical size, then restore that size after wrapping and relayout.
         if self._wrap_clipped_axis_labels(fig):
             fig.tight_layout()
-        set_axis_size_inches(ax, self.cfg.axis_size_inches)
+            set_axis_size_inches(ax, self.cfg.axis_size_inches)
         if stats_text is not None:
             keep_text_box_inside_axes(ax, stats_text)
-        fig.savefig(path, dpi=200)
+        # Keep the fixed physical data-axis size while allowing the surrounding
+        # canvas to include every title and axis label after final wrapping.
+        fig.savefig(path, dpi=200, bbox_inches="tight")
         plt.close(fig)
         print(f"[{self.log_tag}] wrote plot: {path}")
 
