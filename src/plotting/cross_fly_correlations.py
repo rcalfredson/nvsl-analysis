@@ -4126,6 +4126,7 @@ def plot_cross_fly_correlations(
             "Reward rate",
             unit="min$^{-1}$",
             aggregation="pooled" if reward_avg and reward_bucket_idx is None else "bucketwise",
+            multiline=True,
         )
     pre_period_exploration_title = "Pre-period exploration and SLI"
     pre_period_exploration_xlabel = (
