@@ -301,6 +301,7 @@ from src.plotting.between_reward_polar_occupancy import (
     BetweenRewardPolarOccupancyConfig,
 )
 from src.plotting.annotation_layout import (
+    dodge_annotation_reference_line,
     place_flexible_overlay_texts,
     resolve_annotation_text_overlaps,
 )
@@ -9854,7 +9855,7 @@ def plotRewards(
         return txt
 
     def _add_auc_text(ax, x, y, label, *, size, base_y):
-        if sli_axis is not None and sli_axis.fixed:
+        if rpi or (sli_axis is not None and sli_axis.fixed):
             txt = ax.text(
                 0.03,
                 0.97,
@@ -10705,7 +10706,7 @@ def plotRewards(
         mean_span = np.mean(y_spans)
         med_span = np.median(y_spans)
 
-        if overlapping_label_centers and max(overlapping_label_centers) >= legend_y_mid:
+        if not rpi and overlapping_label_centers and max(overlapping_label_centers) >= legend_y_mid:
             # Legend overlaps top labels → expand upward
             delta_y_global = min(0.2 * mean_span, 0.3 * med_span)
             ymin_global = min(y0 for (y0, _) in ylim_vals)
@@ -10713,7 +10714,7 @@ def plotRewards(
             for ax in all_axes:
                 ax.set_ylim(ymin_global, ymax_global)
             ylim[0], ylim[1] = ymin_global, ymax_global
-        elif overlapping_label_centers:
+        elif not rpi and overlapping_label_centers:
             # Legend overlaps bottom labels → shift downward
             delta_y_global = min(0.35 * mean_span, 0.35 * med_span)
             ymin_global = min(y0 for (y0, _) in ylim_vals) - delta_y_global
@@ -10882,6 +10883,15 @@ def plotRewards(
         plt.gcf().get_axes(),
         getattr(opts, "sync_bucket_y_tick_spacing", None),
     )
+
+    # RI has the same bounded scale in training and post-training plots.
+    # Apply after layout/tick overrides so decorations cannot expand the range.
+    if rpi:
+        customizer.set_fixed_y_axes(plt.gcf().get_axes(), (-1.0, 1.0))
+        for ax, texts in annotation_texts_by_ax.items():
+            dodge_annotation_reference_line(ax, texts)
+        for ax, texts in flexible_overlay_texts_by_ax.items():
+            place_flexible_overlay_texts(ax, texts, upper_only=post)
 
     base, ext = os.path.splitext(imgFiles[tp] % blf)
     suffix_parts = []

@@ -2,11 +2,41 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
+import pytest
+
+from src.plotting.plot_customizer import PlotCustomizer
 
 from src.plotting.annotation_layout import (
+    dodge_annotation_reference_line,
     keep_text_box_inside_axes,
     place_flexible_overlay_texts,
 )
+
+
+@pytest.mark.parametrize("font_size", [12, 20])
+def test_zero_line_dodge_lifts_only_intersecting_stack(font_size):
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.set_ylim(-1, 1)
+    ax.axhline(0, color="black")
+    count = ax.text(0.3, 0, "87", va="center", fontsize=font_size)
+    count._data_point_y_ = -0.08
+    stars = ax.text(0.3, 0.2, "****", fontsize=font_size)
+    stars._sample_size_texts_ = (count,)
+    unaffected = ax.text(0.7, -0.5, "89", fontsize=font_size)
+    unaffected._data_point_y_ = -0.6
+    before = [t.get_position()[1] for t in (count, stars, unaffected)]
+    dodge_annotation_reference_line(ax, [count, stars, unaffected])
+    renderer = fig.canvas.get_renderer()
+    zero_px = ax.transData.transform((0, 0))[1]
+    assert count.get_window_extent(renderer).y0 >= zero_px + 2 * fig.dpi / 72 - 1e-6
+    assert stars.get_position()[1] - before[1] == pytest.approx(count.get_position()[1] - before[0])
+    assert unaffected.get_position()[1] == before[2]
+    assert ax.get_ylim() == (-1, 1)
+    positions = [t.get_position() for t in (count, stars, unaffected)]
+    dodge_annotation_reference_line(ax, [count, stars, unaffected])
+    np.testing.assert_allclose([t.get_position() for t in (count, stars, unaffected)], positions)
+    plt.close(fig)
 
 
 def test_flexible_overlay_bbox_stays_inside_axes():
@@ -56,6 +86,36 @@ def test_flexible_overlay_avoids_legend_corner():
         ax.get_legend().get_window_extent(renderer=renderer)
     )
     plt.close(fig)
+
+
+@pytest.mark.parametrize("font_size", [12, 20])
+def test_post_ri_auc_stays_above_negative_curves_on_matching_fixed_axes(font_size):
+    with plt.rc_context():
+        customizer = PlotCustomizer()
+        customizer.update_font_size(font_size)
+        fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+        for ax in axes:
+            ax.plot([3, 6, 9, 12], [-0.2, -0.4, -0.5, -0.6], label="Experimental")
+            ax.plot([3, 6, 9, 12], [-0.1, -0.2, -0.3, -0.4], label="Yoked")
+            ax.set_ylim(-1.7, 1.2)  # Mimic legacy layout expansion.
+        axes[1].legend(loc="upper right")
+        text = axes[1].text(
+            0.03, 0.97, "AUC (n = 88): ****", transform=axes[1].transAxes,
+            ha="left", va="top", fontsize=font_size,
+        )
+        customizer.set_fixed_y_axes(axes, (-1, 1))
+        place_flexible_overlay_texts(axes[1], [text], upper_only=True)
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        bbox = text.get_window_extent(renderer)
+        bounds = axes[1].get_window_extent(renderer)
+        assert bbox.y0 > axes[1].transData.transform((0, 0))[1]
+        assert bounds.contains(bbox.x0, bbox.y0)
+        assert bounds.contains(bbox.x1, bbox.y1)
+        assert not bbox.overlaps(axes[1].get_legend().get_window_extent(renderer))
+        assert all(ax.get_ylim() == (-1, 1) for ax in axes)
+        np.testing.assert_array_equal(axes[0].get_yticks(), axes[1].get_yticks())
+        plt.close(fig)
 
 
 def test_text_box_constraint_clears_visible_spine_inner_edge():

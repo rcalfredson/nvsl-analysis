@@ -105,12 +105,14 @@ def _artist_display_bboxes(ax, renderer):
     return bboxes
 
 
-def place_flexible_overlay_texts(ax, texts, *, pad_px: float = 6.0):
+def place_flexible_overlay_texts(ax, texts, *, pad_px: float = 6.0, upper_only=False):
     """Place axes-anchored text using rendered extents and several clear candidates.
 
     This is intended for labels such as AUC summaries that may move independently
     of the data.  Unlike data annotations, their placement never changes axis
     limits and their complete rendered bounding boxes remain inside the axes.
+    ``upper_only`` restricts candidates to the upper half, for post-training
+    summaries whose negative curves should remain unobscured.
     """
     texts = [text for text in texts if text is not None and text.get_visible()]
     if not texts:
@@ -138,7 +140,15 @@ def place_flexible_overlay_texts(ax, texts, *, pad_px: float = 6.0):
 
     for text in texts:
         best = None
-        for order, (x, y, ha, va) in enumerate(_OVERLAY_CANDIDATES):
+        candidates = (
+            [
+                (x, y, ha, "top")
+                for y in (0.97, 0.75, 0.60)
+                for x, ha in ((0.03, "left"), (0.97, "right"), (0.50, "center"))
+            ]
+            if upper_only else _OVERLAY_CANDIDATES
+        )
+        for order, (x, y, ha, va) in enumerate(candidates):
             text.set_transform(ax.transAxes)
             text.set_position((x, y))
             text.set_ha(ha)
@@ -267,6 +277,38 @@ def _position_linked_annotation_stacks(ax, texts) -> None:
         renderer = fig.canvas.get_renderer()
 
     _position_linked_significance_texts(ax, texts, gap_px)
+
+
+def dodge_annotation_reference_line(ax, texts, *, y=0.0, gap_points=2.0):
+    """Lift count/star labels intersecting a horizontal reference line.
+
+    Run after final axis layout. Only linked data annotations participate;
+    lifting a count also lifts its significance text by the same amount.
+    Existing marker clearance and axis limits are preserved.
+    """
+    texts = [t for t in texts if t is not None and t.get_visible()]
+    fig = ax.figure
+    fig.canvas.draw()
+    line_px = ax.transData.transform((0, y))[1]
+    bounds = ax.get_window_extent(fig.canvas.get_renderer())
+    if not bounds.y0 < line_px < bounds.y1:
+        return
+    gap_px = gap_points * fig.dpi / 72.0
+    counts = [t for t in texts if hasattr(t, "_data_point_y_")]
+    stars = [t for t in texts if _linked_sample_size_texts(t)]
+    for text in counts + stars:
+        renderer = fig.canvas.get_renderer()
+        bbox = text.get_window_extent(renderer)
+        if bbox.y0 >= line_px + gap_px or bbox.y1 <= line_px - gap_px:
+            continue
+        shift = line_px + gap_px - bbox.y0
+        linked = [s for s in stars if text in _linked_sample_size_texts(s)]
+        group = [text] + linked
+        if any(t.get_window_extent(renderer).y1 + shift > bounds.y1 for t in group):
+            continue
+        for member in group:
+            _move_text_by_display_dy(ax, member, shift)
+        fig.canvas.draw()
 
 
 def _expand_ylim_if_text_exceeds_top(ax, text, bbox, ylim, *, pad_px: float) -> None:
