@@ -322,7 +322,9 @@ python analyze.py -v '/path/to/cohort/*.avi' -f 0-1 \
 
 The sync-bucket index is one-based and uses the duration configured by `--sb`
 (10 minutes by default). The pre window ends at T1 start, and the post-training
-row remains based on `--rpib`. Only complete requested windows contribute.
+row remains based on `--rpib`. Post heatmaps use the complete fixed window by
+default; `--hm-post-start control` reproduces the legacy control-entry masking.
+Only complete requested windows contribute.
 `--hm-sync-bucket` changes only the training row. Use `--hm-periods pre` for a
 standalone pre-training figure. Pre-training panels do not draw a reward circle
 because no reward location is active during that period.

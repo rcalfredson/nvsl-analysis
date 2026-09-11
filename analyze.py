@@ -6134,6 +6134,17 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--hm-post-start",
+    choices=("fixed", "control"),
+    default="fixed",
+    help=(
+        "Start policy for post-training heatmaps. 'fixed' uses the complete "
+        "--rpib window beginning at the training stop (default). 'control' "
+        "reproduces the legacy behavior by excluding positions before the first "
+        "control-circle entry while retaining the fixed-window normalization."
+    ),
+)
+g.add_argument(
     "--hm-pre-minutes",
     type=positive_finite_float,
     default=10.0,

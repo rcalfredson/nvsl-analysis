@@ -8419,13 +8419,22 @@ class VideoAnalysis:
         mp = np.histogram2d(xy[0], xy[1], bins=bins, range=rng)[0]
         return mp.T, la - fi, xym
 
+    def _heatmapPostStartType(self):
+        """Return the post-start policy used only by occupancy heatmaps."""
+        mode = getattr(self.opts, "hm_post_start", "fixed")
+        if mode == "fixed":
+            return ST.fixed
+        if mode == "control":
+            return ST.control if self.circle else ST.fixed
+        raise ValueError("Heatmap post start must be 'fixed' or 'control'")
+
     # calculate maps for heatmaps
     def calcHm(self):
         self.heatmap, self.heatmapPost = [[], []], [[], []]  # index: fly, training
         self.heatmapPre = [None, None]  # index: fly
         self.heatmapOOB = False
         periods = set(getattr(self.opts, "hm_periods", ("training", "post")))
-        startPost = RI_START_POST if self.circle else ST.fixed
+        startPost = self._heatmapPostStartType()
 
         if "pre" in periods:
             t = self.trns[0]

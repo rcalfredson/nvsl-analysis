@@ -7,6 +7,7 @@ pytest.importorskip("cv2")
 
 from src.analysis.video_analysis import VideoAnalysis
 from src.utils.common import CT, Xformer
+from src.utils.constants import ST
 
 
 class _FakeTrajectory:
@@ -153,7 +154,7 @@ def test_heatmap_pre_training_frame_range_requires_training_metadata():
     assert va._heatmapPreTrainingFrameRange() is None
 
 
-def test_heatmap_periods_share_histogram_calculation_and_post_masking():
+def _heatmap_calculation_fixture():
     va = VideoAnalysis.__new__(VideoAnalysis)
     va.heatmapOOB = False
     va._heatmapCoords = lambda trx, f, fi, la: [
@@ -174,17 +175,44 @@ def test_heatmap_periods_share_histogram_calculation_and_post_masking():
         rng=np.array([[0.0, 2.0], [0.0, 2.0]]),
     )
 
-    pre_map, pre_length, _ = va._calculateHeatmapForFrameRange(
-        **kwargs, period="pre"
-    )
-    training_map, _, _ = va._calculateHeatmapForFrameRange(
+    return va, kwargs
+
+
+def test_fixed_post_heatmap_uses_complete_selected_window():
+    va, kwargs = _heatmap_calculation_fixture()
+    training_map, training_length, _ = va._calculateHeatmapForFrameRange(
         **kwargs, period="training"
     )
+    post_map, post_length, _ = va._calculateHeatmapForFrameRange(
+        **kwargs, period="post", fiRi=0
+    )
+
+    assert training_length == post_length == 4
+    np.testing.assert_array_equal(post_map, training_map)
+    assert np.sum(post_map) == 4
+
+
+def test_control_started_post_heatmap_preserves_legacy_masking():
+    va, kwargs = _heatmap_calculation_fixture()
     post_map, post_length, _ = va._calculateHeatmapForFrameRange(
         **kwargs, period="post", fiRi=2
     )
 
-    assert pre_length == post_length == 4
-    np.testing.assert_array_equal(pre_map, training_map)
-    assert np.sum(pre_map) == 4
+    assert post_length == 4
     assert np.sum(post_map) == 2
+
+
+@pytest.mark.parametrize(
+    ("mode", "circle", "expected"),
+    (
+        ("fixed", True, ST.fixed),
+        ("control", True, ST.control),
+        ("control", False, ST.fixed),
+    ),
+)
+def test_heatmap_post_start_policy_is_heatmap_specific(mode, circle, expected):
+    va = VideoAnalysis.__new__(VideoAnalysis)
+    va.opts = SimpleNamespace(hm_post_start=mode)
+    va.circle = circle
+
+    assert va._heatmapPostStartType() is expected
