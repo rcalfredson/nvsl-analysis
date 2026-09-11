@@ -3,7 +3,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from src.plotting.heatmap_style import apply_heatmap_text_layout
+from src.plotting.heatmap_style import (
+    apply_heatmap_text_layout,
+    heatmap_log_formatter,
+)
 
 
 def test_heatmap_text_layout_separates_titles_from_header_and_colorbar():
@@ -19,7 +22,7 @@ def test_heatmap_text_layout_separates_titles_from_header_and_colorbar():
         image,
         cax=colorbar_ax,
         ticks=mpl.ticker.LogLocator(subs=(1.0, 3.0)),
-        format=mpl.ticker.LogFormatter(minor_thresholds=(10, 10)),
+        format=heatmap_log_formatter(),
     )
     header = ax.set_title("A long heatmap header", loc="left")
     sample_size = ax.set_title("n=12", loc="right")
@@ -65,6 +68,10 @@ def test_heatmap_text_layout_separates_titles_from_header_and_colorbar():
     assert all(
         tick.get_fontsize() == font_size for tick in colorbar_ax.get_yticklabels()
     )
+    displayed_tick_text = [tick.get_text() for tick in displayed_ticks]
+    assert r"$\mathdefault{10^{-6}}$" in displayed_tick_text
+    assert r"$\mathdefault{3\times10^{-4}}$" in displayed_tick_text
+    assert not any("e−" in label or "e-" in label for label in displayed_tick_text)
     plt.close(fig)
 
 

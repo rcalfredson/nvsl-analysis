@@ -306,7 +306,10 @@ from src.plotting.annotation_layout import (
     resolve_annotation_text_overlaps,
 )
 from src.plotting.axis_size import DEFAULT_PLOT_AXIS_SIZE_INCHES
-from src.plotting.heatmap_style import apply_heatmap_text_layout
+from src.plotting.heatmap_style import (
+    apply_heatmap_text_layout,
+    heatmap_log_formatter,
+)
 from src.plotting.reward_raster_plotter import RewardRasterConfig, RewardRasterPlotter
 from src.plotting.first_n_reward_diagnostics import (
     FirstNRewardDiagnosticsConfig,
@@ -11280,9 +11283,7 @@ def plotHeatmaps(vas):
                             if lin
                             else dict(
                                 ticks=mpl.ticker.LogLocator(subs=(1.0, 3.0)),
-                                format=mpl.ticker.LogFormatter(
-                                    minor_thresholds=(10, 10)
-                                ),
+                                format=heatmap_log_formatter(),
                             )
                         ),
                         cbar_ax=None if panel_idx or f else cbar_ax,
@@ -11312,9 +11313,7 @@ def plotHeatmaps(vas):
                             if lin
                             else dict(
                                 ticks=mpl.ticker.LogLocator(subs=(1.0, 3.0)),
-                                format=mpl.ticker.LogFormatter(
-                                    minor_thresholds=(10, 10)
-                                ),
+                                format=heatmap_log_formatter(),
                             )
                         )
                         cb = ax.figure.colorbar(ai, cbar_ax, ax, **kws)

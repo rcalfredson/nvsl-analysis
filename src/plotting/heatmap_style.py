@@ -4,6 +4,13 @@ from __future__ import annotations
 
 import math
 
+import matplotlib as mpl
+
+
+def heatmap_log_formatter():
+    """Format logarithmic colorbar ticks with superscript exponents."""
+    return mpl.ticker.LogFormatterSciNotation(minor_thresholds=(10, 10))
+
 
 def apply_heatmap_text_layout(
     heatmap_axes,
