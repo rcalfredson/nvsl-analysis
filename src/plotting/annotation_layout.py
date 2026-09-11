@@ -214,6 +214,89 @@ def _linked_sample_size_texts(stars):
     )
 
 
+def _choose_sample_size_sides(ax, texts, gap_px: float) -> None:
+    """Place a lower count below its trace when an above label is too tight.
+
+    Counts remain above their data markers by default.  At a shared x position,
+    an above-label candidate for a lower trace is moved below that trace when
+    its rendered box would approach the next-higher marker.  The switch is made
+    only when the full below-label box fits inside the axes.
+    """
+    fig = ax.figure
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    axes_bbox = ax.get_window_extent(renderer=renderer)
+    trace_clearance_px = 2.0 * fig.dpi / 72.0
+
+    counts = [
+        text
+        for text in texts
+        if getattr(text, "_data_point_y_", None) is not None
+        and np.isfinite(getattr(text, "_data_point_y_", np.nan))
+    ]
+    by_x: dict[float, list] = {}
+    for text in counts:
+        x, _y = text.get_position()
+        x_px = float(ax.transData.transform((float(x), 0.0))[0])
+        # Texts belonging to one bucket share an exact data x in plotRewards.
+        # Pixel rounding also makes this tolerant of negligible float noise.
+        by_x.setdefault(round(x_px, 3), []).append(text)
+
+    for bucket_counts in by_x.values():
+        ordered = sorted(
+            bucket_counts,
+            key=lambda text: (
+                float(text._data_point_y_),
+                int(getattr(text, "_group_idx_", 0)),
+            ),
+        )
+        for text in ordered:
+            text._sample_size_side_ = "above"
+
+        for lower, upper in zip(ordered, ordered[1:]):
+            lower_bbox = lower.get_window_extent(renderer=renderer)
+            lower_x, _lower_y = lower.get_position()
+            _lower_x_px, lower_marker_y_px = ax.transData.transform(
+                (float(lower_x), float(lower._data_point_y_))
+            )
+            upper_x, _upper_y = upper.get_position()
+            _upper_x_px, upper_marker_y_px = ax.transData.transform(
+                (float(upper_x), float(upper._data_point_y_))
+            )
+            lower_marker_half_px = (
+                0.5
+                * float(getattr(lower, "_data_marker_size_points_", 0.0))
+                * fig.dpi
+                / 72.0
+            )
+            upper_marker_half_px = (
+                0.5
+                * float(getattr(upper, "_data_marker_size_points_", 0.0))
+                * fig.dpi
+                / 72.0
+            )
+
+            above_top_px = (
+                lower_marker_y_px
+                + lower_marker_half_px
+                + gap_px
+                + float(lower_bbox.height)
+            )
+            upper_marker_bottom_px = upper_marker_y_px - upper_marker_half_px
+            below_bottom_px = (
+                lower_marker_y_px
+                - lower_marker_half_px
+                - gap_px
+                - float(lower_bbox.height)
+            )
+            approaches_upper_trace = (
+                above_top_px + trace_clearance_px >= upper_marker_bottom_px
+            )
+            fits_below = below_bottom_px >= float(axes_bbox.y0) + trace_clearance_px
+            if approaches_upper_trace and fits_below:
+                lower._sample_size_side_ = "below"
+
+
 def _position_linked_significance_texts(ax, texts, gap_px: float) -> None:
     fig = ax.figure
     fig.canvas.draw()
@@ -251,6 +334,7 @@ def _position_linked_annotation_stacks(ax, texts) -> None:
     fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
     gap_px = ANNOTATION_STACK_GAP_POINTS * fig.dpi / 72.0
+    _choose_sample_size_sides(ax, texts, gap_px)
 
     for sample_size in texts:
         data_y = getattr(sample_size, "_data_point_y_", None)
@@ -265,13 +349,16 @@ def _position_linked_annotation_stacks(ax, texts) -> None:
         marker_size_points = float(
             getattr(sample_size, "_data_marker_size_points_", 0.0)
         )
-        marker_top_px = data_y_px + 0.5 * marker_size_points * fig.dpi / 72.0
-        target_sample_bottom_px = marker_top_px + gap_px
-        _move_text_by_display_dy(
-            ax,
-            sample_size,
-            target_sample_bottom_px - float(sample_bbox.y0),
-        )
+        marker_half_px = 0.5 * marker_size_points * fig.dpi / 72.0
+        if getattr(sample_size, "_sample_size_side_", "above") == "below":
+            marker_bottom_px = data_y_px - marker_half_px
+            target_sample_top_px = marker_bottom_px - gap_px
+            shift_px = target_sample_top_px - float(sample_bbox.y1)
+        else:
+            marker_top_px = data_y_px + marker_half_px
+            target_sample_bottom_px = marker_top_px + gap_px
+            shift_px = target_sample_bottom_px - float(sample_bbox.y0)
+        _move_text_by_display_dy(ax, sample_size, shift_px)
 
         fig.canvas.draw()
         renderer = fig.canvas.get_renderer()
