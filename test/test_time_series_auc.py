@@ -61,14 +61,14 @@ def test_compute_auc_test_formats_legacy_style_label():
     assert result.ns == (3, 3)
     assert result.test == "Welch t-test"
     assert format_auc_label(result, include_p_value=True).startswith(
-        "AUC (n = 3,3): **** (p = "
+        "AUC (n = 3, 3): **** (p = "
     )
 
 
 def test_auc_annotation_uses_consistent_sample_size_spacing():
     assert format_auc_annotation(
         "ABC", (50, 21), 0.00321, include_p_value=False
-    ) == "ABC (n = 50,21): **"
+    ) == "ABC (n = 50, 21): **"
 
 
 def test_single_group_auc_test_uses_paired_exp_yoked_differences():

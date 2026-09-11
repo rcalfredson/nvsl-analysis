@@ -151,8 +151,8 @@ def format_auc_annotation(
     *,
     include_p_value: bool | None = None,
 ) -> str:
-    """Format an AUC/ABC annotation with consistent equals-sign spacing."""
-    n_text = ",".join(str(n) for n in ns)
+    """Format an AUC/ABC annotation with consistent sample-size spacing."""
+    n_text = ", ".join(str(n) for n in ns)
     stars = format_auc_stars(p_value, include_p_value=include_p_value)
     return f"{label} (n = {n_text}): {stars}"
 
