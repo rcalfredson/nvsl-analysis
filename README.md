@@ -274,10 +274,11 @@ valid-bucket policy (default: 3) as workflows are migrated to the central SLI
 helper. The main SLI selection path—including top/bottom groups, reward-raster
 SLI grouping and sorting, first-N diagnostics, and selected correlation
 overlays—SLI set-operation groups, and turn/home-vector SLI selections use this
-policy. Cross-fly correlations may override it with
-`--corr-sli-min-valid-sync-buckets`. A bucket-level SLI is valid only when both
-the experimental and yoked PI components are finite. For a selected window with
-fewer buckets than the configured minimum, all selected buckets are required.
+policy. Scalar SLI values stored in metric+SLI bundles also use the shared
+policy and record it as bundle metadata. Cross-fly correlations may override it
+with `--corr-sli-min-valid-sync-buckets`. A bucket-level SLI is valid only when
+both the experimental and yoked PI components are finite. For a selected window
+with fewer buckets than the configured minimum, all selected buckets are required.
 
 These metrics can be run directly from `analyze.py`; outputs are usually written under `imgs/` plus any CSV/NPZ paths named by the flag.
 

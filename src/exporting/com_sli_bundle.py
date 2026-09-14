@@ -118,6 +118,7 @@ def _compute_sli_scalar_and_timeseries_from_rpid(vas, opts):
     # Scalar SLI for filtering:
     sli_training_idx = getattr(opts, "best_worst_trn", 1) - 1
     use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
+    sli_min_valid_buckets = int(getattr(opts, "sli_min_valid_sync_buckets", 3))
 
     # SLI selection windowing (applies ONLY to the scalar used for best/worst + set-op selection)
     raw_sel_skip = getattr(opts, "sli_select_skip_first_sync_buckets", None)
@@ -140,6 +141,7 @@ def _compute_sli_scalar_and_timeseries_from_rpid(vas, opts):
         average_over_buckets=use_training_mean,
         skip_first_sync_buckets=sel_skip_k,
         keep_first_sync_buckets=sel_keep_k,
+        min_valid_buckets=sli_min_valid_buckets,
     )
     return np.asarray(sli_scalar, dtype=float), np.asarray(sli_ts, dtype=float)
 
@@ -258,6 +260,9 @@ def build_com_sli_bundle(vas, opts, gls) -> dict:
         sli_training_idx=np.array(getattr(opts, "best_worst_trn", 1) - 1, dtype=int),
         sli_use_training_mean=np.array(
             bool(getattr(opts, "sli_use_training_mean", False))
+        ),
+        sli_min_valid_sync_buckets=np.array(
+            int(getattr(opts, "sli_min_valid_sync_buckets", 3)), dtype=int
         ),
         sli_select_skip_first_sync_buckets=np.array(
             (

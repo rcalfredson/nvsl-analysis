@@ -20,6 +20,7 @@ def _bundle(**overrides):
         "video_ids": np.asarray(["video_a", "video_b"], dtype=object),
         "sli_training_idx": np.array(1, dtype=int),
         "sli_use_training_mean": np.array(True),
+        "sli_min_valid_sync_buckets": np.array(3, dtype=int),
         "sli_select_skip_first_sync_buckets": np.array(1, dtype=int),
         "sli_select_keep_first_sync_buckets": np.array(2, dtype=int),
     }
@@ -33,6 +34,7 @@ def test_normalize_sli_bundle_accepts_valid_sli_shapes_and_metadata():
     assert normalized["sli"].shape == (2,)
     assert normalized["sli_ts"].shape == (2, 2, 3)
     assert normalized["sli_training_idx"] == 1
+    assert normalized["sli_min_valid_sync_buckets"] == 3
     assert normalized["sli_select_skip_first_sync_buckets"] == 1
     assert normalized["sli_select_keep_first_sync_buckets"] == 2
 
@@ -90,6 +92,22 @@ def test_normalize_sli_bundle_rejects_negative_sli_window_metadata():
     with pytest.raises(ValueError, match="negative sli_select_keep_first_sync_buckets"):
         normalize_sli_bundle(
             _bundle(sli_select_keep_first_sync_buckets=np.array(-1, dtype=int))
+        )
+
+
+def test_normalize_sli_bundle_preserves_legacy_missing_minimum_metadata():
+    bundle = _bundle()
+    del bundle["sli_min_valid_sync_buckets"]
+
+    normalized = normalize_sli_bundle(bundle)
+
+    assert normalized["sli_min_valid_sync_buckets"] is None
+
+
+def test_normalize_sli_bundle_rejects_nonpositive_minimum_metadata():
+    with pytest.raises(ValueError, match="sli_min_valid_sync_buckets=0"):
+        normalize_sli_bundle(
+            _bundle(sli_min_valid_sync_buckets=np.array(0, dtype=int))
         )
 
 

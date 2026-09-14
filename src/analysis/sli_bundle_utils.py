@@ -273,6 +273,14 @@ def validate_sli_bundle(bundle: dict, *, path: str | None = None) -> None:
 
     skip = int(as_scalar(bundle.get("sli_select_skip_first_sync_buckets", 0)))
     keep = int(as_scalar(bundle.get("sli_select_keep_first_sync_buckets", 0)))
+    min_valid = bundle.get("sli_min_valid_sync_buckets")
+    if min_valid is not None:
+        min_valid = int(as_scalar(min_valid))
+        if min_valid < 1:
+            raise ValueError(
+                f"Bundle {where} has invalid "
+                f"sli_min_valid_sync_buckets={min_valid}; expected >= 1"
+            )
     if skip < 0:
         raise ValueError(
             f"Bundle {where} has negative sli_select_skip_first_sync_buckets={skip}"
@@ -1719,6 +1727,11 @@ def normalize_sli_bundle(bundle: dict, *, path: str | None = None) -> dict:
     out["bucket_len_min"] = float(as_scalar(out["bucket_len_min"]))
     out["sli_training_idx"] = int(as_scalar(out["sli_training_idx"]))
     out["sli_use_training_mean"] = bool(as_scalar(out["sli_use_training_mean"]))
+    out["sli_min_valid_sync_buckets"] = (
+        None
+        if "sli_min_valid_sync_buckets" not in out
+        else int(as_scalar(out["sli_min_valid_sync_buckets"]))
+    )
     out["training_names"] = as_str_array(out["training_names"])
     out["video_ids"] = as_str_array(out["video_ids"])
     out["sli"] = np.asarray(out["sli"], dtype=float).reshape(-1)

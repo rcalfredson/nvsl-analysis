@@ -113,6 +113,9 @@ def build_metric_plus_sli_bundle(
         sli_use_training_mean=np.array(
             bool(getattr(opts, "sli_use_training_mean", False))
         ),
+        sli_min_valid_sync_buckets=np.array(
+            int(getattr(opts, "sli_min_valid_sync_buckets", 3)), dtype=int
+        ),
         sli_select_skip_first_sync_buckets=np.array(
             (
                 0

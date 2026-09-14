@@ -835,6 +835,9 @@ def export_return_prob_outer_radius_sli_bundle(vas, opts, gls, out_fn):
         sli_use_training_mean=np.array(
             bool(getattr(opts, "sli_use_training_mean", False))
         ),
+        sli_min_valid_sync_buckets=np.array(
+            int(getattr(opts, "sli_min_valid_sync_buckets", 3)), dtype=int
+        ),
     )
     debug_episodes_csv = getattr(
         opts, "return_prob_outer_radius_debug_episodes_csv", None

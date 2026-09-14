@@ -420,6 +420,9 @@ def build_post_wall_departure_tortuosity_sli_bundle(vas, opts, gls):
         sli_use_training_mean=np.asarray(
             bool(getattr(opts, "sli_use_training_mean", False))
         ),
+        sli_min_valid_sync_buckets=np.asarray(
+            int(getattr(opts, "sli_min_valid_sync_buckets", 3)), dtype=int
+        ),
         sli_select_skip_first_sync_buckets=np.asarray(
             max(
                 0,

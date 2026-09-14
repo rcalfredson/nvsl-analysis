@@ -173,5 +173,8 @@ def export_wallpct_sli_bundle(vas, opts, gls, out_fn):
         sli_use_training_mean=np.array(
             bool(getattr(opts, "sli_use_training_mean", False))
         ),
+        sli_min_valid_sync_buckets=np.array(
+            int(getattr(opts, "sli_min_valid_sync_buckets", 3)), dtype=int
+        ),
     )
     print(f"[export] Wrote wallpct+SLI bundle: {out_fn} (n={len(vas_ok)})")

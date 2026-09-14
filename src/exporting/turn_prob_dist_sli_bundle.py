@@ -72,6 +72,9 @@ def export_turn_prob_dist_sli_bundle(vas, opts, gls, out_fn):
         video_ids=video_ids,
         sli=np.asarray(sli_scalar, dtype=float),
         sli_timeseries=np.asarray(sli_ts, dtype=float),
+        sli_min_valid_sync_buckets=np.array(
+            int(getattr(opts, "sli_min_valid_sync_buckets", 3)), dtype=int
+        ),
         turn_prob_distances_mm=np.asarray(distances, dtype=float),
         turn_prob_values=turn_prob,
         turn_prob_timeframes=np.asarray(TIMEFRAMES, dtype=object),
