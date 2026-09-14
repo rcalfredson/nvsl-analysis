@@ -9608,6 +9608,9 @@ def plotRewards(
         else:
             # need raw_4 shaped array (video, training, fly, bucket)
             use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
+            sli_min_valid_buckets = int(
+                getattr(opts, "sli_min_valid_sync_buckets", 3)
+            )
             skip_k = int(getattr(opts, "skip_first_sync_buckets", 0) or 0)
             n_videos = len(vas)
             n_trains = len(trns)
@@ -9620,6 +9623,7 @@ def plotRewards(
                 bucket_idx=None,
                 average_over_buckets=use_training_mean,
                 skip_first_sync_buckets=skip_k,
+                min_valid_buckets=sli_min_valid_buckets,
             )
             bottom, top = select_fractional_groups(
                 sli_ser,
@@ -13688,6 +13692,7 @@ def postAnalyze(vas):
     sli_core_cohorts_dumped = False
     sli_training_idx = getattr(opts, "best_worst_trn", 1) - 1
     use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
+    sli_min_valid_buckets = int(getattr(opts, "sli_min_valid_sync_buckets", 3))
     skip_k = _effective_skip_first_sync_buckets_opts_only(opts)
     keep_k = _effective_keep_first_sync_buckets_opts_only(opts)
 
@@ -13771,6 +13776,7 @@ def postAnalyze(vas):
                 average_over_buckets=use_training_mean,
                 skip_first_sync_buckets=sel_skip_k,
                 keep_first_sync_buckets=sel_keep_k,
+                min_valid_buckets=sli_min_valid_buckets,
             )
             sli_exp_component_ser, sli_ctrl_component_ser = _sli_component_series(
                 raw_4,
@@ -13983,6 +13989,7 @@ def postAnalyze(vas):
                         average_over_buckets=use_training_mean,
                         skip_first_sync_buckets=sel_skip_k,
                         keep_first_sync_buckets=sel_keep_k,
+                        min_valid_buckets=sli_min_valid_buckets,
                     )
 
                 # Reward index (exp − yoked) for T1, SB1.

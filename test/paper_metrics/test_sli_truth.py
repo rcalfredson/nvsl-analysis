@@ -119,6 +119,31 @@ def test_sli_scalar_training_mean_rejects_nonpositive_valid_bucket_minimum():
         )
 
 
+def test_minimum_valid_bucket_policy_controls_sli_group_eligibility():
+    perf4 = _perf4(
+        exp=[[[10, 10, np.nan, np.nan]], [[1, 2, 3, np.nan]]],
+        ctrl=[[[0, 0, 0, 0]], [[0, 0, 0, 0]]],
+    )
+
+    sli = compute_sli_per_fly(
+        perf4,
+        training_idx=0,
+        average_over_buckets=True,
+        keep_first_sync_buckets=4,
+        min_valid_buckets=3,
+    )
+    bottom, top = select_fractional_groups(
+        sli,
+        bottom_fraction=1.0,
+        top_fraction=None,
+    )
+
+    assert np.isnan(sli.iloc[0])
+    assert sli.iloc[1] == pytest.approx(2.0)
+    assert bottom == [1]
+    assert top is None
+
+
 def test_sli_scalar_explicit_bucket_must_fall_inside_selection_window():
     perf4 = _perf4(exp=[[[1, 2, 3, 4]]], ctrl=[[[0, 0, 0, 0]]])
 
