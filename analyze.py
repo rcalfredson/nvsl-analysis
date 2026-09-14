@@ -1043,6 +1043,17 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--corr-sli-min-valid-sync-buckets",
+    type=int,
+    default=3,
+    metavar="N",
+    help=(
+        "Minimum number of finite bucket-level SLIs required when a cross-fly "
+        "correlation uses mean SLI over a sync-bucket window (default: 3). "
+        "Single-bucket SLI and non-correlation SLI analyses are unaffected."
+    ),
+)
+g.add_argument(
     "--corr-sli-vs-rpt-xlabel",
     type=str,
     default=None,
@@ -14184,6 +14195,20 @@ def postAnalyze(vas):
                     "these plots can lazily compute metrics that require full reward-entry state."
                 )
             else:
+                corr_sli_min_valid_buckets = int(
+                    getattr(opts, "corr_sli_min_valid_sync_buckets", 3)
+                )
+                corr_sli_ser = sli_ser
+                if sli_ctx.average_over_buckets:
+                    corr_sli_ser = compute_sli_per_fly(
+                        raw_4,
+                        sli_ctx.training_idx,
+                        bucket_idx=sli_ctx.explicit_bucket_idx,
+                        average_over_buckets=True,
+                        skip_first_sync_buckets=sli_ctx.skip_first_sync_buckets,
+                        keep_first_sync_buckets=sli_ctx.keep_first_sync_buckets,
+                        min_valid_buckets=corr_sli_min_valid_buckets,
+                    )
                 sli_t2_sb5_ser = compute_sli_per_fly(
                     raw_4,
                     training_idx=1,
@@ -14196,6 +14221,7 @@ def postAnalyze(vas):
                     average_over_buckets=True,
                     skip_first_sync_buckets=1,
                     keep_first_sync_buckets=4,
+                    min_valid_buckets=corr_sli_min_valid_buckets,
                 )
                 sli_t2_sb2_sb5_mean_ser = compute_sli_per_fly(
                     raw_4,
@@ -14203,9 +14229,10 @@ def postAnalyze(vas):
                     average_over_buckets=True,
                     skip_first_sync_buckets=1,
                     keep_first_sync_buckets=4,
+                    min_valid_buckets=corr_sli_min_valid_buckets,
                 )
                 plot_cross_fly_correlations(
-                    sli_values=sli_ser,
+                    sli_values=corr_sli_ser,
                     vas=vas,
                     training_idx=sli_training_idx,
                     opts=opts,
@@ -18212,6 +18239,11 @@ if __name__ == "__main__":
     )
 
     corr_reward_rate_trn = getattr(opts, "corr_reward_rate_trn", None)
+    corr_sli_min_valid = int(
+        getattr(opts, "corr_sli_min_valid_sync_buckets", 3)
+    )
+    if corr_sli_min_valid < 1:
+        raise SystemExit("--corr-sli-min-valid-sync-buckets must be >= 1.")
     if corr_reward_rate_trn is not None and int(corr_reward_rate_trn) < 1:
         raise SystemExit("--corr-reward-rate-trn must be >= 1.")
     if int(getattr(opts, "corr_reward_rate_first_n_rewards", 0) or 0) < 0:

@@ -61,6 +61,37 @@ def test_sli_scalar_training_mean_honors_skip_keep_and_nan_handling():
     )
 
 
+def test_sli_scalar_training_mean_can_require_valid_bucket_level_slis():
+    perf4 = _perf4(
+        exp=[[[100, 2, 4, 6, np.nan]], [[100, 2, 4, np.nan, np.nan]]],
+        ctrl=[[[100, 1, 2, 3, 8]], [[100, 1, 2, 3, 4]]],
+    )
+
+    sli = compute_sli_per_fly(
+        perf4,
+        training_idx=0,
+        average_over_buckets=True,
+        skip_first_sync_buckets=1,
+        keep_first_sync_buckets=4,
+        min_valid_buckets=3,
+    )
+
+    assert sli.iloc[0] == pytest.approx(np.mean([1, 2, 3]))
+    assert np.isnan(sli.iloc[1])
+
+
+def test_sli_scalar_training_mean_rejects_nonpositive_valid_bucket_minimum():
+    perf4 = _perf4(exp=[[[1, 2]]], ctrl=[[[0, 0]]])
+
+    with pytest.raises(ValueError, match="at least 1"):
+        compute_sli_per_fly(
+            perf4,
+            training_idx=0,
+            average_over_buckets=True,
+            min_valid_buckets=0,
+        )
+
+
 def test_sli_scalar_explicit_bucket_must_fall_inside_selection_window():
     perf4 = _perf4(exp=[[[1, 2, 3, 4]]], ctrl=[[[0, 0, 0, 0]]])
 

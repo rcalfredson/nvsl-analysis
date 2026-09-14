@@ -93,6 +93,7 @@ def compute_sli_per_fly(
     *,
     skip_first_sync_buckets: int = 0,
     keep_first_sync_buckets: int = 0,
+    min_valid_buckets: Optional[int] = None,
 ) -> pd.Series:
     """
     Compute SLI per fly.
@@ -101,6 +102,10 @@ def compute_sli_per_fly(
         Use a single sync bucket (bucket_idx or default = final sync bucket - 2).
     If average_over_buckets is True:
         Use the mean across *all* sync buckets for the given training_idx.
+        When ``min_valid_buckets`` is supplied, a bucket contributes only when
+        both component PIs are finite, and the result is NaN unless at least
+        that many bucket-level SLIs are valid.  ``None`` preserves the legacy
+        behavior of subtracting the two component nanmeans independently.
     """
     n_vids = perf4.shape[0]
     nb = perf4.shape[3]
@@ -125,14 +130,31 @@ def compute_sli_per_fly(
         )
 
     if average_over_buckets:
-        # Mean over all buckets (optionally skipping first k) in this training for each fly
-        sli = {
-            vid: (
-                np.nanmean(perf4[vid, training_idx, 0, start:end])
-                - np.nanmean(perf4[vid, training_idx, 1, start:end])
-            )
-            for vid in range(n_vids)
-        }
+        if min_valid_buckets is None:
+            # Historical behavior: reduce the two fly roles independently.
+            sli = {
+                vid: (
+                    np.nanmean(perf4[vid, training_idx, 0, start:end])
+                    - np.nanmean(perf4[vid, training_idx, 1, start:end])
+                )
+                for vid in range(n_vids)
+            }
+        else:
+            minimum = int(min_valid_buckets)
+            if minimum < 1:
+                raise ValueError("min_valid_buckets must be at least 1")
+            sli = {}
+            for vid in range(n_vids):
+                bucket_sli = (
+                    perf4[vid, training_idx, 0, start:end]
+                    - perf4[vid, training_idx, 1, start:end]
+                )
+                valid = np.isfinite(bucket_sli)
+                sli[vid] = (
+                    float(np.mean(bucket_sli[valid]))
+                    if np.count_nonzero(valid) >= minimum
+                    else np.nan
+                )
     else:
         if bucket_idx is None:
             bucket_idx = default_single_bucket_idx(start, end)
