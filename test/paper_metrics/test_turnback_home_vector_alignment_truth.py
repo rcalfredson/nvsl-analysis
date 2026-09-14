@@ -832,6 +832,7 @@ def test_export_records_top_sli_subset_metadata(tmp_path):
         assert meta["sli_selection"]["use_training_mean"] is True
         assert meta["sli_selection"]["skip_first_sync_buckets"] == 1
         assert meta["sli_selection"]["keep_first_sync_buckets"] == 4
+        assert meta["sli_selection"]["min_valid_sync_buckets"] == 3
 
 
 def test_export_turnback_home_vector_alignment_examples_writes_manifest_and_image(

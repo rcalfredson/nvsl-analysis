@@ -165,6 +165,9 @@ def _sli_selection_meta(opts) -> dict:
             "keep_first_sync_buckets": getattr(
                 opts, "sli_select_keep_first_sync_buckets", None
             ),
+            "min_valid_sync_buckets": int(
+                getattr(opts, "sli_min_valid_sync_buckets", 3)
+            ),
             "bucket": getattr(opts, "sli_select_bucket", None),
         },
     }

@@ -13019,6 +13019,7 @@ def _select_turnback_home_vector_alignment_vas(vas):
     
     sli_training_idx = int(getattr(opts, "best_worst_trn", 2)) - 1
     use_training_mean = bool(getattr(opts, "sli_use_training_mean", False))
+    sli_min_valid_buckets = int(getattr(opts, "sli_min_valid_sync_buckets", 3))
 
     skip_k = _effective_skip_first_sync_buckets_opts_only(opts)
     keep_k = _effective_keep_first_sync_buckets_opts_only(opts)
@@ -13060,6 +13061,7 @@ def _select_turnback_home_vector_alignment_vas(vas):
         average_over_buckets=use_training_mean,
         skip_first_sync_buckets=sel_skip_k,
         keep_first_sync_buckets=sel_keep_k,
+        min_valid_buckets=sli_min_valid_buckets,
     )
 
     top_fraction = None
@@ -13096,7 +13098,8 @@ def _select_turnback_home_vector_alignment_vas(vas):
         f"{len(selected)} {sli_group}-SLI flies "
         f"(top_fraction={top_fraction}, bottom_fraction={bottom_fraction}, "
         f"T{int(sli_training_idx) + 1}, skip={sel_skip_k}, keep={sel_keep_k}, "
-        f"use_training_mean={use_training_mean})"
+        f"use_training_mean={use_training_mean}, "
+        f"min_valid_buckets={sli_min_valid_buckets})"
     )
 
     return [vas[i] for i in selected]
@@ -13183,6 +13186,9 @@ def _select_turn_home_vector_alignment_vas(vas, export_opts=None):
 
     sli_training_idx = int(getattr(export_opts, "best_worst_trn", 2)) - 1
     use_training_mean = bool(getattr(export_opts, "sli_use_training_mean", False))
+    sli_min_valid_buckets = int(
+        getattr(export_opts, "sli_min_valid_sync_buckets", 3)
+    )
 
     skip_k = _effective_skip_first_sync_buckets_opts_only(export_opts)
     keep_k = _effective_keep_first_sync_buckets_opts_only(export_opts)
@@ -13224,6 +13230,7 @@ def _select_turn_home_vector_alignment_vas(vas, export_opts=None):
         average_over_buckets=use_training_mean,
         skip_first_sync_buckets=sel_skip_k,
         keep_first_sync_buckets=sel_keep_k,
+        min_valid_buckets=sli_min_valid_buckets,
     )
 
     top_fraction = None
@@ -13260,7 +13267,8 @@ def _select_turn_home_vector_alignment_vas(vas, export_opts=None):
         f"{len(selected)} {sli_group}-SLI flies "
         f"(top_fraction={top_fraction}, bottom_fraction={bottom_fraction}, "
         f"T{int(sli_training_idx) + 1}, skip={sel_skip_k}, keep={sel_keep_k}, "
-        f"use_training_mean={use_training_mean})"
+        f"use_training_mean={use_training_mean}, "
+        f"min_valid_buckets={sli_min_valid_buckets})"
     )
 
     return [vas[i] for i in selected]
