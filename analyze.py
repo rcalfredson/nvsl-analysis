@@ -13865,6 +13865,7 @@ def postAnalyze(vas):
                         fraction=frac,
                         skip_first_sync_buckets=sel_skip_k,
                         keep_first_sync_buckets=sel_keep_k,
+                        min_valid_buckets=sli_min_valid_buckets,
                     )
                     op = opts.sli_set_op
                     if op == "pos":

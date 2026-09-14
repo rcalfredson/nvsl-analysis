@@ -339,6 +339,7 @@ def compute_sli_set_groups(
     fraction: float,
     skip_first_sync_buckets: int = 0,
     keep_first_sync_buckets: int = 0,
+    min_valid_buckets: Optional[int] = None,
 ) -> Dict[str, List[int]]:
     """
     Compute top-fraction groups for a positive and (optional) negative SLI spec,
@@ -361,6 +362,7 @@ def compute_sli_set_groups(
         average_over_buckets=pos_spec.average_over_buckets,
         skip_first_sync_buckets=skip_first_sync_buckets,
         keep_first_sync_buckets=keep_first_sync_buckets,
+        min_valid_buckets=min_valid_buckets,
     )
     _, pos_top = select_fractional_groups(
         sli_pos,
@@ -382,6 +384,7 @@ def compute_sli_set_groups(
             average_over_buckets=neg_spec.average_over_buckets,
             skip_first_sync_buckets=skip_first_sync_buckets,
             keep_first_sync_buckets=keep_first_sync_buckets,
+            min_valid_buckets=min_valid_buckets,
         )
         _, neg_top = select_fractional_groups(
             sli_neg, top_fraction=fraction, bottom_fraction=None

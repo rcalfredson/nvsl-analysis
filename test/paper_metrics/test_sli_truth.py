@@ -3,7 +3,9 @@ import pandas as pd
 import pytest
 
 from src.analysis.sli_tools import (
+    SLISelectionSpec,
     compute_sli_per_fly,
+    compute_sli_set_groups,
     resolve_sync_bucket_selector,
     select_fractional_groups,
 )
@@ -142,6 +144,35 @@ def test_minimum_valid_bucket_policy_controls_sli_group_eligibility():
     assert sli.iloc[1] == pytest.approx(2.0)
     assert bottom == [1]
     assert top is None
+
+
+def test_sli_set_groups_apply_minimum_to_positive_and_negative_specs():
+    perf4 = _perf4(
+        exp=[
+            [[10, 10, np.nan, np.nan], [10, 10, np.nan, np.nan]],
+            [[1, 2, 3, np.nan], [3, 2, 1, np.nan]],
+            [[0, 0, 0, 0], [0, 0, 0, 0]],
+        ],
+        ctrl=[
+            [[0, 0, 0, 0], [0, 0, 0, 0]],
+            [[0, 0, 0, 0], [0, 0, 0, 0]],
+            [[0, 0, 0, 0], [0, 0, 0, 0]],
+        ],
+    )
+
+    groups = compute_sli_set_groups(
+        perf4,
+        pos_spec=SLISelectionSpec(0, None, average_over_buckets=True),
+        neg_spec=SLISelectionSpec(1, None, average_over_buckets=True),
+        fraction=0.5,
+        keep_first_sync_buckets=4,
+        min_valid_buckets=3,
+    )
+
+    assert groups["pos_top"] == [1]
+    assert groups["neg_top"] == [1]
+    assert groups["intersection"] == [1]
+    assert groups["union"] == [1]
 
 
 def test_sli_scalar_explicit_bucket_must_fall_inside_selection_window():
