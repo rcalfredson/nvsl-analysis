@@ -10,11 +10,13 @@ from typing import Iterable, Mapping, Sequence
 
 import numpy as np
 
+from src.analysis.sli_tools import compute_sli_per_fly
+
 
 _DATE_RE = re.compile(r"(?<!\d)(\d{4}-\d{2}-\d{2})(?!\d)")
 _CAMERA_RE = re.compile(r"^(c\d+)", re.IGNORECASE)
 
-CLOSED_FIELDS = (
+CLOSED_REQUIRED_FIELDS = (
     "recording_date",
     "camera_id",
     "pair_id",
@@ -33,6 +35,12 @@ CLOSED_FIELDS = (
     "yoked_reward_pi_t2_sb5",
     "exp_reward_pi_t2_sb2_sb5_mean",
     "yoked_reward_pi_t2_sb2_sb5_mean",
+)
+
+CLOSED_FIELDS = (
+    *CLOSED_REQUIRED_FIELDS,
+    "sli_min_valid_sync_buckets",
+    "sli_t2_sb2_sb5_valid_bucket_count",
 )
 
 OPEN_FIELDS = (
@@ -69,6 +77,8 @@ AUDIT_FIELDS = (
     "match_validated",
     "sli_t2_sb5",
     "sli_t2_sb2_sb5_mean",
+    "sli_min_valid_sync_buckets",
+    "sli_t2_sb2_sb5_valid_bucket_count",
     "preference_pi_led_on",
     "preference_pi_led_off",
     "finite_sli",
@@ -126,8 +136,9 @@ def build_closed_loop_sli_rows(
     *,
     training_idx: int = 1,
     sync_bucket_idx: int = 4,
+    min_valid_sync_buckets: int = 3,
 ) -> list[dict[str, object]]:
-    """Build one final and mean T2 SLI row per closed-loop exp+yoked pair."""
+    """Build one final and paired-bucket mean SLI row per closed-loop pair."""
     values = np.asarray(raw_reward_pi, dtype=float)
     if values.ndim != 4 or values.shape[0] != len(vas):
         raise ValueError(
@@ -138,6 +149,18 @@ def build_closed_loop_sli_rows(
         raise ValueError("closed-loop export requires T2 experimental+yoked reward PI")
     if values.shape[3] <= max(sync_bucket_idx, 4):
         raise ValueError("closed-loop export requires sync bucket 5 in T2")
+
+    minimum = int(min_valid_sync_buckets)
+    if minimum < 1:
+        raise ValueError("min_valid_sync_buckets must be at least 1")
+    mean_sli = compute_sli_per_fly(
+        values,
+        training_idx,
+        average_over_buckets=True,
+        skip_first_sync_buckets=1,
+        keep_first_sync_buckets=4,
+        min_valid_buckets=minimum,
+    )
 
     rows: list[dict[str, object]] = []
     for idx, va in enumerate(vas):
@@ -152,8 +175,20 @@ def build_closed_loop_sli_rows(
         exp_fly_id, yoked_fly_id = physical_ids
         exp_value = float(values[idx, training_idx, 0, sync_bucket_idx])
         yoked_value = float(values[idx, training_idx, 1, sync_bucket_idx])
-        exp_mean = float(np.nanmean(values[idx, training_idx, 0, 1:5]))
-        yoked_mean = float(np.nanmean(values[idx, training_idx, 1, 1:5]))
+        exp_window = values[idx, training_idx, 0, 1:5]
+        yoked_window = values[idx, training_idx, 1, 1:5]
+        valid_mean_buckets = np.isfinite(exp_window) & np.isfinite(yoked_window)
+        valid_mean_bucket_count = int(np.count_nonzero(valid_mean_buckets))
+        exp_mean = (
+            float(np.mean(exp_window[valid_mean_buckets]))
+            if valid_mean_bucket_count
+            else np.nan
+        )
+        yoked_mean = (
+            float(np.mean(yoked_window[valid_mean_buckets]))
+            if valid_mean_bucket_count
+            else np.nan
+        )
         rows.append(
             {
                 "recording_date": recording_date,
@@ -171,11 +206,13 @@ def build_closed_loop_sli_rows(
                 "sli_training": training_idx + 1,
                 "sli_sync_bucket": sync_bucket_idx + 1,
                 "sli_t2_sb5": exp_value - yoked_value,
-                "sli_t2_sb2_sb5_mean": exp_mean - yoked_mean,
+                "sli_t2_sb2_sb5_mean": float(mean_sli.iloc[idx]),
                 "exp_reward_pi_t2_sb5": exp_value,
                 "yoked_reward_pi_t2_sb5": yoked_value,
                 "exp_reward_pi_t2_sb2_sb5_mean": exp_mean,
                 "yoked_reward_pi_t2_sb2_sb5_mean": yoked_mean,
+                "sli_min_valid_sync_buckets": minimum,
+                "sli_t2_sb2_sb5_valid_bucket_count": valid_mean_bucket_count,
             }
         )
     return rows
@@ -244,9 +281,17 @@ def write_rows_csv(
 
 
 def export_closed_loop_sli_csv(
-    vas: Sequence, raw_reward_pi: np.ndarray, out_csv: str | os.PathLike[str]
+    vas: Sequence,
+    raw_reward_pi: np.ndarray,
+    out_csv: str | os.PathLike[str],
+    *,
+    min_valid_sync_buckets: int = 3,
 ) -> Path:
-    rows = build_closed_loop_sli_rows(vas, raw_reward_pi)
+    rows = build_closed_loop_sli_rows(
+        vas,
+        raw_reward_pi,
+        min_valid_sync_buckets=min_valid_sync_buckets,
+    )
     path = write_rows_csv(rows, out_csv, CLOSED_FIELDS)
     print(f"[cross-experiment] wrote closed-loop SLI export {path} (n={len(rows)})")
     return path

@@ -4,9 +4,12 @@ import numpy as np
 import pytest
 
 from src.exporting.cross_experiment_correlation import (
+    CLOSED_REQUIRED_FIELDS,
     build_closed_loop_sli_rows,
     build_open_loop_preference_rows,
+    export_closed_loop_sli_csv,
     join_closed_to_experimental_open_loop,
+    read_rows_csv,
     recording_identity,
 )
 
@@ -57,7 +60,7 @@ def test_closed_export_uses_exp_minus_yoked_at_t2_sb5():
     assert row["yoked_subject_key"] == "2024-08-08::c41::f10"
 
 
-def test_closed_export_uses_mean_exp_minus_mean_yoked_over_t2_sb2_to_sb5():
+def test_closed_export_uses_paired_bucket_mean_over_t2_sb2_to_sb5():
     raw = np.zeros((1, 2, 2, 6), dtype=float)
     raw[0, 1, 0, 1:5] = [0.2, 0.4, np.nan, 0.8]
     raw[0, 1, 1, 1:5] = [-0.2, 0.0, 0.2, 0.4]
@@ -67,10 +70,50 @@ def test_closed_export_uses_mean_exp_minus_mean_yoked_over_t2_sb2_to_sb5():
     assert row["exp_reward_pi_t2_sb2_sb5_mean"] == pytest.approx(
         np.mean([0.2, 0.4, 0.8])
     )
-    assert row["yoked_reward_pi_t2_sb2_sb5_mean"] == pytest.approx(0.1)
-    assert row["sli_t2_sb2_sb5_mean"] == pytest.approx(
-        np.mean([0.2, 0.4, 0.8]) - 0.1
+    assert row["yoked_reward_pi_t2_sb2_sb5_mean"] == pytest.approx(
+        np.mean([-0.2, 0.0, 0.4])
     )
+    assert row["sli_t2_sb2_sb5_mean"] == pytest.approx(0.4)
+    assert row["sli_min_valid_sync_buckets"] == 3
+    assert row["sli_t2_sb2_sb5_valid_bucket_count"] == 3
+
+
+def test_closed_export_requires_configured_number_of_paired_buckets():
+    raw = np.full((1, 2, 2, 6), np.nan, dtype=float)
+    raw[0, 1, 0, 1:3] = [0.2, 0.6]
+    raw[0, 1, 1, 1:3] = [-0.2, 0.2]
+
+    default_row = build_closed_loop_sli_rows([_closed_va()], raw)[0]
+    relaxed_row = build_closed_loop_sli_rows(
+        [_closed_va()], raw, min_valid_sync_buckets=2
+    )[0]
+
+    assert np.isnan(default_row["sli_t2_sb2_sb5_mean"])
+    assert relaxed_row["sli_t2_sb2_sb5_mean"] == pytest.approx(0.4)
+    assert relaxed_row["sli_min_valid_sync_buckets"] == 2
+    assert relaxed_row["sli_t2_sb2_sb5_valid_bucket_count"] == 2
+
+
+def test_closed_export_rejects_nonpositive_minimum():
+    raw = np.zeros((1, 2, 2, 5), dtype=float)
+
+    with pytest.raises(ValueError, match="min_valid_sync_buckets must be at least 1"):
+        build_closed_loop_sli_rows(
+            [_closed_va()], raw, min_valid_sync_buckets=0
+        )
+
+
+def test_closed_csv_records_minimum_and_remains_readable_by_legacy_schema(tmp_path):
+    raw = np.zeros((1, 2, 2, 5), dtype=float)
+    out_csv = tmp_path / "closed.csv"
+
+    export_closed_loop_sli_csv(
+        [_closed_va()], raw, out_csv, min_valid_sync_buckets=2
+    )
+    rows = read_rows_csv(out_csv, CLOSED_REQUIRED_FIELDS)
+
+    assert rows[0]["sli_min_valid_sync_buckets"] == "2"
+    assert rows[0]["sli_t2_sb2_sb5_valid_bucket_count"] == "4"
 
 
 def test_open_export_preserves_positional_pi_scale_and_period_order():

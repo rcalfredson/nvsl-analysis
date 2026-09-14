@@ -16,7 +16,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from src.exporting.cross_experiment_correlation import (  # noqa: E402
     AUDIT_FIELDS,
-    CLOSED_FIELDS,
+    CLOSED_REQUIRED_FIELDS,
     OPEN_FIELDS,
     join_closed_to_experimental_open_loop,
     read_rows_csv,
@@ -95,7 +95,7 @@ def _require_expected_count(
 
 
 def run(args: argparse.Namespace) -> None:
-    closed = read_rows_csv(args.closed, CLOSED_FIELDS)
+    closed = read_rows_csv(args.closed, CLOSED_REQUIRED_FIELDS)
     opened = read_rows_csv(args.open_loop, OPEN_FIELDS)
     matched, audit = join_closed_to_experimental_open_loop(closed, opened)
 

@@ -1028,7 +1028,8 @@ g.add_argument(
     help=(
         "Write one keyed row per closed-loop exp+yoked pair containing final "
         "SLI at T2 sync bucket 5 and mean SLI over T2 sync buckets 2-5 for "
-        "later matching to open-loop experiments."
+        "later matching to open-loop experiments. The mean uses paired buckets "
+        "and --sli-min-valid-sync-buckets."
     ),
 )
 g.add_argument(
@@ -13980,6 +13981,9 @@ def postAnalyze(vas):
                         vas,
                         raw_4,
                         opts.cross_experiment_sli_export,
+                        min_valid_sync_buckets=int(
+                            getattr(opts, "sli_min_valid_sync_buckets", 3)
+                        ),
                     )
                     cross_experiment_sli_exported = True
                 if sli_ser is None:
