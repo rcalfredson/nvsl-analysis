@@ -104,8 +104,10 @@ def compute_sli_per_fly(
         Use the mean across *all* sync buckets for the given training_idx.
         When ``min_valid_buckets`` is supplied, a bucket contributes only when
         both component PIs are finite, and the result is NaN unless at least
-        that many bucket-level SLIs are valid.  ``None`` preserves the legacy
-        behavior of subtracting the two component nanmeans independently.
+        that many bucket-level SLIs are valid. If the selected window is
+        shorter than the configured minimum, every selected bucket is required.
+        ``None`` preserves the legacy behavior of subtracting the two component
+        nanmeans independently.
     """
     n_vids = perf4.shape[0]
     nb = perf4.shape[3]
@@ -143,6 +145,10 @@ def compute_sli_per_fly(
             minimum = int(min_valid_buckets)
             if minimum < 1:
                 raise ValueError("min_valid_buckets must be at least 1")
+            # A configured minimum describes the desired reliability for a
+            # multi-bucket mean, but must not make a deliberately shorter
+            # selected window impossible to summarize.
+            minimum = min(minimum, end - start)
             sli = {}
             for vid in range(n_vids):
                 bucket_sli = (

@@ -80,6 +80,33 @@ def test_sli_scalar_training_mean_can_require_valid_bucket_level_slis():
     assert np.isnan(sli.iloc[1])
 
 
+@pytest.mark.parametrize(
+    ("keep", "exp", "expected"),
+    [
+        (1, [2], 1.0),
+        (2, [2, 4], 1.5),
+        (4, [2, 4, 6, np.nan], 2.0),
+    ],
+)
+def test_sli_scalar_training_mean_caps_minimum_at_selected_window_size(
+    keep, exp, expected
+):
+    perf4 = _perf4(
+        exp=[[[*exp, *([np.nan] * (4 - len(exp)))]]],
+        ctrl=[[[1, 2, 3, 4]]],
+    )
+
+    sli = compute_sli_per_fly(
+        perf4,
+        training_idx=0,
+        average_over_buckets=True,
+        keep_first_sync_buckets=keep,
+        min_valid_buckets=3,
+    )
+
+    assert sli.iloc[0] == pytest.approx(expected)
+
+
 def test_sli_scalar_training_mean_rejects_nonpositive_valid_bucket_minimum():
     perf4 = _perf4(exp=[[[1, 2]]], ctrl=[[[0, 0]]])
 

@@ -269,6 +269,13 @@ T2 SB2–5 (min⁻¹)” with the actual selected window. This calculation is in
 of `--corr-window-metric-aggregation`; single-bucket, first-N-reward, per-bucket
 plot, and training-wide RPM calculations retain their existing behavior.
 
+Mean SLI calculations use `--sli-min-valid-sync-buckets` as their shared minimum
+valid-bucket policy (default: 3) as workflows are migrated to the central SLI
+helper. Cross-fly correlations already use this policy and may override it with
+`--corr-sli-min-valid-sync-buckets`. A bucket-level SLI is valid only when both
+the experimental and yoked PI components are finite. For a selected window with
+fewer buckets than the configured minimum, all selected buckets are required.
+
 These metrics can be run directly from `analyze.py`; outputs are usually written under `imgs/` plus any CSV/NPZ paths named by the flag.
 
 The default post-analysis rewards-per-minute log summary is followed by training-wide

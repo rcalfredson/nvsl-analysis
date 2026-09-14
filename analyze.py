@@ -831,6 +831,17 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--sli-min-valid-sync-buckets",
+    type=int,
+    default=3,
+    metavar="N",
+    help=(
+        "Minimum number of finite, paired bucket-level SLIs required when "
+        "calculating a mean SLI over multiple sync buckets (default: 3). "
+        "Specialized workflows are migrated to this shared policy in stages."
+    ),
+)
+g.add_argument(
     "--best-worst-trn",
     type=int,
     default=2,
@@ -1045,12 +1056,12 @@ g.add_argument(
 g.add_argument(
     "--corr-sli-min-valid-sync-buckets",
     type=int,
-    default=3,
+    default=None,
     metavar="N",
     help=(
         "Minimum number of finite bucket-level SLIs required when a cross-fly "
-        "correlation uses mean SLI over a sync-bucket window (default: 3). "
-        "Single-bucket SLI and non-correlation SLI analyses are unaffected."
+        "correlation uses mean SLI over a sync-bucket window. If omitted, "
+        "inherits --sli-min-valid-sync-buckets (default: 3)."
     ),
 )
 g.add_argument(
@@ -14195,8 +14206,13 @@ def postAnalyze(vas):
                     "these plots can lazily compute metrics that require full reward-entry state."
                 )
             else:
+                corr_sli_min_valid_raw = getattr(
+                    opts, "corr_sli_min_valid_sync_buckets", None
+                )
                 corr_sli_min_valid_buckets = int(
-                    getattr(opts, "corr_sli_min_valid_sync_buckets", 3)
+                    getattr(opts, "sli_min_valid_sync_buckets", 3)
+                    if corr_sli_min_valid_raw is None
+                    else corr_sli_min_valid_raw
                 )
                 corr_sli_ser = sli_ser
                 if sli_ctx.average_over_buckets:
@@ -18239,10 +18255,13 @@ if __name__ == "__main__":
     )
 
     corr_reward_rate_trn = getattr(opts, "corr_reward_rate_trn", None)
-    corr_sli_min_valid = int(
-        getattr(opts, "corr_sli_min_valid_sync_buckets", 3)
+    sli_min_valid = int(getattr(opts, "sli_min_valid_sync_buckets", 3))
+    if sli_min_valid < 1:
+        raise SystemExit("--sli-min-valid-sync-buckets must be >= 1.")
+    corr_sli_min_valid_raw = getattr(
+        opts, "corr_sli_min_valid_sync_buckets", None
     )
-    if corr_sli_min_valid < 1:
+    if corr_sli_min_valid_raw is not None and int(corr_sli_min_valid_raw) < 1:
         raise SystemExit("--corr-sli-min-valid-sync-buckets must be >= 1.")
     if corr_reward_rate_trn is not None and int(corr_reward_rate_trn) < 1:
         raise SystemExit("--corr-reward-rate-trn must be >= 1.")
