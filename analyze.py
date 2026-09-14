@@ -16895,7 +16895,7 @@ def writeStats(vas, sf):
     print("\nwriting %s..." % STATS_FILE)
 
     def should_apply_pairwise_exclusion(va, tp, col_index=None):
-        if tp in ("meddist_auc_csv", "rpd_auc_csv", "rpid_auc_csv"):
+        if tp in ("meddist_auc_csv", "rpd_auc_csv", "rpid_auc_csv", "spd_sb"):
             return False
         if col_index is not None:
             # Skip pairwise exclusion for the first pair in specific tables

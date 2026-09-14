@@ -1,7 +1,14 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import numpy as np
-from src.analysis.trajectory import Trajectory
-from src.analysis.video_analysis_interface import VideoAnalysisInterface
+
 from src.analysis.reward_range_calculator import RewardRangeCalculator
+
+if TYPE_CHECKING:
+    from src.analysis.trajectory import Trajectory
+    from src.analysis.video_analysis_interface import VideoAnalysisInterface
 
 
 class VASpeedCalculator:
@@ -28,20 +35,19 @@ class VASpeedCalculator:
         all_speeds = []
 
         # Pre-training (first element of reward_ranges)
-        pre_training_range = self.va.reward_ranges[0]
+        speed_ranges = self._unfiltered_speed_ranges()
+        pre_training_range = speed_ranges[0]
         pre_training_speeds = self._calc_average_speeds(
-            pre_training_range.start, pre_training_range.stop, 0
+            pre_training_range.start, pre_training_range.stop
         )
         all_speeds.append(pre_training_speeds)
 
         # Training and post-training segments
         for t_idx, t in enumerate(self.va.trns):
-            reward_range = self.va.reward_ranges[
-                t_idx + 1
-            ]  # Use t_idx + 1 for training timeframes
+            reward_range = speed_ranges[t_idx + 1]
             all_speeds.append(
                 self._calc_average_speeds(
-                    reward_range.start, reward_range.stop, t_idx + 1
+                    reward_range.start, reward_range.stop
                 )
             )
 
@@ -56,23 +62,48 @@ class VASpeedCalculator:
         # Store the results in the VideoAnalysis instance attribute
         self.va.speeds_over_sbs = [list(np.concatenate(all_speeds))]
 
-    def _calc_average_speeds(self, start_frame, end_frame, index=None):
+    def _unfiltered_speed_ranges(self):
+        """Return the historical speed windows without reward-PI eligibility."""
+        first_training = self.va.trns[0]
+        ranges = [
+            slice(
+                first_training.start - self.va.fps * 10 * 60,
+                first_training.start,
+            )
+        ]
+        for t_idx, training in enumerate(self.va.trns):
+            buckets = np.asarray(self.va.buckets[t_idx], dtype=float)
+            finite_buckets = buckets[np.isfinite(buckets)]
+            if training.n == 1:
+                start = buckets[0] if buckets.size >= 1 else np.nan
+                stop = buckets[1] if buckets.size >= 2 else np.nan
+            else:
+                start = (
+                    buckets[-3]
+                    if buckets.size >= 3 and finite_buckets.size >= 2
+                    else np.nan
+                )
+                stop = (
+                    buckets[-2]
+                    if buckets.size >= 2 and finite_buckets.size >= 1
+                    else np.nan
+                )
+            ranges.append(slice(start, stop))
+        return ranges
+
+    def _calc_average_speeds(self, start_frame, end_frame):
         """
         Calculates the average speeds between start_frame and end_frame for each Trajectory instance.
 
         Parameters:
             start_frame (int): The starting frame index.
             end_frame (int): The ending frame index.
-            index (int): The index of the timeframe (doesn't apply for post-training periods).
 
         Returns:
-            list: A list of average speeds for each Trajectory.
+            list: A list of average speeds for each Trajectory. Eligibility is
+            determined only from the requested window and usable speed samples.
         """
-        if (
-            np.isnan(start_frame)
-            or np.isnan(end_frame)
-            or (index is not None and self.va.pair_exclude[index] is True)
-        ):
+        if np.isnan(start_frame) or np.isnan(end_frame):
             return len(self.va.trx) * [np.nan]
         start_frame, end_frame = int(start_frame), int(end_frame)
         speeds = []

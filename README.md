@@ -280,6 +280,11 @@ with `--corr-sli-min-valid-sync-buckets`. A bucket-level SLI is valid only when
 both the experimental and yoked PI components are finite. For a selected window
 with fewer buckets than the configured minimum, all selected buckets are required.
 
+Speed eligibility is determined from the requested time window and usable speed
+samples, with optional wall-contact exclusion. Reward-PI/SLI eligibility does not
+erase otherwise measurable speed values; analyses that intentionally select or
+correlate by SLI still require a finite SLI for inclusion.
+
 These metrics can be run directly from `analyze.py`; outputs are usually written under `imgs/` plus any CSV/NPZ paths named by the flag.
 
 The default post-analysis rewards-per-minute log summary is followed by training-wide

@@ -154,9 +154,6 @@ def build_speed_sli_bundle(vas, opts, gls) -> dict:
     )
 
     target_sync_bucket_eligible = exp_target_sync_bucket_eligibility_mask(vas_ok, opts)
-    bundle["speed_exp"] = mask_by_exp_target_sync_bucket_filter(
-        bundle["speed_exp"], target_sync_bucket_eligible
-    )
     bundle["sli"] = mask_by_exp_target_sync_bucket_filter(
         bundle["sli"], target_sync_bucket_eligible
     )

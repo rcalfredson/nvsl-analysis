@@ -1,5 +1,11 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import numpy as np
-from src.analysis.video_analysis_interface import VideoAnalysisInterface
+
+if TYPE_CHECKING:
+    from src.analysis.video_analysis_interface import VideoAnalysisInterface
 
 
 class RewardRangeCalculator:
