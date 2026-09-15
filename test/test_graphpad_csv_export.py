@@ -9,6 +9,7 @@ from src.exporting.graphpad_csv import (
     rpd_exp_minus_yok_exports_to_graphpad_columns,
     write_agarose_time_graphpad_csv,
     write_rpd_exp_minus_yok_exports_graphpad_csv,
+    write_repeated_measures_scalar_exports_graphpad_csv,
     write_scalar_exports_graphpad_csv,
     write_turnback_ratio_bundles_graphpad_csv,
 )
@@ -418,10 +419,10 @@ def test_turnback_ratio_graphpad_csv_exports_all_fly_values_by_radius_pair(tmp_p
     write_turnback_ratio_bundles_graphpad_csv([("Ctrl", bundle)], out)
 
     assert out.read_text().splitlines() == [
-        "Ctrl | 3/5 mm,Ctrl | 8/10 mm",
-        "0.1,0.2",
-        "0.8,0.6",
-        "0.4,",
+        "Ctrl | Subject ID,Ctrl | 3/5 mm,Ctrl | 8/10 mm",
+        "a,0.1,0.2",
+        "b,0.8,",
+        "c,0.4,0.6",
     ]
 
 
@@ -440,4 +441,69 @@ def test_turnback_ratio_graphpad_csv_selects_top_sli_fraction_per_group(tmp_path
         [("Ctrl", bundle)], out, top_sli_fraction=2 / 3
     )
 
-    assert out.read_text().splitlines() == ["Ctrl", "0.5", "0.9"]
+    assert out.read_text().splitlines() == [
+        "Ctrl | Subject ID,Ctrl | 3/5 mm",
+        "d,0.5",
+        "c,0.9",
+    ]
+
+
+def test_repeated_measures_scalar_csv_aligns_panels_by_unit_id(tmp_path):
+    a = tmp_path / "a.npz"
+    b = tmp_path / "b.npz"
+    out = tmp_path / "home_vector.csv"
+    _write_scalar_npz(a, [0.1, 0.2])
+    _write_scalar_npz(b, [0.8, 0.6])
+    # Give the second radius the reverse order and a different set of flies.
+    with np.load(b, allow_pickle=True) as source:
+        payload = {key: source[key] for key in source.files}
+    payload["per_unit_ids_panel"] = np.asarray(
+        [np.asarray(["fly1", "fly2"], dtype=object)], dtype=object
+    )
+    np.savez_compressed(b, **payload)
+
+    exports = [
+        load_export_npz("Ctrl|3/5 mm", a),
+        load_export_npz("Ctrl|8/10 mm", b),
+    ]
+    write_repeated_measures_scalar_exports_graphpad_csv(exports, out)
+
+    assert out.read_text().splitlines() == [
+        "Ctrl | Subject ID,Ctrl | 3/5 mm,Ctrl | 8/10 mm",
+        "fly0,0.1,",
+        "fly1,0.2,0.8",
+        "fly2,,0.6",
+    ]
+
+
+def test_repeated_measures_scalar_csv_rejects_duplicate_unit_ids(tmp_path):
+    a = tmp_path / "a.npz"
+    out = tmp_path / "home_vector.csv"
+    _write_scalar_npz(a, [0.1, 0.2])
+    with np.load(a, allow_pickle=True) as source:
+        payload = {key: source[key] for key in source.files}
+    payload["per_unit_ids_panel"] = np.asarray(
+        [np.asarray(["fly0", "fly0"], dtype=object)], dtype=object
+    )
+    np.savez_compressed(a, **payload)
+
+    with np.testing.assert_raises_regex(ValueError, "duplicate unit IDs"):
+        write_repeated_measures_scalar_exports_graphpad_csv(
+            [load_export_npz("Ctrl|3/5 mm", a)], out
+        )
+
+
+def test_turnback_ratio_csv_rejects_duplicate_unit_ids(tmp_path):
+    bundle = {
+        "sli": np.asarray([0.1, 0.2]),
+        "video_ids": np.asarray(["fly0", "fly0"]),
+        "turnback_excursion_bin_ratio_exp": np.asarray([[0.1], [0.2]]),
+        "turnback_excursion_bin_ratio_ctrl": np.zeros((2, 1)),
+        "turnback_excursion_bin_pair_inner_deltas_mm": np.asarray([3]),
+        "turnback_excursion_bin_pair_outer_deltas_mm": np.asarray([5]),
+    }
+
+    with np.testing.assert_raises_regex(ValueError, "duplicate unit IDs"):
+        write_turnback_ratio_bundles_graphpad_csv(
+            [("Ctrl", bundle)], tmp_path / "turnback.csv"
+        )

@@ -56,6 +56,54 @@ def _write_wide_numeric_csv(
             writer.writerow(row)
 
 
+def _write_grouped_repeated_measures_csv(
+    out_csv: str | Path,
+    groups: Sequence[tuple[str, Sequence[str], Sequence[object], np.ndarray]],
+) -> None:
+    """Write group-local subject IDs followed by aligned repeated measures."""
+    out = Path(out_csv)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    headers: list[str] = []
+    normalized = []
+    for group, panel_labels, unit_ids, values in groups:
+        panel_labels = [str(label) for label in panel_labels]
+        if len(set(panel_labels)) != len(panel_labels):
+            raise ValueError(
+                f"repeated-measures group {group!r} contains duplicate panel labels"
+            )
+        ids = np.asarray(unit_ids, dtype=object).reshape(-1)
+        matrix = np.asarray(values, dtype=float)
+        if matrix.ndim != 2 or matrix.shape != (ids.size, len(panel_labels)):
+            raise ValueError(
+                f"repeated-measures group {group!r} has inconsistent ID/value shapes"
+            )
+        id_text = np.asarray([str(x) for x in ids], dtype=object)
+        if len(set(id_text.tolist())) != id_text.size:
+            raise ValueError(
+                f"repeated-measures group {group!r} contains duplicate unit IDs"
+            )
+        headers.append(f"{group} | Subject ID")
+        headers.extend(f"{group} | {label}" for label in panel_labels)
+        normalized.append((id_text, matrix))
+
+    n_rows = max((ids.size for ids, _ in normalized), default=0)
+    with out.open("w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(_unique_headers(headers))
+        for row_idx in range(n_rows):
+            row: list[str] = []
+            for ids, matrix in normalized:
+                if row_idx >= ids.size:
+                    row.extend([""] * (matrix.shape[1] + 1))
+                    continue
+                row.append(str(ids[row_idx]))
+                row.extend(
+                    "" if not np.isfinite(value) else f"{float(value):.12g}"
+                    for value in matrix[row_idx]
+                )
+            writer.writerow(row)
+
+
 def scalar_exports_to_graphpad_columns(
     exports: Sequence["ExportedTrainingScalarBars"],
     *,
@@ -114,6 +162,60 @@ def write_scalar_exports_graphpad_csv(
 ) -> None:
     headers, columns = scalar_exports_to_graphpad_columns(exports, panel=panel)
     _write_wide_numeric_csv(out_csv, headers, columns)
+
+
+def write_repeated_measures_scalar_exports_graphpad_csv(
+    exports: Sequence["ExportedTrainingScalarBars"],
+    out_csv: str | Path,
+) -> None:
+    """Align scalar exports by unit ID within groups encoded as GROUP|PANEL."""
+    if not exports:
+        raise ValueError("at least one scalar export is required")
+
+    by_group: dict[str, list[tuple[str, object]]] = {}
+    for export in exports:
+        parts = [part.strip() for part in str(export.group).split("|", 1)]
+        if len(parts) != 2 or not all(parts):
+            raise ValueError(
+                "repeated-measures scalar labels must use GROUP|PANEL syntax; "
+                f"got {export.group!r}"
+            )
+        group, panel = parts
+        if len(export.panel_labels) != 1:
+            raise ValueError(
+                f"repeated-measures scalar input {export.group!r} must have one panel"
+            )
+        by_group.setdefault(group, []).append((panel, export))
+
+    grouped = []
+    for group, entries in by_group.items():
+        union_ids: list[str] = []
+        seen: set[str] = set()
+        panel_maps = []
+        panel_labels = []
+        for panel, export in entries:
+            ids = np.asarray(export.per_unit_ids_panel[0], dtype=object).reshape(-1)
+            values = np.asarray(export.per_unit_values_panel[0], dtype=float).reshape(-1)
+            if ids.size != values.size:
+                raise ValueError(f"{export.group!r} has different ID and value counts")
+            id_text = [str(x) for x in ids]
+            if len(set(id_text)) != len(id_text):
+                raise ValueError(f"{export.group!r} contains duplicate unit IDs")
+            mapping = dict(zip(id_text, values))
+            panel_maps.append(mapping)
+            panel_labels.append(panel)
+            for unit_id in id_text:
+                if unit_id not in seen:
+                    seen.add(unit_id)
+                    union_ids.append(unit_id)
+        matrix = np.full((len(union_ids), len(panel_maps)), np.nan, dtype=float)
+        for panel_idx, mapping in enumerate(panel_maps):
+            for row_idx, unit_id in enumerate(union_ids):
+                if unit_id in mapping:
+                    matrix[row_idx, panel_idx] = mapping[unit_id]
+        grouped.append((group, panel_labels, union_ids, matrix))
+
+    _write_grouped_repeated_measures_csv(out_csv, grouped)
 
 
 def rpd_exp_minus_yok_exports_to_graphpad_columns(
@@ -207,11 +309,35 @@ def write_turnback_ratio_bundles_graphpad_csv(
     *,
     top_sli_fraction: float | None = None,
 ) -> None:
-    headers, columns = turnback_ratio_bundles_to_graphpad_columns(
-        bundles,
-        top_sli_fraction=top_sli_fraction,
-    )
-    _write_wide_numeric_csv(out_csv, headers, columns)
+    if not bundles:
+        raise ValueError("at least one turnback bundle is required")
+    from src.analysis.sli_tools import select_fractional_groups
+
+    groups = []
+    for label, bundle in bundles:
+        sli = np.asarray(bundle["sli"], dtype=float).reshape(-1)
+        ids = np.asarray(bundle["video_ids"], dtype=object).reshape(-1)
+        values = np.asarray(bundle["turnback_excursion_bin_ratio_exp"], dtype=float)
+        inner = np.asarray(
+            bundle["turnback_excursion_bin_pair_inner_deltas_mm"], dtype=float
+        ).reshape(-1)
+        outer = np.asarray(
+            bundle["turnback_excursion_bin_pair_outer_deltas_mm"], dtype=float
+        ).reshape(-1)
+        if ids.size != sli.size or values.shape != (ids.size, inner.size):
+            raise ValueError(f"turnback bundle {label!r} has inconsistent shapes")
+        if inner.size != outer.size:
+            raise ValueError(f"turnback bundle {label!r} has inconsistent radii")
+        if top_sli_fraction is None:
+            indices = np.arange(ids.size, dtype=int)
+        else:
+            _, top = select_fractional_groups(
+                pd.Series(sli), top_fraction=float(top_sli_fraction)
+            )
+            indices = np.asarray([] if top is None else top, dtype=int)
+        panel_labels = [f"{i:g}/{o:g} mm" for i, o in zip(inner, outer)]
+        groups.append((str(label), panel_labels, ids[indices], values[indices, :]))
+    _write_grouped_repeated_measures_csv(out_csv, groups)
 
 
 def agarose_time_to_graphpad_columns(

@@ -17,6 +17,7 @@ from src.analysis.agarose_time_summary import (  # noqa: E402
 from src.exporting.graphpad_csv import (  # noqa: E402
     write_agarose_time_graphpad_csv,
     write_rpd_exp_minus_yok_exports_graphpad_csv,
+    write_repeated_measures_scalar_exports_graphpad_csv,
     write_scalar_exports_graphpad_csv,
     write_turnback_ratio_bundles_graphpad_csv,
 )
@@ -55,6 +56,18 @@ def parse_args() -> argparse.Namespace:
         metavar="LABEL=EXPORT.NPZ",
         help="Repeatable scalar export input. LABEL=PATH and LABEL:PATH are accepted.",
     )
+
+    repeated_scalar = sub.add_parser(
+        "repeated-measures-scalar-npz",
+        help=(
+            "Convert one-panel scalar NPZ exports into ID-aligned repeated-measures "
+            "columns. Input labels must use GROUP|PANEL syntax."
+        ),
+    )
+    repeated_scalar.add_argument(
+        "--input", action="append", required=True, metavar="GROUP|PANEL=EXPORT.NPZ"
+    )
+    repeated_scalar.add_argument("--out", required=True, help="Output CSV path.")
 
     rpd = sub.add_parser(
         "rpd-exp-minus-yok-npz",
@@ -155,6 +168,17 @@ def main() -> int:
             label, path = parse_labeled_path(spec, separators=("=", ":"))
             exports.append(load_export_npz(label, path))
         write_scalar_exports_graphpad_csv(exports, args.out, panel=args.scalar_panel)
+        print(f"[graphpad_csv] wrote {args.out}")
+        return 0
+
+    if args.command == "repeated-measures-scalar-npz":
+        from src.plotting.overlay_training_metric_scalar_bars import load_export_npz
+
+        exports = []
+        for spec in args.input:
+            label, path = parse_labeled_path(spec, separators=("=", ":"))
+            exports.append(load_export_npz(label, path))
+        write_repeated_measures_scalar_exports_graphpad_csv(exports, args.out)
         print(f"[graphpad_csv] wrote {args.out}")
         return 0
 
