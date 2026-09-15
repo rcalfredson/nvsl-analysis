@@ -13,9 +13,11 @@ class FakeTraining:
 
 
 class FakeTrajectory:
-    def __init__(self, speeds_px_s, px_per_mm=2.0):
+    def __init__(self, speeds_px_s, px_per_mm=2.0, lost=None):
         self.sp = np.asarray(speeds_px_s, dtype=float)
         self.pxPerMmFloor = float(px_per_mm)
+        if lost is not None:
+            self.nan = np.asarray(lost, dtype=bool)
 
     def bad(self):
         return False
@@ -51,6 +53,23 @@ def test_extract_speed_arrays_by_sync_bucket_keeps_incomplete_bucket_nan():
     assert np.isnan(out["speed_ctrl"][0, 0, 2])
     np.testing.assert_array_equal(out["speedN_exp"][0, 0], [10, 10, 0])
     np.testing.assert_array_equal(out["speedN_ctrl"][0, 0], [10, 10, 0])
+
+
+def test_extract_speed_arrays_excludes_transitions_touching_lost_frames():
+    va = FakeVA()
+    lost = np.zeros(30, dtype=bool)
+    lost[4:6] = True
+    va.trx[0] = FakeTrajectory(
+        np.arange(30, dtype=float), px_per_mm=1.0, lost=lost
+    )
+    opts = SimpleNamespace(syncBucketLenMin=1.0, excl_wall_for_spd=False)
+
+    out = _extract_speed_arrays([va], opts)
+
+    # Bucket 1 spans frames 1:11. Speeds at frames 4, 5, and 6 touch the
+    # originally lost interval and are omitted; the other seven remain.
+    assert out["speed_exp"][0, 0, 0] == np.mean([1, 2, 3, 7, 8, 9, 10])
+    assert out["speedN_exp"][0, 0, 0] == 7
 
 
 def test_speed_bundle_keeps_metric_when_sli_target_filter_fails(monkeypatch):

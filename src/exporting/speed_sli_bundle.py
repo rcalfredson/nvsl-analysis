@@ -67,9 +67,23 @@ def _mean_speed_mm_s(
         return np.nan, 0
 
     values = sp[start:stop]
+    lost = np.asarray(getattr(traj, "nan", []), dtype=bool).reshape(-1)
+    if lost.size == sp.size:
+        # sp[i] describes the transition from frame i - 1 to frame i. Match
+        # the legacy onBottomPre policy by requiring both endpoints to have
+        # been tracked originally, even when coordinates were interpolated.
+        tracked_transition = np.zeros(stop - start, dtype=bool)
+        first = max(start, 1)
+        if first < stop:
+            tracked_transition[first - start :] = (
+                ~lost[first - 1 : stop - 1] & ~lost[first:stop]
+            )
+        values = values[tracked_transition]
     if exclude_wall:
         valid_wall = _wall_valid_mask(traj, start, stop)
-        if valid_wall is not None and valid_wall.shape[0] == values.shape[0]:
+        if valid_wall is not None and valid_wall.shape[0] == stop - start:
+            if lost.size == sp.size:
+                valid_wall = valid_wall[tracked_transition]
             values = values[valid_wall]
 
     values = values[np.isfinite(values)]
