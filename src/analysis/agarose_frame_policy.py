@@ -23,7 +23,9 @@ def agarose_percentage_masks(
     # Contact arrays from circular-well detection are floats so they can carry
     # NaN at lost frames.  Equality avoids treating NaN as truthy when casting.
     contact = np.asarray(contact) == 1
-    interpolated_contact = np.asarray(interpolated_contact) == 1
+    interpolated_contact_raw = np.asarray(interpolated_contact)
+    classifiable = np.isfinite(interpolated_contact_raw)
+    interpolated_contact = interpolated_contact_raw == 1
     lost = np.asarray(lost, dtype=bool)
     if contact.shape != lost.shape or interpolated_contact.shape != lost.shape:
         raise ValueError("Agarose contact and lost-frame masks must have matching shapes")
@@ -33,4 +35,4 @@ def agarose_percentage_masks(
         return contact & valid, valid
     if policy == "legacy":
         return interpolated_contact, valid
-    return interpolated_contact, np.ones_like(valid, dtype=bool)
+    return interpolated_contact & classifiable, classifiable

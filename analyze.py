@@ -1407,8 +1407,9 @@ g.add_argument(
     default="interpolated-inclusive",
     help=(
         "How lost/interpolated frames contribute to percent-time-on-agarose "
-        "summaries. 'interpolated-inclusive' includes interpolated classifications "
-        "in the numerator and interpolated frames in the denominator (default). "
+        "summaries. 'interpolated-inclusive' includes usable interpolated "
+        "classifications in both the numerator and denominator, while excluding "
+        "frames that remain unclassifiable (default). "
         "'corrected' excludes them from both numerator and denominator. "
         "'legacy' reproduces the pre-4712b27 behavior by allowing "
         "interpolated contact classifications into the numerator while still "

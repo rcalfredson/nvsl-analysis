@@ -46,4 +46,4 @@ def test_agarose_percentage_masks_do_not_treat_nan_as_contact():
     )
 
     assert numerator.tolist() == [False, False, True]
-    assert denominator.tolist() == [True, True, True]
+    assert denominator.tolist() == [True, False, True]

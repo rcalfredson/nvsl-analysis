@@ -7,8 +7,9 @@ comparison:
 2. whether the group comparison uses control-family Welch tests with
    Holm–Bonferroni adjustment or Welch's one-way ANOVA followed by Games–Howell.
 
-The production default includes interpolated frames consistently in both the
-numerator and denominator. To reproduce the historical numerator behavior,
+The production default includes frames with usable interpolated agarose
+classifications consistently in both the numerator and denominator, while
+excluding frames that remain unclassifiable. To reproduce the historical numerator behavior,
 rerun each upstream `analyze.py --agarose` command with:
 
 ```text
