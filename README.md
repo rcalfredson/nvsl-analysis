@@ -286,7 +286,7 @@ erase otherwise measurable speed values; analyses that intentionally select or
 correlate by SLI still require a finite SLI for inclusion.
 
 Sharp-turn probability by distance likewise uses its own eligible contact/exit
-opportunities and `--turn-contact-thresh`; reward-PI/SLI eligibility does not mask
+opportunities and `--turn_contact_thresh`; reward-PI/SLI eligibility does not mask
 an otherwise measurable probability. SLI-based grouping still requires finite SLI.
 
 These metrics can be run directly from `analyze.py`; outputs are usually written under `imgs/` plus any CSV/NPZ paths named by the flag.
