@@ -284,7 +284,7 @@ cpdef runBoundaryContactAnalyses(trj, va, offsets, thresholds, opts):
                     boundary_dist_calc.update_return_data_for_boundary_contact_stats(edge_wc, False)
                     boundary_dist_calc.return_data["boundary_event_stats"]["agarose"]["tb"]["edge"][
                         "interpolated_boundary_contact"
-                    ] = edge_wc_interpolated == 1
+                    ] = edge_wc_interpolated
 
                     # Center mode  ──────────────────────────────────────────────────────────────
                     boundary_dist_calc.ellipse_ref_pt = "ctr"
@@ -303,7 +303,7 @@ cpdef runBoundaryContactAnalyses(trj, va, offsets, thresholds, opts):
                     boundary_dist_calc.update_return_data_for_boundary_contact_stats(ctr_wc, False)
                     boundary_dist_calc.return_data["boundary_event_stats"]["agarose"]["tb"]["ctr"][
                         "interpolated_boundary_contact"
-                    ] = ctr_wc_interpolated == 1
+                    ] = ctr_wc_interpolated
             for pt in ellipse_ref_pts:
                 findTurns(
                     va, opts, boundary_dist_calc, bnd_tp, boundary_combos[0], ellipse_ref_pt=pt

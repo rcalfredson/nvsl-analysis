@@ -141,6 +141,39 @@ def test_agarose_percentage_includes_interpolated_frames_by_default():
     assert va.regionPercentagesCsv["agarose"]["edge"] == pytest.approx([0])
 
 
+def test_agarose_percentage_excludes_unclassifiable_interpolated_frames():
+    contact_stats = {
+        "original_boundary_contact": np.array([0.0, np.nan, 1.0, 0.0]),
+        "interpolated_boundary_contact": np.array([0.0, np.nan, 1.0, 0.0]),
+    }
+    trj = SimpleNamespace(
+        nan=np.array([False, True, False, False]),
+        boundary_event_stats={
+            "agarose": {
+                "tb": {
+                    "ctr": contact_stats,
+                    "edge": {
+                        "original_boundary_contact": np.zeros(4),
+                        "interpolated_boundary_contact": np.zeros(4),
+                    },
+                }
+            }
+        },
+        bad=lambda: False,
+    )
+    va = object.__new__(VideoAnalysis)
+    va.trx = [trj]
+    va.trns = []
+    va.opts = SimpleNamespace()
+    va.reward_ranges = [slice(0, 4)]
+    va.pair_exclude = [False]
+    va._min2f = lambda _minutes: 0
+
+    VideoAnalysis.calcOnRegionProportionsForCsv(va, "agarose")
+
+    assert va.regionPercentagesCsv["agarose"]["ctr"] == pytest.approx([100 / 3])
+
+
 @pytest.mark.parametrize(
     ("policy", "expected"),
     [
