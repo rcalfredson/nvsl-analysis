@@ -64,8 +64,9 @@ class _Trajectory:
         return list(self._episodes)
 
 
-def _episode(stop, max_outer_delta_mm, turns_back, *, inner=2.0):
+def _episode(stop, max_outer_delta_mm, turns_back, *, inner=2.0, start=None):
     return {
+        "start": int(stop) - 1 if start is None else int(start),
         "stop": stop,
         "max_outer_delta_mm": max_outer_delta_mm,
         "effective_inner_delta_mm": inner,
@@ -177,6 +178,25 @@ def test_pair_deltas_accept_independent_inner_outer_pairs_and_reject_bad_inputs(
 
     with pytest.raises(ValueError, match="greater"):
         _pair_deltas_mm(SimpleNamespace(turnback_excursion_bin_pairs_mm="4:4"))
+
+
+def test_pair_curves_require_containment_in_pooled_window():
+    exp = _Trajectory(
+        [
+            _episode(15, 0.0, True, start=5),
+            _episode(25, 0.0, False, start=15),
+            _episode(35, 0.0, True, start=25),
+        ]
+    )
+    va = _va(trx=[exp], sync_bucket_ranges=[[(10, 20), (20, 30)]])
+
+    ratio_exp, _, turn_exp, _, total_exp, _, _ = _pair_curves(
+        [va], pairs=((2.0, 4.0),), min_episodes=1
+    )
+
+    np.testing.assert_allclose(ratio_exp, [[0.0]])
+    np.testing.assert_array_equal(turn_exp, [[0]])
+    np.testing.assert_array_equal(total_exp, [[1]])
 
 
 def test_turnback_pair_min_walking_fraction_defaults_to_disabled():

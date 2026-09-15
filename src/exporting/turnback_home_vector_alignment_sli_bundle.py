@@ -13,7 +13,7 @@ import numpy as np
 from src.analysis.episode_filters import (
     EPISODE_TYPE_INNER_EXIT_REENTRY,
     episode_filter_accounting_payload,
-    episode_within_window,
+    episode_within_windows,
     min_episode_count_for_type,
 )
 from src.analysis.sync_bucket_presence_filters import (
@@ -978,10 +978,7 @@ def _episode_within_windows(ep: dict, windows) -> bool:
     This intentionally checks the full selected window span, not individual sync
     buckets, so episodes may cross from one included bucket to another.
     """
-    for win in windows:
-        if episode_within_window(ep, win["start"], win["stop"]):
-            return True
-    return False
+    return episode_within_windows(ep, windows)
 
 
 def _mean_ci(

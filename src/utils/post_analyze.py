@@ -1,5 +1,7 @@
 import numpy as np
 
+from src.analysis.episode_filters import episode_within_window
+
 
 def turnback_counts_exp_by_bucket(
     va,
@@ -56,10 +58,9 @@ def turnback_counts_exp_by_bucket(
             radius_offset_px=radius_offset_px,
         )
         for ep in episodes:
-            event_t = int(ep["stop"]) - 1
             turns_back = bool(ep.get("turns_back", False))
             for b_idx, (sb_start, sb_stop) in enumerate(bucket_ranges):
-                if sb_start <= event_t < sb_stop:
+                if episode_within_window(ep, sb_start, sb_stop):
                     total[b_idx] += 1
                     if turns_back:
                         turn[b_idx] += 1

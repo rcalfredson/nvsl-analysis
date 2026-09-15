@@ -8,6 +8,8 @@ import numpy as np
 from src.analysis.episode_filters import (
     EPISODE_TYPE_INNER_EXIT_REENTRY,
     episode_filter_accounting_payload,
+    episode_within_window,
+    episode_within_windows,
     min_episode_count_for_type,
 )
 from src.analysis.sync_bucket_presence_filters import (
@@ -530,8 +532,7 @@ def _resolve_open_ended_upper_edge(
                 for ep in episodes or []:
                     if episode_overlaps_wall_contact(ep, wall_regions):
                         continue
-                    event_t = int(ep["stop"]) - 1
-                    if not _frame_in_windows(event_t, windows_by_training[t_idx]):
+                    if not episode_within_windows(ep, windows_by_training[t_idx]):
                         continue
                     radial_mm = float(
                         ep.get("max_outer_delta_mm" if legacy_bin_edges else "max_outer_radius_mm", np.nan)
@@ -660,8 +661,7 @@ def _compute_turnback_curves(
                 for ep in episodes:
                     if episode_overlaps_wall_contact(ep, wall_regions):
                         continue
-                    event_t = int(ep["stop"]) - 1
-                    if not _frame_in_windows(event_t, windows_by_training[t_idx]):
+                    if not episode_within_windows(ep, windows_by_training[t_idx]):
                         continue
                     passes_walking, _walking_fraction = (
                         _episode_passes_min_walking_fraction(
@@ -854,8 +854,9 @@ def _compute_pair_curves(
                     for ep in episodes:
                         if episode_overlaps_wall_contact(ep, wall_regions):
                             continue
-                        event_t = int(ep["stop"]) - 1
-                        if not _frame_in_windows(event_t, windows_by_training[t_idx]):
+                        if not episode_within_windows(
+                            ep, windows_by_training[t_idx]
+                        ):
                             continue
                         passes_walking, _walking_fraction = (
                             _episode_passes_min_walking_fraction(
@@ -1085,11 +1086,12 @@ def _write_turnback_pair_debug_episodes_csv(
                         for ep_idx, ep in enumerate(episodes):
                             if episode_overlaps_wall_contact(ep, wall_regions):
                                 continue
-                            event_t = int(ep["stop"]) - 1
                             matched_windows = [
                                 win
                                 for win in windows_by_training[t_idx]
-                                if _frame_in_windows(event_t, [win])
+                                if episode_within_window(
+                                    ep, win["start"], win["stop"]
+                                )
                             ]
                             if not matched_windows:
                                 continue

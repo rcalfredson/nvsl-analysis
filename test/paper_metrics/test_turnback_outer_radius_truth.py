@@ -31,8 +31,12 @@ class _Trajectory:
         return list(self._episodes)
 
 
-def _episode(stop, turns_back):
-    return {"stop": int(stop), "turns_back": bool(turns_back)}
+def _episode(stop, turns_back, *, start=None):
+    return {
+        "start": int(stop) - 1 if start is None else int(start),
+        "stop": int(stop),
+        "turns_back": bool(turns_back),
+    }
 
 
 def _va(*, trx, noyc=True):
@@ -74,6 +78,38 @@ def test_turnback_outer_radius_masks_below_min_episode_count():
     assert np.isnan(ratio_exp).all()
     np.testing.assert_array_equal(turn_exp, [[2]])
     np.testing.assert_array_equal(total_exp, [[3]])
+
+
+def test_turnback_outer_radius_requires_containment_in_pooled_window():
+    exp = _Trajectory(
+        [
+            _episode(15, True, start=5),
+            _episode(25, False, start=15),
+            _episode(35, True, start=25),
+        ]
+    )
+    va = _va(trx=[exp])
+    va.sync_bucket_ranges = [[(10, 20), (20, 30)]]
+
+    ratio_exp, _, turn_exp, _, total_exp, _, _ = _compute_outer_radius_curves(
+        [va],
+        outer_radii_mm=np.asarray([16.0], dtype=float),
+        legacy_outer_radii=False,
+        inner_radius_mm=None,
+        inner_delta_mm=0.0,
+        border_width_mm=0.1,
+        radius_offset_px=0.0,
+        selected_trainings=[0],
+        skip_first=0,
+        keep_first=0,
+        last_sync_buckets=0,
+        debug=False,
+        min_episodes=1,
+    )
+
+    np.testing.assert_allclose(ratio_exp, [[0.0]])
+    np.testing.assert_array_equal(turn_exp, [[0]])
+    np.testing.assert_array_equal(total_exp, [[1]])
 
 
 def test_turnback_outer_radius_export_applies_exp_target_sync_bucket_filter(

@@ -7,6 +7,7 @@ import numpy as np
 from src.analysis.episode_filters import (
     EPISODE_TYPE_INNER_EXIT_REENTRY,
     episode_filter_accounting_payload,
+    episode_within_windows,
     min_episode_count_for_type,
 )
 from src.analysis.sync_bucket_presence_filters import (
@@ -143,13 +144,6 @@ def _selected_windows_for_va(
     return windows
 
 
-def _frame_in_windows(frame: int, windows) -> bool:
-    for win in windows:
-        if int(win["start"]) <= frame < int(win["stop"]):
-            return True
-    return False
-
-
 def _compute_outer_radius_curves(
     vas,
     *,
@@ -231,8 +225,9 @@ def _compute_outer_radius_curves(
                         continue
 
                     for ep in episodes:
-                        event_t = int(ep["stop"]) - 1
-                        if not _frame_in_windows(event_t, windows_by_training[t_idx]):
+                        if not episode_within_windows(
+                            ep, windows_by_training[t_idx]
+                        ):
                             continue
                         total += 1
                         if bool(ep.get("turns_back", False)):

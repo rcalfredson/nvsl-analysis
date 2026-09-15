@@ -29,6 +29,19 @@ def episode_within_window(episode, window_start, window_stop) -> bool:
     )
 
 
+def episode_within_windows(episode, windows) -> bool:
+    """Return whether an episode is fully contained in any selected window."""
+    for window in windows:
+        try:
+            window_start = window["start"]
+            window_stop = window["stop"]
+        except (KeyError, TypeError):
+            continue
+        if episode_within_window(episode, window_start, window_stop):
+            return True
+    return False
+
+
 @dataclass(frozen=True)
 class EpisodeFilterSpec:
     episode_type: str
