@@ -110,6 +110,7 @@ from src.analysis.large_turns import (
     RewardCircleAnchoredTurnFinder,
 )
 from src.analysis.motion import CircularMotionDetector, DataCombiner
+from src.analysis.rewards_per_distance import rewards_per_distance
 from src.analysis.trajectory import Trajectory
 from src.analysis.training import Training
 from src.plotting.event_chain_plotter import EventChainPlotter
@@ -1299,11 +1300,6 @@ class VideoAnalysis:
             while fi + df < la:
                 i = len(row)
 
-                if self.is_excluded_pair(trj.f, trn.n - 1, i):
-                    row.append(np.nan)
-                    fi += df
-                    continue
-
                 # get distance traveled in meters
                 dist_trav_meters = (
                     trj.distTrav(fi, fi + df)
@@ -1311,7 +1307,7 @@ class VideoAnalysis:
                     / 1000
                 )
 
-                row.append(n_calc[i] / dist_trav_meters)
+                row.append(rewards_per_distance(n_calc[i], dist_trav_meters))
 
                 fi += df
 

@@ -289,6 +289,13 @@ Sharp-turn probability by distance likewise uses its own eligible contact/exit
 opportunities and `--turn_contact_thresh`; reward-PI/SLI eligibility does not mask
 an otherwise measurable probability. SLI-based grouping still requires finite SLI.
 
+Per-sync-bucket rewards per distance likewise uses metric-local eligibility:
+each fly's value is retained when its reward count is finite and its traveled
+distance is finite and positive. Zero rewards produce zero RPD; reward-PI/SLI
+eligibility does not mask the bucket. This preserves the bucketwise ratio
+definition (rewards in the bucket divided by distance in that bucket), which is
+distinct from pooled multi-bucket RPD.
+
 These metrics can be run directly from `analyze.py`; outputs are usually written under `imgs/` plus any CSV/NPZ paths named by the flag.
 
 The default post-analysis rewards-per-minute log summary is followed by training-wide
