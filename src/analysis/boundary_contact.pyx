@@ -7,6 +7,10 @@ import numpy as np
 cimport numpy as cnp
 
 from src.analysis.well_contact import detect_well_contacts_edge_or_center
+from src.analysis.boundary_contact_frame_policy import (
+    complete_contact_regions,
+    interpolation_classifiable_contact,
+)
 from src.plotting.event_chain_plotter import EventChainPlotter
 from src.utils.common import CT, signed_circular_angle_delta
 from src.utils.constants import CONTACT_BUFFER_OFFSETS
@@ -281,7 +285,12 @@ cpdef runBoundaryContactAnalyses(trj, va, offsets, thresholds, opts):
                         ref_mode="edge",
                         return_interpolated=True,
                     )
-                    boundary_dist_calc.update_return_data_for_boundary_contact_stats(edge_wc, False)
+                    edge_wc_interpolated = interpolation_classifiable_contact(
+                        edge_wc_interpolated, trj.nan
+                    )
+                    boundary_dist_calc.update_return_data_for_boundary_contact_stats(
+                        edge_wc_interpolated, False, exclude_censored=True
+                    )
                     boundary_dist_calc.return_data["boundary_event_stats"]["agarose"]["tb"]["edge"][
                         "interpolated_boundary_contact"
                     ] = edge_wc_interpolated
@@ -300,7 +309,12 @@ cpdef runBoundaryContactAnalyses(trj, va, offsets, thresholds, opts):
                         ref_mode="center",
                         return_interpolated=True,
                     )
-                    boundary_dist_calc.update_return_data_for_boundary_contact_stats(ctr_wc, False)
+                    ctr_wc_interpolated = interpolation_classifiable_contact(
+                        ctr_wc_interpolated, trj.nan
+                    )
+                    boundary_dist_calc.update_return_data_for_boundary_contact_stats(
+                        ctr_wc_interpolated, False, exclude_censored=True
+                    )
                     boundary_dist_calc.return_data["boundary_event_stats"]["agarose"]["tb"]["ctr"][
                         "interpolated_boundary_contact"
                     ] = ctr_wc_interpolated
@@ -1446,7 +1460,9 @@ cdef class EllipseToBoundaryDistCalculator:
                 else:  # Bottom boundary
                     return y > boundary
 
-    def update_return_data_for_boundary_contact_stats(self, wall_contact, near_contact, dist_to_wall=None):
+    def update_return_data_for_boundary_contact_stats(
+        self, wall_contact, near_contact, dist_to_wall=None, exclude_censored=False
+    ):
         # Updates the return data structure with statistics related to boundary contact events.
         #
         # This method processes identified boundary contact events, whether they are general wall contacts
@@ -1497,7 +1513,19 @@ cdef class EllipseToBoundaryDistCalculator:
         # Store the original wall_contact_bool before any modifications
         original_wall_contact_bool = wall_contact_bool.copy()
 
+        # Preserve the legacy convention of omitting the first detected region,
+        # then additionally remove recording-edge-censored regions when requested.
         contact_regions = trueRegions(wall_contact_bool)[1:]
+        if exclude_censored:
+            complete_bounds = {
+                (region.start, region.stop)
+                for region in complete_contact_regions(wall_contact)
+            }
+            contact_regions = [
+                region
+                for region in contact_regions
+                if (region.start, region.stop) in complete_bounds
+            ]
         if self.boundary_type == 'wall' and self.boundary_combo == "tb":
             for reg in contact_regions:
                 if self.oob_on_ignored_wall[reg.start] or self.return_data[
