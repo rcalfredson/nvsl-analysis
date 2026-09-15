@@ -9,11 +9,25 @@ from src.analysis.episode_filters import (
     EPISODE_TYPE_INNER_EXIT_REENTRY,
     EPISODE_TYPE_OUTER_ENTRY_REEXIT,
     eligible_by_min_episode_count,
+    episode_within_window,
     episode_filter_accounting,
     episode_filter_accounting_payload,
     mask_metric_by_min_episode_count,
     min_episode_count_for_type,
 )
+
+
+def test_episode_within_window_uses_full_half_open_span():
+    assert episode_within_window({"start": 10, "stop": 20}, 10, 20)
+    assert episode_within_window({"start": 11, "stop": 19}, 10, 20)
+    assert not episode_within_window({"start": 9, "stop": 15}, 10, 20)
+    assert not episode_within_window({"start": 15, "stop": 21}, 10, 20)
+    assert not episode_within_window({"start": 9, "stop": 21}, 10, 20)
+
+
+def test_episode_within_window_rejects_empty_or_malformed_spans():
+    assert not episode_within_window({"start": 10, "stop": 10}, 10, 20)
+    assert not episode_within_window({"start": 10}, 10, 20)
 
 
 def test_episode_filter_defaults_are_episode_type_level():

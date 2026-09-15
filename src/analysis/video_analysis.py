@@ -85,6 +85,7 @@ from src.analysis.between_reward_filters import (
 from src.analysis.episode_filters import (
     EPISODE_TYPE_INNER_EXIT_REENTRY,
     EPISODE_TYPE_OUTER_ENTRY_REEXIT,
+    episode_within_window,
     min_episode_count_for_type,
 )
 from src.analysis.behavior_states import (
@@ -1956,10 +1957,10 @@ class VideoAnalysis:
 
         For each sync bucket, we compute:
             ratio[t, f, b] =
-                (# episodes for fly f whose outcome falls in bucket b and that
+                (# episodes for fly f fully contained in bucket b that
                  re-enter the inner circle before ever leaving the outer circle)
                 /
-                (# all such episodes whose outcome falls in bucket b with an
+                (# all such fully contained episodes with an
                  observed outcome)
 
         Episode definition (per training):
@@ -2064,14 +2065,12 @@ class VideoAnalysis:
                     continue
 
                 for ep in episodes:
-                    # Bin by episode outcome time, not episode start.
-                    # stop is exclusive, so the decisive frame is stop - 1.
-                    event_t = int(ep["stop"]) - 1
                     turns_back = bool(ep.get("turns_back", False))
 
-                    # find which bucket this outcome belongs to within this training
+                    # Count an episode only when its complete [start, stop)
+                    # span lies inside one sync bucket.
                     for b_idx, (sb_start, sb_stop) in enumerate(bucket_ranges):
-                        if sb_start <= event_t < sb_stop:
+                        if episode_within_window(ep, sb_start, sb_stop):
                             total_counts[t_idx, fi, b_idx] += 1
                             if turns_back:
                                 turn_counts[t_idx, fi, b_idx] += 1

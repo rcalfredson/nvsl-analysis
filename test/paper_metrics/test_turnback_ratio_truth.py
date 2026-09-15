@@ -143,7 +143,7 @@ def test_turnback_dual_circle_rejects_invalid_geometry_and_non_circle_training()
     )
 
 
-def test_turnback_ratio_bins_by_outcome_frame_and_leaves_empty_buckets_nan():
+def test_turnback_ratio_requires_full_episode_containment_in_bucket():
     exp = _TrajectoryEpisodes(
         [
             {"start": 1, "stop": 4, "turns_back": True},
@@ -171,9 +171,9 @@ def test_turnback_ratio_bins_by_outcome_frame_and_leaves_empty_buckets_nan():
 
     counts = va.reward_turnback_dual_circle_counts
     np.testing.assert_array_equal(counts["turnback"], [[[1, 1, 0], [0, 0, 0]]])
-    np.testing.assert_array_equal(counts["total"], [[[1, 2, 0], [0, 0, 0]]])
+    np.testing.assert_array_equal(counts["total"], [[[1, 1, 0], [0, 0, 0]]])
     np.testing.assert_allclose(
-        counts["ratio"], [[[1.0, 0.5, np.nan], [np.nan, np.nan, np.nan]]]
+        counts["ratio"], [[[1.0, 1.0, np.nan], [np.nan, np.nan, np.nan]]]
     )
 
     assert exp.calls[0]["inner_delta_mm"] == 4.0
@@ -206,8 +206,8 @@ def test_turnback_ratio_min_episode_filter_masks_low_total_buckets():
     VideoAnalysis.analyzeRewardTurnbackDualCircle(va)
 
     counts = va.reward_turnback_dual_circle_counts
-    np.testing.assert_array_equal(counts["total"], [[[1, 2, 0]]])
-    np.testing.assert_allclose(counts["ratio"], [[[np.nan, 0.5, np.nan]]])
+    np.testing.assert_array_equal(counts["total"], [[[1, 1, 0]]])
+    np.testing.assert_allclose(counts["ratio"], [[[np.nan, np.nan, np.nan]]])
 
 
 def test_turnback_bundle_extraction_keeps_exp_ctrl_axes_and_pads_missing_buckets():

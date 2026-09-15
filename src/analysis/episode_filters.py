@@ -13,6 +13,22 @@ EPISODE_TYPE_OUTER_ENTRY_REEXIT = "outer_entry_reexit"
 DEFAULT_MIN_EPISODES = 5
 
 
+def episode_within_window(episode, window_start, window_stop) -> bool:
+    """Return whether an episode's entire [start, stop) span is in a window."""
+    try:
+        episode_start = int(episode["start"])
+        episode_stop = int(episode["stop"])
+        window_start = int(window_start)
+        window_stop = int(window_stop)
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return False
+    return (
+        episode_start < episode_stop
+        and window_start <= episode_start
+        and episode_stop <= window_stop
+    )
+
+
 @dataclass(frozen=True)
 class EpisodeFilterSpec:
     episode_type: str
