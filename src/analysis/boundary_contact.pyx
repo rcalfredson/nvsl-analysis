@@ -10,6 +10,7 @@ from src.analysis.well_contact import detect_well_contacts_edge_or_center
 from src.analysis.boundary_contact_frame_policy import (
     complete_contact_regions,
     interpolation_classifiable_contact,
+    observed_only_contact,
 )
 from src.plotting.event_chain_plotter import EventChainPlotter
 from src.utils.common import CT, signed_circular_angle_delta
@@ -258,7 +259,8 @@ cpdef runBoundaryContactAnalyses(trj, va, offsets, thresholds, opts):
                         boundary_combo=boundary_combos[0],
                         offset=offsets[bnd_tp],
                         event_thresholds=thresholds[bnd_tp],
-                        ellipse_ref_pt='edge'
+                        ellipse_ref_pt='edge',
+                        exclude_lost_frames=True,
                     )
                     boundary_dist_calc.get_ellipse_ctr_boundary_crossings(
                         offset=offsets[bnd_tp]
@@ -1218,7 +1220,9 @@ cdef class EllipseToBoundaryDistCalculator:
                 | (False if self.boundary_combo == "lr" else oob_ymin)
                 | (False if self.boundary_combo == "lr" else oob_ymax),
             )
-    def _find_boundary_contact_events(self, near_contact):
+    def _find_boundary_contact_events(
+        self, near_contact, exclude_lost_frames=False
+    ):
         """
         Detects boundary contact events by analyzing the ellipse's positions relative 
         to the specified boundaries.
@@ -1403,8 +1407,15 @@ cdef class EllipseToBoundaryDistCalculator:
             if in_event:
                 wall_contact[i] = True
 
+        if exclude_lost_frames:
+            wall_contact = observed_only_contact(
+                np.asarray(wall_contact, dtype=float), self.trj.nan
+            )
         self.update_return_data_for_boundary_contact_stats(
-            wall_contact, near_contact, dist_to_wall
+            wall_contact,
+            near_contact,
+            dist_to_wall,
+            exclude_censored=exclude_lost_frames,
         )
 
     def _crossed_boundary(self, x, y, boundary, boundary_index, toward_center=False):
@@ -1548,7 +1559,17 @@ cdef class EllipseToBoundaryDistCalculator:
             for reg in contact_regions:
                 if np.any(dict_to_update["boundary_contact"][reg.start : reg.stop]):
                     wall_contact_bool[reg.start : reg.stop] = False
-            dict_to_update["near_contact_regions"] = trueRegions(wall_contact_bool)
+            if exclude_censored:
+                near_contact_trace = np.where(
+                    np.isfinite(wall_contact),
+                    wall_contact_bool.astype(float),
+                    np.nan,
+                )
+                dict_to_update["near_contact_regions"] = complete_contact_regions(
+                    near_contact_trace
+                )
+            else:
+                dict_to_update["near_contact_regions"] = trueRegions(wall_contact_bool)
             dict_to_update["near_contact_start_idxs"] = np.array(
                 [s.start for s in dict_to_update["near_contact_regions"]]
             )
@@ -1934,7 +1955,12 @@ cdef class EllipseToBoundaryDistCalculator:
             boundary_contact[i] = 0
         for i in range(len(self.x)):
             checkFrame(i)
-        self.update_return_data_for_boundary_contact_stats(boundary_contact, False)
+        boundary_contact = interpolation_classifiable_contact(
+            boundary_contact, self.trj.nan
+        )
+        self.update_return_data_for_boundary_contact_stats(
+            boundary_contact, False, exclude_censored=True
+        )
 
     def find_subset_at_or_below_duration(
         self, duration_in_frames, min_vel_angle_delta, ellipse_ref_pt
@@ -2162,7 +2188,8 @@ cdef class EllipseToBoundaryDistCalculator:
         offset,
         event_thresholds,
         ellipse_edge_pt='closest',
-        ellipse_ref_pt='edge'
+        ellipse_ref_pt='edge',
+        exclude_lost_frames=False,
     ):
         # Calculates the minimum distance of ellipses (representing entities) to specified
         # boundaries within a defined chamber area. This method adjusts the chamber bounds and
@@ -2255,4 +2282,6 @@ cdef class EllipseToBoundaryDistCalculator:
             self._set_event_thresholds(
                 boundary_combo, event_thresholds, near_contact=near_contact
             )
-            self._find_boundary_contact_events(near_contact)
+            self._find_boundary_contact_events(
+                near_contact, exclude_lost_frames
+            )

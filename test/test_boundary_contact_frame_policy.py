@@ -3,6 +3,7 @@ import numpy as np
 from src.analysis.boundary_contact_frame_policy import (
     complete_contact_regions,
     interpolation_classifiable_contact,
+    observed_only_contact,
 )
 
 
@@ -38,3 +39,12 @@ def test_contact_after_known_noncontact_is_not_left_censored():
 
 def test_fully_observed_contact_is_complete():
     assert _bounds(complete_contact_regions([0, 1, 1, 0])) == [(1, 3)]
+
+
+def test_observed_only_contact_marks_internal_lost_frames_unknown():
+    contact = observed_only_contact(
+        [0, 1, 1, 1, 0], [False, False, True, False, False]
+    )
+
+    np.testing.assert_equal(contact, [0, 1, np.nan, 1, 0])
+    assert complete_contact_regions(contact) == []

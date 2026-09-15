@@ -20,6 +20,16 @@ def interpolation_classifiable_contact(contact, lost):
     return contact
 
 
+def observed_only_contact(contact, lost):
+    """Mark originally lost frames unknown when a metric requires observed inputs."""
+    contact = np.asarray(contact, dtype=float).copy()
+    lost = np.asarray(lost, dtype=bool)
+    if contact.shape != lost.shape:
+        raise ValueError("contact and lost masks must have matching shapes")
+    contact[lost] = np.nan
+    return contact
+
+
 def complete_contact_regions(contact):
     """Return contact regions bounded on both sides by known non-contact frames."""
     contact = np.asarray(contact, dtype=float)
