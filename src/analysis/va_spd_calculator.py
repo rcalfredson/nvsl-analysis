@@ -4,7 +4,10 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from src.analysis.reward_range_calculator import RewardRangeCalculator
+from src.analysis.reward_range_calculator import (
+    RewardRangeCalculator,
+    unfiltered_sync_measurement_ranges,
+)
 
 if TYPE_CHECKING:
     from src.analysis.trajectory import Trajectory
@@ -64,32 +67,7 @@ class VASpeedCalculator:
 
     def _unfiltered_speed_ranges(self):
         """Return the historical speed windows without reward-PI eligibility."""
-        first_training = self.va.trns[0]
-        ranges = [
-            slice(
-                first_training.start - self.va.fps * 10 * 60,
-                first_training.start,
-            )
-        ]
-        for t_idx, training in enumerate(self.va.trns):
-            buckets = np.asarray(self.va.buckets[t_idx], dtype=float)
-            finite_buckets = buckets[np.isfinite(buckets)]
-            if training.n == 1:
-                start = buckets[0] if buckets.size >= 1 else np.nan
-                stop = buckets[1] if buckets.size >= 2 else np.nan
-            else:
-                start = (
-                    buckets[-3]
-                    if buckets.size >= 3 and finite_buckets.size >= 2
-                    else np.nan
-                )
-                stop = (
-                    buckets[-2]
-                    if buckets.size >= 2 and finite_buckets.size >= 1
-                    else np.nan
-                )
-            ranges.append(slice(start, stop))
-        return ranges
+        return unfiltered_sync_measurement_ranges(self.va)
 
     def _calc_average_speeds(self, start_frame, end_frame):
         """

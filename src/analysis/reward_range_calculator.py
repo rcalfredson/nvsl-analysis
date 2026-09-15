@@ -8,6 +8,39 @@ if TYPE_CHECKING:
     from src.analysis.video_analysis_interface import VideoAnalysisInterface
 
 
+def unfiltered_sync_measurement_ranges(va) -> list[slice]:
+    """Return the pre/T1/later-training windows without reward-PI filtering."""
+    if not va.trns:
+        return []
+
+    first_training = va.trns[0]
+    ranges = [
+        slice(
+            first_training.start - va.fps * 10 * 60,
+            first_training.start,
+        )
+    ]
+    for t_idx, training in enumerate(va.trns):
+        buckets = np.asarray(va.buckets[t_idx], dtype=float)
+        finite_buckets = buckets[np.isfinite(buckets)]
+        if training.n == 1:
+            start = buckets[0] if buckets.size >= 1 else np.nan
+            stop = buckets[1] if buckets.size >= 2 else np.nan
+        else:
+            start = (
+                buckets[-3]
+                if buckets.size >= 3 and finite_buckets.size >= 2
+                else np.nan
+            )
+            stop = (
+                buckets[-2]
+                if buckets.size >= 2 and finite_buckets.size >= 1
+                else np.nan
+            )
+        ranges.append(slice(start, stop))
+    return ranges
+
+
 class RewardRangeCalculator:
     def __init__(self, va: VideoAnalysisInterface, opts):
         """

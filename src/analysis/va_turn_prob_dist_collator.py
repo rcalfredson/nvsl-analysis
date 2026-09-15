@@ -4,7 +4,11 @@ from src.analysis.boundary_contact import runBndContactAnalysisForCtrReferencePt
 from src.analysis.circle_contact import runCircleContactAnalysisUsingOutside
 from src.utils.common import CT
 from src.plotting.event_chain_plotter import EventChainPlotter
-from src.analysis.reward_range_calculator import RewardRangeCalculator
+from src.analysis.reward_range_calculator import (
+    RewardRangeCalculator,
+    unfiltered_sync_measurement_ranges,
+)
+from src.analysis.turn_probability import turn_probabilities_in_range
 from src.analysis.video_analysis_interface import VideoAnalysisInterface
 
 
@@ -59,6 +63,7 @@ class VATurnProbabilityDistanceCollator:
         if not hasattr(self.va, "reward_ranges"):
             rr_calc = RewardRangeCalculator(self.va, self.opts)
             rr_calc.calculate_reward_ranges()
+        measurement_ranges = unfiltered_sync_measurement_ranges(self.va)
 
         self.va.turn_prob_by_distance = {}
 
@@ -67,7 +72,7 @@ class VATurnProbabilityDistanceCollator:
             for traj in self.va.trx:
                 if traj.bad():
                     self.va.turn_prob_by_distance[dist].append(
-                        len(self.va.reward_ranges) * [(np.nan, np.nan)]
+                        len(measurement_ranges) * [(np.nan, np.nan)]
                     )
                     continue
                 self.va.turn_prob_by_distance[dist].append([])
@@ -167,33 +172,12 @@ class VATurnProbabilityDistanceCollator:
                 )[btp]["ctr"]["all"]
                 contact_start_data = be_stats[btp][bcombo][ref_pt]["contact_start_idxs"]
 
-                for j, reward_range in enumerate(self.va.reward_ranges):
-                    if self.va.pair_exclude[j]:
-                        self.va.turn_prob_by_distance[dist][-1].append((np.nan, np.nan))
-                        continue
-                    num_contact_evts = len(
-                        contact_start_data[
-                            (contact_start_data >= reward_range.start)
-                            & (contact_start_data <= reward_range.stop)
-                        ]
-                    )
-                    if num_contact_evts < self.opts.turn_contact_thresh:
-                        self.va.turn_prob_by_distance[dist][-1].append((np.nan, np.nan))
-                        continue
-                    start = int(reward_range.start)
-                    stop = int(reward_range.stop + 1)
-                    num_turns_toward = sum(
-                        1
-                        for frame in range(start, stop)
-                        if turn_results.get(frame, False) == True
-                    )
-                    num_turns_away = sum(
-                        1
-                        for frame in range(start, stop)
-                        if frame in turn_results and turn_results[frame] == False
-                    )
-                    ratio_toward = num_turns_toward / num_contact_evts
-                    ratio_away = num_turns_away / num_contact_evts
+                for reward_range in measurement_ranges:
                     self.va.turn_prob_by_distance[dist][-1].append(
-                        (ratio_toward, ratio_away)
+                        turn_probabilities_in_range(
+                            contact_start_data,
+                            turn_results,
+                            reward_range,
+                            min_contact_events=self.opts.turn_contact_thresh,
+                        )
                     )

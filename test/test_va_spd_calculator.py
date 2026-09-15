@@ -32,6 +32,22 @@ def test_speed_ranges_preserve_windows_when_reward_pi_is_undefined():
     assert ranges == [slice(0, 6000), slice(6100, 6200), slice(12200, 12300)]
 
 
+def test_missing_designated_later_bucket_does_not_fall_back_to_earlier_bucket():
+    va = SimpleNamespace(
+        fps=10,
+        trns=[SimpleNamespace(n=1, start=6000), SimpleNamespace(n=2, start=12000)],
+        buckets=[
+            np.asarray([6100, 6200, 6300, 6400, 6500, 6600, 6700]),
+            np.asarray([12100, 12200, 12300, 12400, np.nan, np.nan, np.nan]),
+        ],
+    )
+
+    later_range = _calculator(va)._unfiltered_speed_ranges()[2]
+
+    assert np.isnan(later_range.start)
+    assert np.isnan(later_range.stop)
+
+
 def test_average_speed_does_not_depend_on_pair_exclusion():
     trajectory = SimpleNamespace(
         sp=np.asarray([2.0, 4.0, 6.0]),

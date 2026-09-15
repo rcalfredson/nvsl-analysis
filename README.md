@@ -285,6 +285,10 @@ samples, with optional wall-contact exclusion. Reward-PI/SLI eligibility does no
 erase otherwise measurable speed values; analyses that intentionally select or
 correlate by SLI still require a finite SLI for inclusion.
 
+Sharp-turn probability by distance likewise uses its own eligible contact/exit
+opportunities and `--turn-contact-thresh`; reward-PI/SLI eligibility does not mask
+an otherwise measurable probability. SLI-based grouping still requires finite SLI.
+
 These metrics can be run directly from `analyze.py`; outputs are usually written under `imgs/` plus any CSV/NPZ paths named by the flag.
 
 The default post-analysis rewards-per-minute log summary is followed by training-wide
