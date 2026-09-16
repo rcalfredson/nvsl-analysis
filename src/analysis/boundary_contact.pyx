@@ -234,7 +234,8 @@ cpdef runBoundaryContactAnalyses(trj, va, offsets, thresholds, opts):
                     boundary_combo=boundary_combo,
                     offset=offsets[bnd_tp],
                     event_thresholds=wall_thr,
-                    ellipse_ref_pt="edge"  # Use edge reference point for walls
+                    ellipse_ref_pt="edge",  # Use edge reference point for walls
+                    exclude_lost_frames=True
                 )
                 findTurns(va, opts, boundary_dist_calc, bnd_tp, boundary_combo, ellipse_ref_pt="edge")
         else:
@@ -1524,31 +1525,35 @@ cdef class EllipseToBoundaryDistCalculator:
         # Store the original wall_contact_bool before any modifications
         original_wall_contact_bool = wall_contact_bool.copy()
 
+        def contactRegions():
+            regions = trueRegions(wall_contact_bool)[1:]
+            if exclude_censored:
+                complete_bounds = {
+                    (region.start, region.stop)
+                    for region in complete_contact_regions(wall_contact)
+                }
+                regions = [
+                    region
+                    for region in regions
+                    if (region.start, region.stop) in complete_bounds
+                ]
+            return regions
+
         # Preserve the legacy convention of omitting the first detected region,
         # then additionally remove recording-edge-censored regions when requested.
-        contact_regions = trueRegions(wall_contact_bool)[1:]
-        if exclude_censored:
-            complete_bounds = {
-                (region.start, region.stop)
-                for region in complete_contact_regions(wall_contact)
-            }
-            contact_regions = [
-                region
-                for region in contact_regions
-                if (region.start, region.stop) in complete_bounds
-            ]
+        contact_regions = contactRegions()
         if self.boundary_type == 'wall' and self.boundary_combo == "tb":
             for reg in contact_regions:
                 if self.oob_on_ignored_wall[reg.start] or self.return_data[
                     'boundary_event_stats'
                 ]['wall']['all']['edge']['boundary_contact'][reg.start]:
                     wall_contact_bool[reg] = False
-            contact_regions = trueRegions(wall_contact_bool)[1:]
+            contact_regions = contactRegions()
         if self.boundary_combo == "lr":
             for reg in contact_regions:
                 if self.best_wall_indices[reg.start] in (1, 3):
                     wall_contact_bool[reg] = False
-            contact_regions = trueRegions(wall_contact_bool)[1:]
+            contact_regions = contactRegions()
         if self.ellipse_ref_pt == "edge":
             if self.ellipse_edge_pt == 'opposite':
                 self.ellipse_ref_pt = "opp_edge"
@@ -1899,7 +1904,8 @@ cdef class EllipseToBoundaryDistCalculator:
                     "vert": wall_thresholds
                 },
                 ellipse_ref_pt="edge",
-                ellipse_edge_pt=ellipse_edge_pt
+                ellipse_edge_pt=ellipse_edge_pt,
+                exclude_lost_frames=True,
             )
 
     def get_ellipse_ctr_boundary_crossings(self, offset):
