@@ -749,6 +749,10 @@ p.add_argument(
 
 g = p.add_argument_group("specialized analysis")
 g.add_argument(
+    "--protocol-audit-report", action="store_true",
+    help="emit structured training/control protocol records for auditing",
+)
+g.add_argument(
     "--rpd", action="store_true", help="analyze rewards by distance traveled"
 )
 g.add_argument(

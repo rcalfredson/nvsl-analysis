@@ -1,6 +1,7 @@
 # standard libraries
 import enum
 import itertools
+import json
 import math
 
 # third-party libraries
@@ -57,6 +58,14 @@ class Training:
     # returns whether this training has symmetrical control circle
     def hasSymCtrl(self):
         return self.tp in self.HAS_SYM_CTRL or self.sym
+
+    def reportProtocolAudit(self):
+        """Emit one structured record after training/control geometry is finalized."""
+        print("PROTOCOL_AUDIT " + json.dumps({
+            "training": self.n,
+            "type": str(self.tp),
+            "hasSymCtrl": bool(self.hasSymCtrl()),
+        }), flush=True)
 
     def _symCtrl(self):
         self.sym = True
@@ -516,3 +525,6 @@ class Training:
         Training._setCircles(trns, cyu, opts)
         Training._setYTopBottom(trns)
         Training._setExperimentDescriptor(trns, opts)
+        if getattr(opts, "protocol_audit_report", False):
+            for t in trns:
+                t.reportProtocolAudit()
