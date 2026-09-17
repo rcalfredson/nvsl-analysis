@@ -17,7 +17,8 @@ from src.plotting.between_reward_segment_metrics import dist_traveled_mm_masked
 
 class ReturnLegDistPerFlyCollector:
     """
-    Shared collector for between-reward return-leg (tail) distance *scalars*:
+    Shared collector for between-reward return-leg (tail) distance *scalars*.
+    Return paths include the ending reward frame and its incoming step:
 
     - Returns per-training lists of (unit_id, mean_return_leg_distance_mm_per_segment)
     - Honors cfg.skip_first_sync_buckets / cfg.keep_first_sync_buckets
@@ -139,7 +140,14 @@ class ReturnLegDistPerFlyCollector:
                         log_tag="btw_rwd_return_leg_dist",
                         warned_missing_wc=warned_missing_wc,
                     )
-                    nonwalk_mask = build_nonwalk_mask(self.opts, va, f, fi, n_frames)
+                    nonwalk_mask = build_nonwalk_mask(
+                        self.opts,
+                        va,
+                        f,
+                        fi,
+                        # Cover endpoints even when an episode crosses the selected window.
+                        max(n_frames + 1, int(trn.stop) - fi),
+                    )
 
                     traj = va.trx[f]
                     px_per_mm = self._px_per_mm(va)
@@ -179,7 +187,8 @@ class ReturnLegDistPerFlyCollector:
                         dt_tail = dist_traveled_mm_masked(
                             traj=traj,
                             s=s,
-                            e=e,
+                            # Include the ending reward coordinate and step e-1 -> e.
+                            e=e + 1,
                             fi=fi,
                             nonwalk_mask=nonwalk_mask,
                             exclude_nonwalk=exclude_nonwalk,
@@ -340,7 +349,14 @@ class ReturnLegDistPerFlyCollector:
                         log_tag="btw_rwd_return_leg_dist",
                         warned_missing_wc=warned_missing_wc,
                     )
-                    nonwalk_mask = build_nonwalk_mask(self.opts, va, f, fi, n_frames)
+                    nonwalk_mask = build_nonwalk_mask(
+                        self.opts,
+                        va,
+                        f,
+                        fi,
+                        # Cover endpoints even when an episode crosses the selected window.
+                        max(n_frames + 1, int(trn.stop) - fi),
+                    )
 
                     px_per_mm = self._px_per_mm(va)
                     if px_per_mm is None:
@@ -383,7 +399,8 @@ class ReturnLegDistPerFlyCollector:
                         dt_tail = dist_traveled_mm_masked(
                             traj=traj,
                             s=s,
-                            e=e,
+                            # Include the ending reward coordinate and step e-1 -> e.
+                            e=e + 1,
                             fi=fi,
                             nonwalk_mask=nonwalk_mask,
                             exclude_nonwalk=exclude_nonwalk,

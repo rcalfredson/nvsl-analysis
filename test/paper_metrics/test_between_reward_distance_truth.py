@@ -289,8 +289,8 @@ def test_return_leg_collector_averages_by_sync_bucket_and_honors_nonwalk_option(
         collector.collect_return_leg_sync_bucket_arrays()
     )
 
-    np.testing.assert_allclose(mean_exp, [[[0.5, 0.5]]])
-    np.testing.assert_allclose(mean_ctrl, [[[2.0, np.nan]]])
+    np.testing.assert_allclose(mean_exp, [[[1.0, 1.0]]])
+    np.testing.assert_allclose(mean_ctrl, [[[3.0, np.nan]]])
     np.testing.assert_array_equal(n_exp, [[[2, 1]]])
     np.testing.assert_array_equal(n_ctrl, [[[1, 0]]])
 
@@ -380,7 +380,7 @@ def test_return_leg_sync_bucket_filter_masks_low_count_buckets():
         collector.collect_return_leg_sync_bucket_arrays()
     )
 
-    np.testing.assert_allclose(mean_exp, [[[0.5, np.nan]]])
+    np.testing.assert_allclose(mean_exp, [[[1.0, np.nan]]])
     np.testing.assert_array_equal(n_exp, [[[2, 1]]])
 
 
@@ -435,7 +435,7 @@ def test_return_leg_bundle_applies_exp_target_sync_bucket_filter(monkeypatch):
 
     assert np.isnan(bundle["between_reward_return_leg_dist_exp"]).all()
     np.testing.assert_allclose(
-        bundle["between_reward_return_leg_dist_ctrl"], [[[2.0, np.nan]]]
+        bundle["between_reward_return_leg_dist_ctrl"], [[[3.0, np.nan]]]
     )
     np.testing.assert_array_equal(
         bundle["between_reward_return_leg_distN_exp"], [[[2, 1]]]
@@ -484,7 +484,7 @@ def test_return_leg_scalar_bars_filter_after_pooling_selected_episodes():
     assert data["panel_labels"] == ["Selected trainings combined"]
     assert int(data["n_units_panel"][0]) == 1
     np.testing.assert_allclose(
-        np.asarray(data["per_unit_values_panel"][0], dtype=float), [0.5]
+        np.asarray(data["per_unit_values_panel"][0], dtype=float), [1.0]
     )
     assert data["meta"]["training_selection"]["trainings_effective"] == [1, 2]
 
@@ -524,3 +524,33 @@ def test_return_leg_scalar_bars_single_training_filter_uses_selected_episode_cou
     assert data["panel_labels"] == ["T1"]
     assert int(data["n_units_panel"][0]) == 0
     assert data["per_unit_values_panel"][0].size == 0
+
+
+def test_return_leg_includes_reward_endpoint_step_in_buckets_and_scalar_means():
+    # Max at frame 2, last outside frame 3, reward endpoint 4.
+    traj = _Trajectory(x=[0, 0, 10, 8, 0, 0], walking=np.ones(6, dtype=bool))
+    va = _Video(
+        trx=[traj],
+        segments_by_fly={0: [_segment(s=0, e=4, b_idx=0, max_i=2)]},
+    )
+    collector = ReturnLegDistPerFlyCollector()
+    collector.vas = [va]
+    collector.opts = SimpleNamespace(
+        btw_rwd_return_leg_dist_exclude_nonwalking_frames=True,
+        btw_rwd_sync_bucket_min_trajectories=0,
+    )
+    collector.cfg = SimpleNamespace(skip_first_sync_buckets=0, keep_first_sync_buckets=0)
+    means, _, counts, _ = collector.collect_return_leg_sync_bucket_arrays()
+    assert means[0, 0, 0] == 5.0  # (2 + 8) px / 2 px/mm
+    assert counts[0, 0, 0] == 1
+    aggregates = collector._collect_return_leg_aggregates_by_training_per_fly()
+    assert aggregates[0][0][1:] == (5.0, 1)
+
+    # Both coordinates must still be eligible for the final step to count.
+    traj.walking[4] = False
+    means, _, _, _ = collector.collect_return_leg_sync_bucket_arrays()
+    assert means[0, 0, 0] == 1.0
+    traj.walking[4] = True
+    traj.x[4] = np.nan
+    means, _, _, _ = collector.collect_return_leg_sync_bucket_arrays()
+    assert means[0, 0, 0] == 1.0
