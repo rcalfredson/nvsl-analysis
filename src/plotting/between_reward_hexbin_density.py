@@ -645,7 +645,9 @@ def collect_per_fly_segment_points(
                 log_tag=log_tag,
                 warned_missing_wc=warned_missing_wc,
             )
-            nonwalk_mask = build_nonwalk_mask(opts, va, trx_idx, fi, n_frames)
+            nonwalk_mask = build_nonwalk_mask(
+                opts, va, trx_idx, fi, max(n_frames + 1, int(trn.stop) - fi)
+            )
 
             traj = va.trx[trx_idx]
             pts: list[tuple[float, float]] = []
@@ -687,7 +689,7 @@ def collect_per_fly_segment_points(
                 Ltotal = dist_traveled_mm_masked(
                     traj=traj,
                     s=s,
-                    e=e,
+                    e=e + 1,
                     fi=fi,
                     nonwalk_mask=nonwalk_mask,
                     exclude_nonwalk=exclude_nonwalk,
@@ -702,7 +704,7 @@ def collect_per_fly_segment_points(
                     Lreturn = dist_traveled_mm_masked(
                         traj=traj,
                         s=s,
-                        e=e,
+                        e=e + 1,
                         fi=fi,
                         nonwalk_mask=nonwalk_mask,
                         exclude_nonwalk=exclude_nonwalk,

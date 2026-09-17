@@ -545,7 +545,7 @@ class Trajectory:
         Return 'reward return distance' episodes for one training.
 
         Change vs previous behavior:
-        - Distance is computed from all finite frames in the success window [start, reward_entry),
+        - Distance is computed from all finite frames in the success window [start, reward_entry],
             not just walking frames.
         - Optionally drop success episodes if the fraction of walking frames in the success
             window is below `min_walking_frac` (e.g. 0.6). This is a QC filter.
@@ -726,7 +726,7 @@ class Trajectory:
             k_abs = int(t0 + k_rel)
 
             if exclude_wall_contact and wall_contact_regions:
-                if _any_wall_overlap(s_abs, k_abs):
+                if _any_wall_overlap(s_abs, k_abs + 1):
                     dropped_wall += 1
                     episodes.append(
                         {
@@ -746,9 +746,9 @@ class Trajectory:
             # QC: walking fraction over the success window
             walking_frac = None
             if hasattr(self, "walking") and self.walking is not None and k_abs > s_abs:
-                xw = np.asarray(self.x[s_abs:k_abs])
-                yw = np.asarray(self.y[s_abs:k_abs])
-                w = np.asarray(self.walking[s_abs:k_abs], dtype=bool)
+                xw = np.asarray(self.x[s_abs : k_abs + 1])
+                yw = np.asarray(self.y[s_abs : k_abs + 1])
+                w = np.asarray(self.walking[s_abs : k_abs + 1], dtype=bool)
                 finite = np.isfinite(xw) & np.isfinite(yw)
                 denom = int(np.sum(finite))
                 if denom > 0:
@@ -776,11 +776,12 @@ class Trajectory:
                     continue
 
             # distance over all finite steps (no walking gating)
-            if k_abs <= s_abs + 1:
+            if k_abs <= s_abs:
                 dist = 0.0
             else:
                 dist = _path_dist_px(
-                    np.asarray(self.x[s_abs:k_abs]), np.asarray(self.y[s_abs:k_abs])
+                    np.asarray(self.x[s_abs : k_abs + 1]),
+                    np.asarray(self.y[s_abs : k_abs + 1]),
                 )
 
             if debug and debug_pause_over_mm is not None:

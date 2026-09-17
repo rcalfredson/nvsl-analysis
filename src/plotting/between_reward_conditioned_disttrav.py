@@ -287,7 +287,7 @@ class BetweenRewardConditionedDistTravConfig:
         - x-axis: max distance from reward center during segment (mm)
 
     Metrics per segment:
-        - total distance traveled over [s, e) frames (step indices [s, e-1))
+        - total distance traveled over [s, e] frames (step indices [s, e))
         - tail distance traveled from max-distance frame to end (same step semantics)
 
     Aggregation:
@@ -687,7 +687,10 @@ class BetweenRewardConditionedDistTravPlotter:
                     warned_missing_wc=warned_missing_wc,
                     enabled=exclude_wall,
                 )
-                nonwalk_mask = build_nonwalk_mask(self.opts, va, trx_idx, fi, n_frames)
+                nonwalk_mask = build_nonwalk_mask(
+                    self.opts, va, trx_idx, fi,
+                    max(n_frames + 1, int(trn.stop) - fi),
+                )
 
                 traj = va.trx[trx_idx]
                 dist_stats = ("median", "max")
@@ -731,7 +734,7 @@ class BetweenRewardConditionedDistTravPlotter:
                     dt_total = dist_traveled_mm_masked(
                         traj=traj,
                         s=s,
-                        e=e,
+                        e=e + 1,
                         fi=fi,
                         nonwalk_mask=nonwalk_mask,
                         exclude_nonwalk=exclude_nonwalk,
@@ -742,7 +745,7 @@ class BetweenRewardConditionedDistTravPlotter:
                     dt_tail = dist_traveled_mm_masked(
                         traj=traj,
                         s=s,
-                        e=e,
+                        e=e + 1,
                         fi=fi,
                         nonwalk_mask=nonwalk_mask,
                         exclude_nonwalk=exclude_nonwalk,
@@ -1055,7 +1058,10 @@ class BetweenRewardConditionedDistTravPlotter:
                     warned_missing_wc=warned_missing_wc,
                     enabled=exclude_wall,
                 )
-                nonwalk_mask = build_nonwalk_mask(self.opts, va, trx_idx, fi, n_frames)
+                nonwalk_mask = build_nonwalk_mask(
+                    self.opts, va, trx_idx, fi,
+                    max(n_frames + 1, int(trn.stop) - fi),
+                )
 
                 traj = va.trx[trx_idx]
 
@@ -1107,7 +1113,7 @@ class BetweenRewardConditionedDistTravPlotter:
                     dt_total = dist_traveled_mm_masked(
                         traj=traj,
                         s=s,
-                        e=e,
+                        e=e + 1,
                         fi=fi,
                         nonwalk_mask=nonwalk_mask,
                         exclude_nonwalk=exclude_nonwalk,
@@ -1118,7 +1124,7 @@ class BetweenRewardConditionedDistTravPlotter:
                     dt_tail = dist_traveled_mm_masked(
                         traj=traj,
                         s=s,
-                        e=e,
+                        e=e + 1,
                         fi=fi,
                         nonwalk_mask=nonwalk_mask,
                         exclude_nonwalk=exclude_nonwalk,

@@ -558,7 +558,7 @@ def _collect_records(
                         tortuosity = _off_wall_path_over_max_radius(
                             traj=traj,
                             s=metric_start,
-                            e=e,
+                            e=e + 1,
                             fi=fi,
                             wall_mask=wc,
                             nonwalk_mask=nonwalk,
@@ -572,7 +572,7 @@ def _collect_records(
                         tortuosity = tortuosity_metric_masked(
                             traj=traj,
                             s=metric_start,
-                            e=e,
+                            e=e + 1,
                             fi=fi,
                             nonwalk_mask=nonwalk,
                             exclude_nonwalk=exclude_nonwalk,
@@ -600,6 +600,7 @@ def _collect_records(
                                     "segment_stop": int(e),
                                     "global_max_frame": int(max_i),
                                     "metric_start": int(metric_start),
+                                    "metric_stop": int(e + 1),
                                     "radial_mm": float(radial_mm),
                                     "tortuosity": float(tortuosity),
                                     "window_start": int(fi),
@@ -1088,6 +1089,7 @@ def export_return_leg_tortuosity_excursion_bin_sli_bundle(vas, opts, gls, out_fn
                 else "; return leg starts at the maximum distance after the "
                 "episode's final wall contact"
             )
+            + "; return path includes the ending reward frame"
             + (
                 "; path distance excludes steps touching wall-contact frames"
                 if _exclude_wall_contact_frames(opts)

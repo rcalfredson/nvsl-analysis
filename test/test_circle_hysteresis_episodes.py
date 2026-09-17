@@ -45,6 +45,7 @@ def test_reward_return_distance_entries_require_full_border_crossings():
         (ep["start"], ep["stop"], ep["reward_entry"], ep["success"])
         for ep in episodes
     ] == [(2, 5, 5, True)]
+    assert episodes[0]["dist"] == 6.0  # Includes frame 4 -> reward-entry frame 5.
 
 
 def test_circular_contact_region_spans_outer_to_inner_border_crossings(capsys):
@@ -81,3 +82,30 @@ def test_circular_contact_region_spans_outer_to_inner_border_crossings(capsys):
     assert stats["contact_start_idxs"].tolist() == [2]
     assert trj.outside_durations == [{10.0: [2]}]
     capsys.readouterr()
+
+
+def test_reward_return_distance_counts_single_step_and_filters_endpoint():
+    trj = object.__new__(Trajectory)
+    trj.x = np.array([17.0, 15.0, 9.0])
+    trj.y = np.zeros(3)
+    trj.walking = np.array([True, True, False])
+    trj.f = 0
+    trj.va = SimpleNamespace(
+        xf=SimpleNamespace(fctr=1.0),
+        ct=SimpleNamespace(pxPerMmFloor=lambda: 1.0),
+    )
+    common = dict(trn=_CircleTraining(stop=3), return_delta_mm=6.0)
+    episodes = trj.reward_return_distance_episodes_for_training(
+        **common, min_walking_frac=None,
+    )
+    assert episodes[0]["dist"] == 6.0
+    assert episodes[0]["walking_frac"] == 0.5
+    episodes = trj.reward_return_distance_episodes_for_training(
+        **common, min_walking_frac=0.6,
+    )
+    assert episodes[0]["end_reason"] == "dropped_low_walking"
+    episodes = trj.reward_return_distance_episodes_for_training(
+        **common, min_walking_frac=None, exclude_wall_contact=True,
+        wall_contact_regions=[slice(2, 3)],
+    )
+    assert episodes[0]["end_reason"] == "dropped_wall"

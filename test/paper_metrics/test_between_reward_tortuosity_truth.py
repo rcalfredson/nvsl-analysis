@@ -121,3 +121,26 @@ def test_tortuosity_mean_swarm_applies_exp_target_sync_bucket_filter():
 
     assert data["panel_labels"] == []
     assert data["per_unit_values_panel"].size == 0
+
+
+def test_return_leg_mean_swarm_includes_ending_reward_frame():
+    va = _Video()
+    traj = va.trx[0]
+    traj.x = np.array([0, 0, 10, 8, 0, 0], dtype=float)
+    traj.y = np.zeros(6)
+    traj.d = np.abs(np.diff(traj.x))
+    va._iter_between_reward_segment_com = lambda *_args, **_kwargs: iter([
+        SimpleNamespace(s=0, e=4, b_idx=0, max_d_i=2),
+    ])
+    cfg = BetweenRewardTortuosityMeanSwarmConfig(
+        out_file="unused.png", trainings=[1], segment_scope="return_leg",
+        metric_mode="path_over_max_radius", min_segments_per_fly=1,
+    )
+    plotter = BetweenRewardTortuosityMeanSwarmPlotter(
+        vas=[va], opts=SimpleNamespace(min_between_reward_trajectories=1),
+        gls=None, customizer=None, cfg=cfg,
+    )
+    data = plotter.compute_scalar_panels()
+    np.testing.assert_allclose(
+        np.asarray(data["per_unit_values_panel"][0], dtype=float), [1.0]
+    )

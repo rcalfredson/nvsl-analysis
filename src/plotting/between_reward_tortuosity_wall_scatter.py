@@ -185,6 +185,8 @@ class BetweenRewardTortuosityWallScatterExporter:
                     continue
 
                 n_frames = int(max(1, n_buckets * df))
+                if needs_max_frame and not self.cfg.exclude_reward_endpoints:
+                    n_frames = max(n_frames + 1, int(trn.stop) - fi)
                 wc = build_wall_contact_mask_for_window(
                     va,
                     f,
@@ -235,6 +237,8 @@ class BetweenRewardTortuosityWallScatterExporter:
                     endpoint_offset = 1 if self.cfg.exclude_reward_endpoints else 0
                     s = int(seg.s) + endpoint_offset
                     e = int(seg.e) - endpoint_offset
+                    if needs_max_frame and not self.cfg.exclude_reward_endpoints:
+                        e += 1  # Include the reward endpoint in path and wall fraction.
                     if e <= s:
                         continue
                     if needs_max_frame:

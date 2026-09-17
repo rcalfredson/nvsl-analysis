@@ -247,8 +247,8 @@ def test_conditioned_distance_traveled_bins_total_and_return_leg_per_fly():
 
     y_total, y_tail, unit_ids, meta = plotter._collect_per_fly_binned_means()
 
-    np.testing.assert_allclose(y_total, [[1.5, 1.5]])
-    np.testing.assert_allclose(y_tail, [[0.5, 1.0]])
+    np.testing.assert_allclose(y_total, [[2.0, 2.0]])
+    np.testing.assert_allclose(y_tail, [[1.0, 1.5]])
     assert unit_ids.tolist() == ["fake-video|fly=7|trx=0"]
     assert meta["units"] == "mm"
 
@@ -554,3 +554,69 @@ def test_return_leg_includes_reward_endpoint_step_in_buckets_and_scalar_means():
     traj.x[4] = np.nan
     means, _, _, _ = collector.collect_return_leg_sync_bucket_arrays()
     assert means[0, 0, 0] == 1.0
+
+
+def test_return_leg_tortuosity_export_and_example_components_include_endpoint():
+    from src.exporting.return_leg_tortuosity_excursion_bin_sli_bundle import _collect_records
+    from src.exporting.return_leg_tortuosity_excursion_bin_examples import _metric_components
+
+    traj = _Trajectory(x=[0, 0, 10, 8, 0, 0])
+    va = _Video(
+        trx=[traj],
+        segments_by_fly={0: [_segment(s=0, e=4, b_idx=0, max_i=2, max_d_mm=5.0)]},
+    )
+    va.trns[0].isCircle = lambda: True
+    details = []
+    for mode, expected in [("path_over_max_radius", 1.0), ("path_over_displacement", 1.0), ("straightness", 1.0), ("excess_path", 0.0)]:
+        opts = SimpleNamespace(return_leg_tortuosity_excursion_bin_metric_mode=mode)
+        records, _ = _collect_records(
+            [va], opts, selected_trainings=[0], skip_first=0, keep_first=0,
+            legacy_distances=False, episode_callback=details.append,
+        )
+        assert records[0][0] == [(5.0, expected)]
+        assert details[-1]["segment_stop"] == 4
+        assert details[-1]["metric_stop"] == 5
+        assert _metric_components(details[-1]) == (5.0, 5.0, 5.0)
+
+
+def test_return_leg_wall_scatter_uses_endpoint_for_path_and_wall_fraction(monkeypatch):
+    from src.plotting import between_reward_tortuosity_wall_scatter as scatter
+
+    traj = _Trajectory(x=[0, 0, 10, 8, 0, 0])
+    traj.pxPerMmFloor = 2.0
+    va = _Video(
+        trx=[traj],
+        segments_by_fly={0: [_segment(s=0, e=4, b_idx=0, max_i=2)]},
+    )
+    def wall_mask(*args, n_frames, **kwargs):
+        mask = np.zeros(n_frames, dtype=bool)
+        mask[4] = True
+        return mask
+    monkeypatch.setattr(scatter, "build_wall_contact_mask_for_window", wall_mask)
+    exporter = scatter.BetweenRewardTortuosityWallScatterExporter(
+        [va], SimpleNamespace(), None,
+        scatter.BetweenRewardTortuosityWallScatterConfig(segment_scope="return_leg"),
+    )
+    records = exporter.collect_records()
+    np.testing.assert_allclose(records["tortuosity"], [1.0])
+    np.testing.assert_allclose(records["wall_frac"], [1 / 3])
+    assert records["metric_e"].tolist() == [5]
+
+
+def test_return_length_hexbin_and_paired_total_include_endpoint():
+    from src.plotting.between_reward_hexbin_density import (
+        BetweenRewardHexbinConfig, HexBinGridSpec, collect_per_fly_segment_points,
+    )
+    traj = _Trajectory(x=[0, 0, 10, 8, 0, 0])
+    va = _Video(
+        trx=[traj],
+        segments_by_fly={0: [_segment(s=0, e=4, b_idx=0, max_i=2, max_d_mm=5.0)]},
+    )
+    va._bad = lambda f: va.trx[f].bad()
+    for mode, expected in [("Lreturn", 5.0), ("Ltotal", 10.0)]:
+        cfg = BetweenRewardHexbinConfig(
+            training_index=0, x_mode=mode, log1p_x=False,
+            hex=HexBinGridSpec(extent=(0, 20, 0, 20)),
+        )
+        points, _, _ = collect_per_fly_segment_points([va], cfg=cfg, opts=SimpleNamespace())
+        np.testing.assert_allclose(points[0], [[expected, 5.0]])

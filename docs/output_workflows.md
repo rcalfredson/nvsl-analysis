@@ -153,6 +153,13 @@ time of writing, the default run produces:
 - return-leg tortuosity by maximum-distance bin; and
 - post-wall-departure tortuosity.
 
+Return-leg lengths and tortuosity include the incoming step to the ending reward
+frame, subject to finite-coordinate and enabled frame masks. Conditioned and
+hexbin total-path lengths use the same endpoint. Between-reward metrics use
+delivered reward timestamps; geometric reward-return distance uses detected
+circle reentry and includes that frame in its walking and wall-contact checks.
+Explicit reward-endpoint exclusion options retain their existing semantics.
+
 Several older matrix variants remain commented out at the bottom of the script.
 They are reference recipes and do not run unless the script itself is edited.
 

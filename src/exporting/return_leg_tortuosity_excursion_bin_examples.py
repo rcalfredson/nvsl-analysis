@@ -76,7 +76,7 @@ def _metric_components(record) -> tuple[float, float, float]:
     common = dict(
         traj=record["traj"],
         s=int(record["metric_start"]),
-        e=int(record["segment_stop"]),
+        e=int(record.get("metric_stop", int(record["segment_stop"]) + 1)),
         fi=int(record["window_start"]),
         px_per_mm=float(record["px_per_mm"]),
         min_keep_frames=int(record["min_walk_frames"]),
@@ -343,7 +343,9 @@ def export_return_leg_tortuosity_excursion_bin_examples(
                 annotation_wrap_width=30,
                 title_wrap_width=90,
                 highlight_start_frame=int(record["metric_start"]),
-                highlight_stop_frame=int(record["segment_stop"]),
+                highlight_stop_frame=int(
+                    record.get("metric_stop", int(record["segment_stop"]) + 1)
+                ),
                 highlight_exclude_nonwalking=bool(record["exclude_nonwalk"]),
                 highlight_excluded_frame_mask=(
                     record["wall_mask"]

@@ -46,7 +46,8 @@ class BetweenRewardTortuosityMeanSwarmPlotter(TrainingMetricScalarBarsPlotter):
 
     The segment iterator and masking semantics match the existing tortuosity
     histogram and max-distance-bin boxplot code.  For segment_scope="return_leg",
-    the metric window starts at the segment's max-distance frame.
+    the metric window starts at the segment's max-distance frame and includes
+    the ending reward frame unless reward endpoints are explicitly excluded.
     """
 
     def __init__(
@@ -187,6 +188,8 @@ class BetweenRewardTortuosityMeanSwarmPlotter(TrainingMetricScalarBarsPlotter):
                         continue
 
                     n_frames = int(max(1, n_buckets * df))
+                    if needs_max_frame and not self.cfg.exclude_reward_endpoints:
+                        n_frames = max(n_frames + 1, int(trn.stop) - fi)
                     wc = build_wall_contact_mask_for_window(
                         va,
                         f,
@@ -247,6 +250,8 @@ class BetweenRewardTortuosityMeanSwarmPlotter(TrainingMetricScalarBarsPlotter):
                         )
                         s = int(seg.s) + endpoint_offset
                         e = int(seg.e) - endpoint_offset
+                        if needs_max_frame and not self.cfg.exclude_reward_endpoints:
+                            e += 1  # Include the ending reward coordinate.
                         if e <= s:
                             continue
 
