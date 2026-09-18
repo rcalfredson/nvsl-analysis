@@ -51,6 +51,7 @@ def test_missing_designated_later_bucket_does_not_fall_back_to_earlier_bucket():
 def test_average_speed_does_not_depend_on_pair_exclusion():
     trajectory = SimpleNamespace(
         sp=np.asarray([2.0, 4.0, 6.0]),
+        nan=np.zeros(3, dtype=bool),
         pxPerMmFloor=2.0,
         bad=lambda: False,
     )
@@ -58,4 +59,50 @@ def test_average_speed_does_not_depend_on_pair_exclusion():
 
     values = _calculator(va)._calc_average_speeds(0, 3)
 
-    np.testing.assert_allclose(values, [2.0])
+    np.testing.assert_allclose(values, [2.5])
+
+
+def _trajectory(speed, lost):
+    return SimpleNamespace(
+        sp=np.asarray(speed, dtype=float),
+        nan=np.asarray(lost, dtype=bool),
+        pxPerMmFloor=2.0,
+        bad=lambda: False,
+    )
+
+
+def test_average_speed_excludes_both_steps_touching_interpolated_position():
+    traj = _trajectory([0, 4, 100, 100, 8], [False, False, True, False, False])
+    values = _calculator(SimpleNamespace(trx=[traj]))._calc_average_speeds(1, 5)
+    np.testing.assert_allclose(values, [3.0])
+
+
+def test_average_speed_checks_endpoint_before_window_and_keeps_stationary_frames():
+    traj = _trajectory([0, 100, 100, 0, 2], [False, True, False, False, False])
+    values = _calculator(SimpleNamespace(trx=[traj]))._calc_average_speeds(2, 5)
+    np.testing.assert_allclose(values, [0.5])
+
+
+def test_average_speed_combines_tracking_and_wall_filters():
+    traj = _trajectory([0, 4, 100, 100, 8], [False, False, True, False, False])
+    traj.boundary_event_stats = {
+        "wall": {
+            "all": {
+                "opp_edge": {
+                    "boundary_contact": np.asarray(
+                        [False, True, False, False, False]
+                    )
+                }
+            }
+        }
+    }
+    calculator = _calculator(
+        SimpleNamespace(trx=[traj]), SimpleNamespace(excl_wall_for_spd=True)
+    )
+    np.testing.assert_allclose(calculator._calc_average_speeds(1, 5), [4.0])
+
+
+def test_average_speed_is_missing_when_no_originally_tracked_steps_remain():
+    traj = _trajectory([0, 100, 100], [False, True, False])
+    values = _calculator(SimpleNamespace(trx=[traj]))._calc_average_speeds(0, 3)
+    assert np.isnan(values[0])

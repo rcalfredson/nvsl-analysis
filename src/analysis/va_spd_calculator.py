@@ -80,6 +80,7 @@ class VASpeedCalculator:
         Returns:
             list: A list of average speeds for each Trajectory. Eligibility is
             determined only from the requested window and usable speed samples.
+            Both endpoints of each displacement must have been originally tracked.
         """
         if np.isnan(start_frame) or np.isnan(end_frame):
             return len(self.va.trx) * [np.nan]
@@ -92,15 +93,20 @@ class VASpeedCalculator:
                 speeds.append(np.nan)
                 continue
 
+            # sp[i] measures displacement from i - 1 to i. Coordinates are
+            # interpolated upstream, so use the original missing-position mask.
+            tracked = ~np.asarray(traj.nan, dtype=bool)
+            valid_indices = np.zeros(tracked.size, dtype=bool)
+            valid_indices[1:] = tracked[:-1] & tracked[1:]
+            valid_indices = valid_indices[start_frame:end_frame]
+
             if self.opts.excl_wall_for_spd:
                 boundary_contact = traj.boundary_event_stats["wall"]["all"]["opp_edge"][
                     "boundary_contact"
                 ]
 
-                valid_indices = ~boundary_contact[start_frame:end_frame]
-                speed_elements = traj.sp[start_frame:end_frame][valid_indices]
-            else:
-                speed_elements = traj.sp[start_frame:end_frame]
+                valid_indices &= ~boundary_contact[start_frame:end_frame]
+            speed_elements = traj.sp[start_frame:end_frame][valid_indices]
 
             if len(speed_elements) == 0:
                 speeds.append(np.nan)
