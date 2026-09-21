@@ -584,11 +584,12 @@ class PlotCustomizer:
             )
             fontsize = left_ax.yaxis.get_label().get_fontsize()
 
-            # Hide all native labels excluding Y tick labels for leftmost subplot
+            # Hide labels on non-left axes without replacing their formatter.
+            # A later tick-spacing pass can install a new numeric formatter.
             for ax in axes:
                 ax.yaxis.label.set_visible(False)
                 if ax is not left_ax:
-                    ax.set_yticklabels([])
+                    ax.tick_params(axis="y", which="both", labelleft=False)
 
             if shared_y_label:
                 pad_pts = 2.75 * fontsize + 15

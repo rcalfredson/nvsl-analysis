@@ -81,6 +81,23 @@ def test_automatic_ytick_spacing_for_sli_ranges(limits, expected_spacing):
     plt.close(fig)
 
 
+def test_tick_spacing_keeps_numeric_y_labels_on_left_subplot_only():
+    with plt.rc_context():
+        customizer = PlotCustomizer()
+        customizer.update_font_size(27)
+        fig, axes = plt.subplots(1, 2, figsize=(15, 5))
+        for ax in axes:
+            ax.set_ylim(0, 80)
+
+        customizer.adjust_padding_proportionally(compact_horizontal_spacing=True)
+        apply_sync_bucket_ytick_spacing(axes, None)
+        fig.canvas.draw()
+
+        assert any(label.get_visible() for label in axes[0].get_yticklabels())
+        assert not any(label.get_visible() for label in axes[1].get_yticklabels())
+        plt.close(fig)
+
+
 def test_explicit_ytick_spacing_keeps_automatic_locator_for_large_range():
     fig, ax = plt.subplots()
     ax.set_ylim(0.0, 1600.0)
