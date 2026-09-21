@@ -256,7 +256,12 @@ class PlotCustomizer:
             new_font_family (str): The new font family to use in the plot.
         """
         if new_font_family and new_font_family != self.font_family_default:
-            plt.rcParams.update({"font.family": new_font_family})
+            # Arial installations can lack Unicode superscript minus. Keep the
+            # requested family first and supply missing glyphs from DejaVu Sans.
+            families = [new_font_family]
+            if new_font_family != "DejaVu Sans":
+                families.append("DejaVu Sans")
+            plt.rcParams.update({"font.family": families})
             self.font_family_customized = True
         if new_font_family:
             # Use the selected font for math exponents as well as normal text.

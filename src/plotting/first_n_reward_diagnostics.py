@@ -531,7 +531,7 @@ class FirstNRewardDiagnosticsPlotter:
             ),
             "selected_reward_rate_to_nth_per_min": (
                 f"Reward rate during first {n_target} {reward_phrase} "
-                "(min$^{-1}$)"
+                "(min⁻¹)"
             ),
             "first_n_selected_reward_distance_traveled_mm": (
                 f"Distance traveled from 1st to {n_target}th "

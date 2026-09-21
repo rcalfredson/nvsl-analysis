@@ -4105,12 +4105,12 @@ def plot_cross_fly_correlations(
                 rpt_suffix = f"{rpt_suffix}__maxtime{cutoff_suffix:g}s"
 
     rpd_y_label = sli_ctx.metric_axis_label(
-        "Rewards per distance", unit="m$^{-1}$",
+        "Rewards per distance", unit="m⁻¹",
         aggregation=window_metric_aggregation,
     )
     rpd_diff_y_label = sli_ctx.metric_axis_label(
         "Yoked-subtracted RPD",
-        unit="m$^{-1}$",
+        unit="m⁻¹",
         aggregation=window_metric_aggregation,
         multiline=True,
     )
@@ -4124,7 +4124,7 @@ def plot_cross_fly_correlations(
     else:
         rpt_y_label = reward_rate_ctx.metric_axis_label(
             "Reward rate",
-            unit="min$^{-1}$",
+            unit="min⁻¹",
             aggregation="pooled" if reward_avg and reward_bucket_idx is None else "bucketwise",
             multiline=True,
         )

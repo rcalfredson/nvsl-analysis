@@ -383,12 +383,12 @@ class RewardsPerDistanceTotalsPlotter(
         value_mode = str(getattr(cfg, "value_mode", "exp") or "exp")
         if value_mode == "exp_minus_yok":
             y_label = (
-                "Rewards per\ndistance traveled (m$^{-1}$)\n"
+                "Rewards per\ndistance traveled (m⁻¹)\n"
                 "$(\\mathrm{exp} - \\mathrm{yok})$"
             )
             base_title = "Rewards per distance traveled (exp - yok)"
         else:
-            y_label = "Rewards per\ndistance traveled (m$^{-1}$)"
+            y_label = "Rewards per\ndistance traveled (m⁻¹)"
             base_title = "Rewards per distance traveled"
         super().__init__(
             vas=vas,
