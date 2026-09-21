@@ -16,6 +16,8 @@ The manuscript-ordered notebook is:
   Figure 2e adds the corresponding Ctrl>CsC versus PFNd>CsC comparison.
   Figure 2f compares Ctrl>CsC and PFNv>CsC with the same Figure 2 time-plot
   settings.
+  Figure 2g compares the Figure 1 flat HTL controls with antennae-removed
+  flies and reuses the control fly list defined for Figure 1.
   Its plot-style cell sets the font family, time/correlation font sizes, and
   image format. Analysis commands run only when their panel toggle is enabled.
   Its final copy stage previews or copies named panels to
