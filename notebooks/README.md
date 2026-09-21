@@ -5,7 +5,7 @@ This directory holds Jupyter notebooks used to assemble paper-ready figure panel
 The manuscript-ordered notebook is:
 
 - `manuscript_figure_panels.ipynb`: uses manuscript panel labels and currently
-  covers Figures 1e–1h and 1j from one shared flat HTL control analysis, and
+  covers Figures 1e–1h, 1j, and 1m–1n from one shared flat HTL control analysis, and
   Figures 1i and 1k from a separate correlation analysis of the same flies.
   Figure 1l uses the first-ten-rewards diagnostic recipe from the older notebook.
   Its plot-style cell sets the font family, time/correlation font sizes, and
