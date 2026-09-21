@@ -4,8 +4,62 @@ import pytest
 from src.plotting.annotation_layout import (
     ANNOTATION_STACK_GAP_POINTS,
     SIGNIFICANCE_GAP_RATIO,
+    move_two_group_legend_below_data_if_annotation_overlap,
     resolve_annotation_text_overlaps,
 )
+from src.plotting.plot_customizer import compact_legend_spacing
+
+
+@pytest.mark.parametrize(
+    ('star_x', 'extra_low_line', 'expect_move'),
+    ((30.0, False, True), (50.0, False, False), (30.0, True, False)),
+)
+def test_two_group_sli_legend_moves_only_to_clear_lower_space(
+    star_x, extra_low_line, expect_move
+):
+    fig, ax = plt.subplots(figsize=(8.0, 4.68), dpi=100)
+    ax.set_xlim(0.0, 60.0)
+    ax.set_ylim(-0.5, 2.5)
+    ax.plot([10, 20, 30, 40, 50], [1.0, 1.1, 1.3, 1.4, 1.5], label='Ctrl')
+    ax.fill_between(
+        [10, 20, 30, 40, 50],
+        [0.9, 1.0, 1.2, 1.3, 1.4],
+        [1.1, 1.2, 1.4, 1.5, 1.6],
+        alpha=0.2,
+    )
+    ax.plot(
+        [10, 20, 30, 40, 50],
+        [0.7, 0.8, 0.75, 0.85, 0.8],
+        label='Antennae removed',
+    )
+    ax.fill_between(
+        [10, 20, 30, 40, 50],
+        [0.6, 0.7, 0.65, 0.75, 0.7],
+        [0.8, 0.9, 0.85, 0.95, 0.9],
+        alpha=0.2,
+    )
+    ax.axhline(0.0, color='k')
+    if extra_low_line:
+        ax.axhline(-0.3, color='k')
+    stars = ax.text(star_x, 1.9 if star_x == 30 else 2.1, '****', fontsize=27)
+    original = ax.legend(
+        loc='upper left',
+        prop={'size': 27, 'style': 'italic'},
+        **compact_legend_spacing(27),
+    )
+
+    legend = move_two_group_legend_below_data_if_annotation_overlap(
+        ax, original, [stars]
+    )
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    assert (legend is not original) is expect_move
+    assert ax.get_legend() is legend
+    if expect_move:
+        legend_bbox = legend.get_window_extent(renderer)
+        assert not legend_bbox.overlaps(stars.get_window_extent(renderer))
+        assert legend_bbox.y1 < ax.transData.transform((0.0, 0.0))[1]
+    plt.close(fig)
 
 
 def _resolved_vertical_gaps(font_size):

@@ -105,6 +105,67 @@ def _artist_display_bboxes(ax, renderer):
     return bboxes
 
 
+def move_two_group_legend_below_data_if_annotation_overlap(
+    ax, legend, annotation_texts
+):
+    """Move a colliding two-group legend into clear space below the data.
+
+    Keep the original legend when it misses annotations or when the proposed
+    one-row placement would touch plot data, text, or the axes boundary.
+    """
+    if legend is None or not legend.get_visible():
+        return legend
+
+    fig = ax.figure
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    original_bbox = legend.get_window_extent(renderer=renderer)
+    annotations = [text for text in annotation_texts if text.get_visible()]
+    if not any(
+        original_bbox.overlaps(text.get_window_extent(renderer=renderer))
+        for text in annotations
+    ):
+        return legend
+
+    handles, labels = ax.get_legend_handles_labels()
+    if len(labels) != 2:
+        return legend
+
+    candidate = ax.legend(
+        handles,
+        labels,
+        loc="lower center",
+        ncol=2,
+        prop=legend.prop,
+        frameon=legend.get_frame_on(),
+        handlelength=legend.handlelength,
+        handletextpad=legend.handletextpad,
+        borderpad=legend.borderpad,
+        borderaxespad=legend.borderaxespad,
+        columnspacing=legend.columnspacing,
+    )
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    bbox = candidate.get_window_extent(renderer=renderer)
+    axes_bbox = ax.get_window_extent(renderer=renderer).padded(-2.0)
+    obstacles = [
+        text.get_window_extent(renderer=renderer)
+        for text in ax.texts
+        if text.get_visible()
+    ] + _artist_display_bboxes(ax, renderer)
+    clearance_bbox = bbox.padded(3.0)
+    if (
+        bbox.x0 < axes_bbox.x0
+        or bbox.x1 > axes_bbox.x1
+        or bbox.y0 < axes_bbox.y0
+        or bbox.y1 > axes_bbox.y1
+        or any(clearance_bbox.overlaps(obstacle) for obstacle in obstacles)
+    ):
+        ax.legend_ = legend
+        return legend
+    return candidate
+
+
 def place_flexible_overlay_texts(ax, texts, *, pad_px: float = 6.0, upper_only=False):
     """Place axes-anchored text using rendered extents and several clear candidates.
 

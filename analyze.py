@@ -302,6 +302,7 @@ from src.plotting.between_reward_polar_occupancy import (
 )
 from src.plotting.annotation_layout import (
     dodge_annotation_reference_line,
+    move_two_group_legend_below_data_if_annotation_overlap,
     place_flexible_overlay_texts,
     resolve_annotation_text_overlaps,
 )
@@ -10943,6 +10944,12 @@ def plotRewards(
         customizer.set_fixed_y_axes(plt.gcf().get_axes(), sli_axis.limits)
         for ax, texts in flexible_overlay_texts_by_ax.items():
             place_flexible_overlay_texts(ax, texts)
+        if ng == 2 and legend is not None:
+            legend = move_two_group_legend_below_data_if_annotation_overlap(
+                legend.axes,
+                legend,
+                annotation_texts_by_ax.get(legend.axes, ()),
+            )
 
     apply_sync_bucket_ytick_spacing(
         plt.gcf().get_axes(),
