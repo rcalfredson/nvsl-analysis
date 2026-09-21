@@ -6,7 +6,7 @@ The manuscript-ordered notebook is:
 
 - `manuscript_figure_panels.ipynb`: uses manuscript panel labels and currently
   covers Figures 1e–1h and 1j from one shared flat HTL control analysis, and
-  Figure 1i from a separate correlation analysis of the same flies.
+  Figures 1i and 1k from a separate correlation analysis of the same flies.
   Its plot-style cell sets the font family, time/correlation font sizes, and
   image format. Analysis commands run only when their panel toggle is enabled.
   Its final copy stage previews or copies named panels to
