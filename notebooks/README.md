@@ -26,6 +26,8 @@ The manuscript-ordered notebook is:
   counterpart with a fixed 0–2.0 SLI y-axis range.
   Figure 3d compares that agarose control cohort with antennae-removed flies
   using the same range.
+  Figure 3g compares a handled agarose control cohort with flies whose hind
+  tarsi were removed and genitalia glued, also using the 0–2.0 range.
   Its plot-style cell sets the font family, time/correlation font sizes, and
   image format. Analysis commands run only when their panel toggle is enabled.
   Its final copy stage previews or copies named panels to
