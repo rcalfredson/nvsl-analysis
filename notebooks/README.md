@@ -23,7 +23,9 @@ The manuscript-ordered notebook is:
   Figure 2q compares Ctrl>Kir and MBKC-1>Kir in the flat HTL chamber.
   Figure 2r compares Ctrl>GtACR1 and MBKC-1>GtACR1 in the same chamber.
   Figure 3c compares the Figure 1 flat HTL control cohort with its agarose
-  counterpart and leaves the SLI y-axis on the analysis default.
+  counterpart with a fixed 0–2.0 SLI y-axis range.
+  Figure 3d compares that agarose control cohort with antennae-removed flies
+  using the same range.
   Its plot-style cell sets the font family, time/correlation font sizes, and
   image format. Analysis commands run only when their panel toggle is enabled.
   Its final copy stage previews or copies named panels to
