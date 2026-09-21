@@ -32,8 +32,12 @@ The manuscript-ordered notebook is:
   the same Figure 3 SLI range.
   Figure 3k compares Ctrl>Kir and PFNd>Kir in the agarose HTL chamber with
   the same range.
-  Its plot-style cell sets the font family, time/correlation font sizes, and
-  image format. Analysis commands run only when their panel toggle is enabled.
+  Figure 4b contains the Ctrl>Kir Training 2 and Post 2 heatmaps copied from
+  the recipes in `scripts/generate_heatmaps.sh`. Each run saves the shared
+  `imgs/heatmaps2.pdf` output under a distinct manuscript artifact name.
+  Its plot-style cell sets the font family, time/correlation/heatmap font sizes,
+  and image format. Figure 4b stays in PDF format to match its source recipe.
+  Analysis commands run only when their panel toggle is enabled.
   Its final copy stage previews or copies named panels to
   `/media/Synology4/Robert/nvsl-analysis-plots/figN/`.
 
