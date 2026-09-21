@@ -8,6 +8,8 @@ The manuscript-ordered notebook is:
   covers Figures 1e–1h, 1j, and 1m–1n from one shared flat HTL control analysis, and
   Figures 1i and 1k from a separate correlation analysis of the same flies.
   Figure 1l uses the first-ten-rewards diagnostic recipe from the older notebook.
+  Figure 1q adapts its Panel 38 matched closed-loop/open-loop exports and
+  correlation plot, with separate export and plotting toggles.
   Its plot-style cell sets the font family, time/correlation font sizes, and
   image format. Analysis commands run only when their panel toggle is enabled.
   Its final copy stage previews or copies named panels to
