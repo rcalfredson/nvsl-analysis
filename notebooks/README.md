@@ -38,6 +38,8 @@ The manuscript-ordered notebook is:
   Figure 4c reproduces Panel 40 from the earlier notebook: the first and last
   ten Training 2 between-reward trajectories from one example fly. Its command
   is preserved verbatim, including PDF output and its original plot settings.
+  Figure 4d compares training SLI for flat large-chamber controls and
+  antennae-removed flies with a fixed −0.5–2.5 y-axis range.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
   font sizes, and image format. Figure 4b stays in PDF format to match its source recipe.
   Analysis commands run only when their panel toggle is enabled.
