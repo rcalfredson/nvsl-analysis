@@ -22,6 +22,8 @@ The manuscript-ordered notebook is:
   genitalia-glued flies under the same Figure 2 time-plot settings.
   Figure 2q compares Ctrl>Kir and MBKC-1>Kir in the flat HTL chamber.
   Figure 2r compares Ctrl>GtACR1 and MBKC-1>GtACR1 in the same chamber.
+  Figure 3c compares the Figure 1 flat HTL control cohort with its agarose
+  counterpart and leaves the SLI y-axis on the analysis default.
   Its plot-style cell sets the font family, time/correlation font sizes, and
   image format. Analysis commands run only when their panel toggle is enabled.
   Its final copy stage previews or copies named panels to
