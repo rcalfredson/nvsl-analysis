@@ -28,6 +28,8 @@ The manuscript-ordered notebook is:
   using the same range.
   Figure 3g compares a handled agarose control cohort with flies whose hind
   tarsi were removed and genitalia glued, also using the 0–2.0 range.
+  Figure 3j compares Ctrl>Kir and MBKC-1>Kir in the agarose HTL chamber with
+  the same Figure 3 SLI range.
   Its plot-style cell sets the font family, time/correlation font sizes, and
   image format. Analysis commands run only when their panel toggle is enabled.
   Its final copy stage previews or copies named panels to
