@@ -10,6 +10,8 @@ The manuscript-ordered notebook is:
   Figure 1l uses the first-ten-rewards diagnostic recipe from the older notebook.
   Figure 1q adapts its Panel 38 matched closed-loop/open-loop exports and
   correlation plot, with separate export and plotting toggles.
+  Figure 2b compares Ctrl>Kir and PFNd>Kir training SLI with a fixed 0–1.2
+  y-axis range and the same two-training, 27 pt time-plot style.
   Its plot-style cell sets the font family, time/correlation font sizes, and
   image format. Analysis commands run only when their panel toggle is enabled.
   Its final copy stage previews or copies named panels to
