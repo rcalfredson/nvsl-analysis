@@ -13,6 +13,7 @@ The manuscript-ordered notebook is:
   Figures 2b–2c compare Ctrl and PFNd training SLI for Kir and GtACR1,
   respectively, with a fixed 0–1.2 y-axis range and the same two-training,
   27 pt time-plot style.
+  Figure 2e adds the corresponding Ctrl>CsC versus PFNd>CsC comparison.
   Its plot-style cell sets the font family, time/correlation font sizes, and
   image format. Analysis commands run only when their panel toggle is enabled.
   Its final copy stage previews or copies named panels to
