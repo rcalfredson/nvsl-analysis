@@ -44,6 +44,8 @@ The manuscript-ordered notebook is:
   PFNd>Kir flies using the same Figure 4 SLI range.
   Figure 4s compares the Ctrl>Kir cohort across agarose and flat large
   chambers, with agarose first and the same Figure 4 SLI range.
+  Figure 4t compares agarose large-chamber controls with antennae-removed
+  flies using the same Figure 4 SLI range.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
   font sizes, and image format. Figure 4b stays in PDF format to match its source recipe.
   Analysis commands run only when their panel toggle is enabled.
