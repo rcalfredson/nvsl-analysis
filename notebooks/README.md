@@ -70,6 +70,9 @@ The manuscript-ordered notebook is:
   Extended Data Figure 5c compares training-period SLI for Ctrl>GtACR1 and
   EPG>GtACR1 flies in the flat chamber, with the SLI y-axis range fixed at
   0 to 1.5.
+  Extended Data Figure 5e compares training-period SLI for Ctrl>CsChrimson and
+  EPG>CsChrimson flies in the flat chamber, with the SLI y-axis range fixed at
+  0 to 1.5.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
   font sizes, and image format. Figure 4b stays in PDF format to match its source recipe.
   Analysis commands run only when their panel toggle is enabled.
