@@ -65,6 +65,8 @@ The manuscript-ordered notebook is:
   They show yoked-subtracted rewards per distance, pre-period floor
   exploration, initial SLI, and pre-period speed, respectively. The initial
   SLI plot colors fast and strong learners.
+  Extended Data Figure 5b compares training-period SLI for Ctrl>Kir and EPG>Kir
+  flies in the flat chamber, with the SLI y-axis range fixed at 0 to 1.5.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
   font sizes, and image format. Figure 4b stays in PDF format to match its source recipe.
   Analysis commands run only when their panel toggle is enabled.
