@@ -4382,8 +4382,8 @@ def plot_cross_fly_correlations(
         _scatter_with_corr(
             x=pre_training_speed_vals,
             y=sli_t2_sb2_sb5_mean_vals,
-            title="Pre-training speed and mean T2 SLI",
-            x_label="Locomotion speed (mm/s)",
+            title="Pre-period speed and SLI",
+            x_label="Pre-period speed (mm/s)",
             y_label=mean_sli_ctx.axis_label(),
             cfg=_cfg_with_plot_color(cfg, "pre_training_speed_vs_mean_t2_sli"),
             filename=(
