@@ -78,6 +78,12 @@ The manuscript-ordered notebook is:
   PFR>GtACR1 flies in the flat chamber with the same range.
   Extended Data Figure 6e compares training-period SLI for Ctrl>CsChrimson and
   PFR>CsChrimson flies in the flat chamber with the same range.
+  Extended Data Figures 9b–9e regenerate the Training 2 sharp-turn probability
+  comparisons directly from their existing data bundles, without rerunning the
+  video analyses. Their group names are italicized while the `(n = ...)`
+  suffixes remain upright, and the y-axis range is fixed at 0–0.55. Each recipe
+  also has a separate, default-off toggle for recreating its bundle from the
+  source videos before plotting.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
   font sizes, and image format. Figure 4b stays in PDF format to match its source recipe.
   Analysis commands run only when their panel toggle is enabled.
