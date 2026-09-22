@@ -54,9 +54,8 @@ The manuscript-ordered notebook is:
   Extended Data Figure 2c compares fixed and randomized chamber assignments
   in flat HTL cohorts. Its one analysis run selects experimental flies 0–9
   from the fixed cohort, scans 0–19 in the randomized cohort while skipping
-  yoked-control fly numbers, and fixes the SLI y-axis at −0.2–1.8. The fixed
-  cohort's historical 10–19 range in `video_lists.log` selects yoked controls
-  in the recorded protocol metadata.
+  yoked-control fly numbers, and fixes the SLI y-axis at −0.2–1.8. The fly
+  roles were verified against the recorded protocol metadata.
   Extended Data Figures 2d and 2e use one analysis run for blind flies in the
   flat HTL chamber, saving training and post-period SLI plots with a fixed
   −0.2–1.0 y-axis.
