@@ -57,6 +57,9 @@ The manuscript-ordered notebook is:
   yoked-control fly numbers, and fixes the SLI y-axis at −0.2–1.8. The fixed
   cohort's historical 10–19 range in `video_lists.log` selects yoked controls
   in the recorded protocol metadata.
+  Extended Data Figures 2d and 2e use one analysis run for blind flies in the
+  flat HTL chamber, saving training and post-period SLI plots with a fixed
+  −0.2–1.0 y-axis.
   Extended Data Figure 3c plots the first Training 1 sync-bucket SLI against
   mean Training 2 SLI across sync buckets 2–5 for the flat HTL controls.
   The plot colors fast and strong learners and uses the 20 pt correlation style.
