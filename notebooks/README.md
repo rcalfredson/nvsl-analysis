@@ -60,9 +60,11 @@ The manuscript-ordered notebook is:
   Extended Data Figures 2d and 2e use one analysis run for blind flies in the
   flat HTL chamber, saving training and post-period SLI plots with a fixed
   −0.2–1.0 y-axis.
-  Extended Data Figure 3c plots the first Training 1 sync-bucket SLI against
-  mean Training 2 SLI across sync buckets 2–5 for the flat HTL controls.
-  The plot colors fast and strong learners and uses the 20 pt correlation style.
+  Extended Data Figures 3a–3d share one flat HTL control analysis with mean
+  Training 2 SLI across sync buckets 2–5 and the 20 pt correlation style.
+  They show yoked-subtracted rewards per distance, pre-period floor
+  exploration, initial SLI, and pre-period speed, respectively. The initial
+  SLI plot colors fast and strong learners.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
   font sizes, and image format. Figure 4b stays in PDF format to match its source recipe.
   Analysis commands run only when their panel toggle is enabled.
