@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import src.plotting.cross_fly_correlations as correlations
 
 from src.plotting.cross_fly_correlations import (
     _add_smart_stats_box,
@@ -86,6 +87,60 @@ def test_layout_trial_budget_forces_bounded_fallback(monkeypatch):
 
     assert stats.get_position()[0] == 1.02
     assert draw_count < 15
+    plt.close(fig)
+
+
+def test_preferred_corners_use_headroom_for_legend_and_keep_stats_inside():
+    fig, ax = plt.subplots(figsize=(5.5, 4.5))
+    x = np.linspace(-1.0, 1.0, 30)
+    y = 0.9 + 0.2 * x
+    scatter = ax.scatter(x, y)
+    ax.plot(x, y, linestyle="--")
+    ax.set_ylim(-1.0, 1.2)
+    original_top = ax.get_ylim()[1]
+
+    legend, stats = _place_correlation_overlays(
+        ax,
+        _legend_handles(),
+        "n = 30, r = 0.999, p = 1e-12",
+        x,
+        y,
+        scatter_artist=scatter,
+        configured_font_size=20.0,
+    )
+
+    assert legend._loc == 2  # upper left
+    assert stats.get_position() == (0.97, 0.03)  # lower right
+    assert ax.get_ylim()[1] > original_top
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    axes_box = ax.get_window_extent(renderer=renderer)
+    assert axes_box.contains(*stats.get_bbox_patch().get_window_extent(renderer).p0)
+    plt.close(fig)
+
+
+def test_trial_budget_reaches_later_layout_styles(monkeypatch):
+    fig, ax = plt.subplots(figsize=(5.5, 4.5))
+    grid = np.linspace(-1.0, 1.0, 20)
+    x, y = np.meshgrid(grid, grid)
+    x, y = x.ravel(), y.ravel()
+    scatter = ax.scatter(x, y)
+    messages = []
+    monkeypatch.setattr(correlations, "_log_correlation_layout", messages.append)
+
+    _legend, stats = _place_correlation_overlays(
+        ax,
+        _legend_handles(),
+        "n = 400, r = 0.1, p = 0.2",
+        x,
+        y,
+        scatter_artist=scatter,
+        configured_font_size=20.0,
+        max_layout_trials=48,
+    )
+
+    assert "mode=joint_internal layout=annotation_band" in messages[-1]
+    assert stats.get_position()[0] == 0.5
     plt.close(fig)
 
 

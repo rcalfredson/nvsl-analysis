@@ -471,25 +471,6 @@ def _format_labeled_corr_with_n(
     return f"{label} (n = {int(n)}): {stats}" if label else f"n = {int(n)}, {stats}"
 
 
-def _format_labeled_corr_na_with_n(n: int, *, label: str) -> str:
-    return f"{label} (n = {int(n)}): r = n/a, p = n/a"
-
-
-def _format_compact_labeled_corr_with_n(
-    r: float,
-    p: float,
-    n: int,
-    *,
-    label: str,
-) -> str:
-    """Format a narrow correlation row for large-font in-axes annotations."""
-    return f"{label}: n={int(n)}, r={r:.3f}, p={format_plot_p_value(p)}"
-
-
-def _format_compact_labeled_corr_na_with_n(n: int, *, label: str) -> str:
-    return f"{label}: n={int(n)}, r=n/a, p=n/a"
-
-
 def _compute_group_corr(
     x: np.ndarray, y: np.ndarray, idx: np.ndarray
 ) -> tuple[float, float, int] | None:
@@ -1592,14 +1573,30 @@ def _place_correlation_overlays(
     closest_candidates_by_layout = {}
     layout_trials = 0
     search_budget_exhausted = False
+    total_trials = max(0, int(max_layout_trials))
+    # Cumulative caps let unused trials flow to the next stage while ensuring
+    # the first search cannot prevent the split-corner and band searches.
+    stage_caps = {
+        "preferred": max(1, total_trials // 4),
+        "standard": max(1, total_trials // 2),
+        "split": max(1, 2 * total_trials // 3),
+        "band": total_trials,
+    }
+    stage_exhausted = {stage: False for stage in stage_caps}
+    stage_trials = Counter()
 
-    def _reserve_layout_trial():
-        """Bound expensive renderer-backed placement attempts."""
+    def _reserve_layout_trial(stage: str):
+        """Bound each layout style and the entire renderer-backed search."""
         nonlocal layout_trials, search_budget_exhausted
-        if layout_trials >= max(0, int(max_layout_trials)):
+        if layout_trials >= total_trials:
             search_budget_exhausted = True
+            stage_exhausted[stage] = True
+            return False
+        if layout_trials >= stage_caps[stage]:
+            stage_exhausted[stage] = True
             return False
         layout_trials += 1
+        stage_trials[stage] += 1
         return True
 
     stats_size_cache = {}
@@ -1782,21 +1779,145 @@ def _place_correlation_overlays(
             )
         return " ".join(entries)
 
-    # Exhaust every placement/headroom option at the preferred font sizes
-    # before trying the slightly reduced tier. Within each tier, retain the
-    # full annotation wording when possible, then try its compact equivalent.
     font_tiers = tuple(zip(legend_font_sizes, stats_font_sizes))
+    # Try the likely clear corners across the full headroom range before the
+    # general search. This costs at most one legend and one stats trial per
+    # headroom value, so the search can reach a useful upper padding quickly.
     for font_tier, (legend_fontsize, stats_fontsize) in enumerate(font_tiers):
-        if search_budget_exhausted:
+        if stage_exhausted["preferred"] or search_budget_exhausted:
             break
         for stats_format, candidate_stats_text in stats_text_variants:
-            if search_budget_exhausted:
+            if stage_exhausted["preferred"] or search_budget_exhausted:
                 break
             if not _stats_box_can_fit_axes(candidate_stats_text, stats_fontsize):
                 _record_rejections("stats", {"preflight_too_large": 1})
                 continue
             for headroom_frac in headroom_fracs:
-                if search_budget_exhausted:
+                if stage_exhausted["preferred"] or search_budget_exhausted:
+                    break
+                ax.set_xlim(base_x0, base_x1)
+                ax.set_ylim(base_y0, base_y1 + headroom_frac * base_y_span)
+                fig.canvas.draw()
+                renderer = fig.canvas.get_renderer()
+                axes_bbox = ax.get_window_extent(renderer=renderer)
+                points_display = (
+                    ax.transData.transform(np.column_stack([x_f, y_f]))
+                    if x_f.size
+                    else np.empty((0, 2), dtype=float)
+                )
+                line_points_display = _line_samples_display()
+
+                if not _reserve_layout_trial("preferred"):
+                    break
+                legend = ax.legend(
+                    handles=legend_handles,
+                    loc="upper left",
+                    ncol=1,
+                    frameon=True,
+                    fontsize=legend_fontsize,
+                )
+                fig.canvas.draw()
+                renderer = fig.canvas.get_renderer()
+                legend_bbox = legend.get_window_extent(renderer=renderer)
+                legend_reasons = _overlay_rejections(
+                    legend_bbox,
+                    points_display=points_display,
+                    line_points_display=line_points_display,
+                    axes_bbox=axes_bbox,
+                    point_pad_px=marker_pad_px,
+                )
+                if legend_reasons:
+                    _record_rejections("legend", legend_reasons)
+                    legend.remove()
+                    continue
+
+                if not _reserve_layout_trial("preferred"):
+                    legend.remove()
+                    break
+                stats_artist = ax.text(
+                    0.97,
+                    0.03,
+                    candidate_stats_text,
+                    transform=ax.transAxes,
+                    ha="right",
+                    va="bottom",
+                    fontsize=stats_fontsize,
+                    zorder=5,
+                    bbox=BBOX_STYLE,
+                )
+                fig.canvas.draw()
+                renderer = fig.canvas.get_renderer()
+                stats_bbox = stats_artist.get_bbox_patch().get_window_extent(
+                    renderer=renderer
+                )
+                stats_reasons = _overlay_rejections(
+                    stats_bbox,
+                    points_display=points_display,
+                    line_points_display=line_points_display,
+                    axes_bbox=axes_bbox,
+                    point_pad_px=marker_pad_px,
+                )
+                candidate_valid = _consider_candidate(
+                    description=(
+                        f"layout=preferred_corners font_tier={font_tier} "
+                        f"stats_format={stats_format} "
+                        f"headroom_frac={headroom_frac:.3f}"
+                    ),
+                    legend_bbox=legend_bbox,
+                    stats_bbox=stats_bbox,
+                    legend_reasons=legend_reasons,
+                    stats_reasons=stats_reasons,
+                    axes_bbox=axes_bbox,
+                )
+                if candidate_valid:
+                    fig.canvas.draw()
+                    renderer = fig.canvas.get_renderer()
+                    final_legend_bbox = legend.get_window_extent(renderer=renderer)
+                    final_stats_bbox = stats_artist.get_bbox_patch().get_window_extent(
+                        renderer=renderer
+                    )
+                    if (
+                        _overlay_is_clear(
+                            final_legend_bbox,
+                            points_display=points_display,
+                            line_points_display=line_points_display,
+                            axes_bbox=axes_bbox,
+                            point_pad_px=marker_pad_px,
+                        )
+                        and _overlay_is_clear(
+                            final_stats_bbox,
+                            points_display=points_display,
+                            line_points_display=line_points_display,
+                            axes_bbox=axes_bbox,
+                            point_pad_px=marker_pad_px,
+                        )
+                        and not _bbox_overlap(final_legend_bbox, final_stats_bbox)
+                    ):
+                        _log_correlation_layout(
+                            f"title={ax.get_title()!r} mode=joint_internal "
+                            f"layout=preferred_corners "
+                            f"configured_fontsize={configured_font_size:.2f} "
+                            f"font_tier={font_tier} stats_format={stats_format} "
+                            f"headroom_frac={headroom_frac:.3f} "
+                            f"layout_trials={layout_trials} "
+                            f"rejections={_format_rejection_summary()}"
+                        )
+                        return legend, stats_artist
+                stats_artist.remove()
+                legend.remove()
+
+    # Search general placements within a separate share of the trial budget.
+    for font_tier, (legend_fontsize, stats_fontsize) in enumerate(font_tiers):
+        if stage_exhausted["standard"] or search_budget_exhausted:
+            break
+        for stats_format, candidate_stats_text in stats_text_variants:
+            if stage_exhausted["standard"] or search_budget_exhausted:
+                break
+            if not _stats_box_can_fit_axes(candidate_stats_text, stats_fontsize):
+                _record_rejections("stats", {"preflight_too_large": 1})
+                continue
+            for headroom_frac in headroom_fracs:
+                if stage_exhausted["standard"] or search_budget_exhausted:
                     break
                 candidate_top = base_y1 + headroom_frac * base_y_span
                 ax.set_ylim(base_y0, candidate_top)
@@ -1816,10 +1937,10 @@ def _place_correlation_overlays(
                 # Preserve the current single-column appearance when possible,
                 # but allow two columns to reduce vertical height.
                 for legend_ncol in (1, 2):
-                    if search_budget_exhausted:
+                    if stage_exhausted["standard"] or search_budget_exhausted:
                         break
                     for legend_loc in legend_locations:
-                        if not _reserve_layout_trial():
+                        if not _reserve_layout_trial("standard"):
                             break
                         legend = ax.legend(
                             handles=legend_handles,
@@ -1846,7 +1967,7 @@ def _place_correlation_overlays(
                             continue
 
                         for candidate in stats_candidates:
-                            if not _reserve_layout_trial():
+                            if not _reserve_layout_trial("standard"):
                                 break
                             stats_artist = ax.text(
                                 candidate["x"],
@@ -1997,10 +2118,10 @@ def _place_correlation_overlays(
     for font_tier, (legend_fontsize, stats_fontsize) in enumerate(
         split_font_tiers
     ):
-        if search_budget_exhausted:
+        if stage_exhausted["split"] or search_budget_exhausted:
             break
         for stats_format, candidate_stats_text in split_stats_variants:
-            if search_budget_exhausted:
+            if stage_exhausted["split"] or search_budget_exhausted:
                 break
             if not _stats_box_can_fit_axes(
                 candidate_stats_text, stats_fontsize, compact_box=True
@@ -2008,7 +2129,7 @@ def _place_correlation_overlays(
                 _record_rejections("stats", {"preflight_too_large": 1})
                 continue
             for headroom_frac, right_frac, lower_frac in split_padding_candidates:
-                if search_budget_exhausted:
+                if stage_exhausted["split"] or search_budget_exhausted:
                     break
                 candidate_right = base_x1 + right_frac * base_x_span
                 candidate_bottom = base_y0 - lower_frac * base_y_span
@@ -2042,12 +2163,12 @@ def _place_correlation_overlays(
                         "boxstyle": "round,pad=0.15",
                     },
                 )
-                if not _reserve_layout_trial():
+                if not _reserve_layout_trial("split"):
                     stats_artist.remove()
                     break
 
                 for legend_ncol in (1, 2):
-                    if not _reserve_layout_trial():
+                    if not _reserve_layout_trial("split"):
                         break
                     legend = ax.legend(
                         handles=legend_handles,
@@ -2167,10 +2288,10 @@ def _place_correlation_overlays(
     band_gap_points = 6.0
 
     for font_tier, (legend_fontsize, stats_fontsize) in enumerate(font_tiers):
-        if search_budget_exhausted:
+        if stage_exhausted["band"] or search_budget_exhausted:
             break
         for stats_format, candidate_stats_text in band_stats_variants:
-            if search_budget_exhausted:
+            if stage_exhausted["band"] or search_budget_exhausted:
                 break
             if not _stats_box_can_fit_axes(
                 candidate_stats_text, stats_fontsize, compact_box=True
@@ -2178,7 +2299,7 @@ def _place_correlation_overlays(
                 _record_rejections("stats", {"preflight_too_large": 1})
                 continue
             for headroom_frac in band_headroom_fracs:
-                if not _reserve_layout_trial():
+                if not _reserve_layout_trial("band"):
                     break
                 candidate_top = base_y1 + headroom_frac * base_y_span
                 ax.set_xlim(base_x0, base_x1)
@@ -2326,7 +2447,7 @@ def _place_correlation_overlays(
                 legend.remove()
                 stats_artist.remove()
 
-    # No collision-free internal layout exists within the allowed headroom.
+    # No collision-free internal layout was found within the trial budget.
     # Restore the original data range and place both overlays outside the
     # right side of the axes. bbox_inches="tight" will preserve them.
     ax.set_xlim(base_x0, base_x1)
@@ -2374,6 +2495,7 @@ def _place_correlation_overlays(
         f"legend_fontsize={legend_font_sizes[0]:.2f} "
         f"stats_fontsize={stats_font_sizes[0]:.2f} "
         f"layout_trials={layout_trials} "
+        f"stage_trials={dict(stage_trials)} "
         f"search_budget_exhausted={search_budget_exhausted} "
         f"rejections={_format_rejection_summary()} "
         f"closest_candidate={_format_closest_candidate()}"
@@ -3266,9 +3388,7 @@ def plot_fast_vs_strong_scatter(
         - Overlap (fast & strong)
         - Unclassified (neither)
 
-    Also computes (descriptive) Pearson correlations for:
-        - Fast group, including overlap points
-        - Strong group, including overlap points
+    Computes one Pearson correlation across all plotted flies.
     """
     x = np.asarray(sli_T1_first, float)
     y = np.asarray(sli_strong, float)
@@ -3300,32 +3420,7 @@ def plot_fast_vs_strong_scatter(
         else:
             classes.append("other")
 
-    classes_arr = np.asarray(classes, dtype=object)
-
-    def _corr_from_class_mask(m: np.ndarray) -> tuple[float, float, int] | None:
-        """
-        Compute Pearson (r, p) on the *plotted* points selected by mask `m`.
-        Returns (r, p, n) or None if fewer than 3 points.
-        """
-        m = np.asarray(m, dtype=bool)
-        n = int(np.sum(m))
-        if n < 3:
-            return None
-        r, p = pearsonr(x_f[m], y_f[m])
-        return float(r), float(p), n
-
-    # Correlations: include overlap in both fast and strong groups
-    # NOTE: correlations are plotted on plotted points (finite x/y) only
-    corr_fast_incl_overlap = _corr_from_class_mask(
-        (classes_arr == "fast") | (classes_arr == "overlap")
-    )
-    corr_strong_incl_overlap = _corr_from_class_mask(
-        (classes_arr == "strong") | (classes_arr == "overlap")
-    )
-    fast_corr_mask = (classes_arr == "fast") | (classes_arr == "overlap")
-    strong_corr_mask = (classes_arr == "strong") | (classes_arr == "overlap")
-
-    # Correlation across *all* plotted points (finite x/y only)
+    # Correlation across all plotted points (finite x/y only).
     corr_all = None
     n_all = int(x_f.size)
     if n_all >= 3:
@@ -3349,79 +3444,13 @@ def plot_fast_vs_strong_scatter(
     ax.set_ylabel(strong_y_label)
     ax.set_title("Initial SLI and later SLI", pad=10)
 
-    # Display descriptive correlations (fast/strong each including overlap)
-    lines = []
-    compact_lines = []
+    # Use the same annotation format as other single-correlation plots.
     if corr_all is not None:
         r_a, p_a, n_a = corr_all
-        lines.append(_format_labeled_corr_with_n(r_a, p_a, n_a, label="All flies"))
-        compact_lines.append(
-            _format_compact_labeled_corr_with_n(r_a, p_a, n_a, label="All")
-        )
-    else:
-        lines.append(_format_labeled_corr_na_with_n(n_all, label="All flies"))
-        compact_lines.append(
-            _format_compact_labeled_corr_na_with_n(n_all, label="All")
-        )
-    if corr_fast_incl_overlap is not None:
-        r_f, p_f, n_f = corr_fast_incl_overlap
-        lines.append(_format_labeled_corr_with_n(r_f, p_f, n_f, label="Fast learners"))
-        compact_lines.append(
-            _format_compact_labeled_corr_with_n(r_f, p_f, n_f, label="Fast")
-        )
-    else:
-        lines.append(
-            _format_labeled_corr_na_with_n(
-                int(np.sum(fast_corr_mask)), label="Fast learners"
-            )
-        )
-        compact_lines.append(
-            _format_compact_labeled_corr_na_with_n(
-                int(np.sum(fast_corr_mask)), label="Fast"
-            )
-        )
-
-    if corr_strong_incl_overlap is not None:
-        r_s, p_s, n_s = corr_strong_incl_overlap
-        lines.append(
-            _format_labeled_corr_with_n(r_s, p_s, n_s, label="Strong learners")
-        )
-        compact_lines.append(
-            _format_compact_labeled_corr_with_n(r_s, p_s, n_s, label="Strong")
-        )
-    else:
-        lines.append(
-            _format_labeled_corr_na_with_n(
-                int(np.sum(strong_corr_mask)), label="Strong learners"
-            )
-        )
-        compact_lines.append(
-            _format_compact_labeled_corr_na_with_n(
-                int(np.sum(strong_corr_mask)), label="Strong"
-            )
-        )
-
-    if corr_all is not None:
-        _r_a, p_a, _n_a = corr_all
+        stats_text = _format_corr_annotation(r_a, p_a, n_a)
         _add_significant_trend_line(ax, x_f, y_f, p_a, color=NEUTRAL_MID)
-    if corr_fast_incl_overlap is not None:
-        _r_f, p_f, _n_f = corr_fast_incl_overlap
-        _add_significant_trend_line(
-            ax,
-            x_f[fast_corr_mask],
-            y_f[fast_corr_mask],
-            p_f,
-            color=color_map["fast"],
-        )
-    if corr_strong_incl_overlap is not None:
-        _r_s, p_s, _n_s = corr_strong_incl_overlap
-        _add_significant_trend_line(
-            ax,
-            x_f[strong_corr_mask],
-            y_f[strong_corr_mask],
-            p_s,
-            color=color_map["strong"],
-        )
+    else:
+        stats_text = f"n = {n_all}, r = n/a, p = n/a"
 
     # Legend
     handles = [
@@ -3483,11 +3512,10 @@ def plot_fast_vs_strong_scatter(
     _place_correlation_overlays(
         ax,
         handles,
-        "\n".join(lines),
+        stats_text,
         x_f,
         y_f,
         scatter_artist=scatter_artist,
-        compact_stats_text="\n".join(compact_lines),
         compact_legend_labels=(
             "Fast only",
             "Strong only",
