@@ -75,6 +75,8 @@ The manuscript-ordered notebook is:
   0 to 1.5.
   Extended Data Figure 6b compares training-period SLI for Ctrl>Kir and PFR>Kir
   flies in the flat chamber, also using the fixed 0–1.5 range.
+  Extended Data Figure 6c compares training-period SLI for Ctrl>GtACR1 and
+  PFR>GtACR1 flies in the flat chamber with the same range.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
   font sizes, and image format. Figure 4b stays in PDF format to match its source recipe.
   Analysis commands run only when their panel toggle is enabled.
