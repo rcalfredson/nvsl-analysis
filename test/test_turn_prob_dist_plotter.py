@@ -3,8 +3,12 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from src.plotting.turn_prob_dist_plotter import TurnProbabilityByDistancePlotter
+from src.plotting.turn_prob_dist_plotter import (
+    TurnProbabilityByDistancePlotter,
+    _fmt_label,
+)
 from scripts.plot_turn_prob_dist_sli_bundle import (
+    _resolve_group_labels,
     _resolve_image_format,
     _selected_source,
 )
@@ -17,6 +21,21 @@ def _va(gidx, values):
             distance: [[exp], [ctrl]]
             for distance, exp, ctrl in values
         },
+    )
+
+
+def test_group_label_italicizes_name_but_not_spaced_sample_size():
+    assert _fmt_label("MBKC-1>Kir", 99, show_n=True) == (
+        r"$\mathit{MBKC\!-\!1\!>\!Kir}$ (n = 99)"
+    )
+    assert _fmt_label("Antennae removed", 107, show_n=True) == (
+        r"$\mathit{Antennae\ removed}$ (n = 107)"
+    )
+    assert _fmt_label(
+        "Hind tarsi removed + genitalia glued", 138, show_n=True
+    ) == (
+        "$\\mathit{Hind\\ tarsi\\ removed\\ +}$\n"
+        r"$\mathit{genitalia\ glued}$ (n = 138)"
     )
 
 
@@ -57,6 +76,23 @@ def test_bundle_plot_format_defaults_to_output_extension():
 def test_bundle_plot_rejects_extension_format_mismatch():
     with pytest.raises(ValueError, match="does not match"):
         _resolve_image_format("plot.pdf", "png")
+
+
+def test_bundle_plot_can_override_group_labels_without_editing_bundle():
+    bundle = {"group_labels": np.asarray(["Control>Kir", "MBKC-1>Kir"])}
+
+    assert _resolve_group_labels(bundle, ["Ctrl>Kir", "MBKC-1>Kir"]) == [
+        "Ctrl>Kir",
+        "MBKC-1>Kir",
+    ]
+    assert bundle["group_labels"].tolist() == ["Control>Kir", "MBKC-1>Kir"]
+
+
+def test_bundle_plot_rejects_wrong_number_of_group_label_overrides():
+    bundle = {"group_labels": np.asarray(["Control", "Treatment"])}
+
+    with pytest.raises(ValueError, match="2 group labels.*1 overrides"):
+        _resolve_group_labels(bundle, ["Treatment"])
 
 
 def test_turn_probability_y_limits_default_to_zero_and_auto():

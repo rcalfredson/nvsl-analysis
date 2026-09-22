@@ -84,6 +84,20 @@ def _selected_source(
     raise ValueError(f"Unsupported comparison={comparison!r}")
 
 
+def _resolve_group_labels(bundle, overrides=None):
+    labels = [
+        str(x) for x in np.asarray(bundle["group_labels"], dtype=object).reshape(-1)
+    ]
+    if overrides is None:
+        return labels
+    if len(overrides) != len(labels):
+        raise ValueError(
+            f"Bundle contains {len(labels)} group labels, but "
+            f"{len(overrides)} overrides were supplied"
+        )
+    return [str(label) for label in overrides]
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--bundle", required=True, help="Turn-probability .npz bundle.")
@@ -145,14 +159,18 @@ def main():
     )
     p.add_argument("--fs", dest="font_size", type=float, default=None)
     p.add_argument("--fontFamily", dest="font_family", default=None)
+    p.add_argument(
+        "--group-labels",
+        nargs="+",
+        default=None,
+        help="Plot-time group-label overrides in the bundle's existing group order.",
+    )
     args = p.parse_args()
     image_format = _resolve_image_format(args.out, args.image_format)
 
     bundle = np.load(args.bundle, allow_pickle=True)
     vas = _bundle_to_vas(bundle)
-    gls = [
-        str(x) for x in np.asarray(bundle["group_labels"], dtype=object).reshape(-1)
-    ]
+    gls = _resolve_group_labels(bundle, args.group_labels)
     opts = SimpleNamespace(
         contact_geometry=_scalar_string(bundle, "contact_geometry", "circular"),
         imageFormat=image_format,

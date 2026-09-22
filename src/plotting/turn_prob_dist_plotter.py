@@ -1,6 +1,8 @@
+import random
+import textwrap
+
 import matplotlib.pyplot as plt
 import numpy as np
-import random
 
 from src.utils.common import writeImage
 from src.plotting.plot_customizer import PlotCustomizer
@@ -9,8 +11,20 @@ from src.utils.util import meanConfInt, slugify
 
 # ── helper, very top of file (or anywhere before plot_turn_probabilities) ─────────
 def _fmt_label(name, n, *, show_n):
-    """Return  'name (n=…)'  only when show_n is True."""
-    return f"{name} (n={n})" if show_n else name
+    """Format an italic group name with an upright sample-size suffix."""
+    name_lines = textwrap.wrap(
+        name, width=24, break_long_words=False, break_on_hyphens=False
+    ) or [name]
+    italic_lines = []
+    for line in name_lines:
+        escaped_line = (
+            line.replace(" ", r"\ ")
+            .replace("-", r"\!-\!")
+            .replace(">", r"\!>\!")
+        )
+        italic_lines.append(rf"$\mathit{{{escaped_line}}}$")
+    italic_name = "\n".join(italic_lines)
+    return f"{italic_name} (n = {n})" if show_n else italic_name
 
 
 class TurnProbabilityByDistancePlotter:
@@ -540,9 +554,7 @@ class TurnProbabilityByDistancePlotter:
             legend_inside = True
 
             if legend_inside:
-                legend = ax.legend(
-                    loc="best", borderaxespad=0.2, prop={"style": "italic"}
-                )
+                legend = ax.legend(loc="best", borderaxespad=0.2)
             else:
                 box = ax.get_position()  # get the original axis bounds
                 ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
@@ -551,10 +563,11 @@ class TurnProbabilityByDistancePlotter:
                     loc=legend_loc,
                     bbox_to_anchor=(1.02, 1),
                     borderaxespad=0.0,
-                    prop={"style": "italic"},
                 )
 
-            self.plot_customizer.adjust_padding_proportionally()
+            self.plot_customizer.adjust_padding_proportionally(
+                wrap_legend_labels=False
+            )
             kwargs = {}
             if self.opts:
                 kwargs["format"] = self.opts.imageFormat
