@@ -111,6 +111,8 @@ The manuscript-ordered notebook is:
   Training 2 SLI over sync buckets 2–5, with a fixed −0.5–2.5 SLI y-axis.
   Extended Data Figure 14i compares the flat large-chamber Ctrl>Kir and
   MBKC-1>Kir cohorts across two trainings with the same fixed SLI range.
+  Extended Data Figure 14j compares the flat large-chamber Ctrl>Kir and
+  EPG>Kir cohorts across two trainings with the same fixed SLI range.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
   font sizes, and image format. The heatmap recipes stay in PDF format to match their source recipes.
   Analysis commands run only when their panel toggle is enabled.
