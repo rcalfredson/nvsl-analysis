@@ -10185,7 +10185,7 @@ def plotRewards(
                     and g == ng - 1
                     and f == plot_fs[-1]
                     and i == 1
-                    and (rpi or r_diff or rpd)
+                    and (rpi or r_diff or rpd or tp == "rpd_exp_min_yok")
                     and not opts.hidePltTests
                 )
                 if show_single_group_auc:
@@ -13661,7 +13661,9 @@ def postAnalyze(vas):
         tcs += ("psc_conc", "psc_shift")
     if opts.rpd:
         tcs += ("rpd-c",)
-        if ng > 1 or getattr(opts, "best_worst_sli", False):
+        # The exp-minus-yoked trace is meaningful whenever this cohort has a
+        # paired yoked control, including analyses with only one video group.
+        if (not va.noyc) and (len(va.flies) > 1):
             tcs += ("rpd_exp_min_yok-c",)
     if getattr(opts, "agarose_dual_circle", False):
         tcs += ("agarose_dual_circle",)
