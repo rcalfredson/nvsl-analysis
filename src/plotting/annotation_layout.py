@@ -91,12 +91,150 @@ def keep_text_box_inside_axes(
     return True
 
 
+
+def _fit_auc_p_value_on_one_line(ax, text, *, pad_px: float) -> bool:
+    """Keep the AUC prefix at full size and size only its p-value to fit."""
+    original = text.get_text()
+    separator = " (p ="
+    if separator not in original or "\n" in original:
+        return False
+
+    fig = ax.figure
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    original_bbox = text.get_window_extent(renderer)
+    original_position = text.get_position()
+    original_ha, original_va = text.get_ha(), text.get_va()
+    prefix, _separator, tail = original.partition(separator)
+    p_value = "(p =" + tail
+    font_size = float(text.get_fontsize())
+    minimum_p_size = max(12.0, 0.55 * font_size)
+
+    text.set_text(prefix)
+    text.set_ha("left")
+    text.set_va("baseline")
+    p_font = text.get_fontproperties().copy()
+    p_font.set_size(minimum_p_size)
+    p_text = ax.text(
+        *original_position,
+        p_value,
+        transform=text.get_transform(),
+        ha="left",
+        va="baseline",
+        fontproperties=p_font,
+        color=text.get_color(),
+        alpha=text.get_alpha(),
+        zorder=text.get_zorder(),
+    )
+
+    def restore():
+        p_text.remove()
+        text.set_text(original)
+        text.set_ha(original_ha)
+        text.set_va(original_va)
+        text.set_position(original_position)
+        fig.canvas.draw()
+        return False
+
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    axes_bbox = ax.get_window_extent(renderer)
+    prefix_width = text.get_window_extent(renderer).width
+    gap_px = max(3.0, 0.16 * font_size * fig.dpi / 72.0)
+    def half_spine(side):
+        spine = ax.spines[side]
+        return (
+            0.5 * float(spine.get_linewidth()) * fig.dpi / 72.0
+            if spine.get_visible() else 0.0
+        )
+
+    safe_x0 = axes_bbox.x0 + pad_px + half_spine("left")
+    safe_x1 = (
+        axes_bbox.x1 - pad_px - half_spine("right")
+        - 0.5 * font_size * fig.dpi / 72.0
+    )
+    available_p_width = safe_x1 - safe_x0 - prefix_width - gap_px
+    if available_p_width <= 0:
+        return restore()
+
+    def p_width(size):
+        p_text.set_fontsize(size)
+        fig.canvas.draw()
+        return p_text.get_window_extent(fig.canvas.get_renderer()).width
+
+    if p_width(minimum_p_size) > available_p_width:
+        return restore()
+    low, high = minimum_p_size, font_size
+    for _ in range(9):
+        mid = (low + high) / 2.0
+        if p_width(mid) <= available_p_width:
+            low = mid
+        else:
+            high = mid
+    p_width(low)
+
+    transform = text.get_transform()
+    anchor_display = transform.transform(original_position)
+    left_px = min(
+        max(float(original_bbox.x0), float(safe_x0)),
+        float(safe_x1 - prefix_width - gap_px - p_text.get_window_extent(fig.canvas.get_renderer()).width),
+    )
+    text.set_position(transform.inverted().transform((left_px, anchor_display[1])))
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    prefix_bbox = text.get_window_extent(renderer)
+    anchor_display = transform.transform(text.get_position())
+    top_shift = float(original_bbox.y1 - prefix_bbox.y1)
+    if top_shift:
+        text.set_position(
+            transform.inverted().transform(anchor_display + np.array([0.0, top_shift]))
+        )
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        prefix_bbox = text.get_window_extent(renderer)
+        anchor_display = transform.transform(text.get_position())
+    p_text.set_position(
+        transform.inverted().transform(
+            (prefix_bbox.x1 + gap_px, anchor_display[1])
+        )
+    )
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    prefix_bbox = text.get_window_extent(renderer)
+    p_bbox = p_text.get_window_extent(renderer)
+    safe_y0 = axes_bbox.y0 + pad_px + half_spine("bottom")
+    safe_y1 = axes_bbox.y1 - pad_px - half_spine("top")
+    shift_y = max(0.0, safe_y0 - min(prefix_bbox.y0, p_bbox.y0))
+    shift_y -= max(0.0, max(prefix_bbox.y1, p_bbox.y1) - safe_y1)
+    if shift_y:
+        for label in (text, p_text):
+            display_position = transform.transform(label.get_position())
+            label.set_position(
+                transform.inverted().transform(
+                    display_position + np.array([0.0, shift_y])
+                )
+            )
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        prefix_bbox = text.get_window_extent(renderer)
+        p_bbox = p_text.get_window_extent(renderer)
+    if (
+        prefix_bbox.x0 < safe_x0 - 0.5
+        or p_bbox.x1 > safe_x1 + 0.5
+        or min(prefix_bbox.y0, p_bbox.y0) < safe_y0 - 0.5
+        or max(prefix_bbox.y1, p_bbox.y1) > safe_y1 + 0.5
+    ):
+        return restore()
+    text._auc_p_value_text = p_text
+    return True
+
+
 def fit_auc_annotation_inside_axes(ax, text, *, pad_px: float = 2.0) -> bool:
     """Keep an AUC/ABC annotation inside its axes without shrinking its font.
 
     First retain the one-line label and nudge its rendered box inside the axes.
-    If the label is intrinsically too wide, put the parenthesized p-value on a
-    second line and try again.  Return ``False`` only when neither form can fit.
+    If the label is intrinsically too wide, reduce only the p-value font size.
+    Wrap the p-value as a fallback. Return ``False`` only if neither fits.
     """
     if text is None or not text.get_visible():
         return True
@@ -124,6 +262,8 @@ def fit_auc_annotation_inside_axes(ax, text, *, pad_px: float = 2.0) -> bool:
     p_value_separator = " (p ="
     if "\n" in original or p_value_separator not in original:
         return False
+    if _fit_auc_p_value_on_one_line(ax, text, pad_px=pad_px):
+        return True
 
     text.set_text(original.replace(p_value_separator, "\n(p =", 1))
     fig.canvas.draw()

@@ -169,7 +169,8 @@ def test_auc_annotation_is_nudged_before_wrapping():
     plt.close(fig)
 
 def test_auc_annotation_leaves_backend_safety_margin_at_right_edge():
-    fig, ax = plt.subplots(figsize=(6, 3), dpi=100)
+    # This width lets the full-size mathtext label fit with the PDF reserve.
+    fig, ax = plt.subplots(figsize=(9, 3), dpi=100)
     text = ax.text(
         0.05,
         0.8,
@@ -221,4 +222,41 @@ def test_auc_annotation_wraps_p_value_when_one_line_cannot_fit():
     assert text_bbox.x1 <= axes_bbox.x1
     assert text_bbox.y0 >= axes_bbox.y0
     assert text_bbox.y1 <= axes_bbox.y1
+    plt.close(fig)
+
+
+
+def test_auc_shrinks_only_p_value_to_preserve_panel_size():
+    fig, axes = plt.subplots(1, 2, figsize=(15, 5), dpi=100)
+    ax = axes[1]
+    text = ax.text(
+        0.5,
+        0.97,
+        r"AUC (n = 39, 41): **** (p = $\mathregular{1.38 \times 10^{-13}}$)",
+        transform=ax.transAxes,
+        ha="center",
+        va="top",
+        fontsize=24,
+        fontfamily="Arial",
+    )
+    old_size = fig.get_size_inches().copy()
+    old_wspace = fig.subplotpars.wspace
+
+    assert fit_auc_annotation_inside_axes(ax, text)
+    p_value = text._auc_p_value_text
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    axes_bbox = ax.get_window_extent(renderer)
+    main_bbox = text.get_window_extent(renderer)
+    p_bbox = p_value.get_window_extent(renderer)
+
+    assert text.get_text() == "AUC (n = 39, 41): ****"
+    assert p_value.get_text().startswith("(p =")
+    assert text.get_fontsize() == 24
+    assert 12 <= p_value.get_fontsize() < text.get_fontsize()
+    assert main_bbox.x0 >= axes_bbox.x0
+    assert p_bbox.x0 > main_bbox.x1
+    assert p_bbox.x1 <= axes_bbox.x1
+    assert np.array_equal(fig.get_size_inches(), old_size)
+    assert fig.subplotpars.wspace == old_wspace
     plt.close(fig)
