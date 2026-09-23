@@ -88,6 +88,8 @@ The manuscript-ordered notebook is:
   MBKC-2 (R26E07) flies. Panels 11b and 11c use the flat chamber with Kir and
   GtACR1, respectively; panels 11d and 11e use the corresponding agarose-chamber
   cohorts. All four panels use a fixed −0.5–1.5 SLI y-axis range.
+  Extended Data Figure 12a compares yoked-subtracted rewards per distance for
+  control flies in agarose and flat large chambers across the first two trainings.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
   font sizes, and image format. Figure 4b stays in PDF format to match its source recipe.
   Analysis commands run only when their panel toggle is enabled.
