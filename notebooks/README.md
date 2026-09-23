@@ -139,6 +139,10 @@ The manuscript-ordered notebook is:
   and EPG>Kir cohorts for experimental-fly COM distance and return-leg plots.
   Extended Data Figure 16b compares yoked-subtracted rewards per distance
   for control flies in agarose versus flat large chambers.
+  Extended Data Figures 16c–16g share one analysis of the agarose large-chamber
+  control cohort. They plot rewards per distance, yoked-subtracted rewards per
+  distance, pre-period exploration, initial SLI, and initial reward rate against
+  mean Training 2 SLI over sync buckets 2–5.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
   font sizes, and image format. The heatmap recipes stay in PDF format to match their source recipes.
   Analysis commands run only when their panel toggle is enabled.
