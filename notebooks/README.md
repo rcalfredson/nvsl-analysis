@@ -97,8 +97,11 @@ The manuscript-ordered notebook is:
   Extended Data Figure 12g uses a separate agarose HTL control analysis to
   compare training SLI for the top 20% and bottom 50% of learners, defined by
   mean Training 2 SLI over sync buckets 2–5.
+  Extended Data Figure 13a contains pre-period and Training 2 sync bucket 5
+  heatmaps for control flies in flat and agarose HTL chambers, copied from the
+  corresponding recipes in `scripts/generate_heatmaps.sh`.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
-  font sizes, and image format. Figure 4b stays in PDF format to match its source recipe.
+  font sizes, and image format. The heatmap recipes stay in PDF format to match their source recipes.
   Analysis commands run only when their panel toggle is enabled.
   Its final copy stage previews or copies named panels to
   `/media/Synology4/Robert/nvsl-analysis-plots/figN/` or `edfigN/`.
