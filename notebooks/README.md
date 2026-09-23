@@ -94,6 +94,9 @@ The manuscript-ordered notebook is:
   and the 20 pt correlation style. They show rewards per distance,
   yoked-subtracted rewards per distance, pre-period exploration, initial SLI,
   and initial reward rate against mean SLI over Training 2 sync buckets 2–5.
+  Extended Data Figure 12g uses a separate agarose HTL control analysis to
+  compare training SLI for the top 20% and bottom 50% of learners, defined by
+  mean Training 2 SLI over sync buckets 2–5.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
   font sizes, and image format. Figure 4b stays in PDF format to match its source recipe.
   Analysis commands run only when their panel toggle is enabled.
