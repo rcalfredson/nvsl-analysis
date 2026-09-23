@@ -135,6 +135,8 @@ The manuscript-ordered notebook is:
   Extended Data Figure 15m reproduces the complete Training 2 and Post 2
   heatmaps for flat large-chamber EPG>Kir flies from the
   `epg_kir_training` and `epg_kir_post` script recipes.
+  Extended Data Figures 15n and 15o reuse the flat large-chamber Ctrl>Kir
+  and EPG>Kir cohorts for experimental-fly COM distance and return-leg plots.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
   font sizes, and image format. The heatmap recipes stay in PDF format to match their source recipes.
   Analysis commands run only when their panel toggle is enabled.
