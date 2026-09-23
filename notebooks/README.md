@@ -117,6 +117,11 @@ The manuscript-ordered notebook is:
   heatmaps for antennae-removed flies in the flat large chamber, migrating
   the corresponding `ar_training` and `ar_post` recipes from
   `scripts/generate_heatmaps.sh`.
+  Extended Data Figures 15e and 15f share one analysis of flat large-chamber
+  controls versus antennae-removed flies. The time plots show experimental
+  flies’ COM distance from reward center and between-reward return-leg length.
+  If `.analyze.local.env` defines `ENABLE_DEFAULT_BETWEEN_REWARD_SLI_PLOTS`,
+  it must be true; the notebook checks this before the analysis starts.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
   font sizes, and image format. The heatmap recipes stay in PDF format to match their source recipes.
   Analysis commands run only when their panel toggle is enabled.
