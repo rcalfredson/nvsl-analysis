@@ -100,6 +100,8 @@ The manuscript-ordered notebook is:
   Extended Data Figure 13a contains pre-period and Training 2 sync bucket 5
   heatmaps for control flies in flat and agarose HTL chambers, copied from the
   corresponding recipes in `scripts/generate_heatmaps.sh`.
+  Extended Data Figure 14b reuses the flat large-chamber control cohort to plot
+  experimental-minus-yoked rewards per distance across the first two trainings.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
   font sizes, and image format. The heatmap recipes stay in PDF format to match their source recipes.
   Analysis commands run only when their panel toggle is enabled.
