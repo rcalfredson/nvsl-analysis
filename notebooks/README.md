@@ -102,6 +102,10 @@ The manuscript-ordered notebook is:
   corresponding recipes in `scripts/generate_heatmaps.sh`.
   Extended Data Figure 14b reuses the flat large-chamber control cohort to plot
   experimental-minus-yoked rewards per distance across the first two trainings.
+  Extended Data Figures 14c–14g share one analysis of that flat large-chamber
+  cohort with the 20 pt correlation style. They plot rewards per distance,
+  yoked-subtracted rewards per distance, pre-period exploration, initial SLI,
+  and initial reward rate against mean Training 2 SLI over sync buckets 2–5.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
   font sizes, and image format. The heatmap recipes stay in PDF format to match their source recipes.
   Analysis commands run only when their panel toggle is enabled.
