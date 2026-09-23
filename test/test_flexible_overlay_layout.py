@@ -168,6 +168,32 @@ def test_auc_annotation_is_nudged_before_wrapping():
     assert text_bbox.x1 <= axes_bbox.x1
     plt.close(fig)
 
+def test_auc_annotation_leaves_backend_safety_margin_at_right_edge():
+    fig, ax = plt.subplots(figsize=(6, 3), dpi=100)
+    text = ax.text(
+        0.05,
+        0.8,
+        r"AUC (n = 59, 30): **** (p = $4.17 \times 10^{-5}$)",
+        transform=ax.transAxes,
+        ha="left",
+        fontsize=24,
+    )
+
+    assert fit_auc_annotation_inside_axes(ax, text)
+
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    axes_bbox = ax.get_window_extent(renderer=renderer)
+    text_bbox = text.get_window_extent(renderer=renderer)
+
+    backend_slack_px = (
+        0.5 * text.get_fontsize() * fig.dpi / 72.0
+    )
+
+    assert "\n" not in text.get_text()
+    assert text_bbox.x1 <= axes_bbox.x1 - backend_slack_px
+
+    plt.close(fig)
 
 def test_auc_annotation_wraps_p_value_when_one_line_cannot_fit():
     fig, ax = plt.subplots(figsize=(6, 3), dpi=100)

@@ -32,7 +32,10 @@ from src.plotting.plot_customizer import (
 )
 from src.plotting.sli_label_utils import pct_label, sli_extreme_plot_specs
 from src.plotting.time_series_auc import add_auc_label, compute_auc_test
-from src.plotting.annotation_layout import resolve_annotation_text_overlaps
+from src.plotting.annotation_layout import (
+    fit_auc_annotation_inside_axes,
+    resolve_annotation_text_overlaps,
+)
 from src.plotting.sync_bucket_axis_limits import (
     apply_sync_bucket_xticks,
     apply_sync_bucket_ytick_spacing,
@@ -598,6 +601,7 @@ def plot_com_sli_bundle_data(
         raise ValueError("No bundles provided")
 
     base_bundle = normalize_sli_bundle(delta_vs_bundle) if delta_vs_bundle else None
+    auc_texts_by_ax = defaultdict(list)
 
     if metric == "commag":
         if turnback_mode == "exp":
@@ -1775,6 +1779,7 @@ def plot_com_sli_bundle_data(
                 if txt is not None:
                     lbls[-1].append(txt)
                     annotation_texts.append(txt)
+                    auc_texts_by_ax[ax].append(txt)
 
         resolve_annotation_text_overlaps(ax, annotation_texts, ylim)
 
@@ -1865,6 +1870,9 @@ def plot_com_sli_bundle_data(
         )
 
     apply_sync_bucket_ytick_spacing(fig.get_axes(), y_tick_spacing)
+    for ax, texts in auc_texts_by_ax.items():
+        for text in texts:
+            fit_auc_annotation_inside_axes(ax, text)
 
     # save
     base, ext = os.path.splitext(out_fn)

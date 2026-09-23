@@ -27,7 +27,14 @@ def _bbox_overlap_area(a, b) -> float:
     return width * height
 
 
-def keep_text_box_inside_axes(ax, text, *, pad_px: float = 1.0) -> bool:
+def keep_text_box_inside_axes(
+    ax,
+    text,
+    *,
+    pad_px: float = 1.0,
+    left_pad_px: float | None = None,
+    right_pad_px: float | None = None,
+) -> bool:
     """Nudge a rendered text patch inside the visible inner axes boundary.
 
     Matplotlib's axes extent follows each spine's centerline, so the safe
@@ -47,19 +54,21 @@ def keep_text_box_inside_axes(ax, text, *, pad_px: float = 1.0) -> bool:
         else text.get_window_extent(renderer=renderer)
     )
 
-    def _edge_inset_px(spine_name):
+    def _edge_inset_px(spine_name, edge_pad_px):
         spine = ax.spines.get(spine_name)
         half_spine_width_px = 0.0
         if spine is not None and spine.get_visible():
             half_spine_width_px = (
                 0.5 * float(spine.get_linewidth()) * fig.dpi / 72.0
             )
-        return float(pad_px) + half_spine_width_px
+        return float(edge_pad_px) + half_spine_width_px
 
-    left_inset = _edge_inset_px("left")
-    right_inset = _edge_inset_px("right")
-    bottom_inset = _edge_inset_px("bottom")
-    top_inset = _edge_inset_px("top")
+    left_pad_px = pad_px if left_pad_px is None else left_pad_px
+    right_pad_px = pad_px if right_pad_px is None else right_pad_px
+    left_inset = _edge_inset_px("left", left_pad_px)
+    right_inset = _edge_inset_px("right", right_pad_px)
+    bottom_inset = _edge_inset_px("bottom", pad_px)
+    top_inset = _edge_inset_px("top", pad_px)
     available_width = float(axes_bbox.width) - left_inset - right_inset
     available_height = float(axes_bbox.height) - bottom_inset - top_inset
     if text_bbox.width > available_width or text_bbox.height > available_height:
@@ -95,9 +104,21 @@ def fit_auc_annotation_inside_axes(ax, text, *, pad_px: float = 2.0) -> bool:
     fig = ax.figure
     fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
+
     original_bbox = text.get_window_extent(renderer=renderer)
     original = text.get_text()
-    if keep_text_box_inside_axes(ax, text, pad_px=pad_px):
+
+    # Leave a small physical reserve for backend-specific text-metric
+    # differences, particularly mathtext/superscripts in PDF output.
+    backend_slack_px = (
+        0.5 * float(text.get_fontsize()) * float(fig.dpi) / 72.0
+    )
+    if keep_text_box_inside_axes(
+        ax,
+        text,
+        pad_px=pad_px,
+        right_pad_px=pad_px + backend_slack_px,
+    ):
         return True
 
     p_value_separator = " (p ="
