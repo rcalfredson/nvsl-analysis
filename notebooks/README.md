@@ -113,6 +113,10 @@ The manuscript-ordered notebook is:
   MBKC-1>Kir cohorts across two trainings with the same fixed SLI range.
   Extended Data Figure 14j compares the flat large-chamber Ctrl>Kir and
   EPG>Kir cohorts across two trainings with the same fixed SLI range.
+  Extended Data Figure 15d reproduces the complete Training 2 and Post 2
+  heatmaps for antennae-removed flies in the flat large chamber, migrating
+  the corresponding `ar_training` and `ar_post` recipes from
+  `scripts/generate_heatmaps.sh`.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
   font sizes, and image format. The heatmap recipes stay in PDF format to match their source recipes.
   Analysis commands run only when their panel toggle is enabled.
