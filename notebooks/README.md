@@ -122,6 +122,9 @@ The manuscript-ordered notebook is:
   flies’ COM distance from reward center and between-reward return-leg length.
   If `.analyze.local.env` defines `ENABLE_DEFAULT_BETWEEN_REWARD_SLI_PLOTS`,
   it must be true; the notebook checks this before the analysis starts.
+  Extended Data Figure 15g reproduces the complete Training 2 and Post 2
+  heatmaps for flat large-chamber PFNd>Kir flies from the
+  `pfnd_kir_training` and `pfnd_kir_post` script recipes.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
   font sizes, and image format. The heatmap recipes stay in PDF format to match their source recipes.
   Analysis commands run only when their panel toggle is enabled.
