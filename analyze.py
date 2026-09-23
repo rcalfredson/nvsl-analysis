@@ -302,6 +302,7 @@ from src.plotting.between_reward_polar_occupancy import (
 )
 from src.plotting.annotation_layout import (
     dodge_annotation_reference_line,
+    fit_auc_annotation_inside_axes,
     move_two_group_legend_below_data_if_annotation_overlap,
     place_flexible_overlay_texts,
     resolve_annotation_text_overlaps,
@@ -9914,6 +9915,7 @@ def plotRewards(
             axs = axs[None]
     annotation_texts_by_ax = collections.defaultdict(list)
     flexible_overlay_texts_by_ax = collections.defaultdict(list)
+    auc_texts_by_ax = collections.defaultdict(list)
 
     def _track_annotation_text(ax, txt):
         if txt is not None:
@@ -9933,11 +9935,13 @@ def plotRewards(
                 color="0",
             )
             flexible_overlay_texts_by_ax[ax].append(txt)
+            auc_texts_by_ax[ax].append(txt)
             return txt
         txt = util.pltText(x, y, label, size=size, color="0")
         txt._y_ = base_y
         txt._final_y_ = y
         _track_annotation_text(ax, txt)
+        auc_texts_by_ax[ax].append(txt)
         return txt
 
     def _subplot_title(t, f):
@@ -10964,6 +10968,14 @@ def plotRewards(
             dodge_annotation_reference_line(ax, texts)
         for ax, texts in flexible_overlay_texts_by_ax.items():
             place_flexible_overlay_texts(ax, texts, upper_only=post)
+
+    # Padding, legend placement, and fixed-axis handling can all change the
+    # final axes rectangle.  Measure AUC/ABC labels only after those steps:
+    # nudge a fitting one-line label inward, or wrap just its p-value when the
+    # full line is wider than the subplot.  The requested font size is kept.
+    for ax, texts in auc_texts_by_ax.items():
+        for text in texts:
+            fit_auc_annotation_inside_axes(ax, text)
 
     base, ext = os.path.splitext(imgFiles[tp] % blf)
     suffix_parts = []

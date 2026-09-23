@@ -9,6 +9,7 @@ from src.plotting.plot_customizer import PlotCustomizer
 
 from src.plotting.annotation_layout import (
     dodge_annotation_reference_line,
+    fit_auc_annotation_inside_axes,
     keep_text_box_inside_axes,
     place_flexible_overlay_texts,
 )
@@ -139,4 +140,59 @@ def test_text_box_constraint_clears_visible_spine_inner_edge():
     half_spine_width_px = 0.5 * 8.0 * fig.dpi / 72.0
 
     assert patch_bbox.y1 <= axes_bbox.y1 - half_spine_width_px - 0.5
+    plt.close(fig)
+
+
+def test_auc_annotation_is_nudged_before_wrapping():
+    fig, ax = plt.subplots(figsize=(7, 3), dpi=100)
+    text = ax.text(
+        0.98,
+        0.8,
+        "AUC (n = 106, 90): ****",
+        transform=ax.transAxes,
+        ha="left",
+        fontsize=27,
+    )
+    original_position = text.get_position()
+
+    assert fit_auc_annotation_inside_axes(ax, text)
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    axes_bbox = ax.get_window_extent(renderer=renderer)
+    text_bbox = text.get_window_extent(renderer=renderer)
+
+    assert text.get_text() == "AUC (n = 106, 90): ****"
+    assert text.get_fontsize() == 27
+    assert text.get_position()[0] < original_position[0]
+    assert text_bbox.x0 >= axes_bbox.x0
+    assert text_bbox.x1 <= axes_bbox.x1
+    plt.close(fig)
+
+
+def test_auc_annotation_wraps_p_value_when_one_line_cannot_fit():
+    fig, ax = plt.subplots(figsize=(6, 3), dpi=100)
+    text = ax.text(
+        0.05,
+        0.8,
+        "AUC (n = 106, 90): **** (p = 1.41 × 10⁻¹³)",
+        transform=ax.transAxes,
+        ha="left",
+        fontsize=27,
+    )
+    fig.canvas.draw()
+    original_bbox = text.get_window_extent(renderer=fig.canvas.get_renderer())
+
+    assert fit_auc_annotation_inside_axes(ax, text)
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    axes_bbox = ax.get_window_extent(renderer=renderer)
+    text_bbox = text.get_window_extent(renderer=renderer)
+
+    assert text.get_text() == "AUC (n = 106, 90): ****\n(p = 1.41 × 10⁻¹³)"
+    assert text.get_fontsize() == 27
+    assert text_bbox.y1 == pytest.approx(original_bbox.y1, abs=0.5)
+    assert text_bbox.x0 >= axes_bbox.x0
+    assert text_bbox.x1 <= axes_bbox.x1
+    assert text_bbox.y0 >= axes_bbox.y0
+    assert text_bbox.y1 <= axes_bbox.y1
     plt.close(fig)

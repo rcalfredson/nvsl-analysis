@@ -82,6 +82,54 @@ def keep_text_box_inside_axes(ax, text, *, pad_px: float = 1.0) -> bool:
     return True
 
 
+def fit_auc_annotation_inside_axes(ax, text, *, pad_px: float = 2.0) -> bool:
+    """Keep an AUC/ABC annotation inside its axes without shrinking its font.
+
+    First retain the one-line label and nudge its rendered box inside the axes.
+    If the label is intrinsically too wide, put the parenthesized p-value on a
+    second line and try again.  Return ``False`` only when neither form can fit.
+    """
+    if text is None or not text.get_visible():
+        return True
+
+    fig = ax.figure
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    original_bbox = text.get_window_extent(renderer=renderer)
+    original = text.get_text()
+    if keep_text_box_inside_axes(ax, text, pad_px=pad_px):
+        return True
+
+    p_value_separator = " (p ="
+    if "\n" in original or p_value_separator not in original:
+        return False
+
+    text.set_text(original.replace(p_value_separator, "\n(p =", 1))
+    fig.canvas.draw()
+    wrapped_bbox = text.get_window_extent(renderer=fig.canvas.get_renderer())
+
+    # With baseline-aligned Matplotlib text, adding a line expands the block in
+    # both vertical directions.  Keep the first line's top edge where the
+    # original one-line label was and let the new p-value line extend downward.
+    # The final constraint below can still move the block vertically if this
+    # preserved placement genuinely crosses an axes edge.
+    dy_px = float(original_bbox.y1) - float(wrapped_bbox.y1)
+    if dy_px:
+        transform = text.get_transform()
+        position_display = transform.transform(text.get_position())
+        text.set_position(
+            transform.inverted().transform(
+                position_display + np.array([0.0, dy_px], dtype=float)
+            )
+        )
+
+    if keep_text_box_inside_axes(ax, text, pad_px=pad_px):
+        return True
+
+    text.set_text(original)
+    return False
+
+
 def _artist_display_bboxes(ax, renderer):
     bboxes = []
     for line in ax.lines:
