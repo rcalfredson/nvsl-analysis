@@ -127,6 +127,9 @@ The manuscript-ordered notebook is:
   `pfnd_kir_training` and `pfnd_kir_post` script recipes.
   Extended Data Figures 15h and 15i reuse the flat large-chamber Ctrl>Kir
   and PFNd>Kir cohorts for experimental-fly COM distance and return-leg plots.
+  Extended Data Figure 15j reproduces the complete Training 2 and Post 2
+  heatmaps for flat large-chamber MBKC-1>Kir flies from the
+  `mbkc_kir_training` and `mbkc_kir_post` script recipes.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
   font sizes, and image format. The heatmap recipes stay in PDF format to match their source recipes.
   Analysis commands run only when their panel toggle is enabled.
