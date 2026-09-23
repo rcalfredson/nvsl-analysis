@@ -10632,7 +10632,7 @@ def plotRewards(
                         rpid="SLI",
                         rpipd="SLI",
                         rpd="RPD (m⁻¹)",
-                        rpd_exp_min_yok="rewards per distance (m⁻¹)\n$(\\text{exp} - \\text{yok})$",
+                        rpd_exp_min_yok="Yoked-subtracted RPD (m⁻¹)",
                         agarose_dual_circle="dual-circle agarose avoidance ratio",
                         agarose_dual_circle_exp_min_yok="dual-circle agarose avoidance ratio\n$(\\text{exp} - \\text{yok})$",
                         turnback_dual_circle="dual-circle reward turnback ratio",
