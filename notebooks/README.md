@@ -89,7 +89,11 @@ The manuscript-ordered notebook is:
   GtACR1, respectively; panels 11d and 11e use the corresponding agarose-chamber
   cohorts. All four panels use a fixed −0.5–1.5 SLI y-axis range.
   Extended Data Figure 12a compares yoked-subtracted rewards per distance for
-  control flies in agarose and flat large chambers across the first two trainings.
+  control flies in agarose and flat HTL chambers across the first two trainings.
+  Extended Data Figures 12b–12f share one agarose HTL control analysis
+  and the 20 pt correlation style. They show rewards per distance,
+  yoked-subtracted rewards per distance, pre-period exploration, initial SLI,
+  and initial reward rate against mean SLI over Training 2 sync buckets 2–5.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
   font sizes, and image format. Figure 4b stays in PDF format to match its source recipe.
   Analysis commands run only when their panel toggle is enabled.
