@@ -52,6 +52,20 @@ def main():
         default=argparse.SUPPRESS,
         help="Fraction of videos to include in the bottom-SLI subset.",
     )
+    p.add_argument(
+        "--sli-eligible-only",
+        action="store_true",
+        help="For an all-flies plot, retain only flies eligible for SLI selection.",
+    )
+    p.add_argument(
+        "--sli-min-valid-sync-buckets",
+        type=int,
+        default=None,
+        help=(
+            "Optional eligibility override reconstructed from sli_ts; for example, "
+            "1 reproduces the relaxed one-valid-bucket pool."
+        ),
+    )
     p.add_argument("--title", default=None, help="Optional plot title override.")
     p.add_argument("--ymax", type=float, default=None)
     p.add_argument(
@@ -143,6 +157,8 @@ def main():
         debug=args.debug,
         bar_alpha=args.bar_alpha,
         show_points=args.show_points,
+        sli_eligible_only=args.sli_eligible_only,
+        sli_min_valid_buckets=args.sli_min_valid_sync_buckets,
         opts=opts,
     )
 

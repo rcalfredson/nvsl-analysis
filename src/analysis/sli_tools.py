@@ -317,6 +317,66 @@ def select_fractional_groups(
     return bottom, top
 
 
+def sli_eligible_indices_from_bundle(
+    bundle: dict,
+    *,
+    min_valid_buckets: Optional[int] = None,
+) -> np.ndarray:
+    """Return bundle-row indices eligible for SLI-based selection.
+
+    With no override, eligibility follows the scalar ``sli`` values stored in
+    the bundle. When ``min_valid_buckets`` is supplied, eligibility is
+    reconstructed from the bundle's bucket-level ``sli_ts`` values using the
+    stored training and sync-bucket window. This supports explicit comparisons
+    with bundles produced under an earlier valid-bucket policy.
+    """
+    sli = np.asarray(bundle["sli"], dtype=float).reshape(-1)
+    if min_valid_buckets is None:
+        return np.flatnonzero(np.isfinite(sli))
+
+    minimum = int(min_valid_buckets)
+    if minimum < 1:
+        raise ValueError("min_valid_buckets must be at least 1")
+    if "sli_ts" not in bundle:
+        raise ValueError(
+            "SLI eligibility override requires bucket-level sli_ts in the bundle"
+        )
+
+    sli_ts = np.asarray(bundle["sli_ts"], dtype=float)
+    if sli_ts.ndim != 3 or sli_ts.shape[0] != sli.size:
+        raise ValueError(
+            f"Expected sli_ts shape ({sli.size}, trainings, buckets), "
+            f"got {sli_ts.shape}"
+        )
+
+    training_idx = int(np.asarray(bundle["sli_training_idx"]).reshape(()).item())
+    if training_idx < 0 or training_idx >= sli_ts.shape[1]:
+        raise ValueError(
+            f"sli_training_idx={training_idx} is outside sli_ts shape {sli_ts.shape}"
+        )
+
+    skip = int(
+        np.asarray(bundle.get("sli_select_skip_first_sync_buckets", 0))
+        .reshape(())
+        .item()
+    )
+    keep = int(
+        np.asarray(bundle.get("sli_select_keep_first_sync_buckets", 0))
+        .reshape(())
+        .item()
+    )
+    start = max(0, min(skip, sli_ts.shape[2]))
+    end = sli_ts.shape[2] if keep <= 0 else min(sli_ts.shape[2], start + keep)
+    if end <= start:
+        return np.array([], dtype=int)
+
+    effective_minimum = min(minimum, end - start)
+    valid_counts = np.count_nonzero(
+        np.isfinite(sli_ts[:, training_idx, start:end]), axis=1
+    )
+    return np.flatnonzero(valid_counts >= effective_minimum)
+
+
 def select_extremes(
     sli_series: pd.Series, fraction: float = 0.1
 ) -> Tuple[List[int], List[int]]:

@@ -118,6 +118,20 @@ def parse_args() -> argparse.Namespace:
             "within each group (for example, 0.9 for the top 90%%)."
         ),
     )
+    turnback.add_argument(
+        "--sli-eligible-only",
+        action="store_true",
+        help="Export all turnback values only for flies eligible for SLI selection.",
+    )
+    turnback.add_argument(
+        "--sli-min-valid-sync-buckets",
+        type=int,
+        default=None,
+        help=(
+            "Optional eligibility override reconstructed from sli_ts; for example, "
+            "1 uses the relaxed one-valid-bucket pool."
+        ),
+    )
     scalar.add_argument("--out", required=True, help="Output GraphPad CSV path.")
     scalar.add_argument(
         "--scalar-panel",
@@ -218,6 +232,15 @@ def main() -> int:
             0 < args.top_sli_fraction <= 1
         ):
             raise ValueError("--top-sli-fraction must be greater than 0 and at most 1")
+        if args.sli_min_valid_sync_buckets is not None and (
+            args.sli_min_valid_sync_buckets < 1
+        ):
+            raise ValueError("--sli-min-valid-sync-buckets must be at least 1")
+        if args.top_sli_fraction is not None and args.sli_eligible_only:
+            raise ValueError(
+                "--sli-eligible-only is for all-eligible exports and cannot be "
+                "combined with --top-sli-fraction"
+            )
         bundles = []
         for spec in args.input:
             label, path = parse_labeled_path(spec, separators=("=", ":"))
@@ -226,6 +249,8 @@ def main() -> int:
             bundles,
             args.out,
             top_sli_fraction=args.top_sli_fraction,
+            sli_eligible_only=args.sli_eligible_only,
+            sli_min_valid_buckets=args.sli_min_valid_sync_buckets,
         )
         print(f"[graphpad_csv] wrote {args.out}")
         return 0

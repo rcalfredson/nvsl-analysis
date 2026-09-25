@@ -448,6 +448,44 @@ def test_turnback_ratio_graphpad_csv_selects_top_sli_fraction_per_group(tmp_path
     ]
 
 
+def test_turnback_ratio_graphpad_csv_can_use_relaxed_sli_eligible_pool(tmp_path):
+    out = tmp_path / "turnback_sli_eligible.csv"
+    bundle = {
+        "sli": np.asarray([0.1, np.nan, np.nan, 0.5]),
+        "sli_ts": np.asarray(
+            [
+                [[np.nan, np.nan, np.nan, np.nan]],
+                [[np.nan, 0.2, np.nan, np.nan]],
+                [[np.nan, np.nan, np.nan, np.nan]],
+                [[np.nan, 0.4, 0.5, 0.6]],
+            ]
+        ),
+        "sli_training_idx": np.asarray(0),
+        "sli_select_skip_first_sync_buckets": np.asarray(1),
+        "sli_select_keep_first_sync_buckets": np.asarray(3),
+        "video_ids": np.asarray(["a", "b", "c", "d"]),
+        "turnback_excursion_bin_ratio_exp": np.asarray(
+            [[0.1], [0.2], [0.3], [0.4]]
+        ),
+        "turnback_excursion_bin_ratio_ctrl": np.zeros((4, 1)),
+        "turnback_excursion_bin_pair_inner_deltas_mm": np.asarray([3]),
+        "turnback_excursion_bin_pair_outer_deltas_mm": np.asarray([5]),
+    }
+
+    write_turnback_ratio_bundles_graphpad_csv(
+        [("Ctrl", bundle)],
+        out,
+        sli_eligible_only=True,
+        sli_min_valid_buckets=1,
+    )
+
+    assert out.read_text().splitlines() == [
+        "Ctrl | Subject ID,Ctrl | 3/5 mm",
+        "b,0.2",
+        "d,0.4",
+    ]
+
+
 def test_repeated_measures_scalar_csv_aligns_panels_by_unit_id(tmp_path):
     a = tmp_path / "a.npz"
     b = tmp_path / "b.npz"

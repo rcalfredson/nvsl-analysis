@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import numpy as np
 
 from src.analysis.sli_bundle_utils import load_sli_bundle
+from src.analysis.sli_tools import sli_eligible_indices_from_bundle
 from src.plotting.return_prob_outer_radius_sli_bundle_plotter import (
     _ci_triplet,
     _selected_groups,
@@ -263,6 +264,8 @@ def plot_turnback_excursion_bin_sli_bundles(
     debug: bool = False,
     bar_alpha: float = 0.90,
     show_points: bool = False,
+    sli_eligible_only: bool = False,
+    sli_min_valid_buckets: int | None = None,
     opts=None,
 ):
     if opts is None:
@@ -290,6 +293,15 @@ def plot_turnback_excursion_bin_sli_bundles(
             sli_bottom_fraction=sli_bottom_fraction,
             standalone_extreme_labels=standalone_extreme_labels,
         ):
+            if sli_eligible_only:
+                if sli_extremes is not None:
+                    raise ValueError(
+                        "sli_eligible_only is intended for the all-SLI-eligible "
+                        "comparison and cannot be combined with sli_extremes"
+                    )
+                idx = sli_eligible_indices_from_bundle(
+                    bundle, min_valid_buckets=sli_min_valid_buckets
+                )
             exported.append(
                 _bundle_to_exported(
                     bundle,
