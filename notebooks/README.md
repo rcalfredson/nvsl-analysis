@@ -157,6 +157,8 @@ The manuscript-ordered notebook is:
   antennae-removed flies, reusing the cohorts from Figures 4d and 4t.
   Extended Data Figure 17d makes the same flat-versus-agarose comparison for
   MBKC-1>Kir flies, reusing the cohorts from Extended Data Figures 14i and 16i.
+  Extended Data Figure 17e makes the same flat-versus-agarose comparison for
+  PFNd>Kir flies, reusing the cohorts from Figures 4i and 4u.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
   font sizes, and image format. The heatmap recipes stay in PDF format to match their source recipes.
   Analysis commands run only when their panel toggle is enabled.
