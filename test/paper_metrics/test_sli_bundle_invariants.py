@@ -102,6 +102,7 @@ def test_normalize_sli_bundle_preserves_legacy_missing_minimum_metadata():
     normalized = normalize_sli_bundle(bundle)
 
     assert normalized["sli_min_valid_sync_buckets"] is None
+    assert normalize_sli_bundle(normalized)["sli_min_valid_sync_buckets"] is None
 
 
 def test_normalize_sli_bundle_rejects_nonpositive_minimum_metadata():

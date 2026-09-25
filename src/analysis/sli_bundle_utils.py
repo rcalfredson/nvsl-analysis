@@ -1727,10 +1727,9 @@ def normalize_sli_bundle(bundle: dict, *, path: str | None = None) -> dict:
     out["bucket_len_min"] = float(as_scalar(out["bucket_len_min"]))
     out["sli_training_idx"] = int(as_scalar(out["sli_training_idx"]))
     out["sli_use_training_mean"] = bool(as_scalar(out["sli_use_training_mean"]))
+    min_valid = as_scalar(out.get("sli_min_valid_sync_buckets"))
     out["sli_min_valid_sync_buckets"] = (
-        None
-        if "sli_min_valid_sync_buckets" not in out
-        else int(as_scalar(out["sli_min_valid_sync_buckets"]))
+        None if min_valid is None else int(min_valid)
     )
     out["training_names"] = as_str_array(out["training_names"])
     out["video_ids"] = as_str_array(out["video_ids"])
