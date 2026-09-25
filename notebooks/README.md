@@ -145,7 +145,16 @@ The manuscript-ordered notebook is:
   mean Training 2 SLI over sync buckets 2–5.
   Extended Data Figure 16h uses the same agarose large-chamber cohort to
   compare the top 20% and bottom 50% of learners across two trainings, with
-  a fixed −0.5–2.5 SLI y-axis.
+  a fixed 0–3.0 SLI y-axis.
+  Extended Data Figure 16i compares Ctrl>Kir and MBKC-1>Kir in the agarose
+  large chamber across two trainings with the same 0–3.0 SLI range.
+  Extended Data Figure 16j compares Ctrl>Kir and EPG>Kir in the agarose
+  large chamber across two trainings with that range.
+  Extended Data Figure 17b compares the standard agarose avoidance ratio for
+  control flies in flat and agarose large chambers. Separate, optional export
+  steps include the pre-training value; the plot uses the existing bundles.
+  Extended Data Figure 17c makes the same flat-versus-agarose comparison for
+  antennae-removed flies, reusing the cohorts from Figures 4d and 4t.
   The notebook's plot-style cell sets the font family, time/correlation/heatmap
   font sizes, and image format. The heatmap recipes stay in PDF format to match their source recipes.
   Analysis commands run only when their panel toggle is enabled.
