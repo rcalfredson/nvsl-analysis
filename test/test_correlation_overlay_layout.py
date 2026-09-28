@@ -164,7 +164,7 @@ def test_joint_overlay_stats_match_standard_correlation_size():
             plt.close(fig)
 
 
-def test_trial_budget_reaches_later_layout_styles(monkeypatch):
+def test_trial_budget_reaches_opposed_layout_with_bounded_stats_overlap(monkeypatch):
     fig, ax = plt.subplots(figsize=(5.5, 4.5))
     grid = np.linspace(-1.0, 1.0, 20)
     x, y = np.meshgrid(grid, grid)
@@ -184,8 +184,23 @@ def test_trial_budget_reaches_later_layout_styles(monkeypatch):
         max_layout_trials=48,
     )
 
-    assert "mode=joint_internal layout=annotation_band" in messages[-1]
-    assert stats.get_position()[0] == 0.5
+    fig.canvas.draw()
+    stats_bbox = stats.get_bbox_patch().get_window_extent(
+        fig.canvas.get_renderer()
+    )
+    points_display = ax.transData.transform(np.column_stack([x, y]))
+    obscured = (
+        (points_display[:, 0] >= stats_bbox.x0)
+        & (points_display[:, 0] <= stats_bbox.x1)
+        & (points_display[:, 1] >= stats_bbox.y0)
+        & (points_display[:, 1] <= stats_bbox.y1)
+    )
+    overlap_frac = float(np.mean(obscured))
+
+    assert "mode=joint_internal layout=opposed_band" in messages[-1]
+    assert stats.get_position() == (0.97, 0.03)
+    assert 0.0 < overlap_frac
+    assert overlap_frac <= correlations.STATS_BOX_MAX_POINT_OVERLAP_FRAC
     plt.close(fig)
 
 
@@ -302,7 +317,7 @@ def test_long_smart_stats_label_wraps_when_font_tiers_cannot_fit():
     plt.close(fig)
 
 
-def test_opposed_band_places_stats_close_to_but_clear_of_markers():
+def test_opposed_band_keeps_stats_overlap_within_standard_tolerance():
     with plt.rc_context():
         customizer = PlotCustomizer()
         customizer.update_font_size(20.0)
@@ -393,21 +408,15 @@ def test_opposed_band_places_stats_close_to_but_clear_of_markers():
             fig.canvas.draw()
             renderer = fig.canvas.get_renderer()
             stats_bbox = stats.get_bbox_patch().get_window_extent(renderer)
-            marker_radius_px = (
-                0.5 * np.sqrt(float(np.max(scatter.get_sizes()))) * fig.dpi / 72.0
-            )
-            pad_px = marker_radius_px + 0.5
-            padded_stats_bbox = stats_bbox.expanded(
-                (stats_bbox.width + 2.0 * pad_px) / stats_bbox.width,
-                (stats_bbox.height + 2.0 * pad_px) / stats_bbox.height,
-            )
             points_display = ax.transData.transform(np.column_stack([x, y]))
             obscured = (
-                (points_display[:, 0] >= padded_stats_bbox.x0)
-                & (points_display[:, 0] <= padded_stats_bbox.x1)
-                & (points_display[:, 1] >= padded_stats_bbox.y0)
-                & (points_display[:, 1] <= padded_stats_bbox.y1)
+                (points_display[:, 0] >= stats_bbox.x0)
+                & (points_display[:, 0] <= stats_bbox.x1)
+                & (points_display[:, 1] >= stats_bbox.y0)
+                & (points_display[:, 1] <= stats_bbox.y1)
             )
-            assert not np.any(obscured)
+            assert float(np.mean(obscured)) <= (
+                correlations.STATS_BOX_MAX_POINT_OVERLAP_FRAC
+            )
         finally:
             plt.close(fig)

@@ -42,6 +42,7 @@ BBOX_STYLE = dict(
     facecolor="white", alpha=0.65, edgecolor="none", boxstyle="round,pad=0.25"
 )
 STATS_BOX_MIN_FONTSIZE = 12.0
+STATS_BOX_MAX_POINT_OVERLAP_FRAC = 0.08
 TREND_LINE_P_THRESHOLD = 0.05
 CORRELATION_REFERENCE_FONT_SIZE = 16.0
 CORRELATION_LAYOUT_MAX_TRIALS = 48
@@ -864,7 +865,7 @@ def _add_smart_stats_box(
     y: np.ndarray,
     *,
     fontsize: float | None = None,
-    max_overlap_frac: float = 0.08,
+    max_overlap_frac: float = STATS_BOX_MAX_POINT_OVERLAP_FRAC,
     max_headroom_frac: float = 0.25,
 ):
     """
@@ -1331,9 +1332,11 @@ def _place_correlation_overlays(
     Jointly place a correlation legend and stats box.
 
     Placement is evaluated after the axes have reached their final physical
-    size. Internal candidates must avoid scatter markers, plotted lines, each
-    other, and the axes boundary. Added y headroom is always measured from the
-    original data range. General placements are capped by max_headroom_frac;
+    size. Legends must avoid scatter markers; statistics boxes use the same
+    bounded marker-overlap tolerance as ordinary correlation plots. Both must
+    avoid plotted lines, each other, and the axes boundary. Added y headroom is
+    always measured from the original data range. General placements are
+    capped by max_headroom_frac;
     the split-corner placement may add modest right and lower padding, and a
     stacked annotation-band placement may use up to
     annotation_band_max_headroom_frac. Compact wording is available only at
@@ -1344,8 +1347,8 @@ def _place_correlation_overlays(
     as ordinary correlation plots; layout fallback may move it but not shrink
     it.
 
-    If no internal layout is collision-free, both overlays are placed outside
-    the right side of the axes.
+    If no acceptable internal layout is found, both overlays are placed
+    outside the right side of the axes.
     """
     fig = ax.figure
 
@@ -1452,7 +1455,6 @@ def _place_correlation_overlays(
     )
 
     marker_pad_px = 2.0
-    stats_marker_pad_px = marker_pad_px
     if scatter_artist is not None:
         try:
             sizes = np.asarray(scatter_artist.get_sizes(), dtype=float)
@@ -1465,10 +1467,6 @@ def _place_correlation_overlays(
                     0.5 * np.sqrt(float(np.max(finite_sizes))) * fig.dpi / 72.0
                 )
                 marker_pad_px = max(marker_pad_px, marker_radius_px + 2.0)
-                # Statistics may sit close to a marker, but the marker itself
-                # must remain unobscured. Retain only a small visual gap beyond
-                # its rendered radius; legends keep the roomier two-pixel gap.
-                stats_marker_pad_px = max(0.5, marker_radius_px + 0.5)
         except (AttributeError, TypeError, ValueError):
             pass
 
@@ -1558,11 +1556,14 @@ def _place_correlation_overlays(
         line_points_display,
         axes_bbox,
         point_pad_px,
+        max_point_overlap_frac=0.0,
     ):
         if not _bbox_inside(bbox, axes_bbox):
             return False
 
-        if _count_point_overlap(bbox, points_display, point_pad_px):
+        point_hits = _count_point_overlap(bbox, points_display, point_pad_px)
+        point_overlap_frac = point_hits / max(len(points_display), 1)
+        if point_overlap_frac > max_point_overlap_frac:
             return False
 
         if _count_point_overlap(bbox, line_points_display, 2.5):
@@ -1650,13 +1651,15 @@ def _place_correlation_overlays(
         line_points_display,
         axes_bbox,
         point_pad_px,
+        max_point_overlap_frac=0.0,
     ):
         reasons = {}
         if not _bbox_inside(bbox, axes_bbox):
             reasons["outside_axes"] = 1
 
         point_hits = _count_point_overlap(bbox, points_display, point_pad_px)
-        if point_hits:
+        point_overlap_frac = point_hits / max(len(points_display), 1)
+        if point_overlap_frac > max_point_overlap_frac:
             reasons["points"] = point_hits
 
         line_hits = _count_point_overlap(bbox, line_points_display, 2.5)
@@ -1861,7 +1864,8 @@ def _place_correlation_overlays(
                     points_display=points_display,
                     line_points_display=line_points_display,
                     axes_bbox=axes_bbox,
-                    point_pad_px=marker_pad_px,
+                    point_pad_px=0.0,
+                    max_point_overlap_frac=STATS_BOX_MAX_POINT_OVERLAP_FRAC,
                 )
                 candidate_valid = _consider_candidate(
                     description=(
@@ -1895,7 +1899,8 @@ def _place_correlation_overlays(
                             points_display=points_display,
                             line_points_display=line_points_display,
                             axes_bbox=axes_bbox,
-                            point_pad_px=marker_pad_px,
+                            point_pad_px=0.0,
+                            max_point_overlap_frac=STATS_BOX_MAX_POINT_OVERLAP_FRAC,
                         )
                         and not _bbox_overlap(final_legend_bbox, final_stats_bbox)
                     ):
@@ -2000,7 +2005,8 @@ def _place_correlation_overlays(
                                 points_display=points_display,
                                 line_points_display=line_points_display,
                                 axes_bbox=axes_bbox,
-                                point_pad_px=marker_pad_px,
+                                point_pad_px=0.0,
+                                max_point_overlap_frac=STATS_BOX_MAX_POINT_OVERLAP_FRAC,
                             )
                             candidate_valid = _consider_candidate(
                                 description=(
@@ -2045,7 +2051,8 @@ def _place_correlation_overlays(
                                         points_display=points_display,
                                         line_points_display=line_points_display,
                                         axes_bbox=axes_bbox,
-                                        point_pad_px=marker_pad_px,
+                                        point_pad_px=0.0,
+                                        max_point_overlap_frac=STATS_BOX_MAX_POINT_OVERLAP_FRAC,
                                     )
                                     and not _bbox_overlap(
                                         final_legend_bbox, final_stats_bbox
@@ -2195,7 +2202,8 @@ def _place_correlation_overlays(
                         points_display=points_display,
                         line_points_display=line_points_display,
                         axes_bbox=axes_bbox,
-                        point_pad_px=marker_pad_px,
+                        point_pad_px=0.0,
+                        max_point_overlap_frac=STATS_BOX_MAX_POINT_OVERLAP_FRAC,
                     )
                     candidate_valid = _consider_candidate(
                         description=(
@@ -2237,7 +2245,8 @@ def _place_correlation_overlays(
                                 points_display=points_display,
                                 line_points_display=line_points_display,
                                 axes_bbox=axes_bbox,
-                                point_pad_px=marker_pad_px,
+                                point_pad_px=0.0,
+                                max_point_overlap_frac=STATS_BOX_MAX_POINT_OVERLAP_FRAC,
                             )
                             and not _bbox_overlap(
                                 final_legend_bbox, final_stats_bbox
@@ -2381,7 +2390,8 @@ def _place_correlation_overlays(
                         points_display=points_display,
                         line_points_display=line_points_display,
                         axes_bbox=axes_bbox,
-                        point_pad_px=stats_marker_pad_px,
+                        point_pad_px=0.0,
+                        max_point_overlap_frac=STATS_BOX_MAX_POINT_OVERLAP_FRAC,
                     )
                     and not _bbox_overlap(
                         opposed_legend_bbox, opposed_stats_bbox
@@ -2483,7 +2493,8 @@ def _place_correlation_overlays(
                     points_display=points_display,
                     line_points_display=line_points_display,
                     axes_bbox=axes_bbox,
-                    point_pad_px=marker_pad_px,
+                    point_pad_px=0.0,
+                    max_point_overlap_frac=STATS_BOX_MAX_POINT_OVERLAP_FRAC,
                 )
                 candidate_valid = _consider_candidate(
                     description=(
@@ -2522,7 +2533,8 @@ def _place_correlation_overlays(
                             points_display=points_display,
                             line_points_display=line_points_display,
                             axes_bbox=axes_bbox,
-                            point_pad_px=marker_pad_px,
+                            point_pad_px=0.0,
+                            max_point_overlap_frac=STATS_BOX_MAX_POINT_OVERLAP_FRAC,
                         )
                         and not _bbox_overlap(
                             final_legend_bbox, final_stats_bbox
@@ -2548,7 +2560,7 @@ def _place_correlation_overlays(
                 legend.remove()
                 stats_artist.remove()
 
-    # No collision-free internal layout was found within the trial budget.
+    # No acceptable internal layout was found within the trial budget.
     # Restore the original data range and place both overlays outside the
     # right side of the axes. bbox_inches="tight" will preserve them.
     ax.set_xlim(base_x0, base_x1)
