@@ -191,7 +191,8 @@ class PlotCustomizer:
     A class to customize the appearance of matplotlib plots, including font size and family.
 
     Attributes:
-        font_size_default (float): The default font size from matplotlib's current rcParams.
+        font_size_default (float): Matplotlib's stable factory-default font size,
+                                   used as the adaptive-layout baseline.
         font_size (float): The current font size used in plots.
         font_family_default (str): The default font family from matplotlib's current rcParams.
         font_size_customized (bool): Indicates whether the font size has been customized.
@@ -214,11 +215,11 @@ class PlotCustomizer:
                                                  If None, defaults to 3 less than the current
                                                  matplotlib font size.
         """
-        self.font_size_default = plt.rcParams["font.size"]
-        self.font_size = self.font_size_default
+        self.font_size_default = float(plt.rcParamsDefault["font.size"])
+        self.font_size = float(plt.rcParams["font.size"])
         self.font_family_default = self._get_font_family()
         self.font_family = self.font_family_default
-        self.font_size_customized = False
+        self.font_size_customized = self.font_size != self.font_size_default
         self.font_family_customized = False
         self.text_objects = []
         self.in_plot_font_size = (
@@ -255,7 +256,10 @@ class PlotCustomizer:
         plt.rc("figure", titlesize=new_font_size)
         plt.rc("legend", fontsize=self.in_plot_font_size)
 
-        if self.font_size != new_font_size:
+        if (
+            self.font_size != new_font_size
+            or new_font_size != self.font_size_default
+        ):
             self.font_size_customized = True
         self.font_size = new_font_size
         self.increase_factor = self.font_size / self.font_size_default

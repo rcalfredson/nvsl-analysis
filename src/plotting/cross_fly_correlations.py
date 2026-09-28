@@ -1340,7 +1340,9 @@ def _place_correlation_overlays(
     configured font sizes greater than or equal to
     compact_labels_min_font_size. Renderer-backed candidate trials are capped
     by max_layout_trials, and physically oversized statistics boxes bypass the
-    internal search entirely.
+    internal search entirely. Statistics text uses the same axis-relative size
+    as ordinary correlation plots; layout fallback may move it but not shrink
+    it.
 
     If no internal layout is collision-free, both overlays are placed outside
     the right side of the axes.
@@ -1386,12 +1388,9 @@ def _place_correlation_overlays(
                 sizes.append(value)
         return tuple(sizes)
 
-    # Grow overlays faster than the axes but more slowly than the configured
-    # font. This makes their proportional footprint increase while keeping
-    # long multi-line annotations physically capable of fitting in the axes.
-    # The second tier permits only a modest reduction; there is deliberately
-    # no absolute fallback that could make a larger configured font smaller
-    # than the same overlay at a lower configured size.
+    # Keep legend sizing adaptive, but use the same axis-relative statistics
+    # size as ordinary correlations. Placement can change; stats do not shrink
+    # merely to make the joint overlay fit inside the axes.
     configured_scale = max(
         1.0, configured_font_size / CORRELATION_REFERENCE_FONT_SIZE
     )
@@ -1399,15 +1398,14 @@ def _place_correlation_overlays(
     preferred_legend_fontsize = (
         CORRELATION_REFERENCE_FONT_SIZE - 3.0
     ) * overlay_scale
-    preferred_stats_fontsize = CORRELATION_REFERENCE_FONT_SIZE * overlay_scale
+    preferred_stats_fontsize = max(
+        STATS_BOX_MIN_FONTSIZE, 0.90 * reference_size
+    )
     legend_font_sizes = _unique_font_sizes(
         max(preferred_legend_fontsize, 6.0),
         max(0.90 * preferred_legend_fontsize, 6.0),
     )
-    stats_font_sizes = _unique_font_sizes(
-        max(preferred_stats_fontsize, 6.0),
-        max(0.90 * preferred_stats_fontsize, 6.0),
-    )
+    stats_font_sizes = (preferred_stats_fontsize,)
 
     use_compact_labels = configured_font_size >= float(
         compact_labels_min_font_size
@@ -1454,6 +1452,7 @@ def _place_correlation_overlays(
     )
 
     marker_pad_px = 2.0
+    stats_marker_pad_px = marker_pad_px
     if scatter_artist is not None:
         try:
             sizes = np.asarray(scatter_artist.get_sizes(), dtype=float)
@@ -1466,6 +1465,10 @@ def _place_correlation_overlays(
                     0.5 * np.sqrt(float(np.max(finite_sizes))) * fig.dpi / 72.0
                 )
                 marker_pad_px = max(marker_pad_px, marker_radius_px + 2.0)
+                # Statistics may sit close to a marker, but the marker itself
+                # must remain unobscured. Retain only a small visual gap beyond
+                # its rendered radius; legends keep the roomier two-pixel gap.
+                stats_marker_pad_px = max(0.5, marker_radius_px + 0.5)
         except (AttributeError, TypeError, ValueError):
             pass
 
@@ -1779,7 +1782,10 @@ def _place_correlation_overlays(
             )
         return " ".join(entries)
 
-    font_tiers = tuple(zip(legend_font_sizes, stats_font_sizes))
+    font_tiers = tuple(
+        (legend_fontsize, preferred_stats_fontsize)
+        for legend_fontsize in legend_font_sizes
+    )
     # Try the likely clear corners across the full headroom range before the
     # general search. This costs at most one legend and one stats trial per
     # headroom value, so the search can reach a useful upper padding quickly.
@@ -2100,20 +2106,6 @@ def _place_correlation_overlays(
     )
     split_stats_variants = list(reversed(stats_text_variants))
     split_font_tiers = list(font_tiers)
-    if not use_compact_labels:
-        # Full correlation wording can be only a few pixels wider than the
-        # axes at intermediate font sizes. Permit a narrowly scoped third
-        # stats tier while retaining the existing 90% legend tier.
-        full_label_tier = (
-            legend_font_sizes[-1],
-            max(0.88 * preferred_stats_fontsize, 6.0),
-        )
-        if not any(
-            np.isclose(full_label_tier[0], legend_size)
-            and np.isclose(full_label_tier[1], stats_size)
-            for legend_size, stats_size in split_font_tiers
-        ):
-            split_font_tiers.append(full_label_tier)
 
     for font_tier, (legend_fontsize, stats_fontsize) in enumerate(
         split_font_tiers
@@ -2276,14 +2268,19 @@ def _place_correlation_overlays(
 
                 stats_artist.remove()
 
-    # When independent corner placements cannot coexist, reserve a top band
-    # and stack a compact stats box above a two-column legend. The band can use
-    # more headroom than the general search because that space is occupied by
+    # When the earlier searches fail, first oppose a top two-column legend and
+    # a narrow, two-line statistics box at lower right. If that cannot fit,
+    # reserve a top band and stack the one-line statistics above the legend.
+    # The band may use more headroom because that space is occupied by
     # annotations rather than left as unexplained empty padding.
     band_max_headroom_frac = max(
         float(max_headroom_frac), float(annotation_band_max_headroom_frac)
     )
-    band_headroom_fracs = tuple(np.linspace(0.0, band_max_headroom_frac, 16))
+    fine_headroom_limit = min(0.50, band_max_headroom_frac)
+    band_headroom_fracs = _unique_font_sizes(
+        *np.linspace(0.0, fine_headroom_limit, 11),
+        *np.linspace(fine_headroom_limit, band_max_headroom_frac, 5),
+    )
     band_stats_variants = list(reversed(stats_text_variants))
     band_gap_points = 6.0
 
@@ -2314,6 +2311,110 @@ def _place_correlation_overlays(
                     )
                 else:
                     points_display = np.empty((0, 2), dtype=float)
+                line_points_display = _line_samples_display()
+
+                # Before stacking both overlays at the top, try opposing them:
+                # a two-column legend above the cloud and statistics at lower
+                # right. Wrapping only the p-value narrows the box enough to
+                # clear low, left-side markers without extending the lower axis.
+                opposed_stats_text = candidate_stats_text.replace(
+                    ", p =", ",\np =", 1
+                )
+                opposed_lower_frac = 0.0
+                ax.set_ylim(base_y0, candidate_top)
+                fig.canvas.draw()
+                renderer = fig.canvas.get_renderer()
+                axes_bbox = ax.get_window_extent(renderer=renderer)
+                points_display = (
+                    ax.transData.transform(np.column_stack([x_f, y_f]))
+                    if x_f.size
+                    else np.empty((0, 2), dtype=float)
+                )
+                line_points_display = _line_samples_display()
+
+                opposed_legend = ax.legend(
+                    handles=legend_handles,
+                    labels=compact_legend_labels,
+                    loc="upper center",
+                    bbox_to_anchor=(0.5, 0.97),
+                    borderaxespad=0.0,
+                    borderpad=0.25,
+                    labelspacing=0.20,
+                    handletextpad=0.40,
+                    columnspacing=0.80,
+                    ncol=2,
+                    frameon=True,
+                    fontsize=legend_fontsize,
+                )
+                opposed_stats = ax.text(
+                    0.97,
+                    0.03,
+                    opposed_stats_text,
+                    transform=ax.transAxes,
+                    ha="right",
+                    va="bottom",
+                    fontsize=stats_fontsize,
+                    linespacing=1.0,
+                    zorder=5,
+                    bbox=BBOX_STYLE,
+                )
+                fig.canvas.draw()
+                renderer = fig.canvas.get_renderer()
+                opposed_legend_bbox = opposed_legend.get_window_extent(
+                    renderer=renderer
+                )
+                opposed_stats_bbox = (
+                    opposed_stats.get_bbox_patch().get_window_extent(
+                        renderer=renderer
+                    )
+                )
+                opposed_valid = (
+                    _overlay_is_clear(
+                        opposed_legend_bbox,
+                        points_display=points_display,
+                        line_points_display=line_points_display,
+                        axes_bbox=axes_bbox,
+                        point_pad_px=marker_pad_px,
+                    )
+                    and _overlay_is_clear(
+                        opposed_stats_bbox,
+                        points_display=points_display,
+                        line_points_display=line_points_display,
+                        axes_bbox=axes_bbox,
+                        point_pad_px=stats_marker_pad_px,
+                    )
+                    and not _bbox_overlap(
+                        opposed_legend_bbox, opposed_stats_bbox
+                    )
+                )
+                if opposed_valid:
+                    _log_correlation_layout(
+                        f"title={ax.get_title()!r} "
+                        f"mode=joint_internal layout=opposed_band "
+                        f"configured_fontsize={configured_font_size:.2f} "
+                        f"axis_scale={axis_scale} font_tier={font_tier} "
+                        f"stats_format={stats_format}_wrapped_p "
+                        f"headroom_frac={headroom_frac:.3f} "
+                        f"lower_padding_frac={opposed_lower_frac:.3f} "
+                        f"legend_ncol=2 legend_fontsize={legend_fontsize:.2f} "
+                        f"stats_fontsize={stats_fontsize:.2f}"
+                    )
+                    return opposed_legend, opposed_stats
+
+                opposed_stats.remove()
+                opposed_legend.remove()
+
+                # Restore the no-lower-padding geometry used by the stacked
+                # annotation-band fallback below.
+                ax.set_ylim(base_y0, candidate_top)
+                fig.canvas.draw()
+                renderer = fig.canvas.get_renderer()
+                axes_bbox = ax.get_window_extent(renderer=renderer)
+                points_display = (
+                    ax.transData.transform(np.column_stack([x_f, y_f]))
+                    if x_f.size
+                    else np.empty((0, 2), dtype=float)
+                )
                 line_points_display = _line_samples_display()
 
                 stats_artist = ax.text(

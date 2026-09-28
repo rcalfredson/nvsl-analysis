@@ -21,6 +21,41 @@ def restore_matplotlib_rcparams():
         yield
 
 
+def test_nested_customizer_retains_adaptive_layout_baseline():
+    outer_customizer = PlotCustomizer()
+    outer_customizer.update_font_size(27.0)
+
+    nested_customizer = PlotCustomizer()
+    nested_customizer.update_font_size(27.0)
+
+    assert nested_customizer.font_size_default == pytest.approx(10.0)
+    assert nested_customizer.font_size_customized
+    assert nested_customizer.increase_factor == pytest.approx(2.7)
+
+    fig, axes = plt.subplots(1, 2, figsize=(15.0, 5.0))
+    for ax in axes:
+        ax.set_xlabel("10-min sync-bucket endpoint (min)")
+        ax.set_ylabel("COM distance from reward center (mm)")
+
+    nested_customizer.adjust_padding_proportionally(
+        compact_horizontal_spacing=True,
+        wrap_x_axis_labels=False,
+    )
+
+    assert all(not ax.xaxis.label.get_visible() for ax in axes)
+    assert not any(
+        label.get_visible()
+        for label in axes[1].get_yticklabels()
+    )
+    figure_labels = [text.get_text() for text in fig.texts]
+    assert figure_labels.count("10-min sync-bucket endpoint (min)") == 1
+    assert any(
+        "COM distance" in label and "\n" in label
+        for label in figure_labels
+    )
+    plt.close(fig)
+
+
 def test_compact_legend_spacing_preserves_ordinary_font_defaults():
     spacing = compact_legend_spacing(7, handlelength=3.2)
 
