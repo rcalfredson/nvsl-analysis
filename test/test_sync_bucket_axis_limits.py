@@ -14,6 +14,12 @@ from src.plotting.plot_customizer import PlotCustomizer
 from src.utils.parsers import positive_finite_float
 
 
+@pytest.fixture(autouse=True)
+def restore_matplotlib_rcparams():
+    with plt.rc_context():
+        yield
+
+
 @pytest.mark.parametrize(
     ("metric", "expected"),
     [

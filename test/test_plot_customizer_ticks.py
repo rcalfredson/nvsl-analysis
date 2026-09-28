@@ -15,6 +15,12 @@ from src.plotting.plot_customizer import (
 )
 
 
+@pytest.fixture(autouse=True)
+def restore_matplotlib_rcparams():
+    with plt.rc_context():
+        yield
+
+
 def test_compact_legend_spacing_preserves_ordinary_font_defaults():
     spacing = compact_legend_spacing(7, handlelength=3.2)
 

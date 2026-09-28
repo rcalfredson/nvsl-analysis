@@ -10,12 +10,68 @@ import pytest
 import src.plotting.first_n_reward_diagnostics as diagnostics
 
 
+@pytest.fixture(autouse=True)
+def restore_matplotlib_rcparams():
+    with diagnostics.plt.rc_context():
+        yield
+
+
 def _axis_size_inches(ax):
     ax.figure.canvas.draw()
     bbox = ax.get_window_extent().transformed(
         ax.figure.dpi_scale_trans.inverted()
     )
     return bbox.width, bbox.height
+
+
+def test_first_n_plot_uses_injected_typography(tmp_path, monkeypatch):
+    cfg = diagnostics.FirstNRewardDiagnosticsConfig(
+        csv_out="",
+        plot_out=str(tmp_path / "first_n.png"),
+        reward_event_type="calc",
+        x_by="selected_reward_rate_to_nth_per_min",
+        y_by="sli",
+        color_by=None,
+    )
+    customizer = diagnostics.PlotCustomizer()
+    customizer.update_font_size(20.0)
+    plotter = diagnostics.FirstNRewardDiagnosticsPlotter(
+        vas=[], opts=None, gls=None, cfg=cfg, customizer=customizer
+    )
+    rows = [
+        SimpleNamespace(
+            eligible_for_nth_reward_cutoff=True,
+            first_n_selected_reward_span_s=90.0,
+            time_to_nth_selected_reward_s=95.0,
+            selected_reward_rate_to_nth_per_min=x,
+            sli=y,
+        )
+        for x, y in ((4.0, 0.2), (6.0, 0.6), (8.0, 1.1))
+    ]
+
+    close_figure = diagnostics.plt.close
+    monkeypatch.setattr(diagnostics.plt, "close", lambda _fig: None)
+    with diagnostics.plt.rc_context():
+        diagnostics.plt.rcParams.update(
+            {
+                "font.size": 7.0,
+                "axes.titlesize": 7.0,
+                "axes.labelsize": 7.0,
+                "xtick.labelsize": 7.0,
+                "ytick.labelsize": 7.0,
+                "legend.fontsize": 7.0,
+            }
+        )
+        plotter._write_plot(rows)
+
+        fig = diagnostics.plt.gcf()
+        ax = fig.axes[0]
+        assert ax.title.get_fontsize() == pytest.approx(20.0 * 30.0 / 27.0)
+        assert ax.xaxis.label.get_fontsize() == pytest.approx(20.0 * 29.0 / 27.0)
+        assert ax.get_xticklabels()[0].get_fontsize() == pytest.approx(
+            20.0 * 25.0 / 27.0
+        )
+        close_figure(fig)
 
 
 def test_first_n_plot_constrains_stats_box_after_final_axis_sizing(

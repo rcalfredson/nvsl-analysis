@@ -13,6 +13,7 @@ from src.plotting.palettes import correlation_plot_color_for_metrics
 from src.plotting.p_value_format import format_plot_p_value
 from src.plotting.axis_size import DEFAULT_PLOT_AXIS_SIZE_INCHES, set_axis_size_inches
 from src.plotting.annotation_layout import keep_text_box_inside_axes
+from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.between_reward_segment_binning import video_base
 from src.plotting.reward_window_utils import (
     cumulative_window_seconds_for_frame,
@@ -343,11 +344,19 @@ def validate_first_n_reward_diagnostics_bundle(
 
 
 class FirstNRewardDiagnosticsPlotter:
-    def __init__(self, vas, opts, gls, cfg: FirstNRewardDiagnosticsConfig):
+    def __init__(
+        self,
+        vas,
+        opts,
+        gls,
+        cfg: FirstNRewardDiagnosticsConfig,
+        customizer: PlotCustomizer | None = None,
+    ):
         self.vas = list(vas)
         self.opts = opts
         self.gls = gls
         self.cfg = cfg
+        self.customizer = customizer
         self.log_tag = "first_n_reward_diag"
 
     def _sli_value_for_index(self, i: int) -> float:
@@ -1045,6 +1054,9 @@ class FirstNRewardDiagnosticsPlotter:
         path = self.cfg.plot_out
         if not path:
             return
+
+        if self.customizer is not None:
+            self.customizer.apply_font_settings()
 
         x_key = self._resolve_metric_name(
             getattr(self.cfg, "x_by", None), fallback="first_n_reward_span_s"

@@ -18,6 +18,16 @@ LEGEND_BORDER_AXES_PAD_MAX_POINTS = 2.0
 LARGE_FONT_LEGEND_MIN_POINTS = 18.0
 LEGEND_BORDER_AXES_PAD_RELAXED_POINTS = 6.0
 
+# Keep the established 27-point time-plot hierarchy while making every text
+# role scale proportionally at other configured base sizes.  In particular,
+# this prevents 20-point correlation plots from receiving a smaller
+# tick-to-axis-label ratio merely because the old style used fixed offsets.
+TYPOGRAPHY_REFERENCE_FONT_SIZE = 27.0
+TITLE_FONT_SCALE = 30.0 / TYPOGRAPHY_REFERENCE_FONT_SIZE
+AXIS_LABEL_FONT_SCALE = 29.0 / TYPOGRAPHY_REFERENCE_FONT_SIZE
+TICK_LABEL_FONT_SCALE = 25.0 / TYPOGRAPHY_REFERENCE_FONT_SIZE
+IN_PLOT_FONT_SCALE = 24.0 / TYPOGRAPHY_REFERENCE_FONT_SIZE
+
 
 def compact_legend_spacing(font_size, *, handlelength=None):
     """Keep legend chrome from growing excessively with large fonts.
@@ -207,6 +217,7 @@ class PlotCustomizer:
         self.font_size_default = plt.rcParams["font.size"]
         self.font_size = self.font_size_default
         self.font_family_default = self._get_font_family()
+        self.font_family = self.font_family_default
         self.font_size_customized = False
         self.font_family_customized = False
         self.text_objects = []
@@ -235,11 +246,12 @@ class PlotCustomizer:
         Parameters:
             new_font_size (float): The new font size to apply to the plot.
         """
-        self.in_plot_font_size = new_font_size - 3
-        plt.rc("axes", titlesize=new_font_size + 3)
-        plt.rc("axes", labelsize=new_font_size + 2)
-        plt.rc("xtick", labelsize=new_font_size - 2)
-        plt.rc("ytick", labelsize=new_font_size - 2)
+        self.in_plot_font_size = new_font_size * IN_PLOT_FONT_SCALE
+        plt.rc("font", size=new_font_size)
+        plt.rc("axes", titlesize=new_font_size * TITLE_FONT_SCALE)
+        plt.rc("axes", labelsize=new_font_size * AXIS_LABEL_FONT_SCALE)
+        plt.rc("xtick", labelsize=new_font_size * TICK_LABEL_FONT_SCALE)
+        plt.rc("ytick", labelsize=new_font_size * TICK_LABEL_FONT_SCALE)
         plt.rc("figure", titlesize=new_font_size)
         plt.rc("legend", fontsize=self.in_plot_font_size)
 
@@ -264,6 +276,8 @@ class PlotCustomizer:
             plt.rcParams.update({"font.family": families})
             self.font_family_customized = True
         if new_font_family:
+            self.font_family = new_font_family
+        if new_font_family:
             # Use the selected font for math exponents as well as normal text.
             # Mathtext still positions/scales superscripts and supplies fallback
             # glyphs when the selected font lacks a mathematical symbol.
@@ -273,6 +287,12 @@ class PlotCustomizer:
                 "mathtext.it": f"{new_font_family}:italic",
                 "mathtext.bf": f"{new_font_family}:bold",
             })
+
+    def apply_font_settings(self):
+        """Reapply this customizer's font settings to Matplotlib."""
+        self.update_font_size(self.font_size)
+        if self.font_family_customized:
+            self.update_font_family(self.font_family)
 
     @property
     def customized(self):

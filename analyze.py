@@ -14804,6 +14804,7 @@ def postAnalyze(vas):
             opts=opts,
             gls=gls,
             cfg=diag_cfg,
+            customizer=customizer,
         )
         diag_plotter.run()
 
