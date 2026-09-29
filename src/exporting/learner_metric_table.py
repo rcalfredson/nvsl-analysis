@@ -19,7 +19,6 @@ from src.analysis.episode_filters import (
     EPISODE_TYPE_INNER_EXIT_REENTRY,
     min_episode_count_for_type,
 )
-from src.analysis.multiple_comparisons import holm_adjust
 from src.analysis.sli_tools import select_fractional_groups
 from src.analysis.sync_bucket_presence_filters import (
     exp_target_sync_bucket_filter_result,
@@ -30,6 +29,7 @@ from src.exporting.com_sli_bundle import (
 from src.exporting.turnback_home_vector_alignment_sli_bundle import (
     _collect_per_fly_values as _collect_alignment_values,
 )
+from src.exporting.turnback_excursion_bin_sli_bundle import _compute_pair_curves
 from src.plotting.between_reward_tortuosity_mean_swarm import (
     BetweenRewardTortuosityMeanSwarmConfig,
     BetweenRewardTortuosityMeanSwarmPlotter,
@@ -43,14 +43,20 @@ from src.plotting.btw_rwd_return_leg_dist_collectors import (
 )
 from src.plotting.plot_customizer import PlotCustomizer
 
+DEFAULT_CIRCLE_PAIRS_MM = ((3.0, 5.0), (8.0, 10.0), (13.0, 15.0))
 
-METRIC_ORDER = (
+REPEATED_METRICS = (
     "dual_circle_turnback_ratio",
     "home_vector_alignment",
+)
+
+STANDALONE_METRICS = (
     "between_reward_tortuosity",
     "com_distance_to_reward_center",
     "return_leg_distance",
 )
+
+METRIC_ORDER = REPEATED_METRICS + STANDALONE_METRICS
 
 METRIC_LABELS = {
     "dual_circle_turnback_ratio": "Dual-circle turnback ratio",
@@ -67,10 +73,58 @@ class MetricObservation:
     sli: float
     cohort: str
     metric: str
+    inner_radius_mm: float
+    outer_radius_mm: float
     value: float
     n_events: int
+    successes: float
     eligible: bool
     exclusion_reason: str
+
+
+def parse_circle_pairs_mm(raw) -> tuple[tuple[float, float], ...]:
+    if raw is None or not str(raw).strip():
+        return DEFAULT_CIRCLE_PAIRS_MM
+    pairs = []
+    for token in str(raw).split(","):
+        token = token.strip()
+        if not token:
+            continue
+        if ":" not in token:
+            raise ValueError(
+                "--learner-metric-table-circle-pairs-mm entries must use "
+                "inner:outer format, e.g. '3:5,8:10,13:15'"
+            )
+        inner_raw, outer_raw = token.split(":", 1)
+        try:
+            inner = float(inner_raw.strip())
+            outer = float(outer_raw.strip())
+        except ValueError as exc:
+            raise ValueError(
+                "--learner-metric-table-circle-pairs-mm values must be numeric"
+            ) from exc
+        if not (np.isfinite(inner) and np.isfinite(outer)):
+            raise ValueError(
+                "--learner-metric-table-circle-pairs-mm values must be finite"
+            )
+        if inner < 0.0 or outer <= inner:
+            raise ValueError(
+                "learner-table circle pairs require 0 <= inner radius < outer radius"
+            )
+        pairs.append((float(inner), float(outer)))
+    if not pairs:
+        raise ValueError(
+            "--learner-metric-table-circle-pairs-mm must contain at least one pair"
+        )
+    if len(set(pairs)) != len(pairs):
+        raise ValueError(
+            "--learner-metric-table-circle-pairs-mm must not contain duplicate pairs"
+        )
+    return tuple(pairs)
+
+
+def _circle_pair_label(inner: float, outer: float) -> str:
+    return f"{inner:g}/{outer:g} mm"
 
 
 def _canonical_unit_id(va) -> str:
@@ -130,10 +184,7 @@ def _welch_difference(
     se2 = term_strong + term_weak
     if se2 <= 0 or not np.isfinite(se2):
         return out
-    df_den = (
-        (term_strong**2) / (strong.size - 1)
-        + (term_weak**2) / (weak.size - 1)
-    )
+    df_den = (term_strong**2) / (strong.size - 1) + (term_weak**2) / (weak.size - 1)
     if df_den <= 0 or not np.isfinite(df_den):
         return out
     df = (se2**2) / df_den
@@ -144,30 +195,68 @@ def _welch_difference(
     return out
 
 
+def _summary_specs(circle_pairs):
+    for metric in REPEATED_METRICS:
+        for inner, outer in circle_pairs:
+            yield metric, float(inner), float(outer)
+    for metric in STANDALONE_METRICS:
+        yield metric, math.nan, math.nan
+
+
 def summarize_observations(
-    observations: list[MetricObservation], *, ci_conf: float = 0.95
+    observations: list[MetricObservation],
+    *,
+    circle_pairs=DEFAULT_CIRCLE_PAIRS_MM,
+    ci_conf: float = 0.95,
 ) -> list[dict]:
     rows = []
-    for metric in METRIC_ORDER:
+    for metric, inner, outer in _summary_specs(circle_pairs):
+
+        def matches(obs):
+            if obs.metric != metric:
+                return False
+            if metric in REPEATED_METRICS:
+                return bool(
+                    np.isclose(obs.inner_radius_mm, inner)
+                    and np.isclose(obs.outer_radius_mm, outer)
+                )
+            return True
+
         strong = [
             row.value
             for row in observations
-            if row.metric == metric and row.cohort == "strong" and row.eligible
+            if matches(row) and row.cohort == "strong" and row.eligible
         ]
         weak = [
             row.value
             for row in observations
-            if row.metric == metric and row.cohort == "weak" and row.eligible
+            if matches(row) and row.cohort == "weak" and row.eligible
         ]
-        strong_mean, strong_lo, strong_hi, strong_n = _mean_ci(
-            strong, conf=ci_conf
-        )
+        strong_mean, strong_lo, strong_hi, strong_n = _mean_ci(strong, conf=ci_conf)
         weak_mean, weak_lo, weak_hi, weak_n = _mean_ci(weak, conf=ci_conf)
-        comparison = _welch_difference(strong, weak, conf=ci_conf)
+        label = METRIC_LABELS[metric]
+        if metric in REPEATED_METRICS:
+            label = f"{label} ({_circle_pair_label(inner, outer)})"
+            comp = {
+                "difference_strong_minus_weak": (
+                    strong_mean - weak_mean
+                    if np.isfinite(strong_mean) and np.isfinite(weak_mean)
+                    else math.nan
+                ),
+                "difference_ci_lo": math.nan,
+                "difference_ci_hi": math.nan,
+                "test": "Not performed",
+                "statistic": math.nan,
+                "p_value": math.nan,
+            }
+        else:
+            comp = _welch_difference(strong, weak, conf=ci_conf)
         rows.append(
             {
                 "metric": metric,
-                "metric_label": METRIC_LABELS[metric],
+                "metric_label": label,
+                "inner_radius_mm": inner,
+                "outer_radius_mm": outer,
                 "strong_n": strong_n,
                 "strong_mean": strong_mean,
                 "strong_ci_lo": strong_lo,
@@ -176,13 +265,9 @@ def summarize_observations(
                 "weak_mean": weak_mean,
                 "weak_ci_lo": weak_lo,
                 "weak_ci_hi": weak_hi,
-                **comparison,
+                **comp,
             }
         )
-
-    adjusted = holm_adjust([float(row["p_value"]) for row in rows])
-    for row, adjusted_p in zip(rows, adjusted):
-        row["p_value_holm"] = adjusted_p
     return rows
 
 
@@ -197,6 +282,9 @@ def _record_metric(
     n_events,
     minimum_events,
     target_result,
+    inner_radius_mm=math.nan,
+    outer_radius_mm=math.nan,
+    successes=math.nan,
 ):
     reason = ""
     eligible = bool(np.isfinite(value) and int(n_events) >= int(minimum_events))
@@ -213,8 +301,11 @@ def _record_metric(
             sli=float(sli),
             cohort=str(cohort),
             metric=str(metric),
+            inner_radius_mm=float(inner_radius_mm),
+            outer_radius_mm=float(outer_radius_mm),
             value=float(value) if np.isfinite(value) else math.nan,
             n_events=int(n_events),
+            successes=float(successes) if np.isfinite(successes) else math.nan,
             eligible=eligible,
             exclusion_reason=reason,
         )
@@ -240,9 +331,7 @@ def _selected_vas_and_sli(vas, opts):
             "learner metric table requires non-empty strong and weak cohorts "
             f"(rankable flies: {rankable_n})"
         )
-    selected = [
-        (idx, vas_ok[idx], "strong") for idx in top
-    ] + [
+    selected = [(idx, vas_ok[idx], "strong") for idx in top] + [
         (idx, vas_ok[idx], "weak") for idx in bottom
     ]
     return vas_ok, sli, selected
@@ -250,57 +339,67 @@ def _selected_vas_and_sli(vas, opts):
 
 def _metric_window(opts) -> tuple[int, int, int, list[int]]:
     training = max(1, int(getattr(opts, "learner_metric_table_training", 2)))
-    skip = max(
-        0, int(getattr(opts, "learner_metric_table_skip_first_sync_buckets", 1))
-    )
-    keep = max(
-        0, int(getattr(opts, "learner_metric_table_keep_first_sync_buckets", 4))
-    )
+    skip = max(0, int(getattr(opts, "learner_metric_table_skip_first_sync_buckets", 1)))
+    keep = max(0, int(getattr(opts, "learner_metric_table_keep_first_sync_buckets", 4)))
     indices = list(range(skip, skip + keep)) if keep > 0 else []
     return training, training - 1, skip, indices
 
 
-def _collect_array_metrics(selected, sli, opts, observations):
-    training, training_idx, _skip, bucket_indices = _metric_window(opts)
+def _collect_dctr(selected, sli, opts, observations, circle_pairs):
+    training, _training_idx, skip, bucket_indices = _metric_window(opts)
     min_turnback = min_episode_count_for_type(opts, EPISODE_TYPE_INNER_EXIT_REENTRY)
+    selected_vas = [va for _idx, va, _cohort in selected]
+    inner = np.asarray([pair[0] for pair in circle_pairs], dtype=float)
+    outer = np.asarray([pair[1] for pair in circle_pairs], dtype=float)
+    ratios, _ratio_ctrl, successes, _success_ctrl, totals, _total_ctrl, _windows = (
+        _compute_pair_curves(
+            selected_vas,
+            inner_deltas_mm=inner,
+            outer_deltas_mm=outer,
+            legacy_pair_deltas=False,
+            border_width_mm=float(
+                getattr(opts, "turnback_border_width_mm", 0.1) or 0.1
+            ),
+            radius_offset_px=float(
+                getattr(opts, "turnback_inner_radius_offset_px", 0.0) or 0.0
+            ),
+            selected_trainings=[training - 1],
+            skip_first=skip,
+            keep_first=len(bucket_indices),
+            last_sync_buckets=0,
+            debug=False,
+            min_episodes=0,
+            exclude_wall_contact=False,
+            min_walking_fraction=0.0,
+        )
+    )
+    for local_idx, (idx, va, cohort) in enumerate(selected):
+        target = exp_target_sync_bucket_filter_result(va, opts)
+        for pair_idx, (inner_mm, outer_mm) in enumerate(circle_pairs):
+            _record_metric(
+                observations,
+                va=va,
+                sli=sli[idx],
+                cohort=cohort,
+                metric="dual_circle_turnback_ratio",
+                value=float(ratios[local_idx, pair_idx]),
+                n_events=int(totals[local_idx, pair_idx]),
+                minimum_events=min_turnback,
+                target_result=target,
+                inner_radius_mm=inner_mm,
+                outer_radius_mm=outer_mm,
+                successes=float(successes[local_idx, pair_idx]),
+            )
+
+
+def _collect_com(selected, sli, opts, observations):
+    _training, training_idx, _skip, bucket_indices = _metric_window(opts)
     min_between = min_episode_count_for_type(
         opts, EPISODE_TYPE_BETWEEN_REWARD_TRAJECTORY
     )
     warned_missing_wc = [False]
-
     for idx, va, cohort in selected:
         target = exp_target_sync_bucket_filter_result(va, opts)
-
-        counts = getattr(va, "reward_turnback_dual_circle_counts", {}) or {}
-        turn = np.asarray(counts.get("turnback", []))
-        total = np.asarray(counts.get("total", []))
-        n_events = 0
-        value = math.nan
-        if (
-            turn.ndim == 3
-            and total.shape == turn.shape
-            and training_idx < turn.shape[0]
-        ):
-            success = 0
-            for b_idx in bucket_indices:
-                if b_idx >= turn.shape[2]:
-                    continue
-                success += int(turn[training_idx, 0, b_idx])
-                n_events += int(total[training_idx, 0, b_idx])
-            if n_events > 0:
-                value = float(success / n_events)
-        _record_metric(
-            observations,
-            va=va,
-            sli=sli[idx],
-            cohort=cohort,
-            metric="dual_circle_turnback_ratio",
-            value=value,
-            n_events=n_events,
-            minimum_events=min_turnback,
-            target_result=target,
-        )
-
         value = math.nan
         n_events = 0
         trns = getattr(va, "trns", [])
@@ -338,9 +437,7 @@ def _collect_array_metrics(selected, sli, opts, observations):
                     per_segment_min_meddist_mm=float(
                         getattr(opts, "com_per_segment_min_meddist_mm", 0.0) or 0.0
                     ),
-                    exclude_wall=bool(
-                        getattr(opts, "com_exclude_wall_contact", False)
-                    ),
+                    exclude_wall=bool(getattr(opts, "com_exclude_wall_contact", False)),
                     wc=wc,
                     exclude_reward_endpoints=bool(
                         getattr(opts, "btw_rwd_com_exclude_reward_endpoints", False)
@@ -390,17 +487,14 @@ def _collect_return_leg(selected, sli_by_id, opts, observations):
         values = {}
         if training_idx < len(panels):
             values = {
-                str(uid): (total, count)
-                for uid, total, count in panels[training_idx]
+                str(uid): (total, count) for uid, total, count in panels[training_idx]
             }
         for va in cohort_vas:
             target = exp_target_sync_bucket_filter_result(va, opts)
             key = collector._unit_id(va, f=0)
             total, count = values.get(str(key), (math.nan, 0))
             value = (
-                float(total / count)
-                if count > 0 and np.isfinite(total)
-                else math.nan
+                float(total / count) if count > 0 and np.isfinite(total) else math.nan
             )
             _record_metric(
                 observations,
@@ -444,17 +538,14 @@ def _collect_tortuosity(selected, sli_by_id, opts, gls, observations):
         values = {}
         if training_idx < len(panels):
             values = {
-                str(uid): (total, count)
-                for uid, total, count in panels[training_idx]
+                str(uid): (total, count) for uid, total, count in panels[training_idx]
             }
         for va in cohort_vas:
             target = exp_target_sync_bucket_filter_result(va, opts)
             key = plotter._unit_id(va, f=0)
             total, count = values.get(str(key), (math.nan, 0))
             value = (
-                float(total / count)
-                if count > 0 and np.isfinite(total)
-                else math.nan
+                float(total / count) if count > 0 and np.isfinite(total) else math.nan
             )
             _record_metric(
                 observations,
@@ -469,47 +560,55 @@ def _collect_tortuosity(selected, sli_by_id, opts, gls, observations):
             )
 
 
-def _collect_alignment(selected, sli_by_id, opts, observations):
+def _collect_alignment(selected, sli_by_id, opts, observations, circle_pairs):
     training, _training_idx, skip, bucket_indices = _metric_window(opts)
     keep = len(bucket_indices)
     min_turnback = min_episode_count_for_type(opts, EPISODE_TYPE_INNER_EXIT_REENTRY)
-    for cohort in ("strong", "weak"):
-        cohort_vas = [va for _idx, va, name in selected if name == cohort]
-        targets = np.asarray(
-            [
-                exp_target_sync_bucket_filter_result(va, opts).eligible
-                for va in cohort_vas
-            ],
-            dtype=bool,
-        )
-        ids, values, counts, _meta = _collect_alignment_values(
-            cohort_vas,
-            opts,
-            selected_trainings=[training - 1],
-            skip_first=skip,
-            keep_first=keep,
-            last_sync_buckets=0,
-            target_sync_bucket_eligible=targets,
-            apply_min_episode_filter=False,
-        )
-        collected = {
-            str(uid): (float(value), int(count))
-            for uid, value, count in zip(ids, values, counts)
-        }
-        for i, va in enumerate(cohort_vas):
-            target = exp_target_sync_bucket_filter_result(va, opts)
-            value, count = collected.get(_alignment_unit_id(va, i), (math.nan, 0))
-            _record_metric(
-                observations,
-                va=va,
-                sli=sli_by_id[_canonical_unit_id(va)],
-                cohort=cohort,
-                metric="home_vector_alignment",
-                value=value,
-                n_events=count,
-                minimum_events=min_turnback,
-                target_result=target,
+    for inner_mm, outer_mm in circle_pairs:
+        pair_opts = copy.copy(opts)
+        pair_opts.turnback_home_vector_alignment_inner_radius_mm = float(inner_mm)
+        pair_opts.turnback_home_vector_alignment_outer_radius_mm = float(outer_mm)
+        pair_opts.turnback_home_vector_alignment_inner_delta_mm = None
+        pair_opts.turnback_home_vector_alignment_outer_delta_mm = None
+        for cohort in ("strong", "weak"):
+            cohort_vas = [va for _idx, va, name in selected if name == cohort]
+            targets = np.asarray(
+                [
+                    exp_target_sync_bucket_filter_result(va, pair_opts).eligible
+                    for va in cohort_vas
+                ],
+                dtype=bool,
             )
+            ids, values, counts, _meta = _collect_alignment_values(
+                cohort_vas,
+                pair_opts,
+                selected_trainings=[training - 1],
+                skip_first=skip,
+                keep_first=keep,
+                last_sync_buckets=0,
+                target_sync_bucket_eligible=targets,
+                apply_min_episode_filter=False,
+            )
+            collected = {
+                str(uid): (float(value), int(count))
+                for uid, value, count in zip(ids, values, counts)
+            }
+            for i, va in enumerate(cohort_vas):
+                target = exp_target_sync_bucket_filter_result(va, pair_opts)
+                value, count = collected.get(_alignment_unit_id(va, i), (math.nan, 0))
+                _record_metric(
+                    observations,
+                    va=va,
+                    sli=sli_by_id[_canonical_unit_id(va)],
+                    cohort=cohort,
+                    metric="home_vector_alignment",
+                    value=value,
+                    n_events=count,
+                    minimum_events=min_turnback,
+                    target_result=target,
+                    inner_radius_mm=inner_mm,
+                    outer_radius_mm=outer_mm,
+                )
 
 
 def _alignment_unit_id(va, local_index: int) -> str:
@@ -525,11 +624,28 @@ def _alignment_unit_id(va, local_index: int) -> str:
     return f"{video_id}:fly{fly_id}"
 
 
+def build_prism_wide_rows(observations, circle_pairs=DEFAULT_CIRCLE_PAIRS_MM):
+    units = {}
+    for row in observations:
+        base = units.setdefault(
+            row.unit_id, {"unit_id": row.unit_id, "cohort": row.cohort, "sli": row.sli}
+        )
+        if row.metric in REPEATED_METRICS:
+            key = f"{row.metric}_{row.inner_radius_mm:g}_{row.outer_radius_mm:g}_mm"
+        else:
+            key = row.metric
+        base[key] = row.value if row.eligible else math.nan
+    return [units[key] for key in sorted(units)]
+
+
 def collect_learner_metric_observations(vas, opts, gls) -> tuple[list, dict]:
     vas_ok, sli, selected = _selected_vas_and_sli(vas, opts)
     if not selected:
         raise ValueError("learner metric table selected no strong or weak learners")
 
+    circle_pairs = parse_circle_pairs_mm(
+        getattr(opts, "learner_metric_table_circle_pairs_mm", None)
+    )
     report_opts = copy.copy(opts)
     report_opts.require_exp_target_sync_bucket = bool(
         getattr(opts, "learner_metric_table_require_sb5", True)
@@ -539,21 +655,14 @@ def collect_learner_metric_observations(vas, opts, gls) -> tuple[list, dict]:
     report_opts.exp_target_sync_bucket_filter_sync_bucket = (
         skip + len(bucket_indices) if bucket_indices else skip + 1
     )
-    report_opts.turnback_home_vector_alignment_inner_radius_mm = float(
-        getattr(opts, "learner_metric_table_alignment_inner_radius_mm", 3.0)
-    )
-    report_opts.turnback_home_vector_alignment_outer_radius_mm = float(
-        getattr(opts, "learner_metric_table_alignment_outer_radius_mm", 5.0)
-    )
-    report_opts.turnback_home_vector_alignment_inner_delta_mm = None
-    report_opts.turnback_home_vector_alignment_outer_delta_mm = None
 
     observations: list[MetricObservation] = []
-    _collect_array_metrics(selected, sli, report_opts, observations)
+    _collect_dctr(selected, sli, report_opts, observations, circle_pairs)
+    _collect_com(selected, sli, report_opts, observations)
     sli_by_id = {
         _canonical_unit_id(va): float(sli[idx]) for idx, va, _cohort in selected
     }
-    _collect_alignment(selected, sli_by_id, report_opts, observations)
+    _collect_alignment(selected, sli_by_id, report_opts, observations, circle_pairs)
     _collect_tortuosity(selected, sli_by_id, report_opts, gls, observations)
     _collect_return_leg(selected, sli_by_id, report_opts, observations)
 
@@ -583,6 +692,10 @@ def collect_learner_metric_observations(vas, opts, gls) -> tuple[list, dict]:
             "keep_first_sync_buckets": len(bucket_indices),
             "sync_buckets_1_based": [idx + 1 for idx in bucket_indices],
         },
+        "circle_pairs_mm": [
+            {"inner_radius_mm": inner, "outer_radius_mm": outer}
+            for inner, outer in circle_pairs
+        ],
         "eligibility": {
             "require_final_selected_sync_bucket": bool(
                 report_opts.require_exp_target_sync_bucket
@@ -596,21 +709,14 @@ def collect_learner_metric_observations(vas, opts, gls) -> tuple[list, dict]:
         },
         "metric_definitions": {
             "dual_circle_turnback_ratio": {
-                "inner_delta_mm": float(
-                    getattr(opts, "learner_metric_table_dctr_inner_delta_mm", 4.0)
-                ),
-                "outer_delta_mm": float(
-                    getattr(opts, "learner_metric_table_dctr_outer_delta_mm", 8.0)
-                ),
+                "radius_mode": "absolute",
+                "circle_pairs_mm": [list(pair) for pair in circle_pairs],
                 "aggregation": "sum(successes) / sum(qualifying exits)",
+                "audit_counts": ["successes", "n_events"],
             },
             "home_vector_alignment": {
-                "inner_radius_mm": float(
-                    report_opts.turnback_home_vector_alignment_inner_radius_mm
-                ),
-                "outer_radius_mm": float(
-                    report_opts.turnback_home_vector_alignment_outer_radius_mm
-                ),
+                "radius_mode": "absolute",
+                "circle_pairs_mm": [list(pair) for pair in circle_pairs],
                 "aggregation": "mean cos(theta) across successful re-entry episodes",
             },
             "between_reward_tortuosity": {
@@ -629,8 +735,15 @@ def collect_learner_metric_observations(vas, opts, gls) -> tuple[list, dict]:
         "statistics": {
             "unit": "fly",
             "difference": "strong minus weak",
-            "test": "independent-group Welch t-test",
-            "multiple_comparisons": "Holm adjustment across five metrics",
+            "repeated_radius_metrics": (
+                "descriptive only; no hypothesis test is performed for "
+                "dual-circle turnback ratio or home-vector alignment"
+            ),
+            "standalone_metrics": (
+                "independent-group Welch t-test for tortuosity, COM distance, "
+                "and return-leg distance"
+            ),
+            "multiple_comparisons": "none; no p-value adjustment is applied",
             "ci_confidence": 0.95,
         },
     }
@@ -657,26 +770,38 @@ def _fmt(value) -> str:
 
 def export_learner_metric_table(vas, opts, gls, out_path: str) -> dict[str, str]:
     observations, metadata = collect_learner_metric_observations(vas, opts, gls)
-    summary = summarize_observations(observations)
+    circle_pairs = tuple(
+        (row["inner_radius_mm"], row["outer_radius_mm"])
+        for row in metadata["circle_pairs_mm"]
+    )
+    summary = summarize_observations(observations, circle_pairs=circle_pairs)
     prefix = _output_prefix(out_path)
     paths = {
         "summary_csv": f"{prefix}_summary.csv",
         "per_fly_csv": f"{prefix}_per_fly.csv",
+        "prism_wide_csv": f"{prefix}_prism_wide.csv",
         "metadata_json": f"{prefix}_metadata.json",
         "summary_md": f"{prefix}_summary.md",
     }
     os.makedirs(os.path.dirname(prefix) or ".", exist_ok=True)
 
-    with open(paths["summary_csv"], "w", newline="", encoding="utf-8") as fh:
-        writer = csv.DictWriter(fh, fieldnames=list(summary[0].keys()))
-        writer.writeheader()
-        writer.writerows(summary)
+    def write_rows(path, rows, fieldnames=None):
+        fields = fieldnames or list(rows[0].keys())
+        with open(path, "w", newline="", encoding="utf-8") as fh:
+            writer = csv.DictWriter(fh, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(rows)
 
-    per_fly_fields = list(asdict(observations[0]).keys())
-    with open(paths["per_fly_csv"], "w", newline="", encoding="utf-8") as fh:
-        writer = csv.DictWriter(fh, fieldnames=per_fly_fields)
-        writer.writeheader()
-        writer.writerows(asdict(row) for row in observations)
+    write_rows(paths["summary_csv"], summary)
+    write_rows(paths["per_fly_csv"], [asdict(row) for row in observations])
+    wide_rows = build_prism_wide_rows(observations, circle_pairs)
+    wide_fields = ["unit_id", "cohort", "sli"]
+    for metric in REPEATED_METRICS:
+        wide_fields.extend(
+            f"{metric}_{inner:g}_{outer:g}_mm" for inner, outer in circle_pairs
+        )
+    wide_fields.extend(STANDALONE_METRICS)
+    write_rows(paths["prism_wide_csv"], wide_rows, wide_fields)
 
     metadata["outputs"] = paths
     with open(paths["metadata_json"], "w", encoding="utf-8") as fh:
@@ -687,28 +812,20 @@ def export_learner_metric_table(vas, opts, gls, out_path: str) -> dict[str, str]
         fh.write("| Metric | Strong learners | Weak learners | Strong vs. weak |\n")
         fh.write("|---|---:|---:|---:|\n")
         for row in summary:
-            strong = (
-                f"{_fmt(row['strong_mean'])} "
-                f"[{_fmt(row['strong_ci_lo'])}, {_fmt(row['strong_ci_hi'])}], "
-                f"n={row['strong_n']}"
-            )
-            weak = (
-                f"{_fmt(row['weak_mean'])} "
-                f"[{_fmt(row['weak_ci_lo'])}, {_fmt(row['weak_ci_hi'])}], "
-                f"n={row['weak_n']}"
-            )
-            difference = (
-                f"{_fmt(row['difference_strong_minus_weak'])} "
-                f"[{_fmt(row['difference_ci_lo'])}, {_fmt(row['difference_ci_hi'])}]; "
-                f"Welch p={_fmt(row['p_value'])}; "
-                f"Holm p={_fmt(row['p_value_holm'])}"
-            )
-            fh.write(
-                f"| {row['metric_label']} | {strong} | {weak} | {difference} |\n"
-            )
+            strong = f"{_fmt(row['strong_mean'])} [{_fmt(row['strong_ci_lo'])}, {_fmt(row['strong_ci_hi'])}], n={row['strong_n']}"
+            weak = f"{_fmt(row['weak_mean'])} [{_fmt(row['weak_ci_lo'])}, {_fmt(row['weak_ci_hi'])}], n={row['weak_n']}"
+            if row["metric"] in REPEATED_METRICS:
+                difference = (
+                    f"{_fmt(row['difference_strong_minus_weak'])} "
+                    "(descriptive); no test performed"
+                )
+            else:
+                difference = (
+                    f"{_fmt(row['difference_strong_minus_weak'])} "
+                    f"[{_fmt(row['difference_ci_lo'])}, {_fmt(row['difference_ci_hi'])}]; "
+                    f"Welch p={_fmt(row['p_value'])}"
+                )
+            fh.write(f"| {row['metric_label']} | {strong} | {weak} | {difference} |\n")
 
-    print(
-        "[learner-metric-table] wrote "
-        + ", ".join(paths.values())
-    )
+    print("[learner-metric-table] wrote " + ", ".join(paths.values()))
     return paths

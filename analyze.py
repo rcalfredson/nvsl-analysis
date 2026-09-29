@@ -170,7 +170,10 @@ from src.exporting.btw_rwd_return_leg_dist_sli_bundle import (
     build_btw_rwd_return_leg_dist_sli_bundle,
     export_btw_rwd_return_leg_dist_sli_bundle,
 )
-from src.exporting.learner_metric_table import export_learner_metric_table
+from src.exporting.learner_metric_table import (
+    export_learner_metric_table,
+    parse_circle_pairs_mm,
+)
 from src.exporting.exit_events_from_csv import (
     export_exit_event_images_from_csv,
     ExitEventImageConfig,
@@ -6419,9 +6422,9 @@ g.add_argument(
     default=None,
     metavar="PREFIX",
     help=(
-        "Write a five-metric strong/weak learner report using one fixed SLI "
-        "cohort assignment. Writes PREFIX_summary.csv, PREFIX_per_fly.csv, "
-        "PREFIX_metadata.json, and PREFIX_summary.md."
+        "Write a strong/weak learner report using one fixed SLI cohort assignment. "
+        "Repeated-radius DCTR and alignment metrics use the configured absolute "
+        "circle pairs; standalone metrics are reported once each."
     ),
 )
 g.add_argument(
@@ -6450,6 +6453,13 @@ g.add_argument(
         "Require the experimental fly to contain the final selected sync bucket "
         "before reporting a metric value (default: enabled)."
     ),
+)
+g.add_argument(
+    "--learner-metric-table-circle-pairs-mm",
+    type=str,
+    default="3:5,8:10,13:15",
+    metavar="INNER:OUTER,...",
+    help="Absolute inner:outer circle pairs in mm (default: 3:5,8:10,13:15).",
 )
 g.add_argument(
     "--learner-metric-table-dctr-inner-delta-mm",
@@ -8151,6 +8161,15 @@ def _normalize_learner_metric_table_options(opts):
             "--learner-metric-table-keep-first-sync-buckets must be at least 1"
         )
 
+    try:
+        parse_circle_pairs_mm(
+            getattr(opts, "learner_metric_table_circle_pairs_mm", None)
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+
+    # Retain the legacy single-pair options below for CLI compatibility.  The
+    # learner report itself now uses the absolute multi-pair option above.
     inner_delta = float(
         getattr(opts, "learner_metric_table_dctr_inner_delta_mm", 4.0)
     )
@@ -8173,14 +8192,6 @@ def _normalize_learner_metric_table_options(opts):
             "learner-table alignment radii require "
             "0 <= inner radius < outer radius"
         )
-
-    # DCTR counts are populated during VideoAnalysis construction, before the
-    # combined report runs. Keep its geometry synchronized with report metadata.
-    opts.turnback_dual_circle = True
-    opts.turnback_inner_radius_mm = None
-    opts.turnback_outer_radius_mm = None
-    opts.turnback_inner_delta_mm = inner_delta
-    opts.turnback_outer_delta_mm = outer_delta
 
 
 def pcap(s):
