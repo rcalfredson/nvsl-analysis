@@ -1118,6 +1118,7 @@ def _collect_per_fly_values(
     keep_first,
     last_sync_buckets: int,
     target_sync_bucket_eligible=None,
+    apply_min_episode_filter: bool = True,
 ):
     min_episodes = min_episode_count_for_type(opts, EPISODE_TYPE_INNER_EXIT_REENTRY)
 
@@ -1274,7 +1275,7 @@ def _collect_per_fly_values(
             )
             vals = vals[np.isfinite(vals)]
             n_ep = int(vals.size)
-            if n_ep < int(min_episodes):
+            if n_ep == 0 or (apply_min_episode_filter and n_ep < int(min_episodes)):
                 continue
 
             per_unit_ids.append(_unit_id_for_va_fly(va, vi, fly_idx))

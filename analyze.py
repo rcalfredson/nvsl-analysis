@@ -170,6 +170,7 @@ from src.exporting.btw_rwd_return_leg_dist_sli_bundle import (
     build_btw_rwd_return_leg_dist_sli_bundle,
     export_btw_rwd_return_leg_dist_sli_bundle,
 )
+from src.exporting.learner_metric_table import export_learner_metric_table
 from src.exporting.exit_events_from_csv import (
     export_exit_event_images_from_csv,
     ExitEventImageConfig,
@@ -6413,6 +6414,68 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--export-learner-metric-table",
+    type=str,
+    default=None,
+    metavar="PREFIX",
+    help=(
+        "Write a five-metric strong/weak learner report using one fixed SLI "
+        "cohort assignment. Writes PREFIX_summary.csv, PREFIX_per_fly.csv, "
+        "PREFIX_metadata.json, and PREFIX_summary.md."
+    ),
+)
+g.add_argument(
+    "--learner-metric-table-training",
+    type=int,
+    default=2,
+    help="Training used for all learner-table metrics (default: 2).",
+)
+g.add_argument(
+    "--learner-metric-table-skip-first-sync-buckets",
+    type=int,
+    default=1,
+    help="Number of initial metric sync buckets to skip (default: 1, i.e. start at SB2).",
+)
+g.add_argument(
+    "--learner-metric-table-keep-first-sync-buckets",
+    type=int,
+    default=4,
+    help="Number of metric sync buckets to retain after skipping (default: 4, i.e. SB2-5).",
+)
+g.add_argument(
+    "--learner-metric-table-require-sb5",
+    action=argparse.BooleanOptionalAction,
+    default=True,
+    help=(
+        "Require the experimental fly to contain the final selected sync bucket "
+        "before reporting a metric value (default: enabled)."
+    ),
+)
+g.add_argument(
+    "--learner-metric-table-dctr-inner-delta-mm",
+    type=float,
+    default=4.0,
+    help="Inner radial delta for the table's dual-circle turnback ratio (default: 4 mm).",
+)
+g.add_argument(
+    "--learner-metric-table-dctr-outer-delta-mm",
+    type=float,
+    default=8.0,
+    help="Outer radial delta for the table's dual-circle turnback ratio (default: 8 mm).",
+)
+g.add_argument(
+    "--learner-metric-table-alignment-inner-radius-mm",
+    type=float,
+    default=3.0,
+    help="Inner absolute radius for home-vector alignment episodes (default: 3 mm).",
+)
+g.add_argument(
+    "--learner-metric-table-alignment-outer-radius-mm",
+    type=float,
+    default=5.0,
+    help="Outer absolute radius for home-vector alignment episodes (default: 5 mm).",
+)
+g.add_argument(
     "--btw-rwd-return-leg-dist-sli-debug-bucket",
     type=str,
     default=None,
@@ -8053,6 +8116,71 @@ if opts.timeit:
     start_t = timeit.default_timer()
 
 # - - -
+
+
+def _normalize_learner_metric_table_options(opts):
+    """Apply explicit report defaults before per-video calculations begin."""
+    if not getattr(opts, "export_learner_metric_table", None):
+        return
+
+    opts.sli_use_training_mean = True
+    if getattr(opts, "sli_select_skip_first_sync_buckets", None) is None:
+        opts.sli_select_skip_first_sync_buckets = 1
+    if getattr(opts, "sli_select_keep_first_sync_buckets", None) is None:
+        opts.sli_select_keep_first_sync_buckets = 4
+    if not hasattr(opts, "top_sli_fraction"):
+        opts.top_sli_fraction = 0.2
+    if not hasattr(opts, "bottom_sli_fraction"):
+        opts.bottom_sli_fraction = 0.5
+
+    metric_training = int(getattr(opts, "learner_metric_table_training", 2) or 2)
+    metric_skip = int(
+        getattr(opts, "learner_metric_table_skip_first_sync_buckets", 1) or 0
+    )
+    metric_keep = int(
+        getattr(opts, "learner_metric_table_keep_first_sync_buckets", 4) or 0
+    )
+    if metric_training < 1:
+        raise SystemExit("--learner-metric-table-training must be at least 1")
+    if metric_skip < 0:
+        raise SystemExit(
+            "--learner-metric-table-skip-first-sync-buckets cannot be negative"
+        )
+    if metric_keep < 1:
+        raise SystemExit(
+            "--learner-metric-table-keep-first-sync-buckets must be at least 1"
+        )
+
+    inner_delta = float(
+        getattr(opts, "learner_metric_table_dctr_inner_delta_mm", 4.0)
+    )
+    outer_delta = float(
+        getattr(opts, "learner_metric_table_dctr_outer_delta_mm", 8.0)
+    )
+    if inner_delta < 0 or outer_delta <= inner_delta:
+        raise SystemExit(
+            "learner-table DCTR radii require 0 <= inner delta < outer delta"
+        )
+
+    alignment_inner = float(
+        getattr(opts, "learner_metric_table_alignment_inner_radius_mm", 3.0)
+    )
+    alignment_outer = float(
+        getattr(opts, "learner_metric_table_alignment_outer_radius_mm", 5.0)
+    )
+    if alignment_inner < 0 or alignment_outer <= alignment_inner:
+        raise SystemExit(
+            "learner-table alignment radii require "
+            "0 <= inner radius < outer radius"
+        )
+
+    # DCTR counts are populated during VideoAnalysis construction, before the
+    # combined report runs. Keep its geometry synchronized with report metadata.
+    opts.turnback_dual_circle = True
+    opts.turnback_inner_radius_mm = None
+    opts.turnback_outer_radius_mm = None
+    opts.turnback_inner_delta_mm = inner_delta
+    opts.turnback_outer_delta_mm = outer_delta
 
 
 def pcap(s):
@@ -13300,6 +13428,12 @@ def _select_turn_home_vector_alignment_vas(vas, export_opts=None):
 
 def _export_post_analyze_bundles(vas, gls) -> int:
     num_exports = 0
+    if getattr(opts, "export_learner_metric_table", None):
+        export_learner_metric_table(
+            vas, opts, gls, opts.export_learner_metric_table
+        )
+        num_exports += 1
+
     if getattr(opts, "export_commag_sli_bundle", None):
         export_commag_sli_bundle(vas, opts, gls, opts.export_commag_sli_bundle)
         num_exports += 1
@@ -17935,6 +18069,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     opts = p.parse_args()
     _normalize_com_options(opts)
+    _normalize_learner_metric_table_options(opts)
 
     if opts.log_fly_grps:
         # Top-level logs directory (parallel to imgs/)

@@ -982,6 +982,7 @@ class VideoAnalysis:
             "agarose_dual_circle_debug_images_dir",
             "export_wall_contacts_per_sync_bkt_npz",
             "export_wall_contacts_per_reward_interval_npz",
+            "export_learner_metric_table",
         )
         if any(bool(getattr(self.opts, name, False)) for name in risky_opts):
             return False
