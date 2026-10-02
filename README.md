@@ -260,6 +260,16 @@ python analyze.py \
 
 ### One-Shot Workflows
 
+Training reward PI now skips only the first actual reward circle entry, using
+the sync-bucket origin one frame after that reward. Counting then continues
+without waiting for a control-circle entry or midline crossing. The same start
+applies to calculated target and control entries for both experimental and yoked
+flies, and to per-bucket reward rate and rewards per distance.
+Use `--reward-pi-sync midline` to restore the previous training rule (control-side
+crossing for symmetric controls, otherwise the first control-circle entry).
+`--reward-pi-sync reward` explicitly selects the new default; `control` and
+`fixed` are also available. Post-training reward PI retains its existing rule.
+
 Multi-bucket reward-rate correlations use total calculated target-circle entries
 divided by the full selected window duration in minutes (for example, T2 SB2–5).
 They ignore per-bucket PI masks and retain zero-reward buckets. Missing requested

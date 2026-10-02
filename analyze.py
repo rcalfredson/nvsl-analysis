@@ -755,6 +755,20 @@ p.add_argument(
 
 g = p.add_argument_group("specialized analysis")
 g.add_argument(
+    "--reward-pi-sync",
+    choices=("reward", "midline", "control", "fixed"),
+    default=None,
+    help=(
+        "Training calculated-reward counting start for PI, per-bucket reward rate, "
+        "and rewards per distance. 'reward' (default) skips only the first actual "
+        "reward, already excluded by the sync-bucket origin; 'midline' restores "
+        "the previous rule (wait for a control-side crossing, or a control-circle "
+        "entry without symmetric controls); 'control' waits for a control-circle "
+        "entry; 'fixed' uses the sync-bucket origin. The same start applies to "
+        "experimental and yoked flies. Post-training PI is unaffected."
+    ),
+)
+g.add_argument(
     "--protocol-audit-report", action="store_true",
     help="emit structured training/control protocol records for auditing",
 )

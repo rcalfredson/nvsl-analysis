@@ -2,7 +2,8 @@ import enum
 
 # fixed: not behavior dependent
 # midline defaults to control if training has no symmetric control circle
-ST = enum.Enum("SyncType", "fixed midline control")
+# reward: skip only the first reward; training sync buckets already exclude it
+ST = enum.Enum("SyncType", "fixed midline control reward")
 
 BORDER_WIDTH = 1
 CAP_1ST_LTR = True
@@ -25,7 +26,7 @@ LGC2 = True  # version 2 of large chamber (39x39 mm)
 P = False  # whether to use paper style for plots
 POST_SYNC = ST.fixed  # when to start post buckets
 RDP_MIN_LINES = RDP_MIN_TURNS = 100  # for including fly in analysis
-RI_START = ST.midline  # when to start RI calculation
+RI_START = ST.reward  # when to start training RI calculation
 RI_START_POST = ST.control  # ditto for post period
 # whether to use circle-distance-based calculation for midline crossing
 MIDLINE_XING2 = True

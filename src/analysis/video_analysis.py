@@ -1294,7 +1294,7 @@ class VideoAnalysis:
 
             fi = fi_start
             la = min(trn.stop, int(trn.start + n_buckets * df))
-            fiRi = util.none2val(self._idxSync(RI_START, trn, fi, la), la)
+            fiRi = util.none2val(self._idxSync(self._trainingRewardSync(), trn, fi, la), la)
             n_calc = self._countOnByBucket(
                 fi, la, df, calc=True, ctrl=False, f=trj.f, fiCount=fiRi
             )
@@ -1349,7 +1349,7 @@ class VideoAnalysis:
 
             fi = fi_start
             la = min(trn.stop, int(trn.start + n_buckets * df))
-            fiRi = util.none2val(self._idxSync(RI_START, trn, fi, la), la)
+            fiRi = util.none2val(self._idxSync(self._trainingRewardSync(), trn, fi, la), la)
             n_calc = self._countOnByBucket(
                 fi, la, df, calc=True, ctrl=False, f=trj.f, fiCount=fiRi
             )
@@ -4258,8 +4258,13 @@ class VideoAnalysis:
         n = np.ceil(trn.len() / df - 0.01).astype(int)
         return fi, n, on
 
+    def _trainingRewardSync(self):
+        """Counting policy shared by training PI and per-bucket reward metrics."""
+        name = getattr(self.opts, "reward_pi_sync", None)
+        return RI_START if name is None else ST[name]
+
     # returns SyncType (tp)-dependent frame index in the given frame index range
-    # note: skip applies only to sync on control circle
+    # skip applies to control entries and post-training reward entries
     def _idxSync(self, tp, trn, fi, la, skip=1):
         if tp is ST.fixed or fi is None or np.isnan(fi):
             return fi
@@ -4275,6 +4280,14 @@ class VideoAnalysis:
                 f"origin ({first_sync_start}); received {fi}. "
                 "Do not resynchronize a selected analysis window."
             )
+
+            if tp is ST.reward:
+                # _syncBucket() already starts after the first actual reward.
+                # Do not skip the next calculated reward or wait for control.
+                return fi
+
+        if tp is ST.reward:
+            return util.noneadd(self._idxFirstOn(fi, la, calc=True, ctrl=False), skip)
 
         if tp is ST.control or not trn.hasSymCtrl():
             return util.noneadd(self._idxFirstOn(fi, la, calc=True, ctrl=True), skip)
@@ -4334,7 +4347,7 @@ class VideoAnalysis:
             fi, n, on = self._syncBucket(t, df)
             self.buckets.append([fi if fi is not None else np.nan])
             la = min(t.stop, int(t.start + n * df))
-            fiRi = util.none2val(self._idxSync(RI_START, t, fi, la), la)
+            fiRi = util.none2val(self._idxSync(self._trainingRewardSync(), t, fi, la), la)
             self.rewardPITrns.append(t)
             self._append(self.firstRewardCtrl, self._firstRewardCtrl(fi, la, df))
             self._append(self.xedMidlineBefore, self._xedMidlineBefore(fi, la, df, t))
