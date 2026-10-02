@@ -24,8 +24,8 @@ def _video(rewards=(2, 0), distances=(1000.0, 1000.0), start=3):
         return distances[f]
 
     def sync(training, *, skip):
-        assert training is trn and skip == 0
-        return start, 2, []
+        assert training is trn and skip == 1
+        return (None if start is None else start + skip), 2, []
 
     va = SimpleNamespace(
         trns=[trn],
@@ -40,22 +40,39 @@ def _video(rewards=(2, 0), distances=(1000.0, 1000.0), start=3):
         ct=SimpleNamespace(pxPerMmFloor=lambda: 5.0),
         _syncBucket=sync,
         _countOn=count,
-        # These filters must not affect the RPM-matched training summary.
+        # These filters must not affect the training-wide summary.
         reward_exclusion_mask=[[[True], [True]]],
         opts=SimpleNamespace(rpd_pooled_min_rewards=5, piTh=10),
     )
     return va, calls
 
 
-def test_training_rpd_matches_rpm_window_and_converts_distance_to_meters():
+def test_training_rpd_uses_matching_bounds_and_converts_distance_to_meters():
     va, calls = _video()
     exp, diff = training_rewards_per_distance(va, va.trns[0])
     assert exp == pytest.approx(20.0)
     assert diff == pytest.approx(20.0)
     assert calls == [
-        ("distance", 0, 3, 27), ("count", 0, 3, 27),
-        ("distance", 1, 3, 27), ("count", 1, 3, 27),
+        ("distance", 0, 4, 27), ("count", 0, 4, 27),
+        ("distance", 1, 4, 27), ("count", 1, 4, 27),
     ]
+
+
+@pytest.mark.parametrize("target_entries,expected", [
+    (([3, 4, 26, 27], [2, 3, 5, 27]), (20, 10)),
+    (([3], [5]), (0, -10)),
+])
+def test_initial_reward_is_excluded_without_skipping_later_entries(target_entries, expected):
+    va, calls = _video()
+
+    def count(fi, la, *, calc, ctrl, f):
+        assert calc and not ctrl
+        entries = np.asarray(target_entries[f])
+        return np.count_nonzero((entries >= fi) & (entries < la))
+
+    va._countOn = count
+    assert training_rewards_per_distance(va, va.trns[0]) == pytest.approx(expected)
+    assert calls == [("distance", 0, 4, 27), ("distance", 1, 4, 27)]
 
 
 @pytest.mark.parametrize("distance", [0, -1, np.nan, np.inf])
@@ -66,8 +83,8 @@ def test_invalid_yoked_distance_preserves_experimental_value(distance):
     assert np.isnan(diff)
 
 
-@pytest.mark.parametrize("start", [None, np.nan, 27, 30])
-def test_missing_or_empty_rpm_window_is_not_a_zero_reward_observation(start):
+@pytest.mark.parametrize("start", [None, np.nan, 26, 27, 30])
+def test_missing_or_empty_counting_window_is_not_a_zero_reward_observation(start):
     va, calls = _video(start=start)
     assert np.all(np.isnan(training_rewards_per_distance(va, va.trns[0])))
     assert calls == []
@@ -103,6 +120,7 @@ def test_summary_uses_per_fly_ratios_and_paired_difference_ci(capsys):
     assert values[:2, 0, 1] == pytest.approx([10, 10])
     assert np.isnan(values[2, 0, 1])
     output = capsys.readouterr().out
+    assert "interval: one frame after first synchronized reward through training end" in output
     exp_values = np.array([20, 30, 0])
     delta = t.ppf(0.975, 2) * np.std(exp_values, ddof=1) / np.sqrt(3)
     assert f"t1, exp fly: 16.67 ±{delta:.2f}" in output

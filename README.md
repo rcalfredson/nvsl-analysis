@@ -270,6 +270,11 @@ crossing for symmetric controls, otherwise the first control-circle entry).
 `--reward-pi-sync reward` explicitly selects the new default; `control` and
 `fixed` are also available. Post-training reward PI retains its existing rule.
 
+Training-wide RPD also excludes the initial reward frame from calculated target
+counts for both flies. Reward counting and distance measurement both start one
+frame after the first actual reward and extend through training end, including
+the final partial bucket.
+
 Multi-bucket reward-rate correlations use total calculated target-circle entries
 divided by the full selected window duration in minutes (for example, T2 SB2–5).
 They ignore per-bucket PI masks and retain zero-reward buckets. Missing requested

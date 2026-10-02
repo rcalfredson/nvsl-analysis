@@ -1,4 +1,4 @@
-"""Training-wide RPD readouts using the same interval as rewards per minute."""
+"""Training-wide RPD readouts excluding the reward at the time-zero frame."""
 
 import numpy as np
 
@@ -8,14 +8,16 @@ from src.utils import util
 def training_rewards_per_distance(va, trn):
     """Return experimental RPD and paired exp-minus-yoked RPD, in m⁻¹.
 
-    Match rewardsPerMinute: start at _syncBucket(skip=0), count calculated
-    target entries through training stop, and include the final partial bucket.
+    Measure distance and count calculated target entries from _syncBucket(skip=1)
+    through training stop, including the final partial bucket. Both start one
+    frame after the initial reward, excluding that entry. Use the same interval
+    for both flies.
     Neither PI masks nor sync-bucket pooled-plot count/window options apply.
     Each fly contributes total rewards / total distance, including zero rewards.
     """
     if getattr(va, "_skipped", False):
         return np.nan, np.nan
-    start = va._syncBucket(trn, skip=0)[0]
+    start = va._syncBucket(trn, skip=1)[0]
     stop = trn.stop
     if start is None or not np.isfinite(start) or not np.isfinite(stop) or stop <= start:
         return np.nan, np.nan
@@ -54,7 +56,7 @@ def report_training_rewards_per_distance(vas, trns, gis, gls=None):
 
     for mode, label in enumerate(("exp fly", "exp-minus-yoked")):
         print(f"\nrewards per distance traveled [m⁻¹], {label}:")
-        print("interval: RPM window (first synchronized reward through training end)")
+        print("interval: one frame after first synchronized reward through training end")
         print("means with 95% confidence intervals:")
         ns = [np.count_nonzero(gis == g) for g in groups]
         print('  n = %s  (in "()" below if different)' % util.join(", ", ns))
