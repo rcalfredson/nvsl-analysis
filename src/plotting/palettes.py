@@ -292,6 +292,7 @@ CORRELATION_PLOT_COLORS = {
     "rewards_per_distance_vs_sli": ACCENT_BLUE,
     "rewards_per_distance_exp_minus_yoked_vs_sli": ACCENT_TEAL,
     "rewards_per_minute_vs_sli": ACCENT_ORANGE,
+    "rewards_per_minute_vs_sli_t1_sb1": "#6B7D1F",
     "speed_vs_sli": ACCENT_SKY,
     "pre_training_speed_vs_mean_t2_sli": MUTED_CATEGORICAL[3],
     "first_n_reward_rate_vs_sli": ACCENT_VIOLET,

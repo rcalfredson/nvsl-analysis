@@ -341,6 +341,26 @@ def _window_context_suffix(ctx: SLIContext, *, prefix: str) -> str:
     return "_".join(parts)
 
 
+def _reward_rate_vs_sli_plot_key(
+    sli_ctx: SLIContext,
+    reward_rate_ctx: SLIContext,
+    *,
+    first_n_rewards: int = 0,
+) -> str:
+    """Distinguish concurrent T1 SB1 from other reward-rate/SLI windows.
+
+    Use the numeric contexts rather than labels or filenames, so label
+    overrides and equivalent single-bucket selections preserve the color.
+    First-N reward rates describe a different time window.
+    """
+    if first_n_rewards == 0 and all(
+        ctx.training_idx == 0 and ctx._window_bounds() == (1, 1)
+        for ctx in (sli_ctx, reward_rate_ctx)
+    ):
+        return "rewards_per_minute_vs_sli_t1_sb1"
+    return "rewards_per_minute_vs_sli"
+
+
 def _default_t2_speed_vs_final_sli_contexts() -> (
     tuple[SLIContext, tuple[tuple[SLIContext, str], ...]]
 ):
@@ -4378,14 +4398,19 @@ def plot_cross_fly_correlations(
             image_format=cfg.image_format,
         )
 
-    # --- Plot 1c: SLI_final vs reward-per-time ---
+    # --- Plot 1c: selected-window SLI vs reward-per-time ---
     _scatter_with_corr(
         x=sli_vals,
         y=rpt_vals,
         title="Reward rate vs SLI",
         x_label=str(corr_sli_vs_rpt_xlabel_override or x_label_sli),
         y_label=str(corr_sli_vs_rpt_ylabel_override or rpt_y_label),
-        cfg=_cfg_with_plot_color(cfg, "rewards_per_minute_vs_sli"),
+        cfg=_cfg_with_plot_color(
+            cfg,
+            _reward_rate_vs_sli_plot_key(
+                sli_ctx, reward_rate_ctx, first_n_rewards=reward_first_n
+            ),
+        ),
         filename=f"corr_rpt_vs_sli_{rpt_suffix}",
         customizer=customizer,
     )
