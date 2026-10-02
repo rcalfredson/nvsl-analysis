@@ -268,7 +268,10 @@ flies, and to per-bucket reward rate and rewards per distance.
 Use `--reward-pi-sync midline` to restore the previous training rule (control-side
 crossing for symmetric controls, otherwise the first control-circle entry).
 `--reward-pi-sync reward` explicitly selects the new default; `control` and
-`fixed` are also available. Post-training reward PI retains its existing rule.
+`fixed` are also available. Post-training reward PI counts from post onset,
+including entries on the onset frame, without waiting for a control-circle visit
+or skipping an initial entry. This fixed post-period policy applies to both
+flies and is independent of `--reward-pi-sync`.
 
 Training-wide RPD also excludes the initial reward frame from calculated target
 counts for both flies. Reward counting and distance measurement both start one

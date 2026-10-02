@@ -7359,32 +7359,13 @@ class VideoAnalysis:
 
     def rewardPiPost(self):
         """
-        Calculates and reports the reward preference index (PI) for flies during the post-reward
-        phase of the experiment. This method evaluates the flies' reward preferences by analyzing
-        their entries into reward areas, with consideration for both synchronized and non-synchronized
-        reward delivery times.
+        Calculate post-period PI and total target/control circle entries by bucket.
 
-        The reward PI is calculated for each fly across all training sessions, with additional
-        analysis for reward crossings. The method differentiates between synchronized (aligned with
-        specific experimental events) and non-synchronized (independent of such events) reward
-        deliveries, calculating PIs for both scenarios. It prints the calculated PIs, along with
-        the number of reward crossings, providing insights into flies' behavior in relation to
-        the provided rewards during the post-reward phase.
-
-        Parameters:
-          - None
-
-        The method iterates over each training session and each fly, calculating the reward PI
-        and the total number of reward crossings, adjusted for synchronization with experimental
-        events. The results are printed for each fly, highlighting their preference for one reward
-        type over another in the post-reward phase and indicating the extent of their engagement
-        with the reward areas.
-
-        Notes:
-          - The reward PI provides a quantifiable measure of the flies' reward preferences, offering
-            valuable insights into the effectiveness of the training and their subsequent behavior.
-          - The method accounts for the possibility of continued training activity affecting the
-            reward PI calculations, especially in the initial training session.
+        POST_SYNC and RI_START_POST default to fixed: both flies count from post
+        onset, including that frame, without waiting for control entry or skipping
+        the first target entry. The standard and NoSync series therefore agree
+        under the default policy; both are retained for existing consumers.
+        Optional preceding training buckets retain their full counting intervals.
         """
         calc, blm, nnpb = True, self.opts.rpiPostBucketLenMin, self.rpiNumNonPostBuckets
         print(

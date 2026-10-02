@@ -27,7 +27,7 @@ P = False  # whether to use paper style for plots
 POST_SYNC = ST.fixed  # when to start post buckets
 RDP_MIN_LINES = RDP_MIN_TURNS = 100  # for including fly in analysis
 RI_START = ST.reward  # when to start training RI calculation
-RI_START_POST = ST.control  # ditto for post period
+RI_START_POST = ST.fixed  # count from post onset without a behavioral offset
 # whether to use circle-distance-based calculation for midline crossing
 MIDLINE_XING2 = True
 SPEED_ON_BOTTOM = True  # whether to measure speed only on bottom
