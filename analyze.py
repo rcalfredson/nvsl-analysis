@@ -9705,6 +9705,13 @@ def plotRewards(
     if save_auc_types and tp in save_auc_types and vas is not None:
         store_auc_entries(vas, tp, a, nf)
 
+    # Pair the displayed RPD curves using only their own bucket eligibility.
+    # Union the exclusions so both means, CIs, and tests use the same pairs;
+    # keep the raw measurements and experimental-only plot independent.
+    paired_rpd = rpd and nf == 2 and 0 in plot_fs and 1 in plot_fs
+    if paired_rpd:
+        a = propagate_nans(a)
+
     # Normalize SLI fraction metadata for labeling / filenames.
     # New-style side-specific fractions override the legacy shared fraction.
     if sli_top_fraction is None:
@@ -10421,6 +10428,10 @@ def plotRewards(
                             (
                                 ttest_ind(getVals(0, b, dlt), getVals(1, b, dlt))
                                 if cmpg
+                                else ttest_rel(
+                                    getVals(0, b, f1=0), getVals(0, b, f1=1)
+                                )
+                                if paired_rpd
                                 else ttest_1samp(getVals(0, b, dlt, 0), 0)
                             )[:2]
                             + (np.nanmean(getVals(int(cmpg), b)),)

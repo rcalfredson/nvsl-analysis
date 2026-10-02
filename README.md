@@ -294,7 +294,12 @@ each fly's value is retained when its reward count is finite and its traveled
 distance is finite and positive. Zero rewards produce zero RPD; reward-PI/SLI
 eligibility does not mask the bucket. This preserves the bucketwise ratio
 definition (rewards in the bucket divided by distance in that bucket), which is
-distinct from pooled multi-bucket RPD.
+distinct from pooled multi-bucket RPD. When experimental and yoked curves are
+plotted together, exclusions are paired within each sync bucket: if either RPD
+value is missing, both are omitted from that bucket's means, confidence intervals,
+and sample sizes. Within-group experimental/yoked bucket comparisons use paired
+t-tests. Comparisons between separate groups remain unpaired. Raw measurements
+and experimental-only plots retain each fly's independent eligibility.
 
 These metrics can be run directly from `analyze.py`; outputs are usually written under `imgs/` plus any CSV/NPZ paths named by the flag.
 
