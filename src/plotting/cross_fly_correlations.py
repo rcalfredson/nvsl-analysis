@@ -456,7 +456,7 @@ def _first_n_reward_rate_label(
     first_n_rewards: int,
     ctx: SLIContext,
     max_time_to_nth_s: float | None = None,
-    time_basis: str = "window_start",
+    time_basis: str = "first_to_nth",
 ) -> str:
     window_txt = ctx._window_text(abbrev_sb=True)
     cutoff_txt = ""
@@ -3271,7 +3271,7 @@ def _rewards_per_minute_for_first_n_calc_rewards(
     keep_first_sync_buckets: int = 0,
     first_n_rewards: int,
     max_time_to_nth_s: float | None = None,
-    time_basis: str = "window_start",
+    time_basis: str = "first_to_nth",
 ) -> float:
     n_target = max(1, int(first_n_rewards or 1))
     windows = selected_windows_for_va(
@@ -3280,6 +3280,7 @@ def _rewards_per_minute_for_first_n_calc_rewards(
         skip_first_sync_buckets=int(skip_first_sync_buckets or 0),
         keep_first_sync_buckets=int(keep_first_sync_buckets or 0),
         f=0,
+        include_initial_reward=True,
     )
     if not windows:
         return np.nan
@@ -4023,8 +4024,8 @@ def plot_cross_fly_correlations(
     reward_first_n = max(0, reward_first_n)
     reward_max_time_to_nth_s = getattr(opts, "corr_reward_rate_max_time_to_nth_s", None)
     reward_first_n_time_basis = str(
-        getattr(opts, "corr_reward_rate_first_n_time_basis", "window_start")
-        or "window_start"
+        getattr(opts, "corr_reward_rate_first_n_time_basis", "first_to_nth")
+        or "first_to_nth"
     )
     early_lbl = early_sli_label(training_idx=0, skip_first_sync_buckets=skip_k)  # T1
     early_sb_txt = f"SB{skip_k + 1}"

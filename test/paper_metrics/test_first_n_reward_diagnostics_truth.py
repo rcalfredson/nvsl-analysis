@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 from src.plotting.first_n_reward_diagnostics import (
     FirstNRewardDiagnosticsConfig,
@@ -61,6 +62,7 @@ def _rows_for_rewards(
     skip_first_sync_buckets=0,
     keep_first_sync_buckets=0,
     sync_bucket_ranges=None,
+    reward_event_type="calc",
 ):
     plotter = FirstNRewardDiagnosticsPlotter(
         vas=[
@@ -78,7 +80,7 @@ def _rows_for_rewards(
             keep_first_sync_buckets=keep_first_sync_buckets,
             first_n_rewards=first_n_rewards,
             sli_values=[0.25],
-            reward_event_type="calc",
+            reward_event_type=reward_event_type,
         ),
     )
     return plotter.compute_all_rows()
@@ -95,6 +97,31 @@ def test_selected_reward_rate_uses_between_reward_intervals_not_reward_count():
     assert row.first_n_selected_reward_span_s == 90.0
     assert row.selected_reward_rate_to_nth_per_min == 6.0
     assert row.selected_reward_rate_to_nth_per_min != 10 * 60.0 / 95.0
+
+
+@pytest.mark.parametrize("reward_event_type", ["actual", "calc"])
+@pytest.mark.parametrize("extra_reward", [False, True])
+def test_sb1_first_ten_includes_initial_reward_as_timing_anchor(reward_event_type, extra_reward):
+    rewards = list(range(50, 951, 100))
+    if extra_reward:
+        rewards.append(980)
+    [row] = _rows_for_rewards(
+        rewards,
+        sync_bucket_ranges=[[(51, 501), (501, 951)]],
+        reward_event_type=reward_event_type,
+    )
+    assert row.eligible_for_nth_reward_cutoff
+    assert row.cutoff_frame == 950
+    assert row.time_to_first_selected_reward_s == 0
+    assert row.time_to_nth_selected_reward_s == 90
+    assert row.first_n_selected_reward_span_s == 90
+    assert row.selected_reward_rate_to_nth_per_min == 6
+    assert row.first_n_selected_reward_distance_traveled_mm == 900
+    assert row.selected_reward_rate_to_nth_per_m == 10
+    assert row.actual_reward_count_by_cutoff == 10
+    # The timing anchor must not add an entry to diagnostic PI counts.
+    assert row.actual_circle_entry_count_by_cutoff == 9
+    validate_first_n_reward_diagnostic_rows([row])
 
 
 def test_selected_rewards_per_distance_uses_first_to_nth_path_length():

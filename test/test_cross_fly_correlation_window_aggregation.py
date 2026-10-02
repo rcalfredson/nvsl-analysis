@@ -96,6 +96,36 @@ def test_pooled_rpd_counts_selected_window_without_resynchronizing(skip_first):
     assert result.value == pytest.approx(expected_rewards / expected_distance)
 
 
+@pytest.mark.parametrize("extra_reward", [False, True])
+def test_first_ten_rate_uses_initial_reward_and_nine_intervals(extra_reward):
+    rewards = list(range(50, 951, 100)) + ([980] if extra_reward else [])
+    va = _VideoAnalysis(_Trajectory(np.ones(1001)), reward_frames=rewards)
+    va.sync_bucket_ranges = [[(51, 501), (501, 1001)]]
+    va.fps = 10
+    va._getOn = lambda *args, **kwargs: np.asarray(rewards)
+    assert corr._rewards_per_minute_for_first_n_calc_rewards(
+        va, training_idx=0, first_n_rewards=10,
+    ) == pytest.approx(6)
+    assert corr._rewards_per_minute_for_first_n_calc_rewards(
+        va, training_idx=0, first_n_rewards=10, max_time_to_nth_s=90,
+    ) == pytest.approx(6)
+    assert np.isnan(corr._rewards_per_minute_for_first_n_calc_rewards(
+        va, training_idx=0, first_n_rewards=10, max_time_to_nth_s=89,
+    ))
+
+
+def test_first_n_rate_keeps_later_window_and_explicit_time_basis():
+    va = _VideoAnalysis(_Trajectory(np.ones(1001)), reward_frames=[50, 550, 750])
+    va.sync_bucket_ranges = [[(51, 501), (501, 1001)]]
+    va.fps = 10
+    va._getOn = lambda *args, **kwargs: np.array([50, 550, 750])
+    kwargs = dict(va=va, training_idx=0, first_n_rewards=2, skip_first_sync_buckets=1)
+    assert corr._rewards_per_minute_for_first_n_calc_rewards(**kwargs) == pytest.approx(3)
+    assert corr._rewards_per_minute_for_first_n_calc_rewards(
+        **kwargs, time_basis="window_start",
+    ) == pytest.approx(2 * 60 / 24.9)
+
+
 @pytest.mark.parametrize("role,control", [(0, False), (0, True), (1, False), (1, True)])
 @pytest.mark.parametrize("use_fallback", [False, True])
 def test_pooled_entry_count_preserves_bounds_for_each_role_and_circle(role, control, use_fallback):

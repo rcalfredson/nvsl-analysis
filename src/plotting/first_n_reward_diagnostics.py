@@ -644,6 +644,15 @@ class FirstNRewardDiagnosticsPlotter:
                 keep_first_sync_buckets=self.cfg.keep_first_sync_buckets,
                 f=0,
             )
+            entry_windows = windows
+            windows = selected_windows_for_va(
+                va,
+                selected_trainings,
+                skip_first_sync_buckets=self.cfg.skip_first_sync_buckets,
+                keep_first_sync_buckets=self.cfg.keep_first_sync_buckets,
+                f=0,
+                include_initial_reward=True,
+            )
             fps = float(getattr(va, "fps", 1.0) or 1.0)
             if not np.isfinite(fps) or fps <= 0:
                 fps = 1.0
@@ -654,8 +663,8 @@ class FirstNRewardDiagnosticsPlotter:
             selected_rewards = frames_in_windows(
                 va, windows, calc=use_calc_rewards, ctrl=False, f=0
             )
-            actual_entries = frames_in_windows(va, windows, calc=True, ctrl=False, f=0)
-            control_entries = frames_in_windows(va, windows, calc=True, ctrl=True, f=0)
+            actual_entries = frames_in_windows(va, entry_windows, calc=True, ctrl=False, f=0)
+            control_entries = frames_in_windows(va, entry_windows, calc=True, ctrl=True, f=0)
 
             has_window = bool(windows)
             n_actual = int(actual_rewards.size)

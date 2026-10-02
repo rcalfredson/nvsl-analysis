@@ -75,6 +75,7 @@ def selected_windows_for_va(
     skip_first_sync_buckets: int = 0,
     keep_first_sync_buckets: int = 0,
     f: int = 0,
+    include_initial_reward: bool = False,
 ) -> list[SelectedWindow]:
     windows: list[SelectedWindow] = []
     trns = getattr(va, "trns", None) or []
@@ -98,6 +99,12 @@ def selected_windows_for_va(
         if n_buckets <= 0:
             continue
         end = int(fi + n_buckets * df)
+        if include_initial_reward and skip_first == 0:
+            # First-N timing needs reward #1 as its anchor. Ordinary entry
+            # counting starts one frame later; preserve the selected end.
+            actual_rewards = np.asarray(va._getOn(trn), dtype=int).reshape(-1)
+            if actual_rewards.size and fi == int(actual_rewards[0]) + 1:
+                fi = int(actual_rewards[0])
         windows.append(
             SelectedWindow(
                 training_idx=int(t_idx),

@@ -275,6 +275,14 @@ counts for both flies. Reward counting and distance measurement both start one
 frame after the first actual reward and extend through training end, including
 the final partial bucket.
 
+First-N reward diagnostics and first-N reward-rate correlations include the
+initial reward as the timing anchor when selecting SB1. For the first ten
+rewards, the rate is nine divided by the elapsed time from reward #1 to reward
+#10 (multiplied by 60 for seconds-to-minutes conversion). Later selected windows
+use their own first N rewards. Diagnostic PI counts still exclude the initial
+reward. Correlations default to `--corr-reward-rate-first-n-time-basis first_to_nth`;
+`window_start` remains available for the alternative N / time-to-Nth formula.
+
 Multi-bucket reward-rate correlations use total calculated target-circle entries
 divided by the full selected window duration in minutes (for example, T2 SB2–5).
 They ignore per-bucket PI masks and retain zero-reward buckets. Missing requested

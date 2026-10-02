@@ -1198,7 +1198,8 @@ g.add_argument(
     help=(
         "For the 'reward rate vs SLI' correlation plot, compute reward rate "
         "from the first N calculated rewards of the experimental fly within the "
-        "selected reward-rate window, using N / time-to-Nth-reward. "
+        "selected reward-rate window, including the initial reward as a timing "
+        "anchor when starting at SB1. By default use (N - 1) / first-to-Nth span. "
         "Use 0 to keep the existing sync-bucket-based reward-rate calculation."
     ),
 )
@@ -1217,11 +1218,11 @@ g.add_argument(
     "--corr-reward-rate-first-n-time-basis",
     type=str,
     choices=("window_start", "first_to_nth"),
-    default="window_start",
+    default="first_to_nth",
     help=(
         "When --corr-reward-rate-first-n-rewards is used, compute reward rate either "
         "from selected-window start to the Nth calculated reward ('window_start') or "
-        "from the first to the Nth calculated reward ('first_to_nth')."
+        "from the first to the Nth calculated reward ('first_to_nth', default)."
     ),
 )
 g.add_argument(
