@@ -8,6 +8,7 @@ from src.plotting.cross_fly_correlations import SLIContext
 from src.plotting.rewards_per_distance_totals import (
     RewardsPerDistanceTotalsConfig,
     RewardsPerDistanceTotalsPlotter,
+    _count_calc_rewards_in_window,
     pooled_rewards_per_distance_window,
 )
 
@@ -79,6 +80,44 @@ def test_pooled_rpd_uses_total_rewards_over_total_distance():
 
     assert pooled == pytest.approx(10.0 / 0.1)
     assert pooled != pytest.approx(bucketwise_mean)
+
+
+@pytest.mark.parametrize("skip_first", [0, 1])
+def test_pooled_rpd_counts_selected_window_without_resynchronizing(skip_first):
+    va = _VideoAnalysis(_Trajectory(np.ones(20)), reward_frames=[0, 5, 10, 11, 19, 20])
+    va._idxSync = lambda *args: pytest.fail("Pooled RPD must not resynchronize")
+    result = pooled_rewards_per_distance_window(
+        va, va.trns[0], t_idx=0, f=0, skip_first=skip_first, keep_first=2,
+    )
+    expected_rewards = 5 if skip_first == 0 else 3
+    expected_distance = 0.02 if skip_first == 0 else 0.01
+    assert result.rewards == expected_rewards
+    assert result.distance_m == pytest.approx(expected_distance)
+    assert result.value == pytest.approx(expected_rewards / expected_distance)
+
+
+@pytest.mark.parametrize("role,control", [(0, False), (0, True), (1, False), (1, True)])
+@pytest.mark.parametrize("use_fallback", [False, True])
+def test_pooled_entry_count_preserves_bounds_for_each_role_and_circle(role, control, use_fallback):
+    frames = np.array([9, 10, 15, 19, 20, np.nan])
+
+    def count_on(start, stop, *, calc, ctrl, f):
+        assert (start, stop, calc, ctrl, f) == (10, 20, True, control, role)
+        if use_fallback:
+            raise AttributeError("Count API unavailable")
+        return 3
+
+    def get_on(trn, *, calc, ctrl, f):
+        assert (calc, ctrl, f) == (True, control, role)
+        return frames
+
+    va = SimpleNamespace(
+        _countOn=count_on, _getOn=get_on,
+        _idxSync=lambda *args: pytest.fail("Pooled counts must not resynchronize"),
+    )
+    assert _count_calc_rewards_in_window(
+        va, _Training(), f=role, ctrl=control, start=10, stop=20,
+    ) == 3
 
 
 @pytest.mark.parametrize("explicit_bucket, expected", [(None, 1.0), (1, 2.0)])

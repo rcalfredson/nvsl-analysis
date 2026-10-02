@@ -4263,7 +4263,20 @@ class VideoAnalysis:
     def _idxSync(self, tp, trn, fi, la, skip=1):
         if tp is ST.fixed or fi is None or np.isnan(fi):
             return fi
-        elif tp is ST.control or not trn.hasSymCtrl():
+
+        # During training, establish the counting offset once from the initial
+        # sync-bucket origin. Reapplying it to a later analysis window can
+        # discard valid entries. Post-training synchronization has its own origin.
+        if fi < trn.stop:
+            df = self._numRewardsMsg(True, silent=True)
+            first_sync_start, _, _ = self._syncBucket(trn, df)
+            assert fi == first_sync_start, (
+                "Training synchronization must start at the first sync-bucket "
+                f"origin ({first_sync_start}); received {fi}. "
+                "Do not resynchronize a selected analysis window."
+            )
+
+        if tp is ST.control or not trn.hasSymCtrl():
             return util.noneadd(self._idxFirstOn(fi, la, calc=True, ctrl=True), skip)
         else:
             assert tp is ST.midline

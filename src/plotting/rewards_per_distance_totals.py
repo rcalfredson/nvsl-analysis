@@ -12,8 +12,6 @@ from src.plotting.training_metric_scalar_bars import (
     TrainingMetricScalarBarsConfig,
     TrainingMetricScalarBarsPlotter,
 )
-from src.utils import util
-from src.utils.constants import RI_START
 
 
 @dataclass
@@ -45,11 +43,11 @@ def _count_calc_rewards_in_window(
     start: int,
     stop: int,
 ) -> float:
+    """Count calculated circle entries in the half-open interval [start, stop)."""
     try:
-        fi_count = util.none2val(va._idxSync(RI_START, trn, start, stop), stop)
         return float(
             va._countOn(
-                max(start, int(fi_count)),
+                start,
                 stop,
                 calc=True,
                 ctrl=bool(ctrl),
@@ -57,15 +55,16 @@ def _count_calc_rewards_in_window(
             )
         )
     except Exception:
-        try:
-            on = np.asarray(
-                va._getOn(trn, calc=True, ctrl=bool(ctrl), f=f),
-                dtype=float,
-            )
-        except Exception:
-            return np.nan
-        on = on[np.isfinite(on)]
-        return float(np.count_nonzero((on >= start) & (on < stop)))
+        pass
+    try:
+        on = np.asarray(
+            va._getOn(trn, calc=True, ctrl=bool(ctrl), f=f),
+            dtype=float,
+        )
+    except Exception:
+        return np.nan
+    on = on[np.isfinite(on)]
+    return float(np.count_nonzero((on >= start) & (on < stop)))
 
 
 def _distance_traveled_m(va, *, f: int, start: int, stop: int) -> float:
