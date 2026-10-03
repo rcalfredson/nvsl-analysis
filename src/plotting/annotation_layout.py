@@ -34,14 +34,17 @@ def keep_text_box_inside_axes(
     pad_px: float = 1.0,
     left_pad_px: float | None = None,
     right_pad_px: float | None = None,
+    min_fontsize: float | None = None,
 ) -> bool:
     """Nudge a rendered text patch inside the visible inner axes boundary.
 
     Matplotlib's axes extent follows each spine's centerline, so the safe
     inset includes the inward half of every visible spine plus ``pad_px``.
     The text is translated only as far as necessary and its alignment,
-    transform, font, and wording are left unchanged. ``False`` is returned
-    when the rendered box is physically too large to fit.
+    transform and wording are left unchanged. When ``min_fontsize`` is set,
+    shrink the font only if the rendered box exceeds the available width,
+    stopping at that minimum. Otherwise the font is unchanged. ``False`` is
+    returned when the rendered box is physically too large to fit.
     """
     fig = ax.figure
     fig.canvas.draw()
@@ -71,6 +74,23 @@ def keep_text_box_inside_axes(
     top_inset = _edge_inset_px("top", pad_px)
     available_width = float(axes_bbox.width) - left_inset - right_inset
     available_height = float(axes_bbox.height) - bottom_inset - top_inset
+    if min_fontsize is not None:
+        if not np.isfinite(min_fontsize) or min_fontsize <= 0:
+            raise ValueError("min_fontsize must be finite and positive")
+        minimum = min(float(min_fontsize), float(text.get_fontsize()))
+        while text_bbox.width > available_width and text.get_fontsize() > minimum:
+            # Include the bbox patch's padding in each measurement. A small
+            # reserve avoids landing exactly on the edge with mathtext.
+            size = float(text.get_fontsize())
+            scaled_size = size * max(0.0, available_width) / text_bbox.width * 0.98
+            text.set_fontsize(max(minimum, min(size - 0.25, scaled_size)))
+            fig.canvas.draw()
+            renderer = fig.canvas.get_renderer()
+            text_bbox = (
+                patch.get_window_extent(renderer=renderer)
+                if patch is not None
+                else text.get_window_extent(renderer=renderer)
+            )
     if text_bbox.width > available_width or text_bbox.height > available_height:
         return False
 

@@ -74,8 +74,9 @@ def test_first_n_plot_uses_injected_typography(tmp_path, monkeypatch):
         close_figure(fig)
 
 
+@pytest.mark.parametrize("font_size", [12.0, 23.0])
 def test_first_n_plot_constrains_stats_box_after_final_axis_sizing(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, font_size
 ):
     cfg = diagnostics.FirstNRewardDiagnosticsConfig(
         csv_out="",
@@ -85,8 +86,14 @@ def test_first_n_plot_constrains_stats_box_after_final_axis_sizing(
         y_by="sli",
         color_by=None,
     )
+    customizer = diagnostics.PlotCustomizer()
+    customizer.update_font_size(font_size)
     plotter = diagnostics.FirstNRewardDiagnosticsPlotter(
-        vas=[], opts=None, gls=None, cfg=cfg
+        vas=[], opts=None, gls=None, cfg=cfg, customizer=customizer
+    )
+    monkeypatch.setattr(
+        plotter, "_correlation_text",
+        lambda *_args: r"n = 89, r = 0.424, p = $3.54 \times 10^{-5}$",
     )
     rows = [
         SimpleNamespace(
@@ -102,8 +109,13 @@ def test_first_n_plot_constrains_stats_box_after_final_axis_sizing(
     calls = []
     original = diagnostics.keep_text_box_inside_axes
 
-    def recorded_constraint(ax, text):
-        result = original(ax, text)
+    def recorded_constraint(ax, text, **kwargs):
+        original_fontsize = text.get_fontsize()
+        result = original(ax, text, **kwargs)
+        if font_size == 23.0:
+            assert text.get_fontsize() < original_fontsize
+        else:
+            assert text.get_fontsize() == original_fontsize
         renderer = ax.figure.canvas.get_renderer()
         calls.append(
             (

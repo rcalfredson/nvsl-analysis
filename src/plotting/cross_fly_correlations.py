@@ -699,7 +699,9 @@ def _finalize_correlation_layout(
     set_axis_size_inches(ax, axis_size_inches)
     for text in ax.texts:
         if getattr(text, "_keep_inside_axes_after_layout", False):
-            keep_text_box_inside_axes(ax, text)
+            keep_text_box_inside_axes(
+                ax, text, min_fontsize=STATS_BOX_MIN_FONTSIZE
+            )
 
 
 def _correlation_axis_size_for_font(

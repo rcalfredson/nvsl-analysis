@@ -15,6 +15,50 @@ from src.plotting.annotation_layout import (
 )
 
 
+@pytest.mark.parametrize("axes_width, expect_shrink", [(0.45, True), (0.85, False)])
+def test_stats_box_shrinks_only_when_wider_than_axes(axes_width, expect_shrink):
+    fig = plt.figure(figsize=(8, 4), dpi=100)
+    ax = fig.add_axes([0.1, 0.15, axes_width, 0.75])
+    ax.set_xlabel("Reward rate", fontsize=23)
+    wording = r"n = 89, r = 0.424, p = $3.54 \times 10^{-5}$"
+    text = ax.text(
+        0.02, 0.98, wording, transform=ax.transAxes,
+        ha="left", va="top", fontsize=20.7,
+        bbox=dict(boxstyle="round,pad=0.25", facecolor="white"),
+    )
+    try:
+        assert keep_text_box_inside_axes(ax, text, min_fontsize=12)
+        renderer = fig.canvas.get_renderer()
+        axes_bbox = ax.get_window_extent(renderer)
+        box = text.get_bbox_patch().get_window_extent(renderer)
+        assert box.x0 > axes_bbox.x0
+        assert box.x1 < axes_bbox.x1
+        assert box.y0 > axes_bbox.y0
+        assert box.y1 < axes_bbox.y1
+        assert (text.get_fontsize() < 20.7) is expect_shrink
+        assert text.get_fontsize() >= 12
+        assert text.get_text() == wording
+        assert ax.xaxis.label.get_fontsize() == 23
+        size = text.get_fontsize()
+        assert keep_text_box_inside_axes(ax, text, min_fontsize=12)
+        assert text.get_fontsize() == size
+    finally:
+        plt.close(fig)
+
+
+def test_stats_box_respects_minimum_fontsize_when_it_cannot_fit():
+    fig, ax = plt.subplots(figsize=(2, 3))
+    text = ax.text(
+        0.02, 0.98, "Long statistics annotation " * 10,
+        transform=ax.transAxes, fontsize=23,
+    )
+    try:
+        assert not keep_text_box_inside_axes(ax, text, min_fontsize=12)
+        assert text.get_fontsize() == 12
+    finally:
+        plt.close(fig)
+
+
 @pytest.mark.parametrize("font_size", [12, 20])
 def test_zero_line_dodge_lifts_only_intersecting_stack(font_size):
     fig, ax = plt.subplots(figsize=(6, 4))

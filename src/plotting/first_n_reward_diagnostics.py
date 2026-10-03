@@ -1165,7 +1165,9 @@ class FirstNRewardDiagnosticsPlotter:
             fig.tight_layout()
             set_axis_size_inches(ax, self.cfg.axis_size_inches)
         if stats_text is not None:
-            keep_text_box_inside_axes(ax, stats_text)
+            keep_text_box_inside_axes(
+                ax, stats_text, min_fontsize=STATS_BOX_MIN_FONTSIZE
+            )
         # Keep the fixed physical data-axis size while allowing the surrounding
         # canvas to include every title and axis label after final wrapping.
         fig.savefig(path, dpi=200, bbox_inches="tight")
