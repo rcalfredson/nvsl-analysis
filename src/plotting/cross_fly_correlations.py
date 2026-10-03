@@ -2703,10 +2703,12 @@ def plot_selected_group_scatter(
     include_all_corr: bool = False,
     image_format: str = "png",
     y_zero_reference: bool = False,
+    x_zero_reference: bool = False,
 ):
     """
     Plot all points, highlighting selected top/bottom SLI groups and reporting
-    correlations for the highlighted group(s) only.
+    correlations for the highlighted group(s) only. Zero reference lines are
+    independently opt-in via ``x_zero_reference`` and ``y_zero_reference``.
 
     mode:
         "top"     -> highlight top group only
@@ -2759,7 +2761,9 @@ def plot_selected_group_scatter(
     if ylim is not None:
         ax.set_ylim(ylim)
     if y_zero_reference:
-        _show_signed_y_values(ax, y_f)
+        _show_signed_axis_values(ax, y_f, axis="y")
+    if x_zero_reference:
+        _show_signed_axis_values(ax, x_f, axis="x")
 
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
@@ -2881,14 +2885,22 @@ def plot_selected_group_scatter(
     plt.close(fig)
 
 
-def _show_signed_y_values(ax, values):
+def _show_signed_axis_values(ax, values, *, axis):
     """Include every signed observation and zero, even with supplied limits."""
-    low, high = ax.get_ylim()
+    if axis == "x":
+        get_limits, set_limits, draw_line = ax.get_xlim, ax.set_xlim, ax.axvline
+    elif axis == "y":
+        get_limits, set_limits, draw_line = ax.get_ylim, ax.set_ylim, ax.axhline
+    else:
+        raise ValueError("zero-reference axis must be 'x' or 'y'")
+    low, high = get_limits()
     span = max(float(np.ptp(values)), abs(float(np.max(values))), 1.0)
     pad = 0.05 * span
-    ax.set_ylim(min(low, float(np.min(values)) - pad, -pad),
-                max(high, float(np.max(values)) + pad, pad))
-    ax.axhline(0, color="0.5", linewidth=0.7, zorder=0)
+    set_limits(
+        min(low, float(np.min(values)) - pad, -pad),
+        max(high, float(np.max(values)) + pad, pad),
+    )
+    draw_line(0, color="0.5", linewidth=0.7, zorder=0)
 
 
 def plot_correlation_scatter(
@@ -2902,11 +2914,14 @@ def plot_correlation_scatter(
     filename: str,
     customizer: PlotCustomizer,
     y_zero_reference: bool = False,
+    x_zero_reference: bool = False,
 ):
     """Plot and export one generic Pearson correlation scatter.
 
     The inputs need only be aligned one-dimensional numeric vectors; unlike
     :func:`plot_cross_fly_correlations`, no ``VideoAnalysis`` objects are needed.
+    Zero reference lines are independently opt-in via ``x_zero_reference`` and
+    ``y_zero_reference``; enabled axes include zero and all finite plotted values.
     """
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
@@ -2936,7 +2951,9 @@ def plot_correlation_scatter(
     if cfg.yticks is not None:
         ax.set_yticks(cfg.yticks)
     if y_zero_reference:
-        _show_signed_y_values(ax, y_f)
+        _show_signed_axis_values(ax, y_f, axis="y")
+    if x_zero_reference:
+        _show_signed_axis_values(ax, x_f, axis="x")
 
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
@@ -4354,6 +4371,7 @@ def plot_cross_fly_correlations(
         filename=f"corr_rpd_exp_minus_yoked_vs_sli_{rpd_suffix}",
         customizer=customizer,
         y_zero_reference=True,
+        x_zero_reference=True,
     )
     if selected_mode is not None:
         if selected_mode == "top":
@@ -4392,6 +4410,7 @@ def plot_cross_fly_correlations(
             y_label=rpd_diff_y_label,
             filename=filename_1b_sel,
             y_zero_reference=True,
+            x_zero_reference=True,
             out_dir=out_dir,
             customizer=customizer,
             top_label=top_sel_label,
