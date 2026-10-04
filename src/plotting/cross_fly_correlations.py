@@ -4370,8 +4370,6 @@ def plot_cross_fly_correlations(
         ),
         filename=f"corr_rpd_exp_minus_yoked_vs_sli_{rpd_suffix}",
         customizer=customizer,
-        y_zero_reference=True,
-        x_zero_reference=True,
     )
     if selected_mode is not None:
         if selected_mode == "top":
@@ -4409,8 +4407,6 @@ def plot_cross_fly_correlations(
             x_label=x_label_sli,
             y_label=rpd_diff_y_label,
             filename=filename_1b_sel,
-            y_zero_reference=True,
-            x_zero_reference=True,
             out_dir=out_dir,
             customizer=customizer,
             top_label=top_sel_label,
