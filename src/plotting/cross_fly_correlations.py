@@ -3515,6 +3515,87 @@ def summarize_fast_vs_strong(
     return summary
 
 
+def _place_stacked_correlation_overlays(
+    ax, legend_handles, stats_text, x, y, *, scatter_artist, configured_font_size,
+):
+    """Reserve a top band for centered statistics and a two-column legend.
+
+    Measure after final axes sizing, then add only the y headroom needed to
+    keep both overlays above all finite points and plotted trend lines.
+    """
+    fig = ax.figure
+    reference_size = max(
+        ax.xaxis.label.get_size(), ax.yaxis.label.get_size(),
+        *(tick.get_size() for tick in ax.get_xticklabels()),
+        *(tick.get_size() for tick in ax.get_yticklabels()),
+    )
+    stats = ax.text(
+        0.5, 0.97, stats_text, transform=ax.transAxes,
+        ha="center", va="top",
+        fontsize=max(STATS_BOX_MIN_FONTSIZE, 0.90 * reference_size),
+        linespacing=1.0, zorder=5,
+        bbox={**BBOX_STYLE, "boxstyle": "round,pad=0.15"},
+    )
+    if not keep_text_box_inside_axes(
+        ax, stats, min_fontsize=STATS_BOX_MIN_FONTSIZE
+    ):
+        raise ValueError("Correlation statistics cannot fit inside the axes")
+    renderer = fig.canvas.get_renderer()
+    axes_bbox = ax.get_window_extent(renderer)
+    stats_bbox = stats.get_bbox_patch().get_window_extent(renderer)
+    gap_px = 6.0 * fig.dpi / 72.0
+    legend_top = (stats_bbox.y0 - axes_bbox.y0 - gap_px) / axes_bbox.height
+    legend_size = (CORRELATION_REFERENCE_FONT_SIZE - 3.0) * max(
+        1.0, float(configured_font_size) / CORRELATION_REFERENCE_FONT_SIZE
+    ) ** 0.70
+    while True:
+        legend = ax.legend(
+            handles=legend_handles, loc="upper center",
+            bbox_to_anchor=(0.5, legend_top), borderaxespad=0.0,
+            borderpad=0.25, labelspacing=0.20, handletextpad=0.40,
+            columnspacing=0.80, ncol=2, frameon=True, fontsize=legend_size,
+        )
+        fig.canvas.draw()
+        legend_bbox = legend.get_window_extent(fig.canvas.get_renderer())
+        if legend_bbox.width <= axes_bbox.width - 4.0:
+            break
+        if legend_size <= 6.0:
+            raise ValueError("Two-column correlation legend cannot fit inside the axes")
+        legend.remove()
+        legend_size = max(
+            6.0, legend_size * (axes_bbox.width - 4.0) / legend_bbox.width * 0.98
+        )
+
+    marker_sizes = np.asarray(scatter_artist.get_sizes(), dtype=float)
+    marker_sizes = marker_sizes[np.isfinite(marker_sizes) & (marker_sizes > 0)]
+    marker_pad_px = 2.0 + (
+        0.5 * np.sqrt(np.max(marker_sizes)) * fig.dpi / 72.0
+        if marker_sizes.size else 0.0
+    )
+    data_top_fraction = (
+        legend_bbox.y0 - axes_bbox.y0 - marker_pad_px
+    ) / axes_bbox.height
+    if data_top_fraction <= 0:
+        raise ValueError("Stacked correlation annotations leave no room for data")
+
+    x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    visible_y = list(y[np.isfinite(x) & np.isfinite(y)])
+    for line in ax.lines:
+        if line.get_visible():
+            line_y = np.asarray(line.get_ydata(), dtype=float)
+            visible_y.extend(line_y[np.isfinite(line_y)])
+    base_y0, base_y1 = ax.get_ylim()
+    if visible_y:
+        required_top = base_y0 + (max(visible_y) - base_y0) / data_top_fraction
+        ax.set_ylim(base_y0, max(base_y1, required_top))
+    fig.canvas.draw()
+    _log_correlation_layout(
+        f"title={ax.get_title()!r} layout=annotation_band legend_ncol=2 "
+        f"legend_fontsize={legend_size:.2f} stats_fontsize={stats.get_fontsize():.2f}"
+    )
+    return legend, stats
+
+
 def plot_fast_vs_strong_scatter(
     sli_T1_first: np.ndarray,
     sli_strong: np.ndarray,
@@ -3542,6 +3623,7 @@ def plot_fast_vs_strong_scatter(
         - Unclassified (neither)
 
     Computes one Pearson correlation across all plotted flies.
+    Statistics are centered above a two-column legend in a reserved top band.
     """
     x = np.asarray(sli_T1_first, float)
     y = np.asarray(sli_strong, float)
@@ -3654,7 +3736,6 @@ def plot_fast_vs_strong_scatter(
         customizer,
         base_size=base_axis_size,
     )
-    axis_scale = float(scaled_axis_size[0]) / float(base_axis_size[0])
     _finalize_correlation_layout(
         fig,
         customizer,
@@ -3662,26 +3743,14 @@ def plot_fast_vs_strong_scatter(
         axis_size_inches=scaled_axis_size,
     )
 
-    _place_correlation_overlays(
+    _place_stacked_correlation_overlays(
         ax,
         handles,
         stats_text,
         x_f,
         y_f,
         scatter_artist=scatter_artist,
-        compact_legend_labels=(
-            "Fast only",
-            "Strong only",
-            "Fast + strong",
-            "Other",
-        ),
-        compact_labels_min_font_size=24.0,
         configured_font_size=float(customizer.font_size),
-        axis_scale=axis_scale,
-        max_headroom_frac=0.50,
-        split_corner_max_right_frac=0.20,
-        split_corner_max_lower_frac=0.20,
-        annotation_band_max_headroom_frac=0.90,
     )
     out_path = _correlation_out_path(out_dir, "scatter_fast_vs_strong", image_format)
     writeImage(str(out_path), format=image_format)
