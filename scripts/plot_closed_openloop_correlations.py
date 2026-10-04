@@ -216,7 +216,7 @@ def run(args: argparse.Namespace) -> None:
             summary = plot_correlation_scatter(
                 x=positional_pi,
                 y=sli,
-                title=f"{y_label} and {preference_title}",
+                title=getattr(args, "title", None) or f"{y_label} and {preference_title}",
                 x_label=x_label,
                 y_label=y_label,
                 cfg=cfg,
@@ -275,6 +275,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--expect-matched-rows", type=int, default=None)
     parser.add_argument("--expect-yoked-open-loop-rows", type=int, default=None)
     parser.add_argument("--group-label", default=None)
+    parser.add_argument("--title", default=None, help="Override the plot title.")
     parser.add_argument(
         "--image-format",
         "--imgFormat",
