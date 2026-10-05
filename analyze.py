@@ -307,9 +307,8 @@ from src.plotting.between_reward_polar_occupancy import (
 from src.plotting.annotation_layout import (
     dodge_annotation_reference_line,
     pad_sample_size_labels_over_markers,
-    fit_auc_annotation_inside_axes,
+    place_auc_annotation,
     move_two_group_legend_below_data_if_annotation_overlap,
-    place_flexible_overlay_texts,
     resolve_annotation_text_overlaps,
 )
 from src.plotting.axis_size import DEFAULT_PLOT_AXIS_SIZE_INCHES
@@ -10081,7 +10080,6 @@ def plotRewards(
         else:
             axs = axs[None]
     annotation_texts_by_ax = collections.defaultdict(list)
-    flexible_overlay_texts_by_ax = collections.defaultdict(list)
     auc_texts_by_ax = collections.defaultdict(list)
 
     def _track_annotation_text(ax, txt):
@@ -10101,7 +10099,6 @@ def plotRewards(
                 size=size,
                 color="0",
             )
-            flexible_overlay_texts_by_ax[ax].append(txt)
             auc_texts_by_ax[ax].append(txt)
             return txt
         txt = util.pltText(x, y, label, size=size, color="0")
@@ -11117,8 +11114,6 @@ def plotRewards(
             plotted_bounds, sli_axis.limits, context=f"{tp} plot"
         )
         customizer.set_fixed_y_axes(plt.gcf().get_axes(), sli_axis.limits)
-        for ax, texts in flexible_overlay_texts_by_ax.items():
-            place_flexible_overlay_texts(ax, texts)
         if ng == 2 and legend is not None:
             legend = move_two_group_legend_below_data_if_annotation_overlap(
                 legend.axes,
@@ -11140,16 +11135,12 @@ def plotRewards(
         ) > 0:
             for ax, texts in annotation_texts_by_ax.items():
                 dodge_annotation_reference_line(ax, texts)
-        for ax, texts in flexible_overlay_texts_by_ax.items():
-            place_flexible_overlay_texts(ax, texts, upper_only=post)
 
-    # Padding, legend placement, and fixed-axis handling can all change the
-    # final axes rectangle.  Measure AUC/ABC labels only after those steps:
-    # nudge a fitting one-line label inward, or wrap just its p-value when the
-    # full line is wider than the subplot.  The requested font size is kept.
+    # Fit and place complete AUC/ABC blocks after padding, legend placement
+    # and fixed-axis handling have established the final axes rectangle.
     for ax, texts in auc_texts_by_ax.items():
         for text in texts:
-            fit_auc_annotation_inside_axes(ax, text)
+            place_auc_annotation(ax, text, upper_only=post and rpi)
 
     for ax, texts in annotation_texts_by_ax.items():
         pad_sample_size_labels_over_markers(ax, texts)

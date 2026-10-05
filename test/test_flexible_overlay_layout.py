@@ -8,11 +8,142 @@ import pytest
 from src.plotting.plot_customizer import PlotCustomizer
 
 from src.plotting.annotation_layout import (
+    AUC_INSET_FONT_RATIO,
+    AUC_TOP_INSET_FONT_RATIO,
     dodge_annotation_reference_line,
     fit_auc_annotation_inside_axes,
     keep_text_box_inside_axes,
+    place_auc_annotation,
     place_flexible_overlay_texts,
 )
+
+
+def _visible_top_inset_px(ax, text):
+    """Find the painted AUC capitals, excluding the p-value's superscript."""
+    ax.figure.canvas.draw()
+    bounds = ax.get_window_extent(ax.figure.canvas.get_renderer())
+    pixels = np.asarray(ax.figure.canvas.buffer_rgba())
+    top = pixels.shape[0] - bounds.y1
+    start = int(np.ceil(top)) + 3
+    left = text.get_transform().transform(text.get_position())[0]
+    prefix_width = 1.8 * text.get_fontsize() * ax.figure.dpi / 72
+    crop = pixels[
+        start:int(top + bounds.height * 0.5),
+        int(np.ceil(left)) + 3:int(np.floor(left + prefix_width)),
+        :3,
+    ]
+    dark_rows = np.flatnonzero((crop < 100).all(axis=2).any(axis=1))
+    assert len(dark_rows)
+    return start + dark_rows[0] - top
+
+
+@pytest.mark.parametrize("dpi,font_size", [(100, 15), (100, 27), (200, 27)])
+@pytest.mark.parametrize("wording", [
+    "AUC (n = 74, 70): *** (p = 0.000611)",
+    r"AUC (n = 41, 77): **** (p = $2.69 \times 10^{-6}$)",
+    r"AUC (n = 119, 118): **** (p = $1.19 \times 10^{-5}$)",
+    r"AUC (n = 39, 41): **** (p = $1.38 \times 10^{-13}$)",
+])
+def test_auc_blocks_have_consistent_rendered_insets(dpi, font_size, wording):
+    from matplotlib.transforms import Bbox
+
+    fig, axes = plt.subplots(1, 2, figsize=(15, 5), dpi=dpi)
+    ax = axes[1]
+    ax.set_ylim(0, 1.2)
+    text = ax.text(0.5, 0.99, wording, transform=ax.transAxes,
+                   ha="center", va="top", fontsize=font_size)
+    original_size = fig.get_size_inches().copy()
+    original_position = ax.get_position().bounds
+    try:
+        for _ in range(2):
+            assert place_auc_annotation(ax, text)
+            renderer = fig.canvas.get_renderer()
+            labels = [text]
+            p_value = getattr(text, "_auc_p_value_text", None)
+            if p_value is not None:
+                labels.append(p_value)
+            block = Bbox.union([label.get_window_extent(renderer) for label in labels])
+            bounds = ax.get_window_extent(renderer)
+            pad = AUC_INSET_FONT_RATIO * font_size * dpi / 72
+            left_half_spine = 0.5 * ax.spines["left"].get_linewidth() * dpi / 72
+            top_half_spine = 0.5 * ax.spines["top"].get_linewidth() * dpi / 72
+            assert block.x0 - bounds.x0 == pytest.approx(pad + left_half_spine)
+            expected_top = AUC_TOP_INSET_FONT_RATIO * font_size * dpi / 72 + top_half_spine
+            assert _visible_top_inset_px(ax, text) == pytest.approx(expected_top, abs=2)
+            assert block.x1 < bounds.x1 - pad
+            assert text.get_fontsize() == font_size
+            assert ax.get_ylim() == (0, 1.2)
+            assert ax.get_position().bounds == original_position
+            np.testing.assert_array_equal(fig.get_size_inches(), original_size)
+    finally:
+        plt.close(fig)
+
+
+def test_auc_fitted_block_avoids_legend_without_changing_insets():
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot([0, 1], [0, 0], label="Control group")
+    legend = ax.legend(loc="upper left", fontsize=16)
+    text = ax.text(0.03, 0.97, "AUC (n = 74, 70): ***",
+                   transform=ax.transAxes, fontsize=16)
+    try:
+        assert place_auc_annotation(ax, text, upper_only=True)
+        renderer = fig.canvas.get_renderer()
+        bounds = ax.get_window_extent(renderer)
+        bbox = text.get_window_extent(renderer)
+        assert not bbox.overlaps(legend.get_window_extent(renderer))
+        assert bbox.y0 > bounds.y0 + 0.5 * bounds.height
+        expected_top_inset = (
+            AUC_TOP_INSET_FONT_RATIO * 16 + 0.5 * ax.spines["top"].get_linewidth()
+        ) * fig.dpi / 72
+        assert _visible_top_inset_px(ax, text) == pytest.approx(expected_top_inset, abs=2)
+    finally:
+        plt.close(fig)
+
+
+def test_wrapped_auc_block_uses_the_same_border_inset():
+    fig, ax = plt.subplots(figsize=(7, 4), dpi=100)
+    text = ax.text(.03, .97, "AUC (n = 106, 90): **** (p = 1.41 × 10⁻¹³)",
+                   transform=ax.transAxes, fontsize=27)
+    try:
+        assert place_auc_annotation(ax, text)
+        assert "\n(p =" in text.get_text()
+        renderer = fig.canvas.get_renderer()
+        bounds = ax.get_window_extent(renderer)
+        bbox = text.get_window_extent(renderer)
+        inset = (AUC_INSET_FONT_RATIO * 27 + 0.4) * fig.dpi / 72
+        assert bbox.x0 - bounds.x0 == pytest.approx(inset)
+        top_inset = (AUC_TOP_INSET_FONT_RATIO * 27 + 0.4) * fig.dpi / 72
+        assert _visible_top_inset_px(ax, text) == pytest.approx(top_inset, abs=2)
+        assert text.get_fontsize() == 27
+    finally:
+        plt.close(fig)
+
+
+def test_auc_collision_check_includes_separately_sized_p_value():
+    from matplotlib.transforms import Bbox
+
+    fig, axes = plt.subplots(1, 2, figsize=(17, 5))
+    ax = axes[1]
+    text = ax.text(.03, .97,
+                   r"AUC (n = 119, 118): **** (p = $1.19 \times 10^{-5}$)",
+                   transform=ax.transAxes, fontsize=24, fontfamily="Arial")
+    try:
+        assert place_auc_annotation(ax, text)
+        renderer = fig.canvas.get_renderer()
+        p_bbox = text._auc_p_value_text.get_window_extent(renderer)
+        obstacle = ax.text(*ax.transAxes.inverted().transform(p_bbox.p0),
+                           "Other summary", transform=ax.transAxes,
+                           va="bottom", fontsize=16)
+        assert place_auc_annotation(ax, text)
+        renderer = fig.canvas.get_renderer()
+        block = Bbox.union([
+            label.get_window_extent(renderer)
+            for label in (text, text._auc_p_value_text)
+        ])
+        assert not block.overlaps(obstacle.get_window_extent(renderer))
+        assert len(ax.texts) == 3  # Rechecking does not leave duplicate p-values.
+    finally:
+        plt.close(fig)
 
 
 @pytest.mark.parametrize("axes_width, expect_shrink", [(0.45, True), (0.85, False)])

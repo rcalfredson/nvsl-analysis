@@ -5,6 +5,8 @@ import numpy as np
 
 ANNOTATION_STACK_GAP_POINTS = 4.0
 SIGNIFICANCE_GAP_RATIO = 0.5
+AUC_INSET_FONT_RATIO = 0.4
+AUC_TOP_INSET_FONT_RATIO = 0.9
 
 
 def pad_sample_size_labels_over_markers(ax, texts) -> None:
@@ -409,6 +411,166 @@ def _artist_display_bboxes(ax, renderer):
         if np.all(np.isfinite(bbox.extents)):
             bboxes.append(bbox)
     return bboxes
+
+
+def _text_ink_bbox(text, renderer):
+    """Measure visible glyph outlines rather than font ascent/descent reserves."""
+    from matplotlib.textpath import TextPath
+    from matplotlib.transforms import Bbox
+
+    anchor = text.get_transform().transform(text.get_position())
+    scale = text.figure.dpi / 72.0
+    boxes = []
+    # Matplotlib supplies each line's baseline offset, including wrapped text.
+    # TextPath uses the same font/mathtext outlines as vector output.
+    for line, _size, x, y in text._get_layout(renderer)[1]:
+        if not line.strip():
+            continue
+        ink = TextPath(
+            (0, 0), line, prop=text.get_fontproperties(), usetex=text.get_usetex(),
+        ).get_extents()
+        if np.all(np.isfinite(ink.extents)):
+            boxes.append(Bbox.from_extents(
+                anchor[0] + x + ink.x0 * scale,
+                anchor[1] + y + ink.y0 * scale,
+                anchor[0] + x + ink.x1 * scale,
+                anchor[1] + y + ink.y1 * scale,
+            ))
+    return Bbox.union(boxes) if boxes else text.get_window_extent(renderer)
+
+
+def place_auc_annotation(ax, text, *, upper_only=False) -> bool:
+    """Fit an AUC block, then place it with a consistent physical border inset.
+
+    Prefer the upper-left corner. Only choose another location to avoid plot
+    geometry, annotations or a legend. The prefix and any separately sized
+    p-value move together, so their complete rendered block has the same
+    padding regardless of whether the label fits, shrinks or wraps. The top
+    inset follows the main AUC line's capital letters. Superscripts get space
+    above that line instead of pushing decimal-p-value annotations upward.
+    """
+    from matplotlib.transforms import Bbox
+
+    if text is None or not text.get_visible():
+        return True
+
+    # Restore the unsplit label before rechecking a changed figure layout.
+    p_text = getattr(text, "_auc_p_value_text", None)
+    if p_text is not None:
+        p_text.remove()
+        del text._auc_p_value_text
+    if hasattr(text, "_auc_original_text"):
+        text.set_text(text._auc_original_text)
+    else:
+        text._auc_original_text = text.get_text()
+
+    fig = ax.figure
+    pad_px = AUC_INSET_FONT_RATIO * text.get_fontsize() * fig.dpi / 72.0
+    text.set_transform(ax.transAxes)
+    text.set_position((0.0, 1.0))
+    text.set_ha("left")
+    # Pin a baseline instead of letting each output backend derive it from
+    # its own font ascent for a top-aligned label.
+    text.set_va("baseline")
+    if not fit_auc_annotation_inside_axes(ax, text, pad_px=pad_px):
+        return False
+
+    labels = [text]
+    p_text = getattr(text, "_auc_p_value_text", None)
+    if p_text is not None:
+        labels.append(p_text)
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    axes_bbox = ax.get_window_extent(renderer)
+
+    def inset(side):
+        spine = ax.spines[side]
+        half_width = (
+            0.5 * spine.get_linewidth() * fig.dpi / 72.0
+            if spine.get_visible() else 0.0
+        )
+        padding = (
+            AUC_TOP_INSET_FONT_RATIO * text.get_fontsize() * fig.dpi / 72.0
+            if side == "top" else pad_px
+        )
+        return padding + half_width
+
+    # Retain the fitter's reserve for PDF/mathtext width differences.
+    backend_slack_px = (
+        0.5 * text.get_fontsize() * fig.dpi / 72.0
+        if "\n" not in text.get_text() else 0.0
+    )
+    block = Bbox.union([label.get_window_extent(renderer) for label in labels])
+    ink = Bbox.union([_text_ink_bbox(label, renderer) for label in labels])
+    from matplotlib.textpath import TextPath
+
+    # Measure the main line's cap height independently of the p-value. Its
+    # first baseline can be offset from the anchor when the label is wrapped.
+    first_line_y = text._get_layout(renderer)[1][0][3]
+    cap_height = TextPath(
+        (0, 0), "AUC", prop=text.get_fontproperties(),
+    ).get_extents().y1 * fig.dpi / 72.0
+    main_top = (
+        text.get_transform().transform(text.get_position())[1]
+        + first_line_y + cap_height
+    )
+    superscript_headroom = max(0.0, ink.y1 - main_top)
+    # Unusually tall expressions still retain clearance from the spine.
+    top_inset = max(inset("top"), superscript_headroom + inset("left"))
+    safe_bbox = Bbox.from_extents(
+        axes_bbox.x0 + inset("left"),
+        axes_bbox.y0 + inset("bottom"),
+        axes_bbox.x1 - inset("right") - backend_slack_px,
+        axes_bbox.y1 - top_inset,
+    )
+    block = Bbox.from_extents(block.x0, ink.y0, block.x1, main_top)
+    if block.width > safe_bbox.width or block.height > safe_bbox.height:
+        return False
+
+    label_ids = {id(label) for label in labels}
+    obstacles = [
+        other.get_window_extent(renderer)
+        for other in ax.texts
+        if other.get_visible() and id(other) not in label_ids
+    ]
+    geometry = _artist_display_bboxes(ax, renderer)
+    legend = ax.get_legend()
+    legend_bbox = (
+        legend.get_window_extent(renderer)
+        if legend is not None and legend.get_visible() else None
+    )
+    # Coordinates select the left/right/center and top/bottom of the safe
+    # placement region, rather than measuring padding in data coordinates.
+    candidates = (
+        [(x, y) for y in (1.0, 0.75, 0.60) for x in (0.0, 1.0, 0.5)]
+        if upper_only else
+        [(0.0, 1.0), (1.0, 1.0), (0.0, 0.0), (1.0, 0.0),
+         (0.5, 1.0), (0.5, 0.0)]
+    )
+    best = None
+    for order, (x, y) in enumerate(candidates):
+        left = safe_bbox.x0 + x * (safe_bbox.width - block.width)
+        bottom = safe_bbox.y0 + y * (safe_bbox.height - block.height)
+        candidate = Bbox.from_bounds(
+            left, bottom, block.width, block.height + superscript_headroom,
+        )
+        score = 4.0 * sum(_bbox_overlap_area(candidate, b) for b in obstacles)
+        score += 0.15 * sum(_bbox_overlap_area(candidate, b) for b in geometry)
+        if legend_bbox is not None:
+            score += 8.0 * _bbox_overlap_area(candidate, legend_bbox)
+        choice = (score, order, left - block.x0, bottom - block.y0)
+        if best is None or choice[:2] < best[:2]:
+            best = choice
+
+    _score, _order, dx, dy = best
+    for label in labels:
+        transform = label.get_transform()
+        display_position = transform.transform(label.get_position())
+        label.set_position(
+            transform.inverted().transform(display_position + np.array([dx, dy]))
+        )
+    fig.canvas.draw()
+    return True
 
 
 def move_two_group_legend_below_data_if_annotation_overlap(

@@ -33,7 +33,7 @@ from src.plotting.plot_customizer import (
 from src.plotting.sli_label_utils import pct_label, sli_extreme_plot_specs
 from src.plotting.time_series_auc import add_auc_label, compute_auc_test
 from src.plotting.annotation_layout import (
-    fit_auc_annotation_inside_axes,
+    place_auc_annotation,
     pad_sample_size_labels_over_markers,
     resolve_annotation_text_overlaps,
 )
@@ -1873,7 +1873,7 @@ def plot_com_sli_bundle_data(
     apply_sync_bucket_ytick_spacing(fig.get_axes(), y_tick_spacing)
     for ax, texts in auc_texts_by_ax.items():
         for text in texts:
-            fit_auc_annotation_inside_axes(ax, text)
+            place_auc_annotation(ax, text)
 
     for ctx in panel_annotation_contexts:
         pad_sample_size_labels_over_markers(ctx["ax"], ctx["annotation_texts"])
