@@ -310,9 +310,14 @@ def write_turnback_ratio_bundles_graphpad_csv(
     top_sli_fraction: float | None = None,
     sli_eligible_only: bool = False,
     sli_min_valid_buckets: int | None = None,
+    sli_eligibility_mode: str = "stored",
 ) -> None:
     if not bundles:
         raise ValueError("at least one turnback bundle is required")
+    if sli_eligibility_mode != "stored" and not sli_eligible_only:
+        raise ValueError("SLI eligibility mode requires sli_eligible_only")
+    if sli_eligible_only and top_sli_fraction is not None:
+        raise ValueError("SLI eligibility cannot be combined with top_sli_fraction")
     from src.analysis.sli_tools import (
         select_fractional_groups,
         sli_eligible_indices_from_bundle,
@@ -336,7 +341,9 @@ def write_turnback_ratio_bundles_graphpad_csv(
         if top_sli_fraction is None:
             indices = (
                 sli_eligible_indices_from_bundle(
-                    bundle, min_valid_buckets=sli_min_valid_buckets
+                    bundle,
+                    min_valid_buckets=sli_min_valid_buckets,
+                    mode=sli_eligibility_mode,
                 )
                 if sli_eligible_only
                 else np.arange(ids.size, dtype=int)

@@ -146,12 +146,22 @@ def parse_args() -> argparse.Namespace:
         help="Export all turnback values only for flies eligible for SLI selection.",
     )
     turnback.add_argument(
+        "--sli-eligibility-mode",
+        choices=["stored", "mean", "final"],
+        default="stored",
+        help=(
+            "With --sli-eligible-only: stored scalar policy (default), mean "
+            "T2 SB2–5 (at least 3 valid buckets), or finite final T2 SB5."
+        ),
+    )
+    turnback.add_argument(
         "--sli-min-valid-sync-buckets",
         type=int,
         default=None,
         help=(
-            "Optional eligibility override reconstructed from sli_ts; for example, "
-            "1 uses the relaxed one-valid-bucket pool."
+            "Minimum valid buckets for stored/mean eligibility modes; for "
+            "example, 1 uses the relaxed one-valid-bucket pool. "
+            "Cannot be combined with final eligibility."
         ),
     )
     scalar.add_argument("--out", required=True, help="Output GraphPad CSV path.")
@@ -282,6 +292,7 @@ def main() -> int:
             top_sli_fraction=args.top_sli_fraction,
             sli_eligible_only=args.sli_eligible_only,
             sli_min_valid_buckets=args.sli_min_valid_sync_buckets,
+            sli_eligibility_mode=args.sli_eligibility_mode,
         )
         print(f"[graphpad_csv] wrote {args.out}")
         return 0

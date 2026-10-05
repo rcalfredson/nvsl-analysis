@@ -266,10 +266,14 @@ def plot_turnback_excursion_bin_sli_bundles(
     show_points: bool = False,
     sli_eligible_only: bool = False,
     sli_min_valid_buckets: int | None = None,
+    sli_eligibility_mode: str = "stored",
     opts=None,
 ):
     if opts is None:
         opts = SimpleNamespace(imageFormat="png", fontSize=None, fontFamily=None)
+
+    if sli_eligibility_mode != "stored" and not sli_eligible_only:
+        raise ValueError("SLI eligibility mode requires sli_eligible_only")
 
     loaded = [load_sli_bundle(path) for path in bundles]
 
@@ -300,7 +304,9 @@ def plot_turnback_excursion_bin_sli_bundles(
                         "comparison and cannot be combined with sli_extremes"
                     )
                 idx = sli_eligible_indices_from_bundle(
-                    bundle, min_valid_buckets=sli_min_valid_buckets
+                    bundle,
+                    min_valid_buckets=sli_min_valid_buckets,
+                    mode=sli_eligibility_mode,
                 )
             exported.append(
                 _bundle_to_exported(

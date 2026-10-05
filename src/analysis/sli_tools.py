@@ -321,6 +321,7 @@ def sli_eligible_indices_from_bundle(
     bundle: dict,
     *,
     min_valid_buckets: Optional[int] = None,
+    mode: str = "stored",
 ) -> np.ndarray:
     """Return bundle-row indices eligible for SLI-based selection.
 
@@ -328,13 +329,20 @@ def sli_eligible_indices_from_bundle(
     the bundle. When ``min_valid_buckets`` is supplied, eligibility is
     reconstructed from the bundle's bucket-level ``sli_ts`` values using the
     stored training and sync-bucket window. This supports explicit comparisons
-    with bundles produced under an earlier valid-bucket policy.
+    with bundles produced under an earlier valid-bucket policy. Explicit
+    ``mean`` mode requires at least three finite T2 SB2–5 values (or the
+    supplied minimum); ``final`` mode requires finite T2 SB5 only, independent
+    of the stored scalar and selection window.
     """
     sli = np.asarray(bundle["sli"], dtype=float).reshape(-1)
-    if min_valid_buckets is None:
+    if mode not in ("stored", "mean", "final"):
+        raise ValueError(f"Unknown SLI eligibility mode: {mode}")
+    if mode == "final" and min_valid_buckets is not None:
+        raise ValueError("final SLI eligibility cannot use a minimum bucket count")
+    if mode == "stored" and min_valid_buckets is None:
         return np.flatnonzero(np.isfinite(sli))
 
-    minimum = int(min_valid_buckets)
+    minimum = int(min_valid_buckets if min_valid_buckets is not None else 3)
     if minimum < 1:
         raise ValueError("min_valid_buckets must be at least 1")
     if "sli_ts" not in bundle:
@@ -348,6 +356,16 @@ def sli_eligible_indices_from_bundle(
             f"Expected sli_ts shape ({sli.size}, trainings, buckets), "
             f"got {sli_ts.shape}"
         )
+
+    if mode in ("mean", "final"):
+        if sli_ts.shape[1] < 2 or sli_ts.shape[2] < 5:
+            raise ValueError(f"{mode} SLI eligibility requires T2 SB5 in sli_ts")
+        if mode == "final":
+            return np.flatnonzero(np.isfinite(sli_ts[:, 1, 4]))
+        if minimum > 4:
+            raise ValueError("T2 SB2–5 eligibility minimum cannot exceed 4")
+        valid_counts = np.count_nonzero(np.isfinite(sli_ts[:, 1, 1:5]), axis=1)
+        return np.flatnonzero(valid_counts >= minimum)
 
     training_idx = int(np.asarray(bundle["sli_training_idx"]).reshape(()).item())
     if training_idx < 0 or training_idx >= sli_ts.shape[1]:

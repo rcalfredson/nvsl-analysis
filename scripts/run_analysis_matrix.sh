@@ -7,6 +7,26 @@ RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY="${RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ON
 RUN_DUAL_CIRCLE_TURNBACK_ONLY="${RUN_DUAL_CIRCLE_TURNBACK_ONLY:-0}"
 DUAL_CIRCLE_TURNBACK_REUSE_EXISTING_BUNDLES="${DUAL_CIRCLE_TURNBACK_REUSE_EXISTING_BUNDLES:-0}"
 DUAL_CIRCLE_TURNBACK_CROSS_GROUP_TOP_SLI_FRACTION="${DUAL_CIRCLE_TURNBACK_CROSS_GROUP_TOP_SLI_FRACTION:-0.2}"
+# All-flies cross-group turnback ratio plots: all, mean (T2 SB2–5 >=3/4),
+# or final (finite T2 SB5). Learner-ranking plots retain their mean-SLI policy.
+DUAL_CIRCLE_TURNBACK_SLI_ELIGIBILITY="${DUAL_CIRCLE_TURNBACK_SLI_ELIGIBILITY:-all}"
+TURNBACK_ELIGIBILITY_FLAGS=()
+TURNBACK_ELIGIBILITY_SUFFIX=""
+case "$DUAL_CIRCLE_TURNBACK_SLI_ELIGIBILITY" in
+  all) ;;
+  mean)
+    TURNBACK_ELIGIBILITY_FLAGS=(--sli-eligible-only --sli-eligibility-mode mean)
+    TURNBACK_ELIGIBILITY_SUFFIX="_sliEligibleT2Sb2-5"
+    ;;
+  final)
+    TURNBACK_ELIGIBILITY_FLAGS=(--sli-eligible-only --sli-eligibility-mode final)
+    TURNBACK_ELIGIBILITY_SUFFIX="_sliEligibleT2Sb5"
+    ;;
+  *)
+    echo "DUAL_CIRCLE_TURNBACK_SLI_ELIGIBILITY must be all, mean, or final." >&2
+    exit 1
+    ;;
+esac
 DUAL_CIRCLE_TURNBACK_IMG_FORMAT="${DUAL_CIRCLE_TURNBACK_IMG_FORMAT:-png}"
 DUAL_CIRCLE_TURNBACK_IMG_FORMAT="${DUAL_CIRCLE_TURNBACK_IMG_FORMAT#.}"
 DUAL_CIRCLE_TURNBACK_IMG_FORMAT="${DUAL_CIRCLE_TURNBACK_IMG_FORMAT,,}"
@@ -50,7 +70,7 @@ GROUP_LABELS=("Ctrl" "PFNd>Kir" "Antennae removed")
 # Cohorts used specifically by the dual-circle turnback and turnback
 # home-vector alignment analyses. Keep the general GROUP_* arrays above
 # unchanged so the other analysis families in this matrix retain AR Ctrl>Kir.
-TURNBACK_COMPARISON_GROUP="${TURNBACK_COMPARISON_GROUP:-mbkc_kir}"
+TURNBACK_COMPARISON_GROUP="${TURNBACK_COMPARISON_GROUP:-ar_ctrl}"
 VIDEO_LISTS_FILE="${VIDEO_LISTS_FILE:-video_lists.log}"
 MBKC_HEADER="${MBKC_HEADER:-UAS>>CsC (X); 19B03-lexA (MBKC)/otd-flp; 0273Gal4/lexAop>>Kir}"
 MBKC_SUBHEADER="${MBKC_SUBHEADER:-Flat-lower chamber reward circle shrink in T2, T3, closer to the center  10d old flies}"
@@ -380,8 +400,9 @@ run_flat_htl_turnback_pairs() {
   run_cmd \
     python -m scripts.plot_turnback_excursion_bin_sli_bundles \
     --bundles "$bundle_csv" \
-    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatHtl_T2_p${pairs_label}${variant_suffix}_${DATE_TAG}.${DUAL_CIRCLE_TURNBACK_IMG_FORMAT}" \
+    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatHtl_T2_p${pairs_label}${variant_suffix}${TURNBACK_ELIGIBILITY_SUFFIX}_${DATE_TAG}.${DUAL_CIRCLE_TURNBACK_IMG_FORMAT}" \
     --image-format "$DUAL_CIRCLE_TURNBACK_IMG_FORMAT" \
+    "${TURNBACK_ELIGIBILITY_FLAGS[@]}" \
     --swarm \
     --stats
 }
@@ -695,8 +716,9 @@ run_turnback_pairs() {
   run_cmd \
     python -m scripts.plot_turnback_excursion_bin_sli_bundles \
     --bundles "$bundle_csv" \
-    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatLgc_T2_p${pairs_label}${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.${DUAL_CIRCLE_TURNBACK_IMG_FORMAT}" \
+    --out "exports/turnbackPairs_${filter_tag}_${wall_tag}_flatLgc_T2_p${pairs_label}${TURNBACK_ELIGIBILITY_SUFFIX}${TURNBACK_PLOT_SUFFIX}_${DATE_TAG}.${DUAL_CIRCLE_TURNBACK_IMG_FORMAT}" \
     --image-format "$DUAL_CIRCLE_TURNBACK_IMG_FORMAT" \
+    "${TURNBACK_ELIGIBILITY_FLAGS[@]}" \
     --swarm \
     --stats
 }
@@ -1395,7 +1417,7 @@ run_post_wall_departure_tortuosity() {
 # done
 
 # ---------------------------------------------------------------------
-# Dual-circle turnback ratio for the MBKC comparison.
+# Dual-circle turnback ratio (AR comparison by default; MBKC is selectable).
 # Matches the default 3/5, 8/10, 13/15 mm geometry and the active
 # home-vector pass below: T2 SB5-presence filter, wall-contact included.
 # To regenerate only these plots from an existing dated bundle set, run:
@@ -1404,6 +1426,10 @@ run_post_wall_departure_tortuosity() {
 # Add DUAL_CIRCLE_TURNBACK_CROSS_GROUP_TOP_SLI_FRACTION=0.9 for a cross-group
 # comparison of the top 90%; within-group top-20% vs bottom-50% plots are unchanged.
 # Set DUAL_CIRCLE_TURNBACK_IMG_FORMAT=pdf for vector output (default: png).
+# Set DUAL_CIRCLE_TURNBACK_SLI_ELIGIBILITY=mean to require >=3 valid T2 SB2–5
+# SLIs, or =final to require finite T2 SB5 only, on the all-flies comparison.
+# =all (default) preserves the unfiltered comparison. Eligibility can be
+# reconstructed from existing bundles with sli_ts; outputs use distinct names.
 # ---------------------------------------------------------------------
 
 if [[ "$RUN_TURNBACK_HOME_VECTOR_ALIGNMENT_ONLY" != "1" ]]; then

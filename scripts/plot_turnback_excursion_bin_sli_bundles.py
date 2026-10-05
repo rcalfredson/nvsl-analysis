@@ -58,12 +58,22 @@ def main():
         help="For an all-flies plot, retain only flies eligible for SLI selection.",
     )
     p.add_argument(
+        "--sli-eligibility-mode",
+        choices=["stored", "mean", "final"],
+        default="stored",
+        help=(
+            "With --sli-eligible-only: stored scalar policy (default), mean "
+            "T2 SB2–5 (at least 3 valid buckets), or finite final T2 SB5."
+        ),
+    )
+    p.add_argument(
         "--sli-min-valid-sync-buckets",
         type=int,
         default=None,
         help=(
-            "Optional eligibility override reconstructed from sli_ts; for example, "
-            "1 reproduces the relaxed one-valid-bucket pool."
+            "Minimum valid buckets for stored/mean eligibility modes; for "
+            "example, 1 reproduces the relaxed one-valid-bucket pool. "
+            "Cannot be combined with final eligibility."
         ),
     )
     p.add_argument("--title", default=None, help="Optional plot title override.")
@@ -159,6 +169,7 @@ def main():
         show_points=args.show_points,
         sli_eligible_only=args.sli_eligible_only,
         sli_min_valid_buckets=args.sli_min_valid_sync_buckets,
+        sli_eligibility_mode=args.sli_eligibility_mode,
         opts=opts,
     )
 
