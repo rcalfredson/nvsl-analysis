@@ -10016,7 +10016,7 @@ def plotRewards(
     elif tp == "dbr":
         ylim = [0, 1600]
     elif tp == "rpd":
-        ylim = [0, 80]
+        ylim = [0, 60]
     elif tp == "rpd_exp_min_yok":
         ylim = [0, 60]
     elif tp == "meddist":
