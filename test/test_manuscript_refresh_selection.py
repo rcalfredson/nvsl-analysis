@@ -87,6 +87,18 @@ def test_preview_disables_runs_and_dependency_exports():
     assert not exports
 
 
+def test_copy_allows_4i_data_and_time_but_rejects_duplicate_destinations():
+    scope, _, _, _ = _preview_notebook({'data', 'time'}, run=False)
+    source = next(s for s in _notebook_code() if 'def copy_manuscript_panels(' in s)
+    tree = ast.parse(source)
+    tree.body = [node for node in tree.body if isinstance(node, ast.FunctionDef)]
+    exec(compile(tree, '<copy-function>', 'exec'), scope)
+    recipes = [scope['figure_4i'], scope['figure_4i_data']]
+    scope['copy_manuscript_panels'](recipes, run=False)
+    with pytest.raises(ValueError, match='Duplicate manuscript copy destination'):
+        scope['copy_manuscript_panels'](recipes + [scope['figure_4i_data']], run=False)
+
+
 def test_checkboxes_combine_types_and_persist_on_cell_rerun():
     pytest.importorskip("ipywidgets")
     source = next(s for s in _notebook_code() if "REFRESH_TYPES =" in s)

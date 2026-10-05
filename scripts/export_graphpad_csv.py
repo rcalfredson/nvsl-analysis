@@ -21,6 +21,7 @@ from src.exporting.graphpad_csv import (  # noqa: E402
     write_scalar_exports_graphpad_csv,
     write_turnback_ratio_bundles_graphpad_csv,
 )
+from src.exporting.mean_sli_graphpad import write_mean_sli_graphpad_csv  # noqa: E402
 from src.utils.parsers import parse_labeled_path  # noqa: E402
 
 
@@ -36,10 +37,31 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description=(
             "Export GraphPad Prism-friendly column CSV files from existing "
-            "nvsl-analysis scalar exports or agarose learning_stats.csv files."
+            "nvsl-analysis NPZ bundles, keyed SLI CSVs, or agarose "
+            "learning_stats.csv files."
         )
     )
     sub = p.add_subparsers(dest="command", required=True)
+
+    mean_sli = sub.add_parser(
+        "mean-sli-csv",
+        help=(
+            "Convert keyed closed-loop CSVs into T2 SB2–5 mean-SLI columns, "
+            "requiring at least three valid paired buckets and preserving "
+            "source numeric precision."
+        ),
+    )
+    mean_sli.add_argument(
+        "--group",
+        action="append",
+        required=True,
+        metavar="LABEL=SLI.CSV",
+        help="Repeatable keyed SLI CSV input. LABEL=PATH and LABEL:PATH are accepted.",
+    )
+    mean_sli.add_argument("--out", required=True, help="Output GraphPad CSV path.")
+    mean_sli.add_argument(
+        "--audit", required=True, help="Per-subject inclusion/exclusion audit CSV path."
+    )
 
     scalar = sub.add_parser(
         "scalar-npz",
@@ -174,6 +196,15 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    if args.command == "mean-sli-csv":
+        groups = [
+            parse_labeled_path(spec, separators=("=", ":")) for spec in args.group
+        ]
+        write_mean_sli_graphpad_csv(groups, args.out, args.audit)
+        print(f"[graphpad_csv] wrote {args.out}")
+        print(f"[graphpad_csv] wrote {args.audit}")
+        return 0
+
     if args.command == "scalar-npz":
         from src.plotting.overlay_training_metric_scalar_bars import load_export_npz
 
