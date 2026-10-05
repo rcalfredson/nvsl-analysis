@@ -306,6 +306,7 @@ from src.plotting.between_reward_polar_occupancy import (
 )
 from src.plotting.annotation_layout import (
     dodge_annotation_reference_line,
+    pad_sample_size_labels_over_markers,
     fit_auc_annotation_inside_axes,
     move_two_group_legend_below_data_if_annotation_overlap,
     place_flexible_overlay_texts,
@@ -11149,6 +11150,9 @@ def plotRewards(
     for ax, texts in auc_texts_by_ax.items():
         for text in texts:
             fit_auc_annotation_inside_axes(ax, text)
+
+    for ax, texts in annotation_texts_by_ax.items():
+        pad_sample_size_labels_over_markers(ax, texts)
 
     base, ext = os.path.splitext(imgFiles[tp] % blf)
     suffix_parts = []

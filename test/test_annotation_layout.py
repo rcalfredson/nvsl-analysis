@@ -5,9 +5,62 @@ from src.plotting.annotation_layout import (
     ANNOTATION_STACK_GAP_POINTS,
     SIGNIFICANCE_GAP_RATIO,
     move_two_group_legend_below_data_if_annotation_overlap,
+    pad_sample_size_labels_over_markers,
     resolve_annotation_text_overlaps,
 )
 from src.plotting.plot_customizer import compact_legend_spacing
+
+
+@pytest.mark.parametrize("dpi,font_size", [(100, 12), (200, 24)])
+def test_count_background_requires_marker_overlap_after_layout(dpi, font_size):
+    fig, ax = plt.subplots(figsize=(6, 4), dpi=dpi)
+    ax.set(xlim=(0, 4), ylim=(0, 4))
+    ax.plot([1, 2], [1, 2], "o-", markersize=8)
+    overlapping = ax.text(2, 2, "82", ha="center", va="center", fontsize=font_size)
+    # This count belongs to a different curve's point below the marker.
+    overlapping._data_point_y_ = 1.7
+    clear = ax.text(1, 3, "82", ha="center", va="center", fontsize=font_size)
+    clear._data_point_y_ = 2.7
+    stars = ax.text(1, 1, "***", ha="center", va="center")
+    ax.plot([0, 4], [3, 3], color="gray")  # A line alone must not trigger padding.
+    fig.tight_layout()
+    original_positions = [t.get_position() for t in (overlapping, clear, stars)]
+
+    pad_sample_size_labels_over_markers(ax, [overlapping, clear, stars])
+
+    assert overlapping.get_bbox_patch().get_alpha() == 0.78
+    assert clear.get_bbox_patch() is None
+    assert stars.get_bbox_patch() is None
+    assert [t.get_position() for t in (overlapping, clear, stars)] == original_positions
+    # Rechecking after moving a label clears its conditional box and zorder.
+    overlapping.set_position((2, 3.5))
+    pad_sample_size_labels_over_markers(ax, [overlapping, clear, stars])
+    assert overlapping.get_bbox_patch() is None
+    assert overlapping.get_zorder() == 3
+    plt.close(fig)
+
+
+def test_count_background_respects_visible_markers_and_existing_boxes():
+    fig, ax = plt.subplots()
+    ax.set(xlim=(0, 4), ylim=(0, 4))
+    ax.plot([1, 2], [1, 2], "o", markevery=[0])
+    ax.plot([3], [3], "o", visible=False)
+    ax.plot([3], [2], "o", alpha=0)
+    counts = []
+    for x, y in [(2, 2), (3, 3), (3, 2)]:
+        count = ax.text(x, y, "82", ha="center", va="center")
+        count._data_point_y_ = y
+        counts.append(count)
+    agarose = ax.text(1, 3, "82", bbox={"facecolor": "white", "alpha": 0.78}, zorder=5)
+    agarose._data_point_y_ = 2.7
+    patch = agarose.get_bbox_patch()
+
+    pad_sample_size_labels_over_markers(ax, counts + [agarose])
+
+    assert all(t.get_bbox_patch() is None for t in counts)
+    assert agarose.get_bbox_patch() is patch
+    assert agarose.get_zorder() == 5
+    plt.close(fig)
 
 
 @pytest.mark.parametrize(

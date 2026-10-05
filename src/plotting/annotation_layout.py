@@ -7,6 +7,83 @@ ANNOTATION_STACK_GAP_POINTS = 4.0
 SIGNIFICANCE_GAP_RATIO = 0.5
 
 
+def pad_sample_size_labels_over_markers(ax, texts) -> None:
+    """Add a small translucent box only to counts overlapping visible markers.
+
+    Call after axis limits, annotation positions and figure layout are final.
+    Existing boxes (such as agarose's unconditional background) are preserved.
+    Only texts tagged with ``_data_point_y_`` are sample-size candidates.
+    """
+    from matplotlib.lines import _mark_every_path
+    from matplotlib.markers import MarkerStyle
+    from matplotlib.transforms import Affine2D
+
+    counts = [
+        t for t in texts
+        if t is not None and t.get_visible() and hasattr(t, "_data_point_y_")
+    ]
+    if not counts:
+        return
+    fig = ax.figure
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    axes_bbox = ax.get_window_extent(renderer)
+    markers = []
+    for line in ax.lines:
+        if not line.get_visible() or line.get_alpha() == 0:
+            continue
+        marker = MarkerStyle(line.get_marker())
+        if not len(marker.get_path().vertices) or line.get_markersize() <= 0:
+            continue
+        path = line.get_path()
+        transform = line.get_transform()
+        if line.get_markevery() is not None:
+            # Use the same subsampling as Line2D.draw, including distance-based
+            # markevery values, so unpainted vertices cannot trigger a box.
+            path = _mark_every_path(
+                line.get_markevery(), path, transform, ax
+            )
+        centers = transform.transform(path.vertices)
+        marker_path = marker.get_path().transformed(marker.get_transform())
+        scale = line.get_markersize() * fig.dpi / 72.0
+        marker_path = marker_path.transformed(Affine2D().scale(scale))
+        edge_px = 0.5 * line.get_markeredgewidth() * fig.dpi / 72.0
+        for x, y in centers:
+            if not np.isfinite([x, y]).all():
+                continue
+            painted_path = marker_path.transformed(Affine2D().translate(x, y))
+            bounds = painted_path.get_extents().padded(edge_px)
+            if line.get_clip_on() and not bounds.overlaps(axes_bbox):
+                continue
+            markers.append((painted_path, bounds, edge_px, line.get_zorder()))
+
+    for text in counts:
+        managed = hasattr(text, "_marker_overlap_original_zorder_")
+        if text.get_bbox_patch() is not None and not managed:
+            continue
+        bounds = text.get_window_extent(renderer)
+        overlaps = [
+            zorder for path, marker_bounds, edge_px, zorder in markers
+            if bounds.overlaps(marker_bounds)
+            and path.intersects_bbox(bounds.padded(edge_px), filled=True)
+            and bounds.overlaps(axes_bbox)
+        ]
+        if overlaps:
+            if not managed:
+                text._marker_overlap_original_zorder_ = text.get_zorder()
+            text.set_bbox(dict(
+                boxstyle="round,pad=0.12", facecolor="white",
+                edgecolor="none", alpha=0.78,
+            ))
+            text.set_zorder(max(
+                text._marker_overlap_original_zorder_, max(overlaps) + 1, 5,
+            ))
+        elif managed:
+            text.set_bbox(None)
+            text.set_zorder(text._marker_overlap_original_zorder_)
+            del text._marker_overlap_original_zorder_
+
+
 _OVERLAY_CANDIDATES = (
     (0.03, 0.97, "left", "top"),
     (0.97, 0.97, "right", "top"),
