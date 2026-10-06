@@ -440,12 +440,11 @@ def _text_ink_bbox(text, renderer):
 
 
 def place_auc_annotation(ax, text, *, upper_only=False) -> bool:
-    """Fit an AUC block, then place it with a consistent physical border inset.
+    """Fit an AUC block near its supplied anchor with minimum border insets.
 
-    Prefer the upper-left corner. Only choose another location to avoid plot
-    geometry, annotations or a legend. The prefix and any separately sized
-    p-value move together, so their complete rendered block has the same
-    padding regardless of whether the label fits, shrinks or wraps. The top
+    Prefer the position chosen by the plot relative to its curves. Only move
+    it to clear plot geometry, annotations, a legend or the axes boundary.
+    The prefix and any separately sized p-value move together. The top
     inset follows the main AUC line's capital letters. Superscripts get space
     above that line instead of pushing decimal-p-value annotations upward.
     """
@@ -463,15 +462,18 @@ def place_auc_annotation(ax, text, *, upper_only=False) -> bool:
         text.set_text(text._auc_original_text)
     else:
         text._auc_original_text = text.get_text()
+        text._auc_preferred_placement = (
+            text.get_transform(), text.get_position(), text.get_ha(), text.get_va(),
+        )
+
+    transform, position, ha, va = text._auc_preferred_placement
+    text.set_transform(transform)
+    text.set_position(position)
+    text.set_ha(ha)
+    text.set_va(va)
 
     fig = ax.figure
     pad_px = AUC_INSET_FONT_RATIO * text.get_fontsize() * fig.dpi / 72.0
-    text.set_transform(ax.transAxes)
-    text.set_position((0.0, 1.0))
-    text.set_ha("left")
-    # Pin a baseline instead of letting each output backend derive it from
-    # its own font ascent for a top-aligned label.
-    text.set_va("baseline")
     if not fit_auc_annotation_inside_axes(ax, text, pad_px=pad_px):
         return False
 
@@ -541,16 +543,36 @@ def place_auc_annotation(ax, text, *, upper_only=False) -> bool:
     )
     # Coordinates select the left/right/center and top/bottom of the safe
     # placement region, rather than measuring padding in data coordinates.
-    candidates = (
+    fallback_candidates = (
         [(x, y) for y in (1.0, 0.75, 0.60) for x in (0.0, 1.0, 0.5)]
         if upper_only else
         [(0.0, 1.0), (1.0, 1.0), (0.0, 0.0), (1.0, 0.0),
          (0.5, 1.0), (0.5, 0.0)]
     )
+    available_width = safe_bbox.width - block.width
+    available_height = safe_bbox.height - block.height
+    preferred_x = float(np.clip(block.x0, safe_bbox.x0, safe_bbox.x0 + available_width))
+    preferred_y = float(np.clip(block.y0, safe_bbox.y0, safe_bbox.y0 + available_height))
+    if upper_only:
+        preferred_y = max(preferred_y, safe_bbox.y0 + 0.60 * available_height)
+    # Search nearby clear positions before falling back to the edges. Distance
+    # breaks overlap-score ties, so empty space near the curves wins over corners.
+    step_px = float(text.get_fontsize()) * fig.dpi / 72.0
+    candidates = [(preferred_x, preferred_y)]
+    for offset in (1, 2, 3):
+        for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+            left = float(np.clip(preferred_x + dx * offset * step_px,
+                                 safe_bbox.x0, safe_bbox.x0 + available_width))
+            bottom = float(np.clip(preferred_y + dy * offset * step_px,
+                                   safe_bbox.y0, safe_bbox.y0 + available_height))
+            if not upper_only or bottom >= safe_bbox.y0 + 0.60 * available_height:
+                candidates.append((left, bottom))
+    candidates.extend(
+        (safe_bbox.x0 + x * available_width, safe_bbox.y0 + y * available_height)
+        for x, y in fallback_candidates
+    )
     best = None
-    for order, (x, y) in enumerate(candidates):
-        left = safe_bbox.x0 + x * (safe_bbox.width - block.width)
-        bottom = safe_bbox.y0 + y * (safe_bbox.height - block.height)
+    for order, (left, bottom) in enumerate(candidates):
         candidate = Bbox.from_bounds(
             left, bottom, block.width, block.height + superscript_headroom,
         )
@@ -558,11 +580,12 @@ def place_auc_annotation(ax, text, *, upper_only=False) -> bool:
         score += 0.15 * sum(_bbox_overlap_area(candidate, b) for b in geometry)
         if legend_bbox is not None:
             score += 8.0 * _bbox_overlap_area(candidate, legend_bbox)
-        choice = (score, order, left - block.x0, bottom - block.y0)
-        if best is None or choice[:2] < best[:2]:
+        distance = (left - preferred_x) ** 2 + (bottom - preferred_y) ** 2
+        choice = (score, distance, order, left - block.x0, bottom - block.y0)
+        if best is None or choice[:3] < best[:3]:
             best = choice
 
-    _score, _order, dx, dy = best
+    _score, _distance, _order, dx, dy = best
     for label in labels:
         transform = label.get_transform()
         display_position = transform.transform(label.get_position())

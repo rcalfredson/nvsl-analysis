@@ -9985,7 +9985,9 @@ def plotRewards(
     if sli_axis is not None and sli_axis.fixed:
         useDynamicAxisLims = False
     useMidPlotAUCVerticalAlignment = (
-        circle
+        rpi
+        or r_diff
+        or circle
         or bnd_contact
         or evts_per_rwd
         or pct_time
@@ -10088,25 +10090,18 @@ def plotRewards(
         return txt
 
     def _add_auc_text(ax, x, y, label, *, size, base_y):
-        if rpi or (sli_axis is not None and sli_axis.fixed):
-            txt = ax.text(
-                0.03,
-                0.97,
-                label,
-                transform=ax.transAxes,
-                ha="left",
-                va="top",
-                size=size,
-                color="0",
-            )
-            auc_texts_by_ax[ax].append(txt)
-            return txt
         txt = util.pltText(x, y, label, size=size, color="0")
         txt._y_ = base_y
         txt._final_y_ = y
         _track_annotation_text(ax, txt)
         auc_texts_by_ax[ax].append(txt)
         return txt
+
+    def _auc_base_y(panel_top, ann_span):
+        if rpi or r_diff:
+            anchor = panel_top if np.isfinite(panel_top) else global_geom_top
+            return anchor + 0.16 * ann_span
+        return max(global_geom_top + 0.16 * ann_span, ylim[0] + 0.88 * ann_span)
 
     def _subplot_title(t, f):
         title = ("post %d" % t.n) if post else t.name()
@@ -10366,13 +10361,10 @@ def plotRewards(
                     )
                     if auc_result is not None:
                         if useMidPlotAUCVerticalAlignment:
-                            base_y_for_auc = max(
-                                global_geom_top + 0.16 * ann_span,
-                                ylim[0] + 0.88 * ann_span,
-                            )
+                            base_y_for_auc = _auc_base_y(panel_geom_top, ann_span)
                             occupied_panel_ys = [
                                 y
-                                for y in [global_geom_top]
+                                for y in [panel_geom_top if rpi or r_diff else global_geom_top]
                                 if y is not None and np.isfinite(y)
                             ]
                             ys_auc, va_align = pick_above_or_expand(
@@ -10519,14 +10511,11 @@ def plotRewards(
                     # AUC
                     if ng > 1 and not tp == "rpip" and not opts.hidePltTests:
                         if useMidPlotAUCVerticalAlignment:
-                            base_y_for_auc = max(
-                                global_geom_top + 0.16 * ann_span,
-                                ylim[0] + 0.88 * ann_span,
-                            )
+                            base_y_for_auc = _auc_base_y(panel_geom_top, ann_span)
 
                             occupied_panel_ys = [
                                 y
-                                for y in [global_geom_top]
+                                for y in [panel_geom_top if rpi or r_diff else global_geom_top]
                                 if y is not None and np.isfinite(y)
                             ]
 

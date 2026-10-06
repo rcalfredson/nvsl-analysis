@@ -44,7 +44,7 @@ def _visible_top_inset_px(ax, text):
     r"AUC (n = 119, 118): **** (p = $1.19 \times 10^{-5}$)",
     r"AUC (n = 39, 41): **** (p = $1.38 \times 10^{-13}$)",
 ])
-def test_auc_blocks_have_consistent_rendered_insets(dpi, font_size, wording):
+def test_auc_blocks_keep_minimum_rendered_insets(dpi, font_size, wording):
     from matplotlib.transforms import Bbox
 
     fig, axes = plt.subplots(1, 2, figsize=(15, 5), dpi=dpi)
@@ -67,7 +67,7 @@ def test_auc_blocks_have_consistent_rendered_insets(dpi, font_size, wording):
             pad = AUC_INSET_FONT_RATIO * font_size * dpi / 72
             left_half_spine = 0.5 * ax.spines["left"].get_linewidth() * dpi / 72
             top_half_spine = 0.5 * ax.spines["top"].get_linewidth() * dpi / 72
-            assert block.x0 - bounds.x0 == pytest.approx(pad + left_half_spine)
+            assert block.x0 - bounds.x0 >= pad + left_half_spine - 1e-6
             expected_top = AUC_TOP_INSET_FONT_RATIO * font_size * dpi / 72 + top_half_spine
             assert _visible_top_inset_px(ax, text) == pytest.approx(expected_top, abs=2)
             assert block.x1 < bounds.x1 - pad
@@ -79,7 +79,7 @@ def test_auc_blocks_have_consistent_rendered_insets(dpi, font_size, wording):
         plt.close(fig)
 
 
-def test_auc_fitted_block_avoids_legend_without_changing_insets():
+def test_auc_fitted_block_avoids_legend_and_keeps_minimum_insets():
     fig, ax = plt.subplots(figsize=(8, 4))
     ax.plot([0, 1], [0, 0], label="Control group")
     legend = ax.legend(loc="upper left", fontsize=16)
@@ -95,12 +95,12 @@ def test_auc_fitted_block_avoids_legend_without_changing_insets():
         expected_top_inset = (
             AUC_TOP_INSET_FONT_RATIO * 16 + 0.5 * ax.spines["top"].get_linewidth()
         ) * fig.dpi / 72
-        assert _visible_top_inset_px(ax, text) == pytest.approx(expected_top_inset, abs=2)
+        assert _visible_top_inset_px(ax, text) >= expected_top_inset - 2
     finally:
         plt.close(fig)
 
 
-def test_wrapped_auc_block_uses_the_same_border_inset():
+def test_wrapped_auc_block_keeps_minimum_border_insets():
     fig, ax = plt.subplots(figsize=(7, 4), dpi=100)
     text = ax.text(.03, .97, "AUC (n = 106, 90): **** (p = 1.41 × 10⁻¹³)",
                    transform=ax.transAxes, fontsize=27)
@@ -111,7 +111,7 @@ def test_wrapped_auc_block_uses_the_same_border_inset():
         bounds = ax.get_window_extent(renderer)
         bbox = text.get_window_extent(renderer)
         inset = (AUC_INSET_FONT_RATIO * 27 + 0.4) * fig.dpi / 72
-        assert bbox.x0 - bounds.x0 == pytest.approx(inset)
+        assert bbox.x0 - bounds.x0 >= inset - 1e-6
         top_inset = (AUC_TOP_INSET_FONT_RATIO * 27 + 0.4) * fig.dpi / 72
         assert _visible_top_inset_px(ax, text) == pytest.approx(top_inset, abs=2)
         assert text.get_fontsize() == 27
@@ -142,6 +142,86 @@ def test_auc_collision_check_includes_separately_sized_p_value():
         ])
         assert not block.overlaps(obstacle.get_window_extent(renderer))
         assert len(ax.texts) == 3  # Rechecking does not leave duplicate p-values.
+    finally:
+        plt.close(fig)
+
+
+@pytest.mark.parametrize("curve_top", [0.1, 0.45])
+def test_auc_retains_clear_data_anchor_and_follows_curve_height(curve_top):
+    from src.plotting.time_series_auc import AUCTestResult, add_auc_label
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.set_xlim(0, 15)
+    ax.set_ylim(-1, 1)
+    ax.plot([3, 6, 9, 12, 15], np.full(5, curve_top))
+    text = add_auc_label(
+        ax, x=0.8, y_anchor=curve_top, ylim=[-1, 1], span=2,
+        result=AUCTestResult(0.003, (58, 47), "Welch t-test"), font_size=15,
+    )
+    position = text.get_position()
+    try:
+        for _ in range(2):
+            assert place_auc_annotation(ax, text)
+            assert text.get_transform() == ax.transData
+            np.testing.assert_allclose(text.get_position(), position)
+        assert ax.get_ylim() == (-1, 1)
+    finally:
+        plt.close(fig)
+
+
+@pytest.mark.parametrize("rpi,r_diff", [(False, True), (True, False)])
+def test_direct_sli_and_ri_auc_use_panel_curve_anchor(rpi, r_diff):
+    import ast
+    from collections import defaultdict
+    from pathlib import Path
+    from src.utils import util
+
+    source = ast.parse((Path(__file__).resolve().parents[1] / "analyze.py").read_text())
+    plot_function = next(n for n in source.body
+                         if isinstance(n, ast.FunctionDef) and n.name == "plotRewards")
+    helpers = ast.Module(body=[n for n in plot_function.body
+                              if isinstance(n, ast.FunctionDef)
+                              and n.name in ("_auc_base_y", "_add_auc_text")],
+                         type_ignores=[])
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.set_xlim(0, 15)
+    ax.set_ylim(-1, 1)
+    texts = []
+    namespace = dict(
+        np=np, util=util, rpi=rpi, r_diff=r_diff,
+        global_geom_top=0.9, ylim=[-1, 1],
+        auc_texts_by_ax=defaultdict(list), _track_annotation_text=lambda ax, t: texts.append(t),
+    )
+    try:
+        exec(compile(helpers, "analyze.py", "exec"), namespace)
+        base_y = namespace["_auc_base_y"](0.1, 2)
+        assert base_y == pytest.approx(0.42)  # This panel, rather than another panel's peak.
+        text = namespace["_add_auc_text"](
+            ax, 0.8, base_y, "AUC (n = 58, 47): **", size=15, base_y=base_y,
+        )
+        assert text in texts
+        assert place_auc_annotation(ax, text)
+        assert text.get_transform() == ax.transData
+        np.testing.assert_allclose(text.get_position(), [0.8, 0.42])
+        assert ax.get_ylim() == (-1, 1)
+    finally:
+        plt.close(fig)
+
+
+def test_auc_uses_nearby_clear_space_before_a_corner():
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.set_xlim(0, 15)
+    ax.set_ylim(-1, 1)
+    text = ax.text(0.8, 0.1, "AUC (n = 58, 47): **", fontsize=15)
+    obstacle = ax.text(0.8, 0.1, "Overlapping summary", fontsize=15)
+    try:
+        assert place_auc_annotation(ax, text)
+        renderer = fig.canvas.get_renderer()
+        assert not text.get_window_extent(renderer).overlaps(
+            obstacle.get_window_extent(renderer)
+        )
+        assert abs(text.get_position()[1] - 0.1) < 0.3
+        assert text.get_position()[0] == pytest.approx(0.8)
     finally:
         plt.close(fig)
 
