@@ -474,3 +474,117 @@ def test_opposed_band_keeps_stats_overlap_within_standard_tolerance():
             )
         finally:
             plt.close(fig)
+
+
+@pytest.mark.parametrize("axis_width,should_wrap", [(4.5, False), (2.75, True)])
+@pytest.mark.parametrize("sample_size", [89, 189])
+def test_generic_scatter_fits_stats_using_final_axis_width(
+    tmp_path, monkeypatch, axis_width, should_wrap, sample_size,
+):
+    with plt.rc_context({"font.family": "DejaVu Sans"}):
+        customizer = PlotCustomizer()
+        customizer.update_font_size(18.0)
+        # Include Figure 1i's annotation and a three-digit sample-size variant.
+        annotation = correlations._format_corr_annotation(
+            0.756, 1.07e-17, sample_size,
+        )
+        monkeypatch.setattr(
+            correlations, "_format_corr_annotation", lambda *_args: annotation,
+        )
+        captured = {}
+
+        def inspect_saved_plot(*_args, **_kwargs):
+            fig = plt.gcf()
+            ax = fig.axes[0]
+            fig.canvas.draw()
+            renderer = fig.canvas.get_renderer()
+            stats = ax.texts[0]
+            captured["text"] = stats.get_text()
+            captured["size"] = stats.get_fontsize()
+            captured["tick_size"] = ax.get_xticklabels()[0].get_fontsize()
+            captured["axes"] = ax.get_window_extent(renderer).frozen()
+            captured["box"] = stats.get_bbox_patch().get_window_extent(renderer).frozen()
+            captured["dpi"] = fig.dpi
+
+        monkeypatch.setattr(correlations, "writeImage", inspect_saved_plot)
+        x = np.linspace(-0.5, 1.5, sample_size)
+        y = 5.0 + 3.0 * x + np.sin(np.arange(x.size))
+        correlations.plot_correlation_scatter(
+            x=x, y=y, title="Reward rate vs SLI",
+            x_label="Mean SLI over T2 SB2–5", y_label="Reward rate",
+            cfg=correlations.CorrelationPlotConfig(
+                out_dir=tmp_path, figsize=(3.8, 4.5),
+                axis_size_inches=(axis_width, 3.375),
+            ),
+            filename="reward_rate", customizer=customizer,
+        )
+        assert ("\n" in captured["text"]) == should_wrap
+        if not should_wrap:
+            assert captured["text"] == annotation
+        assert captured["size"] == pytest.approx(captured["tick_size"])
+        axes, box = captured["axes"], captured["box"]
+        assert axes.width / captured["dpi"] == pytest.approx(axis_width)
+        assert axes.contains(*box.p0)
+        assert axes.contains(*box.p1)
+
+
+@pytest.mark.parametrize("spacing", ["normal", "thin_equals", "wrapped"])
+def test_stats_try_thin_equals_spacing_only_before_wrapping(spacing):
+    with plt.rc_context({"font.family": "DejaVu Sans"}):
+        customizer = PlotCustomizer()
+        customizer.update_font_size(22.0)
+        customizer.update_font_family("DejaVu Sans")
+        annotation = correlations._format_corr_annotation(0.756, 1.07e-17, 189)
+        compact = annotation.replace(" = ", r"$\,$=$\,$")
+        fig, ax = plt.subplots(figsize=(8.0, 3.375))
+        try:
+            ax.set_position((0, 0, 1, 1))
+            tick_size = ax.get_xticklabels()[0].get_fontsize()
+            probe = ax.text(
+                0.05, 0.95, annotation, transform=ax.transAxes,
+                fontsize=tick_size, bbox=correlations.BBOX_STYLE,
+            )
+
+            def width_pt(text):
+                probe.set_text(text)
+                fig.canvas.draw()
+                return (
+                    probe.get_bbox_patch().get_window_extent(
+                        fig.canvas.get_renderer(),
+                    ).width / fig.dpi * 72
+                )
+
+            normal_width = width_pt(annotation)
+            compact_width = width_pt(compact)
+            assert compact_width < normal_width
+            probe.remove()
+            # Include the same pixel padding and half-spine widths as the
+            # containment helper, so each case exercises a distinct fit tier.
+            inset = 2 * 72 / fig.dpi + 0.5 * (
+                ax.spines["left"].get_linewidth()
+                + ax.spines["right"].get_linewidth()
+            )
+            usable_width = {
+                "normal": normal_width + 10,
+                "thin_equals": (normal_width + compact_width) / 2,
+                "wrapped": compact_width - 10,
+            }[spacing]
+            fig.set_size_inches((usable_width + inset) / 72, 3.375)
+            x = np.linspace(0.2, 0.8, 189)
+            y = np.full_like(x, 0.5)
+            stats = _add_smart_stats_box(ax, annotation, x, y)
+            expected = {
+                "normal": annotation,
+                "thin_equals": compact,
+                "wrapped": annotation.replace(", p =", ",\np ="),
+            }[spacing]
+            assert stats.get_text() == expected
+            assert stats.get_fontsize() == pytest.approx(tick_size)
+            fig.canvas.draw()
+            renderer = fig.canvas.get_renderer()
+            axes = ax.get_window_extent(renderer)
+            box = stats.get_bbox_patch().get_window_extent(renderer)
+            assert axes.contains(*box.p0)
+            assert axes.contains(*box.p1)
+        finally:
+            plt.close(fig)
