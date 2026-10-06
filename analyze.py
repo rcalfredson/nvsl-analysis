@@ -10098,10 +10098,8 @@ def plotRewards(
         return txt
 
     def _auc_base_y(panel_top, ann_span):
-        if rpi or r_diff:
-            anchor = panel_top if np.isfinite(panel_top) else global_geom_top
-            return anchor + 0.16 * ann_span
-        return max(global_geom_top + 0.16 * ann_span, ylim[0] + 0.88 * ann_span)
+        anchor = panel_top if np.isfinite(panel_top) else global_geom_top
+        return anchor + 0.16 * ann_span
 
     def _subplot_title(t, f):
         title = ("post %d" % t.n) if post else t.name()
@@ -10364,7 +10362,7 @@ def plotRewards(
                             base_y_for_auc = _auc_base_y(panel_geom_top, ann_span)
                             occupied_panel_ys = [
                                 y
-                                for y in [panel_geom_top if rpi or r_diff else global_geom_top]
+                                for y in [panel_geom_top]
                                 if y is not None and np.isfinite(y)
                             ]
                             ys_auc, va_align = pick_above_or_expand(
@@ -10515,7 +10513,7 @@ def plotRewards(
 
                             occupied_panel_ys = [
                                 y
-                                for y in [panel_geom_top if rpi or r_diff else global_geom_top]
+                                for y in [panel_geom_top]
                                 if y is not None and np.isfinite(y)
                             ]
 
@@ -11103,12 +11101,6 @@ def plotRewards(
             plotted_bounds, sli_axis.limits, context=f"{tp} plot"
         )
         customizer.set_fixed_y_axes(plt.gcf().get_axes(), sli_axis.limits)
-        if ng == 2 and legend is not None:
-            legend = move_two_group_legend_below_data_if_annotation_overlap(
-                legend.axes,
-                legend,
-                annotation_texts_by_ax.get(legend.axes, ()),
-            )
 
     apply_sync_bucket_ytick_spacing(
         plt.gcf().get_axes(),
@@ -11139,6 +11131,17 @@ def plotRewards(
         ) > 0:
             for ax, texts in annotation_texts_by_ax.items():
                 dodge_annotation_reference_line(ax, texts)
+
+    # Recheck the legend after the final count/star pass: compacting those
+    # stacks can move stars into a legend that was clear on provisional axes.
+    # Settle its position before AUC blocks are fitted around it.
+    if sli_axis is not None and sli_axis.fixed:
+        if ng == 2 and legend is not None:
+            legend = move_two_group_legend_below_data_if_annotation_overlap(
+                legend.axes,
+                legend,
+                annotation_texts_by_ax.get(legend.axes, ()),
+            )
 
     # Fit and place complete AUC/ABC blocks after padding, legend placement
     # and fixed-axis handling have established the final axes rectangle.

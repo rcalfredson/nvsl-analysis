@@ -169,8 +169,8 @@ def test_auc_retains_clear_data_anchor_and_follows_curve_height(curve_top):
         plt.close(fig)
 
 
-@pytest.mark.parametrize("rpi,r_diff", [(False, True), (True, False)])
-def test_direct_sli_and_ri_auc_use_panel_curve_anchor(rpi, r_diff):
+@pytest.mark.parametrize("rpi,r_diff", [(False, True), (True, False), (False, False)])
+def test_direct_time_plot_auc_uses_panel_curve_anchor(rpi, r_diff):
     import ast
     from collections import defaultdict
     from pathlib import Path
@@ -196,6 +196,11 @@ def test_direct_sli_and_ri_auc_use_panel_curve_anchor(rpi, r_diff):
         exec(compile(helpers, "analyze.py", "exec"), namespace)
         base_y = namespace["_auc_base_y"](0.1, 2)
         assert base_y == pytest.approx(0.42)  # This panel, rather than another panel's peak.
+        # ED14b has a shared 0–60 scale, a higher Training 1 curve, and a
+        # low Training 2 curve. Its AUC should not be forced to 88% of the axis.
+        namespace.update(global_geom_top=35, ylim=[0, 60])
+        assert namespace["_auc_base_y"](12, 60) == pytest.approx(21.6)
+        namespace.update(global_geom_top=0.9, ylim=[-1, 1])
         text = namespace["_add_auc_text"](
             ax, 0.8, base_y, "AUC (n = 58, 47): **", size=15, base_y=base_y,
         )
@@ -273,6 +278,59 @@ def test_fixed_axis_final_pass_restores_physical_count_star_gap(rpi):
         assert gap * 72 / fig.dpi == pytest.approx(4, abs=0.5)
         assert ax.get_ylim() == limits
         assert auc.get_position() == auc_position
+    finally:
+        plt.close(fig)
+
+
+def test_two_group_legend_rechecks_stars_after_final_fixed_axis_reflow():
+    import ast
+    from pathlib import Path
+    from types import SimpleNamespace
+    from src.plotting.annotation_layout import (
+        move_two_group_legend_below_data_if_annotation_overlap,
+        resolve_annotation_text_overlaps,
+    )
+    from src.plotting.plot_customizer import compact_legend_spacing
+
+    source = ast.parse((Path(__file__).resolve().parents[1] / "analyze.py").read_text())
+    plot_function = next(n for n in source.body
+                         if isinstance(n, ast.FunctionDef) and n.name == "plotRewards")
+    start = next(i for i, n in enumerate(plot_function.body) if isinstance(n, ast.If)
+                 and ast.unparse(n.test) == 'rpi or (sli_axis is not None and sli_axis.fixed)')
+    end = next(i for i, n in enumerate(plot_function.body) if isinstance(n, ast.For)
+               and ast.unparse(n.iter) == 'auc_texts_by_ax.items()')
+    final_layout = ast.Module(body=plot_function.body[start:end], type_ignores=[])
+    fig, ax = plt.subplots(figsize=(8, 4.68))
+    ax.set(xlim=(0, 60), ylim=(-0.5, 2.5))
+    ax.plot([10, 20, 30, 40, 50], [1.1, 1.3, 1.5, 1.55, 1.65], label='Ctrl')
+    ax.plot([10, 20, 30, 40, 50], [0.7, 0.65, 0.7, 0.95, 0.75], label='Antennae removed')
+    ax.axhline(0, color='gray')
+    count = ax.text(30, 1.7, '49', ha='center', fontsize=27)
+    count._data_point_y_ = 1.5
+    count._data_marker_size_points_ = 3.0
+    stars = ax.text(30, 2.6, '****', ha='center', fontsize=27, weight='bold')
+    stars._sample_size_texts_ = (count,)
+    original = ax.legend(loc='upper left', prop={'size': 27, 'style': 'italic'},
+                         **compact_legend_spacing(27))
+    try:
+        # A check of the provisional stars sees no collision.
+        assert move_two_group_legend_below_data_if_annotation_overlap(ax, original, [stars]) is original
+        namespace = dict(
+            rpi=False, sli_axis=SimpleNamespace(fixed=True), ng=2, legend=original,
+            annotation_texts_by_ax={ax: [count, stars]}, auc_texts_by_ax={},
+            resolve_annotation_text_overlaps=resolve_annotation_text_overlaps,
+            move_two_group_legend_below_data_if_annotation_overlap=move_two_group_legend_below_data_if_annotation_overlap,
+        )
+        exec(compile(final_layout, 'analyze.py', 'exec'), namespace)
+        legend = namespace['legend']
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        assert original.get_window_extent(renderer).overlaps(stars.get_window_extent(renderer))
+        assert legend is not original
+        assert legend._ncols == 2
+        assert not legend.get_window_extent(renderer).overlaps(stars.get_window_extent(renderer))
+        assert legend.get_window_extent(renderer).y1 < ax.transData.transform((0, 0))[1]
+        assert ax.get_ylim() == (-0.5, 2.5)
     finally:
         plt.close(fig)
 
