@@ -11119,6 +11119,21 @@ def plotRewards(
     # Apply after layout/tick overrides so decorations cannot expand the range.
     if rpi:
         customizer.set_fixed_y_axes(plt.gcf().get_axes(), (-1.0, 1.0))
+
+    # Earlier passes measure physical label gaps on provisional axes. Font
+    # padding and restoring a fixed range change the data-to-display scale,
+    # so reflow count/star stacks on the final axes without expanding them.
+    # AUC blocks have their own placement pass below and must not lift stars.
+    if rpi or (sli_axis is not None and sli_axis.fixed):
+        for ax, texts in annotation_texts_by_ax.items():
+            auc_texts = set(auc_texts_by_ax.get(ax, ()))
+            resolve_annotation_text_overlaps(
+                ax,
+                [text for text in texts if text not in auc_texts],
+                list(ax.get_ylim()),
+            )
+
+    if rpi:
         if getattr(opts, "reward_pi_zero_line", True) and getattr(
             opts, "reward_pi_zero_line_alpha", 1.0
         ) > 0:

@@ -226,6 +226,57 @@ def test_auc_uses_nearby_clear_space_before_a_corner():
         plt.close(fig)
 
 
+@pytest.mark.parametrize("rpi", [False, True])
+def test_fixed_axis_final_pass_restores_physical_count_star_gap(rpi):
+    import ast
+    from pathlib import Path
+    from types import SimpleNamespace
+    from src.plotting.annotation_layout import resolve_annotation_text_overlaps
+
+    source = ast.parse((Path(__file__).resolve().parents[1] / "analyze.py").read_text())
+    plot_function = next(n for n in source.body
+                         if isinstance(n, ast.FunctionDef) and n.name == "plotRewards")
+    final_pass = next(n for n in plot_function.body if isinstance(n, ast.If)
+                      and ast.unparse(n.test) == 'rpi or (sli_axis is not None and sli_axis.fixed)')
+    fig, ax = plt.subplots(figsize=(8, 4.68))
+    ax.set(xlim=(0, 60), ylim=(-0.5, 2.5))
+    data_y = 0.5 if rpi else 0.9
+    count = ax.text(20, 0.9, "99", ha="center", fontsize=27)
+    count._data_point_y_ = data_y
+    count._data_marker_size_points_ = 3.0
+    stars = ax.text(20, 1.1, "****", ha="center", fontsize=27, weight="bold")
+    stars._sample_size_texts_ = (count,)
+    try:
+        resolve_annotation_text_overlaps(ax, [count, stars], [-0.5, 2.5])
+        fig.set_size_inches(9, 5.1)
+        limits = (-1, 1) if rpi else (-0.5, 1.5)
+        ax.set_ylim(*limits)
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        assert stars.get_window_extent(renderer).y0 - count.get_window_extent(renderer).y1 > 10
+        # AUC belongs to its later placement pass even if its old anchor
+        # overlaps the compact stars. It must not push this stack upward.
+        auc = ax.text(20, stars.get_position()[1], "AUC summary", fontsize=27)
+        auc_position = auc.get_position()
+        namespace = dict(
+            rpi=rpi, sli_axis=SimpleNamespace(fixed=True),
+            annotation_texts_by_ax={ax: [count, stars, auc]}, auc_texts_by_ax={ax: [auc]},
+            resolve_annotation_text_overlaps=resolve_annotation_text_overlaps,
+        )
+        exec(compile(ast.Module(body=[final_pass], type_ignores=[]), 'analyze.py', 'exec'), namespace)
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        gap = stars.get_window_extent(renderer).y0 - count.get_window_extent(renderer).y1
+        assert gap * 72 / fig.dpi == pytest.approx(2, abs=0.5)
+        marker_top = ax.transData.transform((20, data_y))[1] + 1.5 * fig.dpi / 72
+        gap = count.get_window_extent(renderer).y0 - marker_top
+        assert gap * 72 / fig.dpi == pytest.approx(4, abs=0.5)
+        assert ax.get_ylim() == limits
+        assert auc.get_position() == auc_position
+    finally:
+        plt.close(fig)
+
+
 @pytest.mark.parametrize("axes_width, expect_shrink", [(0.45, True), (0.85, False)])
 def test_stats_box_shrinks_only_when_wider_than_axes(axes_width, expect_shrink):
     fig = plt.figure(figsize=(8, 4), dpi=100)
