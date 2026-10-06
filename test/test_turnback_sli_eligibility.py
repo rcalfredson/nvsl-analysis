@@ -105,7 +105,7 @@ def test_matrix_routes_eligibility_only_to_all_flies_comparison(mode):
 @pytest.mark.parametrize('comparison,third_slug', [
     ('ar_ctrl', 'ar_ctrlKir'), ('mbkc_kir', 'intact_mbkcKir'),
 ])
-def test_notebook_shares_turnback_inputs_and_limits_eligibility_to_ratio_export(
+def test_notebook_shares_turnback_inputs_and_filters_ratio_and_home_alignment(
     mode, comparison, third_slug,
 ):
     root = Path(__file__).resolve().parents[1]
@@ -136,15 +136,18 @@ def test_notebook_shares_turnback_inputs_and_limits_eligibility_to_ratio_export(
         assert f'TURNBACK_COMPARISON_GROUP={comparison}' in item['command']
         assert 'DATE_TAG=2030-01-02' in item['command']
     exports = scope['turnback_graphpad_exports']
-    assert len(exports) == 4
+    assert len(exports) == 5
     for item in exports:
         assert third_slug in item['command']
         assert '2030-01-02.npz' in item['command']
     eligible = [item for item in exports if '--sli-eligible-only' in item['command']]
-    assert len(eligible) == 1
-    assert f'--sli-eligibility-mode {mode}' in eligible[0]['command']
-    assert comparison in eligible[0]['output_path']
-    assert '2030-01-02' in eligible[0]['output_path']
+    assert len(eligible) == 2
+    for item in eligible:
+        assert f'--sli-eligibility-mode {mode}' in item['command']
+        assert comparison in item['output_path']
+        assert '2030-01-02' in item['output_path']
+    assert eligible[1]['command'].count('--sli-eligibility-input ') == 3
+    assert 'repeated-measures-scalar-npz' in eligible[1]['command']
     assert '--top-sli-fraction 0.9' in exports[0]['command']
     assert all('--sli-eligibility-mode' not in item['command']
                for item in exports if item not in eligible)

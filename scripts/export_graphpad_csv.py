@@ -90,6 +90,22 @@ def parse_args() -> argparse.Namespace:
         "--input", action="append", required=True, metavar="GROUP|PANEL=EXPORT.NPZ"
     )
     repeated_scalar.add_argument("--out", required=True, help="Output CSV path.")
+    repeated_scalar.add_argument(
+        "--sli-eligible-only", action="store_true",
+        help="Select subjects using separate group-labeled SLI eligibility bundles.",
+    )
+    repeated_scalar.add_argument(
+        "--sli-eligibility-input", action="append", metavar="GROUP=BUNDLE.NPZ",
+        help="Repeat once per cohort; the bundle must contain video IDs and SLI data.",
+    )
+    repeated_scalar.add_argument(
+        "--sli-eligibility-mode", choices=["stored", "mean", "final"], default="stored",
+        help="Stored scalar policy, mean T2 SB2–5 (>=3 valid buckets), or finite T2 SB5.",
+    )
+    repeated_scalar.add_argument(
+        "--sli-min-valid-sync-buckets", type=int, default=None,
+        help="Minimum valid buckets for stored/mean eligibility; incompatible with final.",
+    )
 
     rpd = sub.add_parser(
         "rpd-exp-minus-yok-npz",
@@ -229,11 +245,28 @@ def main() -> int:
     if args.command == "repeated-measures-scalar-npz":
         from src.plotting.overlay_training_metric_scalar_bars import load_export_npz
 
+        eligibility_bundles = None
+        if args.sli_eligible_only:
+            if not args.sli_eligibility_input:
+                raise ValueError("--sli-eligible-only requires --sli-eligibility-input for each group")
+            from src.analysis.sli_bundle_utils import load_sli_bundle
+
+            eligibility_bundles = []
+            for spec in args.sli_eligibility_input:
+                group, path = parse_labeled_path(spec, separators=("=", ":"))
+                eligibility_bundles.append((group, load_sli_bundle(path)))
+        elif (args.sli_eligibility_input or args.sli_eligibility_mode != "stored"
+              or args.sli_min_valid_sync_buckets is not None):
+            raise ValueError("SLI eligibility options require --sli-eligible-only")
         exports = []
         for spec in args.input:
             label, path = parse_labeled_path(spec, separators=("=", ":"))
             exports.append(load_export_npz(label, path))
-        write_repeated_measures_scalar_exports_graphpad_csv(exports, args.out)
+        write_repeated_measures_scalar_exports_graphpad_csv(
+            exports, args.out, sli_eligibility_bundles=eligibility_bundles,
+            sli_eligibility_mode=args.sli_eligibility_mode,
+            sli_min_valid_buckets=args.sli_min_valid_sync_buckets,
+        )
         print(f"[graphpad_csv] wrote {args.out}")
         return 0
 
