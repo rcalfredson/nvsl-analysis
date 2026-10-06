@@ -25,12 +25,19 @@ def test_signed_scatter_keeps_negative_points_in_stats_and_render(tmp_path, monk
         ax = fig.axes[0]
         captured["limits"] = ax.get_ylim()
         captured["points"] = ax.collections[0].get_offsets().copy()
+        fig.canvas.draw()
+
+    original_write_image = corr.writeImage
+
+    def save_plot(*args, **kwargs):
+        ax = plt.gcf().axes[0]
         captured["alpha"] = [
             txt.get_bbox_patch().get_alpha() for txt in ax.texts
             if txt.get_bbox_patch() is not None
         ]
-        fig.canvas.draw()
+        return original_write_image(*args, **kwargs)
 
+    monkeypatch.setattr(corr, "writeImage", save_plot)
     monkeypatch.setattr(corr, "_finalize_correlation_layout", finalize)
     cfg = corr.CorrelationPlotConfig(out_dir=tmp_path, ylim=(0, 10))
     result = corr.plot_correlation_scatter(

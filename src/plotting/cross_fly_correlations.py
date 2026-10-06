@@ -896,7 +896,8 @@ def _add_smart_stats_box(
     Place a stats textbox where it obscures as few points as possible.
 
     The function first tries the four plot corners. If the box is physically
-    too large, it wraps long results or places them outside at tick-label size.
+    too large, it first tries thin spaces around equals signs, then wraps long
+    results or places them outside at tick-label size.
     Explicit font overrides retain the reduced-font fallback tiers. If each
     fitting corner would still cover a substantial fraction of points, it adds upper y headroom and moves
     the textbox into that empty band above the scatter cloud.
@@ -1014,6 +1015,12 @@ def _add_smart_stats_box(
         for line in str(text).splitlines()
     )
     text_variants = (str(text),)
+    if match_tick_size and "\n" not in str(text):
+        # Preserve ordinary spacing whenever it fits. Mathtext thin spaces
+        # keep Arial reliable without requiring a Unicode thin-space glyph.
+        compact_text = str(text).replace(" = ", r"$\,$=$\,$")
+        if compact_text != text:
+            text_variants += (compact_text,)
     if wrapped_text != text:
         text_variants += (wrapped_text,)
 
@@ -2972,9 +2979,11 @@ def plot_correlation_scatter(
     ax.grid(False)
 
     _add_significant_trend_line(ax, x_f, y_f, p, color=cfg.dot_color)
-    _add_smart_stats_box(ax, _format_corr_annotation(r, p, x_f.size), x_f, y_f)
 
+    # Decide wrapping and point overlap at the final physical axes size.
+    # Measuring on the initial canvas can wrap text that fits after resizing.
     _finalize_correlation_layout(fig, customizer, axis_size_inches=cfg.axis_size_inches)
+    _add_smart_stats_box(ax, _format_corr_annotation(r, p, x_f.size), x_f, y_f)
     out_path = _correlation_out_path(cfg.out_dir, filename, cfg.image_format)
     writeImage(str(out_path), format=cfg.image_format)
     _export_scatter_npz(
