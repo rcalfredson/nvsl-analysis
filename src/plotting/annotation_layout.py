@@ -22,6 +22,37 @@ AUC_INSET_FONT_RATIO = 0.4
 AUC_TOP_INSET_FONT_RATIO = 0.9
 
 
+def tick_label_fontsize(ax) -> float:
+    """Use the tick-label size for statistics, independent of axis titles."""
+    from matplotlib.font_manager import FontProperties
+    import matplotlib as mpl
+
+    ticks = [*ax.get_xticklabels(), *ax.get_yticklabels()]
+    if ticks:
+        return max(float(tick.get_fontsize()) for tick in ticks)
+    return float(
+        FontProperties(size=mpl.rcParams["xtick.labelsize"]).get_size_in_points()
+    )
+
+
+def fit_stats_box_inside_axes(ax, text) -> bool:
+    """Fit statistics at tick size, wrapping or moving outside as needed."""
+    text.set_fontsize(tick_label_fontsize(ax))
+    if keep_text_box_inside_axes(ax, text):
+        return True
+    original = text.get_text()
+    text.set_text(original.replace(", ", ",\n"))
+    if keep_text_box_inside_axes(ax, text):
+        return True
+    text.set_text(original)
+    text.set_transform(ax.transAxes)
+    text.set_position((1.02, 1.0))
+    text.set_ha("left")
+    text.set_va("top")
+    text._keep_inside_axes_after_layout = False
+    return False
+
+
 def pad_sample_size_labels_over_markers(ax, texts) -> None:
     """Add a small translucent box only to counts overlapping visible markers.
 

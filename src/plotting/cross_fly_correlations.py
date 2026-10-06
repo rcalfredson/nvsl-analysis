@@ -29,7 +29,11 @@ from src.plotting.p_value_format import format_plot_p_value
 from src.plotting.rewards_per_distance_totals import pooled_rewards_per_distance_window
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.axis_size import DEFAULT_PLOT_AXIS_SIZE_INCHES, set_axis_size_inches
-from src.plotting.annotation_layout import keep_text_box_inside_axes
+from src.plotting.annotation_layout import (
+    keep_text_box_inside_axes,
+    tick_label_fontsize,
+    fit_stats_box_inside_axes,
+)
 from src.plotting.reward_window_utils import (
     cumulative_window_seconds_for_frame,
     frames_in_windows,
@@ -699,9 +703,7 @@ def _finalize_correlation_layout(
     set_axis_size_inches(ax, axis_size_inches)
     for text in ax.texts:
         if getattr(text, "_keep_inside_axes_after_layout", False):
-            keep_text_box_inside_axes(
-                ax, text, min_fontsize=STATS_BOX_MIN_FONTSIZE
-            )
+            fit_stats_box_inside_axes(ax, text)
 
 
 def _correlation_axis_size_for_font(
@@ -894,9 +896,9 @@ def _add_smart_stats_box(
     Place a stats textbox where it obscures as few points as possible.
 
     The function first tries the four plot corners. If the box is physically
-    too large, it tries the existing reduced-font tiers and, only when needed,
-    a wrapped form of long labeled results. If each fitting corner would still
-    cover a substantial fraction of points, it adds upper y headroom and moves
+    too large, it wraps long results or places them outside at tick-label size.
+    Explicit font overrides retain the reduced-font fallback tiers. If each
+    fitting corner would still cover a substantial fraction of points, it adds upper y headroom and moves
     the textbox into that empty band above the scatter cloud.
     """
     x = np.asarray(x, float)
@@ -904,17 +906,9 @@ def _add_smart_stats_box(
     finite = np.isfinite(x) & np.isfinite(y)
     x_f = x[finite]
     y_f = y[finite]
-    if fontsize is None:
-        reference_sizes = [
-            ax.xaxis.label.get_size(),
-            ax.yaxis.label.get_size(),
-            *(tick.get_size() for tick in ax.get_xticklabels()),
-            *(tick.get_size() for tick in ax.get_yticklabels()),
-        ]
-        reference_size = max(
-            float(size) for size in reference_sizes if size is not None
-        )
-        fontsize = max(STATS_BOX_MIN_FONTSIZE, 0.90 * reference_size)
+    match_tick_size = fontsize is None
+    if match_tick_size:
+        fontsize = tick_label_fontsize(ax)
 
     fig = ax.figure
 
@@ -996,28 +990,27 @@ def _add_smart_stats_box(
     best_patch_bbox = None
     best_raw_overlap = None
 
-    # Preserve the requested size whenever it can physically fit. If it
-    # cannot, find the largest existing fallback tier that can fit before
-    # applying the normal corner/overlap scoring. This prevents an oversized
-    # box from leaving every best-candidate value unset.
+    # Default statistics retain tick-label size. Explicit overrides may use
+    # smaller fallback tiers before applying the corner/overlap scoring.
     candidate_font_sizes = [float(fontsize)]
-    for scale in (0.95, 0.90, 0.85, 0.80, 0.75, 0.70, 0.65, 0.60):
-        candidate_fontsize = max(
-            STATS_BOX_MIN_FONTSIZE, float(fontsize) * scale
-        )
+    if not match_tick_size:
+        for scale in (0.95, 0.90, 0.85, 0.80, 0.75, 0.70, 0.65, 0.60):
+            candidate_fontsize = max(
+                STATS_BOX_MIN_FONTSIZE, float(fontsize) * scale
+            )
+            if not any(
+                np.isclose(candidate_fontsize, previous)
+                for previous in candidate_font_sizes
+            ):
+                candidate_font_sizes.append(float(candidate_fontsize))
         if not any(
-            np.isclose(candidate_fontsize, previous)
+            np.isclose(STATS_BOX_MIN_FONTSIZE, previous)
             for previous in candidate_font_sizes
         ):
-            candidate_font_sizes.append(float(candidate_fontsize))
-    if not any(
-        np.isclose(STATS_BOX_MIN_FONTSIZE, previous)
-        for previous in candidate_font_sizes
-    ):
-        candidate_font_sizes.append(float(STATS_BOX_MIN_FONTSIZE))
+            candidate_font_sizes.append(float(STATS_BOX_MIN_FONTSIZE))
 
     wrapped_text = "\n".join(
-        line.replace(" (", "\n(").replace(": ", ":\n", 1)
+        line.replace(" (", "\n(").replace(": ", ":\n", 1).replace(", p =", ",\np =")
         for line in str(text).splitlines()
     )
     text_variants = (str(text),)
@@ -1072,6 +1065,12 @@ def _add_smart_stats_box(
 
     probe.remove()
 
+    if not fitting_tier_found and match_tick_size:
+        text_artist = ax.text(
+            1.02, 1.0, text, transform=ax.transAxes, va="top", ha="left",
+            fontsize=fontsize, zorder=5, bbox=BBOX_STYLE,
+        )
+        return text_artist
     if not fitting_tier_found:
         raise RuntimeError(
             "correlation statistics box cannot fit inside the plotting area "
@@ -1184,8 +1183,14 @@ def _add_smart_stats_box(
             alpha=0.0,
             bbox=BBOX_STYLE,
         )
-        for scale in (0.95, 0.90, 0.85, 0.80, 0.75, 0.70, 0.65, 0.60):
-            candidate_fontsize = max(min_fontsize, float(fontsize) * scale)
+        fallback_scales = (1.0,) if match_tick_size else (
+            0.95, 0.90, 0.85, 0.80, 0.75, 0.70, 0.65, 0.60,
+        )
+        for scale in fallback_scales:
+            candidate_fontsize = (
+                float(fontsize) if match_tick_size
+                else max(min_fontsize, float(fontsize) * scale)
+            )
             probe.set_fontsize(candidate_fontsize)
             probe.set_position(
                 (fallback_candidate["x"], fallback_candidate["y"])
@@ -1431,9 +1436,7 @@ def _place_correlation_overlays(
     preferred_legend_fontsize = (
         CORRELATION_REFERENCE_FONT_SIZE - 3.0
     ) * overlay_scale
-    preferred_stats_fontsize = max(
-        STATS_BOX_MIN_FONTSIZE, 0.90 * reference_size
-    )
+    preferred_stats_fontsize = tick_label_fontsize(ax)
     legend_font_sizes = _unique_font_sizes(
         max(preferred_legend_fontsize, 6.0),
         max(0.90 * preferred_legend_fontsize, 6.0),
@@ -3532,21 +3535,14 @@ def _place_stacked_correlation_overlays(
     keep both overlays above all finite points and plotted trend lines.
     """
     fig = ax.figure
-    reference_size = max(
-        ax.xaxis.label.get_size(), ax.yaxis.label.get_size(),
-        *(tick.get_size() for tick in ax.get_xticklabels()),
-        *(tick.get_size() for tick in ax.get_yticklabels()),
-    )
     stats = ax.text(
         0.5, 0.97, stats_text, transform=ax.transAxes,
         ha="center", va="top",
-        fontsize=max(STATS_BOX_MIN_FONTSIZE, 0.90 * reference_size),
+        fontsize=tick_label_fontsize(ax),
         linespacing=1.0, zorder=5,
         bbox={**BBOX_STYLE, "boxstyle": "round,pad=0.15"},
     )
-    if not keep_text_box_inside_axes(
-        ax, stats, min_fontsize=STATS_BOX_MIN_FONTSIZE
-    ):
+    if not fit_stats_box_inside_axes(ax, stats):
         raise ValueError("Correlation statistics cannot fit inside the axes")
     renderer = fig.canvas.get_renderer()
     axes_bbox = ax.get_window_extent(renderer)

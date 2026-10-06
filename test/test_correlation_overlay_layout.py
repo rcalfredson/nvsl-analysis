@@ -124,6 +124,31 @@ def test_preferred_corners_use_headroom_for_legend_and_keep_stats_inside():
     plt.close(fig)
 
 
+@pytest.mark.parametrize("font_size", [8.0, 20.0, 32.0])
+def test_default_stats_keep_tick_size_after_final_layout(font_size):
+    with plt.rc_context():
+        customizer = PlotCustomizer()
+        customizer.update_font_size(font_size)
+        fig, ax = plt.subplots(figsize=(6, 4))
+        try:
+            ax.set_xlabel("X")
+            ax.set_ylabel("Y")
+            x = np.array([0.45, 0.55])
+            y = np.array([0.05, 0.10])
+            ax.scatter(x, y)
+            stats = _add_smart_stats_box(
+                ax, r"n = 89, r = 0.424, p = $3.54 \times 10^{-5}$", x, y,
+            )
+            expected = ax.get_xticklabels()[0].get_fontsize()
+            assert stats.get_fontsize() == pytest.approx(expected)
+            _finalize_correlation_layout(
+                fig, customizer, axis_size_inches=(2.0, 2.0),
+            )
+            assert stats.get_fontsize() == pytest.approx(expected)
+        finally:
+            plt.close(fig)
+
+
 def test_joint_overlay_stats_match_standard_correlation_size():
     with plt.rc_context():
         customizer = PlotCustomizer()
@@ -148,16 +173,7 @@ def test_joint_overlay_stats_match_standard_correlation_size():
                 configured_font_size=20.0,
             )
 
-            reference_size = max(
-                ax.xaxis.label.get_size(),
-                ax.yaxis.label.get_size(),
-                *(tick.get_size() for tick in ax.get_xticklabels()),
-                *(tick.get_size() for tick in ax.get_yticklabels()),
-            )
-            expected_size = max(
-                correlations.STATS_BOX_MIN_FONTSIZE,
-                0.90 * reference_size,
-            )
+            expected_size = ax.get_xticklabels()[0].get_fontsize()
 
             assert stats.get_fontsize() == pytest.approx(expected_size)
         finally:
@@ -439,12 +455,9 @@ def test_opposed_band_keeps_stats_overlap_within_standard_tolerance():
             assert (final_y1 - base_y1) / base_y_span <= 0.25
             assert final_y0 == pytest.approx(base_y0)
 
-            reference_size = max(
-                ax.xaxis.label.get_size(), ax.yaxis.label.get_size(),
-                *(tick.get_size() for tick in ax.get_xticklabels()),
-                *(tick.get_size() for tick in ax.get_yticklabels()),
+            assert stats.get_fontsize() == pytest.approx(
+                ax.get_xticklabels()[0].get_fontsize()
             )
-            assert stats.get_fontsize() == pytest.approx(0.90 * reference_size)
 
             fig.canvas.draw()
             renderer = fig.canvas.get_renderer()
