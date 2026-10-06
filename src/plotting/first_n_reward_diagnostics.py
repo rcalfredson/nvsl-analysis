@@ -13,6 +13,7 @@ from src.plotting.palettes import correlation_plot_color_for_metrics
 from src.plotting.p_value_format import format_plot_p_value
 from src.plotting.axis_size import DEFAULT_PLOT_AXIS_SIZE_INCHES, set_axis_size_inches
 from src.plotting.cross_fly_correlations import _add_smart_stats_box
+from src.plotting.annotation_layout import tick_label_fontsize
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.between_reward_segment_binning import video_base
 from src.plotting.reward_window_utils import (
@@ -26,7 +27,6 @@ from src.plotting.reward_window_utils import (
 import src.utils.util as util
 
 
-STATS_BOX_MIN_FONTSIZE = 12.0
 TREND_LINE_P_THRESHOLD = 0.05
 
 
@@ -982,19 +982,7 @@ class FirstNRewardDiagnosticsPlotter:
 
     @staticmethod
     def _stats_box_fontsize(ax) -> float:
-        reference_sizes = [
-            ax.xaxis.label.get_size(),
-            ax.yaxis.label.get_size(),
-            *(tick.get_size() for tick in ax.get_xticklabels()),
-            *(tick.get_size() for tick in ax.get_yticklabels()),
-        ]
-        finite_sizes = [
-            float(size)
-            for size in reference_sizes
-            if size is not None and np.isfinite(float(size))
-        ]
-        reference_size = max(finite_sizes) if finite_sizes else STATS_BOX_MIN_FONTSIZE
-        return max(STATS_BOX_MIN_FONTSIZE, 0.90 * reference_size)
+        return tick_label_fontsize(ax)
 
     @staticmethod
     def _split_axis_label_evenly(text: str) -> str:
@@ -1153,9 +1141,7 @@ class FirstNRewardDiagnosticsPlotter:
             fig.tight_layout()
             set_axis_size_inches(ax, self.cfg.axis_size_inches)
         if stats_label is not None:
-            _add_smart_stats_box(
-                ax, stats_label, x, y, fontsize=self._stats_box_fontsize(ax)
-            )
+            _add_smart_stats_box(ax, stats_label, x, y)
         # Keep the fixed physical data-axis size while allowing the surrounding
         # canvas to include every title and axis label after final wrapping.
         fig.savefig(path, dpi=200, bbox_inches="tight")

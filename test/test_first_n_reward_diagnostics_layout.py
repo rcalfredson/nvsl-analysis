@@ -111,12 +111,10 @@ def test_first_n_plot_constrains_stats_box_after_final_axis_sizing(
 
     def recorded_constraint(ax, label, x, y, **kwargs):
         assert _axis_size_inches(ax) == pytest.approx(cfg.axis_size_inches)
-        original_fontsize = kwargs["fontsize"]
+        assert "fontsize" not in kwargs
+        original_fontsize = ax.get_xticklabels()[0].get_fontsize()
         text = original(ax, label, x, y, **kwargs)
-        if font_size == 23.0:
-            assert text.get_fontsize() < original_fontsize
-        else:
-            assert text.get_fontsize() == original_fontsize
+        assert text.get_fontsize() == original_fontsize
         renderer = ax.figure.canvas.get_renderer()
         patch = text.get_bbox_patch().get_window_extent(renderer)
         points = ax.transData.transform(np.column_stack([x, y]))

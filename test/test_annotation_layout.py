@@ -295,3 +295,21 @@ def test_spacious_sample_sizes_remain_above_their_traces():
         assert sample_size._sample_size_side_ == "above"
         assert sample_size.get_window_extent(renderer).y0 > marker_top
     plt.close(fig)
+
+
+def test_stats_box_moves_outside_without_shrinking_when_wrapping_cannot_fit():
+    from src.plotting.annotation_layout import fit_stats_box_inside_axes
+
+    fig, ax = plt.subplots(figsize=(2, 2))
+    try:
+        ax.tick_params(labelsize=20.0)
+        text = ax.text(
+            0.02, 0.98, "W" * 100, transform=ax.transAxes,
+            ha="left", va="top", fontsize=30.0,
+        )
+        assert not fit_stats_box_inside_axes(ax, text)
+        assert text.get_fontsize() == 20.0
+        assert text.get_position() == (1.02, 1.0)
+        assert text.get_text() == "W" * 100
+    finally:
+        plt.close(fig)
