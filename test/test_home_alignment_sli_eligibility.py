@@ -58,6 +58,7 @@ def test_home_alignment_selects_by_sli_and_preserves_radius_alignment(tmp_path, 
 
 def test_home_alignment_keeps_independent_cohort_selection(tmp_path):
     bundle = _eligibility()
+    bundle['group_label'] = np.array('PFNd')
     bundle['sli_ts'][:, 1, 4] = np.nan
     bundle['sli_ts'][1, 1, 4] = 0.2
     out = tmp_path / 'home.csv'

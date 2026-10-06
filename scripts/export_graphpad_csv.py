@@ -90,22 +90,23 @@ def parse_args() -> argparse.Namespace:
         "--input", action="append", required=True, metavar="GROUP|PANEL=EXPORT.NPZ"
     )
     repeated_scalar.add_argument("--out", required=True, help="Output CSV path.")
-    repeated_scalar.add_argument(
-        "--sli-eligible-only", action="store_true",
-        help="Select subjects using separate group-labeled SLI eligibility bundles.",
-    )
-    repeated_scalar.add_argument(
-        "--sli-eligibility-input", action="append", metavar="GROUP=BUNDLE.NPZ",
-        help="Repeat once per cohort; the bundle must contain video IDs and SLI data.",
-    )
-    repeated_scalar.add_argument(
-        "--sli-eligibility-mode", choices=["stored", "mean", "final"], default="stored",
-        help="Stored scalar policy, mean T2 SB2–5 (>=3 valid buckets), or finite T2 SB5.",
-    )
-    repeated_scalar.add_argument(
-        "--sli-min-valid-sync-buckets", type=int, default=None,
-        help="Minimum valid buckets for stored/mean eligibility; incompatible with final.",
-    )
+    for scalar_parser in (scalar, repeated_scalar):
+        scalar_parser.add_argument(
+            "--sli-eligible-only", action="store_true",
+            help="Select subjects using separate group-labeled SLI eligibility bundles.",
+        )
+        scalar_parser.add_argument(
+            "--sli-eligibility-input", action="append", metavar="GROUP=BUNDLE.NPZ",
+            help="Repeat once per cohort; the bundle must contain video IDs and SLI data.",
+        )
+        scalar_parser.add_argument(
+            "--sli-eligibility-mode", choices=["stored", "mean", "final"], default="stored",
+            help="Stored scalar policy, mean T2 SB2–5 (>=3 valid buckets), or finite T2 SB5.",
+        )
+        scalar_parser.add_argument(
+            "--sli-min-valid-sync-buckets", type=int, default=None,
+            help="Minimum valid buckets for stored/mean eligibility; incompatible with final.",
+        )
 
     rpd = sub.add_parser(
         "rpd-exp-minus-yok-npz",
@@ -231,18 +232,7 @@ def main() -> int:
         print(f"[graphpad_csv] wrote {args.audit}")
         return 0
 
-    if args.command == "scalar-npz":
-        from src.plotting.overlay_training_metric_scalar_bars import load_export_npz
-
-        exports = []
-        for spec in args.input:
-            label, path = parse_labeled_path(spec, separators=("=", ":"))
-            exports.append(load_export_npz(label, path))
-        write_scalar_exports_graphpad_csv(exports, args.out, panel=args.scalar_panel)
-        print(f"[graphpad_csv] wrote {args.out}")
-        return 0
-
-    if args.command == "repeated-measures-scalar-npz":
+    if args.command in ("scalar-npz", "repeated-measures-scalar-npz"):
         from src.plotting.overlay_training_metric_scalar_bars import load_export_npz
 
         eligibility_bundles = None
@@ -262,8 +252,11 @@ def main() -> int:
         for spec in args.input:
             label, path = parse_labeled_path(spec, separators=("=", ":"))
             exports.append(load_export_npz(label, path))
-        write_repeated_measures_scalar_exports_graphpad_csv(
-            exports, args.out, sli_eligibility_bundles=eligibility_bundles,
+        writer = (write_scalar_exports_graphpad_csv if args.command == "scalar-npz"
+                  else write_repeated_measures_scalar_exports_graphpad_csv)
+        panel_options = {"panel": args.scalar_panel} if args.command == "scalar-npz" else {}
+        writer(
+            exports, args.out, **panel_options, sli_eligibility_bundles=eligibility_bundles,
             sli_eligibility_mode=args.sli_eligibility_mode,
             sli_min_valid_buckets=args.sli_min_valid_sync_buckets,
         )

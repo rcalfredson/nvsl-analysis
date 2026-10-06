@@ -105,13 +105,96 @@ def _write_grouped_repeated_measures_csv(
             writer.writerow(row)
 
 
+def _scalar_subject_key(unit_id):
+    text = str(unit_id)
+    match = re.fullmatch(r"(.*)(::f|:fly)(\d+)", text)
+    if match:
+        video = Path(match[1])
+        stem = video.stem if match[2] == "::f" else video.name
+        return f"{stem}:fly{int(match[3])}"
+    match = re.fullmatch(r"(.*)\|(va_tag|fly_id)=(\d+)\|trx_idx=(\d+)", text)
+    if match:
+        # These producers use va.f for subject identity and trx_idx=0 for exp.
+        if int(match[4]) != 0:
+            raise ValueError(
+                f"SLI eligibility matching requires experimental trx_idx=0; got {text!r}"
+            )
+        return f"{Path(match[1]).stem}:fly{int(match[3])}"
+    return text
+
+
+def _scalar_sli_eligibility(groups, bundles, mode, minimum):
+    """Build cohort-local identity sets using the shared SLI selection policy."""
+    if bundles is None and (mode != "stored" or minimum is not None):
+        raise ValueError("SLI eligibility options require eligibility bundles")
+    eligibility = {}
+    if bundles is not None:
+        from src.analysis.sli_tools import sli_eligible_indices_from_bundle
+
+        if {group for group, _bundle in bundles} != set(groups):
+            raise ValueError("SLI eligibility groups must match the scalar export groups exactly")
+        for group, bundle in bundles:
+            if group in eligibility:
+                raise ValueError(f"duplicate SLI eligibility group {group!r}")
+            if "group_label" in bundle:
+                bundle_group = str(np.asarray(bundle["group_label"]).reshape(()).item())
+                if bundle_group != group:
+                    raise ValueError(
+                        f"SLI eligibility group {group!r} has mismatched bundle cohort label {bundle_group!r}"
+                    )
+            ids = np.asarray(bundle["video_ids"], dtype=object).reshape(-1)
+            if ids.size != np.asarray(bundle["sli"]).size:
+                raise ValueError(
+                    f"SLI eligibility group {group!r} has inconsistent ID/SLI counts"
+                )
+            keys = [_scalar_subject_key(unit_id) for unit_id in ids]
+            if len(set(keys)) != len(keys):
+                raise ValueError(
+                    f"SLI eligibility group {group!r} contains duplicate subject IDs after normalization"
+                )
+            indices = sli_eligible_indices_from_bundle(
+                bundle, mode=mode, min_valid_buckets=minimum,
+            )
+            eligibility[group] = (set(keys), {keys[i] for i in indices})
+
+    return eligibility
+
+
+def _scalar_sli_mask(group, ids, values, eligibility):
+    """Reject incomplete/ambiguous matches, then select in scalar source order."""
+    if len(ids) != len(values):
+        raise ValueError(f"{group!r} has different ID and value counts")
+    keys = [_scalar_subject_key(unit_id) for unit_id in ids]
+    if len(set(keys)) != len(keys):
+        raise ValueError(f"{group!r} contains duplicate subject IDs after normalization")
+    known, eligible = eligibility[group]
+    missing = set(keys) - known
+    if missing:
+        raise ValueError(
+            f"{group!r} has subjects missing from its SLI eligibility bundle: {sorted(missing)[:3]}"
+        )
+    return keys, np.asarray([key in eligible for key in keys], dtype=bool)
+
+
 def scalar_exports_to_graphpad_columns(
     exports: Sequence["ExportedTrainingScalarBars"],
     *,
     panel: int | str | None = None,
+    sli_eligibility_bundles: Sequence[tuple[str, Mapping[str, object]]] | None = None,
+    sli_eligibility_mode: str = "stored",
+    sli_min_valid_buckets: int | None = None,
 ) -> tuple[list[str], list[np.ndarray]]:
+    """Keep finite scalar values, optionally matching cohort-local SLI subjects.
+
+    Selection preserves source order, panel windows, and measurement values.
+    """
     if not exports:
         raise ValueError("at least one scalar export is required")
+
+    eligibility = _scalar_sli_eligibility(
+        [str(export.group) for export in exports], sli_eligibility_bundles,
+        sli_eligibility_mode, sli_min_valid_buckets,
+    )
 
     panel_indices_by_export: list[list[int]] = []
     for export in exports:
@@ -145,6 +228,10 @@ def scalar_exports_to_graphpad_columns(
     for export, indices in zip(exports, panel_indices_by_export):
         for idx in indices:
             vals = np.asarray(export.per_unit_values_panel[idx], dtype=float).reshape(-1)
+            if sli_eligibility_bundles is not None:
+                ids = np.asarray(export.per_unit_ids_panel[idx], dtype=object).reshape(-1)
+                _, mask = _scalar_sli_mask(str(export.group), ids, vals, eligibility)
+                vals = vals[mask]
             vals = vals[np.isfinite(vals)]
             if one_panel_each:
                 header = str(export.group)
@@ -160,8 +247,14 @@ def write_scalar_exports_graphpad_csv(
     out_csv: str | Path,
     *,
     panel: int | str | None = None,
+    sli_eligibility_bundles: Sequence[tuple[str, Mapping[str, object]]] | None = None,
+    sli_eligibility_mode: str = "stored",
+    sli_min_valid_buckets: int | None = None,
 ) -> None:
-    headers, columns = scalar_exports_to_graphpad_columns(exports, panel=panel)
+    headers, columns = scalar_exports_to_graphpad_columns(
+        exports, panel=panel, sli_eligibility_bundles=sli_eligibility_bundles,
+        sli_eligibility_mode=sli_eligibility_mode, sli_min_valid_buckets=sli_min_valid_buckets,
+    )
     _write_wide_numeric_csv(out_csv, headers, columns)
 
 
@@ -181,10 +274,6 @@ def write_repeated_measures_scalar_exports_graphpad_csv(
     """
     if not exports:
         raise ValueError("at least one scalar export is required")
-    if sli_eligibility_bundles is None and (
-        sli_eligibility_mode != "stored" or sli_min_valid_buckets is not None
-    ):
-        raise ValueError("SLI eligibility options require eligibility bundles")
 
     by_group: dict[str, list[tuple[str, object]]] = {}
     for export in exports:
@@ -201,38 +290,9 @@ def write_repeated_measures_scalar_exports_graphpad_csv(
             )
         by_group.setdefault(group, []).append((panel, export))
 
-    def subject_key(unit_id):
-        text = str(unit_id)
-        match = re.fullmatch(r"(.*)(::f|:fly)(\d+)", text)
-        if match:
-            video = Path(match[1])
-            stem = video.stem if match[2] == "::f" else video.name
-            return f"{stem}:fly{int(match[3])}"
-        return text
-
-    eligibility = {}
-    if sli_eligibility_bundles is not None:
-        from src.analysis.sli_tools import sli_eligible_indices_from_bundle
-
-        for group, bundle in sli_eligibility_bundles:
-            if group in eligibility:
-                raise ValueError(f"duplicate SLI eligibility group {group!r}")
-            ids = np.asarray(bundle["video_ids"], dtype=object).reshape(-1)
-            if ids.size != np.asarray(bundle["sli"]).size:
-                raise ValueError(
-                    f"SLI eligibility group {group!r} has inconsistent ID/SLI counts"
-                )
-            keys = [subject_key(unit_id) for unit_id in ids]
-            if len(set(keys)) != len(keys):
-                raise ValueError(
-                    f"SLI eligibility group {group!r} contains duplicate subject IDs after normalization"
-                )
-            indices = sli_eligible_indices_from_bundle(
-                bundle, mode=sli_eligibility_mode, min_valid_buckets=sli_min_valid_buckets,
-            )
-            eligibility[group] = (set(keys), {keys[i] for i in indices})
-        if set(eligibility) != set(by_group):
-            raise ValueError("SLI eligibility groups must match the scalar export groups exactly")
+    eligibility = _scalar_sli_eligibility(
+        by_group, sli_eligibility_bundles, sli_eligibility_mode, sli_min_valid_buckets,
+    )
 
     grouped = []
     for group, entries in by_group.items():
@@ -249,20 +309,8 @@ def write_repeated_measures_scalar_exports_graphpad_csv(
             if len(set(id_text)) != len(id_text):
                 raise ValueError(f"{export.group!r} contains duplicate unit IDs")
             if sli_eligibility_bundles is not None:
-                keys = [subject_key(unit_id) for unit_id in id_text]
-                if len(set(keys)) != len(keys):
-                    raise ValueError(
-                        f"{export.group!r} contains duplicate subject IDs after normalization"
-                    )
-                known, eligible = eligibility[group]
-                missing = set(keys) - known
-                if missing:
-                    raise ValueError(
-                        f"{export.group!r} has subjects missing from its SLI eligibility bundle: {sorted(missing)[:3]}"
-                    )
-                selected_ids = [
-                    unit_id for unit_id, key in zip(id_text, keys) if key in eligible
-                ]
+                keys, mask = _scalar_sli_mask(group, id_text, values, eligibility)
+                selected_ids = [unit_id for unit_id, keep in zip(id_text, mask) if keep]
             else:
                 selected_ids = id_text
             mapping = dict(zip(
@@ -271,14 +319,14 @@ def write_repeated_measures_scalar_exports_graphpad_csv(
             panel_maps.append(mapping)
             panel_labels.append(panel)
             for unit_id in selected_ids:
-                key = subject_key(unit_id) if sli_eligibility_bundles is not None else unit_id
+                key = _scalar_subject_key(unit_id) if sli_eligibility_bundles is not None else unit_id
                 if key not in seen:
                     seen.add(key)
                     union_ids.append(unit_id)
         matrix = np.full((len(union_ids), len(panel_maps)), np.nan, dtype=float)
         for panel_idx, mapping in enumerate(panel_maps):
             for row_idx, unit_id in enumerate(union_ids):
-                key = subject_key(unit_id) if sli_eligibility_bundles is not None else unit_id
+                key = _scalar_subject_key(unit_id) if sli_eligibility_bundles is not None else unit_id
                 if key in mapping:
                     matrix[row_idx, panel_idx] = mapping[key]
         grouped.append((group, panel_labels, union_ids, matrix))
