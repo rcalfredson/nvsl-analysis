@@ -18,6 +18,8 @@ tmp/episode_audit/
 tmp/*
 
 /exports/
+# Generated learner-metric reports, audits, and model diagnostics.
+/results/learner_metric_tables/
 logs/*
 build/**
 *.diff
