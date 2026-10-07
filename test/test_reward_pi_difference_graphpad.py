@@ -7,6 +7,33 @@ from scripts.export_reward_pi_difference_graphpad import export_differences
 
 
 class RewardPiDifferenceExportTest(unittest.TestCase):
+    def test_keyed_sb5_ignores_mean_window_eligibility(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'source.csv'
+            source.write_text(
+                'closed_video,exp_fly_id,yoked_fly_id,sli_training,sli_sync_bucket,'
+                'exp_reward_pi_t2_sb5,yoked_reward_pi_t2_sb5,'
+                'sli_t2_sb2_sb5_mean,sli_t2_sb2_sb5_valid_bucket_count\n'
+                'a,0,2,2,5,0.535,0.172,nan,1\n'
+                'a,1,3,2,5,nan,0.2,0.8,3\n'
+                'b,0,2,2,5,-0.2,0.3,0.9,4\n'
+            )
+            out, audit = root / 'out.csv', root / 'audit.csv'
+            self.assertEqual(
+                export_differences([('Ctrl', source)], out, audit, keyed_sli_csv=True),
+                [('Ctrl', 2, 1)],
+            )
+            with out.open() as f:
+                self.assertEqual(list(csv.reader(f)), [['Ctrl'], ['0.363'], ['-0.5']])
+            with audit.open() as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(rows[0]['yoked_fly_id'], '2')
+            self.assertEqual(rows[1]['included'], 'False')
+            source.write_text(source.read_text().replace('a,0,2,2,5', 'a,0,2,1,5'))
+            with self.assertRaisesRegex(ValueError, 'Expected T2 SB5'):
+                export_differences([('Ctrl', source)], out, audit, keyed_sli_csv=True)
+
     def test_paired_subtraction_exclusions_and_unequal_groups(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -99,6 +99,22 @@ def test_copy_allows_4i_data_and_time_but_rejects_duplicate_destinations():
         scope['copy_manuscript_panels'](recipes + [scope['figure_4i_data']], run=False)
 
 
+def test_large_chamber_final_sli_is_separate_from_4i_mean_companion():
+    scope, _, _, _ = _preview_notebook({'data'}, run=False)
+    for name, panel in [('figure_4i_data', '4i'), ('figure_4v_data', '4v'),
+                        ('extended_data_figure_16j', 'ED16j')]:
+        recipe = scope[name]
+        assert '--keyed-sli-csv' in recipe['export_command']
+        assert 't2_sb5_final_sli' in recipe['panels'][panel]['output']
+        assert all('--sli-min-valid-sync-buckets' not in stage['command']
+                   for stage in recipe['analysis_stages'])
+    companion = scope['figure_4i_mean_data']
+    assert 'mean-sli-csv' in companion['export_command']
+    assert '4i_mean' in companion['panels']
+    assert companion in scope['MANUSCRIPT_RECIPES']
+    assert companion['panels']['4i_mean']['output'] != scope['figure_4i_data']['panels']['4i']['output']
+
+
 def test_checkboxes_combine_types_and_persist_on_cell_rerun():
     pytest.importorskip("ipywidgets")
     source = next(s for s in _notebook_code() if "REFRESH_TYPES =" in s)
