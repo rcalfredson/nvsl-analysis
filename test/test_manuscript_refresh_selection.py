@@ -115,6 +115,32 @@ def test_large_chamber_final_sli_is_separate_from_4i_mean_companion():
     assert companion['panels']['4i_mean']['output'] != scope['figure_4i_data']['panels']['4i']['output']
 
 
+def test_copy_transfers_full_data_artifacts_and_preflights_missing_files(tmp_path):
+    scope, _, _, _ = _preview_notebook({'data'}, run=False)
+    source = next(s for s in _notebook_code() if 'def copy_manuscript_panels(' in s)
+    tree = ast.parse(source)
+    tree.body = [node for node in tree.body if isinstance(node, ast.FunctionDef)]
+    exec(compile(tree, '<copy-function>', 'exec'), scope)
+    scope['ROOT'] = tmp_path
+    recipe = scope['extended_data_figure_16j']
+    target = tmp_path / 'network'
+    target.mkdir()
+    for artifact in recipe['artifacts']:
+        path = tmp_path / artifact
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(artifact)
+    stats = recipe['analysis_stages'][0]['learning_stats_output']
+    (tmp_path / stats).unlink()
+    with pytest.raises(FileNotFoundError):
+        scope['copy_manuscript_panels']([recipe], target, run=True)
+    assert not list(target.iterdir())
+    (tmp_path / stats).write_text(stats)
+    scope['copy_manuscript_panels']([recipe], target, run=True)
+    assert (target / 'edfig16/16j.csv').is_file()
+    assert (target / 'edfig16/16j_data' / Path(stats).name).read_text() == stats
+    assert len(list((target / 'edfig16/16j_data').iterdir())) == len(recipe['artifacts']) - 1
+
+
 def test_checkboxes_combine_types_and_persist_on_cell_rerun():
     pytest.importorskip("ipywidgets")
     source = next(s for s in _notebook_code() if "REFRESH_TYPES =" in s)
