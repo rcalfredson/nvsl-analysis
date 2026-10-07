@@ -926,7 +926,7 @@ def _add_smart_stats_box(
             bbox=BBOX_STYLE,
         )
         keep_text_box_inside_axes(
-            ax, text_artist, min_fontsize=STATS_BOX_MIN_FONTSIZE
+            ax, text_artist, min_fontsize=(None if match_tick_size else STATS_BOX_MIN_FONTSIZE)
         )
         return text_artist
 
@@ -1098,7 +1098,7 @@ def _add_smart_stats_box(
                 bbox=BBOX_STYLE,
             )
             keep_text_box_inside_axes(
-                ax, text_artist, min_fontsize=STATS_BOX_MIN_FONTSIZE
+                ax, text_artist, min_fontsize=(None if match_tick_size else STATS_BOX_MIN_FONTSIZE)
             )
             stats_bbox = text_artist.get_bbox_patch().get_window_extent(
                 renderer=renderer
@@ -1261,7 +1261,7 @@ def _add_smart_stats_box(
             bbox=BBOX_STYLE,
         )
         keep_text_box_inside_axes(
-            ax, text_artist, min_fontsize=STATS_BOX_MIN_FONTSIZE
+            ax, text_artist, min_fontsize=(None if match_tick_size else STATS_BOX_MIN_FONTSIZE)
         )
         stats_bbox = text_artist.get_bbox_patch().get_window_extent(renderer=renderer)
         intersects_legend = legend_bbox is not None and not (
@@ -1316,7 +1316,7 @@ def _add_smart_stats_box(
         bbox=BBOX_STYLE,
     )
     keep_text_box_inside_axes(
-        ax, text_artist, min_fontsize=STATS_BOX_MIN_FONTSIZE
+        ax, text_artist, min_fontsize=(None if match_tick_size else STATS_BOX_MIN_FONTSIZE)
     )
     stats_bbox = text_artist.get_bbox_patch().get_window_extent(renderer=renderer)
     intersects_legend = legend_bbox is not None and not (
