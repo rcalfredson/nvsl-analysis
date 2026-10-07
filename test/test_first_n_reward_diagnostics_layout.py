@@ -107,27 +107,31 @@ def test_first_n_plot_constrains_stats_box_after_final_axis_sizing(
     ]
 
     calls = []
-    original = diagnostics.keep_text_box_inside_axes
+    original = diagnostics._add_smart_stats_box
 
-    def recorded_constraint(ax, text, **kwargs):
-        original_fontsize = text.get_fontsize()
-        result = original(ax, text, **kwargs)
+    def recorded_constraint(ax, label, x, y, **kwargs):
+        assert _axis_size_inches(ax) == pytest.approx(cfg.axis_size_inches)
+        original_fontsize = kwargs["fontsize"]
+        text = original(ax, label, x, y, **kwargs)
         if font_size == 23.0:
             assert text.get_fontsize() < original_fontsize
         else:
             assert text.get_fontsize() == original_fontsize
         renderer = ax.figure.canvas.get_renderer()
+        patch = text.get_bbox_patch().get_window_extent(renderer)
+        points = ax.transData.transform(np.column_stack([x, y]))
+        assert not any(patch.contains(*point) for point in points)
         calls.append(
             (
-                result,
+                text,
                 ax.get_window_extent(renderer=renderer).frozen(),
                 text.get_bbox_patch().get_window_extent(renderer=renderer).frozen(),
             )
         )
-        return result
+        return text
 
     monkeypatch.setattr(
-        diagnostics, "keep_text_box_inside_axes", recorded_constraint
+        diagnostics, "_add_smart_stats_box", recorded_constraint
     )
     plotter._write_plot(rows)
 

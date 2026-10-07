@@ -1,6 +1,19 @@
 from __future__ import annotations
 
+from types import MethodType
+
 import numpy as np
+
+
+def _draw_axes_contained_text(text, renderer):
+    # PDF/SVG and raster output have different glyph metrics. Recheck the
+    # padded patch before painting, using the renderer that will export it.
+    keep_text_box_inside_axes(
+        text.axes, text,
+        **text._axes_constraint_options,
+        _renderer=renderer,
+    )
+    text._axes_constraint_original_draw(renderer)
 
 
 ANNOTATION_STACK_GAP_POINTS = 4.0
@@ -114,6 +127,7 @@ def keep_text_box_inside_axes(
     left_pad_px: float | None = None,
     right_pad_px: float | None = None,
     min_fontsize: float | None = None,
+    _renderer=None,
 ) -> bool:
     """Nudge a rendered text patch inside the visible inner axes boundary.
 
@@ -123,11 +137,19 @@ def keep_text_box_inside_axes(
     transform and wording are left unchanged. When ``min_fontsize`` is set,
     shrink the font only if the rendered box exceeds the available width,
     stopping at that minimum. Otherwise the font is unchanged. ``False`` is
-    returned when the rendered box is physically too large to fit.
+    returned when the rendered box is physically too large to fit. Successful
+    constraints are rechecked before drawing with the output renderer.
     """
     fig = ax.figure
-    fig.canvas.draw()
-    renderer = fig.canvas.get_renderer()
+
+    def measure_renderer():
+        if _renderer is None:
+            fig.canvas.draw()
+            return fig.canvas.get_renderer()
+        text.update_bbox_position_size(_renderer)
+        return _renderer
+
+    renderer = measure_renderer()
     axes_bbox = ax.get_window_extent(renderer=renderer)
     patch = text.get_bbox_patch()
     text_bbox = (
@@ -163,8 +185,7 @@ def keep_text_box_inside_axes(
             size = float(text.get_fontsize())
             scaled_size = size * max(0.0, available_width) / text_bbox.width * 0.98
             text.set_fontsize(max(minimum, min(size - 0.25, scaled_size)))
-            fig.canvas.draw()
-            renderer = fig.canvas.get_renderer()
+            renderer = measure_renderer()
             text_bbox = (
                 patch.get_window_extent(renderer=renderer)
                 if patch is not None
@@ -185,8 +206,16 @@ def keep_text_box_inside_axes(
                 position_display + np.array([dx_px, dy_px], dtype=float)
             )
         )
-        fig.canvas.draw()
+        measure_renderer()
     text._keep_inside_axes_after_layout = True
+    if _renderer is None:
+        text._axes_constraint_options = dict(
+            pad_px=pad_px, left_pad_px=left_pad_px,
+            right_pad_px=right_pad_px, min_fontsize=min_fontsize,
+        )
+        if not hasattr(text, "_axes_constraint_original_draw"):
+            text._axes_constraint_original_draw = text.draw
+            text.draw = MethodType(_draw_axes_contained_text, text)
     return True
 
 

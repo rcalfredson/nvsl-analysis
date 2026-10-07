@@ -930,7 +930,9 @@ def _add_smart_stats_box(
             zorder=5,
             bbox=BBOX_STYLE,
         )
-        keep_text_box_inside_axes(ax, text_artist)
+        keep_text_box_inside_axes(
+            ax, text_artist, min_fontsize=STATS_BOX_MIN_FONTSIZE
+        )
         return text_artist
 
     probe = ax.text(
@@ -1089,7 +1091,9 @@ def _add_smart_stats_box(
                 zorder=5,
                 bbox=BBOX_STYLE,
             )
-            keep_text_box_inside_axes(ax, text_artist)
+            keep_text_box_inside_axes(
+                ax, text_artist, min_fontsize=STATS_BOX_MIN_FONTSIZE
+            )
             stats_bbox = text_artist.get_bbox_patch().get_window_extent(
                 renderer=renderer
             )
@@ -1244,7 +1248,9 @@ def _add_smart_stats_box(
             zorder=5,
             bbox=BBOX_STYLE,
         )
-        keep_text_box_inside_axes(ax, text_artist)
+        keep_text_box_inside_axes(
+            ax, text_artist, min_fontsize=STATS_BOX_MIN_FONTSIZE
+        )
         stats_bbox = text_artist.get_bbox_patch().get_window_extent(renderer=renderer)
         intersects_legend = legend_bbox is not None and not (
             stats_bbox.x1 < legend_bbox.x0
@@ -1297,7 +1303,9 @@ def _add_smart_stats_box(
         zorder=5,
         bbox=BBOX_STYLE,
     )
-    keep_text_box_inside_axes(ax, text_artist)
+    keep_text_box_inside_axes(
+        ax, text_artist, min_fontsize=STATS_BOX_MIN_FONTSIZE
+    )
     stats_bbox = text_artist.get_bbox_patch().get_window_extent(renderer=renderer)
     intersects_legend = legend_bbox is not None and not (
         stats_bbox.x1 < legend_bbox.x0

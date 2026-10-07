@@ -12,7 +12,7 @@ from src.analysis.sli_tools import default_single_bucket_idx
 from src.plotting.palettes import correlation_plot_color_for_metrics
 from src.plotting.p_value_format import format_plot_p_value
 from src.plotting.axis_size import DEFAULT_PLOT_AXIS_SIZE_INCHES, set_axis_size_inches
-from src.plotting.annotation_layout import keep_text_box_inside_axes
+from src.plotting.cross_fly_correlations import _add_smart_stats_box
 from src.plotting.plot_customizer import PlotCustomizer
 from src.plotting.between_reward_segment_binning import video_base
 from src.plotting.reward_window_utils import (
@@ -26,9 +26,6 @@ from src.plotting.reward_window_utils import (
 import src.utils.util as util
 
 
-BBOX_STYLE = dict(
-    facecolor="white", alpha=0.80, edgecolor="none", boxstyle="round,pad=0.25"
-)
 STATS_BOX_MIN_FONTSIZE = 12.0
 TREND_LINE_P_THRESHOLD = 0.05
 
@@ -1084,7 +1081,7 @@ class FirstNRewardDiagnosticsPlotter:
         util.ensureDir(path)
 
         fig, ax = plt.subplots(1, 1, figsize=(7.2, 5.4))
-        stats_text = None
+        stats_label = None
         if not eligible_rows:
             ax.text(0.5, 0.5, "no eligible flies", ha="center", va="center")
             ax.set_axis_off()
@@ -1133,16 +1130,7 @@ class FirstNRewardDiagnosticsPlotter:
                 self._label_outliers(ax, plot_rows, x, y)
                 ax.set_xlabel(str(self.cfg.xlabel or self._metric_label(x_key)))
                 ax.set_ylabel(str(self.cfg.ylabel or self._metric_label(y_key)))
-                stats_text = ax.text(
-                    0.02,
-                    0.98,
-                    self._correlation_text(corr_stats, len(x)),
-                    transform=ax.transAxes,
-                    ha="left",
-                    va="top",
-                    fontsize=self._stats_box_fontsize(ax),
-                    bbox=BBOX_STYLE,
-                )
+                stats_label = self._correlation_text(corr_stats, len(x))
 
         title = self._title_for_metrics(
             self._resolve_metric_name(
@@ -1164,9 +1152,9 @@ class FirstNRewardDiagnosticsPlotter:
         if self._wrap_clipped_axis_labels(fig):
             fig.tight_layout()
             set_axis_size_inches(ax, self.cfg.axis_size_inches)
-        if stats_text is not None:
-            keep_text_box_inside_axes(
-                ax, stats_text, min_fontsize=STATS_BOX_MIN_FONTSIZE
+        if stats_label is not None:
+            _add_smart_stats_box(
+                ax, stats_label, x, y, fontsize=self._stats_box_fontsize(ax)
             )
         # Keep the fixed physical data-axis size while allowing the surrounding
         # canvas to include every title and axis label after final wrapping.

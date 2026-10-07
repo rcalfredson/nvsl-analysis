@@ -258,6 +258,47 @@ def test_smart_stats_box_clears_inner_half_of_top_spine():
     plt.close(fig)
 
 
+@pytest.mark.parametrize("output_format", ["pdf", "svg", "png"])
+def test_stats_patch_stays_inside_spines_with_export_renderer(tmp_path, output_format):
+    from src.plotting.annotation_layout import keep_text_box_inside_axes
+
+    fig, ax = plt.subplots(figsize=(5, 3))
+    ax.spines["right"].set_linewidth(4)
+    stats = ax.text(
+        0.98, 0.98,
+        r"n = 102, r = 0.432, p = $5.76\times10^{-6}$",
+        transform=ax.transAxes, ha="right", va="top", fontsize=20.7,
+        bbox=correlations.BBOX_STYLE,
+    )
+    try:
+        assert keep_text_box_inside_axes(ax, stats, min_fontsize=12)
+        # Model a layout change between the initial check and export. The
+        # PDF renderer also changes DPI and mathtext/font metrics.
+        ax.set_position([0.15, 0.15, 0.7, 0.7])
+        calls = []
+        original_draw = stats._axes_constraint_original_draw
+
+        def checked_draw(renderer):
+            axes = ax.get_window_extent(renderer)
+            patch = stats.get_bbox_patch().get_window_extent(renderer)
+            for side, clearance in (
+                ("left", patch.x0 - axes.x0),
+                ("right", axes.x1 - patch.x1),
+                ("bottom", patch.y0 - axes.y0),
+                ("top", axes.y1 - patch.y1),
+            ):
+                half_spine = ax.spines[side].get_linewidth() * fig.dpi / 144
+                assert clearance >= half_spine + 0.99
+            calls.append(type(renderer).__name__)
+            original_draw(renderer)
+
+        stats._axes_constraint_original_draw = checked_draw
+        fig.savefig(tmp_path / f"stats.{output_format}", dpi=200, bbox_inches="tight")
+        assert calls
+    finally:
+        plt.close(fig)
+
+
 def test_oversized_smart_stats_box_uses_fitting_fallback():
     fig, ax = plt.subplots(figsize=(4, 3))
     x = np.array([0.45, 0.55])
