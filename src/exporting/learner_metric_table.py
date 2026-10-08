@@ -5,8 +5,10 @@ import csv
 import json
 import math
 import os
+import subprocess
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -20,6 +22,13 @@ from src.analysis.episode_filters import (
     min_episode_count_for_type,
 )
 from src.analysis.sli_tools import select_fractional_groups
+from src.analysis.learner_metric_stats import (
+    analyze_repeated_metrics,
+    adjust_report_families,
+    COHORT_AUDIT_FIELDS,
+    MODEL_INPUT_FIELDS,
+    MODEL_FORMULA,
+)
 from src.analysis.sync_bucket_presence_filters import (
     exp_target_sync_bucket_filter_result,
 )
@@ -312,10 +321,39 @@ def _record_metric(
     )
 
 
-def _selected_vas_and_sli(vas, opts):
+def _cohort_options(opts):
+    """Resolve report selection without modifying global plotting options."""
+    local = copy.copy(opts)
+    mode = getattr(opts, "learner_metric_table_sli_mode", "mean")
+    if mode not in ("mean", "final"):
+        raise ValueError(f"unknown learner metric SLI mode: {mode}")
+    local.sli_use_training_mean = mode == "mean"
+    if mode == "final":
+        local.best_worst_trn = 2
+        local.sli_select_bucket = "5"
+        local.sli_select_skip_first_sync_buckets = 0
+        local.sli_select_keep_first_sync_buckets = 0
+    else:
+        local.best_worst_trn = int(getattr(opts, "best_worst_trn", 2))
+        local.sli_select_bucket = None
+        for name, default in (
+            ("sli_select_skip_first_sync_buckets", 1),
+            ("sli_select_keep_first_sync_buckets", 4),
+        ):
+            raw = getattr(opts, name, None)
+            setattr(local, name, default if raw is None else max(0, int(raw)))
+    return local
+
+
+def _select_cohorts(vas, opts):
     vas_ok = [va for va in vas if not getattr(va, "_skipped", False)]
-    sli, _sli_ts = _compute_sli_scalar_and_timeseries_from_rpid(vas_ok, opts)
+    unit_ids = [_canonical_unit_id(va) for va in vas_ok]
+    if len(set(unit_ids)) != len(unit_ids):
+        raise ValueError("learner report requires unique fly unit IDs")
+    cohort_opts = _cohort_options(opts)
+    sli, sli_ts = _compute_sli_scalar_and_timeseries_from_rpid(vas_ok, cohort_opts)
     sli = np.asarray(sli, dtype=float)
+    sli[~np.isfinite(sli)] = np.nan
     top_fraction = float(getattr(opts, "top_sli_fraction", 0.2))
     bottom_fraction = float(getattr(opts, "bottom_sli_fraction", 0.5))
     bottom, top = select_fractional_groups(
@@ -334,7 +372,45 @@ def _selected_vas_and_sli(vas, opts):
     selected = [(idx, vas_ok[idx], "strong") for idx in top] + [
         (idx, vas_ok[idx], "weak") for idx in bottom
     ]
-    return vas_ok, sli, selected
+    ranks = pd.Series(sli).sort_values(kind="mergesort").dropna().index
+    rank_by_idx = {idx: rank for rank, idx in enumerate(ranks, 1)}
+    cohort_by_idx = {idx: cohort for idx, _va, cohort in selected}
+    sli_ts = np.asarray(sli_ts, dtype=float)
+    final = np.full(len(vas_ok), np.nan)
+    mean = np.full(len(vas_ok), np.nan)
+    counts = np.zeros(len(vas_ok), dtype=int)
+    if sli_ts.ndim == 3 and sli_ts.shape[1] >= 2:
+        if sli_ts.shape[2] >= 5:
+            final = sli_ts[:, 1, 4]
+        minimum = min(4, max(0, sli_ts.shape[2] - 1),
+                      int(getattr(opts, "sli_min_valid_sync_buckets", 3)))
+        for idx, values in enumerate(sli_ts[:, 1, 1:5]):
+            valid = values[np.isfinite(values)]
+            counts[idx] = len(valid)
+            if len(valid) and len(valid) >= minimum:
+                mean[idx] = float(np.mean(valid))
+    audit = [
+        {
+            "unit_id": uid,
+            "sli_t2_sb5": float(final[idx]),
+            "sli_t2_sb2_sb5_mean": float(mean[idx]),
+            "sli_t2_sb2_sb5_valid_bucket_count": int(counts[idx]),
+            "selection_score": float(sli[idx]),
+            "rank_ascending": rank_by_idx.get(idx, ""),
+            "cohort": cohort_by_idx.get(idx, ""),
+            "exclusion_reason": (
+                "sli_unavailable" if not np.isfinite(sli[idx])
+                else "middle_rank" if idx not in cohort_by_idx else ""
+            ),
+        }
+        for idx, uid in enumerate(unit_ids)
+    ]
+    return vas_ok, sli, selected, audit
+
+
+def _selected_vas_and_sli(vas, opts):
+    # Preserve the collector-facing helper contract.
+    return _select_cohorts(vas, opts)[:3]
 
 
 def _metric_window(opts) -> tuple[int, int, int, list[int]]:
@@ -639,7 +715,8 @@ def build_prism_wide_rows(observations, circle_pairs=DEFAULT_CIRCLE_PAIRS_MM):
 
 
 def collect_learner_metric_observations(vas, opts, gls) -> tuple[list, dict]:
-    vas_ok, sli, selected = _selected_vas_and_sli(vas, opts)
+    vas_ok, sli, selected, cohort_audit = _select_cohorts(vas, opts)
+    cohort_opts = _cohort_options(opts)
     if not selected:
         raise ValueError("learner metric table selected no strong or weak learners")
 
@@ -667,22 +744,30 @@ def collect_learner_metric_observations(vas, opts, gls) -> tuple[list, dict]:
     _collect_return_leg(selected, sli_by_id, report_opts, observations)
 
     metadata = {
+        "schema_version": 2,
         "generated_utc": datetime.now(timezone.utc).isoformat(),
+        "input_unit_ids": [_canonical_unit_id(va) for va in vas],
+        "group_labels": list(gls) if gls is not None else [],
+        "skipped_input_n": len(vas) - len(vas_ok),
+        "cohort_audit": cohort_audit,
         "rankable_n": int(np.count_nonzero(np.isfinite(sli))),
         "strong_selected_n": sum(1 for _idx, _va, c in selected if c == "strong"),
         "weak_selected_n": sum(1 for _idx, _va, c in selected if c == "weak"),
         "cohort_definition": {
-            "training": int(getattr(opts, "best_worst_trn", 2)),
-            "use_training_mean": bool(getattr(opts, "sli_use_training_mean", False)),
+            "mode": getattr(opts, "learner_metric_table_sli_mode", "mean"),
+            "training": int(cohort_opts.best_worst_trn),
+            "sync_bucket_1_based": 5 if not cohort_opts.sli_use_training_mean else None,
+            "use_training_mean": cohort_opts.sli_use_training_mean,
             "skip_first_sync_buckets": int(
-                getattr(opts, "sli_select_skip_first_sync_buckets", 0) or 0
+                cohort_opts.sli_select_skip_first_sync_buckets
             ),
             "keep_first_sync_buckets": int(
-                getattr(opts, "sli_select_keep_first_sync_buckets", 0) or 0
+                cohort_opts.sli_select_keep_first_sync_buckets
             ),
             "min_valid_sync_buckets": int(
                 getattr(opts, "sli_min_valid_sync_buckets", 3)
-            ),
+            ) if cohort_opts.sli_use_training_mean else None,
+            "ties": "stable input order; floor fractional counts with minimum one",
             "top_fraction": float(getattr(opts, "top_sli_fraction", 0.2)),
             "bottom_fraction": float(getattr(opts, "bottom_sli_fraction", 0.5)),
         },
@@ -768,6 +853,100 @@ def _fmt(value) -> str:
     return f"{value:.6g}"
 
 
+def _json_safe(value):
+    """Keep JSON portable: unavailable numeric diagnostics are null, not NaN."""
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, (float, np.floating)):
+        return float(value) if np.isfinite(value) else None
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, np.bool_):
+        return bool(value)
+    return value
+
+
+def _code_provenance():
+    try:
+        root = Path(__file__).resolve().parents[2]
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=root,
+            capture_output=True, text=True, timeout=2, check=False,
+        )
+        status = subprocess.run(
+            ["git", "status", "--porcelain"], cwd=root,
+            capture_output=True, text=True, timeout=2, check=False,
+        )
+        return {
+            "code_revision": result.stdout.strip() if result.returncode == 0 else None,
+            "working_tree_dirty": bool(status.stdout.strip()) if status.returncode == 0 else None,
+        }
+    except (OSError, subprocess.TimeoutExpired):
+        return {"code_revision": None, "working_tree_dirty": None}
+
+
+def _methods_text(metadata, mixed):
+    definition = metadata.get("cohort_definition", {})
+    mode = definition.get("mode", "mean")
+    if mode == "final":
+        selection = (
+            "Cohorts ranked by experimental minus yoked reward PI at T2 SB5; "
+            "both component PIs must be finite, with no mean-window bucket minimum."
+        )
+    else:
+        skip = definition.get("skip_first_sync_buckets", 1)
+        keep = definition.get("keep_first_sync_buckets", 4)
+        window = f"SB{skip + 1}–SB{skip + keep}" if keep else f"SB{skip + 1} onward"
+        selection = (
+            f"Cohorts ranked by mean paired bucket-level SLI at T{definition.get('training', 2)} "
+            f"{window}, requiring at least {definition.get('min_valid_sync_buckets', 3)} "
+            "valid buckets (all selected buckets if the window is shorter)."
+        )
+    selection += (
+        f" Strong learners: top {100 * definition.get('top_fraction', 0.2):g}%; "
+        f"weak learners: bottom {100 * definition.get('bottom_fraction', 0.5):g}%. "
+        "Cohorts are fixed before metric exclusions. Fractional counts are floored "
+        "with a minimum of one; ties follow input order."
+    )
+    window = metadata.get("metric_window", {})
+    eligibility = metadata.get("eligibility", {})
+    pooling = (
+        f"Metrics pool episodes at T{window.get('training', 2)}, sync buckets "
+        f"{window.get('sync_buckets_1_based', [2, 3, 4, 5])}. "
+        f"Minimum episodes: {eligibility.get('min_turnback_episodes', 5)} for turnback/alignment, "
+        f"{eligibility.get('min_between_reward_trajectories', 5)} for between-reward metrics. "
+        f"Final selected experimental bucket presence required: "
+        f"{eligibility.get('require_final_selected_sync_bucket', True)}. "
+        "Observed values are fly-level means with two-sided t-based 95% CIs; "
+        "sample sizes vary by metric and radius."
+    )
+    inference = (
+        "Turnback and alignment use separate REML Gaussian mixed models with cohort, "
+        "categorical radius pair, their interaction, and a fly random intercept. "
+        "Only eligible finite rows enter each model; other available radii from partially "
+        "observed flies are retained without imputation or episode-count weighting. "
+        "Primary cohort contrasts average equally across radii; radius contrasts and "
+        "cohort-by-radius interaction tests use asymptotic Wald inference. Modeled "
+        "contrasts may differ from observed strong-minus-weak differences. Missing-data "
+        "inference assumes an ignorable missingness mechanism; episode exclusions can "
+        "still bias results. Standalone metrics use independent-group Welch tests. "
+        "Holm correction is applied separately to the radius contrasts within each "
+        "metric (three per metric by default). Standalone Welch tests are assessed "
+        "individually without multiple-comparison adjustment. "
+        "Each metric's across-radius cohort and interaction tests are singleton "
+        "families, with unchanged p-values; turnback and alignment never share "
+        "a correction family. "
+        "Incomplete families have unavailable adjusted p-values. All CIs are pointwise "
+        "95% intervals, not simultaneous or small-sample-corrected intervals."
+    ) if mixed else (
+        "Repeated-radius metrics are descriptive only. Standalone metrics use "
+        "independent-group Welch tests with unadjusted p-values."
+    )
+    return "\n\n".join((selection, pooling, inference))
+
+
 def export_learner_metric_table(vas, opts, gls, out_path: str) -> dict[str, str]:
     observations, metadata = collect_learner_metric_observations(vas, opts, gls)
     circle_pairs = tuple(
@@ -775,6 +954,48 @@ def export_learner_metric_table(vas, opts, gls, out_path: str) -> dict[str, str]
         for row in metadata["circle_pairs_mm"]
     )
     summary = summarize_observations(observations, circle_pairs=circle_pairs)
+    stats_mode = getattr(opts, "learner_metric_table_stats", "legacy")
+    if stats_mode not in ("legacy", "mixed"):
+        raise ValueError(f"unknown learner metric statistics mode: {stats_mode}")
+    mixed = stats_mode == "mixed"
+    if mixed:
+        model_input, model_tests, contrasts, diagnostics = analyze_repeated_metrics(
+            observations, circle_pairs
+        )
+        for row in summary:
+            row.update(
+                model_difference_strong_minus_weak=math.nan,
+                model_difference_ci_lo=math.nan, model_difference_ci_hi=math.nan,
+                model_standard_error=math.nan, test_status="ok" if np.isfinite(row["p_value"]) else "unavailable",
+                test_reason="" if np.isfinite(row["p_value"]) else "insufficient data for Welch test",
+            )
+            if row["metric"] in REPEATED_METRICS:
+                contrast = contrasts[(row["metric"], row["inner_radius_mm"], row["outer_radius_mm"])]
+                row.update(
+                    model_difference_strong_minus_weak=contrast["estimate"],
+                    model_difference_ci_lo=contrast["ci_lo"],
+                    model_difference_ci_hi=contrast["ci_hi"],
+                    model_standard_error=contrast["standard_error"],
+                    test=contrast["test"], statistic=contrast["statistic"],
+                    p_value=contrast["p_value"], test_status=contrast["status"],
+                    test_reason=contrast["reason"],
+                )
+        families = adjust_report_families(summary, model_tests)
+        import statsmodels
+
+        metadata["statistics"].update(
+            mode="mixed", model_formula=MODEL_FORMULA, fit_method="REML",
+            statsmodels_version=statsmodels.__version__,
+            repeated_radius_metrics="Gaussian mixed models; asymptotic Wald inference",
+            multiple_comparisons="Holm within each repeated metric's radius contrasts; unadjusted standalone Welch tests and model cohort/interaction tests",
+            comparison_families=families,
+            ci_type="pointwise 95%; asymptotic Wald for models, t-based for observed means/Welch",
+            primary_cohort_contrast="equal-weight average of strong minus weak across radius pairs",
+        )
+    else:
+        metadata["statistics"]["mode"] = "legacy"
+    metadata["methods_text"] = _methods_text(metadata, mixed)
+    metadata.update(_code_provenance())
     prefix = _output_prefix(out_path)
     paths = {
         "summary_csv": f"{prefix}_summary.csv",
@@ -782,7 +1003,14 @@ def export_learner_metric_table(vas, opts, gls, out_path: str) -> dict[str, str]
         "prism_wide_csv": f"{prefix}_prism_wide.csv",
         "metadata_json": f"{prefix}_metadata.json",
         "summary_md": f"{prefix}_summary.md",
+        "cohort_audit_csv": f"{prefix}_cohort_audit.csv",
     }
+    if mixed:
+        paths.update(
+            model_input_csv=f"{prefix}_model_input.csv",
+            model_tests_csv=f"{prefix}_model_tests.csv",
+            model_diagnostics_json=f"{prefix}_model_diagnostics.json",
+        )
     os.makedirs(os.path.dirname(prefix) or ".", exist_ok=True)
 
     def write_rows(path, rows, fieldnames=None):
@@ -793,6 +1021,13 @@ def export_learner_metric_table(vas, opts, gls, out_path: str) -> dict[str, str]
             writer.writerows(rows)
 
     write_rows(paths["summary_csv"], summary)
+    write_rows(paths["cohort_audit_csv"], metadata.pop("cohort_audit", []), COHORT_AUDIT_FIELDS)
+    if mixed:
+        write_rows(paths["model_input_csv"], model_input, MODEL_INPUT_FIELDS)
+        write_rows(paths["model_tests_csv"], model_tests)
+        with open(paths["model_diagnostics_json"], "w", encoding="utf-8") as fh:
+            json.dump(_json_safe(diagnostics), fh, indent=2, sort_keys=True, allow_nan=False)
+            fh.write("\n")
     write_rows(paths["per_fly_csv"], [asdict(row) for row in observations])
     wide_rows = build_prism_wide_rows(observations, circle_pairs)
     wide_fields = ["unit_id", "cohort", "sli"]
@@ -805,16 +1040,28 @@ def export_learner_metric_table(vas, opts, gls, out_path: str) -> dict[str, str]
 
     metadata["outputs"] = paths
     with open(paths["metadata_json"], "w", encoding="utf-8") as fh:
-        json.dump(metadata, fh, indent=2, sort_keys=True)
+        json.dump(_json_safe(metadata), fh, indent=2, sort_keys=True, allow_nan=False)
         fh.write("\n")
 
     with open(paths["summary_md"], "w", encoding="utf-8") as fh:
-        fh.write("| Metric | Strong learners | Weak learners | Strong vs. weak |\n")
-        fh.write("|---|---:|---:|---:|\n")
+        fh.write(metadata["methods_text"] + "\n\n")
+        fh.write("| Metric | Strong learners | Weak learners | Observed strong − weak |")
+        fh.write(" Model strong − weak [95% CI] | Raw p | Holm p | Status |\n" if mixed else "\n")
+        fh.write("|---|---:|---:|---:|" + ("---:|---:|---:|---|\n" if mixed else "\n"))
         for row in summary:
             strong = f"{_fmt(row['strong_mean'])} [{_fmt(row['strong_ci_lo'])}, {_fmt(row['strong_ci_hi'])}], n={row['strong_n']}"
             weak = f"{_fmt(row['weak_mean'])} [{_fmt(row['weak_ci_lo'])}, {_fmt(row['weak_ci_hi'])}], n={row['weak_n']}"
-            if row["metric"] in REPEATED_METRICS:
+            if mixed:
+                difference = _fmt(row["difference_strong_minus_weak"])
+                model_difference = (
+                    f"{_fmt(row['model_difference_strong_minus_weak'])} "
+                    f"[{_fmt(row['model_difference_ci_lo'])}, {_fmt(row['model_difference_ci_hi'])}]"
+                    if row["metric"] in REPEATED_METRICS else
+                    f"Welch CI [{_fmt(row['difference_ci_lo'])}, {_fmt(row['difference_ci_hi'])}]"
+                )
+                status = row["test_status"] + (": " + row["test_reason"] if row["test_reason"] else "")
+                difference += f" | {model_difference} | {_fmt(row['p_value'])} | {_fmt(row['p_value_holm'])} | {status}"
+            elif row["metric"] in REPEATED_METRICS:
                 difference = (
                     f"{_fmt(row['difference_strong_minus_weak'])} "
                     "(descriptive); no test performed"
@@ -826,6 +1073,23 @@ def export_learner_metric_table(vas, opts, gls, out_path: str) -> dict[str, str]
                     f"Welch p={_fmt(row['p_value'])}"
                 )
             fh.write(f"| {row['metric_label']} | {strong} | {weak} | {difference} |\n")
+        if mixed:
+            fh.write("\nPrimary cohort and interaction tests:\n\n")
+            fh.write("| Metric | Comparison | Estimate [95% CI] | Statistic | df | Raw p | Holm p | Status |\n")
+            fh.write("|---|---|---:|---:|---:|---:|---:|---|\n")
+            for row in model_tests:
+                estimate = (
+                    f"{_fmt(row['estimate'])} [{_fmt(row['ci_lo'])}, {_fmt(row['ci_hi'])}]"
+                    if row["comparison"] == "cohort_average" else "NA"
+                )
+                fh.write(
+                    f"| {METRIC_LABELS[row['metric']]} | {row['comparison']} | {estimate} | "
+                    f"{_fmt(row['statistic'])} | {row['df']} | {_fmt(row['p_value'])} | "
+                    f"{_fmt(row['p_value_holm'])} | {row['status']} {row['reason']} |\n"
+                )
+            incomplete = [name for name, info in families.items() if not info["complete"]]
+            if incomplete:
+                fh.write("\nIncomplete Holm families (adjusted p-values unavailable): " + ", ".join(incomplete) + ".\n")
 
     print("[learner-metric-table] wrote " + ", ".join(paths.values()))
     return paths

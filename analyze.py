@@ -6448,6 +6448,24 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--learner-metric-table-sli-mode",
+    choices=("mean", "final"),
+    default="mean",
+    help=(
+        "Rank report cohorts by mean-window SLI (default: T2 SB2-5, >=3 valid "
+        "buckets) or final T2 SB5 SLI. Metric pooling is configured separately."
+    ),
+)
+g.add_argument(
+    "--learner-metric-table-stats",
+    choices=("legacy", "mixed"),
+    default="legacy",
+    help=(
+        "Use descriptive repeated-radius/raw Welch statistics (legacy, default), "
+        "or fly random-intercept mixed models with Holm-adjusted comparisons."
+    ),
+)
+g.add_argument(
     "--learner-metric-table-training",
     type=int,
     default=2,
@@ -8153,11 +8171,8 @@ def _normalize_learner_metric_table_options(opts):
     if not getattr(opts, "export_learner_metric_table", None):
         return
 
-    opts.sli_use_training_mean = True
-    if getattr(opts, "sli_select_skip_first_sync_buckets", None) is None:
-        opts.sli_select_skip_first_sync_buckets = 1
-    if getattr(opts, "sli_select_keep_first_sync_buckets", None) is None:
-        opts.sli_select_keep_first_sync_buckets = 4
+    # Cohort selection is resolved on a local copy by the exporter. Report
+    # selection must not override the SLI policy of other requested outputs.
     if not hasattr(opts, "top_sli_fraction"):
         opts.top_sli_fraction = 0.2
     if not hasattr(opts, "bottom_sli_fraction"):

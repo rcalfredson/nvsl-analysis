@@ -18,6 +18,7 @@ Windows.
 | [`scripts/trace_agarose_time_pvalues.py`](../scripts/trace_agarose_time_pvalues.py) | Factorial trace of lost-frame numerator and pairwise-test choices | Policy-by-test p-value trace and detailed multiple-comparisons audit CSVs; see [`agarose_time_pvalue_trace.md`](agarose_time_pvalue_trace.md) |
 | [`scripts/run_analysis_matrix.sh`](../scripts/run_analysis_matrix.sh) | Curated multi-analysis batch for turnback, home-vector, and tortuosity analyses | Dated bundles and plots under `exports/`; optional debug galleries under `imgs/` |
 | [`scripts/run_turn_home_vector_alignment_analysis.sh`](../scripts/run_turn_home_vector_alignment_analysis.sh) | Focused, configurable turn home-vector alignment analysis | Bundles, plots, and statistics under `exports/turn_home_vector_alignment/` by default |
+| [`analyze.py --export-learner-metric-table PREFIX`](learner_metric_report.md) | Strong/weak learners ranked by mean T2 SB2–5 (>=3 valid buckets) or final T2 SB5 SLI; optional repeated-radius mixed models | Descriptive/statistical CSVs, cohort audit, model inputs/diagnostics, and Markdown report |
 
 ## GraphPad exports notebook
 
