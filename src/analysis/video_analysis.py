@@ -1173,7 +1173,13 @@ class VideoAnalysis:
             )
             self._skipped = True
             return
-        self.startPre = self.fns["startPre"][0]
+        first_training = 1 if getattr(self.opts, "skipFT", False) else 0
+        if first_training and (
+            len(tms) <= first_training
+            or len(self.fns["startPre"]) <= first_training
+        ):
+            error("--skpFT requires a second training and a second pre-training start")
+        self.startPre = self.fns["startPre"][first_training]
         # note: some older experiments used 'startPre' more than once
         if self.circle:
             r = proto["area" if area else "circle"]["r"]
@@ -1185,10 +1191,10 @@ class VideoAnalysis:
             cPos = self.info["cPos"]
         if self.openLoop:
             self.alt = proto.get("alt", True)
-        for i, (st, spst) in enumerate(tms):
+        for i, (st, spst) in enumerate(tms[first_training:], start=first_training):
             if self.circle:
                 trn = Training(
-                    i + 1,
+                    i + 1 - first_training,
                     st,
                     spst,
                     self,
@@ -1197,7 +1203,7 @@ class VideoAnalysis:
                 )
             else:
                 trn = Training(
-                    i + 1,
+                    i + 1 - first_training,
                     st,
                     spst,
                     self,
@@ -3814,13 +3820,13 @@ class VideoAnalysis:
 
             if region_label == "agarose":
                 ten_min_frames = self._min2f(10)
-                for t_idx, _trn in enumerate(self.trns):
+                for t_idx, trn in enumerate(self.trns):
                     post_stop = (
                         int(self.trns[t_idx + 1].start)
                         if t_idx < len(self.trns) - 1
                         else int(self.nf)
                     )
-                    post_start = int(self.fns["startPost"][t_idx])
+                    post_start = int(trn.stop)
                     intvl = slice(
                         max(post_start, post_stop - ten_min_frames), post_stop
                     )
@@ -8736,7 +8742,7 @@ class VideoAnalysis:
             "bottom " if bt else "",
             "mm" if bt else "px",
         )
-        fi = 0
+        fi = self.startPre
         for t in self.trns:
             print(t.name())
             # check whether pulse in pre period

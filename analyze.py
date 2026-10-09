@@ -1243,6 +1243,12 @@ g.add_argument(
     + "(default: %(const)s)",
 )
 g.add_argument(
+    "--skpFT",
+    dest="skipFT",
+    action="store_true",
+    help="skip first training (for experiments with, e.g., prestimulation)",
+)
+g.add_argument(
     "--pct-time-circle-rad",
     dest="pctTimeCircleRad",
     type=float,
