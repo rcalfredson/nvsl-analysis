@@ -8778,12 +8778,14 @@ class VideoAnalysis:
 
     # rewards per minute
     def rewardsPerMinute(self):
+        """Whole-training RPM over the same post-initial-reward window as RPD."""
         self.rewardsPerMin = []
         for t in self.trns:
-            fi, la = self._syncBucket(t, skip=0)[0], t.stop
+            # Exclude the T0 reward from both counting and elapsed time.
+            fi, la = self._syncBucket(t, skip=1)[0], t.stop
             rpm = (
                 np.nan
-                if fi is None
+                if fi is None or not np.isfinite(fi) or not np.isfinite(la) or la <= fi
                 else self._countOn(fi, la, calc=True, ctrl=False, f=0)
                 / self._f2min(la - fi)
             )

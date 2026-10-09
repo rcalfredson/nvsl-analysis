@@ -278,6 +278,12 @@ counts for both flies. Reward counting and distance measurement both start one
 frame after the first actual reward and extend through training end, including
 the final partial bucket.
 
+Training-wide RPM uses the same window: calculated target entries for the
+experimental fly divided by elapsed minutes from one frame after the first
+actual reward through training end. The T0 reward is excluded, without waiting
+for a control-circle entry or midline crossing. A valid window with no subsequent
+entries yields zero RPM; a missing or empty window yields NaN.
+
 First-N reward diagnostics and first-N reward-rate correlations include the
 initial reward as the timing anchor when selecting SB1. For the first ten
 rewards, the rate is nine divided by the elapsed time from reward #1 to reward

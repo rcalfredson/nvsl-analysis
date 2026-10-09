@@ -148,3 +148,31 @@ def test_per_bucket_reward_metrics_use_selected_pi_policy(policy, counts):
         rows = getattr(va, attr)
         assert rows[0][:2] == pytest.approx((counts[0], 3))
         assert rows[1][:2] == pytest.approx((counts[1], 1))
+
+
+@pytest.mark.parametrize("policy", [None, "reward", "midline", "control", "fixed"])
+def test_training_rpm_excludes_t0_and_counts_through_training_end(policy):
+    va = _counting_analysis(policy, control_entries=())
+    va.fps = 1
+    # Include a reward immediately after T0 and one in the final partial bucket;
+    # exclude entries before T0, at T0, and at the exclusive training stop.
+    va.trx[0].en[0] = np.array([5, 10, 11, 20, 120, 129, 130])
+    va.rewardsPerMinute()
+    assert va.rewardsPerMin == pytest.approx([(4 / ((130 - 11) / 60),)])
+
+
+def test_training_rpm_with_only_t0_reward_is_zero():
+    va = _counting_analysis()
+    va.fps = 1
+    va.on = va.trx[0].en[0] = np.array([10])
+    va.rewardsPerMinute()
+    assert va.rewardsPerMin == [(0,)]
+
+
+@pytest.mark.parametrize("actual_rewards", [(), (129,)])
+def test_training_rpm_missing_or_empty_window_is_nan(actual_rewards):
+    va = _counting_analysis()
+    va.fps = 1
+    va.on = np.array(actual_rewards)
+    va.rewardsPerMinute()
+    assert np.isnan(va.rewardsPerMin[0][0])
