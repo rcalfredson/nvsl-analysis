@@ -284,6 +284,42 @@ actual reward through training end. The T0 reward is excluded, without waiting
 for a control-circle entry or midline crossing. A valid window with no subsequent
 entries yields zero RPM; a missing or empty window yields NaN.
 
+To recalculate the reward-summary page's 53 cohorts, use the checked-in
+`scripts/training_reward_cohorts.json` manifest and batch adapter:
+
+```bash
+# Inspect all cohort commands without running or writing files.
+python scripts/recalculate_training_reward_tables.py --dry-run
+# Run sequentially in an environment with the analysis dependencies installed.
+python scripts/recalculate_training_reward_tables.py --out exports/training_reward_tables_2026-10-09
+# After an interruption or failure, retain successful cohorts and retry the rest.
+python scripts/recalculate_training_reward_tables.py --out exports/training_reward_tables_2026-10-09 --resume
+```
+
+Each cohort runs `analyze.py` with `-f 0-9 --rmCC 5` for HTL chambers or
+`-f 0-1 --rCC 15` for large chambers. The adapter captures the default
+whole-training RPM and **exp-minus-yoked** RPD summaries, including their 95%
+confidence intervals and per-training sample-size suffixes. No learner-selection
+filters are added. The manifest preserves the page's table order and descriptive
+columns; row 21 uses “genetic manipulation experiments” consistently, and doubled
+spaces in pasted video paths have been normalized.
+
+The output directory contains per-cohort `logs/*.log` and command JSON files,
+`results.json` checkpoints, and `rpm_running.tsv` / `rpd_running.tsv`, updated
+after each successful cohort. A failed analysis or missing/incomplete summary
+stops the batch, preserving successful results. Each video pattern must match at
+least one `.avi` file, preventing silent omission of part of a cohort when
+data are unavailable or a path is incorrect. Only after all cohorts succeed
+are `rpm_table_html.txt` and `rpd_table_html.txt` written, ready to paste into the
+page's HTML editor. The files contain the tables themselves, with current global
+n and training values, rather than the surrounding page commentary.
+
+`--resume` requires unchanged manifest, commands, and analysis source; use a new
+output directory after changing them. It assumes the underlying video/tracking
+data have not changed since the interrupted run. Use a fresh output directory to
+recalculate previously completed cohorts. `--manifest` accepts an edited cohort
+manifest, and `--python` selects another Python executable for `analyze.py`.
+
 First-N reward diagnostics and first-N reward-rate correlations include the
 initial reward as the timing anchor when selecting SB1. For the first ten
 rewards, the rate is nine divided by the elapsed time from reward #1 to reward
