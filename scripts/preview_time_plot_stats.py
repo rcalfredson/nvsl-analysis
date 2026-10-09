@@ -16,7 +16,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from src.plotting.annotation_layout import place_auc_annotation
-from src.plotting.plot_customizer import PlotCustomizer, compact_legend_spacing
+from src.plotting.plot_customizer import (
+    PlotCustomizer, TIME_PLOT_STATS_FONT_SCALE, compact_legend_spacing,
+)
 
 
 def preview_font_context():
@@ -39,6 +41,7 @@ def build_preview(*, panel_width_pt=436.0, font_size=24.0, dpi=100,
                   plot_font_size=None, sample_sizes=(17, 44)):
     """Return a figure, two axes and an AUC artist at manuscript-like sizes."""
     title_size = axis_label_size = font_size + 3
+    stats_size = font_size
     annotation_size = font_size
     if plot_font_size is not None:
         customizer = PlotCustomizer()
@@ -47,6 +50,7 @@ def build_preview(*, panel_width_pt=436.0, font_size=24.0, dpi=100,
         title_size = float(plt.rcParams["axes.titlesize"])
         axis_label_size = float(plt.rcParams["axes.labelsize"])
         annotation_size = customizer.in_plot_font_size
+        stats_size = plot_font_size * TIME_PLOT_STATS_FONT_SCALE
     panel_height_pt = 327.0
     left, gap, right, bottom, top = 90.0, 32.0, 20.0, 85.0, 45.0
     width = left + 2 * panel_width_pt + gap + right
@@ -89,7 +93,7 @@ def build_preview(*, panel_width_pt=436.0, font_size=24.0, dpi=100,
         0.03, 0.97,
         f"AUC (n = {sample_sizes[0]}, {sample_sizes[1]}): **** "
         r"(p = $\mathregular{3.71 \times 10^{-28}}$)",
-        transform=axes[1].transAxes, va="top", fontsize=font_size,
+        transform=axes[1].transAxes, va="top", fontsize=stats_size,
     )
     if not place_auc_annotation(axes[1], text):
         plt.close(fig)
@@ -105,7 +109,7 @@ def main():
     fonts.add_argument("--font-size", type=float, default=24,
                        help="Literal stats and tick font size in points (default: 24).")
     fonts.add_argument("--plot-font-size", type=float,
-                       help="Manuscript plot setting; stats match its proportional tick size.")
+                       help="Manuscript plot setting; stats scale at 24/27 of the baseline.")
     parser.add_argument("--dpi", type=int, default=100)
     parser.add_argument("--sample-sizes", type=int, nargs=2, default=(17, 44),
                         metavar=("TOP", "BOTTOM"), help="Synthetic counts for both learner groups.")

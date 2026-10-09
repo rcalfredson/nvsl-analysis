@@ -9,8 +9,7 @@ from src.plotting.plot_customizer import PlotCustomizer
 
 from src.plotting.annotation_layout import (
     AUC_INSET_FONT_RATIO,
-    AUC_HORIZONTAL_INSET_FONT_RATIO,
-    AUC_BACKEND_SLACK_FONT_RATIO,
+    AUC_HORIZONTAL_INSET_POINTS,
     AUC_TOP_INSET_FONT_RATIO,
     dodge_annotation_reference_line,
     fit_auc_annotation_inside_axes,
@@ -62,7 +61,7 @@ def test_auc_blocks_keep_minimum_rendered_insets(dpi, font_size, wording):
             renderer = fig.canvas.get_renderer()
             block = text.get_window_extent(renderer)
             bounds = ax.get_window_extent(renderer)
-            pad = AUC_HORIZONTAL_INSET_FONT_RATIO * font_size * dpi / 72
+            pad = AUC_HORIZONTAL_INSET_POINTS * dpi / 72
             left_half_spine = 0.5 * ax.spines["left"].get_linewidth() * dpi / 72
             top_half_spine = 0.5 * ax.spines["top"].get_linewidth() * dpi / 72
             assert block.x0 - bounds.x0 >= pad + left_half_spine - 1e-6
@@ -108,7 +107,7 @@ def test_wrapped_auc_block_keeps_minimum_border_insets():
         renderer = fig.canvas.get_renderer()
         bounds = ax.get_window_extent(renderer)
         bbox = text.get_window_extent(renderer)
-        inset = (AUC_HORIZONTAL_INSET_FONT_RATIO * 27 + 0.4) * fig.dpi / 72
+        inset = (AUC_HORIZONTAL_INSET_POINTS + 0.4) * fig.dpi / 72
         assert bbox.x0 - bounds.x0 >= inset - 1e-6
         top_inset = (AUC_TOP_INSET_FONT_RATIO * 27 + 0.4) * fig.dpi / 72
         assert _visible_top_inset_px(ax, text) == pytest.approx(top_inset, abs=2)
@@ -526,11 +525,11 @@ def test_auc_annotation_is_nudged_before_wrapping():
     assert text_bbox.x1 <= axes_bbox.x1
     plt.close(fig)
 
-def test_auc_annotation_leaves_backend_safety_margin_at_right_edge():
-    # This width lets the full-size mathtext label fit with the PDF reserve.
+def test_auc_annotation_leaves_one_point_at_each_horizontal_edge():
+    # Start past the right edge so fitting must enforce the fixed clearance.
     fig, ax = plt.subplots(figsize=(9, 3), dpi=100)
     text = ax.text(
-        0.05,
+        0.98,
         0.8,
         r"AUC (n = 59, 30): **** (p = $4.17 \times 10^{-5}$)",
         transform=ax.transAxes,
@@ -545,12 +544,12 @@ def test_auc_annotation_leaves_backend_safety_margin_at_right_edge():
     axes_bbox = ax.get_window_extent(renderer=renderer)
     text_bbox = text.get_window_extent(renderer=renderer)
 
-    backend_slack_px = (
-        AUC_BACKEND_SLACK_FONT_RATIO * text.get_fontsize() * fig.dpi / 72.0
-    )
+    left_inset = (1 + ax.spines["left"].get_linewidth() / 2) * fig.dpi / 72
+    right_inset = (1 + ax.spines["right"].get_linewidth() / 2) * fig.dpi / 72
 
     assert "\n" not in text.get_text()
-    assert text_bbox.x1 <= axes_bbox.x1 - backend_slack_px
+    assert text_bbox.x0 >= axes_bbox.x0 + left_inset - 1e-8
+    assert axes_bbox.x1 - text_bbox.x1 == pytest.approx(right_inset)
 
     plt.close(fig)
 
@@ -602,8 +601,8 @@ def test_auc_uses_thin_equals_spaces_to_preserve_font_and_panel_size(dpi, prefix
         assert compact_width < full_width
         text.set_text(original)
 
-        # Make only the compact line fit, including the backend safety margin.
-        reserve = (2 * AUC_HORIZONTAL_INSET_FONT_RATIO * 24 + AUC_BACKEND_SLACK_FONT_RATIO * 24 + 0.8) * dpi / 72
+        # Make only the compact line fit, including both fixed side margins.
+        reserve = (2 * AUC_HORIZONTAL_INSET_POINTS + 0.8) * dpi / 72
         axes_width = (full_width + compact_width) / 2 + reserve
         fig.set_size_inches(axes_width / ax.get_position().width / dpi, 5)
         old_size = fig.get_size_inches().copy()
@@ -619,7 +618,7 @@ def test_auc_uses_thin_equals_spaces_to_preserve_font_and_panel_size(dpi, prefix
         assert text.get_fontsize() == 24
         assert len(ax.texts) == 1
         assert text_bbox.x0 >= axes_bbox.x0
-        assert text_bbox.x1 <= axes_bbox.x1 - AUC_BACKEND_SLACK_FONT_RATIO * 24 * dpi / 72
+        assert text_bbox.x1 <= axes_bbox.x1 - (AUC_HORIZONTAL_INSET_POINTS + 0.4) * dpi / 72 + 1e-8
         assert np.array_equal(fig.get_size_inches(), old_size)
         assert ax.get_position().bounds == old_position
 
@@ -657,8 +656,7 @@ def test_time_stats_try_comma_and_multiplication_spacing_before_wrapping(p_value
             widths.append(text.get_window_extent(fig.canvas.get_renderer()).width)
         assert widths[1] < widths[0]
         text.set_text(original)
-        reserve = (2 * AUC_HORIZONTAL_INSET_FONT_RATIO * 27
-                   + AUC_BACKEND_SLACK_FONT_RATIO * 27 + 0.8) * fig.dpi / 72
+        reserve = (2 * AUC_HORIZONTAL_INSET_POINTS + 0.8) * fig.dpi / 72
         axes_width = sum(widths) / 2 + reserve
         fig.set_size_inches(axes_width / ax.get_position().width / fig.dpi, 5)
         assert place_auc_annotation(ax, text)
@@ -673,26 +671,26 @@ def test_time_stats_try_comma_and_multiplication_spacing_before_wrapping(p_value
 
 
 @pytest.mark.parametrize("dpi", [72, 100, 200])
-@pytest.mark.parametrize("font_size,panel_width_pt,sample_sizes", [
-    (24, 436, (17, 44)), (25, 436, (17, 44)),
-    (27, 480, (17, 44)), (27, 436, (17, 44)),
-    (25, 436, (117, 44)), (25, 436, (17, 444)),
-    (25, 436, (117, 444)), (25, 436, (999, 999)),
+@pytest.mark.parametrize("font_size,panel_width_pt,sample_sizes,plot_font_size", [
+    (24, 436, (17, 44), None), (24, 436, (17, 44), 27),
+    (27, 480, (17, 44), None), (27, 436, (17, 44), None),
+    (24, 436, (117, 44), 27), (24, 436, (17, 444), 27),
+    (24, 436, (117, 444), 27), (24, 436, (999, 999), 27),
 ])
 def test_manuscript_synthetic_auc_stays_on_one_line_above_data(
-    dpi, font_size, panel_width_pt, sample_sizes,
+    dpi, font_size, panel_width_pt, sample_sizes, plot_font_size,
 ):
     from io import BytesIO
     from scripts.preview_time_plot_stats import build_preview, preview_font_context
     from matplotlib.font_manager import FontProperties
     from src.plotting.annotation_layout import _auc_narrow_font_properties
 
-    narrow_case = (font_size == 27 and panel_width_pt == 436) or any(n >= 100 for n in sample_sizes)
+    narrow_case = font_size == 27 and panel_width_pt == 436
     if narrow_case and _auc_narrow_font_properties(FontProperties(), "AUC") is None:
         pytest.skip("No supported narrow font is installed")
     fig, axes, text = build_preview(
         dpi=dpi, font_size=font_size, panel_width_pt=panel_width_pt,
-        plot_font_size=27 if font_size == 25 else None,
+        plot_font_size=plot_font_size,
         sample_sizes=sample_sizes,
     )
     ax = axes[1]
@@ -720,12 +718,13 @@ def test_manuscript_synthetic_auc_stays_on_one_line_above_data(
         else:
             assert text.get_fontfamily() == ["Arial"]
             expected = text._auc_original_text
-            if font_size != 24:
-                expected = expected.replace(" = ", r"$\,$=$\,$")
-            if font_size == 25:
-                expected = expected.replace(", ", r",$\,$").replace(
-                    r" \times ", r"\,{\times}\,"
-                )
+            if plot_font_size is not None:
+                if any(n >= 100 for n in sample_sizes):
+                    expected = expected.replace(" = ", r"$\,$=$\,$")
+                if all(n >= 100 for n in sample_sizes):
+                    expected = expected.replace(", ", r",$\,$").replace(
+                        r" \times ", r"\,{\times}\,"
+                    )
                 assert axes[0].title.get_fontsize() == 30
                 assert axes[0].yaxis.label.get_fontsize() == pytest.approx(29)
                 assert all(t.get_fontsize() == 25 for t in ax.get_xticklabels())

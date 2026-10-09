@@ -8,9 +8,13 @@ import numpy as np
 def _draw_axes_contained_text(text, renderer):
     # PDF/SVG and raster output have different glyph metrics. Recheck the
     # padded patch before painting, using the renderer that will export it.
+    options = text._axes_constraint_options.copy()
+    scale = text.figure.dpi / text._axes_constraint_dpi
+    for key in ("pad_px", "left_pad_px", "right_pad_px"):
+        options[key] *= scale
     keep_text_box_inside_axes(
         text.axes, text,
-        **text._axes_constraint_options,
+        **options,
         _renderer=renderer,
     )
     text._axes_constraint_original_draw(renderer)
@@ -19,10 +23,9 @@ def _draw_axes_contained_text(text, renderer):
 ANNOTATION_STACK_GAP_POINTS = 4.0
 SIGNIFICANCE_GAP_RATIO = 0.5
 AUC_INSET_FONT_RATIO = 0.4
-# Horizontal reserves must leave room for long scientific-notation p-values
-# in manuscript panels while vertical padding still clears stars and curves.
-AUC_HORIZONTAL_INSET_FONT_RATIO = 0.20
-AUC_BACKEND_SLACK_FONT_RATIO = 0.15
+# Fixed clearance from the inner edge of each vertical spine, independent
+# of font size. Vertical padding still scales to clear stars and curves.
+AUC_HORIZONTAL_INSET_POINTS = 1.0
 AUC_TOP_INSET_FONT_RATIO = 0.9
 
 
@@ -244,6 +247,7 @@ def keep_text_box_inside_axes(
         measure_renderer()
     text._keep_inside_axes_after_layout = True
     if _renderer is None:
+        text._axes_constraint_dpi = fig.dpi
         text._axes_constraint_options = dict(
             pad_px=pad_px, left_pad_px=left_pad_px,
             right_pad_px=right_pad_px, min_fontsize=min_fontsize,
@@ -288,7 +292,7 @@ def fit_auc_annotation_inside_axes(
     size before wrapping the p-value. Return ``False``
     only if neither fits.
     ``horizontal_pad_px`` can tighten side margins independently of vertical
-    clearance; by default all sides use ``pad_px``.
+    clearance; by default each side uses 1 pt from the inner spine edge.
     """
     if text is None or not text.get_visible():
         return True
@@ -299,19 +303,14 @@ def fit_auc_annotation_inside_axes(
 
     original_bbox = text.get_window_extent(renderer=renderer)
     original = text.get_text()
-    horizontal_pad_px = pad_px if horizontal_pad_px is None else horizontal_pad_px
-
-    # Leave a small physical reserve for backend-specific text-metric
-    # differences, particularly mathtext/superscripts in PDF output.
-    backend_slack_px = (
-        AUC_BACKEND_SLACK_FONT_RATIO * float(text.get_fontsize()) * float(fig.dpi) / 72.0
-    )
+    if horizontal_pad_px is None:
+        horizontal_pad_px = AUC_HORIZONTAL_INSET_POINTS * fig.dpi / 72.0
     if keep_text_box_inside_axes(
         ax,
         text,
         pad_px=pad_px,
         left_pad_px=horizontal_pad_px,
-        right_pad_px=horizontal_pad_px + backend_slack_px,
+        right_pad_px=horizontal_pad_px,
     ):
         return True
 
@@ -332,7 +331,7 @@ def fit_auc_annotation_inside_axes(
             if keep_text_box_inside_axes(
                 ax, text, pad_px=pad_px,
                 left_pad_px=horizontal_pad_px,
-                right_pad_px=horizontal_pad_px + backend_slack_px,
+                right_pad_px=horizontal_pad_px,
             ):
                 return True
             text.set_text(original)
@@ -347,7 +346,7 @@ def fit_auc_annotation_inside_axes(
                 if keep_text_box_inside_axes(
                     ax, text, pad_px=pad_px,
                     left_pad_px=horizontal_pad_px,
-                    right_pad_px=horizontal_pad_px + backend_slack_px,
+                    right_pad_px=horizontal_pad_px,
                 ):
                     return True
             text.set_fontproperties(original_font)
@@ -470,7 +469,7 @@ def place_auc_annotation(ax, text, *, upper_only=False) -> bool:
 
     fig = ax.figure
     pad_px = AUC_INSET_FONT_RATIO * text.get_fontsize() * fig.dpi / 72.0
-    horizontal_pad_px = AUC_HORIZONTAL_INSET_FONT_RATIO * text.get_fontsize() * fig.dpi / 72.0
+    horizontal_pad_px = AUC_HORIZONTAL_INSET_POINTS * fig.dpi / 72.0
     if not fit_auc_annotation_inside_axes(
         ax, text, pad_px=pad_px, horizontal_pad_px=horizontal_pad_px,
     ):
@@ -495,11 +494,6 @@ def place_auc_annotation(ax, text, *, upper_only=False) -> bool:
             padding = pad_px
         return padding + half_width
 
-    # Retain the fitter's reserve for PDF/mathtext width differences.
-    backend_slack_px = (
-        AUC_BACKEND_SLACK_FONT_RATIO * text.get_fontsize() * fig.dpi / 72.0
-        if "\n" not in text.get_text() else 0.0
-    )
     block = Bbox.union([label.get_window_extent(renderer) for label in labels])
     ink = Bbox.union([_text_ink_bbox(label, renderer) for label in labels])
     from matplotlib.textpath import TextPath
@@ -520,7 +514,7 @@ def place_auc_annotation(ax, text, *, upper_only=False) -> bool:
     safe_bbox = Bbox.from_extents(
         axes_bbox.x0 + inset("left"),
         axes_bbox.y0 + inset("bottom"),
-        axes_bbox.x1 - inset("right") - backend_slack_px,
+        axes_bbox.x1 - inset("right"),
         axes_bbox.y1 - top_inset,
     )
     block = Bbox.from_extents(block.x0, ink.y0, block.x1, main_top)
