@@ -764,7 +764,42 @@ def _linked_sample_size_texts(stars):
     )
 
 
-def _choose_sample_size_sides(ax, texts, gap_px: float) -> None:
+def _annotation_layout_renderer(ax, renderer=None):
+    """Measure moved Text directly when the figure geometry is already settled.
+
+    Text.get_window_extent recalculates its position using the supplied renderer;
+    moving a label does not require repainting all the figure's subplots.
+    Passing None retains the full-draw path for layouts with draw-time effects.
+    """
+    if renderer is None:
+        ax.figure.canvas.draw()
+        return ax.figure.canvas.get_renderer()
+    return renderer
+
+
+def _can_reuse_annotation_renderer(fig):
+    from matplotlib.text import Text
+
+    # Automatic layout and callbacks may change transforms on every draw.
+    # Custom text draws include the axes-containment hook in this module.
+    texts = (text for ax in fig.axes for text in ax.texts)
+    return not (
+        getattr(fig, "get_layout_engine", lambda: None)() is not None
+        or fig.get_constrained_layout()
+        or fig.get_tight_layout()
+        or fig.canvas.callbacks.callbacks.get("draw_event")
+        or any(
+            "draw" in text.__dict__ or type(text).draw is not Text.draw
+            for text in texts
+        )
+        or any(
+            "draw" in text.__dict__ or type(text).draw is not Text.draw
+            for text in fig.texts
+        )
+    )
+
+
+def _choose_sample_size_sides(ax, texts, gap_px: float, *, _renderer=None) -> None:
     """Place a lower count below its trace when an above label is too tight.
 
     Counts remain above their data markers by default.  At a shared x position,
@@ -773,8 +808,7 @@ def _choose_sample_size_sides(ax, texts, gap_px: float) -> None:
     only when the full below-label box fits inside the axes.
     """
     fig = ax.figure
-    fig.canvas.draw()
-    renderer = fig.canvas.get_renderer()
+    renderer = _annotation_layout_renderer(ax, _renderer)
     axes_bbox = ax.get_window_extent(renderer=renderer)
     trace_clearance_px = 2.0 * fig.dpi / 72.0
 
@@ -847,10 +881,8 @@ def _choose_sample_size_sides(ax, texts, gap_px: float) -> None:
                 lower._sample_size_side_ = "below"
 
 
-def _position_linked_significance_texts(ax, texts, gap_px: float) -> None:
-    fig = ax.figure
-    fig.canvas.draw()
-    renderer = fig.canvas.get_renderer()
+def _position_linked_significance_texts(ax, texts, gap_px: float, *, _renderer=None) -> None:
+    renderer = _annotation_layout_renderer(ax, _renderer)
 
     for stars in texts:
         sample_sizes = _linked_sample_size_texts(stars)
@@ -874,17 +906,15 @@ def _position_linked_significance_texts(ax, texts, gap_px: float) -> None:
             target_stars_bottom_px - float(stars_bbox.y0),
         )
 
-        fig.canvas.draw()
-        renderer = fig.canvas.get_renderer()
+        renderer = _annotation_layout_renderer(ax, _renderer)
 
 
-def _position_linked_annotation_stacks(ax, texts) -> None:
+def _position_linked_annotation_stacks(ax, texts, *, _renderer=None) -> None:
     """Use compact physical gaps for linked marker/count/star stacks."""
     fig = ax.figure
-    fig.canvas.draw()
-    renderer = fig.canvas.get_renderer()
+    renderer = _annotation_layout_renderer(ax, _renderer)
     gap_px = ANNOTATION_STACK_GAP_POINTS * fig.dpi / 72.0
-    _choose_sample_size_sides(ax, texts, gap_px)
+    _choose_sample_size_sides(ax, texts, gap_px, _renderer=_renderer)
 
     for sample_size in texts:
         data_y = getattr(sample_size, "_data_point_y_", None)
@@ -910,10 +940,9 @@ def _position_linked_annotation_stacks(ax, texts) -> None:
             shift_px = target_sample_bottom_px - float(sample_bbox.y0)
         _move_text_by_display_dy(ax, sample_size, shift_px)
 
-        fig.canvas.draw()
-        renderer = fig.canvas.get_renderer()
+        renderer = _annotation_layout_renderer(ax, _renderer)
 
-    _position_linked_significance_texts(ax, texts, gap_px)
+    _position_linked_significance_texts(ax, texts, gap_px, _renderer=_renderer)
 
 
 def dodge_annotation_reference_line(ax, texts, *, y=0.0, gap_points=2.0):
@@ -983,7 +1012,10 @@ def resolve_annotation_text_overlaps(ax, texts, ylim, *, pad_px=None, max_iter=1
 
     fig = ax.figure
     fig.canvas.draw()
-    _position_linked_annotation_stacks(ax, texts)
+    renderer_hint = (
+        fig.canvas.get_renderer() if _can_reuse_annotation_renderer(fig) else None
+    )
+    _position_linked_annotation_stacks(ax, texts, _renderer=renderer_hint)
     if len(texts) < 2:
         return
 
@@ -993,9 +1025,8 @@ def resolve_annotation_text_overlaps(ax, texts, ylim, *, pad_px=None, max_iter=1
 
     for _ in range(int(max_iter)):
         gap_px = ANNOTATION_STACK_GAP_POINTS * fig.dpi / 72.0
-        _position_linked_significance_texts(ax, texts, gap_px)
-        fig.canvas.draw()
-        renderer = fig.canvas.get_renderer()
+        _position_linked_significance_texts(ax, texts, gap_px, _renderer=renderer_hint)
+        renderer = _annotation_layout_renderer(ax, renderer_hint)
         ordered = sorted(
             (
                 (
@@ -1026,9 +1057,9 @@ def resolve_annotation_text_overlaps(ax, texts, ylim, *, pad_px=None, max_iter=1
             if needed_shift_px > 0.0:
                 _move_text_by_display_dy(ax, text, needed_shift_px)
                 moved = True
-                fig.canvas.draw()
+                renderer = _annotation_layout_renderer(ax, renderer_hint)
                 bbox = _expanded_text_bbox(
-                    text.get_window_extent(renderer=fig.canvas.get_renderer()),
+                    text.get_window_extent(renderer=renderer),
                     pad_px,
                 )
                 _expand_ylim_if_text_exceeds_top(
