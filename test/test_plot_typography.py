@@ -5,7 +5,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pytest
 
-from src.plotting.plot_customizer import PlotCustomizer
+from src.plotting.plot_customizer import PlotCustomizer, TIME_PLOT_STATS_FONT_SCALE
 
 
 TIME_PLOT_FONT_SIZE = 27.0
@@ -52,7 +52,8 @@ def test_time_plot_reference_typography_is_preserved():
     assert sizes["legend"] == pytest.approx(24.0)
 
 
-def test_plot_rewards_auc_and_abc_use_proportional_tick_size():
+@pytest.mark.parametrize("baseline", [20, 26.5, 27, 30])
+def test_plot_rewards_auc_and_abc_use_time_stats_ratio(baseline):
     import ast
     from pathlib import Path
     from src.plotting.annotation_layout import tick_label_fontsize
@@ -68,15 +69,16 @@ def test_plot_rewards_auc_and_abc_use_proportional_tick_size():
     assert len(size_expressions) == 2
     with plt.rc_context():
         customizer = PlotCustomizer()
-        customizer.update_font_size(27)
+        customizer.update_font_size(baseline)
         fig, ax = plt.subplots()
         try:
-            namespace = dict(ax=ax, tick_label_fontsize=tick_label_fontsize,
+            namespace = dict(ax=ax, TIME_PLOT_STATS_FONT_SCALE=TIME_PLOT_STATS_FONT_SCALE,
                              customizer=customizer, pch=lambda legacy, current: current)
             for expression in size_expressions:
                 size = eval(compile(ast.Expression(expression), "analyze.py", "eval"), namespace)
                 label = ax.text(0.5, 0.5, "AUC/ABC", fontsize=size)
-                assert label.get_fontsize() == tick_label_fontsize(ax) == 25
+                assert label.get_fontsize() == pytest.approx(baseline * 24 / 27)
+                assert tick_label_fontsize(ax) == pytest.approx(baseline * 25 / 27)
         finally:
             plt.close(fig)
 

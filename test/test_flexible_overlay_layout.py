@@ -671,26 +671,26 @@ def test_time_stats_try_comma_and_multiplication_spacing_before_wrapping(p_value
 
 
 @pytest.mark.parametrize("dpi", [72, 100, 200])
-@pytest.mark.parametrize("font_size,panel_width_pt,sample_sizes", [
-    (24, 436, (17, 44)), (25, 436, (17, 44)),
-    (27, 480, (17, 44)), (27, 436, (17, 44)),
-    (25, 436, (117, 44)), (25, 436, (17, 444)),
-    (25, 436, (117, 444)), (25, 436, (999, 999)),
+@pytest.mark.parametrize("font_size,panel_width_pt,sample_sizes,plot_font_size", [
+    (24, 436, (17, 44), None), (24, 436, (17, 44), 27),
+    (27, 480, (17, 44), None), (27, 436, (17, 44), None),
+    (24, 436, (117, 44), 27), (24, 436, (17, 444), 27),
+    (24, 436, (117, 444), 27), (24, 436, (999, 999), 27),
 ])
 def test_manuscript_synthetic_auc_stays_on_one_line_above_data(
-    dpi, font_size, panel_width_pt, sample_sizes,
+    dpi, font_size, panel_width_pt, sample_sizes, plot_font_size,
 ):
     from io import BytesIO
     from scripts.preview_time_plot_stats import build_preview, preview_font_context
     from matplotlib.font_manager import FontProperties
     from src.plotting.annotation_layout import _auc_narrow_font_properties
 
-    narrow_case = (font_size == 27 and panel_width_pt == 436) or any(n >= 100 for n in sample_sizes)
+    narrow_case = font_size == 27 and panel_width_pt == 436
     if narrow_case and _auc_narrow_font_properties(FontProperties(), "AUC") is None:
         pytest.skip("No supported narrow font is installed")
     fig, axes, text = build_preview(
         dpi=dpi, font_size=font_size, panel_width_pt=panel_width_pt,
-        plot_font_size=27 if font_size == 25 else None,
+        plot_font_size=plot_font_size,
         sample_sizes=sample_sizes,
     )
     ax = axes[1]
@@ -718,8 +718,13 @@ def test_manuscript_synthetic_auc_stays_on_one_line_above_data(
         else:
             assert text.get_fontfamily() == ["Arial"]
             expected = text._auc_original_text
-            if font_size == 25:
-                expected = expected.replace(" = ", r"$\,$=$\,$")
+            if plot_font_size is not None:
+                if any(n >= 100 for n in sample_sizes):
+                    expected = expected.replace(" = ", r"$\,$=$\,$")
+                if all(n >= 100 for n in sample_sizes):
+                    expected = expected.replace(", ", r",$\,$").replace(
+                        r" \times ", r"\,{\times}\,"
+                    )
                 assert axes[0].title.get_fontsize() == 30
                 assert axes[0].yaxis.label.get_fontsize() == pytest.approx(29)
                 assert all(t.get_fontsize() == 25 for t in ax.get_xticklabels())
