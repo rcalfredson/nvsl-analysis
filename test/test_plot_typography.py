@@ -52,6 +52,35 @@ def test_time_plot_reference_typography_is_preserved():
     assert sizes["legend"] == pytest.approx(24.0)
 
 
+def test_plot_rewards_auc_and_abc_use_proportional_tick_size():
+    import ast
+    from pathlib import Path
+    from src.plotting.annotation_layout import tick_label_fontsize
+
+    source = ast.parse((Path(__file__).resolve().parents[1] / "analyze.py").read_text())
+    plot_rewards = next(node for node in source.body
+                        if isinstance(node, ast.FunctionDef) and node.name == "plotRewards")
+    size_expressions = [keyword.value
+                        for node in ast.walk(plot_rewards)
+                        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                        and node.func.id == "_add_auc_text"
+                        for keyword in node.keywords if keyword.arg == "size"]
+    assert len(size_expressions) == 2
+    with plt.rc_context():
+        customizer = PlotCustomizer()
+        customizer.update_font_size(27)
+        fig, ax = plt.subplots()
+        try:
+            namespace = dict(ax=ax, tick_label_fontsize=tick_label_fontsize,
+                             customizer=customizer, pch=lambda legacy, current: current)
+            for expression in size_expressions:
+                size = eval(compile(ast.Expression(expression), "analyze.py", "eval"), namespace)
+                label = ax.text(0.5, 0.5, "AUC/ABC", fontsize=size)
+                assert label.get_fontsize() == tick_label_fontsize(ax) == 25
+        finally:
+            plt.close(fig)
+
+
 def test_correlation_and_time_plots_share_text_role_proportions():
     """Changing the base size must not change the visual text hierarchy."""
     time_sizes = _rendered_font_sizes(TIME_PLOT_FONT_SIZE)
