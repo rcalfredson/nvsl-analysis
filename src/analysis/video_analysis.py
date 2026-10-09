@@ -1181,20 +1181,28 @@ class VideoAnalysis:
             error("--skpFT requires a second training and a second pre-training start")
         self.startPre = self.fns["startPre"][first_training]
         # note: some older experiments used 'startPre' more than once
+        retained_tms = tms[first_training:]
         if self.circle:
             r = proto["area" if area else "circle"]["r"]
             rl = self.info.get("r", [])
             if len(rl) == len(tms):
+                r = rl[first_training:]
+            elif len(rl) == len(retained_tms):
                 r = rl
             else:
                 assert all(r1 == r for r1 in rl)
             cPos = self.info["cPos"]
+            # Prestimulation protocols may omit geometry for the skipped session.
+            if len(cPos) == len(tms):
+                cPos = cPos[first_training:]
+            if len(cPos) != len(retained_tms):
+                error("circle positions must match all trainings or retained trainings")
         if self.openLoop:
             self.alt = proto.get("alt", True)
-        for i, (st, spst) in enumerate(tms[first_training:], start=first_training):
+        for i, (st, spst) in enumerate(retained_tms):
             if self.circle:
                 trn = Training(
-                    i + 1 - first_training,
+                    i + 1,
                     st,
                     spst,
                     self,
@@ -1203,7 +1211,7 @@ class VideoAnalysis:
                 )
             else:
                 trn = Training(
-                    i + 1 - first_training,
+                    i + 1,
                     st,
                     spst,
                     self,
@@ -8743,6 +8751,10 @@ class VideoAnalysis:
             "mm" if bt else "px",
         )
         fi = self.startPre
+        if getattr(self.opts, "skipFT", False):
+            # A skipped training can end on startPre with a final stimulation.
+            # Exclude its stop frame, just as for subsequent trainings below.
+            fi = max(fi, self.fns["startPost"][0] + 1)
         for t in self.trns:
             print(t.name())
             # check whether pulse in pre period

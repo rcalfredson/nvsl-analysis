@@ -363,7 +363,7 @@ class DataCombiner:
                             getattr(self.va, pre)[j],
                             asPct=asPct,
                         )
-                    startPost = self.va.fns["startPost"][i] + postOffsets[j]
+                    startPost = t.stop + postOffsets[j]
                     self.calcRatio(
                         j, startPost, postEnd, getattr(self.va, post)[j], asPct=asPct
                     )
@@ -504,7 +504,7 @@ class DataCombiner:
                 )
 
                 # post‑training mean (whole post period)
-                post_start = self.va.fns["startPost"][i]
+                post_start = trn.stop
                 post_end = (
                     self.va.trns[i + 1].start
                     if i < len(self.va.trns) - 1
