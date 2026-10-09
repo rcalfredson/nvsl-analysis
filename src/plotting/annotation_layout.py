@@ -8,9 +8,13 @@ import numpy as np
 def _draw_axes_contained_text(text, renderer):
     # PDF/SVG and raster output have different glyph metrics. Recheck the
     # padded patch before painting, using the renderer that will export it.
+    options = text._axes_constraint_options.copy()
+    scale = text.figure.dpi / text._axes_constraint_dpi
+    for key in ("pad_px", "left_pad_px", "right_pad_px"):
+        options[key] *= scale
     keep_text_box_inside_axes(
         text.axes, text,
-        **text._axes_constraint_options,
+        **options,
         _renderer=renderer,
     )
     text._axes_constraint_original_draw(renderer)
@@ -244,6 +248,7 @@ def keep_text_box_inside_axes(
         measure_renderer()
     text._keep_inside_axes_after_layout = True
     if _renderer is None:
+        text._axes_constraint_dpi = fig.dpi
         text._axes_constraint_options = dict(
             pad_px=pad_px, left_pad_px=left_pad_px,
             right_pad_px=right_pad_px, min_fontsize=min_fontsize,
