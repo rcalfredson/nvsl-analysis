@@ -305,6 +305,7 @@ from src.plotting.between_reward_polar_occupancy import (
     BetweenRewardPolarOccupancyConfig,
 )
 from src.plotting.annotation_layout import (
+    tick_label_fontsize,
     dodge_annotation_reference_line,
     pad_sample_size_labels_over_markers,
     place_auc_annotation,
@@ -1240,6 +1241,12 @@ g.add_argument(
     default=0,
     help="analyze trajectories simplified using RDP with the given epsilon "
     + "(default: %(const)s)",
+)
+g.add_argument(
+    "--skpFT",
+    dest="skipFT",
+    action="store_true",
+    help="skip first training (for experiments with, e.g., prestimulation)",
 )
 g.add_argument(
     "--pct-time-circle-rad",
@@ -10419,7 +10426,7 @@ def plotRewards(
                                     auc_result.ns,
                                     auc_result.p_value,
                                 ),
-                                size=pch(12, customizer.in_plot_font_size),
+                                size=pch(12, tick_label_fontsize(ax)),
                                 base_y=base_y_for_auc,
                             )
 
@@ -10656,7 +10663,7 @@ def plotRewards(
                                         (tpn[2], tpn[3]),
                                         tpn[1],
                                     ),
-                                    size=pch(12, customizer.in_plot_font_size),
+                                    size=pch(12, tick_label_fontsize(ax)),
                                     base_y=base_y_for_auc,
                                 )
 

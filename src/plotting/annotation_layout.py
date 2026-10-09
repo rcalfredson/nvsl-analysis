@@ -19,6 +19,10 @@ def _draw_axes_contained_text(text, renderer):
 ANNOTATION_STACK_GAP_POINTS = 4.0
 SIGNIFICANCE_GAP_RATIO = 0.5
 AUC_INSET_FONT_RATIO = 0.4
+# Horizontal reserves must leave room for long scientific-notation p-values
+# in manuscript panels while vertical padding still clears stars and curves.
+AUC_HORIZONTAL_INSET_FONT_RATIO = 0.20
+AUC_BACKEND_SLACK_FONT_RATIO = 0.15
 AUC_TOP_INSET_FONT_RATIO = 0.9
 
 
@@ -251,149 +255,40 @@ def keep_text_box_inside_axes(
 
 
 
-def _fit_auc_p_value_on_one_line(ax, text, *, pad_px: float) -> bool:
-    """Keep the AUC prefix at full size and size only its p-value to fit."""
-    original = text.get_text()
-    separator = " (p ="
-    if separator not in original or "\n" in original:
-        return False
+def _auc_narrow_font_properties(original, wording):
+    """Find an installed narrow face without silently using a wider default."""
+    import re
+    from matplotlib.font_manager import findfont, get_font
 
-    fig = ax.figure
-    fig.canvas.draw()
-    renderer = fig.canvas.get_renderer()
-    original_bbox = text.get_window_extent(renderer)
-    original_position = text.get_position()
-    original_ha, original_va = text.get_ha(), text.get_va()
-    prefix, _separator, tail = original.partition(separator)
-    p_value = "(p =" + tail
-    font_size = float(text.get_fontsize())
-    minimum_p_size = max(12.0, 0.55 * font_size)
-
-    text.set_text(prefix)
-    text.set_ha("left")
-    text.set_va("baseline")
-    p_font = text.get_fontproperties().copy()
-    p_font.set_size(minimum_p_size)
-    p_text = ax.text(
-        *original_position,
-        p_value,
-        transform=text.get_transform(),
-        ha="left",
-        va="baseline",
-        fontproperties=p_font,
-        color=text.get_color(),
-        alpha=text.get_alpha(),
-        zorder=text.get_zorder(),
-    )
-
-    def restore():
-        p_text.remove()
-        text.set_text(original)
-        text.set_ha(original_ha)
-        text.set_va(original_va)
-        text.set_position(original_position)
-        fig.canvas.draw()
-        return False
-
-    fig.canvas.draw()
-    renderer = fig.canvas.get_renderer()
-    axes_bbox = ax.get_window_extent(renderer)
-    prefix_width = text.get_window_extent(renderer).width
-    gap_px = max(3.0, 0.16 * font_size * fig.dpi / 72.0)
-    def half_spine(side):
-        spine = ax.spines[side]
-        return (
-            0.5 * float(spine.get_linewidth()) * fig.dpi / 72.0
-            if spine.get_visible() else 0.0
-        )
-
-    safe_x0 = axes_bbox.x0 + pad_px + half_spine("left")
-    safe_x1 = (
-        axes_bbox.x1 - pad_px - half_spine("right")
-        - 0.5 * font_size * fig.dpi / 72.0
-    )
-    available_p_width = safe_x1 - safe_x0 - prefix_width - gap_px
-    if available_p_width <= 0:
-        return restore()
-
-    def p_width(size):
-        p_text.set_fontsize(size)
-        fig.canvas.draw()
-        return p_text.get_window_extent(fig.canvas.get_renderer()).width
-
-    if p_width(minimum_p_size) > available_p_width:
-        return restore()
-    low, high = minimum_p_size, font_size
-    for _ in range(9):
-        mid = (low + high) / 2.0
-        if p_width(mid) <= available_p_width:
-            low = mid
-        else:
-            high = mid
-    p_width(low)
-
-    transform = text.get_transform()
-    anchor_display = transform.transform(original_position)
-    left_px = min(
-        max(float(original_bbox.x0), float(safe_x0)),
-        float(safe_x1 - prefix_width - gap_px - p_text.get_window_extent(fig.canvas.get_renderer()).width),
-    )
-    text.set_position(transform.inverted().transform((left_px, anchor_display[1])))
-    fig.canvas.draw()
-    renderer = fig.canvas.get_renderer()
-    prefix_bbox = text.get_window_extent(renderer)
-    anchor_display = transform.transform(text.get_position())
-    top_shift = float(original_bbox.y1 - prefix_bbox.y1)
-    if top_shift:
-        text.set_position(
-            transform.inverted().transform(anchor_display + np.array([0.0, top_shift]))
-        )
-        fig.canvas.draw()
-        renderer = fig.canvas.get_renderer()
-        prefix_bbox = text.get_window_extent(renderer)
-        anchor_display = transform.transform(text.get_position())
-    p_text.set_position(
-        transform.inverted().transform(
-            (prefix_bbox.x1 + gap_px, anchor_display[1])
-        )
-    )
-    fig.canvas.draw()
-    renderer = fig.canvas.get_renderer()
-    prefix_bbox = text.get_window_extent(renderer)
-    p_bbox = p_text.get_window_extent(renderer)
-    safe_y0 = axes_bbox.y0 + pad_px + half_spine("bottom")
-    safe_y1 = axes_bbox.y1 - pad_px - half_spine("top")
-    shift_y = max(0.0, safe_y0 - min(prefix_bbox.y0, p_bbox.y0))
-    shift_y -= max(0.0, max(prefix_bbox.y1, p_bbox.y1) - safe_y1)
-    if shift_y:
-        for label in (text, p_text):
-            display_position = transform.transform(label.get_position())
-            label.set_position(
-                transform.inverted().transform(
-                    display_position + np.array([0.0, shift_y])
-                )
-            )
-        fig.canvas.draw()
-        renderer = fig.canvas.get_renderer()
-        prefix_bbox = text.get_window_extent(renderer)
-        p_bbox = p_text.get_window_extent(renderer)
-    if (
-        prefix_bbox.x0 < safe_x0 - 0.5
-        or p_bbox.x1 > safe_x1 + 0.5
-        or min(prefix_bbox.y0, p_bbox.y0) < safe_y0 - 0.5
-        or max(prefix_bbox.y1, p_bbox.y1) > safe_y1 + 0.5
-    ):
-        return restore()
-    text._auc_p_value_text = p_text
-    return True
+    plain_text = re.sub(r"\$[^$]*\$", "", wording)
+    for family in ("Arial Narrow", "Liberation Sans Narrow"):
+        properties = original.copy()
+        properties.set_file(None)
+        properties.set_family(family)
+        try:
+            path = findfont(properties, fallback_to_default=False)
+        except ValueError:
+            continue
+        charmap = get_font(path).get_charmap()
+        if any(ord(char) not in charmap for char in plain_text if not char.isspace()):
+            continue
+        return properties
+    return None
 
 
-def fit_auc_annotation_inside_axes(ax, text, *, pad_px: float = 2.0) -> bool:
+def fit_auc_annotation_inside_axes(
+    ax, text, *, pad_px: float = 2.0, horizontal_pad_px: float | None = None,
+) -> bool:
     """Keep an AUC/ABC annotation inside its axes without shrinking its font.
 
     First retain the one-line label and nudge its rendered box inside the axes.
-    If the label is intrinsically too wide, reduce only the p-value font size.
-    Wrap the p-value as a fallback. Return ``False`` only if neither fits.
+    If the label is intrinsically too wide, try thin spaces around equals signs,
+    then after commas and around multiplication symbols.
+    Next try Arial Narrow (or installed Liberation Sans Narrow) at the same
+    size before wrapping the p-value. Return ``False``
+    only if neither fits.
+    ``horizontal_pad_px`` can tighten side margins independently of vertical
+    clearance; by default all sides use ``pad_px``.
     """
     if text is None or not text.get_visible():
         return True
@@ -404,25 +299,63 @@ def fit_auc_annotation_inside_axes(ax, text, *, pad_px: float = 2.0) -> bool:
 
     original_bbox = text.get_window_extent(renderer=renderer)
     original = text.get_text()
+    horizontal_pad_px = pad_px if horizontal_pad_px is None else horizontal_pad_px
 
     # Leave a small physical reserve for backend-specific text-metric
     # differences, particularly mathtext/superscripts in PDF output.
     backend_slack_px = (
-        0.5 * float(text.get_fontsize()) * float(fig.dpi) / 72.0
+        AUC_BACKEND_SLACK_FONT_RATIO * float(text.get_fontsize()) * float(fig.dpi) / 72.0
     )
     if keep_text_box_inside_axes(
         ax,
         text,
         pad_px=pad_px,
-        right_pad_px=pad_px + backend_slack_px,
+        left_pad_px=horizontal_pad_px,
+        right_pad_px=horizontal_pad_px + backend_slack_px,
     ):
         return True
+
+    if "\n" not in original:
+        # Match correlation plots: mathtext thin spaces work with Arial
+        # without requiring a Unicode thin-space glyph.
+        compact = original.replace(" = ", r"$\,$=$\,$")
+        # Time plots also tighten sample-size lists and scientific notation.
+        # Bracing \times suppresses its automatic binary-operator spacing;
+        # explicit thin spaces would otherwise add to the existing gaps.
+        tighter = compact.replace(", ", r",$\,$").replace(
+            r" \times ", r"\,{\times}\,"
+        ).replace(" × ", r"$\,$×$\,$")
+        for candidate in dict.fromkeys((compact, tighter)):
+            if candidate == original:
+                continue
+            text.set_text(candidate)
+            if keep_text_box_inside_axes(
+                ax, text, pad_px=pad_px,
+                left_pad_px=horizontal_pad_px,
+                right_pad_px=horizontal_pad_px + backend_slack_px,
+            ):
+                return True
+            text.set_text(original)
+
+        original_font = text.get_fontproperties().copy()
+        narrow_font = _auc_narrow_font_properties(original_font, original)
+        if narrow_font is not None:
+            text.set_fontproperties(narrow_font)
+            # Prefer ordinary spacing if the narrow face alone is enough.
+            for candidate in dict.fromkeys((original, compact, tighter)):
+                text.set_text(candidate)
+                if keep_text_box_inside_axes(
+                    ax, text, pad_px=pad_px,
+                    left_pad_px=horizontal_pad_px,
+                    right_pad_px=horizontal_pad_px + backend_slack_px,
+                ):
+                    return True
+            text.set_fontproperties(original_font)
+            text.set_text(original)
 
     p_value_separator = " (p ="
     if "\n" in original or p_value_separator not in original:
         return False
-    if _fit_auc_p_value_on_one_line(ax, text, pad_px=pad_px):
-        return True
 
     text.set_text(original.replace(p_value_separator, "\n(p =", 1))
     fig.canvas.draw()
@@ -443,7 +376,10 @@ def fit_auc_annotation_inside_axes(ax, text, *, pad_px: float = 2.0) -> bool:
             )
         )
 
-    if keep_text_box_inside_axes(ax, text, pad_px=pad_px):
+    if keep_text_box_inside_axes(
+        ax, text, pad_px=pad_px,
+        left_pad_px=horizontal_pad_px, right_pad_px=horizontal_pad_px,
+    ):
         return True
 
     text.set_text(original)
@@ -504,8 +440,8 @@ def place_auc_annotation(ax, text, *, upper_only=False) -> bool:
 
     Prefer the position chosen by the plot relative to its curves. Only move
     it to clear plot geometry, annotations, a legend or the axes boundary.
-    The prefix and any separately sized p-value move together. The top
-    inset follows the main AUC line's capital letters. Superscripts get space
+    The entire annotation moves together. The top inset follows the main AUC
+    line's capital letters. Superscripts get space
     above that line instead of pushing decimal-p-value annotations upward.
     """
     from matplotlib.transforms import Bbox
@@ -513,15 +449,15 @@ def place_auc_annotation(ax, text, *, upper_only=False) -> bool:
     if text is None or not text.get_visible():
         return True
 
-    # Restore the unsplit label before rechecking a changed figure layout.
-    p_text = getattr(text, "_auc_p_value_text", None)
-    if p_text is not None:
-        p_text.remove()
-        del text._auc_p_value_text
+    # Restore ordinary spacing and font before rechecking a changed layout.
     if hasattr(text, "_auc_original_text"):
         text.set_text(text._auc_original_text)
+        original_font = text._auc_original_font.copy()
+        original_font.set_size(text.get_fontsize())
+        text.set_fontproperties(original_font)
     else:
         text._auc_original_text = text.get_text()
+        text._auc_original_font = text.get_fontproperties().copy()
         text._auc_preferred_placement = (
             text.get_transform(), text.get_position(), text.get_ha(), text.get_va(),
         )
@@ -534,13 +470,13 @@ def place_auc_annotation(ax, text, *, upper_only=False) -> bool:
 
     fig = ax.figure
     pad_px = AUC_INSET_FONT_RATIO * text.get_fontsize() * fig.dpi / 72.0
-    if not fit_auc_annotation_inside_axes(ax, text, pad_px=pad_px):
+    horizontal_pad_px = AUC_HORIZONTAL_INSET_FONT_RATIO * text.get_fontsize() * fig.dpi / 72.0
+    if not fit_auc_annotation_inside_axes(
+        ax, text, pad_px=pad_px, horizontal_pad_px=horizontal_pad_px,
+    ):
         return False
 
     labels = [text]
-    p_text = getattr(text, "_auc_p_value_text", None)
-    if p_text is not None:
-        labels.append(p_text)
     fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
     axes_bbox = ax.get_window_extent(renderer)
@@ -551,15 +487,17 @@ def place_auc_annotation(ax, text, *, upper_only=False) -> bool:
             0.5 * spine.get_linewidth() * fig.dpi / 72.0
             if spine.get_visible() else 0.0
         )
-        padding = (
-            AUC_TOP_INSET_FONT_RATIO * text.get_fontsize() * fig.dpi / 72.0
-            if side == "top" else pad_px
-        )
+        if side == "top":
+            padding = AUC_TOP_INSET_FONT_RATIO * text.get_fontsize() * fig.dpi / 72.0
+        elif side in ("left", "right"):
+            padding = horizontal_pad_px
+        else:
+            padding = pad_px
         return padding + half_width
 
     # Retain the fitter's reserve for PDF/mathtext width differences.
     backend_slack_px = (
-        0.5 * text.get_fontsize() * fig.dpi / 72.0
+        AUC_BACKEND_SLACK_FONT_RATIO * text.get_fontsize() * fig.dpi / 72.0
         if "\n" not in text.get_text() else 0.0
     )
     block = Bbox.union([label.get_window_extent(renderer) for label in labels])
@@ -578,7 +516,7 @@ def place_auc_annotation(ax, text, *, upper_only=False) -> bool:
     )
     superscript_headroom = max(0.0, ink.y1 - main_top)
     # Unusually tall expressions still retain clearance from the spine.
-    top_inset = max(inset("top"), superscript_headroom + inset("left"))
+    top_inset = max(inset("top"), superscript_headroom + inset("bottom"))
     safe_bbox = Bbox.from_extents(
         axes_bbox.x0 + inset("left"),
         axes_bbox.y0 + inset("bottom"),
@@ -826,7 +764,42 @@ def _linked_sample_size_texts(stars):
     )
 
 
-def _choose_sample_size_sides(ax, texts, gap_px: float) -> None:
+def _annotation_layout_renderer(ax, renderer=None):
+    """Measure moved Text directly when the figure geometry is already settled.
+
+    Text.get_window_extent recalculates its position using the supplied renderer;
+    moving a label does not require repainting all the figure's subplots.
+    Passing None retains the full-draw path for layouts with draw-time effects.
+    """
+    if renderer is None:
+        ax.figure.canvas.draw()
+        return ax.figure.canvas.get_renderer()
+    return renderer
+
+
+def _can_reuse_annotation_renderer(fig):
+    from matplotlib.text import Text
+
+    # Automatic layout and callbacks may change transforms on every draw.
+    # Custom text draws include the axes-containment hook in this module.
+    texts = (text for ax in fig.axes for text in ax.texts)
+    return not (
+        getattr(fig, "get_layout_engine", lambda: None)() is not None
+        or fig.get_constrained_layout()
+        or fig.get_tight_layout()
+        or fig.canvas.callbacks.callbacks.get("draw_event")
+        or any(
+            "draw" in text.__dict__ or type(text).draw is not Text.draw
+            for text in texts
+        )
+        or any(
+            "draw" in text.__dict__ or type(text).draw is not Text.draw
+            for text in fig.texts
+        )
+    )
+
+
+def _choose_sample_size_sides(ax, texts, gap_px: float, *, _renderer=None) -> None:
     """Place a lower count below its trace when an above label is too tight.
 
     Counts remain above their data markers by default.  At a shared x position,
@@ -835,8 +808,7 @@ def _choose_sample_size_sides(ax, texts, gap_px: float) -> None:
     only when the full below-label box fits inside the axes.
     """
     fig = ax.figure
-    fig.canvas.draw()
-    renderer = fig.canvas.get_renderer()
+    renderer = _annotation_layout_renderer(ax, _renderer)
     axes_bbox = ax.get_window_extent(renderer=renderer)
     trace_clearance_px = 2.0 * fig.dpi / 72.0
 
@@ -909,10 +881,8 @@ def _choose_sample_size_sides(ax, texts, gap_px: float) -> None:
                 lower._sample_size_side_ = "below"
 
 
-def _position_linked_significance_texts(ax, texts, gap_px: float) -> None:
-    fig = ax.figure
-    fig.canvas.draw()
-    renderer = fig.canvas.get_renderer()
+def _position_linked_significance_texts(ax, texts, gap_px: float, *, _renderer=None) -> None:
+    renderer = _annotation_layout_renderer(ax, _renderer)
 
     for stars in texts:
         sample_sizes = _linked_sample_size_texts(stars)
@@ -936,17 +906,15 @@ def _position_linked_significance_texts(ax, texts, gap_px: float) -> None:
             target_stars_bottom_px - float(stars_bbox.y0),
         )
 
-        fig.canvas.draw()
-        renderer = fig.canvas.get_renderer()
+        renderer = _annotation_layout_renderer(ax, _renderer)
 
 
-def _position_linked_annotation_stacks(ax, texts) -> None:
+def _position_linked_annotation_stacks(ax, texts, *, _renderer=None) -> None:
     """Use compact physical gaps for linked marker/count/star stacks."""
     fig = ax.figure
-    fig.canvas.draw()
-    renderer = fig.canvas.get_renderer()
+    renderer = _annotation_layout_renderer(ax, _renderer)
     gap_px = ANNOTATION_STACK_GAP_POINTS * fig.dpi / 72.0
-    _choose_sample_size_sides(ax, texts, gap_px)
+    _choose_sample_size_sides(ax, texts, gap_px, _renderer=_renderer)
 
     for sample_size in texts:
         data_y = getattr(sample_size, "_data_point_y_", None)
@@ -972,10 +940,9 @@ def _position_linked_annotation_stacks(ax, texts) -> None:
             shift_px = target_sample_bottom_px - float(sample_bbox.y0)
         _move_text_by_display_dy(ax, sample_size, shift_px)
 
-        fig.canvas.draw()
-        renderer = fig.canvas.get_renderer()
+        renderer = _annotation_layout_renderer(ax, _renderer)
 
-    _position_linked_significance_texts(ax, texts, gap_px)
+    _position_linked_significance_texts(ax, texts, gap_px, _renderer=_renderer)
 
 
 def dodge_annotation_reference_line(ax, texts, *, y=0.0, gap_points=2.0):
@@ -1045,7 +1012,10 @@ def resolve_annotation_text_overlaps(ax, texts, ylim, *, pad_px=None, max_iter=1
 
     fig = ax.figure
     fig.canvas.draw()
-    _position_linked_annotation_stacks(ax, texts)
+    renderer_hint = (
+        fig.canvas.get_renderer() if _can_reuse_annotation_renderer(fig) else None
+    )
+    _position_linked_annotation_stacks(ax, texts, _renderer=renderer_hint)
     if len(texts) < 2:
         return
 
@@ -1055,9 +1025,8 @@ def resolve_annotation_text_overlaps(ax, texts, ylim, *, pad_px=None, max_iter=1
 
     for _ in range(int(max_iter)):
         gap_px = ANNOTATION_STACK_GAP_POINTS * fig.dpi / 72.0
-        _position_linked_significance_texts(ax, texts, gap_px)
-        fig.canvas.draw()
-        renderer = fig.canvas.get_renderer()
+        _position_linked_significance_texts(ax, texts, gap_px, _renderer=renderer_hint)
+        renderer = _annotation_layout_renderer(ax, renderer_hint)
         ordered = sorted(
             (
                 (
@@ -1088,9 +1057,9 @@ def resolve_annotation_text_overlaps(ax, texts, ylim, *, pad_px=None, max_iter=1
             if needed_shift_px > 0.0:
                 _move_text_by_display_dy(ax, text, needed_shift_px)
                 moved = True
-                fig.canvas.draw()
+                renderer = _annotation_layout_renderer(ax, renderer_hint)
                 bbox = _expanded_text_bbox(
-                    text.get_window_extent(renderer=fig.canvas.get_renderer()),
+                    text.get_window_extent(renderer=renderer),
                     pad_px,
                 )
                 _expand_ylim_if_text_exceeds_top(

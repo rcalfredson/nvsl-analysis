@@ -1173,19 +1173,33 @@ class VideoAnalysis:
             )
             self._skipped = True
             return
-        self.startPre = self.fns["startPre"][0]
+        first_training = 1 if getattr(self.opts, "skipFT", False) else 0
+        if first_training and (
+            len(tms) <= first_training
+            or len(self.fns["startPre"]) <= first_training
+        ):
+            error("--skpFT requires a second training and a second pre-training start")
+        self.startPre = self.fns["startPre"][first_training]
         # note: some older experiments used 'startPre' more than once
+        retained_tms = tms[first_training:]
         if self.circle:
             r = proto["area" if area else "circle"]["r"]
             rl = self.info.get("r", [])
             if len(rl) == len(tms):
+                r = rl[first_training:]
+            elif len(rl) == len(retained_tms):
                 r = rl
             else:
                 assert all(r1 == r for r1 in rl)
             cPos = self.info["cPos"]
+            # Prestimulation protocols may omit geometry for the skipped session.
+            if len(cPos) == len(tms):
+                cPos = cPos[first_training:]
+            if len(cPos) != len(retained_tms):
+                error("circle positions must match all trainings or retained trainings")
         if self.openLoop:
             self.alt = proto.get("alt", True)
-        for i, (st, spst) in enumerate(tms):
+        for i, (st, spst) in enumerate(retained_tms):
             if self.circle:
                 trn = Training(
                     i + 1,
@@ -3814,13 +3828,13 @@ class VideoAnalysis:
 
             if region_label == "agarose":
                 ten_min_frames = self._min2f(10)
-                for t_idx, _trn in enumerate(self.trns):
+                for t_idx, trn in enumerate(self.trns):
                     post_stop = (
                         int(self.trns[t_idx + 1].start)
                         if t_idx < len(self.trns) - 1
                         else int(self.nf)
                     )
-                    post_start = int(self.fns["startPost"][t_idx])
+                    post_start = int(trn.stop)
                     intvl = slice(
                         max(post_start, post_stop - ten_min_frames), post_stop
                     )
@@ -8736,7 +8750,11 @@ class VideoAnalysis:
             "bottom " if bt else "",
             "mm" if bt else "px",
         )
-        fi = 0
+        fi = self.startPre
+        if getattr(self.opts, "skipFT", False):
+            # A skipped training can end on startPre with a final stimulation.
+            # Exclude its stop frame, just as for subsequent trainings below.
+            fi = max(fi, self.fns["startPost"][0] + 1)
         for t in self.trns:
             print(t.name())
             # check whether pulse in pre period
@@ -8778,12 +8796,14 @@ class VideoAnalysis:
 
     # rewards per minute
     def rewardsPerMinute(self):
+        """Whole-training RPM over the same post-initial-reward window as RPD."""
         self.rewardsPerMin = []
         for t in self.trns:
-            fi, la = self._syncBucket(t, skip=0)[0], t.stop
+            # Exclude the T0 reward from both counting and elapsed time.
+            fi, la = self._syncBucket(t, skip=1)[0], t.stop
             rpm = (
                 np.nan
-                if fi is None
+                if fi is None or not np.isfinite(fi) or not np.isfinite(la) or la <= fi
                 else self._countOn(fi, la, calc=True, ctrl=False, f=0)
                 / self._f2min(la - fi)
             )

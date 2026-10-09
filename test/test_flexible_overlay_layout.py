@@ -9,6 +9,8 @@ from src.plotting.plot_customizer import PlotCustomizer
 
 from src.plotting.annotation_layout import (
     AUC_INSET_FONT_RATIO,
+    AUC_HORIZONTAL_INSET_FONT_RATIO,
+    AUC_BACKEND_SLACK_FONT_RATIO,
     AUC_TOP_INSET_FONT_RATIO,
     dodge_annotation_reference_line,
     fit_auc_annotation_inside_axes,
@@ -25,8 +27,10 @@ def _visible_top_inset_px(ax, text):
     pixels = np.asarray(ax.figure.canvas.buffer_rgba())
     top = pixels.shape[0] - bounds.y1
     start = int(np.ceil(top)) + 3
-    left = text.get_transform().transform(text.get_position())[0]
-    prefix_width = 1.8 * text.get_fontsize() * ax.figure.dpi / 72
+    left = text.get_window_extent(ax.figure.canvas.get_renderer()).x0
+    prefix_width = ax.figure.canvas.get_renderer().get_text_width_height_descent(
+        "AUC", text.get_fontproperties(), ismath=False,
+    )[0]
     crop = pixels[
         start:int(top + bounds.height * 0.5),
         int(np.ceil(left)) + 3:int(np.floor(left + prefix_width)),
@@ -45,8 +49,6 @@ def _visible_top_inset_px(ax, text):
     r"AUC (n = 39, 41): **** (p = $1.38 \times 10^{-13}$)",
 ])
 def test_auc_blocks_keep_minimum_rendered_insets(dpi, font_size, wording):
-    from matplotlib.transforms import Bbox
-
     fig, axes = plt.subplots(1, 2, figsize=(15, 5), dpi=dpi)
     ax = axes[1]
     ax.set_ylim(0, 1.2)
@@ -58,13 +60,9 @@ def test_auc_blocks_keep_minimum_rendered_insets(dpi, font_size, wording):
         for _ in range(2):
             assert place_auc_annotation(ax, text)
             renderer = fig.canvas.get_renderer()
-            labels = [text]
-            p_value = getattr(text, "_auc_p_value_text", None)
-            if p_value is not None:
-                labels.append(p_value)
-            block = Bbox.union([label.get_window_extent(renderer) for label in labels])
+            block = text.get_window_extent(renderer)
             bounds = ax.get_window_extent(renderer)
-            pad = AUC_INSET_FONT_RATIO * font_size * dpi / 72
+            pad = AUC_HORIZONTAL_INSET_FONT_RATIO * font_size * dpi / 72
             left_half_spine = 0.5 * ax.spines["left"].get_linewidth() * dpi / 72
             top_half_spine = 0.5 * ax.spines["top"].get_linewidth() * dpi / 72
             assert block.x0 - bounds.x0 >= pad + left_half_spine - 1e-6
@@ -110,7 +108,7 @@ def test_wrapped_auc_block_keeps_minimum_border_insets():
         renderer = fig.canvas.get_renderer()
         bounds = ax.get_window_extent(renderer)
         bbox = text.get_window_extent(renderer)
-        inset = (AUC_INSET_FONT_RATIO * 27 + 0.4) * fig.dpi / 72
+        inset = (AUC_HORIZONTAL_INSET_FONT_RATIO * 27 + 0.4) * fig.dpi / 72
         assert bbox.x0 - bounds.x0 >= inset - 1e-6
         top_inset = (AUC_TOP_INSET_FONT_RATIO * 27 + 0.4) * fig.dpi / 72
         assert _visible_top_inset_px(ax, text) == pytest.approx(top_inset, abs=2)
@@ -119,9 +117,7 @@ def test_wrapped_auc_block_keeps_minimum_border_insets():
         plt.close(fig)
 
 
-def test_auc_collision_check_includes_separately_sized_p_value():
-    from matplotlib.transforms import Bbox
-
+def test_auc_collision_check_includes_p_value():
     fig, axes = plt.subplots(1, 2, figsize=(17, 5))
     ax = axes[1]
     text = ax.text(.03, .97,
@@ -130,18 +126,16 @@ def test_auc_collision_check_includes_separately_sized_p_value():
     try:
         assert place_auc_annotation(ax, text)
         renderer = fig.canvas.get_renderer()
-        p_bbox = text._auc_p_value_text.get_window_extent(renderer)
-        obstacle = ax.text(*ax.transAxes.inverted().transform(p_bbox.p0),
+        bbox = text.get_window_extent(renderer)
+        p_position = (bbox.x0 + 0.75 * bbox.width, bbox.y0)
+        obstacle = ax.text(*ax.transAxes.inverted().transform(p_position),
                            "Other summary", transform=ax.transAxes,
                            va="bottom", fontsize=16)
         assert place_auc_annotation(ax, text)
         renderer = fig.canvas.get_renderer()
-        block = Bbox.union([
-            label.get_window_extent(renderer)
-            for label in (text, text._auc_p_value_text)
-        ])
+        block = text.get_window_extent(renderer)
         assert not block.overlaps(obstacle.get_window_extent(renderer))
-        assert len(ax.texts) == 3  # Rechecking does not leave duplicate p-values.
+        assert len(ax.texts) == 2  # Rechecking keeps a single statistics artist.
     finally:
         plt.close(fig)
 
@@ -552,7 +546,7 @@ def test_auc_annotation_leaves_backend_safety_margin_at_right_edge():
     text_bbox = text.get_window_extent(renderer=renderer)
 
     backend_slack_px = (
-        0.5 * text.get_fontsize() * fig.dpi / 72.0
+        AUC_BACKEND_SLACK_FONT_RATIO * text.get_fontsize() * fig.dpi / 72.0
     )
 
     assert "\n" not in text.get_text()
@@ -590,37 +584,222 @@ def test_auc_annotation_wraps_p_value_when_one_line_cannot_fit():
 
 
 
-def test_auc_shrinks_only_p_value_to_preserve_panel_size():
-    fig, axes = plt.subplots(1, 2, figsize=(15, 5), dpi=100)
-    ax = axes[1]
-    text = ax.text(
-        0.5,
-        0.97,
-        r"AUC (n = 39, 41): **** (p = $\mathregular{1.38 \times 10^{-13}}$)",
-        transform=ax.transAxes,
-        ha="center",
-        va="top",
-        fontsize=24,
-        fontfamily="Arial",
+@pytest.mark.parametrize("dpi", [100, 200])
+@pytest.mark.parametrize("prefix", ["AUC", "ABC"])
+@pytest.mark.parametrize("p_value", ["0.000611", r"$\mathregular{1.38 \times 10^{-13}}$"])
+def test_auc_uses_thin_equals_spaces_to_preserve_font_and_panel_size(dpi, prefix, p_value):
+    fig, ax = plt.subplots(figsize=(12, 5), dpi=dpi)
+    original = f"{prefix} (n = 39, 41): **** (p = {p_value})"
+    compact = original.replace(" = ", r"$\,$=$\,$")
+    text = ax.text(0.5, 0.97, original, transform=ax.transAxes,
+                   ha="center", va="top", fontsize=24, fontfamily="Arial")
+    try:
+        fig.canvas.draw()
+        full_width = text.get_window_extent(fig.canvas.get_renderer()).width
+        text.set_text(compact)
+        fig.canvas.draw()
+        compact_width = text.get_window_extent(fig.canvas.get_renderer()).width
+        assert compact_width < full_width
+        text.set_text(original)
+
+        # Make only the compact line fit, including the backend safety margin.
+        reserve = (2 * AUC_HORIZONTAL_INSET_FONT_RATIO * 24 + AUC_BACKEND_SLACK_FONT_RATIO * 24 + 0.8) * dpi / 72
+        axes_width = (full_width + compact_width) / 2 + reserve
+        fig.set_size_inches(axes_width / ax.get_position().width / dpi, 5)
+        old_size = fig.get_size_inches().copy()
+        old_position = ax.get_position().bounds
+
+        assert place_auc_annotation(ax, text)
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        axes_bbox = ax.get_window_extent(renderer)
+        text_bbox = text.get_window_extent(renderer)
+
+        assert text.get_text() == compact
+        assert text.get_fontsize() == 24
+        assert len(ax.texts) == 1
+        assert text_bbox.x0 >= axes_bbox.x0
+        assert text_bbox.x1 <= axes_bbox.x1 - AUC_BACKEND_SLACK_FONT_RATIO * 24 * dpi / 72
+        assert np.array_equal(fig.get_size_inches(), old_size)
+        assert ax.get_position().bounds == old_position
+
+        # Rechecking keeps a single artist, and wider layouts restore spaces.
+        assert place_auc_annotation(ax, text)
+        assert text.get_text() == compact
+        assert len(ax.texts) == 1
+        fig.set_size_inches((full_width + reserve + 20) / ax.get_position().width / dpi, 5)
+        assert place_auc_annotation(ax, text)
+        assert text.get_text() == original
+        assert text.get_fontsize() == 24
+        assert len(ax.texts) == 1
+    finally:
+        plt.close(fig)
+
+
+@pytest.mark.parametrize("p_value", [
+    "0.000611", "3.71 × 0.0001", r"$3.71 \times 10^{-28}$",
+    r"$\mathregular{3.71 \times 10^{-28}}$",
+])
+def test_time_stats_try_comma_and_multiplication_spacing_before_wrapping(p_value):
+    fig, ax = plt.subplots(figsize=(12, 5), dpi=100)
+    original = f"ABC (n = 17, 44): **** (p = {p_value})"
+    equals_only = original.replace(" = ", r"$\,$=$\,$")
+    tighter = equals_only.replace(", ", r",$\,$").replace(
+        r" \times ", r"\,{\times}\,"
+    ).replace(" × ", r"$\,$×$\,$")
+    text = ax.text(0.5, 0.97, original, transform=ax.transAxes,
+                   ha="center", va="top", fontsize=27, fontfamily="Arial")
+    try:
+        widths = []
+        for wording in (equals_only, tighter):
+            text.set_text(wording)
+            fig.canvas.draw()
+            widths.append(text.get_window_extent(fig.canvas.get_renderer()).width)
+        assert widths[1] < widths[0]
+        text.set_text(original)
+        reserve = (2 * AUC_HORIZONTAL_INSET_FONT_RATIO * 27
+                   + AUC_BACKEND_SLACK_FONT_RATIO * 27 + 0.8) * fig.dpi / 72
+        axes_width = sum(widths) / 2 + reserve
+        fig.set_size_inches(axes_width / ax.get_position().width / fig.dpi, 5)
+        assert place_auc_annotation(ax, text)
+        assert text.get_text() == tighter
+        assert text.get_fontsize() == 27
+        assert len(ax.texts) == 1
+        fig.set_size_inches((widths[0] + reserve + 1) / ax.get_position().width / fig.dpi, 5)
+        assert place_auc_annotation(ax, text)
+        assert text.get_text() == equals_only
+    finally:
+        plt.close(fig)
+
+
+@pytest.mark.parametrize("dpi", [72, 100, 200])
+@pytest.mark.parametrize("font_size,panel_width_pt,sample_sizes", [
+    (24, 436, (17, 44)), (25, 436, (17, 44)),
+    (27, 480, (17, 44)), (27, 436, (17, 44)),
+    (25, 436, (117, 44)), (25, 436, (17, 444)),
+    (25, 436, (117, 444)), (25, 436, (999, 999)),
+])
+def test_manuscript_synthetic_auc_stays_on_one_line_above_data(
+    dpi, font_size, panel_width_pt, sample_sizes,
+):
+    from io import BytesIO
+    from scripts.preview_time_plot_stats import build_preview, preview_font_context
+    from matplotlib.font_manager import FontProperties
+    from src.plotting.annotation_layout import _auc_narrow_font_properties
+
+    narrow_case = (font_size == 27 and panel_width_pt == 436) or any(n >= 100 for n in sample_sizes)
+    if narrow_case and _auc_narrow_font_properties(FontProperties(), "AUC") is None:
+        pytest.skip("No supported narrow font is installed")
+    fig, axes, text = build_preview(
+        dpi=dpi, font_size=font_size, panel_width_pt=panel_width_pt,
+        plot_font_size=27 if font_size == 25 else None,
+        sample_sizes=sample_sizes,
     )
-    old_size = fig.get_size_inches().copy()
-    old_wspace = fig.subplotpars.wspace
+    ax = axes[1]
+    original_size = fig.get_size_inches().copy()
+    original_limits = ax.get_ylim()
+    try:
+        assert text._auc_original_text.startswith(
+            f"AUC (n = {sample_sizes[0]}, {sample_sizes[1]}):"
+        )
+        from matplotlib.font_manager import findfont
+        from matplotlib.text import Text
 
-    assert fit_auc_annotation_inside_axes(ax, text)
-    p_value = text._auc_p_value_text
-    fig.canvas.draw()
-    renderer = fig.canvas.get_renderer()
-    axes_bbox = ax.get_window_extent(renderer)
-    main_bbox = text.get_window_extent(renderer)
-    p_bbox = p_value.get_window_extent(renderer)
+        # Axes create their titles, tick labels and axis labels immediately.
+        # Check every visible text artist so none keeps Matplotlib's default.
+        for artist in fig.findobj(match=Text):
+            if artist is text or not artist.get_visible() or not artist.get_text():
+                continue
+            assert artist.get_fontfamily() == ["Arial"]
+            assert FontProperties(fname=findfont(
+                artist.get_fontproperties(), fallback_to_default=False,
+            )).get_name() == "Arial"
+        if narrow_case:
+            assert text.get_fontfamily()[0] in ("Arial Narrow", "Liberation Sans Narrow")
+            assert text.get_text() == text._auc_original_text
+        else:
+            assert text.get_fontfamily() == ["Arial"]
+            expected = text._auc_original_text
+            if font_size != 24:
+                expected = expected.replace(" = ", r"$\,$=$\,$")
+            if font_size == 25:
+                expected = expected.replace(", ", r",$\,$").replace(
+                    r" \times ", r"\,{\times}\,"
+                )
+                assert axes[0].title.get_fontsize() == 30
+                assert axes[0].yaxis.label.get_fontsize() == pytest.approx(29)
+                assert all(t.get_fontsize() == 25 for t in ax.get_xticklabels())
+                assert all(t.get_fontsize() == 24 for t in ax.texts if t is not text)
+            assert text.get_text() == expected
+        assert "\n" not in text.get_text()
+        assert text.get_fontsize() == font_size
+        for fmt in ("png", "pdf"):
+            with preview_font_context():
+                fig.savefig(BytesIO(), format=fmt)
+                fig.canvas.draw()
+            renderer = fig.canvas.get_renderer()
+            bbox = text.get_window_extent(renderer)
+            bounds = ax.get_window_extent(renderer)
+            assert bbox.x0 >= bounds.x0
+            assert bbox.x1 <= bounds.x1
+            assert bbox.y1 <= bounds.y1
+            assert bbox.y0 > max(other.get_window_extent(renderer).y1
+                                 for other in ax.texts if other is not text)
+            assert all(not bbox.overlaps(other.get_window_extent(renderer))
+                       for other in ax.texts if other is not text)
+            assert "\n" not in text.get_text()
+            assert text.get_fontsize() == font_size
+        assert np.array_equal(fig.get_size_inches(), original_size)
+        assert ax.get_ylim() == original_limits
+        if narrow_case:
+            assert place_auc_annotation(ax, text)
+            assert text.get_fontfamily()[0] in ("Arial Narrow", "Liberation Sans Narrow")
+            fig.set_size_inches(original_size * [1.6, 1])
+            assert place_auc_annotation(ax, text)
+            assert text.get_fontfamily() == ["Arial"]
+            assert text.get_text() == text._auc_original_text
+            assert text.get_fontsize() == font_size
+    finally:
+        plt.close(fig)
 
-    assert text.get_text() == "AUC (n = 39, 41): ****"
-    assert p_value.get_text().startswith("(p =")
-    assert text.get_fontsize() == 24
-    assert 12 <= p_value.get_fontsize() < text.get_fontsize()
-    assert main_bbox.x0 >= axes_bbox.x0
-    assert p_bbox.x0 > main_bbox.x1
-    assert p_bbox.x1 <= axes_bbox.x1
-    assert np.array_equal(fig.get_size_inches(), old_size)
-    assert fig.subplotpars.wspace == old_wspace
-    plt.close(fig)
+
+@pytest.mark.parametrize("available", ["Arial Narrow", "Liberation Sans Narrow", None])
+def test_time_stats_narrow_font_prefers_arial_and_requires_installed_face(monkeypatch, available):
+    from matplotlib import font_manager
+    from src.plotting.annotation_layout import _auc_narrow_font_properties
+
+    path = font_manager.findfont(font_manager.FontProperties())
+    requested = []
+
+    def find_installed(properties, *, fallback_to_default):
+        assert not fallback_to_default
+        family = properties.get_family()[0]
+        requested.append(family)
+        if family == available:
+            return path
+        raise ValueError("Font unavailable")
+
+    monkeypatch.setattr(font_manager, "findfont", find_installed)
+    original = font_manager.FontProperties(family="Arial", size=27)
+    result = _auc_narrow_font_properties(original, "AUC (n = 17, 44)")
+    if available is None:
+        assert result is None
+    else:
+        assert result.get_family() == [available]
+        assert result.get_size_in_points() == 27
+    assert original.get_family() == ["Arial"]
+    assert requested[0] == "Arial Narrow"
+
+
+def test_time_stats_still_wrap_without_a_narrow_font(monkeypatch):
+    from src.plotting import annotation_layout
+    from scripts.preview_time_plot_stats import build_preview
+
+    monkeypatch.setattr(annotation_layout, "_auc_narrow_font_properties", lambda *args: None)
+    fig, axes, text = build_preview(font_size=27)
+    try:
+        assert "\n(p =" in text.get_text()
+        assert text.get_fontfamily() == ["Arial"]
+        assert text.get_fontsize() == 27
+    finally:
+        plt.close(fig)

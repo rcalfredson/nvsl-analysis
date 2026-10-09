@@ -1946,7 +1946,7 @@ class Trajectory:
     def _append_pct_circle_post_ranges(
         self, t, inC, inCRngs, nanRngs, bl_1_min, bl_2_min
     ):
-        startPost = self.va.fns["startPost"][t.n - 1]
+        startPost = t.stop
 
         # Add ranges for first 1 minute and first 2 minutes of the post period
         inCRngs.append(inC[startPost - t.start : startPost - t.start + bl_1_min])
