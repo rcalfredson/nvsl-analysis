@@ -160,3 +160,57 @@ def test_checkboxes_combine_types_and_persist_on_cell_rerun():
         False, True, True, False, False, False,
     ]
     scope["_refresh_controls"].close()
+
+
+def test_all_manuscript_heatmaps_use_shared_ratio_300():
+    import math
+    import shlex
+
+    scope, _, _, _ = _preview_notebook({'heatmap'}, run=False)
+    recipes = [r for r in scope['MANUSCRIPT_RECIPES'] if r.get('plot_type') == 'heatmap']
+    assert len(recipes) == 14
+    assert not scope['HEATMAP_CACHE_SETTINGS']['rebuild']
+    for recipe in recipes:
+        tokens = shlex.split(recipe['command'])
+        minimum = float(tokens[tokens.index('--pltHmVmin') + 1])
+        maximum = float(tokens[tokens.index('--pltHmVmax') + 1])
+        assert math.isclose(maximum / minimum, 300)
+        assert (minimum, maximum) == ((1e-5, 3e-3) if '--rmCC' in tokens else (1e-6, 3e-4))
+        assert recipe['image_format'] == 'pdf'
+
+
+def test_manuscript_heatmap_renders_cache_and_archives_expected_pdf(tmp_path, monkeypatch):
+    import matplotlib as mpl
+    import numpy as np
+    from src.plotting.heatmap_cache import save_heatmap_cache
+
+    scope, _, _, _ = _preview_notebook({'heatmap'}, run=False)
+    source = next(s for s in _notebook_code() if 'def run_manuscript_recipe(' in s)
+    tree = ast.parse(source)
+    tree.body = [n for n in tree.body if isinstance(n, ast.FunctionDef)
+                 and n.name == 'run_manuscript_recipe']
+    exec(compile(tree, '<run-recipe>', 'exec'), scope)
+    scope['ROOT'] = tmp_path
+    scope['PLOT_STYLE']['font_family'] = 'DejaVu Sans'
+    calls = []
+    def ensure(root, command, target, **kwargs):
+        calls.append((command, target, kwargs))
+        save_heatmap_cache(target, [[{
+            'probability': np.array([[0., 1e-5], [1e-4, 1e-3]]),
+            'column': 0, 'fly': 0, 'header': 'T2 SB5', 'sample': 'n=2', 'circle': None,
+        }]], {'figsize': [3.1, 6], 'nc': 1, 'nsr': 2, 'nsc': 1}, mpl.colormaps['jet'])
+        return target
+    monkeypatch.setattr('src.plotting.heatmap_workflow.ensure_heatmap_cache', ensure)
+    recipe = scope['extended_data_figure_13a_flat_training']
+    scope['run_manuscript_recipe'](recipe, run=False)
+    assert not calls
+    assert not (tmp_path / 'imgs').exists()
+    scope['run_manuscript_recipe'](recipe, run=True)
+    assert len(calls) == 1
+    assert calls[0][1].name == 'ED13a_flat_T2_SB5.npz'
+    assert calls[0][2]['reuse_paths'][0].name == 'small_flat_training.npz'
+    assert calls[0][2]['rebuild'] is False
+    source_pdf = tmp_path / 'imgs/heatmaps2.pdf'
+    output_pdf = tmp_path / recipe['panels']['ED13a_flat_T2_SB5']['output']
+    assert source_pdf.read_bytes().startswith(b'%PDF')
+    assert output_pdf.read_bytes() == source_pdf.read_bytes()
