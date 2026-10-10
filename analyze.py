@@ -6252,6 +6252,11 @@ g.add_argument(
     ),
 )
 g.add_argument(
+    "--hm-map-export",
+    metavar="NPZ",
+    help="Save unclipped aggregate probability maps for post-hoc heatmap rendering (without --bg).",
+)
+g.add_argument(
     "--bg",
     dest="bg",
     type=float,
@@ -8161,6 +8166,10 @@ def _normalize_com_options(opts, argv=None):
 
 
 opts = p.parse_args()
+if opts.hm_map_export and not opts.hm:
+    p.error("--hm-map-export requires --pltHm")
+if opts.hm_map_export and opts.bg is not None:
+    p.error("--hm-map-export does not support chamber backgrounds (--bg)")
 if any(getattr(opts, name, None) for name in (
     "hm_pair_export", "hm_pair_manifest", "hm_pair_side", "hm_pair_before_report",
     "hm_pair_after_report", "hm_pair_audit",
@@ -11310,6 +11319,10 @@ def plotRdpStats(vas, gls, tpTa=True):
 
 # plot heatmaps
 def plotHeatmaps(vas):
+    cache_path = getattr(opts, "hm_map_export", None)
+    if cache_path and opts.bg is not None:
+        raise ValueError("--hm-map-export does not support chamber backgrounds (--bg)")
+    cache_rows = []
     pairing_active = bool(
         getattr(opts, "hm_pair_export", None) or getattr(opts, "hm_pair_manifest", None)
     )
@@ -11403,6 +11416,7 @@ def plotHeatmaps(vas):
         return maps[f][i_src]
 
     for row_idx, period in enumerate(periods):
+        cache_row = []
         panels = (
             [(None, va0.trns[0])]
             if period == "pre"
@@ -11604,6 +11618,23 @@ def plotHeatmaps(vas):
                             linewidth=0.8,
                         )
                     )
+                if cache_path:
+                    circles = [
+                        patch for patch in ax.patches
+                        if isinstance(patch, mpl.patches.Circle)
+                    ]
+                    circle = circles[0] if circles else None
+                    cache_row.append({
+                        "probability": mpms[map_idx],
+                        "column": panel_idx,
+                        "fly": int(f),
+                        "header": header_title.get_text() if header_title is not None else None,
+                        "sample": sample_size_title.get_text() if sample_size_title is not None else None,
+                        "circle": (
+                            [float(circle.center[0]), float(circle.center[1]), float(circle.radius)]
+                            if circle is not None else None
+                        ),
+                    })
                 imgs1.append(img)
             imgs.append((util.combineImgs(imgs1, nc=nsc, d=5)[0], ttl + " (%s)" % ttln))
         apply_heatmap_text_layout(
@@ -11613,6 +11644,14 @@ def plotHeatmaps(vas):
             heatmap_text_size,
         )
         imgs.extend([(None, "")] * (nc - len(panels)))
+        cache_rows.append(cache_row)
+    if cache_path:
+        from src.plotting.heatmap_cache import save_heatmap_cache
+
+        save_heatmap_cache(cache_path, cache_rows, {
+            "figsize": fig.get_size_inches().tolist(), "nc": nc, "nsr": nsr, "nsc": nsc,
+        }, cmap)
+        print(f"[heatmaps v2] saved aggregate probability maps: {cache_path}")
     img = util.combineImgs(imgs, nc=nc)[0]
     writeImage(HEATMAPS_IMG_FILE % "", img)
     writeImage(HEATMAPS_IMG_FILE % 2, format=opts.imageFormat)

@@ -6,6 +6,7 @@
 
 imgs/**/*.png*
 imgs/**/*.jpg*
+imgs/**/*.json*
 imgs/**/*.pdf*
 imgs/**/*.svg*
 imgs/**/*.tsv*
