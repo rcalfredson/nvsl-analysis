@@ -151,6 +151,22 @@ def test_reward_centered_delta_reuses_cohorts_and_adds_default_slide_circle():
     assert recipe['panels']['4g']['output'].endswith('_reward_centered_pct_graphpad.csv')
 
 
+def test_shifted_circle_delta_reuses_4g_archives_and_selects_shifted_section():
+    import shlex
+
+    scope, _, _, _ = _preview_notebook({'data'}, run=False)
+    recipe = scope['figure_4h']
+    assert recipe in scope['MANUSCRIPT_RECIPES']
+    assert recipe['analysis_stages'] is scope['figure_4g_stages']
+    assert scope['figure_4h_groups'] is scope['figure_4g_groups']
+    tokens = shlex.split(recipe['export_command'])
+    assert tokens[tokens.index('--circle') + 1] == 'shifted'
+    assert all(stage['archive_output'] in tokens and stage['archive_output'] in recipe['artifacts']
+               for stage in scope['figure_4g_stages'])
+    assert recipe['panels']['4h']['output'].endswith('_shifted_pct_graphpad.csv')
+    assert '--circle' not in shlex.split(scope['figure_4g']['export_command'])
+
+
 def test_copy_transfers_full_data_artifacts_and_preflights_missing_files(tmp_path):
     scope, _, _, _ = _preview_notebook({'data'}, run=False)
     source = next(s for s in _notebook_code() if 'def copy_manuscript_panels(' in s)

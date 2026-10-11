@@ -75,6 +75,15 @@ percentage points, with finite percentages required on both sides. It applies
 neither yoked subtraction nor the reward-PI count threshold. Source percentages
 include finite interpolated positions and exclude unresolved positions.
 
+Figure 4h reuses Figure 4g's six full statistics archives, selecting the
+`shifted (2 cm down)` section with `--circle shifted` in the same converter.
+The area still has diameter 20 mm, but its center is 20 mm below the reward
+center. Pairing, bucket selection, percentage-point subtraction, and finite-value
+requirements are identical to Figure 4g. Both sections are already emitted by
+`--pref-circle-slide`, so conversion requires no new analyses. The audit records
+the selected circle. Refreshing shared archives requires reconverting both
+panels to update both GraphPad outputs.
+
 ## Run the two eligibility exports
 
 Append `--hm-pair-export exports/film_before.json` to the existing before command,
