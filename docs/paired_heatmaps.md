@@ -66,6 +66,15 @@ identities and subtracts pre-slide T2 SB5 SLI from post-slide local T1 SB1
 experimental and yoked reward PIs on both sides and audits unmatched identities;
 it does not apply the heatmap window or heatmap eligibility filters.
 
+Figure 4g uses these same cohorts with `--pref-circle-slide` (default radius
+1 cm, diameter 20 mm). `scripts/export_slide_circle_delta_graphpad.py` reads
+the experimental-only concentric-circle percentage section from each archived
+`learning_stats.csv`, resolving repeated short bucket headers within each
+training block. It exports post-slide local T1 b1 minus pre-slide T2 b5 in
+percentage points, with finite percentages required on both sides. It applies
+neither yoked subtraction nor the reward-PI count threshold. Source percentages
+include finite interpolated positions and exclude unresolved positions.
+
 ## Run the two eligibility exports
 
 Append `--hm-pair-export exports/film_before.json` to the existing before command,

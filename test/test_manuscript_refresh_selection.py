@@ -134,6 +134,23 @@ def test_film_slide_delta_uses_six_archived_stages_and_manuscript_group_order():
     assert recipe['panels']['4f']['output'].endswith('_t3_sb1_minus_t2_sb5_sli_graphpad.csv')
 
 
+def test_reward_centered_delta_reuses_cohorts_and_adds_default_slide_circle():
+    import shlex
+
+    scope, _, _, _ = _preview_notebook({'data'}, run=False)
+    recipe = scope['figure_4g']
+    assert recipe in scope['MANUSCRIPT_RECIPES']
+    assert scope['figure_4g_groups'] == scope['figure_4f_groups']
+    assert scope['figure_4g_video_lists'] == scope['figure_4f_video_lists']
+    assert len(recipe['analysis_stages']) == 6
+    for original, stage in zip(scope['figure_4f_stages'], recipe['analysis_stages']):
+        assert shlex.split(stage['command']) == shlex.split(original['command']) + ['--pref-circle-slide']
+        assert stage['archive_output'] in recipe['artifacts']
+        assert 'fig4g' in stage['archive_output']
+    assert 'export_slide_circle_delta_graphpad.py' in recipe['export_command']
+    assert recipe['panels']['4g']['output'].endswith('_reward_centered_pct_graphpad.csv')
+
+
 def test_copy_transfers_full_data_artifacts_and_preflights_missing_files(tmp_path):
     scope, _, _, _ = _preview_notebook({'data'}, run=False)
     source = next(s for s in _notebook_code() if 'def copy_manuscript_panels(' in s)
