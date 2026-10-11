@@ -110,7 +110,13 @@ def test_notebook_reuses_maps_after_scale_changes_and_refreshes_changed_recipes(
     exec(''.join(cells[1]['source']), scope)
     scope['display'] = lambda *args: None
     exec(''.join(cells[3]['source']), scope)
-    scope.update(OUT=tmp_path, CACHE=tmp_path, RUN=True, FONT_FAMILY='DejaVu Sans')
+    project = tmp_path / 'project'
+    project.mkdir()
+    (project / 'analyze.py').write_text('# synthetic analysis source\n')
+    config = project / '.analyze.local.env'
+    config.write_text('ENABLE_DEFAULT_BETWEEN_REWARD_SLI_PLOTS=false\n')
+    scope.update(ROOT=project, OUT=tmp_path, CACHE=tmp_path,
+                 RUN=True, FONT_FAMILY='DejaVu Sans')
     calls = []
     def fake_analysis(argv, **kwargs):
         calls.append(argv)
@@ -133,6 +139,10 @@ def test_notebook_reuses_maps_after_scale_changes_and_refreshes_changed_recipes(
     details = json.loads((tmp_path / 'small_flat_training_ratio_50.json').read_text())
     assert details['ratio'] == 50
     assert details['vmax'] == 2e-3
+    # Run All toggles an unrelated plotting switch; neither map should rebuild.
+    config.write_text('ENABLE_DEFAULT_BETWEEN_REWARD_SLI_PLOTS=true\n')
+    exec(render_cell, scope)
+    assert len(calls) == 2
     # A changed analysis recipe refreshes that recipe only.
     scope['RECIPES']['small_flat_training'][1]['command'] += ' --hm-sync-bucket-tail-minutes 5'
     exec(render_cell, scope)
@@ -140,3 +150,36 @@ def test_notebook_reuses_maps_after_scale_changes_and_refreshes_changed_recipes(
     scope['REBUILD_CACHE'] = True
     exec(render_cell, scope)
     assert len(calls) == 5
+
+
+def test_experiment_notebook_adopts_manuscript_cache(tmp_path, monkeypatch):
+    import json
+    from src.plotting.heatmap_cache import save_heatmap_cache
+
+    notebook = Path(__file__).resolve().parents[1] / 'notebooks/heatmap_scale_experiment.ipynb'
+    cells = json.loads(notebook.read_text())['cells']
+    monkeypatch.chdir(notebook.parent.parent)
+    scope = {}
+    exec(''.join(cells[1]['source']), scope)
+    scope['display'] = lambda *args: None
+    exec(''.join(cells[3]['source']), scope)
+    project = tmp_path / 'project'
+    project.mkdir()
+    (project / 'analyze.py').write_text('# synthetic analysis source\n')
+    scope.update(ROOT=project, CACHE=tmp_path / 'experiment', REBUILD_CACHE=False)
+    recipe = scope['RECIPES']['small_flat_training'][1]
+    panel = next(iter(recipe['panels']))
+    manuscript = project / 'exports/manuscript/heatmaps' / f'{panel}.npz'
+    save_heatmap_cache(manuscript, [[{
+        'probability': np.array([[0., 1e-8], [1e-5, 1e-3]]),
+        'column': 0, 'fly': 0, 'header': 'T2 SB5', 'sample': 'n=2', 'circle': None,
+    }]], {'figsize': [3.1, 6], 'nc': 1, 'nsr': 2, 'nsc': 1}, mpl.colormaps['jet'])
+    manuscript.with_suffix('.json').write_text(json.dumps(scope['cache_provenance']('small_flat_training')))
+    def fail(*args, **kwargs):
+        pytest.fail('The experiment should reuse compatible manuscript maps')
+    monkeypatch.setattr(scope['subprocess'], 'run', fail)
+    tree = ast.parse(''.join(cells[4]['source']))
+    tree.body = [node for node in tree.body if isinstance(node, ast.FunctionDef)]
+    exec(compile(tree, 'ensure experiment cache', 'exec'), scope)
+    target = scope['ensure_cache']('small_flat_training')
+    assert target.read_bytes() == manuscript.read_bytes()

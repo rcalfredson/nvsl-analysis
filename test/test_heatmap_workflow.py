@@ -69,3 +69,22 @@ def test_failed_rebuild_keeps_previous_cache(project, tmp_path, monkeypatch):
         ensure_heatmap_cache(project, COMMAND, target, rebuild=True)
     assert target.read_bytes() == b'old valid maps'
     assert target.with_suffix('.json').read_text() == manifest
+
+
+def test_cache_diagnostics_explain_real_changes(project, tmp_path):
+    from src.plotting.heatmap_workflow import heatmap_cache_mismatch
+
+    target = tmp_path / 'maps.npz'
+    requested = heatmap_cache_provenance(project, COMMAND)
+    assert 'missing' in heatmap_cache_mismatch(target, requested)
+    target.write_bytes(b'probability cache')
+    target.with_suffix('.json').write_text(json.dumps(requested))
+    assert heatmap_cache_mismatch(target, requested) is None
+    changed = heatmap_cache_provenance(project, COMMAND.replace('training', 'post'))
+    assert 'analysis options' in heatmap_cache_mismatch(target, changed)
+    changed = dict(requested, analysis_source_sha256='different')
+    assert 'source code' in heatmap_cache_mismatch(target, changed)
+    changed = dict(requested, local_config='NEW_SETTING=true\n')
+    assert 'configuration' in heatmap_cache_mismatch(target, changed)
+    target.with_suffix('.json').write_text('null')
+    assert 'invalid' in heatmap_cache_mismatch(target, requested)

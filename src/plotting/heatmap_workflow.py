@@ -53,10 +53,12 @@ def heatmap_cache_provenance(root, command):
     }
 
 
-def _matches(path, provenance):
+def heatmap_cache_mismatch(path, provenance):
+    """Return why a cache cannot be reused, or None when it is compatible."""
+    path = Path(path)
     try:
         if not path.is_file():
-            return False
+            return "probability maps are missing"
         saved = json.loads(path.with_suffix(".json").read_text())
         requested = dict(provenance)
         # The manuscript toggles this switch during Run All. It controls other
@@ -70,9 +72,17 @@ def _matches(path, provenance):
                 if key != "ENABLE_DEFAULT_BETWEEN_REWARD_SLI_PLOTS":
                     config[key] = value
             record["local_config"] = config
-        return saved == requested
-    except (OSError, ValueError):
-        return False
+        fields = sorted(key for key in saved.keys() | requested.keys()
+                        if saved.get(key) != requested.get(key))
+        labels = {
+            "command": "analysis options or Python environment changed",
+            "local_config": "analysis configuration changed",
+            "analysis_source_sha256": "analysis source code changed",
+            "version": "cache manifest version changed",
+        }
+        return "; ".join(labels.get(key, key) for key in fields) if fields else None
+    except (OSError, ValueError, AttributeError, TypeError):
+        return "cache manifest is missing or invalid"
 
 
 def ensure_heatmap_cache(root, command, target, *, rebuild=False, reuse_paths=()):
@@ -86,15 +96,22 @@ def ensure_heatmap_cache(root, command, target, *, rebuild=False, reuse_paths=()
     provenance = heatmap_cache_provenance(root, command)
     target.parent.mkdir(parents=True, exist_ok=True)
     if not rebuild:
-        if _matches(target, provenance):
+        reason = heatmap_cache_mismatch(target, provenance)
+        if reason is None:
             print(f"Reusing heatmap probability maps: {target}")
             return target
         for candidate in map(Path, reuse_paths):
-            if _matches(candidate, provenance):
+            candidate_reason = heatmap_cache_mismatch(candidate, provenance)
+            if candidate_reason is None:
                 shutil.copy2(candidate, target)
                 target.with_suffix(".json").write_text(json.dumps(provenance, indent=2) + "\n")
                 print(f"Adopted heatmap probability maps from {candidate}")
                 return target
+            if candidate.is_file():
+                print(f"Alternate heatmap cache not reused: {candidate} ({candidate_reason})")
+        print(f"Building heatmap cache: {target} ({reason})")
+    else:
+        print(f"Rebuilding heatmap cache: {target} (explicit rebuild requested)")
 
     log = target.with_suffix(".log")
     env = dict(os.environ)
