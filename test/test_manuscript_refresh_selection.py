@@ -115,6 +115,25 @@ def test_large_chamber_final_sli_is_separate_from_4i_mean_companion():
     assert companion['panels']['4i_mean']['output'] != scope['figure_4i_data']['panels']['4i']['output']
 
 
+def test_film_slide_delta_uses_six_archived_stages_and_manuscript_group_order():
+    import shlex
+
+    scope, _, _, _ = _preview_notebook({'data'}, run=False)
+    recipe = scope['figure_4f']
+    assert recipe in scope['MANUSCRIPT_RECIPES']
+    assert [label for label, _, _ in scope['figure_4f_groups']] == [
+        'Mock slide', 'Slide', 'Slide, antennae removed']
+    assert len(recipe['analysis_stages']) == 6
+    for index, stage in enumerate(recipe['analysis_stages']):
+        tokens = shlex.split(stage['command'])
+        assert tokens[tokens.index('--num-trainings') + 1] == ('1' if index % 2 else '2')
+        assert tokens[tokens.index('--sb') + 1] == '10'
+        assert ('/2nd round/' in tokens[tokens.index('-v') + 1]) == bool(index % 2)
+        assert stage['archive_source'] == 'learning_stats.csv'
+        assert stage['archive_output'] in recipe['artifacts']
+    assert recipe['panels']['4f']['output'].endswith('_t3_sb1_minus_t2_sb5_sli_graphpad.csv')
+
+
 def test_copy_transfers_full_data_artifacts_and_preflights_missing_files(tmp_path):
     scope, _, _, _ = _preview_notebook({'data'}, run=False)
     source = next(s for s in _notebook_code() if 'def copy_manuscript_panels(' in s)

@@ -10,10 +10,16 @@ import json
 import re
 import shlex
 import subprocess
+import sys
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from zoneinfo import ZoneInfo
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+from src.exporting.film_slide import film_slide_video_lists
 
 POLICY_COMMIT = 'c8ca3a8aaec0e723ddb4966c6e466e9fa9bc10f5'
 EASTERN = ZoneInfo('America/New_York')
@@ -35,7 +41,7 @@ def load_sli_recipes(notebook):
                     for k, v in zip(node.value.keys, node.value.values)
                 ):
                     names.append(name)
-    scope = {'shlex': shlex, 'Path': Path}
+    scope = {'shlex': shlex, 'Path': Path, 'film_slide_video_lists': film_slide_video_lists}
 
     def resolve(name):
         if name in scope or hasattr(builtins, name):
@@ -51,7 +57,8 @@ def load_sli_recipes(notebook):
         resolve(name)
         recipe = scope[name]
         if any(tool in recipe['export_command'] for tool in
-               ('export_reward_pi_difference_graphpad.py', 'mean-sli-csv')):
+               ('export_reward_pi_difference_graphpad.py', 'mean-sli-csv',
+                'export_sli_delta_graphpad.py')):
             recipes.append((name, recipe))
     return recipes
 
@@ -117,7 +124,12 @@ def inventory(recipes, root, cutoff, revision_state):
         panel = next(iter(recipe['panels']))
         stages = recipe['analysis_stages']
         args = shlex.split(recipe['export_command'])
-        groups = dict(args[i + 1].split('=', 1)[::-1] for i, v in enumerate(args) if v == '--group')
+        if 'scripts/export_sli_delta_graphpad.py' in args:
+            groups = {args[i + offset]: args[i + 1] + ' | ' + side
+                      for i, v in enumerate(args) if v == '--group'
+                      for offset, side in ((2, 'before'), (3, 'after'))}
+        else:
+            groups = dict(args[i + 1].split('=', 1)[::-1] for i, v in enumerate(args) if v == '--group')
         sources, source_paths = [], set()
         for stage in stages:
             rel = stage['archive_output']

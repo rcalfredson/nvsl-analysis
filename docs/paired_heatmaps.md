@@ -57,6 +57,15 @@ The older one-argument form remains an alias for `film-slide`; for example,
 film-slide cohort. `FILM_PAIR_DIR` can override any cohort's output directory.
 All three helper cohorts render heatmaps with Arial at 20 pt by default.
 
+The `video-lists` action prints the cohort's before/after video glob strings as
+JSON without analyzing videos. Figure 4f in `manuscript_figure_panels.ipynb`
+uses this action so its SLI-delta export follows these exact cohorts. Its
+converter (`scripts/export_sli_delta_graphpad.py`) matches date/camera/fly
+identities and subtracts pre-slide T2 SB5 SLI from post-slide local T1 SB1
+(manuscript T3 SB1) SLI using the full 10-minute buckets. It requires finite
+experimental and yoked reward PIs on both sides and audits unmatched identities;
+it does not apply the heatmap window or heatmap eligibility filters.
+
 ## Run the two eligibility exports
 
 Append `--hm-pair-export exports/film_before.json` to the existing before command,

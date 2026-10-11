@@ -35,7 +35,24 @@ def test_recent_unversioned_and_dirty_sources_are_not_declared_verified(tmp_path
 def test_recipe_inventory_is_read_only_and_covers_final_and_companion_exports():
     notebook = Path(__file__).resolve().parents[1] / 'notebooks/manuscript_figure_panels.ipynb'
     recipes = dict(load_sli_recipes(notebook))
-    assert len(recipes) == 13
+    assert len(recipes) == 14
+    assert len(recipes['figure_4f']['analysis_stages']) == 6
     assert 'figure_4i_data' in recipes and 'figure_4i_mean_data' in recipes
     assert len(recipes['extended_data_figure_16j']['analysis_stages']) == 8
     assert 'figure_1p' not in recipes
+
+
+def test_delta_inventory_tracks_both_sides_and_propagates_missing_inputs(tmp_path):
+    notebook = Path(__file__).resolve().parents[1] / 'notebooks/manuscript_figure_panels.ipynb'
+    recipe = dict(load_sli_recipes(notebook))['figure_4f']
+    output = tmp_path / recipe['panels']['4f']['output']
+    output.parent.mkdir(parents=True)
+    output.write_text('new conversion\n')
+    rows, panels = inventory([('figure_4f', recipe)], tmp_path, CUTOFF, lambda r: 'after')
+    sources = [r for r in rows if r['kind'] == 'source_archive']
+    assert [r['group'] for r in sources] == [
+        f'{group} | {side}' for group in ('Mock slide', 'Slide', 'Slide, antennae removed')
+        for side in ('before', 'after')]
+    assert all(r['status'] == 'missing' for r in sources)
+    assert next(r for r in rows if r['kind'] == 'graphpad')['status'] == 'stale_dependency'
+    assert len(panels[0]['refresh_commands']) == 6

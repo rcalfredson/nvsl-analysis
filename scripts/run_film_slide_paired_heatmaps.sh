@@ -88,6 +88,14 @@ pairing=(--hm-pair-manifest "$film_out/pairs.csv"
          --hm-pair-after-report "$film_out/after.json")
 
 case "$film_action" in
+    video-lists)
+        # Expose the same cohorts to manuscript data recipes without analysis.
+        "$film_python" - "$before_videos" "$after_videos" <<'PY'
+import json
+import sys
+print(json.dumps(dict(zip(("before", "after"), sys.argv[1:]))))
+PY
+        ;;
     export)
         mkdir -p -- "$film_out"
         "$film_python" analyze.py -v "$before_videos" "${common[@]}" "${heatmap_mode[@]}" "${before_window[@]}" \
@@ -161,7 +169,7 @@ PY
         cp -- imgs/heatmaps.png "$film_out/T1_SB1_first5min_paired${heatmap_filename_suffix}.png"
         ;;
     *)
-        echo "Usage: bash scripts/run_film_slide_paired_heatmaps.sh COHORT {export|manifest|render} [log|linear]" >&2
+        echo "Usage: bash scripts/run_film_slide_paired_heatmaps.sh COHORT {video-lists|export|manifest|render} [log|linear]" >&2
         echo "Cohorts: film-slide, mock-slide, antennae-removed" >&2
         echo "Backward compatible: omit COHORT to use film-slide." >&2
         echo "Optional: FILM_PYTHON=/path/to/python FILM_PAIR_DIR=exports/film_slide_paired" >&2
