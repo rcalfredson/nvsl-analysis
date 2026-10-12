@@ -603,6 +603,54 @@
     ]
   },
   {
+    "id": "line_53_flat",
+    "line": 53,
+    "chamber": "flat",
+    "label": "Line 53 (Mauritius) | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-05/c4[12]_*",
+      "/media/Synology4/April/2025-01-30/c6[12]_*",
+      "/media/Synology4/April/2025-02-01/c4[12]_*",
+      "/media/Synology4/April/2025-02-01/c5[12]_*"
+    ]
+  },
+  {
+    "id": "line_53_agarose",
+    "line": 53,
+    "chamber": "agarose",
+    "label": "Line 53 (Mauritius) | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-05/c[12]_*",
+      "/media/Synology4/April/2025-02-01/c[12]_*",
+      "/media/Synology4/April/2025-02-01/c2[12]_*",
+      "/media/Synology4/April/2025-02-01/c3[12]_*"
+    ]
+  },
+  {
+    "id": "line_133_flat",
+    "line": 133,
+    "chamber": "flat",
+    "label": "Line 133 (Cusco, Peru) | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-18/c5[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-20/c4[12]_*",
+      "/media/Synology4/April/2025-02-19/c4[12]_*",
+      "/media/Synology4/April/2025-02-18/c5[12]_*"
+    ]
+  },
+  {
+    "id": "line_133_agarose",
+    "line": 133,
+    "chamber": "agarose",
+    "label": "Line 133 (Cusco, Peru) | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/April/2025-02-17/c2[12]_*",
+      "/media/Synology4/April/2025-02-17/c3[12]_*",
+      "/media/Synology4/April/2025-02-18/c3[12]_*",
+      "/media/Synology4/April/2025-02-19/c2[12]_*"
+    ]
+  },
+  {
     "id": "line_1_flat",
     "line": 1,
     "chamber": "flat",
