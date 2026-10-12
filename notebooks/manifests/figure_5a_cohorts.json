@@ -45,6 +45,50 @@
     ]
   },
   {
+    "id": "line_176_flat",
+    "line": 176,
+    "chamber": "flat",
+    "label": "Line 176 (Ghana) | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-11/c5[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-11/c6[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-14/c6[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-16/c6[12]_*"
+    ]
+  },
+  {
+    "id": "line_176_agarose",
+    "line": 176,
+    "chamber": "agarose",
+    "label": "Line 176 (Ghana) | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-14/c[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-14/c2[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-14/c3[12]_*"
+    ]
+  },
+  {
+    "id": "line_38_flat",
+    "line": 38,
+    "chamber": "flat",
+    "label": "Line 38 (Arizona) | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/April/2025-01-23/c[12]_*",
+      "/media/Synology4/April/2025-01-2[578]/c6[12]_*"
+    ]
+  },
+  {
+    "id": "line_38_agarose",
+    "line": 38,
+    "chamber": "agarose",
+    "label": "Line 38 (Arizona) | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/April/2025-01-2[56]/c3[12]_*",
+      "/media/Synology4/April/2025-01-27/c2[12]_*",
+      "/media/Synology4/April/2025-01-28/c[12]_*"
+    ]
+  },
+  {
     "id": "line_0_flat",
     "line": 0,
     "chamber": "flat",
