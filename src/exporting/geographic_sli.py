@@ -24,7 +24,11 @@ def load_geographic_sli_cohorts(path):
             raise ValueError(f'Invalid cohort id: {cohort_id!r}')
         if not isinstance(label, str) or not label.strip():
             raise ValueError(f'Missing label for {cohort_id}')
-        if type(line) is not int or line < 0 or chamber not in ('flat', 'agarose'):
+        valid_line = (
+            (type(line) is int and line >= 0)
+            or (isinstance(line, str) and re.fullmatch(r'[a-z][a-z0-9_]*', line))
+        )
+        if not valid_line or chamber not in ('flat', 'agarose'):
             raise ValueError(f'Invalid line/chamber for {cohort_id}')
         if (not isinstance(patterns, list) or not patterns
                 or any(not isinstance(p, str) or not p.strip() or ',' in p or '|' in p

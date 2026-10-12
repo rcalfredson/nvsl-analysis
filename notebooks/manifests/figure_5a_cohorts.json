@@ -370,6 +370,33 @@
     ]
   },
   {
+    "id": "w1118_flat",
+    "line": "w1118",
+    "chamber": "flat",
+    "label": "w1118 | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-26/c5[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-27/c6[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-27/c5[12]_*",
+      "/media/Synology4/Yang Chen/2025-03-03/c5[12]_*",
+      "/media/Synology4/Yang Chen/2025-03-05/c4[12]_*"
+    ]
+  },
+  {
+    "id": "w1118_agarose",
+    "line": "w1118",
+    "chamber": "agarose",
+    "label": "w1118 | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-26/c2[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-27/c4[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-28/c2[12]_*",
+      "/media/Synology4/Yang Chen/2025-03-02/c2[12]_*",
+      "/media/Synology4/Yang Chen/2025-03-05/c5[12]_*",
+      "/media/Synology4/Yang Chen/2025-03-04/c5[12]_*"
+    ]
+  },
+  {
     "id": "line_0_flat",
     "line": 0,
     "chamber": "flat",

@@ -15,14 +15,20 @@ def _cohort(cohort_id='line_0_flat', **kwargs):
 
 
 def test_manifest_preserves_user_order_and_patterns(tmp_path):
-    cohorts = [_cohort(), _cohort('line_0_agarose', chamber='agarose', label='Line 0 | Agarose')]
+    cohorts = [
+        _cohort('w1118_flat', line='w1118', label='w1118 | Flat'),
+        _cohort('w1118_agarose', line='w1118', chamber='agarose', label='w1118 | Agarose'),
+        _cohort(),
+        _cohort('line_0_agarose', chamber='agarose', label='Line 0 | Agarose'),
+    ]
     path = tmp_path / 'manifest.json'
     path.write_text(json.dumps(cohorts))
     assert load_geographic_sli_cohorts(path) == cohorts
 
 
 @pytest.mark.parametrize('change', [
-    {'id': '../escape'}, {'line': True}, {'chamber': 'unknown'},
+    {'id': '../escape'}, {'line': True}, {'line': -1}, {'line': ''},
+    {'line': '0'}, {'line': ' w1118'}, {'line': []}, {'chamber': 'unknown'},
     {'label': ''}, {'video_globs': []}, {'video_globs': ['a,b']},
     {'video_globs': ['a', 'a']},
 ])
@@ -41,6 +47,16 @@ def test_manifest_rejects_invalid_cohorts(tmp_path, change):
 def test_manifest_rejects_duplicate_identity_label_or_line_chamber(tmp_path, change):
     path = tmp_path / 'manifest.json'
     path.write_text(json.dumps([_cohort(), _cohort(**change)]))
+    with pytest.raises(ValueError, match='Duplicate cohort'):
+        load_geographic_sli_cohorts(path)
+
+
+def test_manifest_rejects_duplicate_named_line_chamber(tmp_path):
+    path = tmp_path / 'manifest.json'
+    path.write_text(json.dumps([
+        _cohort('w1118_flat', line='w1118', label='w1118 | Flat'),
+        _cohort('other', line='w1118', label='another label'),
+    ]))
     with pytest.raises(ValueError, match='Duplicate cohort'):
         load_geographic_sli_cohorts(path)
 
