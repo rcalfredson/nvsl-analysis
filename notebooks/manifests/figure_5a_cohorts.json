@@ -718,5 +718,49 @@
       "/media/Synology4/Yang Chen/2025-01-28/c3[12]_*",
       "/media/Synology4/Yang Chen/2025-01-29/c6[12]_*"
     ]
+  },
+  {
+    "id": "line_51_flat",
+    "line": 51,
+    "chamber": "flat",
+    "label": "Line 51 (South Africa) | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-09/c4[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-09/c5[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-09/c6[12]_*",
+      "/media/Synology4/April/2025-02-06/c5[12]_*"
+    ]
+  },
+  {
+    "id": "line_51_agarose",
+    "line": 51,
+    "chamber": "agarose",
+    "label": "Line 51 (South Africa) | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-09/c2[12]_*",
+      "/media/Synology4/April/2025-02-0[57]/c2[12]_*",
+      "/media/Synology4/April/2025-02-07/c3[12]_*"
+    ]
+  },
+  {
+    "id": "line_18_flat",
+    "line": 18,
+    "chamber": "flat",
+    "label": "Line 18 (Coffs Harbour, Australia) | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/April/2025-01-2[47]/c5[12]_*",
+      "/media/Synology4/April/2025-01-2[67]/c4[12]_*"
+    ]
+  },
+  {
+    "id": "line_18_agarose",
+    "line": 18,
+    "chamber": "agarose",
+    "label": "Line 18 (Coffs Harbour, Australia) | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/April/2025-01-23/c5[12]_*",
+      "/media/Synology4/April/2025-01-23/c6[12]_*",
+      "/media/Synology4/April/2025-01-2[47]/c3[12]_*"
+    ]
   }
 ]
