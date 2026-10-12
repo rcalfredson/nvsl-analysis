@@ -321,6 +321,42 @@
     ]
   },
   {
+    "id": "line_57_flat",
+    "line": 57,
+    "chamber": "flat",
+    "label": "Line 57 (Summerhaven, Arizona) | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-06/c4[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-06/c5[12]_*",
+      "/media/Synology4/April/2025-02-07/c5[12]_*",
+      "/media/Synology4/April/2025-02-07/c6[12]_*"
+    ]
+  },
+  {
+    "id": "line_57_agarose",
+    "line": 57,
+    "chamber": "agarose",
+    "label": "Line 57 (Summerhaven, Arizona) | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-06/c[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-06/c2[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-06/c3[12]_*",
+      "/media/Synology4/April/2025-02-02/c2[12]_*"
+    ]
+  },
+  {
+    "id": "line_190_agarose",
+    "line": 190,
+    "chamber": "agarose",
+    "label": "Line 190 (Georgia) | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-16/c2[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-16/c3[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-17/c[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-17/c3[12]_*"
+    ]
+  },
+  {
     "id": "line_0_flat",
     "line": 0,
     "chamber": "flat",
