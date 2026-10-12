@@ -651,6 +651,54 @@
     ]
   },
   {
+    "id": "line_128_flat",
+    "line": 128,
+    "chamber": "flat",
+    "label": "Line 128 (Maine) | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/April/2025-02-16/c4[12]_*",
+      "/media/Synology4/April/2025-02-17/c4[12]_*",
+      "/media/Synology4/April/2025-02-18/c4[12]_*",
+      "/media/Synology4/April/2025-02-20/c4[12]_*"
+    ]
+  },
+  {
+    "id": "line_128_agarose",
+    "line": 128,
+    "chamber": "agarose",
+    "label": "Line 128 (Maine) | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/April/2025-02-16/c[12]_*",
+      "/media/Synology4/April/2025-02-16/c2[12]_*",
+      "/media/Synology4/April/2025-02-18/c2[12]_*",
+      "/media/Synology4/April/2025-02-20/c2[12]_*"
+    ]
+  },
+  {
+    "id": "line_121_flat",
+    "line": 121,
+    "chamber": "flat",
+    "label": "Line 121 (Japan) | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-13/c5[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-13/c6[12]_*",
+      "/media/Synology4/April/2025-02-15/c4[12]_*",
+      "/media/Synology4/April/2025-02-15/c5[12]_*"
+    ]
+  },
+  {
+    "id": "line_121_agarose",
+    "line": 121,
+    "chamber": "agarose",
+    "label": "Line 121 (Japan) | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-15/c2[12]_*",
+      "/media/Synology4/April/2025-02-15/c[12]_*",
+      "/media/Synology4/April/2025-02-15/c2[12]_*",
+      "/media/Synology4/April/2025-02-15/c3[12]_*"
+    ]
+  },
+  {
     "id": "line_1_flat",
     "line": 1,
     "chamber": "flat",
