@@ -113,7 +113,7 @@ def test_geographic_pilot_refreshes_one_cohort_and_converts_all(tmp_path, monkey
     scope['run_manuscript_data_recipe'](subset, run=True, run_export=True)
     assert checked == scope['figure_5a_cohorts']
     assert calls == [selected[0]['command'], 'line_1_flat', recipe['export_command']]
-    assert recipe['export_command'].count('--group ') == 4
+    assert recipe['export_command'].count('--group ') == len(scope['figure_5a_cohorts'])
     assert '-f 0-9 --rmCC 5 --sb 10' in selected[0]['command']
 
 

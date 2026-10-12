@@ -1,9 +1,54 @@
 [
   {
+    "id": "line_7_flat",
+    "line": 7,
+    "chamber": "flat",
+    "label": "Line 7 (Taiwan) | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-01-23/c6[12]_*",
+      "/media/Synology4/Yang Chen/2025-01-23/c5[12]_*",
+      "/media/Synology4/Yang Chen/2025-01-25/c[12]_*",
+      "/media/Synology4/Yang Chen/2025-01-25/c2[12]_*"
+    ]
+  },
+  {
+    "id": "line_7_agarose",
+    "line": 7,
+    "chamber": "agarose",
+    "label": "Line 7 (Taiwan) | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-01-24/c[12]_*",
+      "/media/Synology4/Yang Chen/2025-01-2[47]/c2[12]_*",
+      "/media/Synology4/Yang Chen/2025-01-26/c4[12]_*"
+    ]
+  },
+  {
+    "id": "line_37_flat",
+    "line": 37,
+    "chamber": "flat",
+    "label": "Line 37 (Tucson, AZ) | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/April/2025-01-23/c2[12]_*",
+      "/media/Synology4/April/2025-01-24/c6[12]_*",
+      "/media/Synology4/April/2025-01-2[58]/c5[12]_*"
+    ]
+  },
+  {
+    "id": "line_37_agarose",
+    "line": 37,
+    "chamber": "agarose",
+    "label": "Line 37 (Tucson, AZ) | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/April/2025-01-2[56]/c2[12]_*",
+      "/media/Synology4/April/2025-01-27/c[12]_*",
+      "/media/Synology4/April/2025-01-28/c3[12]_*"
+    ]
+  },
+  {
     "id": "line_0_flat",
     "line": 0,
     "chamber": "flat",
-    "label": "Line 0 | Flat chamber",
+    "label": "Line 0 (Oahu, HI) | Flat chamber",
     "video_globs": [
       "/media/Synology4/Yang Chen/2025-01-24/c5[12]_*",
       "/media/Synology4/Yang Chen/2025-01-25/c5[12]_*",
@@ -14,7 +59,7 @@
     "id": "line_0_agarose",
     "line": 0,
     "chamber": "agarose",
-    "label": "Line 0 | Agarose chamber",
+    "label": "Line 0 (Oahu, HI) | Agarose chamber",
     "video_globs": [
       "/media/Synology4/Yang Chen/2025-01-25/c3[12]_*",
       "/media/Synology4/Yang Chen/2025-01-26/c[12]_*",
@@ -25,7 +70,7 @@
     "id": "line_1_flat",
     "line": 1,
     "chamber": "flat",
-    "label": "Line 1 | Flat chamber",
+    "label": "Line 1 (Ica, Peru) | Flat chamber",
     "video_globs": [
       "/media/Synology4/Yang Chen/2025-01-2[456]/c6[12]_*",
       "/media/Synology4/Yang Chen/2025-01-28/c5[12]_*"
@@ -35,7 +80,7 @@
     "id": "line_1_agarose",
     "line": 1,
     "chamber": "agarose",
-    "label": "Line 1 | Agarose chamber",
+    "label": "Line 1 (Ica, Peru) | Agarose chamber",
     "video_globs": [
       "/media/Synology4/Yang Chen/2025-01-27/c[12]_*",
       "/media/Synology4/Yang Chen/2025-01-28/c3[12]_*",
