@@ -345,6 +345,19 @@
     ]
   },
   {
+    "id": "line_190_flat",
+    "line": 190,
+    "chamber": "flat",
+    "label": "Line 190 (Georgia) | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-16/c5[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-17/c6[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-17/c4[12]_*",
+      "/media/Synology4/April/2025-02-19/c6[12]_*",
+      "/media/Synology4/April/2025-02-20/c3[12]_*"
+    ]
+  },
+  {
     "id": "line_190_agarose",
     "line": 190,
     "chamber": "agarose",
