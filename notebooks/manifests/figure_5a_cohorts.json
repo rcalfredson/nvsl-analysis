@@ -183,6 +183,52 @@
     ]
   },
   {
+    "id": "line_158_flat",
+    "line": 158,
+    "chamber": "flat",
+    "label": "Line 158 (France) | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-18/c6[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-20/c6[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-20/c5[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-21/c4[12]_*"
+    ]
+  },
+  {
+    "id": "line_158_agarose",
+    "line": 158,
+    "chamber": "agarose",
+    "label": "Line 158 (France) | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-18/c2[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-18/c3[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-20/c2[12]_*",
+      "/media/Synology4/April/2025-02-17/c[12]_*"
+    ]
+  },
+  {
+    "id": "line_42_flat",
+    "line": 42,
+    "chamber": "flat",
+    "label": "Line 42 (Mexico) | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/April/2025-01-23/c4[12]_*",
+      "/media/Synology4/April/2025-01-2[69]/c5[12]_*",
+      "/media/Synology4/April/2025-01-2[6]/c6[12]_*"
+    ]
+  },
+  {
+    "id": "line_42_agarose",
+    "line": 42,
+    "chamber": "agarose",
+    "label": "Line 42 (Mexico) | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/April/2025-01-2[4]/c[12]_*",
+      "/media/Synology4/April/2025-01-2[49]/c2[12]_*",
+      "/media/Synology4/April/2025-02-02/c[12]_*"
+    ]
+  },
+  {
     "id": "line_0_flat",
     "line": 0,
     "chamber": "flat",
