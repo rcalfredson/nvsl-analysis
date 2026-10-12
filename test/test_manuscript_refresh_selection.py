@@ -87,6 +87,36 @@ def test_preview_disables_runs_and_dependency_exports():
     assert not exports
 
 
+def test_geographic_pilot_refreshes_one_cohort_and_converts_all(tmp_path, monkeypatch):
+    from src.exporting.geographic_sli import select_geographic_sli_stages
+
+    scope, _, _, _ = _preview_notebook({'data'}, run=False)
+    source = next(s for s in _notebook_code() if 'def run_manuscript_data_recipe(' in s)
+    tree = ast.parse(source)
+    tree.body = [node for node in tree.body if isinstance(node, ast.FunctionDef)
+                 and node.name == 'run_manuscript_data_recipe']
+    exec(compile(tree, '<data-runner>', 'exec'), scope)
+    recipe = scope['figure_5a']
+    selected = select_geographic_sli_stages(recipe['analysis_stages'], ['line_1_flat'])
+    subset = {**recipe, 'analysis_stages': selected}
+    for artifact in recipe['artifacts']:
+        path = tmp_path / artifact
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('existing archive or output\n')
+    scope['ROOT'] = tmp_path
+    calls = []
+    scope['subprocess'] = SimpleNamespace(run=lambda command, **kw: calls.append(command))
+    scope['archive_data_stage'] = lambda stage, root: calls.append(stage['cohort_id'])
+    checked = []
+    monkeypatch.setattr('src.exporting.geographic_sli.geographic_sli_video_inventory',
+                        lambda cohorts: checked.extend(cohorts) or {})
+    scope['run_manuscript_data_recipe'](subset, run=True, run_export=True)
+    assert checked == scope['figure_5a_cohorts']
+    assert calls == [selected[0]['command'], 'line_1_flat', recipe['export_command']]
+    assert recipe['export_command'].count('--group ') == 4
+    assert '-f 0-9 --rmCC 5 --sb 10' in selected[0]['command']
+
+
 def test_copy_allows_4i_data_and_time_but_rejects_duplicate_destinations():
     scope, _, _, _ = _preview_notebook({'data', 'time'}, run=False)
     source = next(s for s in _notebook_code() if 'def copy_manuscript_panels(' in s)

@@ -35,7 +35,8 @@ def test_recent_unversioned_and_dirty_sources_are_not_declared_verified(tmp_path
 def test_recipe_inventory_is_read_only_and_covers_final_and_companion_exports():
     notebook = Path(__file__).resolve().parents[1] / 'notebooks/manuscript_figure_panels.ipynb'
     recipes = dict(load_sli_recipes(notebook))
-    assert len(recipes) == 14
+    assert len(recipes) == 15
+    assert len(recipes['figure_5a']['analysis_stages']) == 4
     assert len(recipes['figure_4f']['analysis_stages']) == 6
     assert 'figure_4i_data' in recipes and 'figure_4i_mean_data' in recipes
     assert len(recipes['extended_data_figure_16j']['analysis_stages']) == 8

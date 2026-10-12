@@ -20,6 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 from src.exporting.film_slide import film_slide_video_lists
+from src.exporting.geographic_sli import load_geographic_sli_cohorts
 
 POLICY_COMMIT = 'c8ca3a8aaec0e723ddb4966c6e466e9fa9bc10f5'
 EASTERN = ZoneInfo('America/New_York')
@@ -41,7 +42,9 @@ def load_sli_recipes(notebook):
                     for k, v in zip(node.value.keys, node.value.values)
                 ):
                     names.append(name)
-    scope = {'shlex': shlex, 'Path': Path, 'film_slide_video_lists': film_slide_video_lists}
+    scope = {'shlex': shlex, 'Path': Path, 'ROOT': REPO_ROOT,
+             'film_slide_video_lists': film_slide_video_lists,
+             'load_geographic_sli_cohorts': load_geographic_sli_cohorts}
 
     def resolve(name):
         if name in scope or hasattr(builtins, name):
