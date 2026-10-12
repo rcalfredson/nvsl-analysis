@@ -137,6 +137,52 @@
     ]
   },
   {
+    "id": "line_59_flat",
+    "line": 59,
+    "chamber": "flat",
+    "label": "Line 59 (Colombia) | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/April/2025-02-09/c6[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-16/c[12]_*",
+      "/media/Synology4/April/2025-02-19/c3[12]_*"
+    ]
+  },
+  {
+    "id": "line_59_agarose",
+    "line": 59,
+    "chamber": "agarose",
+    "label": "Line 59 (Colombia) | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-05/c3[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-13/c3[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-25/c[12]_*"
+    ]
+  },
+  {
+    "id": "line_68_flat",
+    "line": 68,
+    "chamber": "flat",
+    "label": "Line 68 (Israel) | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-07/c4[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-07/c5[12]_*",
+      "/media/Synology4/April/2025-02-02/c5[12]_*",
+      "/media/Synology4/April/2025-02-06/c4[12]_*"
+    ]
+  },
+  {
+    "id": "line_68_agarose",
+    "line": 68,
+    "chamber": "agarose",
+    "label": "Line 68 (Israel) | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-07/c[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-07/c2[12]_*",
+      "/media/Synology4/April/2025-02-06/c[12]_*",
+      "/media/Synology4/April/2025-02-06/c2[12]_*"
+    ]
+  },
+  {
     "id": "line_0_flat",
     "line": 0,
     "chamber": "flat",
