@@ -159,6 +159,30 @@
     ]
   },
   {
+    "id": "line_198_flat",
+    "line": 198,
+    "chamber": "flat",
+    "label": "Line 198 (Guam) | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/April/2025-02-16/c5[12]_*",
+      "/media/Synology4/April/2025-02-18/c6[12]_*",
+      "/media/Synology4/April/2025-02-20/c6[12]_*",
+      "/media/Synology4/April/2025-02-20/c5[12]_*"
+    ]
+  },
+  {
+    "id": "line_198_agarose",
+    "line": 198,
+    "chamber": "agarose",
+    "label": "Line 198 (Guam) | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-18/c4[12]_*",
+      "/media/Synology4/April/2025-02-18/c[12]_*",
+      "/media/Synology4/April/2025-02-19/c[12]_*",
+      "/media/Synology4/April/2025-02-16/c3[12]_*"
+    ]
+  },
+  {
     "id": "line_68_flat",
     "line": 68,
     "chamber": "flat",
@@ -180,6 +204,28 @@
       "/media/Synology4/Yang Chen/2025-02-07/c2[12]_*",
       "/media/Synology4/April/2025-02-06/c[12]_*",
       "/media/Synology4/April/2025-02-06/c2[12]_*"
+    ]
+  },
+  {
+    "id": "line_16_flat",
+    "line": 16,
+    "chamber": "flat",
+    "label": "Line 16 (Queensland) | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/April/2025-01-23/c3[12]_*",
+      "/media/Synology4/April/2025-01-2[58]/c4[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-05/c6[12]_*"
+    ]
+  },
+  {
+    "id": "line_16_agarose",
+    "line": 16,
+    "chamber": "agarose",
+    "label": "Line 16 (Queensland) | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/April/2025-01-24/c4[12]_*",
+      "/media/Synology4/April/2025-01-2[56]/c[12]_*",
+      "/media/Synology4/April/2025-01-28/c2[12]_*"
     ]
   },
   {
@@ -229,49 +275,26 @@
     ]
   },
   {
-    "id": "line_198_flat",
-    "line": 198,
+    "id": "line_54_flat",
+    "line": 54,
     "chamber": "flat",
-    "label": "Line 198 (Guam) | Flat chamber",
+    "label": "Line 54 (Captain Cook, Hawaii) | Flat chamber",
     "video_globs": [
-      "/media/Synology4/April/2025-02-16/c5[12]_*",
-      "/media/Synology4/April/2025-02-18/c6[12]_*",
-      "/media/Synology4/April/2025-02-20/c6[12]_*",
-      "/media/Synology4/April/2025-02-20/c5[12]_*"
+      "/media/Synology4/Yang Chen/2025-02-05/c5[12]_*",
+      "/media/Synology4/April/2025-02-06/c6[12]_*",
+      "/media/Synology4/April/2025-02-09/c4[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-23/c6[12]_*"
     ]
   },
   {
-    "id": "line_198_agarose",
-    "line": 198,
+    "id": "line_54_agarose",
+    "line": 54,
     "chamber": "agarose",
-    "label": "Line 198 (Guam) | Agarose chamber",
+    "label": "Line 54 (Captain Cook, Hawaii) | Agarose chamber",
     "video_globs": [
-      "/media/Synology4/Yang Chen/2025-02-18/c4[12]_*",
-      "/media/Synology4/April/2025-02-18/c[12]_*",
-      "/media/Synology4/April/2025-02-19/c[12]_*",
-      "/media/Synology4/April/2025-02-16/c3[12]_*"
-    ]
-  },
-  {
-    "id": "line_16_flat",
-    "line": 16,
-    "chamber": "flat",
-    "label": "Line 16 (Queensland) | Flat chamber",
-    "video_globs": [
-      "/media/Synology4/April/2025-01-23/c3[12]_*",
-      "/media/Synology4/April/2025-01-2[58]/c4[12]_*",
-      "/media/Synology4/Yang Chen/2025-02-05/c6[12]_*"
-    ]
-  },
-  {
-    "id": "line_16_agarose",
-    "line": 16,
-    "chamber": "agarose",
-    "label": "Line 16 (Queensland) | Agarose chamber",
-    "video_globs": [
-      "/media/Synology4/April/2025-01-24/c4[12]_*",
-      "/media/Synology4/April/2025-01-2[56]/c[12]_*",
-      "/media/Synology4/April/2025-01-28/c2[12]_*"
+      "/media/Synology4/April/2025-01-30/c[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-13/c[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-27/c2[12]_*"
     ]
   },
   {
@@ -298,29 +321,6 @@
     ]
   },
   {
-    "id": "line_54_flat",
-    "line": 54,
-    "chamber": "flat",
-    "label": "Line 54 (Captain Cook, Hawaii) | Flat chamber",
-    "video_globs": [
-      "/media/Synology4/Yang Chen/2025-02-05/c5[12]_*",
-      "/media/Synology4/April/2025-02-06/c6[12]_*",
-      "/media/Synology4/April/2025-02-09/c4[12]_*",
-      "/media/Synology4/Yang Chen/2025-02-23/c6[12]_*"
-    ]
-  },
-  {
-    "id": "line_54_agarose",
-    "line": 54,
-    "chamber": "agarose",
-    "label": "Line 54 (Captain Cook, Hawaii) | Agarose chamber",
-    "video_globs": [
-      "/media/Synology4/April/2025-01-30/c[12]_*",
-      "/media/Synology4/Yang Chen/2025-02-13/c[12]_*",
-      "/media/Synology4/Yang Chen/2025-02-27/c2[12]_*"
-    ]
-  },
-  {
     "id": "line_57_flat",
     "line": 57,
     "chamber": "flat",
@@ -342,6 +342,30 @@
       "/media/Synology4/Yang Chen/2025-02-06/c2[12]_*",
       "/media/Synology4/Yang Chen/2025-02-06/c3[12]_*",
       "/media/Synology4/April/2025-02-02/c2[12]_*"
+    ]
+  },
+  {
+    "id": "line_120_flat",
+    "line": 120,
+    "chamber": "flat",
+    "label": "Line 120 (Papua New Guinea) | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-12/c4[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-12/c5[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-13/c4[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-14/c4[12]_*"
+    ]
+  },
+  {
+    "id": "line_120_agarose",
+    "line": 120,
+    "chamber": "agarose",
+    "label": "Line 120 (Papua New Guinea) | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-11/c2[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-12/c[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-12/c2[12]_*",
+      "/media/Synology4/Yang Chen/2025-02-13/c2[12]_*"
     ]
   },
   {
@@ -419,30 +443,6 @@
     ]
   },
   {
-    "id": "line_120_flat",
-    "line": 120,
-    "chamber": "flat",
-    "label": "Line 120 (Papua New Guinea) | Flat chamber",
-    "video_globs": [
-      "/media/Synology4/Yang Chen/2025-02-12/c4[12]_*",
-      "/media/Synology4/Yang Chen/2025-02-12/c5[12]_*",
-      "/media/Synology4/Yang Chen/2025-02-13/c4[12]_*",
-      "/media/Synology4/Yang Chen/2025-02-14/c4[12]_*"
-    ]
-  },
-  {
-    "id": "line_120_agarose",
-    "line": 120,
-    "chamber": "agarose",
-    "label": "Line 120 (Papua New Guinea) | Agarose chamber",
-    "video_globs": [
-      "/media/Synology4/Yang Chen/2025-02-11/c2[12]_*",
-      "/media/Synology4/Yang Chen/2025-02-12/c[12]_*",
-      "/media/Synology4/Yang Chen/2025-02-12/c2[12]_*",
-      "/media/Synology4/Yang Chen/2025-02-13/c2[12]_*"
-    ]
-  },
-  {
     "id": "line_47_flat",
     "line": 47,
     "chamber": "flat",
@@ -463,28 +463,6 @@
       "/media/Synology4/April/2025-01-30/c2[12]_*",
       "/media/Synology4/April/2025-01-31/c[12]_*",
       "/media/Synology4/April/2025-02-03/c2[12]_*"
-    ]
-  },
-  {
-    "id": "line_4_flat",
-    "line": 4,
-    "chamber": "flat",
-    "label": "Line 4 (Malaysia) | Flat chamber",
-    "video_globs": [
-      "/media/Synology4/Yang Chen/2025-01-2[67]/c5[12]_*",
-      "/media/Synology4/Yang Chen/2025-01-29/c4[12]_*",
-      "/media/Synology4/April/2025-01-29/c6[12]_*"
-    ]
-  },
-  {
-    "id": "line_4_agarose",
-    "line": 4,
-    "chamber": "agarose",
-    "label": "Line 4 (Malaysia) | Agarose chamber",
-    "video_globs": [
-      "/media/Synology4/Yang Chen/2025-01-2[47]/c3[12]_*",
-      "/media/Synology4/Yang Chen/2025-01-25/c4[12]_*",
-      "/media/Synology4/Yang Chen/2025-01-26/c2[12]_*"
     ]
   },
   {
@@ -512,47 +490,25 @@
     ]
   },
   {
-    "id": "line_14_flat",
-    "line": 14,
+    "id": "line_4_flat",
+    "line": 4,
     "chamber": "flat",
-    "label": "Line 14 (Florida) | Flat chamber",
+    "label": "Line 4 (Malaysia) | Flat chamber",
     "video_globs": [
-      "/media/Synology4/Yang Chen/2025-01-2[78]/c4[12]_*",
-      "/media/Synology4/Yang Chen/2025-01-29/c[12]_*",
-      "/media/Synology4/Yang Chen/2025-01-29/c5[12]__2025-01-29*"
+      "/media/Synology4/Yang Chen/2025-01-2[67]/c5[12]_*",
+      "/media/Synology4/Yang Chen/2025-01-29/c4[12]_*",
+      "/media/Synology4/April/2025-01-29/c6[12]_*"
     ]
   },
   {
-    "id": "line_14_agarose",
-    "line": 14,
+    "id": "line_4_agarose",
+    "line": 4,
     "chamber": "agarose",
-    "label": "Line 14 (Florida) | Agarose chamber",
+    "label": "Line 4 (Malaysia) | Agarose chamber",
     "video_globs": [
-      "/media/Synology4/Yang Chen/2025-01-24/c4[12]_*",
-      "/media/Synology4/Yang Chen/2025-01-2[69]/c3[12]_*",
-      "/media/Synology4/Yang Chen/2025-01-28/c[12]_*"
-    ]
-  },
-  {
-    "id": "line_67_flat",
-    "line": 67,
-    "chamber": "flat",
-    "label": "Line 67 (Spain) | Flat chamber",
-    "video_globs": [
-      "/media/Synology4/Yang Chen/2025-02-07/c6[12]_*",
-      "/media/Synology4/April/2025-02-0[25]/c4[12]_*",
-      "/media/Synology4/April/2025-02-05/c5[12]_*"
-    ]
-  },
-  {
-    "id": "line_67_agarose",
-    "line": 67,
-    "chamber": "agarose",
-    "label": "Line 67 (Spain) | Agarose chamber",
-    "video_globs": [
-      "/media/Synology4/Yang Chen/2025-02-07/c3[12]_*",
-      "/media/Synology4/April/2025-02-0[25]/c3[12]_*",
-      "/media/Synology4/April/2025-02-05/c[12]_*"
+      "/media/Synology4/Yang Chen/2025-01-2[47]/c3[12]_*",
+      "/media/Synology4/Yang Chen/2025-01-25/c4[12]_*",
+      "/media/Synology4/Yang Chen/2025-01-26/c2[12]_*"
     ]
   },
   {
@@ -576,6 +532,28 @@
       "/media/Synology4/April/2025-01-30/c3[12]_*",
       "/media/Synology4/April/2025-02-07/c[12]_*",
       "/media/Synology4/April/2025-02-09/c2[12]_*"
+    ]
+  },
+  {
+    "id": "line_14_flat",
+    "line": 14,
+    "chamber": "flat",
+    "label": "Line 14 (Florida) | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-01-2[78]/c4[12]_*",
+      "/media/Synology4/Yang Chen/2025-01-29/c[12]_*",
+      "/media/Synology4/Yang Chen/2025-01-29/c5[12]__2025-01-29*"
+    ]
+  },
+  {
+    "id": "line_14_agarose",
+    "line": 14,
+    "chamber": "agarose",
+    "label": "Line 14 (Florida) | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-01-24/c4[12]_*",
+      "/media/Synology4/Yang Chen/2025-01-2[69]/c3[12]_*",
+      "/media/Synology4/Yang Chen/2025-01-28/c[12]_*"
     ]
   },
   {
@@ -624,6 +602,28 @@
       "/media/Synology4/April/2025-02-01/c[12]_*",
       "/media/Synology4/April/2025-02-01/c2[12]_*",
       "/media/Synology4/April/2025-02-01/c3[12]_*"
+    ]
+  },
+  {
+    "id": "line_67_flat",
+    "line": 67,
+    "chamber": "flat",
+    "label": "Line 67 (Spain) | Flat chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-07/c6[12]_*",
+      "/media/Synology4/April/2025-02-0[25]/c4[12]_*",
+      "/media/Synology4/April/2025-02-05/c5[12]_*"
+    ]
+  },
+  {
+    "id": "line_67_agarose",
+    "line": 67,
+    "chamber": "agarose",
+    "label": "Line 67 (Spain) | Agarose chamber",
+    "video_globs": [
+      "/media/Synology4/Yang Chen/2025-02-07/c3[12]_*",
+      "/media/Synology4/April/2025-02-0[25]/c3[12]_*",
+      "/media/Synology4/April/2025-02-05/c[12]_*"
     ]
   },
   {
