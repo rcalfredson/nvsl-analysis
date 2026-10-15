@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
@@ -6,6 +8,83 @@ from scipy.stats import pearsonr
 
 import src.plotting.cross_fly_correlations as correlations
 from src.plotting.plot_customizer import PlotCustomizer
+
+
+@pytest.mark.parametrize(
+    "x,y,fast,strong",
+    [
+        (list(range(11)), list(range(10, -1, -1)), [9, 10], [0, 1]),
+        (list(range(10)), [0, 1, 2, 3, 4, *([np.nan] * 5)], [8, 9], [4]),
+        # Counts use separate eligible populations, retaining original positions.
+        ([0, np.nan, 1, np.inf, 2, 3, -np.inf, 4, 5, 6, 7],
+         [0, 1, np.nan, 2, np.inf, 3, 4, 5, 6, 7, 8], [10], [10]),
+        # Stable ascending sorting takes the later tied positions for the top group.
+        ([0, 1, 2, 3, 4, 5, 6, 9, 9, 9], list(range(10)), [8, 9], [8, 9]),
+        ([0, np.nan, 8, np.inf, 9], [9, 8, np.nan, 0, -np.inf], [4], [0]),
+        ([np.nan, np.inf, -np.inf], [0, 1, 2], [], [2]),
+        ([0, 1, 2], [np.nan, np.inf, -np.inf], [2], []),
+        ([np.nan], [np.nan], [], []),
+    ],
+)
+def test_fast_strong_selection_counts_indices_ties_and_independence(
+    x, y, fast, strong,
+):
+    summary = correlations.summarize_fast_vs_strong(
+        x, y, [object()] * len(x), SimpleNamespace(),
+    )
+    np.testing.assert_array_equal(summary["fast"], fast)
+    np.testing.assert_array_equal(summary["strong"], strong)
+    np.testing.assert_array_equal(summary["overlap"], sorted(set(fast) & set(strong)))
+    assert all(indices.dtype.kind == "i" for indices in summary.values())
+
+
+def test_classification_changes_leave_complete_pair_scatter_and_pearson_unchanged(
+    monkeypatch, tmp_path,
+):
+    x = np.array([0, np.nan, 1, np.inf, 2, 3, 4, 5, 20, 8, 9, 10.0])
+    y = np.array([0, 20, 2, 1, 1, 4, 3, 6, np.nan, 9, 10, 11.0])
+    valid = np.isfinite(x) & np.isfinite(y)
+    expected_r, expected_p = pearsonr(x[valid], y[valid])
+    calls, overlays = [], []
+
+    def record_pearson(x_values, y_values):
+        result = pearsonr(x_values, y_values)
+        calls.append((x_values.copy(), y_values.copy(), result))
+        return result
+
+    def inspect_overlay(ax, handles, stats_text, *args, **kwargs):
+        artist = kwargs["scatter_artist"]
+        overlays.append((stats_text, artist.get_facecolors().copy()))
+        np.testing.assert_array_equal(artist.get_offsets(), np.column_stack((x[valid], y[valid])))
+
+    monkeypatch.setattr(correlations, "pearsonr", record_pearson)
+    monkeypatch.setattr(correlations, "_place_stacked_correlation_overlays", inspect_overlay)
+    monkeypatch.setattr(correlations, "_finalize_correlation_layout", lambda *a, **k: None)
+    monkeypatch.setattr(correlations, "writeImage", lambda *a, **k: None)
+
+    for fraction in (0.2, 0.5):
+        summary = correlations.summarize_fast_vs_strong(
+            x, y, [object()] * len(x), SimpleNamespace(), frac=fraction,
+        )
+        # These flies have no complete pair, but retain independent membership.
+        assert 8 in summary["fast"]
+        assert 1 in summary["strong"]
+        correlations.plot_fast_vs_strong_scatter(
+            x, y, [object()] * len(x), summary["fast"], summary["strong"],
+            tmp_path, fraction, PlotCustomizer(), strong_y_label="Later SLI",
+            strong_title_suffix="", x_label="Initial SLI",
+        )
+
+    assert len(calls) == 2
+    for x_values, y_values, result in calls:
+        np.testing.assert_array_equal(x_values, x[valid])
+        np.testing.assert_array_equal(y_values, y[valid])
+        assert result.statistic == expected_r
+        assert result.pvalue == expected_p
+    assert overlays[0][0] == overlays[1][0] == correlations._format_corr_annotation(
+        expected_r, expected_p, int(valid.sum()),
+    )
+    assert not np.array_equal(overlays[0][1], overlays[1][1])
 
 
 @pytest.mark.parametrize("font_size", [12, 20, 23, 30])

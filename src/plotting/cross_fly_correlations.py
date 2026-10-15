@@ -11,12 +11,13 @@ from pathlib import Path
 from typing import Optional, Sequence, Tuple
 
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
 
 from src.analysis.correlation_stats import pearson_correlation_summary
 from src.analysis.reward_rate import pooled_rewards_per_minute
-from src.analysis.sli_tools import default_single_bucket_idx
+from src.analysis.sli_tools import default_single_bucket_idx, select_fractional_groups
 from src.exporting.speed_sli_bundle import _extract_speed_arrays
 from src.plotting.between_reward_segment_binning import sync_bucket_window
 from src.plotting.palettes import (
@@ -3486,45 +3487,31 @@ def summarize_fast_vs_strong(
     if N_total == 0:
         return
 
-    # Global percentile count (same rule as select_extremes)
-    k_global = max(1, int(frac * N_total))
-
-    # FAST LEARNERS (T1 first bucket)
+    # Preserve global fly indices while excluding all nonfinite measurements.
+    # Each classification uses its own eligible population and shared ranking rule.
     mask1 = np.isfinite(sli_T1_first)
-    sli1 = sli_T1_first[mask1]
-
-    # --- STRONG LEARNERS (definition controlled upstream) ---
     mask2 = np.isfinite(sli_strong)
-    sli2 = sli_strong[mask2]
-
-    if len(sli1) == 0 or len(sli2) == 0:
-        print("[correlations] WARNING: no finite SLI values for fast/strong summary")
-        return
-
-    # clamp k to finite size
-    k1 = min(k_global, len(sli1))
-    k2 = min(k_global, len(sli2))
-
-    # argpartition selection on the finite values
-    idx1 = np.argpartition(sli1, -k1)[-k1:]
-    orig_idx1 = np.arange(N_total)[mask1]
-    fast_global = set(orig_idx1[idx1])
-    idx2 = np.argpartition(sli2, -k2)[-k2:]
-    orig_idx2 = np.arange(N_total)[mask2]
-    strong_global = set(orig_idx2[idx2])
+    _, fast = select_fractional_groups(
+        pd.Series(sli_T1_first).loc[mask1], top_fraction=frac,
+    )
+    _, strong = select_fractional_groups(
+        pd.Series(sli_strong).loc[mask2], top_fraction=frac,
+    )
+    fast_global = set(fast)
+    strong_global = set(strong)
 
     # Overlap
     overlap = fast_global & strong_global
 
     print("\n=== Fast vs Strong learner summary ===")
-    print(f"Fast learners:   {len(fast_global)} (k={k1}, from N={N_total})")
-    print(f"{strong_label}: {len(strong_global)} (k={k2}, from N={N_total})")
+    print(f"Fast learners:   {len(fast_global)} (from N={mask1.sum()} eligible)")
+    print(f"{strong_label}: {len(strong_global)} (from N={mask2.sum()} eligible)")
     print(f"Overlap:         {len(overlap)}")
 
     summary = {
-        "fast": np.array(sorted(fast_global)),
-        "strong": np.array(sorted(strong_global)),
-        "overlap": np.array(sorted(overlap)),
+        "fast": np.array(sorted(fast_global), dtype=int),
+        "strong": np.array(sorted(strong_global), dtype=int),
+        "overlap": np.array(sorted(overlap), dtype=int),
     }
 
     if getattr(opts, "log_fly_grps", False):
