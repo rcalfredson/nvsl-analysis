@@ -161,6 +161,31 @@ def test_agarose_dual_circle_classifies_outer_only_and_inner_contact_episodes():
     )
 
 
+@pytest.mark.parametrize("boundary_policy", ["hysteretic", "legacy"])
+@pytest.mark.parametrize(
+    "distances, expected",
+    [
+        pytest.param([41.0, 31.0, 41.0], [(1, 2, True)], id="completed"),
+        pytest.param([31.0, 31.0, 41.0], [], id="missing-entry"),
+        pytest.param([41.0, 31.0, 31.0], [], id="missing-exit"),
+        pytest.param([31.0, 31.0, 31.0], [], id="missing-both"),
+    ],
+)
+def test_agarose_dual_circle_requires_observed_trajectory_entry_and_exit(
+    distances, expected, boundary_policy
+):
+    trj = _trajectory_at_well_distances(distances)
+
+    trj.calc_agarose_dual_circle_episodes(
+        delta_mm=1.0, boundary_policy=boundary_policy
+    )
+
+    assert [
+        (ep["start"], ep["stop"], ep["avoids_inner"])
+        for ep in trj.agarose_dual_circle_episodes
+    ] == expected
+
+
 def test_agarose_entry_alignment_identifies_outward_wall_facing_semicircle():
     xf = _IdentityXformer()
     _radius, centers = CT.large.arenaWells(xf, 0)
@@ -546,6 +571,39 @@ def test_agarose_episode_assignment_uses_episode_start_frame_for_sync_bucket():
     np.testing.assert_array_equal(counts["avoid"], [[[1, 0]], [[1, 0]]])
     np.testing.assert_array_equal(counts["total"], [[[1, 1]], [[1, 0]]])
     np.testing.assert_allclose(counts["ratio"], [[[1.0, 0.0]], [[1.0, np.nan]]])
+
+
+@pytest.mark.parametrize("exit_frame", [6, 8])
+def test_completed_agarose_approach_crosses_sync_bucket_and_window_boundaries(
+    exit_frame,
+):
+    trj = _trajectory_at_well_distances(
+        [41.0] * 4 + [31.0] * (exit_frame - 4) + [41.0]
+    )
+    va = _video_analysis_stub(
+        ct=CT.large,
+        opts=SimpleNamespace(
+            agarose_outer_delta_mm=1.0,
+            min_agarose_episodes=1,
+            agarose_dual_circle_debug_csv=None,
+        ),
+        sync_bucket_ranges=[[(2, 5), (5, 7)]],
+        trx=[trj],
+        trns=[_Training(start=2, stop=7, name="T1")],
+        startPre=0,
+        _min2f=lambda minutes: int(minutes),
+        _f2min=lambda frames: float(frames),
+    )
+
+    va.analyzeAgaroseDualCircleAvoidance()
+
+    assert [(ep["start"], ep["stop"]) for ep in trj.agarose_dual_circle_episodes] == [
+        (4, exit_frame)
+    ]
+    counts = va.agarose_dual_circle_counts
+    np.testing.assert_array_equal(counts["total"], [[[1, 0]]])
+    np.testing.assert_array_equal(counts["avoid"], [[[1, 0]]])
+    np.testing.assert_allclose(counts["ratio"], [[[1.0, np.nan]]])
 
 
 def test_wall_facing_option_filters_sync_counts_before_ratio():

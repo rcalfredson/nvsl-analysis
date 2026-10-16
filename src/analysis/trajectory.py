@@ -1559,7 +1559,8 @@ class Trajectory:
         Identify 'dual-circle' agarose avoidance episodes for this fly.
 
         An episode is defined as a contiguous period when the fly is inside an
-        outer circle concentric with an agarose well. It is classified as
+        outer circle concentric with an agarose well, with both entry and exit
+        observed within the trajectory. It is classified as
         'avoidance' if the fly never enters the concentric inner analysis circle
         during that episode. ``boundary_policy='legacy'`` reproduces the
         pre-2026-07-29 classification: the 0.1 mm border on both circles counts
@@ -1751,6 +1752,10 @@ class Trajectory:
         for sl in outer_regions:
             start, stop = sl.start, sl.stop  # [start, stop)
             if start is None or stop is None:
+                continue
+            # Intervals touching a trajectory endpoint lack an observed entry
+            # or exit. These are trajectory bounds, not analysis-period bounds.
+            if start == 0 or stop == n_frames:
                 continue
             # Did we ever enter the inner circle during this outer episode?
             has_inner = np.any(in_inner[start:stop])
