@@ -19,8 +19,16 @@ tmp/episode_audit/
 tmp/*
 
 /exports/
+
 # Generated learner-metric reports, audits, and model diagnostics.
 /results/learner_metric_tables/
+
+# Generated tracking-loss surveys, sensitivity analyses, and review lists.
+/results/frame_loss_survey/
+/results/frame_loss_survey_htl/
+/results/sli_frame_loss_sweep/
+/results/frame_loss_review/
+
 logs/*
 build/**
 *.diff
