@@ -4492,7 +4492,7 @@ def plot_cross_fly_correlations(
     rpt_x_label = x_label_sli
     if rpt_plot_key == "rewards_per_minute_vs_sli_t1_sb1":
         rpt_x_label = "SLI for T1 SB1"
-        rpt_y_label = "Reward rate for T1 SB1 (min⁻¹)"
+        rpt_y_label = "Reward rate\nfor T1 SB1 (min⁻¹)"
     rpt_x_label = str(corr_sli_vs_rpt_xlabel_override or rpt_x_label)
     rpt_y_label = str(corr_sli_vs_rpt_ylabel_override or rpt_y_label)
     _scatter_with_corr(
