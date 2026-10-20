@@ -4486,18 +4486,22 @@ def plot_cross_fly_correlations(
         )
 
     # --- Plot 1c: selected-window SLI vs reward-per-time ---
+    rpt_plot_key = _reward_rate_vs_sli_plot_key(
+        sli_ctx, reward_rate_ctx, first_n_rewards=reward_first_n
+    )
+    rpt_x_label = x_label_sli
+    if rpt_plot_key == "rewards_per_minute_vs_sli_t1_sb1":
+        rpt_x_label = "SLI for T1 SB1"
+        rpt_y_label = "Reward rate for T1 SB1 (min⁻¹)"
+    rpt_x_label = str(corr_sli_vs_rpt_xlabel_override or rpt_x_label)
+    rpt_y_label = str(corr_sli_vs_rpt_ylabel_override or rpt_y_label)
     _scatter_with_corr(
         x=sli_vals,
         y=rpt_vals,
         title="Reward rate vs SLI",
-        x_label=str(corr_sli_vs_rpt_xlabel_override or x_label_sli),
-        y_label=str(corr_sli_vs_rpt_ylabel_override or rpt_y_label),
-        cfg=_cfg_with_plot_color(
-            cfg,
-            _reward_rate_vs_sli_plot_key(
-                sli_ctx, reward_rate_ctx, first_n_rewards=reward_first_n
-            ),
-        ),
+        x_label=rpt_x_label,
+        y_label=rpt_y_label,
+        cfg=_cfg_with_plot_color(cfg, rpt_plot_key),
         filename=f"corr_rpt_vs_sli_{rpt_suffix}",
         customizer=customizer,
     )
@@ -4519,8 +4523,8 @@ def plot_cross_fly_correlations(
             top_idx=selected_top_idx,
             mode=selected_mode,
             title=title_1c_sel,
-            x_label=str(corr_sli_vs_rpt_xlabel_override or x_label_sli),
-            y_label=str(corr_sli_vs_rpt_ylabel_override or rpt_y_label),
+            x_label=rpt_x_label,
+            y_label=rpt_y_label,
             filename=filename_1c_sel,
             out_dir=out_dir,
             customizer=customizer,
