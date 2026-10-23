@@ -197,12 +197,23 @@ def load_context(video, pair, role):
         )
         scale = float(va.ct.pxPerMmFloor() * va.xf.fctr)
         geometries = []
+        # Metadata-only actual-reward synchronization; no trajectory analysis.
+        va.trx = []
+        bucket_frames = va._min2f(10)
         for training in va.trns:
             circles = training.circles(0 if role == "exp" else 1)
             if len(circles) != 2:
                 raise ValueError(
                     "Expected one reward circle and one concentric control circle"
                 )
+            origin, count, _ = va._syncBucket(training, bucket_frames)
+            limit = min(training.stop, int(training.start + count * bucket_frames))
+            buckets = []
+            if origin is not None:
+                cursor = int(origin)
+                while cursor + bucket_frames <= limit:
+                    buckets.append([cursor, cursor + bucket_frames])
+                    cursor += bucket_frames
             geometries.append(
                 dict(
                     training=int(training.n),
@@ -214,6 +225,7 @@ def load_context(video, pair, role):
                     training_stop_frame=int(training.stop),
                     reward=tuple(float(v) for v in circles[0]),
                     control=tuple(float(v) for v in circles[1]),
+                    sync_buckets=buckets,
                 )
             )
         context = dict(

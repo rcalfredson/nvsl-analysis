@@ -19,12 +19,13 @@ def _notebook_code():
     ]
 
 
-def _preview_notebook(categories, *, run=True, rebuild=False):
+def _preview_notebook(categories, *, run=True, rebuild=False, panels=None):
     calls, exports, copies = [], [], []
     scope = {
         "REFRESH_SETTINGS": {
             "types": set(categories), "run": run, "copy": True,
             "rebuild_inputs": rebuild,
+            "panels": panels,
         },
     }
     for source in _notebook_code():
@@ -47,6 +48,18 @@ def _preview_notebook(categories, *, run=True, rebuild=False):
     if "_refresh_controls" in scope:
         scope["_refresh_controls"].close()
     return scope, calls, exports, copies
+
+
+def test_t1_sb1_panel_filter_routes_only_four_runs_and_copies():
+    panels = {f"ED{figure}_t1_sb1_sli_reward_rate" for figure in (3, 12, 14, 16)}
+    scope, calls, exports, copies = _preview_notebook({"correlation"}, panels=panels)
+    executed = [recipe for recipe, kwargs in calls if kwargs["run"]]
+    assert len(executed) == 4
+    assert {panel for recipe in executed for panel in recipe["panels"]} == panels
+    assert copies == executed
+    assert not exports
+    scope["REFRESH_SETTINGS"]["panels"] = None
+    assert scope["recipe_selected_for_refresh"](scope["figure_1i_1k"])
 
 
 @pytest.mark.parametrize("categories", [
@@ -229,6 +242,10 @@ def test_checkboxes_combine_types_and_persist_on_cell_rerun():
     scope = {"display": lambda *args: None}
     exec(source, scope)
     assert scope["REFRESH_SETTINGS"]["types"] == {"correlation"}
+    assert scope["_t1_sb1_only"].value
+    assert scope["REFRESH_SETTINGS"]["panels"] == scope["T1_SB1_REWARD_RATE_PANELS"]
+    scope["_t1_sb1_only"].value = False
+    assert scope["REFRESH_SETTINGS"]["panels"] is None
     boxes = dict(zip(scope["REFRESH_TYPES"], scope["_type_checkboxes"]))
     boxes["time"].value = True
     boxes["data"].value = True
@@ -238,6 +255,7 @@ def test_checkboxes_combine_types_and_persist_on_cell_rerun():
     assert not scope["REFRESH_SETTINGS"]["run"]
     exec(source, scope)
     assert scope["REFRESH_SETTINGS"]["types"] == {"time", "data"}
+    assert not scope["_t1_sb1_only"].value
     assert [box.value for box in scope["_type_checkboxes"]] == [
         False, True, True, False, False, False,
     ]
