@@ -28,6 +28,7 @@ tmp/*
 /results/frame_loss_survey_htl/
 /results/sli_frame_loss_sweep/
 /results/frame_loss_review/
+/results/tracking_gap_entry_review/
 
 logs/*
 build/**
