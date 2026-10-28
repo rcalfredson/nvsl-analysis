@@ -4355,7 +4355,7 @@ def plot_cross_fly_correlations(
                 rpt_suffix = f"{rpt_suffix}__maxtime{cutoff_suffix:g}s"
 
     rpd_y_label = sli_ctx.metric_axis_label(
-        "Rewards per distance", unit="m⁻¹",
+        "RPD", unit="m⁻¹",
         aggregation=window_metric_aggregation,
     )
     rpd_diff_y_label = sli_ctx.metric_axis_label(
