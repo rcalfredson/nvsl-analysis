@@ -44,6 +44,7 @@ def _write_return_prob_excursion_bin_bundle(path, *, ratio, unchecked=None):
         "return_prob_excursion_bin_keep_first_sync_buckets": np.array(0, dtype=int),
         "return_prob_excursion_bin_last_sync_buckets": np.array(0, dtype=int),
         "return_prob_excursion_bin_open_ended_upper_bin": np.array(False),
+        "return_prob_excursion_bin_exclude_wall_contact": np.array(False),
         "return_prob_excursion_bin_ratio_ctrl": np.asarray([[0.2, 0.3]]),
         "return_prob_excursion_bin_ratio_exp": np.asarray(ratio, dtype=float),
         "return_prob_excursion_bin_requested_edges_mm": np.asarray([2.0, 8.0, 16.0]),

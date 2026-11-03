@@ -8,7 +8,7 @@ This document provides instructions for setting up the data analysis environment
 ### Prerequisites
 
 - **Python 3.10** (either system-installed or provided via Conda)
-- A C compiler (e.g., `gcc` on Linux, Xcode command line tools on macOS, or Visual Studio Build Tools on Windows)
+- A C and C++ toolchain (e.g., `gcc` and `g++` on Linux, Xcode command line tools on macOS, or Visual Studio Build Tools on Windows) for the Cython extensions.
 
 ---
 ### Installation Methods
@@ -36,7 +36,7 @@ pip install virtualenv
 - Linux/macOS
 
   ```bash
-  python3 -m venv myenv
+  python3.10 -m venv myenv
   ```
 - Windows
 
@@ -184,6 +184,14 @@ python analyze.py -v "/actual/path/to/your_video.avi" -f "0-9"
 Where:
 - `-v` is **required** and specifies the path to your video file.
 - `-f` is **required** if analyzing a chamber that supports multiple flies; use a range like `0-9`.
+
+Input videos must have the matching `.data` experiment metadata and `.trx`
+tracking files alongside them, with the same filename stem. `analyze.py`
+consumes these existing tracking outputs; the command above does not generate
+tracking from an arbitrary raw video. For example, `experiment.avi` requires
+`experiment.data` and `experiment.trx`. Keep all companion files from the demo
+deposit together. Quote wildcard video paths so `analyze.py` receives the
+pattern as a single argument.
 
 ### Additional Flags: Turn Detection
 
@@ -532,11 +540,11 @@ change in the number of labels so group-index assignments cannot be altered.
 ## Demo
 Below is a short demo to verify the pipeline with *real* data.
 1. **Download the sample data**
-   Grab the files from [this Figshare dataset](https://figshare.com/articles/dataset/NVSL_Analysis_Demo_Sample_Experiments/28228976).
+   Download the two videos and their companion files from [the Figshare demo dataset](https://figshare.com/articles/dataset/NVSL_Analysis_Demo_Sample_Experiments/28228976) (approximately 7.7 GB total). Keep the files in one directory.
 2. **Run an example command**
    ```bash
    python analyze.py \
-       -v /path/to/your/demo/files/c*.avi \
+       -v "/path/to/your/demo/files/c*.avi" \
        -f 0-9 \
        --turn circle \
        --turn-prob-by-dist 2,3,4,5,6
@@ -611,3 +619,7 @@ for the workflow used to refresh these manifests after an intentional
 paper-metric output change.
 
 *Thank you for using `nvsl-analysis`! If you have any feedback or questions, please open an issue on GitHub or email the authors.*
+
+## License
+
+This source code is distributed under the MIT License; see [LICENSE](LICENSE).

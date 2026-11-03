@@ -21,6 +21,11 @@ def _per_fly_hist(**overrides):
         "per_unit_ids_panel": np.asarray(
             [np.asarray(["fly_a", "fly_b"], dtype=object)], dtype=object
         ),
+        "overflow_mean": None,
+        "overflow_ci_lo": None,
+        "overflow_ci_hi": None,
+        "overflow_n_units": None,
+        "overflow_per_unit_panel": None,
         "bin_edges": np.asarray([[0.0, 60.0, 200.0, 1600.0]], dtype=float),
         "n_raw": np.asarray([20], dtype=int),
         "n_used": np.asarray([18], dtype=int),
@@ -43,6 +48,11 @@ def _pooled_hist(**overrides):
         "n_units_panel": None,
         "per_unit_panel": None,
         "per_unit_ids_panel": None,
+        "overflow_mean": None,
+        "overflow_ci_lo": None,
+        "overflow_ci_hi": None,
+        "overflow_n_units": None,
+        "overflow_per_unit_panel": None,
         "bin_edges": np.asarray([[0.0, 5.0, 10.0], [0.0, 5.0, 10.0]]),
         "n_raw": np.asarray([4, 3], dtype=int),
         "n_used": np.asarray([3, 3], dtype=int),
