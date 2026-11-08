@@ -126,3 +126,10 @@ The first-pass final- and mean-SLI sweep has now been implemented in
 `results/sli_frame_loss_sweep/`. The keyed joins reproduce the 60% baseline and
 preserve each endpoint's eligibility rules. Direct analyzer reruns, trajectory
 metric sweeps, and episode-level checks remain later phases.
+
+The separate fixed-episode exposure and exclusion analysis now covers all six
+bout metrics (including turnback ratio, heading alignment, and agarose
+avoidance). See [episode_tracking_loss.md](episode_tracking_loss.md) for its
+references, baseline validation, local support rules, reproducible command,
+and interpretation limits. This does not replace the fly-level cutoff sweep
+or perform the artificial-gap redetection experiment.

@@ -156,7 +156,7 @@ def gap_rows(context):
 
 
 # 3. Reuse the production metadata path, without invoking the analysis constructor.
-def load_context(video, pair, role):
+def load_context(video, pair, role, *, include_analysis=False):
     from src.analysis.agarose_preinvestigation import load_pickle
     from src.analysis.video_analysis import VideoAnalysis
     from src.utils.common import CT
@@ -245,6 +245,10 @@ def load_context(video, pair, role):
         )
         if len(context["x"]) != va.nf:
             raise ValueError("Trajectory length differs from production frame count")
+        if include_analysis:
+            # Metadata-only context for downstream episode audits. The video
+            # handle is still released below; callers must not use it for playback.
+            context["analysis"] = va
         return context
     finally:
         if hasattr(va, "cap"):
