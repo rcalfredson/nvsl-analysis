@@ -265,8 +265,9 @@ minimum in both conditions. Its filtered numeric effects remain undefined.
 
 See [the review and staged expansion plan](tracking_gap_simulation_expansion_plan.md)
 for reporting repairs, a reference-support inventory, and the conditions needed
-to connect simulated missingness to manuscript-level results. This plan has not
-yet been implemented.
+to connect simulated missingness to manuscript-level results. Reporting repairs
+and [the reference-support census](tracking_gap_support_audit.md) are implemented;
+the larger simulation experiment remains follow-on work.
 
 Single-gap tests do not measure cumulative recording-level bias. Fully tracked
 stretches can systematically differ from periods of tracking loss, even when

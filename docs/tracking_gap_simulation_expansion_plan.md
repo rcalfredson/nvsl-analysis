@@ -1,8 +1,8 @@
 # Tracking-gap pilot review and expansion plan
 
 Reviewed 9 November 2026. This document records a review and proposed design.
-Step-one reporting repairs are implemented as described below; the expanded
-support inventory and simulation experiments have not been implemented or run.
+Step-one reporting repairs and the step-two support census are implemented as
+described below; expanded simulation experiments have not been run.
 
 ## The paper question and the attainable claims
 
@@ -140,6 +140,16 @@ of availability. Five episodes is the production rule, not a guarantee of a
 precise ratio. Show denominators and denominator-stratified results explicitly.
 
 ### 2. Inventory reference support before choosing a larger sample size
+
+Implemented 9 November: the exhaustive same-fly census includes the ten agarose
+datasets and all original 196 pooled-metric subjects, validated against archived
+counts/numerators and production AUC samples. See
+[the support-audit guide](tracking_gap_support_audit.md) for reproduction,
+denominators, results, and the unresolved source-membership overlap between
+antennae-removed and EPG>Kir flat-chamber lists. Local reference support is
+separate from strict continuous AUC-window support; no effect estimates are
+produced. Missing continuous support should be checked for recoverable observed
+boundary context before assuming offline retracking is required.
 
 Use the full 196-subject profile to estimate feasible support by cohort,
 recording-loss stratum, duration, wall context, metric and radius. Start with
