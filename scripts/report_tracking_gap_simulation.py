@@ -8,12 +8,18 @@ import hashlib
 import html
 import json
 from pathlib import Path
+import sys
 
 import numpy as np
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from scripts.tracking_gap_report_tables import load_pilot
+from scripts.summarize_tracking_gap_pilot import main as render_companion
 
 COHORTS = {"ctrl":"Control","pfnd_kir":"PFNd>Kir","antennae_removed":"Antennae removed"}
 BINS = ["<=0.5s","0.5-2s","2-10s",">10s"]
@@ -38,19 +44,12 @@ def main(argv=None):
         parser.error('Output must be a new or empty directory')
     out.mkdir(parents=True,exist_ok=True)
     paths=[args.profile_dir/n for n in ['gaps.csv','summary.csv','subjects.csv','missing_fields.csv','provenance.json']]
-    paths += [args.pilot_dir/n for n in ['trials.csv','redetection.csv','fixed_boundaries.csv','baseline_checks.csv','provenance.json']]
-    inputs={str(p):sha256(p) for p in paths}
+    paths += [args.pilot_dir/n for n in ['trials.csv','redetection.csv','fixed_boundaries.csv','episodes.csv','baseline_checks.csv','provenance.json']]
+    inputs={str(p):sha256(p) if p.exists() else None for p in paths}
     gaps=pd.read_csv(args.profile_dir/'gaps.csv')
     profile=pd.read_csv(args.profile_dir/'summary.csv')
-    trials=pd.read_csv(args.pilot_dir/'trials.csv')
-    redetect=pd.read_csv(args.pilot_dir/'redetection.csv')
-    fixed=pd.read_csv(args.pilot_dir/'fixed_boundaries.csv')
+    trials,redetect,fixed,_episodes=load_pilot(args.pilot_dir)
     fields=pd.read_csv(args.profile_dir/'missing_fields.csv')
-    if 'placement_arm' not in trials:
-        trials['placement_arm']='spatial_matched'
-    trial_columns=['trial_id','placement_arm','video_path','pair']
-    redetect=redetect.merge(trials[trial_columns],on='trial_id',validate='many_to_one')
-    fixed=fixed.merge(trials[trial_columns],on='trial_id',validate='many_to_one')
     profile_rows=[]
     for cohort in COHORTS:
         all_g=gaps[gaps.cohort==cohort].sort_values(['video_path','pair','gap_start_frame'])
@@ -63,8 +62,8 @@ def main(argv=None):
         profile_rows.append(dict(cohort=cohort,t2_gap_count=len(all_g),primary_donor_gaps=len(primary),
             pooled_gap_median_s=float(primary.duration_s.median()),pooled_gap_p95_s=float(primary.duration_s.quantile(.95)),
             median_of_fly_median_gap_s=float(per_fly.median()),
-            gaps_over_10s_fraction=len(long)/len(primary),
-            loss_time_over_10s_fraction=long.gap_frames.sum()/primary.gap_frames.sum(),
+            gaps_over_10s_fraction=len(long)/len(primary) if len(primary) else np.nan,
+            loss_time_over_10s_fraction=long.gap_frames.sum()/primary.gap_frames.sum() if primary.gap_frames.sum() else np.nan,
             endpoint_near_wall_1mm_fraction=float(((primary.before_wall_mm<=1)|(primary.after_wall_mm<=1)).mean()),
             next_gap_within_1s_fraction=float(np.mean(np.asarray(spacing)<=1)) if spacing else np.nan))
     pd.DataFrame(profile_rows).to_csv(out/'real_gap_summary.csv',index=False)
@@ -85,14 +84,18 @@ def main(argv=None):
             affected_fixed_episode_measurements=len(f),unavailable_fixed_measurements=len(f)-len(available),
             fixed_mean_error=float(available.error.mean()) if len(available) else np.nan,
             fixed_median_absolute_error=float(available.error.abs().median()) if len(available) else np.nan))
-    effects=pd.DataFrame(effect_rows)
+    effects=pd.DataFrame(effect_rows,columns=[
+        'cohort','placement_arm','metric','variant','matched_trials','trials_with_evaluable_episodes',
+        'trials_with_count_change','reference_episodes','simulated_episodes','reference_without_overlap',
+        'simulated_without_overlap','one_to_one_pairs','affected_fixed_episode_measurements',
+        'unavailable_fixed_measurements','fixed_mean_error','fixed_median_absolute_error'])
     effects.to_csv(out/'pilot_effects.csv',index=False)
     fig,axes=plt.subplots(1,3,figsize=(14,4.5))
     for cohort,label in COHORTS.items():
         g=gaps[(gaps.cohort==cohort)&gaps.primary_donor]
         xx=np.sort(g.duration_s)
         axes[0].step(xx,np.arange(1,len(xx)+1)/len(xx),where='post',label=label)
-        s=profile[(profile.cohort==cohort)&(profile.scope=='T2_SB2-5_donors')].set_index('duration_bin').loc[BINS]
+        s=profile[(profile.cohort==cohort)&(profile.scope=='T2_SB2-5_donors')].set_index('duration_bin').reindex(BINS)
         axes[1].plot(BINS,s.lost_time_fraction,marker='o',label=label)
         attempted=trials[(trials.cohort==cohort)&(trials.placement_arm=='spatial_matched')]
         cs=attempted.groupby('duration_bin').status.agg(lambda x:float((x=='matched').mean())).reindex(BINS)
@@ -115,14 +118,19 @@ def main(argv=None):
         "Both short-term measurement/detection effects and missing measurement availability are reported. Single-gap trials do not reproduce clustered real gaps, feedback changes in reward delivery, or total recording loss. Fully tracked stretches may differ systematically from genuine loss periods; rare/long unmatched contexts require more data or retracking/manual review.", ""]
     (out/'report.md').write_text('\n\n'.join(text)+'\n')
     markup='<!doctype html><meta charset="utf-8"><title>Tracking-gap simulation pilot</title><style>body{font:15px/1.6 system-ui;margin:35px auto;max-width:1450px;padding:20px}pre{white-space:pre-wrap}table{border-collapse:collapse;font-size:13px}td,th{border:1px solid #ccd;padding:7px;text-align:left}img{max-width:100%}</style>'
-    markup+='<h1>Empirical tracking gaps and artificial-gap pilot</h1><pre>'+html.escape('\n\n'.join(text[2:]))+'</pre><img src="gap_profile.png">'
+    markup+='<h1>Empirical tracking gaps and artificial-gap pilot</h1><p><strong><a href="audited_pilot/report.html">Open the denominator-aware pilot report, including eligibility-filtered results and unsupported cases</a></strong></p><pre>'+html.escape('\n\n'.join(text[2:]))+'</pre><img src="gap_profile.png">'
     markup+='<h2>Real gap characteristics</h2>'+pd.DataFrame(profile_rows).to_html(index=False,float_format=lambda v:f'{v:.4g}')
     markup+='<h2>Matching coverage by arm and duration</h2>'+coverage.to_html(index=False)
-    markup+='<h2>Conditional targeted tests</h2>'+shown.to_html(index=False,float_format=lambda v:f'{v:.4g}',na_rep='undefined')
+    markup+='<h2>Conditional targeted tests</h2><p>The following legacy overview is diagnostic; it does not filter local means by episode minimum. See the audited companion for explicit unsupported cells, trial denominators and eligibility-filtered comparisons.</p>'+shown.to_html(index=False,float_format=lambda v:f'{v:.4g}',na_rep='undefined')
+    markup+='<p><strong><a href="audited_pilot/report.html">Audited pilot report: denominators, eligibility and unsupported cases</a></strong></p>'
     markup+='<p><a href="pilot_effects.csv">Full effects table, including spatial-only placement</a> · <a href="real_gap_summary.csv">Gap summary</a> · <a href="matching_coverage.csv">Matching coverage</a></p>'
     (out/'report.html').write_text(markup)
     (out/'provenance.json').write_text(json.dumps(dict(generated_utc=datetime.now(timezone.utc).isoformat(),
-        inputs_sha256=inputs,report_code_sha256=sha256(__file__)),indent=2)+'\n')
+        inputs_sha256=inputs,report_code_sha256=sha256(__file__),
+        companion_code_sha256=sha256(ROOT/'scripts/summarize_tracking_gap_pilot.py'),
+        table_code_sha256=sha256(ROOT/'scripts/tracking_gap_report_tables.py')),indent=2)+'\n')
+    render_companion(['--pilot-dir',str(args.pilot_dir),'--existing-report-dir',str(out),
+                      '--output-dir',str(out/'audited_pilot')])
     print(out/'report.html')
 
 

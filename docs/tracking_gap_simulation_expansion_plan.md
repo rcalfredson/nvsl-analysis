@@ -1,7 +1,8 @@
 # Tracking-gap pilot review and expansion plan
 
-Reviewed 9 November 2026. This document records a review and proposed design;
-the expanded experiments described below have not been implemented or run.
+Reviewed 9 November 2026. This document records a review and proposed design.
+Step-one reporting repairs are implemented as described below; the expanded
+support inventory and simulation experiments have not been implemented or run.
 
 ## The paper question and the attainable claims
 
@@ -17,6 +18,54 @@ aggregation and eligibility rules. Where such references do not exist, targeted
 offline retracking/manual reconstruction is necessary, or the claim must remain
 restricted to supported contexts. Matching endpoints does not make loss random
 or establish the hidden path distribution.
+
+## Agreed contrast targets and expanded agarose scope
+
+Following discussion of the manuscript panels, the primary targets are changes
+in group contrasts, assessed in terms of direction, magnitude and composition
+of the contributing subject pool. Absolute metric changes remain supporting
+diagnostics. Define each contrast's orientation explicitly and keep it fixed:
+contrast change is the masked contrast minus the reference contrast, in native
+metric units. Relative distortion can supplement this where the reference
+contrast is sufficiently far from zero; it is not a universal acceptance rule.
+
+- For between-reward tortuosity, wall contacts and wall-positive path length,
+  evaluate experimental-cohort-minus-control contrasts, and the PFNd>Kir versus
+  antennae-removed comparison where relevant to the manuscript claim.
+- For turnback and home-vector alignment, retain all three radius pairs and
+  assess both radius-specific group contrasts and changes in their pattern
+  across radii. Do not substitute preservation of significance stars for
+  preservation of the effect's magnitude.
+- For agarose avoidance, include the actual flat-versus-agarose large-chamber
+  comparisons in Extended Data Figure 17b–f: Ctrl, antennae removed, MBKC-1>Kir,
+  PFNd>Kir and EPG>Kir, each in both chamber types. Define the contrast as
+  agarose chamber minus flat chamber. Reproduce Pre, Training 1 and Training 2
+  bucket settings and the displayed AUC calculation/eligibility from production
+  code before comparing masked and reference summaries. The AUC endpoint's
+  definition and missing-bucket handling must be verified, not inferred from
+  integrating the plotted cohort means.
+
+The notebook `notebooks/manuscript_figure_panels.ipynb` contains the ten source
+video-list definitions and their export recipes. ED17b uses Figure 4b/4s lists;
+ED17c uses Figure 4d/4t; ED17d uses ED14h/ED16h; ED17e uses Figure 4i/4u;
+ED17f uses ED14i/ED16i. Recipes use experimental physical-site avoidance,
+1 mm outer offset, Pre included, and two trainings. Derive admission and
+per-cell eligibility from these recipes/production code; do not impose the
+pooled metrics' final-SLI gate on the agarose cohorts. The original 196-subject
+flat-chamber roster remains the starting population for the other metrics,
+not the complete population for this expanded agarose analysis.
+
+Profile missingness and reference support separately for each chamber/genotype;
+do not transplant flat-chamber loss statistics into agarose chambers. Retain
+the same-fly placement rule as the primary design. Source-list availability
+does not yet establish that every video/raw tracking file is accessible or
+that adequate reference trajectories exist.
+
+No single acceptable-error cutoff is agreed yet. This does not block the
+reporting repairs or support inventory. Specify scientific tolerances, or a
+prespecified range of tolerance levels, before interpreting expanded effect
+estimates. Any later equivalence statement remains conditional on reference
+coverage and the tested loss mechanism.
 
 ## Review of the existing additions
 
@@ -69,6 +118,15 @@ experiment; historical results should remain immutable and labeled as a pilot.
 ## Proposed sequence and decision gates
 
 ### 1. Make the existing evidence auditable
+
+Implemented 9 November: both report entry points now provide a denominator-aware
+companion with validated per-attempt audit rows, separate all-defined and
+minimum-five-in-both comparisons, explicit eligibility attrition, denominator
+strata, and unsupported-cell handling. See the reporting section in
+`docs/tracking_gap_simulation.md` for regeneration commands and output semantics.
+Reports preserve historical pilot outputs; simulation behavior is unchanged.
+Radius/heading-specific exposure inventory and detector-state validation remain
+follow-on work rather than conclusions of this reporting repair.
 
 Export one row per trial/metric/radius with fly/video identity, placement arm,
 gap duration, evaluation duration, reference/simulated episode counts, ratio

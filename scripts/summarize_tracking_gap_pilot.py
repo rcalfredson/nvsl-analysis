@@ -8,9 +8,16 @@ import hashlib
 import html
 import json
 from pathlib import Path
+import sys
 
 import numpy as np
 import pandas as pd
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from scripts.tracking_gap_report_tables import (
+    load_pilot, trial_audit, expected_cells, select_cell, cell_trials, support_status,
+)
 
 COHORTS = {'ctrl': 'Control', 'pfnd_kir': 'PFNd>Kir', 'antennae_removed': 'Antennae removed'}
 METRICS = {
@@ -40,18 +47,27 @@ def coverage_table(trials, keys):
     return pd.DataFrame(rows)
 
 
-def detection_table(data, by_cohort=False):
-    keys = (['cohort'] if by_cohort else []) + ['metric', 'variant']
+def detection_table(data, trials, by_cohort=False, *, arm="targeted", eligible_only=False):
     rows = []
-    for key, g in data.groupby(keys, sort=True):
-        key = key if isinstance(key, tuple) else (key,)
-        info = dict(zip(keys, key))
+    for info in expected_cells(trials, by_cohort=by_cohort):
+        g = select_cell(data, info)
+        attempts = cell_trials(trials, info, arm)
         metric = info['metric']
         e = g[(g.reference_episodes > 0) | (g.simulated_episodes > 0)]
         both = e[np.isfinite(e.reference_mean_unfiltered) & np.isfinite(e.simulated_mean_unfiltered)]
         factor = 100 if metric in ('turnback_ratio', 'agarose_avoidance') else 1
+        if eligible_only:
+            both = both[both.reference_meets_five_episode_minimum & both.simulated_meets_five_episode_minimum]
         change = both.mean_change * factor
         rows.append(info | {
+            'Status': support_status(attempts, g),
+            'Mean comparison policy': 'minimum five in both' if eligible_only else 'all defined local means',
+            'Placement attempts': len(attempts),
+            'Successful placements': int(attempts.status.eq('matched').sum()),
+            'Below minimum in both': int((~e.reference_meets_five_episode_minimum & ~e.simulated_meets_five_episode_minimum).sum()),
+            'Lost eligibility': int((e.reference_meets_five_episode_minimum & ~e.simulated_meets_five_episode_minimum).sum()),
+            'Gained eligibility': int((~e.reference_meets_five_episode_minimum & e.simulated_meets_five_episode_minimum).sum()),
+            'Eligible in both': int((e.reference_meets_five_episode_minimum & e.simulated_meets_five_episode_minimum).sum()),
             'Matched trials': len(g), 'Trials with episodes': len(e),
             'Flies with episodes': len(e[['video_path', 'pair']].drop_duplicates()),
             'Reference episodes': int(e.reference_episodes.sum()),
@@ -76,16 +92,16 @@ def detection_table(data, by_cohort=False):
     return pd.DataFrame(rows)
 
 
-def fixed_table(data, by_cohort=False):
-    keys = (['cohort'] if by_cohort else []) + ['metric', 'variant']
+def fixed_table(data, trials, by_cohort=False, *, arm="targeted"):
     rows = []
-    for key, g in data.groupby(keys, sort=True):
-        key = key if isinstance(key, tuple) else (key,)
-        info = dict(zip(keys, key))
+    for info in expected_cells(trials, by_cohort=by_cohort, fixed=True):
+        g = select_cell(data, info)
+        attempts = cell_trials(trials, info, arm)
         f = g[g.support_intersects_injected_gap]
         a = f[f.available & np.isfinite(f.error)]
         relative = a[a.reference_value.abs() > 1e-9]
         rows.append(info | {
+            'Status': support_status(attempts, g, exposed=f),
             'Exposed trials': f.trial_id.nunique(),
             'Flies with exposure': len(f[['video_path', 'pair']].drop_duplicates()),
             'Exposed measurements': len(f), 'Available after loss': len(a),
@@ -103,52 +119,83 @@ def fixed_table(data, by_cohort=False):
     return pd.DataFrame(rows)
 
 
-def main():
+def denominator_table(audit):
+    """Descriptive changes by original denominator; never pool placement arms."""
+    data = audit[audit.evaluation_status.isin(['evaluated', 'no complete episodes'])].copy()
+    data['Reference episode count'] = pd.cut(data.reference_episodes,
+        [-1, 0, 4, 9, 19, np.inf], labels=['0', '1–4', '5–9', '10–19', '20+'])
+    keys = ['placement_arm', 'cohort', 'metric', 'variant', 'Reference episode count']
+    columns = keys + ['Evaluated trials', 'Trials with both means', 'Lost eligibility',
+                      'Mean signed change', 'Maximum absolute change', 'Units']
+    rows = []
+    for key, g in data.groupby(keys, observed=True, sort=False):
+        change = g.loc[g.both_means_defined, 'displayed_change']
+        rows.append(dict(zip(keys, key)) | {
+            'Evaluated trials': len(g), 'Trials with both means': len(change),
+            'Lost eligibility': int(g.eligibility_transition.eq('lost eligibility').sum()),
+            'Mean signed change': change.mean(), 'Maximum absolute change': change.abs().max(),
+            'Units': METRICS[key[2]][1],
+        })
+    return pd.DataFrame(rows, columns=columns)
+
+
+def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--pilot-dir', type=Path, required=True)
     p.add_argument('--existing-report-dir', type=Path, required=True)
     p.add_argument('--output-dir', type=Path, required=True)
-    args = p.parse_args()
+    args = p.parse_args(argv)
     out = args.output_dir
     if out.exists() and any(out.iterdir()):
         p.error('Output must be a new or empty directory')
-    paths = [args.pilot_dir/n for n in ('trials.csv', 'redetection.csv', 'fixed_boundaries.csv')]
+    paths = [args.pilot_dir/n for n in ('trials.csv', 'redetection.csv', 'fixed_boundaries.csv', 'episodes.csv')]
     paths.append(args.existing_report_dir/'real_gap_summary.csv')
-    trials, redetect, fixed, profile = [pd.read_csv(path) for path in paths]
-    meta = trials[['trial_id', 'placement_arm', 'video_path', 'pair']]
-    redetect = redetect.merge(meta, on='trial_id', validate='many_to_one')
-    fixed = fixed.merge(meta, on='trial_id', validate='many_to_one')
+    trials, redetect, fixed, episodes = load_pilot(args.pilot_dir)
+    profile = pd.read_csv(paths[-1])
+    audit = trial_audit(trials, redetect, episodes)
     targeted = redetect[redetect.placement_arm.eq('episode_targeted:'+redetect.metric)]
     targeted_fixed = fixed[fixed.placement_arm.eq('episode_targeted:'+fixed.metric)]
     spatial = redetect[redetect.placement_arm.eq('spatial_matched')]
     spatial_fixed = fixed[fixed.placement_arm.eq('spatial_matched')]
     tables = {
+        'trial_details': audit,
+        'changes_by_reference_denominator': denominator_table(audit),
+        'targeted_detection_minimum_five': detection_table(targeted, trials, eligible_only=True),
+        'targeted_detection_minimum_five_by_cohort': detection_table(targeted, trials, True, eligible_only=True),
+        'spatial_detection_minimum_five': detection_table(spatial, trials, arm='spatial', eligible_only=True),
         'coverage_by_arm': coverage_table(trials, ['placement_arm']),
         'coverage_by_duration': coverage_table(trials, ['placement_arm', 'duration_bin']),
         'coverage_by_cohort': coverage_table(trials, ['cohort', 'placement_arm']),
-        'targeted_detection': detection_table(targeted),
-        'targeted_fixed': fixed_table(targeted_fixed),
-        'targeted_detection_by_cohort': detection_table(targeted, True),
-        'targeted_fixed_by_cohort': fixed_table(targeted_fixed, True),
-        'spatial_detection': detection_table(spatial),
-        'spatial_fixed': fixed_table(spatial_fixed),
+        'targeted_detection': detection_table(targeted, trials),
+        'targeted_fixed': fixed_table(targeted_fixed, trials),
+        'targeted_detection_by_cohort': detection_table(targeted, trials, True),
+        'targeted_fixed_by_cohort': fixed_table(targeted_fixed, trials, True),
+        'spatial_detection': detection_table(spatial, trials, arm="spatial"),
+        'spatial_fixed': fixed_table(spatial_fixed, trials, arm="spatial"),
     }
     highlights = []
     for metric in METRICS:
         variant = '13/15mm' if metric in ('turnback_ratio', 'home_vector_alignment') else ('physical_1mm' if metric == 'agarose_avoidance' else 'full')
         d = tables['targeted_detection'].query('metric == @metric and variant == @variant').iloc[0]
-        if metric in ('turnback_ratio', 'agarose_avoidance'):
+        if d['Status'] != 'evaluated':
+            sample = f"{int(d['Successful placements'])} matched placements"
+            result = d['Status'] + '; effect undefined'
+        elif metric in ('turnback_ratio', 'agarose_avoidance'):
             sample = f"{int(d['Trials with both means'])} trials with both local means"
             result = (f"{int(d['Trials with mean change'])} changed; median absolute change "
-                      f"{d['Median absolute change']:.3g}, maximum {d['Maximum absolute change']:.3g} percentage points")
+                      f"{d['Median absolute change']:.3g}, maximum {d['Maximum absolute change']:.3g} percentage points "
+                      f"(exploratory; {int(d['Eligible in both'])} trials meet the minimum in both)")
         else:
             f = tables['targeted_fixed'].query('metric == @metric and variant == @variant').iloc[0]
             sample = f"{int(f['Exposed measurements'])} exposed reference measurements; {int(f['Unavailable after loss'])} unavailable after loss"
-            result = (f"{int(f['Available measurements changed'])} changed; median absolute error "
-                      f"{f['Median absolute error']:.3g}, maximum {f['Maximum absolute error']:.3g} {f['Units']}")
+            if f['Status'] != 'evaluated' or not f['Available after loss']:
+                result = f['Status'] + '; no available exposed measurement; effect undefined'
+            else:
+                result = (f"{int(f['Available measurements changed'])} changed; median absolute error "
+                          f"{f['Median absolute error']:.3g}, maximum {f['Maximum absolute error']:.3g} {f['Units']}")
         highlights.append({'Metric': METRICS[metric][0], 'Variant': variant, 'Comparison size': sample,
                            'Observed response': result,
-                           'Trials changing episode count': f"{int(d['Trials with count change'])} / {int(d['Trials with episodes'])}"})
+                           'Trials changing episode count': (f"{int(d['Trials with count change'])} / {int(d['Trials with episodes'])}" if d['Trials with episodes'] else 'undefined (no evaluated episodes)')})
     tables['at_a_glance'] = pd.DataFrame(highlights)
     out.mkdir(parents=True, exist_ok=True)
     for name, table in tables.items():
@@ -156,10 +203,20 @@ def main():
 
     def render(name, columns=None):
         table = tables[name].copy()
+        if name == 'trial_details':
+            table = table[table.placement_arm.eq('episode_targeted:'+table.metric) & table.evaluation_status.eq('evaluated')]
         if columns:
             table = table[columns]
         table = table.rename(columns={'metric': 'Metric', 'variant': 'Variant', 'cohort': 'Cohort',
-                                      'placement_arm': 'Placement arm', 'duration_bin': 'Gap duration'})
+            'placement_arm': 'Placement arm', 'duration_bin': 'Gap duration',
+            'trial_id': 'Trial', 'duration_s': 'Gap duration (s)',
+            'evaluation_duration_s': 'Evaluated stretch (s)',
+            'reference_numerator': 'Reference successes (ratios)',
+            'simulated_numerator': 'Simulated successes (ratios)',
+            'reference_episodes': 'Reference episodes', 'simulated_episodes': 'Simulated episodes',
+            'reference_value': 'Reference mean / ratio', 'simulated_value': 'Simulated mean / ratio',
+            'displayed_change': 'Change', 'change_units': 'Change units',
+            'eligibility_transition': 'Minimum-count status'})
         if 'Metric' in table:
             table['Metric'] = table.Metric.map(lambda m: METRICS[m][0] if m in METRICS else m)
         if 'Cohort' in table:
@@ -173,12 +230,12 @@ def main():
     nflies = len(trials[['video_path', 'pair']].drop_duplicates())
     ndonors = len(trials[['video_path', 'pair', 'donor_gap_id']].drop_duplicates())
     nmatched = int(trials.status.eq('matched').sum())
-    detection_columns = ['metric', 'variant', 'Matched trials', 'Trials with episodes', 'Flies with episodes',
+    detection_columns = ['metric', 'variant', 'Status', 'Matched trials', 'Trials with episodes', 'Flies with episodes',
                          'Reference episodes', 'Simulated episodes', 'Trials with count change',
                          'Reference with no overlap', 'Simulated with no overlap', 'Trials with paired boundary shift']
-    value_columns = ['metric', 'variant', 'Trials with both means', 'Trials with mean change',
+    value_columns = ['metric', 'variant', 'Status', 'Trials with both means', 'Trials with mean change',
                      'Mean signed change', 'Median absolute change', 'Maximum absolute change', 'Units']
-    fixed_columns = ['metric', 'variant', 'Exposed trials', 'Flies with exposure', 'Exposed measurements',
+    fixed_columns = ['metric', 'variant', 'Status', 'Exposed trials', 'Flies with exposure', 'Exposed measurements',
                      'Available after loss', 'Unavailable after loss', 'Available measurements changed',
                      'Mean signed error', 'Median absolute error', 'Maximum absolute error', 'Units']
     parts = ['''<!doctype html><html lang="en"><meta charset="utf-8">
@@ -216,12 +273,24 @@ h1,h2,h3{line-height:1.25}h2{margin-top:40px}p{max-width:1050px}.note{background
         '<p>Relative error is 100 × |simulated − reference| / |reference|, excluding reference magnitudes ≤10<sup>−9</sup>. It can be large near zero, particularly for alignment.</p></details>',
         '<h2>4. What happens to the local metric mean after redetection?</h2>',
         '<p>These statistics summarize changes in each trial’s mean over the evaluated parent stretch after rerunning the full episode calculation. They include changed membership as well as changed values. Both means must be defined; availability changes are reported above. Whole-stretch means can dilute effects confined to the injected gap.</p>',
+        '<h3>All defined local means — exploratory</h3>',
         render('targeted_detection', value_columns),
+        '<h3>At least five episodes in both conditions</h3>',
+        render('targeted_detection_minimum_five', value_columns),
+        '<p>This second table filters only the numeric mean-change comparison. The status/count columns still describe the full placement and evaluation pool. Passing the minimum does not guarantee a precise estimate. Cases that lose eligibility remain counted below rather than disappearing silently.</p>',
+        render('targeted_detection', ['metric', 'variant', 'Status', 'Below minimum in both', 'Eligible in both', 'Lost eligibility', 'Gained eligibility']),
+        '<h3>Trial-level denominators and eligibility</h3><p>Ratio values below are fractions (0–1), whereas their changes are percentage points. Numerators count successful binary outcomes. Unsupported placements have undefined counts and values; zero episodes in an evaluated stretch is an observed zero denominator, with an undefined mean.</p>',
+        render('trial_details', ['trial_id', 'cohort', 'metric', 'variant', 'duration_s', 'evaluation_duration_s', 'reference_numerator', 'reference_episodes', 'reference_value', 'simulated_numerator', 'simulated_episodes', 'simulated_value', 'displayed_change', 'change_units', 'eligibility_transition']),
+        '<p>Only evaluated corresponding targeted-arm rows are shown above. The trial_details CSV includes every attempt and metric/radius, including unsupported placements and other arms; numerators do not apply to non-ratio metrics. Saved episode intervals and video/fly identity allow reference reuse to be inspected.</p>',
+        '<details><summary>Changes stratified by reference episode count</summary>'+render('changes_by_reference_denominator')+
+        '<p>These bins are descriptive, not additional eligibility rules. Conditions can change denominator bin after masking; the table groups by the original count. Arms and cohorts remain separate. No rows means no evaluated denominators, not zero impact.</p></details>',
         '<p>Ratio changes are in percentage points: +1 means a ratio increased by 0.01. Other changes use the metric’s native units. These are diagnostic local means without applying the five-episode minimum, not manuscript per-fly estimates. Means of trial changes weight trials equally; they do not weight flies equally.</p>',
         '<h2>5. Check the spatial-only arm and cohort detail</h2><p>Keep these results separate from the targeted arms. They answer a different placement question and have different exposure counts. Cohort splits are descriptive and particularly sparse.</p>',
         '<details><summary>Spatial-only detection and local mean changes</summary>'+render('spatial_detection', detection_columns)+render('spatial_detection', value_columns)+'</details>',
+        '<details><summary>Spatial-only local means meeting the minimum in both conditions</summary>'+render('spatial_detection_minimum_five', value_columns)+'</details>',
         '<details><summary>Spatial-only fixed-boundary measurements</summary>'+render('spatial_fixed', fixed_columns)+'</details>',
         '<details><summary>Targeted detection and local mean changes by cohort</summary>'+render('targeted_detection_by_cohort')+'</details>',
+        '<details><summary>Targeted local mean changes by cohort: minimum five in both</summary>'+render('targeted_detection_minimum_five_by_cohort')+'</details>',
         '<details><summary>Targeted fixed-boundary measurements by cohort</summary>'+render('targeted_fixed_by_cohort')+'</details>',
         '<h2>What these results establish</h2><p>The pilot measures the response to one realistic artificial loss interval in a supported, originally observed context. The masking combines coordinate interpolation, unavailable body dimensions and production missing-data rules; detector effects cannot all be attributed to the interpolated x/y chord. Sparse or zero effects here do not establish robustness in unsupported contexts. Repeated trials and episodes are not independent replicates, so these tables do not present confidence intervals or significance tests.</p>',
         '<p>Frequent clustered loss, gaps longer than 10 seconds, reward-feedback effects, and cumulative changes in whole-recording metrics remain outside this pilot. Matching observed endpoints does not establish that the hidden behavior during real loss resembles the reference path.</p>',
@@ -232,8 +301,9 @@ h1,h2,h3{line-height:1.25}h2{margin-top:40px}p{max-width:1050px}.note{background
     (out/'report.html').write_text('\n'.join(parts))
     (out/'provenance.json').write_text(json.dumps({
         'generated_utc': datetime.now(timezone.utc).isoformat(),
-        'inputs_sha256': {str(path): digest(path) for path in paths},
-        'report_code_sha256': digest(__file__), 'numeric_change_tolerance': 1e-9,
+        'inputs_sha256': {str(path): digest(path) if path.exists() else None for path in paths},
+        'report_code_sha256': digest(__file__),
+        'table_code_sha256': digest(ROOT/'scripts/tracking_gap_report_tables.py'), 'numeric_change_tolerance': 1e-9,
     }, indent=2)+'\n')
     print(out/'report.html')
 

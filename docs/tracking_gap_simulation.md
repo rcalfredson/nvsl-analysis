@@ -209,6 +209,58 @@ means. Ratio changes are expressed in percentage points. Trial means weight
 trials equally, not flies. Repeated episode appearances are not independent
 replicates. The numerical change tolerance is 1e-9 in the reported units.
 
+### Denominator-aware reports (9 November 2026)
+
+The combined renderer now creates an `audited_pilot/report.html` companion
+automatically. Existing report directories remain immutable; use a new directory:
+
+```bash
+MPLCONFIGDIR=/tmp/gap_sim_mpl \
+  /home/tracking/miniconda3/envs/analysis3.13/bin/python \
+  scripts/report_tracking_gap_simulation.py \
+  --profile-dir results/tracking_gap_simulation/profile_2026-11-08 \
+  --pilot-dir results/tracking_gap_simulation/pilot_targeted_2026-11-08 \
+  --output-dir results/tracking_gap_simulation/report_repaired_2026-11-09
+```
+
+The audited report adds:
+
+- `trial_details.csv`: one row per attempt/metric/radius, including unsupported
+  attempts. Records video/fly identity, gap and evaluation duration, episode
+  counts, ratio numerators reconstructed from saved binary episode outcomes,
+  local values, changes, eligibility transitions and saved episode intervals.
+  Original counts and means are validated against `episodes.csv` before export.
+  Numerators apply only to turnback and agarose ratios. Ratio values remain
+  fractions; their displayed changes are percentage points. Frame rate is
+  recovered from the saved donor frame count and duration.
+- Separate all-defined-means and minimum-five-in-both mean-change summaries,
+  also available by cohort for targeted placements. Eligibility transitions and
+  availability counts retain the full evaluation pool, including cases removed
+  from the filtered numeric comparison. These are local diagnostic minima, not
+  recording-level admission decisions. Five episodes does not establish precision.
+- Denominator strata (0, 1–4, 5–9, 10–19, 20+) grouped by original episode count,
+  placement arm, cohort, metric and radius. These are descriptive bins, not new
+  eligibility rules. Repeated episodes/trials remain repeated observations.
+- Explicit statuses for arms not requested, no matched placements, missing
+  evaluation rows, no complete episodes, and no exposed reference measurements.
+  Unsupported counts/values in the trial audit remain undefined, distinct from
+  an evaluated zero-episode denominator. An entirely unsupported pilot can have
+  no redetection/fixed/episode files; both renderers still produce reports.
+  Inconsistent evaluated episode records raise an error rather than inventing
+  numerator/denominator values.
+
+The HTML trial-level table shows the evaluated corresponding targeted-arm rows;
+the downloadable audit retains other arms and unsupported rows. Filtering to
+five episodes affects numeric local-mean comparisons, not fixed-boundary episode
+errors, matching coverage, or counts of lost/gained eligibility. No simulations
+are rerun and no population/cohort-bias estimates are added by these repairs.
+
+For the existing pilot, agarose has 11 defined targeted local comparisons,
+eight meeting the minimum in both conditions. The exploratory maximum is
+50 percentage points (1/2 to 0/1); the filtered maximum is about 7.14 points.
+No targeted wall-positive path-length local comparison meets the five-episode
+minimum in both conditions. Its filtered numeric effects remain undefined.
+
 ## Limits and expansion
 
 See [the review and staged expansion plan](tracking_gap_simulation_expansion_plan.md)
