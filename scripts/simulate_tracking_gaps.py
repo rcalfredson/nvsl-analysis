@@ -217,7 +217,7 @@ def build_trajectory(context, injection=None):
     return va,trj
 
 
-def native_records(va,trj,context):
+def native_records(va,trj,context, *, pooled_only=False):
     """Recompute all six measurements, retaining production episode boundaries."""
     base = dict(px_per_mm=context["px_per_mm"])
     gaps = GapIndex(trj.nan,context["fps"])
@@ -237,6 +237,8 @@ def native_records(va,trj,context):
         add("wall_contacts","full",a,b,n)
         if n:
             add("wall_contact_length","full",a,b,trj.distTrav(int(a),int(b))/context["px_per_mm"])
+    if pooled_only:
+        return records
     for inner,outer in PAIRS:
         ratio,alignment = turnback_episodes(va,trj,base,gaps,window,inner,outer)
         eps = {(ep["start"],ep["stop"]):ep for ep in trj.reward_turnback_dual_circle_episodes_for_training(

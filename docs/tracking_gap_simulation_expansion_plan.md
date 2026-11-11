@@ -2,7 +2,11 @@
 
 Reviewed 9 November 2026. This document records a review and proposed design.
 Step-one reporting repairs and the step-two support census are implemented as
-described below; expanded simulation experiments have not been run.
+described below. The additional-loss experiment described in
+[the full-window sensitivity guide](tracking_gap_incremental_loss.md) implements
+the next stage for the three pooled between-reward metrics.
+The completed parallel wall-exclusion comparison is documented in
+[the wall-exclusion audit guide](wall_exclusion_tracking_loss.md).
 
 ## The paper question and the attainable claims
 
@@ -145,8 +149,10 @@ Implemented 9 November: the exhaustive same-fly census includes the ten agarose
 datasets and all original 196 pooled-metric subjects, validated against archived
 counts/numerators and production AUC samples. See
 [the support-audit guide](tracking_gap_support_audit.md) for reproduction,
-denominators, results, and the unresolved source-membership overlap between
-antennae-removed and EPG>Kir flat-chamber lists. Local reference support is
+denominators, results, and the historical source-membership overlap between
+antennae-removed and EPG>Kir flat-chamber lists. That overlap was subsequently
+corrected in the source lists; the additional-loss stage reuses only the
+unchanged pooled cohorts. Local reference support is
 separate from strict continuous AUC-window support; no effect estimates are
 produced. Missing continuous support should be checked for recoverable observed
 boundary context before assuming offline retracking is required.
