@@ -69,7 +69,12 @@ def test_chambers_normalize_independently_and_only_active_circles():
     assert replay.render(frame)[52, 24].tolist() == [0, 0, 0]
 
 
-def test_headless_mp4_has_exact_interval_and_source_fps(tmp_path):
+@pytest.mark.parametrize('speed_args, multiplier', [
+    ([], 1), (['--speed', '2'], 2), (['--speed', '0.5'], .5),
+    (['--speed', '2', '--record-speed', '1'], 1),
+    (['--speed', '0.5', '--record-speed', '4'], 4),
+])
+def test_headless_mp4_has_exact_interval_and_playback_speed(tmp_path, speed_args, multiplier):
     protocol, tracks = fixture_data()
     video = tmp_path / 'source.avi'
     writer = cv2.VideoWriter(str(video), cv2.VideoWriter_fourcc(*'MJPG'), 5, (200, 40))
@@ -80,10 +85,11 @@ def test_headless_mp4_has_exact_interval_and_source_fps(tmp_path):
     for suffix, data in (('.data', {'protocol': protocol}), ('.trx', tracks)):
         video.with_suffix(suffix).write_bytes(pickle.dumps(data))
     output = tmp_path / 'clip.mp4'
-    main([str(video), '--start', '2', '--end', '7', '--headless', '--output', str(output)])
+    main([str(video), '--start', '2', '--end', '7', '--headless', '--output', str(output), *speed_args])
     cap = cv2.VideoCapture(str(output))
     try:
-        assert cap.get(cv2.CAP_PROP_FPS) == 5
+        output_fps = cap.get(cv2.CAP_PROP_FPS)
+        assert output_fps == pytest.approx(5 * multiplier)
         frames = []
         while True:
             ok, image = cap.read()
@@ -91,6 +97,7 @@ def test_headless_mp4_has_exact_interval_and_source_fps(tmp_path):
                 break
             frames.append(image)
         assert len(frames) == 5
+        assert len(frames) / output_fps == pytest.approx(1 / multiplier)
         assert frames[0].shape == (72, 400, 3)
     finally:
         cap.release()
@@ -100,6 +107,14 @@ def test_headless_mp4_has_exact_interval_and_source_fps(tmp_path):
         main([str(video), '--headless', '--output', str(output)])
     assert output.read_bytes() == original
     assert sidecar(video, '.trx') == video.with_suffix('.trx')
+
+
+@pytest.mark.parametrize('option', ['--speed', '--record-speed'])
+@pytest.mark.parametrize('value', ['0', '-1', 'nan', 'inf'])
+def test_invalid_speed_is_rejected_before_opening_video(option, value):
+    with pytest.raises(SystemExit) as exc:
+        main(['missing.avi', option, value, '--headless'])
+    assert exc.value.code == 2
 
 
 def test_appended_sidecar_and_large_layout_requires_explicit_choice(tmp_path):

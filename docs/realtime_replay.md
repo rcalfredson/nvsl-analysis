@@ -15,17 +15,37 @@ The tool reads the video's `.data` and `.trx` sidecars; both `recording.data`
 and `recording.avi.data` naming conventions are supported (likewise for `.trx`).
 Use trusted experiment files: these sidecars use Python pickle serialization.
 
-Playback starts at real time. Space pauses/resumes; `r` starts/stops MP4 recording;
+Playback defaults to real time. Space pauses/resumes; `r` starts/stops MP4 recording;
 `q` exits and finalizes the recording. The preview displays a red REC indicator
 while recording; this indicator is excluded from the MP4. Pauses add no duplicate
 frames. Repeated recording sessions create separate files, with `_002`, `_003`,
 etc. appended after the first clip. Existing files are never overwritten.
 
 Use `--output` to choose the recording path, `--record` to start recording
-immediately, and `--speed 2` for a twice-real-time preview. MP4s always use the
-source frame rate. Every source frame is processed; if rendering is slower than
-real time, preview slows down without dropping exported frames. MP4s use OpenCV's
-`mp4v` codec, with even image dimensions and no audio.
+immediately, and `--speed` to set both preview and recorded playback speed:
+
+```bash
+# Preview and capture at twice real time
+python scripts/replay_realtime.py recording.avi --speed 2 --record
+
+# Capture at half speed without opening a preview window
+python scripts/replay_realtime.py recording.avi --speed 0.5 --headless
+
+# Preview at real time, but capture a clip that plays back at 4x
+python scripts/replay_realtime.py recording.avi --record-speed 4
+```
+
+Both speed options accept positive, finite multipliers; the default is 1x.
+`--record-speed` overrides the recorded speed independently of `--speed`.
+Previously `--speed` affected only the preview; to retain that behavior, add
+`--record-speed 1`.
+
+Every source frame is processed and retained in the recording. MP4 frame rate is
+source frame rate multiplied by recording speed, so a 60-second source interval
+plays for 30 seconds at 2x or 120 seconds at 0.5x. Heatmap windows and the timestamp
+header still use source video time. If rendering is slower than the requested
+preview speed, preview slows down; the saved MP4 retains the requested speed.
+MP4s use OpenCV's `mp4v` codec, with even image dimensions and no audio.
 
 Additional keys:
 
@@ -51,7 +71,8 @@ python scripts/replay_realtime.py /path/to/recording.avi \
 `--start` is inclusive and `--end` exclusive; either accepts an integer frame
 number or `HH:MM:SS[.fraction]`. Default range: the full video, limited to the
 available tracking frames. Headless mode automatically records and runs as fast
-as processing allows. Exported duration remains tied to source video time.
+as processing allows. Exported duration equals the source interval duration
+divided by the recording speed.
 
 For large chambers, specify `--large-layout original` (244-pixel template floor)
 or `--large-layout new` (295-pixel template floor). This is required because the

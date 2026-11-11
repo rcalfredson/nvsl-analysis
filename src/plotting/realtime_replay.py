@@ -199,13 +199,18 @@ def main(argv=None):
     parser.add_argument("--heatmap-minutes", type=float, default=5)
     parser.add_argument("--heatmap", choices=("running", "protocol"), default="running")
     parser.add_argument("--large-layout", choices=("auto", "original", "new"), default="auto")
-    parser.add_argument("--speed", type=float, default=1, help="preview speed; MP4 always uses source fps")
+    parser.add_argument("--speed", type=float, default=1,
+                        help="playback and MP4 speed multiplier (default: 1)")
+    parser.add_argument("--record-speed", type=float,
+                        help="override MP4 speed independently of preview speed")
     parser.add_argument("--output", type=Path, help="MP4 path (default: VIDEO_replay.mp4)")
     parser.add_argument("--record", action="store_true", help="record immediately")
     parser.add_argument("--headless", action="store_true", help="export selected interval without a display")
     args = parser.parse_args(argv)
-    if not np.isfinite([args.speed, args.heatmap_minutes]).all() or min(args.speed, args.heatmap_minutes) <= 0:
-        parser.error("speed and heatmap minutes must be finite and positive")
+    record_speed = args.speed if args.record_speed is None else args.record_speed
+    settings = [args.speed, record_speed, args.heatmap_minutes]
+    if not np.isfinite(settings).all() or min(settings) <= 0:
+        parser.error("speed, record speed, and heatmap minutes must be finite and positive")
     output = args.output or args.video.with_name(args.video.stem + "_replay.mp4")
     if output.suffix.lower() != ".mp4":
         parser.error("output must have an .mp4 extension")
@@ -228,7 +233,12 @@ def main(argv=None):
         end = nf if args.end is None else parse_frame_position(args.end, fps)
         if not 0 <= index < end <= nf:
             raise ValueError(f"require 0 <= start < end <= {nf}")
-        recorder = Recorder(output, fps)
+        # Keep every source sample; changing the encoded frame rate changes
+        # playback duration without altering heatmap history or source timestamps.
+        output_fps = fps * record_speed
+        if not np.isfinite(output_fps) or output_fps <= 0:
+            raise ValueError("record speed produces an invalid MP4 frame rate")
+        recorder = Recorder(output, output_fps)
         mode, paused = args.heatmap, False
         frame_input = FrameCommandInput(fps)
         previous, image = None, None
