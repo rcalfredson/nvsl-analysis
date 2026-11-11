@@ -206,6 +206,11 @@ python analyze.py -v "/actual/path/to/your_video.avi" -f "0-9" --turn circle
 ```
 For more details on optional flags, see the top of `analyze.py` or run `python analyze.py --help`.
 
+To replay all flies alongside a reconstructed live heatmap and record MP4 clips,
+run `python scripts/replay_realtime.py /path/to/recording.avi`. See
+[real-time replay](docs/realtime_replay.md) for keyboard controls and headless
+supplementary-video export.
+
 ---
 
 ## Analysis Workflow Catalog

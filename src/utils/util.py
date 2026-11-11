@@ -40,6 +40,7 @@ import pickle as pkl
 
 # custom modules
 from src.utils.numba_loader import jit
+from src.utils.heatmap import render_heatmap
 
 # - - -
 
@@ -1591,33 +1592,14 @@ def median(img):
 def heatmap(
     mp, xform=np.log, xySeps=None, mapCheck=False, thres=None, colormap=cv2.COLORMAP_JET
 ):
-    xySeps = xySeps or ([], [])
-    h, w = mp.shape[:2]
-    imgL = getImg(h, w)
     if mapCheck:
         mpm = np.amin(mp)
         if mpm < 0:
             raise ArgumentError(mpm)
         elif mpm == 0 and xform is np.log:
             mp = mp + 1
-    x1, ys = 0, xySeps[1] + [h]
-    for x2 in xySeps[0] + [w]:
-        y1 = 0
-        for y2 in ys:
-            m = mp[y1:y2, x1:x2]
-            # TODO: experiment with thresholding
-            if thres is not None:
-                msz = m.size
-                msm = np.sum(m) - (np.amin(m) == 1) * msz
-                thv = thres * msm / float(msz)
-                m = cv2.threshold(m, thv, thv, cv2.THRESH_TRUNC)[1]
-            if xform is not None:
-                m = xform(m)
-            img = normalize(m).astype(np.uint8)
-            imgL[y1:y2, x1:x2] = cv2.applyColorMap(img, colormap)
-            y1 = y2
-        x1 = x2
-    return imgL
+    return render_heatmap(mp, xform=xform, xy_seps=xySeps, thres=thres,
+                          colormap=colormap)
 
 
 # returns Matplotlib colormap for the given OpenCV colormap

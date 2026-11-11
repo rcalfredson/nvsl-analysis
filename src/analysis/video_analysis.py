@@ -118,6 +118,7 @@ from src.plotting.event_chain_plotter import EventChainPlotter
 from src.plotting.trx_plotter import TrxPlotter
 from src.plotting.wall_contact_utils import build_wall_contact_mask_for_window
 import src.utils.util as util
+from src.utils.video_playback import FrameCommandInput
 from src.utils.util import (
     ArgumentError,
     VideoError,
@@ -126,7 +127,6 @@ from src.utils.util import (
     COL_R,
     COL_W,
     COL_Y,
-    DIGITS_ONLY,
     SPACES_AFTER_TAB,
 )
 from src.utils.util import error
@@ -3938,7 +3938,8 @@ class VideoAnalysis:
     def _playAnnotatedVideo(self):
         reg = self.ct is CT.regular
         i = ip = 0
-        trx, tlen, s, show, hlp = self.trx, self._DLT, "", False, False
+        trx, tlen, show, hlp = self.trx, self._DLT, False, False
+        frame_input = FrameCommandInput(self.fps, strict_clock=True, nearest=False)
         previous_i = None
         while True:
             try:
@@ -4019,26 +4020,18 @@ class VideoAnalysis:
             elif kc in ("h", "?"):
                 hlp = not hlp
             elif kc in ("g", "l"):
-                n = None
-                if DIGITS_ONLY.match(s):
-                    n = int(s)
-                else:
-                    try:
-                        n = int(util.time2s(s) * self.fps)
-                    except ArgumentError:
-                        pass
+                n = frame_input.consume()
                 if n is not None:
                     if kc == "g":
                         i = n
                     else:
                         tlen = n
-                s = ""
             elif kc == "s":
                 show = not show
-            elif kc in "0123456789:":
-                s += kc
             elif dlt:
                 i += dlt
+            else:
+                frame_input.feed(kc)
 
     # - - -
 
