@@ -297,25 +297,28 @@ actual reward through training end. The T0 reward is excluded, without waiting
 for a control-circle entry or midline crossing. A valid window with no subsequent
 entries yields zero RPM; a missing or empty window yields NaN.
 
-To recalculate the reward-summary page's 53 cohorts, use the checked-in
+To recalculate the reward-summary table's 79 cohorts, use the checked-in
 `scripts/training_reward_cohorts.json` manifest and batch adapter:
 
 ```bash
 # Inspect all cohort commands without running or writing files.
 python scripts/recalculate_training_reward_tables.py --dry-run
 # Run sequentially in an environment with the analysis dependencies installed.
-python scripts/recalculate_training_reward_tables.py --out exports/training_reward_tables_2026-10-09
+python scripts/recalculate_training_reward_tables.py --out exports/training_reward_tables_2026-11-11
 # After an interruption or failure, retain successful cohorts and retry the rest.
-python scripts/recalculate_training_reward_tables.py --out exports/training_reward_tables_2026-10-09 --resume
+python scripts/recalculate_training_reward_tables.py --out exports/training_reward_tables_2026-11-11 --resume
 ```
 
 Each cohort runs `analyze.py` with `-f 0-9 --rmCC 5` for HTL chambers or
-`-f 0-1 --rCC 15` for large chambers. The adapter captures the default
+`-f 0-1 --rCC 15` for large chambers. The fixed/random assignment cohorts
+instead preserve `-f 0-19 --ayc` from the source video list. The adapter captures the default
 whole-training RPM and **exp-minus-yoked** RPD summaries, including their 95%
 confidence intervals and per-training sample-size suffixes. No learner-selection
-filters are added. The manifest preserves the page's table order and descriptive
-columns; row 21 uses “genetic manipulation experiments” consistently, and doubled
-spaces in pasted video paths have been normalized.
+filters are added. The manifest follows the 79 rows and four metadata columns of
+`tmp/rewards_per_minute_Yang.csv` exactly. See
+[scripts/training_reward_cohorts.md](scripts/training_reward_cohorts.md) for the
+row-by-row mapping, source references, and six omitted legacy cohorts, whose
+original definitions remain in the manifest's inactive `excluded_cohorts` list.
 
 The output directory contains per-cohort `logs/*.log` and command JSON files,
 `results.json` checkpoints, and `rpm_running.tsv` / `rpd_running.tsv`, updated
@@ -323,9 +326,12 @@ after each successful cohort. A failed analysis or missing/incomplete summary
 stops the batch, preserving successful results. Each video pattern must match at
 least one `.avi` file, preventing silent omission of part of a cohort when
 data are unavailable or a path is incorrect. Only after all cohorts succeed
-are `rpm_table_html.txt` and `rpd_table_html.txt` written, ready to paste into the
-page's HTML editor. The files contain the tables themselves, with current global
-n and training values, rather than the surrounding page commentary.
+are `rpm_table_html.txt`, `rpd_table_html.txt`, `rpm_table.csv`, and `rpd_table.csv`
+written. Both formats contain eight columns: experimental group, genotype,
+chamber, floor/substrate, n, and trainings 1–3. CSVs match the supplied template's
+headers and row order; running TSVs additionally include `cohort_id` for bookkeeping.
+Uncertainty uses `mean ±CI`, followed by `(n)` when the training sample size differs
+from the default n. The HTML files are ready to paste into the page's HTML editor.
 
 `--resume` requires unchanged manifest, commands, and analysis source; use a new
 output directory after changing them. It assumes the underlying video/tracking

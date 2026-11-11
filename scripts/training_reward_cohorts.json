@@ -1,23 +1,1449 @@
 {
-  "description": "53 cohorts in the order of the supplied reward summary page. Row 21 uses the table label; repeated path whitespace is normalized. RPD is experimental minus yoked.",
+  "description": "79 cohorts in the exact order and four metadata columns of tmp/rewards_per_minute_Yang.csv. Retained cohort IDs and video patterns are unchanged. RPD is experimental minus yoked. See training_reward_cohorts.md for alignment notes.",
   "columns": [
     "Experimental group",
-    "Experiment / comparison series",
     "Genotype / genetic background",
-    "Physical manipulation",
     "Chamber",
     "Floor/substrate"
   ],
   "cohorts": [
     {
+      "id": "cohort_15",
+      "metadata": [
+        "Ctrl for antennae manipulations",
+        "UAS-CsChrimson /y; +/+; 0273-GAL4/+",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2024-03-04/c3[12]_*",
+        "/media/Synology4/Yang Chen/2024-03-04/c4[12]_*",
+        "/media/Synology4/Yang Chen/2024-03-14/c4[12]_*",
+        "/media/Synology4/Yang Chen/2024-03-18/c5[12]_*",
+        "/media/Synology4/Yang Chen/2024-03-18/c6[12]_*",
+        "/media/Synology4/Yang Chen/2024-06-12/c[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 19,
+        "label": "Flat"
+      },
+      "template_row": 1
+    },
+    {
+      "id": "cohort_17",
+      "metadata": [
+        "Antennae removed",
+        "UAS-CsChrimson /y; +/+; 0273-GAL4/+",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2024-03-1[19]/c3[12]_*",
+        "/media/Synology4/Yang Chen/2024-03-11/c4[12]_*",
+        "/media/Synology4/Yang Chen/2024-03-11/c5[12]_*",
+        "/media/Synology4/Yang Chen/2024-03-11/c6[12]_*",
+        "/media/Synology4/Yang Chen/2024-06-12/c2[12]_*",
+        "/media/Synology4/Yang Chen/2024-06-12/c3[12]_*",
+        "/media/Synology4/Yang Chen/2024-06-12/c4[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 23,
+        "label": "Flat-Antenna removed"
+      },
+      "template_row": 2
+    },
+    {
+      "id": "cohort_18",
+      "metadata": [
+        "Antennae glued",
+        "UAS-CsChrimson /y; +/+; 0273-GAL4/+",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2024-03-1[24]/c3[12]_*",
+        "/media/Synology4/Yang Chen/2024-03-12/c4[12]_*",
+        "/media/Synology4/Yang Chen/2024-03-12/c5[12]_*",
+        "/media/Synology4/Yang Chen/2024-03-12/c6[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 25,
+        "label": "Flat-antenna glued"
+      },
+      "template_row": 3
+    },
+    {
+      "id": "cohort_54",
+      "metadata": [
+        "Aristae + front tarsi removed",
+        "UAS-CsChrimson /y; +/+; 0273-GAL4/+",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2025-08-1[23]/c[12]_*",
+        "/media/Synology4/Yang Chen/2025-08-12/c2[12]_*",
+        "/media/Synology4/Yang Chen/2025-08-24/c[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 29,
+        "label": "Flat-both front tarsi and arista removed (2025-08)"
+      },
+      "template_row": 4
+    },
+    {
+      "id": "cohort_16",
+      "metadata": [
+        "Ctrl for antennae manipulations",
+        "UAS-CsChrimson /y; +/+; 0273-GAL4/+",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2024-03-1[34]/c5[12]_*",
+        "/media/Synology4/Yang Chen/2024-03-1[347]/c6[12]_*",
+        "/media/Synology4/Yang Chen/2024-03-18/c[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 31,
+        "label": "agarose"
+      },
+      "template_row": 5
+    },
+    {
+      "id": "cohort_55",
+      "metadata": [
+        "Antennae removed",
+        "UAS-CsChrimson /y; +/+; 0273-GAL4/+",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2024-03-1[13]/c[12]_*",
+        "/media/Synology4/Yang Chen/2024-03-1[13]/c2[12]_*",
+        "/media/Synology4/Yang Chen/2024-03-15/c6[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 33,
+        "label": "Agarose-AR"
+      },
+      "template_row": 6
+    },
+    {
+      "id": "cohort_56",
+      "metadata": [
+        "Antennae glued",
+        "UAS-CsChrimson /y; +/+; 0273-GAL4/+",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2024-03-1[24]/c[12]_*",
+        "/media/Synology4/Yang Chen/2024-03-1[24]/c2[12]_*",
+        "/media/Synology4/Yang Chen/2024-03-22/c[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 35,
+        "label": "Agarose-Antenna glued"
+      },
+      "template_row": 7
+    },
+    {
+      "id": "cohort_57",
+      "metadata": [
+        "Aristae + front tarsi removed",
+        "UAS-CsChrimson /y; +/+; 0273-GAL4/+",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2025-08-09/c[12]_*",
+        "/media/Synology4/Yang Chen/2025-08-1[14]/c[12]_*",
+        "/media/Synology4/Yang Chen/2025-08-1[4]/c2[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 39,
+        "label": "Agarose-both front tarsi and arista removed (2025-08)"
+      },
+      "template_row": 8
+    },
+    {
+      "id": "cohort_14",
+      "metadata": [
+        "Ctrl for hind tarsi removed + genitalia glued",
+        "UAS-CsChrimson /y; +/+; 0273-GAL4/+",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2024-07-1[45]/afternoon/c5[12]_*",
+        "/media/Synology4/Yang Chen/2024-07-1[45]/afternoon/c6[12]_*",
+        "/media/Synology4/Yang Chen/2024-07-1[45]/afternoon/c3[12]_*",
+        "/media/Synology4/Yang Chen/2024-07-1[45]/afternoon/c4[12]_*",
+        "/media/Synology4/Yang Chen/2024-09-04/afternoon/c4[12]_*",
+        "/media/Synology4/Yang Chen/2024-09-04/afternoon/c32_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 249,
+        "label": "ctrl-with 3min illumination with illuminator and 10mins anesthetized and 5s UV flat"
+      },
+      "template_row": 9
+    },
+    {
+      "id": "cohort_48",
+      "metadata": [
+        "Hind tarsi removed + genitalia glued",
+        "UAS-CsChrimson /y; +/+; 0273-GAL4/+",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2024-06-03/c2[12]_*",
+        "/media/Synology4/Yang Chen/2024-06-03/c[12]_*",
+        "/media/Synology4/Yang Chen/2024-06-03/c3[12]_*",
+        "/media/Synology4/Yang Chen/2024-06-0[45]/afternoon/c2[12]_*",
+        "/media/Synology4/Yang Chen/2024-06-05/afternoon/c[12]_*",
+        "/media/Synology4/Yang Chen/2024-06-0[89]/c3[12]_*",
+        "/media/Synology4/Yang Chen/2024-06-09/c4[12]_*",
+        "/media/Synology4/Yang Chen/2024-06-10/c3[12]_*",
+        "/media/Synology4/Yang Chen/2024-06-10/c4[12]_*",
+        "/media/Synology4/Yang Chen/2024-06-1[13]/afternoon/c4[12]_*",
+        "/media/Synology4/Yang Chen/2024-08-29/afternoon/c3[12]_*",
+        "/media/Synology4/Yang Chen/2024-08-29/afternoon/c4[12]_*",
+        "/media/Synology4/Yang Chen/2024-09-04/afternoon/c[12]_*",
+        "/media/Synology4/Yang Chen/2024-09-04/afternoon/c2[12]_*",
+        "/media/Synology4/Yang Chen/2024-09-04/afternoon/c31_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 270,
+        "label": "Flat"
+      },
+      "template_row": 10
+    },
+    {
+      "id": "cohort_58",
+      "metadata": [
+        "Ctrl for hind tarsi removed + genitalia glued",
+        "UAS-CsChrimson /y; +/+; 0273-GAL4/+",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2024-08-1[58]/afternoon/c5[12]_*",
+        "/media/Synology4/Yang Chen/2024-08-1[58]/afternoon/c6[12]_*",
+        "/media/Synology4/Yang Chen/2024-08-18/afternoon/c4[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 252,
+        "label": "agarose"
+      },
+      "template_row": 11
+    },
+    {
+      "id": "cohort_59",
+      "metadata": [
+        "Hind tarsi removed + genitalia glued",
+        "UAS-CsChrimson /y; +/+; 0273-GAL4/+",
+        "HTL",
+        "agaroe"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2024-08-13/c5[12]_*",
+        "/media/Synology4/Yang Chen/2024-08-20/afternoon/c[12]_*",
+        "/media/Synology4/Yang Chen/2024-08-20/afternoon/c2[12]_*",
+        "/media/Synology4/Yang Chen/2024-08-2[014]/afternoon/c3[12]_*",
+        "/media/Synology4/Yang Chen/2024-08-2[14]/afternoon/c4[12]_*",
+        "/media/Synology4/Yang Chen/2024-08-2[23]/afternoon/c6[12]_*",
+        "/media/Synology4/Yang Chen/2024-08-23/afternoon/c5[12]_*",
+        "/media/Synology4/Yang Chen/2024-09-05/afternoon/c3[12]_*",
+        "/media/Synology4/Yang Chen/2024-09-05/afternoon/c4[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 272,
+        "label": "Agarose"
+      },
+      "template_row": 12
+    },
+    {
+      "id": "cohort_60",
+      "metadata": [
+        "No agarose (Fig. 3h)",
+        "UAS-CsChrimson /y; +/+; 0273-GAL4/+",
+        "HTL",
+        "No agarose (Fig. 3h)"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2025-03-25/afternoon/c[12]_*",
+        "/media/Synology4/Yang Chen/2025-03-3[01]/c2[12]_*",
+        "/media/Synology4/Yang Chen/2025-03-31/afternoon/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-04-03/afternoon/c4[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 278,
+        "label": "Ctrl: no agarose in agarose chamber (agarose wells covered by transparent film)"
+      },
+      "template_row": 13
+    },
+    {
+      "id": "cohort_61",
+      "metadata": [
+        "Agarose at center (Fig. 3h)",
+        "UAS-CsChrimson /y; +/+; 0273-GAL4/+",
+        "HTL",
+        "Agarose at center (Fig. 3h)"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2025-03-25/afternoon/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-03-2[56]/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-03-31/c4[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 282,
+        "label": "Agarose in the center hole"
+      },
+      "template_row": 14
+    },
+    {
+      "id": "cohort_62",
+      "metadata": [
+        "Agarose at edges (Fig. 3h)",
+        "UAS-CsChrimson /y; +/+; 0273-GAL4/+",
+        "HTL",
+        "Agarose at edges (Fig. 3h)"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2025-04-0[89]/afternoon/c[12]_*",
+        "/media/Synology4/Yang Chen/2025-04-0[89]/afternoon/c2[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 290,
+        "label": "Agarose in the edges"
+      },
+      "template_row": 15
+    },
+    {
+      "id": "cohort_63",
+      "metadata": [
+        "Fixed assignment (Extended Data Fig. 2c)",
+        "UAS-CsChrimson /y; +/+; 0273-GAL4/+",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2025-07-05/c[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-0[14]/afternoon/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-01/afternoon/c2[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-0[234]/afternoon/c[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-07/afternoon/c4[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 302,
+        "label": "Flat"
+      },
+      "template_row": 16,
+      "flies": "0-19",
+      "allow_yoked": true
+    },
+    {
+      "id": "cohort_64",
+      "metadata": [
+        "Random assignment (Extended Data Fig. 2c)",
+        "UAS-CsChrimson /y; +/+; 0273-GAL4/+",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2025-06-29/afternoon/c[12]_*",
+        "/media/Synology4/Yang Chen/2025-06-29/afternoon/c2[12]_*",
+        "/media/Synology4/Yang Chen/2025-06-29/afternoon/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-06-29/afternoon/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-07/afternoon/c[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-07/afternoon/c2[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-07/afternoon/c3[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 304,
+        "label": "Flat  random"
+      },
+      "template_row": 17,
+      "flies": "0-19",
+      "allow_yoked": true
+    },
+    {
+      "id": "cohort_25",
+      "metadata": [
+        "Blind flies",
+        "norpA/y; +; UAS-CsChrimson/0273-GAL4",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2023-07-1[17]/c5[12]_*",
+        "/media/Synology4/Yang Chen/2023-07-12/c4[12]_*",
+        "/media/Synology4/Yang Chen/2023-07-17/c3[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 14,
+        "label": "Male-flat"
+      },
+      "template_row": 18
+    },
+    {
+      "id": "cohort_65",
+      "metadata": [
+        "Blind flies",
+        "norpA/y; +; UAS-CsChrimson/0273-GAL4",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2023-07-1[12]/c6[12]_*",
+        "/media/Synology4/Yang Chen/2023-07-12/c5[12]_*",
+        "/media/Synology4/Yang Chen/2023-07-13/c[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 16,
+        "label": "Male-agarose"
+      },
+      "template_row": 19
+    },
+    {
+      "id": "cohort_11",
+      "metadata": [
+        "Ctrl>Kir (for PFNd>Kir and MBKC-2>Kir)",
+        "UAS-CsChrimson /y; Empty-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2023-02-19/c3[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-02-2[234]/c3[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 62,
+        "label": "ctrl>Kir-flat 2023-02"
+      },
+      "template_row": 20
+    },
+    {
+      "id": "cohort_51",
+      "metadata": [
+        "PFNd>Kir",
+        "UAS-CsChrimson /y; R16D01-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2023-02-2[02]/c4[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-02-2[78]/c5[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 73,
+        "label": "16D01>Kir-flat"
+      },
+      "template_row": 21
+    },
+    {
+      "id": "cohort_40",
+      "metadata": [
+        "MBKC-2>Kir",
+        "UAS-CsChrimson/y; R26E07-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2023-02-2[36]/c6[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-02-24/c51_*",
+        "/media/Synology3-2/Yang Chen/2023-02-25/c3[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-02-25/c41_*",
+        "/media/Synology3-2/Yang Chen/2023-03-03/c41_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 195,
+        "label": "26E07>Kir-flat"
+      },
+      "template_row": 22
+    },
+    {
+      "id": "cohort_66",
+      "metadata": [
+        "Ctrl>Kir antennae removed",
+        "UAS-CsChrimson /y; Empty-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2024-02-1[5678]/c3[12]_*",
+        "/media/Synology4/Yang Chen/2024-02-16/c5[12]_*",
+        "/media/Synology4/Yang Chen/2024-02-21/c3[12]_*",
+        "/media/Synology4/Yang Chen/2024-02-21/c41_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 67,
+        "label": "ctrl>Kir-Flat-AR"
+      },
+      "template_row": 23
+    },
+    {
+      "id": "cohort_67",
+      "metadata": [
+        "PFNd>Kir antennae removed",
+        "UAS-CsChrimson /y; R16D01-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2024-02-1[56789]/c4[12]_*",
+        "/media/Synology4/Yang Chen/2024-02-25/c5[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 77,
+        "label": "16D01>Kir Flat-AR"
+      },
+      "template_row": 24
+    },
+    {
+      "id": "cohort_68",
+      "metadata": [
+        "Ctrl>Kir (for PFNd>Kir)",
+        "UAS-CsChrimson /y; Empty-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2023-02-2[02]/c6[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-02-2[15]/c5[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-02-2[45]/c[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 65,
+        "label": "ctrl>Kir-agarose"
+      },
+      "template_row": 25
+    },
+    {
+      "id": "cohort_69",
+      "metadata": [
+        "PFNd>Kir",
+        "UAS-CsChrimson /y; R16D01-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2023-02-19/c62_*",
+        "/media/Synology3-2/Yang Chen/2023-02-2[15]/c6[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-02-24/c2[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-02-2[67]/c[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 75,
+        "label": "16D01>Kir-agarose"
+      },
+      "template_row": 26
+    },
+    {
+      "id": "cohort_70",
+      "metadata": [
+        "Ctrl>Kir antennae removed",
+        "UAS-CsChrimson /y; Empty-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2024-02-1[78]/c5[12]_*",
+        "/media/Synology4/Yang Chen/2024-02-18/c6[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 69,
+        "label": "ctrl>Kir-Agarose-AR"
+      },
+      "template_row": 27
+    },
+    {
+      "id": "cohort_71",
+      "metadata": [
+        "PFNd>Kir antennae removed",
+        "UAS-CsChrimson /y; R16D01-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2024-02-17/c6[12]_*",
+        "/media/Synology4/Yang Chen/2024-02-2[24]/c5[12]_*",
+        "/media/Synology4/Yang Chen/2024-02-24/c6[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 79,
+        "label": "16D01>Kir Agarose-AR"
+      },
+      "template_row": 28
+    },
+    {
+      "id": "cohort_72",
+      "metadata": [
+        "Ctrl>Kir (for MBKC-1>Kir)",
+        "UAS-CsChrimson /y; Empty-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2022-11-0[2378]/c3[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-11-10/c3[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-11-10/c4[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 182,
+        "label": "ctrl-Kir-flat"
+      },
+      "template_row": 29
+    },
+    {
+      "id": "cohort_73",
+      "metadata": [
+        "MBKC-1>Kir",
+        "UAS-CsChrimson/y; R19B03-LexA/Otd-FLP; 0273-GAL4//LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2022-11-0[569]/c3[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-11-08/c6[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-11-08/c5[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-11-09/c4[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-11-10/c5[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 187,
+        "label": "19B03-Kir-flat"
+      },
+      "template_row": 30
+    },
+    {
+      "id": "cohort_74",
+      "metadata": [
+        "Ctrl>Kir (for MBKC-1>Kir)",
+        "UAS-CsChrimson /y; Empty-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2022-04-2[89]/c5[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-04-30/c1_*",
+        "/media/Synology3-2/Yang Chen/2022-05-02/c51_*",
+        "/media/Synology3-2/Yang Chen/2022-05-03/c22_*",
+        "/media/Synology3-2/Yang Chen/2022-05-0[56]/c21_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 199,
+        "label": "ctrl>Kir agarose"
+      },
+      "template_row": 31
+    },
+    {
+      "id": "cohort_75",
+      "metadata": [
+        "MBKC-1>Kir",
+        "UAS-CsChrimson/y; R19B03-LexA/Otd-FLP; 0273-GAL4//LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2022-04-30/c21_*",
+        "/media/Synology3-2/Yang Chen/2022-05-0[238]/c21_*",
+        "/media/Synology3-2/Yang Chen/2022-05-05/c22_*",
+        "/media/Synology3-2/Yang Chen/2022-05-10/c1_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 201,
+        "label": "19B03>Kir-agarose"
+      },
+      "template_row": 32
+    },
+    {
+      "id": "cohort_76",
+      "metadata": [
+        "Ctrl>Kir (for MBKC-2>Kir)",
+        "UAS-CsChrimson /y; Empty-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2022-11-0[38]/c[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-11-06/c2[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 185,
+        "label": "ctrl-Kir-agarose"
+      },
+      "template_row": 33
+    },
+    {
+      "id": "cohort_77",
+      "metadata": [
+        "MBKC-2>Kir",
+        "UAS-CsChrimson/y; R26E07-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2022-11-0[569]/c[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 189,
+        "label": "26E07-Kir-agarose"
+      },
+      "template_row": 34
+    },
+    {
+      "id": "cohort_03",
+      "metadata": [
+        "Ctrl>Kir (for EPG>Kir and PFR>Kir)",
+        "UAS-CsChrimson /y; Empty-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2022-05-29/c3[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-05-31/c31_*",
+        "/media/Synology3-2/Yang Chen/2022-06-01/c31_*",
+        "/media/Synology3-2/Yang Chen/2022-06-0[37]/c3[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 145,
+        "label": "ctrl>Kir-flat "
+      },
+      "template_row": 35
+    },
+    {
+      "id": "cohort_26",
+      "metadata": [
+        "EPG>Kir",
+        "UAS-CsChrimson /y; R60D05-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2022-05-29/c51_*",
+        "/media/Synology3-2/Yang Chen/2022-05-30/c31_*",
+        "/media/Synology3-2/Yang Chen/2022-05-31/c32_*",
+        "/media/Synology3-2/Yang Chen/2022-06-01/c32_*",
+        "/media/Synology3-2/Yang Chen/2022-06-0[367]/c4[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 150,
+        "label": "60D05>Kir-flat"
+      },
+      "template_row": 36
+    },
+    {
+      "id": "cohort_31",
+      "metadata": [
+        "PFR>Kir",
+        "UAS-CsChrimson /y; R37G12-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2022-05-29/c52_*",
+        "/media/Synology3-2/Yang Chen/2022-05-31/c52_*",
+        "/media/Synology3-2/Yang Chen/2022-06-0[16]/c5[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-06-10/c41_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 154,
+        "label": "37G12>Kir-flat"
+      },
+      "template_row": 37
+    },
+    {
+      "id": "cohort_07",
+      "metadata": [
+        "Ctrl>GtACR1 (for PFNd>GtACR1)",
+        "w; Empty-LexA/lexAop-GtACR1; 0273-GAL4/UAS-CsChrimson",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3/Yang Chen/2020-11-30/c32_*",
+        "/media/Synology3/Yang Chen/2020-11-2[45678]/c32_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 85,
+        "label": "ctrl>GtACR1-flat"
+      },
+      "template_row": 38
+    },
+    {
+      "id": "cohort_45",
+      "metadata": [
+        "PFNd>GtACR1",
+        "w; R16D01-LexA/lexAop-GtACR1; 0273-GAL4/UAS-CsChrimson",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3/Yang Chen/2020-11-2[45]/c[12]_*",
+        "/media/Synology3/Yang Chen/2020-11-30/c[12]_*",
+        "/media/Synology3/Yang Chen/2020-11-2[678]/c31_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 92,
+        "label": "16D01-LexA>GtACR1-flat"
+      },
+      "template_row": 39
+    },
+    {
+      "id": "cohort_10",
+      "metadata": [
+        "Ctrl>GtACR1 (for MBKC-1>GtACR1 and MBKC-2GtACR1)",
+        "w; Empty-LexA/lexAop-GtACR1; 0273-GAL4/UAS-CsChrimson",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2022-12-09/c31_*",
+        "/media/Synology3-2/Yang Chen/2022-12-1[0357]/c3[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-12-19/c31_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 206,
+        "label": "ctrl-lexA>GtACR1 flat"
+      },
+      "template_row": 40
+    },
+    {
+      "id": "cohort_41",
+      "metadata": [
+        "MBKC-1>GtACR1",
+        "w; R19B03-LexA/lexAop-GtACR1; 0273-GAL4/UAS-CsChrimson ",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2022-12-09/c32_*",
+        "/media/Synology3-2/Yang Chen/2022-12-1[01]/c41_*",
+        "/media/Synology3-2/Yang Chen/2022-12-1[3579]/c4[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-12-17/c51_*",
+        "/media/Synology3-2/Yang Chen/2022-12-2[02]/c41_*",
+        "/media/Synology3-2/Yang Chen/2022-12-21/c5[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 210,
+        "label": "19B03-lexA>GtACR1 flat"
+      },
+      "template_row": 41
+    },
+    {
+      "id": "cohort_42",
+      "metadata": [
+        "MBKC-2>GtACR1",
+        "w; R26E07-LexA/lexAop-GtACR1; 0273-GAL4/UAS-CsChrimson",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2022-12-1[01]/c42_*",
+        "/media/Synology3-2/Yang Chen/2022-12-1[2468]/c3[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-12-17/c52_*",
+        "/media/Synology3-2/Yang Chen/2022-12-19/c5[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-12-20/c42_*",
+        "/media/Synology3-2/Yang Chen/2022-12-24/c5[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-12-24/c61_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 214,
+        "label": "26E07-lexA>GtACR1 flat"
+      },
+      "template_row": 42
+    },
+    {
+      "id": "cohort_78",
+      "metadata": [
+        "Ctrl>GtACR1 (for MBKC-1>GtACR1 and MBKC-2GtACR1)",
+        "w; Empty-LexA/lexAop-GtACR1; 0273-GAL4/UAS-CsChrimson",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2022-12-09/c[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-12-1[1246]/c[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 208,
+        "label": "ctrl-lexA>GtACR1 agarose"
+      },
+      "template_row": 43
+    },
+    {
+      "id": "cohort_79",
+      "metadata": [
+        "MBKC-1>GtACR1",
+        "w; R19B03-LexA/lexAop-GtACR1; 0273-GAL4/UAS-CsChrimson ",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2022-12-10/c[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-12-1[2468]/c2[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-12-18/c[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-12-2[02]/c61_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 212,
+        "label": "19B03-lexA>GtACR1 agarose"
+      },
+      "template_row": 44
+    },
+    {
+      "id": "cohort_80",
+      "metadata": [
+        "MBKC-2>GtACR1",
+        "w; R26E07-LexA/lexAop-GtACR1; 0273-GAL4/UAS-CsChrimson",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2022-12-1[3579]/c[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-12-20/c62_*",
+        "/media/Synology3-2/Yang Chen/2022-12-21/c[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-12-21/c2[12]_*",
+        "/media/Synology3-2/Yang Chen/2022-12-23/c6[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 216,
+        "label": "26E07-lexA>GtACR1 agarose"
+      },
+      "template_row": 45
+    },
+    {
+      "id": "cohort_04",
+      "metadata": [
+        "Ctrl>GtACR1 (for EPG>GtACR1)",
+        "w; Empty-LexA/lexAop-GtACR1; 0273-GAL4/UAS-CsChrimson",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3/Yang Chen/2021-10-14/c41_*",
+        "/media/Synology3/Yang Chen/2021-10-15/c32_*",
+        "/media/Synology3/Yang Chen/2021-10-18/c3[12]_*",
+        "/media/Synology3/Yang Chen/2021-10-18/c4[12]_*",
+        "/media/Synology3/Yang Chen/2021-10-20/c3[12]_*",
+        "/media/Synology3/Yang Chen/2021-10-22/c4[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 134,
+        "label": "ctrl>GtACR1-flat"
+      },
+      "template_row": 46
+    },
+    {
+      "id": "cohort_29",
+      "metadata": [
+        "EPG>GtACR1",
+        "w; R60D05-LexA/lexAop-GtACR1; 0273-GAL4/UAS-CsChrimson ",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3/Yang Chen/2021-10-13/c4[12]_*",
+        "/media/Synology3/Yang Chen/2021-10-14/c3[12]_*",
+        "/media/Synology3/Yang Chen/2021-10-15/c31_*",
+        "/media/Synology3/Yang Chen/2021-10-22/c3[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 139,
+        "label": "60D05>GtACR1-flat"
+      },
+      "template_row": 47
+    },
+    {
+      "id": "cohort_05",
+      "metadata": [
+        "Ctrl>GtACR1 (for PFR>GtACR1)",
+        "w; Empty-LexA/lexAop-GtACR1; 0273-GAL4/UAS-CsChrimson",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2021-11-23/c5[12]_*",
+        "/media/Synology3-2/Yang Chen/2021-11-2[02]/c41_*",
+        "/media/Synology3-2/Yang Chen/2021-11-19/c51_*",
+        "/media/Synology3-2/Yang Chen/2021-11-18/c41_*",
+        "/media/Synology3-2/Yang Chen/2021-11-1[57]/c42_*",
+        "/media/Synology3-2/Yang Chen/2021-11-10/c32_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 160,
+        "label": "ctrl>GtACR1-flat"
+      },
+      "template_row": 48
+    },
+    {
+      "id": "cohort_32",
+      "metadata": [
+        "PFR>GtACR1",
+        "w; R37G12-LexA/lexAop-GtACR1; 0273-GAL4/UAS-CsChrimson ",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2021-11-11/c4[12]_*",
+        "/media/Synology3-2/Yang Chen/2021-11-1[29]/c3[12]_*",
+        "/media/Synology3-2/Yang Chen/2021-11-14/c61_*",
+        "/media/Synology3-2/Yang Chen/2021-11-15/c6[12]_*",
+        "/media/Synology3-2/Yang Chen/2021-11-16/c32_*",
+        "/media/Synology3-2/Yang Chen/2021-11-2[02]/c31_*",
+        "/media/Synology3-2/Yang Chen/2021-11-23/c42_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 165,
+        "label": "37G12>GtACR1-flat"
+      },
+      "template_row": 49
+    },
+    {
+      "id": "cohort_09",
+      "metadata": [
+        "Ctrl>CsC(for PFNd>CsC and EPG>CsC)",
+        "w; UAS-CsChrimson/Empty-GAL4-AD; 0273-GAL4/Empty-GAL4-DBD",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3/Yang Chen/2021-06-0[789]/c1_*",
+        "/media/Synology3/Yang Chen/2021-06-1[123456]/c31_*",
+        "/media/Synology3/Yang Chen/2021-06-1[78]/c1_*",
+        "/media/Synology3/Yang Chen/2021-06-2[01]/c1_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 100,
+        "label": "ctrl>csc-flat"
+      },
+      "template_row": 50
+    },
+    {
+      "id": "cohort_46",
+      "metadata": [
+        "PFNd>CsC",
+        "w; UAS-CsChrimson/SS00078; 0273-GAL4/SS00078",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3/Yang Chen/2021-06-0[789]/c31_*",
+        "/media/Synology3/Yang Chen/2021-06-1[0123456]/c1_*",
+        "/media/Synology3/Yang Chen/2021-06-1[78]/c31_*",
+        "/media/Synology3/Yang Chen/2021-06-20/c31_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 107,
+        "label": "SS00078>csc-flat"
+      },
+      "template_row": 51
+    },
+    {
+      "id": "cohort_30",
+      "metadata": [
+        "EPG>CsC",
+        "w; UAS-CsChrimson/SS00090; 0273-GAL4/SS00090",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3/Yang Chen/2021-06-0[789]/c32_*",
+        "/media/Synology3/Yang Chen/2021-06-1[0123456]/c2_*",
+        "/media/Synology3/Yang Chen/2021-06-1[78]/c32_*",
+        "/media/Synology3/Yang Chen/2021-06-20/c32_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 113,
+        "label": "SS00090>CSC-flat"
+      },
+      "template_row": 52
+    },
+    {
+      "id": "cohort_08",
+      "metadata": [
+        "Ctrl>CsC(for PFNv>CsC)",
+        "w; UAS-CsChrimson/Empty-GAL4-AD; 0273-GAL4/Empty-GAL4-DBD",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3/Yang Chen/2021-04-2[23]/c1_*",
+        "/media/Synology3/Yang Chen/2021-04-30/c31_*",
+        "/media/Synology3/Yang Chen/2021-05-0[179]/c31_*",
+        "/media/Synology3/Yang Chen/2021-05-02/c[12]_*",
+        "/media/Synology3/Yang Chen/2021-05-1[014]/c1_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 119,
+        "label": "ctrl>csc-flat"
+      },
+      "template_row": 53
+    },
+    {
+      "id": "cohort_47",
+      "metadata": [
+        "PFNv>CsC",
+        "w; UAS-CsChrimson/SS52628; 0273-GAL4/SS52628",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3/Yang Chen/2021-04-2[23]/c31_*",
+        "/media/Synology3/Yang Chen/2021-04-30/c[12]_*",
+        "/media/Synology3/Yang Chen/2021-05-0[179]/c1_*",
+        "/media/Synology3/Yang Chen/2021-05-02/c31_*",
+        "/media/Synology3/Yang Chen/2021-05-14/c2_*",
+        "/media/Synology3/Yang Chen/2021-05-14/c31_*",
+        "/media/Synology3/Yang Chen/2021-05-1[0123]/c31_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 125,
+        "label": "SS52628>csc-flat"
+      },
+      "template_row": 54
+    },
+    {
+      "id": "cohort_06",
+      "metadata": [
+        "Ctrl>CsC(for PFR>CsC)",
+        "w; UAS-CsChrimson/Empty-GAL4-AD; 0273-GAL4/Empty-GAL4-DBD",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3/Yang Chen/2021-07-05/c51_*",
+        "/media/Synology3/Yang Chen/2021-07-0[678]/c2_*",
+        "/media/Synology3/Yang Chen/2021-07-07/c3[12]_*",
+        "/media/Synology3/Yang Chen/2021-07-0[89]/c32_*",
+        "/media/Synology3/Yang Chen/2021-07-10/c5[12]_*",
+        "/media/Synology3/Yang Chen/2021-07-1[124]/c3[12]_*",
+        "/media/Synology3/Yang Chen/2021-07-11/c51_*",
+        "/media/Synology3/Yang Chen/2021-07-14/c41_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 171,
+        "label": "ctrl>csc-flat "
+      },
+      "template_row": 55
+    },
+    {
+      "id": "cohort_33",
+      "metadata": [
+        "PFR>CsC",
+        "w; UAS-CsChrimson/SS54549; 0273-GAL4/SS54549 ",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3/Yang Chen/2021-07-05/c[12]_*",
+        "/media/Synology3/Yang Chen/2021-07-0[67]/c1_*",
+        "/media/Synology3/Yang Chen/2021-07-05/c3[12]_*",
+        "/media/Synology3/Yang Chen/2021-07-0[689]/c31_*",
+        "/media/Synology3/Yang Chen/2021-07-0[89]/c51_*",
+        "/media/Synology3/Yang Chen/2021-07-10/c1_*",
+        "/media/Synology3/Yang Chen/2021-07-1[12]/c41_*",
+        "/media/Synology3/Yang Chen/2021-07-14/c42_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 176,
+        "label": "SS54549>CSC-flat"
+      },
+      "template_row": 56
+    },
+    {
+      "id": "cohort_12",
+      "metadata": [
+        "Orco2/+",
+        "w; UAS-CsChrimson/+; 0273-GAL4/Orco23130",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2023-05-1[15]/c3[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-05-11/c4[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-05-2[15]/c3[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-05-23/c5[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 221,
+        "label": "Male Flat chamber"
+      },
+      "template_row": 57
+    },
+    {
+      "id": "cohort_34",
+      "metadata": [
+        "Orco1/Orco2",
+        "w; UAS-CsChrimson/+; 0273-GAL4, Orco23129/Orco23130",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2023-05-1[015]/c5[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-05-13/c3[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-05-2[15]/c4[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 226,
+        "label": "Male Flat chamber"
+      },
+      "template_row": 58
+    },
+    {
+      "id": "cohort_13",
+      "metadata": [
+        "Orco2/+",
+        "w; UAS-CsChrimson/+; 0273-GAL4/Orco23130",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2023-05-1[345]/c[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-05-14/c6[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 223,
+        "label": "Agarose chamber"
+      },
+      "template_row": 59
+    },
+    {
+      "id": "cohort_35",
+      "metadata": [
+        "Orco1/Orco2",
+        "w; UAS-CsChrimson/+; 0273-GAL4, Orco23129/Orco23130",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2023-05-10/c[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-05-12/c2[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-05-1[23]/c6[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 228,
+        "label": "Agarose chamber"
+      },
+      "template_row": 60
+    },
+    {
+      "id": "cohort_21",
+      "metadata": [
+        "Ctrl for upd2 + upd3 KO",
+        "w; UAS-(FRT.STOP)CsChrimson-tdTomato, Otd-FLP /+; 0273-GAL4/+",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2025-02-0[12]/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-02-0[12]/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-02-02/c4[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 348,
+        "label": "Agarose"
+      },
+      "template_row": 61
+    },
+    {
+      "id": "cohort_38",
+      "metadata": [
+        "upd3 KO",
+        "w, upd3[Delta]; UAS-(FRT.STOP)CsChrimson-tdTomato, Otd-FLP/+; 0273-GAL4/+",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2025-01-06/c[12]_*",
+        "/media/Synology4/Yang Chen/2025-01-1[2678]/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-01-18/c2[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 353,
+        "label": "agarose"
+      },
+      "template_row": 62
+    },
+    {
+      "id": "cohort_39",
+      "metadata": [
+        "upd2 + upd3 KO",
+        "w, upd2[Delta] upd3[Delta]; UAS-(FRT.STOP)CsChrimson-tdTomato, Otd-FLP",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2025-01-06/c2[12]_*",
+        "/media/Synology4/Yang Chen/2025-01-1[2678]/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-01-18/c[12]_*",
+        "/media/Synology4/Yang Chen/2025-01-19/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-01-20/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-01-20/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-01-2[01]/c6[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 358,
+        "label": "agarose"
+      },
+      "template_row": 63
+    },
+    {
+      "id": "cohort_81",
+      "metadata": [
+        "Ctrl for Or7a mutant",
+        "w; UAS-CsChrimson/+; 0273-GAL4/+",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2023-02-0[69]/c3[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-02-1[01]/c3[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-02-1[01]/c5[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-02-11/c6[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 319,
+        "label": "Or7a-ctrl-flat  Or7a ctrl; UAS-CSCV/+; 0273Gal4/+"
+      },
+      "template_row": 64
+    },
+    {
+      "id": "cohort_82",
+      "metadata": [
+        "Or7a mutant",
+        "Or7a/y; UAS-CsChrimson/+; 0273-GAL4/+",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology3-2/Yang Chen/2023-02-0[69]/c4[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-02-09/c5[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-02-1[01]/c4[12]_*",
+        "/media/Synology3-2/Yang Chen/2023-02-12/c5[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 324,
+        "label": "Or7a-mutant-flat Or7a-mutant; UAS-CSCV/+; 0273Gal4/+"
+      },
+      "template_row": 65
+    },
+    {
+      "id": "cohort_83",
+      "metadata": [
+        "0273-GAL4 & P1 overlapping neurons(Extended Data Fig. 1c)",
+        "w; 71G01-LexA/UAS-(FRT.STOP)CsChrimson-tdTomato; 0273-GAL4/lexAop-FLP",
+        "HTL",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2025-07-29/c[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-3[01]/c[12]_*",
+        "/media/Synology4/Yang Chen/2025-08-04/c[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 428,
+        "label": "male flat, 125% LED"
+      },
+      "template_row": 66
+    },
+    {
+      "id": "cohort_84",
+      "metadata": [
+        "0273-GAL4 & P1 overlapping neurons (Extended Data Fig. 1c)",
+        "w; 71G01-LexA/UAS-(FRT.STOP)CsChrimson-tdTomato; 0273-GAL4/lexAop-FLP",
+        "HTL",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2025-07-19/night/c[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-2[58]/c[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-25/night/c[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-28/c2[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 425,
+        "label": "male Agarose, 125% LED"
+      },
+      "template_row": 67
+    },
+    {
       "id": "cohort_01",
       "metadata": [
-        "Control",
-        "Large chamber Kir exps",
-        "UAS>>CsC (X); ctrl-lexA/otd-flp; 0273Gal4/lexAop>>Kir",
-        "None",
+        "Ctrl for large chamber",
+        "UAS-CsChrimson /y; Empty-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
         "Large",
-        "Flat"
+        "flat"
       ],
       "videos": [
         "/media/Synology4/Yang Chen/2025-05-30/afternoon/c5[12]_*",
@@ -34,17 +1460,111 @@
         "/media/Synology4/Yang Chen/2025-07-11/c6[12]_*",
         "/media/Synology4/Yang Chen/2025-07-26/afternoon/c3[12]_*",
         "/media/Synology4/Yang Chen/2025-07-26/afternoon/c6[12]_*"
-      ]
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 368,
+        "label": "Flat-lower chamber reward circle shrink in T2, T3, closer to the center  10d old flies"
+      },
+      "template_row": 68
+    },
+    {
+      "id": "cohort_49",
+      "metadata": [
+        "PFNd>Kir",
+        "UAS-CsChrimson /y; R16D01-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "Large",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2025-05-31/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-05-31/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-05-31/afternoon/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-06-05/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-06-28/afternoon/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-06-29/afternoon/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-0[124]/afternoon/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-0[124]/afternoon/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-06/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-12/night/c32_*",
+        "/media/Synology4/Yang Chen/2025-07-21/night/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-22/night/c3[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 384,
+        "label": "Flat-lower chamber reward circle shrink in T2, T3, closer to the center  10d old flies"
+      },
+      "template_row": 69
+    },
+    {
+      "id": "cohort_22",
+      "metadata": [
+        "Antennae removed",
+        "UAS-CsChrimson /y; Empty-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "Large",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2025-07-17/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-17/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-17/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-18/night/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-18/night/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-2[09]/night/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-2[01]/night/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-21/night/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-27/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-27/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-27/afternoon/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-27/afternoon/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-2[79]/night/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-30/night/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-30/night/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-08-02/night/c3[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 370,
+        "label": "Flat AR-lower chamber reward circle shrink in T2, T3, closer to the center  10d old flies"
+      },
+      "template_row": 70
+    },
+    {
+      "id": "cohort_52",
+      "metadata": [
+        "PFNd>Kir, antennae removed",
+        "UAS-CsChrimson /y; R16D01-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "Large",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2025-07-1[24]/afternoon/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-12/afternoon/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-14/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-14/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-14/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-14/afternoon/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-14/afternoon/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-15/night/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-15/night/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-15/night/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-15/night/c6[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 386,
+        "label": "Flat AR-lower chamber reward circle shrink in T2, T3, closer to the center  10d old flies"
+      },
+      "template_row": 71
     },
     {
       "id": "cohort_02",
       "metadata": [
-        "Control",
-        "Large chamber Kir exps",
-        "UAS>>CsC (X); ctrl-lexA/otd-flp; 0273Gal4/lexAop>>Kir",
-        "None",
+        "Ctrl for large chamber",
+        "UAS-CsChrimson /y; Empty-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
         "Large",
-        "Agarose"
+        "agarose"
       ],
       "videos": [
         "/media/Synology4/Yang Chen/2025-06-28/afternoon/c6[12]_*",
@@ -62,288 +1582,225 @@
         "/media/Synology4/Yang Chen/2025-07-2[5]/night/c3[12]_*",
         "/media/Synology4/Yang Chen/2025-07-2[5]/night/c4[12]_*",
         "/media/Synology4/Yang Chen/2025-07-2[5]/night/c6[12]_*"
-      ]
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 372,
+        "label": "Agarose-lower chamber reward circle shrink in T2, T3, closer to the center  10d old flies"
+      },
+      "template_row": 72
     },
     {
-      "id": "cohort_03",
+      "id": "cohort_50",
       "metadata": [
-        "Control",
-        "EPG(60D05)>Kir / PFR(37G12)>Kir",
-        "Currently unknown (Ctrl>Kir)",
-        "None",
-        "HTL",
-        "Flat"
+        "PFNd>Kir",
+        "UAS-CsChrimson /y; R16D01-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "Large",
+        "agarose"
       ],
       "videos": [
-        "/media/Synology3-2/Yang Chen/2022-05-29/c3[12]_*",
-        "/media/Synology3-2/Yang Chen/2022-05-31/c31_*",
-        "/media/Synology3-2/Yang Chen/2022-06-01/c31_*",
-        "/media/Synology3-2/Yang Chen/2022-06-0[37]/c3[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_04",
-      "metadata": [
-        "Control",
-        "EPG(60D05)>GtACR1",
-        "Currently unknown (Ctrl>GtACR1)",
-        "None",
-        "HTL",
-        "Flat"
+        "/media/Synology4/Yang Chen/2025-07-0[8]/afternoon/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-0[8]/afternoon/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-10/afternoon/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-10/afternoon/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-1[126]/night/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-1[129]/night/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-1[2]/night/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-1[69]/night/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-15/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-15/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-15/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-15/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-22/night/c6[12]_*"
       ],
-      "videos": [
-        "/media/Synology3/Yang Chen/2021-10-14/c41_*",
-        "/media/Synology3/Yang Chen/2021-10-15/c32_*",
-        "/media/Synology3/Yang Chen/2021-10-18/c3[12]_*",
-        "/media/Synology3/Yang Chen/2021-10-18/c4[12]_*",
-        "/media/Synology3/Yang Chen/2021-10-20/c3[12]_*",
-        "/media/Synology3/Yang Chen/2021-10-22/c4[12]_*"
-      ]
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 388,
+        "label": "Agarose-lower chamber reward circle shrink in T2, T3, closer to the center  10d old flies"
+      },
+      "template_row": 73
     },
     {
-      "id": "cohort_05",
+      "id": "cohort_23",
       "metadata": [
-        "Control",
-        "PFR(37G12)>GtACR1",
-        "Currently unknown (Ctrl>GtACR1)",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3-2/Yang Chen/2021-11-23/c5[12]_*",
-        "/media/Synology3-2/Yang Chen/2021-11-2[02]/c41_*",
-        "/media/Synology3-2/Yang Chen/2021-11-19/c51_*",
-        "/media/Synology3-2/Yang Chen/2021-11-18/c41_*",
-        "/media/Synology3-2/Yang Chen/2021-11-1[57]/c42_*",
-        "/media/Synology3-2/Yang Chen/2021-11-10/c32_*"
-      ]
-    },
-    {
-      "id": "cohort_06",
-      "metadata": [
-        "Control",
-        "PFR(SS54549)>CsC",
-        "Currently unknown (Ctrl>CsC)",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3/Yang Chen/2021-07-05/c51_*",
-        "/media/Synology3/Yang Chen/2021-07-0[678]/c2_*",
-        "/media/Synology3/Yang Chen/2021-07-07/c3[12]_*",
-        "/media/Synology3/Yang Chen/2021-07-0[89]/c32_*",
-        "/media/Synology3/Yang Chen/2021-07-10/c5[12]_*",
-        "/media/Synology3/Yang Chen/2021-07-1[124]/c3[12]_*",
-        "/media/Synology3/Yang Chen/2021-07-11/c51_*",
-        "/media/Synology3/Yang Chen/2021-07-14/c41_*"
-      ]
-    },
-    {
-      "id": "cohort_07",
-      "metadata": [
-        "Control",
-        "PFNd(16D01)>GtACR1",
-        "Currently unknown (Ctrl>GtACR1)",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3/Yang Chen/2020-11-30/c32_*",
-        "/media/Synology3/Yang Chen/2020-11-2[45678]/c32_*"
-      ]
-    },
-    {
-      "id": "cohort_08",
-      "metadata": [
-        "Control",
-        "PFNv(SS52628)>CsC",
-        "Currently unknown (Ctrl>CsC)",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3/Yang Chen/2021-04-2[23]/c1_*",
-        "/media/Synology3/Yang Chen/2021-04-30/c31_*",
-        "/media/Synology3/Yang Chen/2021-05-0[179]/c31_*",
-        "/media/Synology3/Yang Chen/2021-05-02/c[12]_*",
-        "/media/Synology3/Yang Chen/2021-05-1[014]/c1_*"
-      ]
-    },
-    {
-      "id": "cohort_09",
-      "metadata": [
-        "Control",
-        "PFNd(SS00078)>CsC / EPG(SS00090)>CsC",
-        "Currently unknown (Ctrl>CsC)",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3/Yang Chen/2021-06-0[789]/c1_*",
-        "/media/Synology3/Yang Chen/2021-06-1[123456]/c31_*",
-        "/media/Synology3/Yang Chen/2021-06-1[78]/c1_*",
-        "/media/Synology3/Yang Chen/2021-06-2[01]/c1_*"
-      ]
-    },
-    {
-      "id": "cohort_10",
-      "metadata": [
-        "Control",
-        "MB-lexA>GtACR1",
-        "Currently unknown (Ctrl-lexA>GtACR1)",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3-2/Yang Chen/2022-12-09/c31_*",
-        "/media/Synology3-2/Yang Chen/2022-12-1[0357]/c3[12]_*",
-        "/media/Synology3-2/Yang Chen/2022-12-19/c31_*"
-      ]
-    },
-    {
-      "id": "cohort_11",
-      "metadata": [
-        "Control",
-        "PFNd(16D01)>Kir / 26E07>Kir",
-        "Currently unknown (Ctrl>Kir)",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3-2/Yang Chen/2023-02-19/c3[12]_*",
-        "/media/Synology3-2/Yang Chen/2023-02-2[234]/c3[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_12",
-      "metadata": [
-        "Control",
-        "Sighted Orco mutant",
-        "UAS-CSCV; 0273Gal4/Orco2",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3-2/Yang Chen/2023-05-1[15]/c3[12]_*",
-        "/media/Synology3-2/Yang Chen/2023-05-11/c4[12]_*",
-        "/media/Synology3-2/Yang Chen/2023-05-2[15]/c3[12]_*",
-        "/media/Synology3-2/Yang Chen/2023-05-23/c5[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_13",
-      "metadata": [
-        "Control",
-        "Sighted Orco mutant",
-        "UAS-CSCV; 0273Gal4/Orco2",
-        "None",
-        "HTL",
-        "Agarose"
-      ],
-      "videos": [
-        "/media/Synology3-2/Yang Chen/2023-05-1[345]/c[12]_*",
-        "/media/Synology3-2/Yang Chen/2023-05-14/c6[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_14",
-      "metadata": [
-        "Control",
-        "Genitalia + hind tarsi experiments",
-        "Currently unknown (Control)",
-        "Control handling: 3 min illumination; 10 min anesthesia; 5 s UV",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology4/Yang Chen/2024-07-1[45]/afternoon/c5[12]_*",
-        "/media/Synology4/Yang Chen/2024-07-1[45]/afternoon/c6[12]_*",
-        "/media/Synology4/Yang Chen/2024-07-1[45]/afternoon/c3[12]_*",
-        "/media/Synology4/Yang Chen/2024-07-1[45]/afternoon/c4[12]_*",
-        "/media/Synology4/Yang Chen/2024-09-04/afternoon/c4[12]_*",
-        "/media/Synology4/Yang Chen/2024-09-04/afternoon/c32_*"
-      ]
-    },
-    {
-      "id": "cohort_15",
-      "metadata": [
-        "Control",
-        "High-throughput task",
-        "UAS-CSCV; +; 0273Gal4",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology4/Yang Chen/2024-03-04/c3[12]_*",
-        "/media/Synology4/Yang Chen/2024-03-04/c4[12]_*",
-        "/media/Synology4/Yang Chen/2024-03-14/c4[12]_*",
-        "/media/Synology4/Yang Chen/2024-03-18/c5[12]_*",
-        "/media/Synology4/Yang Chen/2024-03-18/c6[12]_*",
-        "/media/Synology4/Yang Chen/2024-06-12/c[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_16",
-      "metadata": [
-        "Control",
-        "High-throughput task",
-        "UAS-CSCV; +; 0273Gal4",
-        "None",
-        "HTL",
-        "Agarose"
-      ],
-      "videos": [
-        "/media/Synology4/Yang Chen/2024-03-1[34]/c5[12]_*",
-        "/media/Synology4/Yang Chen/2024-03-1[347]/c6[12]_*",
-        "/media/Synology4/Yang Chen/2024-03-18/c[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_17",
-      "metadata": [
-        "Control",
-        "High-throughput task",
-        "UAS-CSCV; +; 0273Gal4",
         "Antennae removed",
-        "HTL",
-        "Flat"
+        "UAS-CsChrimson /y; Empty-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "Large",
+        "agarose"
       ],
       "videos": [
-        "/media/Synology4/Yang Chen/2024-03-1[19]/c3[12]_*",
-        "/media/Synology4/Yang Chen/2024-03-11/c4[12]_*",
-        "/media/Synology4/Yang Chen/2024-03-11/c5[12]_*",
-        "/media/Synology4/Yang Chen/2024-03-11/c6[12]_*",
-        "/media/Synology4/Yang Chen/2024-06-12/c2[12]_*",
-        "/media/Synology4/Yang Chen/2024-06-12/c3[12]_*",
-        "/media/Synology4/Yang Chen/2024-06-12/c4[12]_*"
-      ]
+        "/media/Synology4/Yang Chen/2025-07-17/night/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-27/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-27/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-27/afternoon/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-27/afternoon/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-2[789]/night/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-2[789]/night/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-28/night/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-28/night/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-30/night/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-30/night/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-08-01/night/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-08-01/night/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-08-02/night/c5[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 375,
+        "label": "Agarose AR-lower chamber reward circle shrink in T2, T3, closer to the center  10d old flies"
+      },
+      "template_row": 74
     },
     {
-      "id": "cohort_18",
+      "id": "cohort_85",
       "metadata": [
-        "Control",
-        "High-throughput task",
-        "UAS-CSCV; +; 0273Gal4",
-        "Antennae glued",
-        "HTL",
-        "Flat"
+        "PFNd>Kir, antennae removed",
+        "UAS-CsChrimson /y; R16D01-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "Large",
+        "agarose"
       ],
       "videos": [
-        "/media/Synology4/Yang Chen/2024-03-1[24]/c3[12]_*",
-        "/media/Synology4/Yang Chen/2024-03-12/c4[12]_*",
-        "/media/Synology4/Yang Chen/2024-03-12/c5[12]_*",
-        "/media/Synology4/Yang Chen/2024-03-12/c6[12]_*"
-      ]
+        "/media/Synology4/Yang Chen/2025-07-1[25]/afternoon/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-1[25]/afternoon/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-1[5]/afternoon/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-1[5]/afternoon/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-18/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-18/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-18/night/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-18/night/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-20/night/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-20/night/c6[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 390,
+        "label": "Agarose AR-lower chamber reward circle shrink in T2, T3, closer to the center  10d old flies"
+      },
+      "template_row": 75
     },
+    {
+      "id": "cohort_43",
+      "metadata": [
+        "MBKC-1>Kir",
+        "UAS-CsChrimson/y; R19B03-LexA/Otd-FLP; 0273-GAL4//LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "Large",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2025-06-0[17]/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-06-01/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-0[36]/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-0[34]/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-05/afternoon/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-05/afternoon/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-11/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-11/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-11/afternoon/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-26/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-26/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-30/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-30/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-30/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-30/afternoon/c5[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 379,
+        "label": "Flat-lower chamber reward circle shrink in T2, T3, closer to the center  10d old flies"
+      },
+      "template_row": 76
+    },
+    {
+      "id": "cohort_27",
+      "metadata": [
+        "EPG>Kir",
+        "UAS-CsChrimson /y; R60D05-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "Large",
+        "flat"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2025-07-0[7]/c52_*",
+        "/media/Synology4/Yang Chen/2025-07-0[79]/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-0[9]/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-10/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-10/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-12/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-1[4]/night/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-1[4]/night/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-21/night/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-29/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-29/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-08-02/night/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-08-03/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-08-03/c6[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 393,
+        "label": "Flat-lower chamber reward circle shrink in T2, T3, closer to the center  10d old flies"
+      },
+      "template_row": 77
+    },
+    {
+      "id": "cohort_44",
+      "metadata": [
+        "MBKC-1>Kir",
+        "UAS-CsChrimson/y; R19B03-LexA/Otd-FLP; 0273-GAL4//LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "Large",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2025-07-0[8]/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-0[8]/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-09/afternoon/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-09/afternoon/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-1[13]/afternoon/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-1[13]/afternoon/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-11/afternoon/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-1[2]/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-1[8]/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-1[8]/c3[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-14/night/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-19/night/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-30/afternoon/c3[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 381,
+        "label": "Agarose-lower chamber reward circle shrink in T2, T3, closer to the center  10d old flies"
+      },
+      "template_row": 78
+    },
+    {
+      "id": "cohort_28",
+      "metadata": [
+        "EPG>Kir",
+        "UAS-CsChrimson /y; R60D05-LexA/Otd-FLP; 0273-GAL4/LexAop-(FRT)-tdTomato-STOP-(FRT)-eGFP-Kir",
+        "Large",
+        "agarose"
+      ],
+      "videos": [
+        "/media/Synology4/Yang Chen/2025-07-1[67]/night/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-1[6]/night/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-19/night/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-2[69]/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-2[69]/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-26/afternoon/c4[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-26/afternoon/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-30/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-31/night/c5[12]_*",
+        "/media/Synology4/Yang Chen/2025-07-31/night/c6[12]_*",
+        "/media/Synology4/Yang Chen/2025-08-02/night/c6[12]_*"
+      ],
+      "source": {
+        "file": "tmp/full_video_list.txt",
+        "line": 395,
+        "label": "Agarose-lower chamber reward circle shrink in T2, T3, closer to the center  10d old flies"
+      },
+      "template_row": 79
+    }
+  ],
+  "excluded_cohorts": [
     {
       "id": "cohort_19",
       "metadata": [
@@ -378,78 +1835,6 @@
       ]
     },
     {
-      "id": "cohort_21",
-      "metadata": [
-        "Control",
-        "upd2/upd3 genetic manipulation experiments",
-        "Currently unknown (Control)",
-        "None",
-        "HTL",
-        "Agarose"
-      ],
-      "videos": [
-        "/media/Synology4/Yang Chen/2025-02-0[12]/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-02-0[12]/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-02-02/c4[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_22",
-      "metadata": [
-        "Control",
-        "Large chamber Kir exps",
-        "UAS>>CsC (X); ctrl-lexA/otd-flp; 0273Gal4/lexAop>>Kir",
-        "Antennae removed",
-        "Large",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology4/Yang Chen/2025-07-17/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-17/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-17/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-18/night/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-18/night/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-2[09]/night/c3[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-2[01]/night/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-21/night/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-27/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-27/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-27/afternoon/c3[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-27/afternoon/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-2[79]/night/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-30/night/c3[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-30/night/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-08-02/night/c3[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_23",
-      "metadata": [
-        "Control",
-        "Large chamber Kir exps",
-        "UAS>>CsC (X); ctrl-lexA/otd-flp; 0273Gal4/lexAop>>Kir",
-        "Antennae removed",
-        "Large",
-        "Agarose"
-      ],
-      "videos": [
-        "/media/Synology4/Yang Chen/2025-07-17/night/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-27/c3[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-27/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-27/afternoon/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-27/afternoon/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-2[789]/night/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-2[789]/night/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-28/night/c3[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-28/night/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-30/night/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-30/night/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-08-01/night/c3[12]_*",
-        "/media/Synology4/Yang Chen/2025-08-01/night/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-08-02/night/c5[12]_*"
-      ]
-    },
-    {
       "id": "cohort_24",
       "metadata": [
         "Control",
@@ -465,215 +1850,6 @@
         "/media/Synology3-2/Yang Chen/2023-02-2[36]/c5[12]_*",
         "/media/Synology3-2/Yang Chen/2023-02-24/c4[12]_*",
         "/media/Synology3-2/Yang Chen/2023-03-02/c31_*"
-      ]
-    },
-    {
-      "id": "cohort_25",
-      "metadata": [
-        "Blind",
-        "High-throughput task",
-        "NorpA; +; 0273Gal4/UAS-CSCV",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology4/Yang Chen/2023-07-1[17]/c5[12]_*",
-        "/media/Synology4/Yang Chen/2023-07-12/c4[12]_*",
-        "/media/Synology4/Yang Chen/2023-07-17/c3[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_26",
-      "metadata": [
-        "EPG>Kir",
-        "EPG(60D05)>Kir / PFR(37G12)>Kir",
-        "Currently unknown (60D05>Kir)",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3-2/Yang Chen/2022-05-29/c51_*",
-        "/media/Synology3-2/Yang Chen/2022-05-30/c31_*",
-        "/media/Synology3-2/Yang Chen/2022-05-31/c32_*",
-        "/media/Synology3-2/Yang Chen/2022-06-01/c32_*",
-        "/media/Synology3-2/Yang Chen/2022-06-0[367]/c4[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_27",
-      "metadata": [
-        "EPG>Kir",
-        "Large chamber Kir exps",
-        "UAS>>CsC (X); 60D05-lexA (EPG)/otd-flp; 0273Gal4/lexAop>>Kir",
-        "None",
-        "Large",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology4/Yang Chen/2025-07-0[7]/c52_*",
-        "/media/Synology4/Yang Chen/2025-07-0[79]/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-0[9]/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-10/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-10/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-12/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-1[4]/night/c3[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-1[4]/night/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-21/night/c3[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-29/c3[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-29/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-08-02/night/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-08-03/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-08-03/c6[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_28",
-      "metadata": [
-        "EPG>Kir",
-        "Large chamber Kir exps",
-        "UAS>>CsC (X); 60D05-lexA (EPG)/otd-flp; 0273Gal4/lexAop>>Kir",
-        "None",
-        "Large",
-        "Agarose"
-      ],
-      "videos": [
-        "/media/Synology4/Yang Chen/2025-07-1[67]/night/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-1[6]/night/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-19/night/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-2[69]/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-2[69]/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-26/afternoon/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-26/afternoon/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-30/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-31/night/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-31/night/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-08-02/night/c6[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_29",
-      "metadata": [
-        "EPG>GtACR1",
-        "EPG(60D05)>GtACR1",
-        "Currently unknown (60D05>GtACR1)",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3/Yang Chen/2021-10-13/c4[12]_*",
-        "/media/Synology3/Yang Chen/2021-10-14/c3[12]_*",
-        "/media/Synology3/Yang Chen/2021-10-15/c31_*",
-        "/media/Synology3/Yang Chen/2021-10-22/c3[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_30",
-      "metadata": [
-        "EPG>CsC",
-        "PFNd(SS00078)>CsC / EPG(SS00090)>CsC",
-        "Currently unknown (SS00090>CsC)",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3/Yang Chen/2021-06-0[789]/c32_*",
-        "/media/Synology3/Yang Chen/2021-06-1[0123456]/c2_*",
-        "/media/Synology3/Yang Chen/2021-06-1[78]/c32_*",
-        "/media/Synology3/Yang Chen/2021-06-20/c32_*"
-      ]
-    },
-    {
-      "id": "cohort_31",
-      "metadata": [
-        "PFR>Kir",
-        "EPG(60D05)>Kir / PFR(37G12)>Kir",
-        "Currently unknown (37G12>Kir)",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3-2/Yang Chen/2022-05-29/c52_*",
-        "/media/Synology3-2/Yang Chen/2022-05-31/c52_*",
-        "/media/Synology3-2/Yang Chen/2022-06-0[16]/c5[12]_*",
-        "/media/Synology3-2/Yang Chen/2022-06-10/c41_*"
-      ]
-    },
-    {
-      "id": "cohort_32",
-      "metadata": [
-        "PFR>GtACR1",
-        "PFR(37G12)>GtACR1",
-        "Currently unknown (37G12>GtACR1)",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3-2/Yang Chen/2021-11-11/c4[12]_*",
-        "/media/Synology3-2/Yang Chen/2021-11-1[29]/c3[12]_*",
-        "/media/Synology3-2/Yang Chen/2021-11-14/c61_*",
-        "/media/Synology3-2/Yang Chen/2021-11-15/c6[12]_*",
-        "/media/Synology3-2/Yang Chen/2021-11-16/c32_*",
-        "/media/Synology3-2/Yang Chen/2021-11-2[02]/c31_*",
-        "/media/Synology3-2/Yang Chen/2021-11-23/c42_*"
-      ]
-    },
-    {
-      "id": "cohort_33",
-      "metadata": [
-        "PFR>CsC",
-        "PFR(SS54549)>CsC",
-        "Currently unknown (SS54549>CsC)",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3/Yang Chen/2021-07-05/c[12]_*",
-        "/media/Synology3/Yang Chen/2021-07-0[67]/c1_*",
-        "/media/Synology3/Yang Chen/2021-07-05/c3[12]_*",
-        "/media/Synology3/Yang Chen/2021-07-0[689]/c31_*",
-        "/media/Synology3/Yang Chen/2021-07-0[89]/c51_*",
-        "/media/Synology3/Yang Chen/2021-07-10/c1_*",
-        "/media/Synology3/Yang Chen/2021-07-1[12]/c41_*",
-        "/media/Synology3/Yang Chen/2021-07-14/c42_*"
-      ]
-    },
-    {
-      "id": "cohort_34",
-      "metadata": [
-        "Orco mutant",
-        "Sighted Orco mutant",
-        "UAS-CSCV; 0273Gal4, Orco1/Orco2",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3-2/Yang Chen/2023-05-1[015]/c5[12]_*",
-        "/media/Synology3-2/Yang Chen/2023-05-13/c3[12]_*",
-        "/media/Synology3-2/Yang Chen/2023-05-2[15]/c4[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_35",
-      "metadata": [
-        "Orco mutant",
-        "Sighted Orco mutant",
-        "UAS-CSCV; 0273Gal4, Orco1/Orco2",
-        "None",
-        "HTL",
-        "Agarose"
-      ],
-      "videos": [
-        "/media/Synology3-2/Yang Chen/2023-05-10/c[12]_*",
-        "/media/Synology3-2/Yang Chen/2023-05-12/c2[12]_*",
-        "/media/Synology3-2/Yang Chen/2023-05-1[23]/c6[12]_*"
       ]
     },
     {
@@ -705,324 +1881,6 @@
         "/media/Synology4/Yang Chen/2025-01-1[267]/c2[12]_*",
         "/media/Synology4/Yang Chen/2025-01-1[267]/c4[12]_*",
         "/media/Synology4/Yang Chen/2025-01-22/c2[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_38",
-      "metadata": [
-        "upd3 KO",
-        "upd2/upd3 genetic manipulation experiments",
-        "Currently unknown (upd3 KO)",
-        "None",
-        "HTL",
-        "Agarose"
-      ],
-      "videos": [
-        "/media/Synology4/Yang Chen/2025-01-06/c[12]_*",
-        "/media/Synology4/Yang Chen/2025-01-1[2678]/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-01-18/c2[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_39",
-      "metadata": [
-        "upd2+3 KO",
-        "upd2/upd3 genetic manipulation experiments",
-        "Currently unknown (upd2+3 KO)",
-        "None",
-        "HTL",
-        "Agarose"
-      ],
-      "videos": [
-        "/media/Synology4/Yang Chen/2025-01-06/c2[12]_*",
-        "/media/Synology4/Yang Chen/2025-01-1[2678]/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-01-18/c[12]_*",
-        "/media/Synology4/Yang Chen/2025-01-19/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-01-20/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-01-20/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-01-2[01]/c6[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_40",
-      "metadata": [
-        "MBKC-2>Kir",
-        "PFNd(16D01)>Kir / 26E07>Kir",
-        "Currently unknown (26E07>Kir)",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3-2/Yang Chen/2023-02-2[36]/c6[12]_*",
-        "/media/Synology3-2/Yang Chen/2023-02-24/c51_*",
-        "/media/Synology3-2/Yang Chen/2023-02-25/c3[12]_*",
-        "/media/Synology3-2/Yang Chen/2023-02-25/c41_*",
-        "/media/Synology3-2/Yang Chen/2023-03-03/c41_*"
-      ]
-    },
-    {
-      "id": "cohort_41",
-      "metadata": [
-        "MBKC-1>GtACR1",
-        "MB-lexA>GtACR1",
-        "Currently unknown (19B03-lexA>GtACR1)",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3-2/Yang Chen/2022-12-09/c32_*",
-        "/media/Synology3-2/Yang Chen/2022-12-1[01]/c41_*",
-        "/media/Synology3-2/Yang Chen/2022-12-1[3579]/c4[12]_*",
-        "/media/Synology3-2/Yang Chen/2022-12-17/c51_*",
-        "/media/Synology3-2/Yang Chen/2022-12-2[02]/c41_*",
-        "/media/Synology3-2/Yang Chen/2022-12-21/c5[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_42",
-      "metadata": [
-        "MBKC-2>GtACR1",
-        "MB-lexA>GtACR1",
-        "Currently unknown (26E07-lexA>GtACR1)",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3-2/Yang Chen/2022-12-1[01]/c42_*",
-        "/media/Synology3-2/Yang Chen/2022-12-1[2468]/c3[12]_*",
-        "/media/Synology3-2/Yang Chen/2022-12-17/c52_*",
-        "/media/Synology3-2/Yang Chen/2022-12-19/c5[12]_*",
-        "/media/Synology3-2/Yang Chen/2022-12-20/c42_*",
-        "/media/Synology3-2/Yang Chen/2022-12-24/c5[12]_*",
-        "/media/Synology3-2/Yang Chen/2022-12-24/c61_*"
-      ]
-    },
-    {
-      "id": "cohort_43",
-      "metadata": [
-        "MBKC-1>Kir",
-        "Large chamber Kir exps",
-        "UAS>>CsC (X); 19B03-lexA (MBKC)/otd-flp; 0273Gal4/lexAop>>Kir",
-        "None",
-        "Large",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology4/Yang Chen/2025-06-0[17]/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-06-01/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-0[36]/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-0[34]/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-05/afternoon/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-05/afternoon/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-11/c3[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-11/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-11/afternoon/c3[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-26/c3[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-26/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-30/c3[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-30/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-30/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-30/afternoon/c5[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_44",
-      "metadata": [
-        "MBKC-1>Kir",
-        "Large chamber Kir exps",
-        "UAS>>CsC (X); 19B03-lexA (MBKC)/otd-flp; 0273Gal4/lexAop>>Kir",
-        "None",
-        "Large",
-        "Agarose"
-      ],
-      "videos": [
-        "/media/Synology4/Yang Chen/2025-07-0[8]/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-0[8]/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-09/afternoon/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-09/afternoon/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-1[13]/afternoon/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-1[13]/afternoon/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-11/afternoon/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-1[2]/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-1[8]/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-1[8]/c3[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-14/night/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-19/night/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-30/afternoon/c3[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_45",
-      "metadata": [
-        "PFNd>GtACR1",
-        "PFNd(16D01)>GtACR1",
-        "Currently unknown (16D01-LexA>GtACR1)",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3/Yang Chen/2020-11-2[45]/c[12]_*",
-        "/media/Synology3/Yang Chen/2020-11-30/c[12]_*",
-        "/media/Synology3/Yang Chen/2020-11-2[678]/c31_*"
-      ]
-    },
-    {
-      "id": "cohort_46",
-      "metadata": [
-        "PFNd>CsC",
-        "PFNd(SS00078)>CsC / EPG(SS00090)>CsC",
-        "Currently unknown (SS00078>CsC)",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3/Yang Chen/2021-06-0[789]/c31_*",
-        "/media/Synology3/Yang Chen/2021-06-1[0123456]/c1_*",
-        "/media/Synology3/Yang Chen/2021-06-1[78]/c31_*",
-        "/media/Synology3/Yang Chen/2021-06-20/c31_*"
-      ]
-    },
-    {
-      "id": "cohort_47",
-      "metadata": [
-        "PFNv>CsC",
-        "PFNv(SS52628)>CsC",
-        "Currently unknown (SS52628>CsC)",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3/Yang Chen/2021-04-2[23]/c31_*",
-        "/media/Synology3/Yang Chen/2021-04-30/c[12]_*",
-        "/media/Synology3/Yang Chen/2021-05-0[179]/c1_*",
-        "/media/Synology3/Yang Chen/2021-05-02/c31_*",
-        "/media/Synology3/Yang Chen/2021-05-14/c2_*",
-        "/media/Synology3/Yang Chen/2021-05-14/c31_*",
-        "/media/Synology3/Yang Chen/2021-05-1[0123]/c31_*"
-      ]
-    },
-    {
-      "id": "cohort_48",
-      "metadata": [
-        "Hind tarsi removed + genitalia glued",
-        "Genitalia + hind tarsi experiments",
-        "Currently unknown (Control)",
-        "Both hind tarsi removed; genitalia/end of abdomen glued",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology4/Yang Chen/2024-06-03/c2[12]_*",
-        "/media/Synology4/Yang Chen/2024-06-03/c[12]_*",
-        "/media/Synology4/Yang Chen/2024-06-03/c3[12]_*",
-        "/media/Synology4/Yang Chen/2024-06-0[45]/afternoon/c2[12]_*",
-        "/media/Synology4/Yang Chen/2024-06-05/afternoon/c[12]_*",
-        "/media/Synology4/Yang Chen/2024-06-0[89]/c3[12]_*",
-        "/media/Synology4/Yang Chen/2024-06-09/c4[12]_*",
-        "/media/Synology4/Yang Chen/2024-06-10/c3[12]_*",
-        "/media/Synology4/Yang Chen/2024-06-10/c4[12]_*",
-        "/media/Synology4/Yang Chen/2024-06-1[13]/afternoon/c4[12]_*",
-        "/media/Synology4/Yang Chen/2024-08-29/afternoon/c3[12]_*",
-        "/media/Synology4/Yang Chen/2024-08-29/afternoon/c4[12]_*",
-        "/media/Synology4/Yang Chen/2024-09-04/afternoon/c[12]_*",
-        "/media/Synology4/Yang Chen/2024-09-04/afternoon/c2[12]_*",
-        "/media/Synology4/Yang Chen/2024-09-04/afternoon/c31_*"
-      ]
-    },
-    {
-      "id": "cohort_49",
-      "metadata": [
-        "PFNd>Kir",
-        "Large chamber Kir exps",
-        "UAS>>CsC (X); 16D01-lexA (PFNd)/otd-flp; 0273Gal4/lexAop>>Kir",
-        "None",
-        "Large",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology4/Yang Chen/2025-05-31/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-05-31/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-05-31/afternoon/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-06-05/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-06-28/afternoon/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-06-29/afternoon/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-0[124]/afternoon/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-0[124]/afternoon/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-06/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-12/night/c32_*",
-        "/media/Synology4/Yang Chen/2025-07-21/night/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-22/night/c3[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_50",
-      "metadata": [
-        "PFNd>Kir",
-        "Large chamber Kir exps",
-        "UAS>>CsC (X); 16D01-lexA (PFNd)/otd-flp; 0273Gal4/lexAop>>Kir",
-        "None",
-        "Large",
-        "Agarose"
-      ],
-      "videos": [
-        "/media/Synology4/Yang Chen/2025-07-0[8]/afternoon/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-0[8]/afternoon/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-10/afternoon/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-10/afternoon/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-1[126]/night/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-1[129]/night/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-1[2]/night/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-1[69]/night/c3[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-15/c3[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-15/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-15/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-15/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-22/night/c6[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_51",
-      "metadata": [
-        "PFNd>Kir",
-        "PFNd(16D01)>Kir / 26E07>Kir",
-        "Currently unknown (16D01>Kir)",
-        "None",
-        "HTL",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology3-2/Yang Chen/2023-02-2[02]/c4[12]_*",
-        "/media/Synology3-2/Yang Chen/2023-02-2[78]/c5[12]_*"
-      ]
-    },
-    {
-      "id": "cohort_52",
-      "metadata": [
-        "PFNd>Kir",
-        "Large chamber Kir exps",
-        "UAS>>CsC (X); 16D01-lexA (PFNd)/otd-flp; 0273Gal4/lexAop>>Kir",
-        "Antennae removed",
-        "Large",
-        "Flat"
-      ],
-      "videos": [
-        "/media/Synology4/Yang Chen/2025-07-1[24]/afternoon/c3[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-12/afternoon/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-14/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-14/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-14/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-14/afternoon/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-14/afternoon/c6[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-15/night/c3[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-15/night/c4[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-15/night/c5[12]_*",
-        "/media/Synology4/Yang Chen/2025-07-15/night/c6[12]_*"
       ]
     },
     {

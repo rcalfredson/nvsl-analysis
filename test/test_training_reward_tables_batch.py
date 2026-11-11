@@ -1,3 +1,5 @@
+import csv
+import io
 import json
 from types import SimpleNamespace
 
@@ -36,16 +38,16 @@ writing imgs/example.png...
 def test_manifest_and_chamber_commands():
     manifest = batch.load_manifest(batch.DEFAULT_MANIFEST)
     cohorts = manifest["cohorts"]
-    assert len(cohorts) == 53
-    assert cohorts[20]["metadata"][1] == "upd2/upd3 genetic manipulation experiments"
+    assert len(cohorts) == 79
+    assert cohorts[20]["id"] == "cohort_51"
     assert all("Yang  Chen" not in v for c in cohorts for v in c["videos"])
-    large = batch.analysis_command(cohorts[0], "python")
-    htl = batch.analysis_command(cohorts[2], "python")
+    large = batch.analysis_command(cohorts[67], "python")
+    htl = batch.analysis_command(cohorts[0], "python")
     assert large[large.index("-f") + 1] == "0-1"
     assert large[large.index("--rCC") + 1] == "15"
     assert htl[htl.index("-f") + 1] == "0-9"
     assert htl[htl.index("--rmCC") + 1] == "5"
-    assert htl[htl.index("-v") + 1] == ",".join(cohorts[2]["videos"])
+    assert htl[htl.index("-v") + 1] == ",".join(cohorts[0]["videos"])
 
 
 def test_parse_preserves_ci_n_zero_and_missing_and_selects_paired_rpd():
@@ -72,7 +74,7 @@ def test_rejects_incomplete_ambiguous_or_invalid_summaries(text):
 def test_batch_failure_resume_running_files_and_html(tmp_path, monkeypatch):
     manifest = batch.load_manifest(batch.DEFAULT_MANIFEST)
     manifest["cohorts"] = manifest["cohorts"][:2]
-    manifest["cohorts"][0]["metadata"][2] = 'A>B & "C"'
+    manifest["cohorts"][0]["metadata"][1] = 'A>B & "C"'
     path = tmp_path / "manifest.json"
     path.write_text(json.dumps(manifest))
     args = SimpleNamespace(manifest=path, python="python", out=tmp_path / "out", resume=False, dry_run=False)
@@ -88,10 +90,10 @@ def test_batch_failure_resume_running_files_and_html(tmp_path, monkeypatch):
     monkeypatch.setattr(batch.subprocess, "run", run)
     with pytest.raises(ValueError, match="analysis exited 1"):
         batch.run_batch(args)
-    assert "cohort_01" in (args.out / "rpm_running.tsv").read_text()
-    assert "cohort_02" not in (args.out / "rpd_running.tsv").read_text()
+    assert "cohort_15" in (args.out / "rpm_running.tsv").read_text()
+    assert "cohort_17" not in (args.out / "rpd_running.tsv").read_text()
     assert not (args.out / "rpm_table_html.txt").exists()
-    assert (args.out / "logs/cohort_02.log").exists()
+    assert (args.out / "logs/cohort_17.log").exists()
     with pytest.raises(ValueError, match="use --resume"):
         batch.run_batch(args)
 
@@ -106,7 +108,14 @@ def test_batch_failure_resume_running_files_and_html(tmp_path, monkeypatch):
     assert "6.2 ±1.5 (9)" in rpm_html
     assert "-2.50 ±1.00 (8)" in rpd_html
     assert "100.00" not in rpd_html
-    assert "cohort_02" in (args.out / "rpd_running.tsv").read_text()
+    assert "cohort_17" in (args.out / "rpd_running.tsv").read_text()
+    for metric in batch.HEADERS:
+        with (args.out / f"{metric}_table.csv").open(newline="") as stream:
+            rows = list(csv.reader(stream))
+        assert rows[0] == batch.METADATA_COLUMNS + batch.TRAINING_COLUMNS
+        assert [row[:4] for row in rows[1:]] == [c["metadata"] for c in manifest["cohorts"]]
+        assert rows[1][4] == "10"
+        assert rows[1][5] == ("6.2 ±1.5 (9)" if metric == "rpm" else "-2.50 ±1.00 (8)")
     monkeypatch.setattr(batch, "source_digest", lambda: "source-v2")
     with pytest.raises(ValueError, match="source changed"):
         batch.run_batch(args)
@@ -117,8 +126,8 @@ def test_dry_run_does_not_write_or_execute(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(batch.subprocess, "run", lambda *a, **k: pytest.fail("dry run executed analysis"))
     batch.run_batch(args)
     text = capsys.readouterr().out
-    assert text.count("-u ") == 53
-    assert "[cohort_53]" in text
+    assert text.count("-u ") == 79
+    assert "[cohort_85]" in text
     assert not args.out.exists()
 
 
@@ -153,3 +162,24 @@ def test_resume_empty_checkpoint_after_validator_fix(tmp_path, monkeypatch):
     monkeypatch.setattr(batch.subprocess, "run", run)
     batch.run_batch(args)
     assert (tmp_path / "rpm_table_html.txt").exists()
+
+
+def test_assignment_cohorts_preserve_source_fly_selection():
+    cohorts = batch.load_manifest(batch.DEFAULT_MANIFEST)["cohorts"]
+    for cohort in cohorts[15:17]:
+        command = batch.analysis_command(cohort, "python")
+        assert command[command.index("-f") + 1] == "0-19"
+        assert "--ayc" in command
+    assert all("--ayc" not in batch.analysis_command(c, "python")
+               for c in cohorts[:15] + cohorts[17:])
+
+
+def test_all_rows_render_in_manifest_order_with_eight_columns():
+    manifest = batch.load_manifest(batch.DEFAULT_MANIFEST)
+    results = {c["id"]: {"metrics": batch.parse_summaries(SUMMARY)} for c in manifest["cohorts"]}
+    for metric in batch.HEADERS:
+        rows = list(csv.reader(io.StringIO(batch.render_csv(manifest, results, metric))))
+        assert len(rows) == 80
+        assert all(len(row) == 8 for row in rows)
+        assert [row[:4] for row in rows[1:]] == [c["metadata"] for c in manifest["cohorts"]]
+        assert batch.render_table(manifest, results, metric).count("<tr>") == 80

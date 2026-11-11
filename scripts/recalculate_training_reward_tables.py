@@ -22,33 +22,39 @@ HEADERS = {
     "rpd": "rewards per distance traveled [m⁻¹], exp-minus-yoked:",
 }
 NUMBER = r"(?:[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|nan)"
+METADATA_COLUMNS = ["Experimental group", "Genotype / genetic background", "Chamber", "Floor/substrate"]
+TRAINING_COLUMNS = ["n", "training 1", "training 2", "training 3"]
 
 
 def load_manifest(path):
     manifest = json.loads(path.read_text())
     cohorts = manifest["cohorts"]
-    if len(manifest["columns"]) != 6 or not cohorts:
-        raise ValueError("Manifest must have six metadata columns and at least one cohort")
+    if manifest["columns"] != METADATA_COLUMNS or not cohorts:
+        raise ValueError("Manifest must have the four reward-table metadata columns and at least one cohort")
     ids = [c["id"] for c in cohorts]
     if len(set(ids)) != len(ids) or any(not re.fullmatch(r"[a-zA-Z0-9_-]+", x) for x in ids):
         raise ValueError("Cohort IDs must be unique filename-safe identifiers")
     for c in cohorts:
-        if len(c["metadata"]) != 6 or c["metadata"][4] not in ("HTL", "Large"):
+        if len(c["metadata"]) != 4 or c["metadata"][2] not in ("HTL", "Large"):
             raise ValueError(f"Invalid metadata/chamber for {c['id']}")
+        if "flies" in c and not re.fullmatch(r"\d+-\d+", c["flies"]):
+            raise ValueError(f"Invalid fly range for {c['id']}")
+        if not isinstance(c.get("allow_yoked", False), bool):
+            raise ValueError(f"Invalid allow_yoked for {c['id']}")
         if not c["videos"] or any(not v.startswith("/media/") for v in c["videos"]):
             raise ValueError(f"Missing or invalid video patterns for {c['id']}")
     return manifest
 
 
 def analysis_command(cohort, python):
-    large = cohort["metadata"][4] == "Large"
+    large = cohort["metadata"][2] == "Large"
     return [
         python, "-u", str(ROOT / "analyze.py"),
         "-v", ",".join(cohort["videos"]),
-        "-f", "0-1" if large else "0-9",
+        "-f", cohort.get("flies", "0-1" if large else "0-9"),
         "--rCC" if large else "--rmCC", "15" if large else "5",
         "--reward-pi-sync", "reward", "--no-export-bundle-exit-early",
-    ]
+    ] + (["--ayc"] if cohort.get("allow_yoked", False) else [])
 
 
 def validate_video_patterns(cohort):
@@ -98,7 +104,7 @@ def atomic_write(path, text):
 
 
 def render_table(manifest, results, metric):
-    columns = manifest["columns"] + ["n", "training 1", "training 2", "training 3"]
+    columns = manifest["columns"] + TRAINING_COLUMNS
     lines = ['<table style="width: 100%;" border="0">', "<tbody>", "<tr>"]
     lines.extend(f"<td><strong>{html.escape(c)}</strong></td>" for c in columns)
     lines.append("</tr>")
@@ -117,7 +123,7 @@ def write_running_tables(out, manifest, results):
     for metric in HEADERS:
         buffer = io.StringIO()
         writer = csv.writer(buffer, delimiter="\t", lineterminator="\n")
-        writer.writerow(["cohort_id"] + manifest["columns"] + ["n", "training 1", "training 2", "training 3"])
+        writer.writerow(["cohort_id"] + manifest["columns"] + TRAINING_COLUMNS)
         for cohort in manifest["cohorts"]:
             if cohort["id"] not in results:
                 continue
@@ -126,6 +132,19 @@ def write_running_tables(out, manifest, results):
                 result["trainings"][str(t)] for t in (1, 2, 3)
             ])
         atomic_write(out / f"{metric}_running.tsv", buffer.getvalue())
+
+
+def render_csv(manifest, results, metric):
+    """Spreadsheet-ready table with exactly the template's eight columns."""
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(manifest["columns"] + TRAINING_COLUMNS)
+    for cohort in manifest["cohorts"]:
+        result = results[cohort["id"]]["metrics"][metric]
+        writer.writerow(cohort["metadata"] + [result["n"]] + [
+            result["trainings"][str(t)] for t in (1, 2, 3)
+        ])
+    return buffer.getvalue()
 
 
 def source_digest():
@@ -196,7 +215,8 @@ def run_batch(args):
 
     for metric in HEADERS:
         atomic_write(out / f"{metric}_table_html.txt", render_table(manifest, state["results"], metric))
-    print(f"Complete: {out / 'rpm_table_html.txt'} and {out / 'rpd_table_html.txt'}")
+        atomic_write(out / f"{metric}_table.csv", render_csv(manifest, state["results"], metric))
+    print(f"Complete: RPM and RPD CSV and HTML tables in {out}")
 
 
 def main():
