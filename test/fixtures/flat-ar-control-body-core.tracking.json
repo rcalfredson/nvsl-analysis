@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "recordings": {
+    "/media/Synology4/Yang Chen/2025-07-17/c41__2025-07-17__12-26-36.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/01-c41__2025-07-17__12-26-36/attempt-001/c41__2025-07-17__12-26-36.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-17/c51__2025-07-17__12-27-24.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/02-c51__2025-07-17__12-27-24/attempt-001/c51__2025-07-17__12-27-24.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-17/c52__2025-07-17__12-27-27.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/03-c52__2025-07-17__12-27-27/attempt-001/c52__2025-07-17__12-27-27.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-17/c61__2025-07-17__12-27-30.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/04-c61__2025-07-17__12-27-30/attempt-001/c61__2025-07-17__12-27-30.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-17/c62__2025-07-17__12-27-32.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/05-c62__2025-07-17__12-27-32/attempt-001/c62__2025-07-17__12-27-32.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-18/night/c51__2025-07-18__20-56-19.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/06-c51__2025-07-18__20-56-19/attempt-001/c51__2025-07-18__20-56-19.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-18/night/c52__2025-07-18__20-56-22.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/07-c52__2025-07-18__20-56-22/attempt-001/c52__2025-07-18__20-56-22.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-18/night/c61__2025-07-18__20-56-25.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/08-c61__2025-07-18__20-56-25/attempt-001/c61__2025-07-18__20-56-25.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-18/night/c62__2025-07-18__20-56-27.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/09-c62__2025-07-18__20-56-27/attempt-001/c62__2025-07-18__20-56-27.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-20/night/c31__2025-07-20__21-08-45.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/10-c31__2025-07-20__21-08-45/attempt-001/c31__2025-07-20__21-08-45.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-20/night/c32__2025-07-20__21-08-49.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/11-c32__2025-07-20__21-08-49/attempt-001/c32__2025-07-20__21-08-49.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-20/night/c42__2025-07-20__21-09-05.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/12-c42__2025-07-20__21-09-05/attempt-001/c42__2025-07-20__21-09-05.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-21/night/c41__2025-07-21__20-33-38.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/13-c41__2025-07-21__20-33-38/attempt-001/c41__2025-07-21__20-33-38.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-21/night/c42__2025-07-21__20-33-41.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/14-c42__2025-07-21__20-33-41/attempt-001/c42__2025-07-21__20-33-41.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-21/night/c61__2025-07-21__20-41-33.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/15-c61__2025-07-21__20-41-33/attempt-001/c61__2025-07-21__20-41-33.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-21/night/c62__2025-07-21__20-41-36.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/16-c62__2025-07-21__20-41-36/attempt-001/c62__2025-07-21__20-41-36.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-27/afternoon/c31__2025-07-27__17-01-40.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/17-c31__2025-07-27__17-01-40/attempt-001/c31__2025-07-27__17-01-40.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-27/afternoon/c32__2025-07-27__17-01-44.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/18-c32__2025-07-27__17-01-44/attempt-001/c32__2025-07-27__17-01-44.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-27/afternoon/c41__2025-07-27__17-01-47.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/19-c41__2025-07-27__17-01-47/attempt-001/c41__2025-07-27__17-01-47.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-27/afternoon/c42__2025-07-27__17-01-50.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/20-c42__2025-07-27__17-01-50/attempt-001/c42__2025-07-27__17-01-50.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-27/c51__2025-07-27__12-52-37.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/21-c51__2025-07-27__12-52-37/attempt-001/c51__2025-07-27__12-52-37.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-27/c52__2025-07-27__12-52-40.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/22-c52__2025-07-27__12-52-40/attempt-001/c52__2025-07-27__12-52-40.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-27/c61__2025-07-27__12-52-43.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/23-c61__2025-07-27__12-52-43/attempt-001/c61__2025-07-27__12-52-43.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-27/c62__2025-07-27__12-52-45.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/24-c62__2025-07-27__12-52-45/attempt-001/c62__2025-07-27__12-52-45.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-27/night/c41__2025-07-27__21-38-00.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/25-c41__2025-07-27__21-38-00/attempt-001/c41__2025-07-27__21-38-00.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-27/night/c42__2025-07-27__21-39-20.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/26-c42__2025-07-27__21-39-20/attempt-001/c42__2025-07-27__21-39-20.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-29/night/c31__2025-07-29__20-05-37.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/27-c31__2025-07-29__20-05-37/attempt-001/c31__2025-07-29__20-05-37.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-29/night/c41__2025-07-29__20-05-43.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/29-c41__2025-07-29__20-05-43/attempt-001/c41__2025-07-29__20-05-43.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-29/night/c42__2025-07-29__20-05-46.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/30-c42__2025-07-29__20-05-46/attempt-001/c42__2025-07-29__20-05-46.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-30/night/c31__2025-07-30__20-58-25.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/31-c31__2025-07-30__20-58-25/attempt-001/c31__2025-07-30__20-58-25.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-30/night/c32__2025-07-30__20-58-30.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/32-c32__2025-07-30__20-58-30/attempt-001/c32__2025-07-30__20-58-30.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-07-30/night/c41__2025-07-30__20-58-33.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/33-c41__2025-07-30__20-58-33/attempt-001/c41__2025-07-30__20-58-33.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-08-02/night/c31__2025-08-02__21-45-56.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/34-c31__2025-08-02__21-45-56/attempt-001/c31__2025-08-02__21-45-56.body-core.offline.trx"
+    },
+    "/media/Synology4/Yang Chen/2025-08-02/night/c32__2025-08-02__21-46-00.avi": {
+      "body-core": "/home/tracking/code/YL/nvsl-offline-tracking/runs/flat-ar-control-body-core/35-c32__2025-08-02__21-46-00/attempt-001/c32__2025-08-02__21-46-00.body-core.offline.trx"
+    }
+  }
+}

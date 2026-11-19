@@ -113,12 +113,15 @@ By default, the script will use OS-specific path conventions (e.g., `/home/you/y
 
 If you want a machine-local override for selected `analyze.py` defaults without checking those preferences into Git, create a file named `.analyze.local.env` in the repository root. This file is ignored by Git.
 
-At present, this local config supports selected analyze-time display/export behavior:
+This local config supports tracking selection and selected analyze-time display/export behavior:
 
 ```env
 # Local-only defaults for analyze.py
 ENABLE_DEFAULT_BETWEEN_REWARD_SLI_PLOTS=false
 EXPORT_BUNDLE_EXIT_EARLY=true
+TRACKING_VARIANT=original
+TRACKING_FALLBACK=false
+# TRACKING_MANIFEST=/absolute/tracking.json
 SHOW_AUC_P_VALUES=false
 SLI_YLIM_MODE=fixed
 SLI_YLIM_MIN=-0.2
@@ -192,6 +195,12 @@ tracking from an arbitrary raw video. For example, `experiment.avi` requires
 `experiment.data` and `experiment.trx`. Keep all companion files from the demo
 deposit together. Quote wildcard video paths so `analyze.py` receives the
 pattern as a single argument.
+
+To select an existing offline companion directly, use `--tracking-variant body-core`
+and `--tracking-manifest /absolute/tracking.json`. Selection is strict by default;
+`--tracking-fallback` permits original tracking only for absent manifest entries.
+See [tracking variants](docs/tracking_variants.md) for the versioned manifest, local
+defaults, validation rules, and flat-cohort example.
 
 ### Additional Flags: Turn Detection
 

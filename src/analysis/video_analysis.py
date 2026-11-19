@@ -3,6 +3,7 @@ import collections
 import csv
 from dataclasses import dataclass
 import gc
+import json
 import math
 from multiprocessing.pool import ThreadPool
 import os
@@ -23,6 +24,7 @@ import scipy.io as sio
 # custom modules and functions
 import src.analysis.boundary_contact as boundary_contact
 from src.analysis.boundary_contact import runBoundaryContactAnalyses
+from src.utils.tracking_selection import load_tracking_data
 from src.caching.wall_contact_cache import (
     apply_wall_payload_to_trj,
     build_wall_cache_spec,
@@ -1110,12 +1112,15 @@ class VideoAnalysis:
         self.fps, self.fn = util.frameRate(self.cap), fn
         self.frame, self.bg = util.readFrame(self.cap, 0), None
 
-        if fn not in self.fileCache:
-            self.fileCache[fn] = [
-                util.unpickle(util.replaceCheck(AVI_X, x, fn))
-                for x in (".data", ".trx")
-            ]
-        self.dt, self.trxRw = self.fileCache[fn]
+        self.dt, self.trxRw, self.tracking_selection = load_tracking_data(
+            fn,
+            util.replaceCheck(AVI_X, ".data", fn),
+            util.replaceCheck(AVI_X, ".trx", fn),
+            self.opts,
+            self.fileCache,
+            util.unpickle,
+        )
+        print("[tracking] " + json.dumps(self.tracking_selection, sort_keys=True))
         x, proto = self.trxRw["x"], self.dt["protocol"]
         nfls, self.nf = len(x), len(x[0])
         self.ct = CT.get(nfls, LGC2)
@@ -3401,6 +3406,7 @@ class VideoAnalysis:
                         "mtime": float(st.st_mtime),
                     },
                     "va": {"id": va_id},
+                    "tracking": self.tracking_selection,
                 }
 
                 ct_name = getattr(self.ct, "name", str(self.ct))

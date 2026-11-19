@@ -275,7 +275,10 @@ def build_wall_cache_spec(
         "thresholds_wall": [float(thresholds_wall[0]), float(thresholds_wall[1])],
         "offset_wall": float(offset_wall),
     }
-    param_hash = hashlib.sha1(_stable_json(wall_params).encode("utf-8")).hexdigest()[:8]
+    # Put input identity in the filename as well as the validation manifest,
+    # so trajectory variants coexist rather than continually replacing each other.
+    key_json = _stable_json(dict(wall_params=wall_params, inputs=input_identities))
+    param_hash = hashlib.sha1(key_json.encode("utf-8")).hexdigest()[:16]
 
     if cache_dir is None:
         cache_dir = os.path.join(os.path.dirname(video_fn), DEFAULT_CACHE_SUBDIR)

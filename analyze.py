@@ -363,6 +363,7 @@ from src.utils.util import (
 )
 from src.utils.util import error, warn
 from src.utils.local_config import (
+    add_tracking_arguments,
     load_local_analyze_config,
     parse_local_bool,
 )
@@ -715,6 +716,7 @@ def _tp_supports_sli_defined_subsets(tp: str) -> bool:
 # - - -
 
 p = argparse.ArgumentParser(description="Analyze learning experiments.")
+add_tracking_arguments(p)
 
 p.add_argument(
     "-v",

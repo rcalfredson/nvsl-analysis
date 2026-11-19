@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import os
 
 LOCAL_ANALYZE_CONFIG_FILE = ".analyze.local.env"
@@ -38,3 +39,29 @@ def load_local_analyze_config(path=LOCAL_ANALYZE_CONFIG_FILE) -> dict[str, str]:
                 raise ValueError(f"{path}:{line_no}: empty key is not allowed")
             cfg[key] = value
     return cfg
+
+
+def add_tracking_arguments(parser, config=None):
+    """Local machine defaults are argparse defaults, so explicit flags win."""
+    cfg = load_local_analyze_config() if config is None else config
+    parser.add_argument(
+        "--tracking-variant",
+        default=cfg.get("TRACKING_VARIANT", "original"),
+        help="Named trajectory variant; default: original acquisition tracking.",
+    )
+    parser.add_argument(
+        "--tracking-manifest",
+        default=cfg.get("TRACKING_MANIFEST"),
+        help="Version 1 JSON mapping full recording paths to variant .trx paths.",
+    )
+    parser.add_argument(
+        "--tracking-fallback",
+        action=argparse.BooleanOptionalAction,
+        default=parse_local_bool(
+            cfg.get("TRACKING_FALLBACK", "false"), key_name="TRACKING_FALLBACK"
+        ),
+        help=(
+            "Allow original tracking only when the requested variant has no "
+            "manifest entry (default: strict)."
+        ),
+    )
