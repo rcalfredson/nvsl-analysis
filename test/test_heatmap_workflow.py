@@ -88,3 +88,18 @@ def test_cache_diagnostics_explain_real_changes(project, tmp_path):
     assert 'configuration' in heatmap_cache_mismatch(target, changed)
     target.with_suffix('.json').write_text('null')
     assert 'invalid' in heatmap_cache_mismatch(target, requested)
+
+
+def test_selected_trajectory_identity_invalidates_cache(project, tmp_path, monkeypatch):
+    calls = []
+    def run(argv, **kwargs):
+        calls.append(argv)
+        Path(argv[argv.index('--hm-map-export') + 1]).write_bytes(b'maps')
+    monkeypatch.setattr('src.plotting.heatmap_workflow.subprocess.run', run)
+    target = tmp_path / 'maps.npz'
+    first = [{'tracking': {'trajectory': {'path': '/data/companion.trx', 'mtime_ns': 1}}}]
+    second = [{'tracking': {'trajectory': {'path': '/data/companion.trx', 'mtime_ns': 2}}}]
+    ensure_heatmap_cache(project, COMMAND, target, input_identities=first)
+    ensure_heatmap_cache(project, COMMAND, target, input_identities=first)
+    ensure_heatmap_cache(project, COMMAND, target, input_identities=second)
+    assert len(calls) == 2

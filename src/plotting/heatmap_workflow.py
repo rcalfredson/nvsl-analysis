@@ -79,13 +79,15 @@ def heatmap_cache_mismatch(path, provenance):
             "local_config": "analysis configuration changed",
             "analysis_source_sha256": "analysis source code changed",
             "version": "cache manifest version changed",
+            "input_identities": "recording or tracking input identity changed",
         }
         return "; ".join(labels.get(key, key) for key in fields) if fields else None
     except (OSError, ValueError, AttributeError, TypeError):
         return "cache manifest is missing or invalid"
 
 
-def ensure_heatmap_cache(root, command, target, *, rebuild=False, reuse_paths=()):
+def ensure_heatmap_cache(root, command, target, *, rebuild=False, reuse_paths=(),
+                         input_identities=None):
     """Reuse matching maps or analyze once in an isolated working directory.
 
     Input tracking changes require explicit rebuilding. A failed analysis leaves
@@ -94,6 +96,8 @@ def ensure_heatmap_cache(root, command, target, *, rebuild=False, reuse_paths=()
     """
     root, target = Path(root).resolve(), Path(target).resolve()
     provenance = heatmap_cache_provenance(root, command)
+    if input_identities is not None:
+        provenance["input_identities"] = input_identities
     target.parent.mkdir(parents=True, exist_ok=True)
     if not rebuild:
         reason = heatmap_cache_mismatch(target, provenance)
