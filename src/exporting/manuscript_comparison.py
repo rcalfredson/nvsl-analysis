@@ -52,13 +52,19 @@ def freeze_analysis(command, excluded):
     return argv, list(dict.fromkeys(recordings))
 
 
-def _identity(video, variant, manifest):
+def _identity(video, variant, manifest, *, fallback=False):
     p = Path(video)
     original, data = p.with_suffix('.trx'), p.with_suffix('.data')
     note = p.with_name(p.stem + '__note.txt')
-    return dict(video=file_identity(p), original=file_identity(original),
-                data=file_identity(data), note=file_identity(note) if note.is_file() else None,
-                tracking=select_tracking(p, original, variant=variant, manifest=manifest))
+    return dict(
+        video=file_identity(p),
+        original=file_identity(original),
+        data=file_identity(data),
+        note=file_identity(note) if note.is_file() else None,
+        tracking=select_tracking(
+            p, original, variant=variant, manifest=manifest, fallback=fallback
+        ),
+    )
 
 
 def _analysis_argv(root, frozen, variant, manifest):
@@ -122,7 +128,36 @@ def run_comparison(root, recipe, command, image_format, config, plot_style, *, r
         raise ValueError('The recipe has no upstream recording analysis')
     frozen = [freeze_analysis(stage['command'], excluded) for stage in upstream]
     videos = list(dict.fromkeys(video for _, paths in frozen for video in paths))
-    identities = {variant: [_identity(v, variant, manifest) for v in videos] for variant in variants}
+    coverage = None
+    if config.get("prefer_offline", False):
+        if "variants" in config:
+            raise ValueError("Choose either prefer_offline or explicit variants")
+        if manifest is None:
+            raise ValueError("prefer_offline requires a tracking manifest")
+
+        candidates = [
+            _identity(video, VARIANT, manifest, fallback=True)
+            for video in videos
+        ]
+        missing = [
+            candidate['video']['path']
+            for candidate in candidates
+            if candidate['tracking']['resolved_variant'] != VARIANT
+        ]
+        chosen = 'original' if missing else VARIANT
+        variants = (chosen,)
+        coverage = dict(required=len(videos), missing_offline=missing)
+        identities = {
+            chosen: (
+                [_identity(video, 'original', None) for video in videos]
+                if missing else candidates
+            )
+        }
+    else:
+        identities = {
+            variant: [_identity(video, variant, manifest) for video in videos]
+            for variant in variants
+        }
     base = Path(config['directory']).resolve() / comparison_recipe_id(recipe)
     existing_wall_caches = config.get('wall_cache_dirs', {})
     if set(existing_wall_caches) - set(variants):
@@ -145,6 +180,8 @@ def run_comparison(root, recipe, command, image_format, config, plot_style, *, r
                 args += ['--wall-cache-dir', str(cache_dir), *cache_options]
         results[variant] = dict(directory=directory, analysis=argv,
                                 render=_python_argv(root, render) if render else None)
+        if coverage is not None:
+            results[variant]['coverage'] = coverage
     if not run:
         return results
 
@@ -158,6 +195,8 @@ def run_comparison(root, recipe, command, image_format, config, plot_style, *, r
             recipe=recipe['title'], variant=variant, analysis=plan['analysis'],
             render=plan['render'], cwd=str(directory), inputs=identities[variant],
         )
+        if 'coverage' in plan:
+            provenance['coverage'] = plan['coverage']
         (directory / 'run.json').write_text(json.dumps(provenance, indent=2) + '\n')
         if heatmap:
             from src.plotting.heatmap_workflow import ensure_heatmap_cache
