@@ -64,3 +64,24 @@ def test_data_comparison_converts_each_variants_own_archived_export(recordings, 
     results = comparison.run_comparison(tmp_path, recipe, None, None, config, {}, run=True)
     for variant, plan in results.items():
         assert (plan['directory'] / 'table.csv').read_text() == variant
+
+
+def test_comparison_reuses_configured_wall_cache_read_only(recordings, tmp_path):
+    paths, config = recordings
+    offline_cache = tmp_path / 'offline-wall-cache'
+    offline_cache.mkdir()
+    config['wall_cache_dirs'] = {comparison.VARIANT: offline_cache}
+    recipe = dict(title='Time plot', plot_type='time', panels={'demo': {}})
+
+    plans = comparison.run_comparison(
+        tmp_path, recipe, _analysis(str(paths[0])), 'pdf', config, {}, run=False
+    )
+    original = plans['original']
+    offline = plans[comparison.VARIANT]
+    assert original['analysis'][0][-2:] == [
+        '--wall-cache-dir', str(original['directory'] / 'wall-cache'),
+    ]
+    assert offline['analysis'][0][-3:] == [
+        '--wall-cache-dir', str(offline_cache), '--wall-cache-readonly',
+    ]
+    assert not config['directory'].exists()

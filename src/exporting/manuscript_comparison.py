@@ -94,7 +94,10 @@ def _python_argv(root, command):
 
 
 def run_comparison(root, recipe, command, image_format, config, plot_style, *, run):
-    """Preflight a recipe, then run each requested variant through its existing exporters."""
+    """Preflight a recipe, then run each requested variant through its existing exporters.
+
+    The optional wall_cache_dirs mapping points variants to existing read-only caches.
+    """
     root = Path(root).resolve()
     variants = tuple(config.get('variants', ('original', VARIANT)))
     if not variants or len(set(variants)) != len(variants) or set(variants) - {'original', VARIANT}:
@@ -121,15 +124,25 @@ def run_comparison(root, recipe, command, image_format, config, plot_style, *, r
     videos = list(dict.fromkeys(video for _, paths in frozen for video in paths))
     identities = {variant: [_identity(v, variant, manifest) for v in videos] for variant in variants}
     base = Path(config['directory']).resolve() / comparison_recipe_id(recipe)
+    existing_wall_caches = config.get('wall_cache_dirs', {})
+    if set(existing_wall_caches) - set(variants):
+        raise ValueError('Wall-cache directories must correspond to requested tracking variants')
     results = {}
     for variant in variants:
         argv = [_analysis_argv(root, tokens, variant, manifest) for tokens, _ in frozen]
         directory = base / variant
         if not heatmap:
+            cache_dir = directory / 'wall-cache'
+            cache_options = []
+            if variant in existing_wall_caches:
+                cache_dir = Path(existing_wall_caches[variant]).resolve(strict=True)
+                if not cache_dir.is_dir():
+                    raise NotADirectoryError(cache_dir)
+                cache_options = ['--wall-cache-readonly']
             for args in argv:
                 if any(token.split('=', 1)[0] == '--wall-cache-dir' for token in args):
                     raise ValueError('The comparison assigns its own wall-cache directory')
-                args += ['--wall-cache-dir', str(directory / 'wall-cache')]
+                args += ['--wall-cache-dir', str(cache_dir), *cache_options]
         results[variant] = dict(directory=directory, analysis=argv,
                                 render=_python_argv(root, render) if render else None)
     if not run:
